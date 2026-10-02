@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-10                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -197,8 +197,15 @@ REQUIREMENT: If `health` is declared, the host MUST run `check` every `every`,
 ```
 REQUIREMENT: The check MUST run in the plugin's activation scope against the
              plugin's captured services. It MUST count as a short lease on
-             the plugin itself, bounded by `timeout`, so that a drain waits
-             for at most one in-flight check.
+             the plugin itself, bounded by `timeout`, so that the scope never
+             closes under a running check.
+```
+
+```
+REQUIREMENT: When a stop of the plugin begins — in the revision in which it
+             becomes `stopping`, before the drain — the host MUST interrupt
+             an in-flight check and await its end, so that the check's lease
+             ends at once and the drain never waits for it (BEH-BR-093).
 ```
 
 ```
@@ -253,6 +260,14 @@ REQUIREMENT: Checks MUST NOT be transitions: `awaitIdle` MUST neither wait
              for them nor treat them as activity, and a check MUST NOT change
              the snapshot `revision` except through a change of `health`.
 ```
+
+**Settled here.** BEH-BR-092 made a check a short lease "so that a drain
+waits for at most one in-flight check", while this behaviour interrupts the
+check as soon as the plugin leaves `active`, which is when its stop begins. The
+host-core prototype (URS gap G17) showed both can hold: interrupting the check
+when the stop begins ends its lease at once, so the scope still never closes
+under a running check, and a removal does not wait up to `timeout` for a probe
+whose result would be discarded anyway (CCR-BR-009).
 
 Counting an interrupted check as a failure would let a routine removal push
 a plugin over its threshold in the instant before it stops, producing a

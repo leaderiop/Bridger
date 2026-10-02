@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest"
 import { AuditSink, OperationGate, type AuditRecord } from "../src/gxp.js"
 import * as Host from "../src/host.js"
 import { define } from "../src/plugin.js"
-import { Audit, Logger, auditPlugin, journal, loggerPlugin, stateOf } from "./fixtures.js"
+import { Audit, Logger, auditPlugin, journal, loggerPlugin, stateOf, quickClose } from "./fixtures.js"
 
 const failedWith = (exit: Exit.Exit<unknown, unknown> | undefined, text: string) => !!exit && Exit.isFailure(exit) && JSON.stringify(exit.cause).includes(text)
 const ctx = (c: string) => ({ context: { actor: { id: "user-alice", kind: "user" as const }, correlationId: c } })
@@ -15,7 +15,7 @@ const run = <A, E>(body: (host: Host.Host, records: Array<AuditRecord>) => Effec
   const records: Array<AuditRecord> = []
   const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
   return Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-    let make = Host.make({ auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
+    let make = Host.make({ ...quickClose, auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
     if (gate) make = make.pipe(Effect.provideService(OperationGate, gate))
     const host = yield* make
     return yield* body(host, records)

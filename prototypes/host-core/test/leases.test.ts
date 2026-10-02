@@ -85,13 +85,13 @@ describe("leases", () => {
 describe("legality (BEH-BR-071)", () => {
   // Expected table, transcribed from references/core/behaviors/08-operation-legality.md (BEH-BR-071) and BRIEF §7.3.
   const expected: Record<string, Record<string, string>> = {
-    unknown:          { install: "proceed", remove: "unknown-plugin", replace: "unknown-plugin", retry: "unknown-plugin", restart: "unknown-plugin", disable: "unknown-plugin", enable: "unknown-plugin" },
-    waiting:          { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", restart: "noop", disable: "proceed", enable: "noop" },
-    starting:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", restart: "proceed", disable: "proceed", enable: "noop" },
-    active:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", restart: "proceed", disable: "proceed", enable: "noop" },
-    failed:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "proceed", restart: "proceed", disable: "proceed", enable: "noop" },
-    "failed-cleanup": { install: "duplicate-plugin", remove: "proceed", replace: "conflict:cleanup-failure", retry: "conflict:cleanup-failure", restart: "conflict:cleanup-failure", disable: "conflict:cleanup-failure", enable: "conflict:cleanup-failure" },
-    disabled:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "conflict:disabled", restart: "conflict:disabled", disable: "noop", enable: "proceed" },
+    unknown:          { install: "proceed", remove: "unknown-plugin", replace: "unknown-plugin", retry: "unknown-plugin", reconfigure: "unknown-plugin", restart: "unknown-plugin", disable: "unknown-plugin", enable: "unknown-plugin" },
+    waiting:          { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "noop", disable: "proceed", enable: "noop" },
+    starting:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop" },
+    active:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop" },
+    failed:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "proceed", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop" },
+    "failed-cleanup": { install: "duplicate-plugin", remove: "proceed", replace: "conflict:cleanup-failure", retry: "conflict:cleanup-failure", reconfigure: "conflict:cleanup-failure", restart: "conflict:cleanup-failure", disable: "conflict:cleanup-failure", enable: "conflict:cleanup-failure" },
+    disabled:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "conflict:disabled", reconfigure: "proceed", restart: "conflict:disabled", disable: "noop", enable: "proceed" },
   }
   it("check 4: the table is total and matches the specification for every settled row", () => {
     for (const row of ROWS) for (const op of OPS) {

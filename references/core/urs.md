@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-URS                                                  |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -340,6 +340,8 @@ Behaviours are cited by file; individual `BEH-BR` identifiers are listed in
 | G14 | With per-plugin ordering, a call can wait for its turn at the linearization point after its `requested` record, and that turn can be held by a call waiting for a system stop to drain; BEH-BR-188 made that span uninterruptible. | Closed (CCR-BR-007): interruption is allowed; the call changes nothing and ends with a `failed` terminal record (`Interrupted`) (BEH-BR-188, BEH-BR-067); found by the in-flight table prototype. Refined by CCR-BR-008 (G16): the passage from the gate's approval to the enqueue of the `requested` record stays uninterruptible, and the first terminal cause wins |
 | G15 | Whether a call that parked an operation gets a second terminal record when the parked operation is later joined, superseded or ended. | Closed (CCR-BR-007): no; its `failed` (`DrainTimeout`) record is final (BEH-BR-074) |
 | G16 | A review of CCR-BR-003..007 by three agent reviewers (not the independent review of PROC-03 §5) found contradictions and undefined cases in the G11, G14 and G15 amendments. A second review pass of the resolutions found further cases — how an ended intent is recorded, the direction of mount edges, stops left unsettled by a call that fails with `DrainTimeout`, parking during shutdown, and `requireReason` for a `reconcile` whose diff changes before its intent. | Closed by CCR-BR-008 (both passes) |
+| G17 | BEH-BR-092 makes an in-flight health check a lease that a drain waits for; BEH-BR-093 interrupts it when the plugin leaves `active`. | Closed (CCR-BR-009): the check is interrupted when the stop begins, so its lease ends at once (BEH-BR-092); found by the P2 host-core prototype |
+| G18 | On the scope-close path the audit writer closes with the host scope, so shutdown's terminal record could be lost. | Closed (CCR-BR-009): the scope-close path flushes queued records to the sink, bounded by `auditTimeout` (BEH-BR-108); found by the P2 host-core prototype |
 | G9 | A naive supervised child (`forkChild` + `join` inside the lease) releases the lease before the child's finalizers run when the caller is interrupted, which would break BEH-BR-084. | Design constraint recorded (CCR-BR-003): the implementation interrupts and awaits the child before release; prototype checks E7a–E7b show the failure and the fix |
 
 ---

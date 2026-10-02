@@ -13,8 +13,8 @@ export interface OperationContext { readonly actor: Actor; readonly reason?: str
 export interface OperationOptions { readonly context?: OperationContext }
 export const CurrentActor = Context.Reference<Actor>("@bridger/core/CurrentActor", { defaultValue: () => Actor.unattributed })
 
-export type Operation = "install" | "remove" | "replace" | "retry" | "restart" | "disable" | "enable" | "shutdown" | "acknowledgeAuditDegraded"
-export type SystemTransition = "system-start" | "system-stop" | "runtime-failure" | "lease-revoked" | "intent-ended"
+export type Operation = "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart" | "disable" | "enable" | "shutdown" | "acknowledgeAuditDegraded"
+export type SystemTransition = "system-start" | "system-stop" | "runtime-failure" | "lease-revoked" | "intent-ended" | "health-degraded"
 export type AuditPhase = "requested" | "rejected" | "completed" | "failed" | "superseded" | "joined" | "system"
 
 export interface AttributionOptions { readonly require?: boolean; readonly requireReason?: ReadonlyArray<Operation> }
@@ -48,6 +48,7 @@ export interface AuditRecord {
   readonly after?: { readonly state: string; readonly revision: number } & DefinitionRef
   readonly error?: { readonly _tag: string; readonly message: string }
   readonly droppedSinceAck?: number
+  readonly configChange?: { readonly paths: ReadonlyArray<string> }   // paths only, never values (BEH-BR-197)
   readonly endsIntentOf?: string                    // `intent-ended` only: the parked call's `requested` record id (BEH-BR-080)
   readonly resumes?: string                         // a resumer's terminal record: the parked call's `requested` record id (BEH-BR-200)
 }
@@ -98,6 +99,8 @@ export interface Writer {
   readonly enqueue: (draft: Draft) => Effect.Effect<{ recordId: string; written: Deferred.Deferred<boolean> } | undefined>
   readonly state: { degraded: boolean; dropped: number; droppedSinceAck: number }
   readonly written: ReadonlyArray<AuditRecord>      // diagnostic copy for the prototype's tests only
+  /** Waits until every queued record has been handed to the sink (the scope-close path, BEH-BR-108). */
+  readonly flush: Effect.Effect<void>
 }
 
 export const makeWriter = (opts: {
@@ -113,6 +116,7 @@ export const makeWriter = (opts: {
   const state = { degraded: false, dropped: 0, droppedSinceAck: 0 }
   const written: Array<AuditRecord> = []
   let seq = 0
+  let writing = false
 
   const degrade = (why: string) => Effect.suspend(() => {
     const first = !state.degraded
@@ -121,6 +125,7 @@ export const makeWriter = (opts: {
   })
 
   const writeOne = (p: Pending) => Effect.gen(function* () {
+    writing = true
     // The number is assigned at the serialization point, immediately before the first attempt,
     // and kept by every retry, so a failed write never consumes a number (BEH-BR-213).
     const record: AuditRecord = {
@@ -150,6 +155,7 @@ export const makeWriter = (opts: {
       const next = queue.shift()
       if (!next) { yield* Deferred.await(wake.signal); wake.signal = yield* Deferred.make<void>(); continue }
       yield* writeOne(next)
+      writing = false
     }
   })
   yield* Effect.forkScoped(loop)
@@ -166,7 +172,8 @@ export const makeWriter = (opts: {
     yield* Deferred.succeed(wake.signal, undefined)
     return { recordId, written: done }
   })
-  return { enqueue, state, written } satisfies Writer
+  const flush: Effect.Effect<void> = Effect.gen(function* () { while (queue.length > 0 || writing) yield* Effect.yieldNow })
+  return { enqueue, state, written, flush } satisfies Writer
 })
 
 export const awaitWritten = (w: Deferred.Deferred<boolean>, timeout: number) =>

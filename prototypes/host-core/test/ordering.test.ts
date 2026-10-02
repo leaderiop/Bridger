@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest"
 import { AuditSink, type AuditRecord } from "../src/gxp.js"
 import * as Host from "../src/host.js"
 import { define } from "../src/plugin.js"
-import { Audit, auditPlugin, journal, loggerPlugin, stateOf, withHost } from "./fixtures.js"
+import { Audit, auditPlugin, journal, loggerPlugin, stateOf, withHost, quickClose } from "./fixtures.js"
 
 class Clock2 extends Context.Service<Clock2, { readonly now: Effect.Effect<number> }>()("example/Clock") {}
 const clockPlugin = define({ id: "example/clock", requires: [] as const, provides: [Clock2] as const, build: Layer.succeed(Clock2, { now: Effect.succeed(0) }) })
@@ -72,7 +72,7 @@ describe("cross-plugin stop ordering (ADR-BR-038)", () => {
     const records: Array<AuditRecord> = []
     const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const host = yield* Host.make({ auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
+      const host = yield* Host.make({ ...quickClose, auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
       yield* host.install(loggerPlugin(journal())); yield* host.install(auditPlugin(journal())); yield* host.awaitIdle
       const entered = yield* Deferred.make<void>()
       const holder = yield* Effect.forkChild(host.use(Audit, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))

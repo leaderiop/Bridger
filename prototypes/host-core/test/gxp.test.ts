@@ -8,7 +8,7 @@ import {
 } from "../src/gxp.js"
 import * as Host from "../src/host.js"
 import { define } from "../src/plugin.js"
-import { Logger, auditPlugin, journal, loggerPlugin, stateOf } from "./fixtures.js"
+import { Logger, auditPlugin, journal, loggerPlugin, stateOf, quickClose } from "./fixtures.js"
 
 const alice: Actor = { id: "user-alice", kind: "user", display: "Alice" }
 const ctx = (reason?: string) => ({ context: { actor: alice, ...(reason ? { reason } : {}) } })
@@ -51,7 +51,7 @@ const run = <A, E>(
   body: (host: Host.Host) => Effect.Effect<A, E>,
   opts: { sink?: AuditSink["Service"]; gate?: OperationGate["Service"]; options?: Host.Options } = {}
 ) => Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-  let make = Host.make({ auditTimeout: 50, gateTimeout: 50, ...opts.options }).pipe(Effect.provideService(IdGenerator, counterIds()))
+  let make = Host.make({ ...quickClose, auditTimeout: 50, gateTimeout: 50, ...opts.options }).pipe(Effect.provideService(IdGenerator, counterIds()))
   if (opts.sink) make = make.pipe(Effect.provideService(AuditSink, opts.sink))
   if (opts.gate) make = make.pipe(Effect.provideService(OperationGate, opts.gate))
   const host = yield* make

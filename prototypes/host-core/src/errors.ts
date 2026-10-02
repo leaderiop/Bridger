@@ -21,3 +21,5 @@ export class LeaseTimeout extends Schema.TaggedError<LeaseTimeout>()("LeaseTimeo
 export class ActivationFailed extends Schema.TaggedError<ActivationFailed>()("ActivationFailed", { id: Schema.String, phase: Schema.String, message: Schema.String }) {}
 export class PluginRemoved extends Schema.TaggedError<PluginRemoved>()("PluginRemoved", { id: Schema.String }) {}
 export class Superseded extends Schema.TaggedError<Superseded>()("Superseded", { id: Schema.String }) {}
+/** Decode failure of a plugin's configuration; the message never quotes a value (BEH-BR-103). */
+export class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", { id: Schema.String, message: Schema.String }) {}

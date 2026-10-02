@@ -51,10 +51,13 @@ export const reportPlugin = (j: Journal) => define({
   }))
 })
 
+/** Short drain and shutdown limits, so a test that leaves a lease held closes its host quickly (BEH-BR-105, 108). */
+export const quickClose = { drainTimeout: 200, shutdownTimeout: 300 } as const
+
 /** Runs a test body with a fresh host inside a scope. */
 export const withHost = <A, E>(body: (host: Host.Host) => Effect.Effect<A, E>, options?: Host.Options) =>
   Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-    const host = yield* Host.make(options)
+    const host = yield* Host.make({ ...quickClose, ...options })
     return yield* body(host)
   })))
 

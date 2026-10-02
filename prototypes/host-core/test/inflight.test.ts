@@ -6,7 +6,7 @@ import { AuditSink, type AuditRecord } from "../src/gxp.js"
 import * as Host from "../src/host.js"
 import { FLIGHT_OPS, OPS, inFlight, type FlightOp, type Op } from "../src/legality.js"
 import { define } from "../src/plugin.js"
-import { Audit, Logger, auditPlugin, journal, loggerPlugin, stateOf, withHost } from "./fixtures.js"
+import { Audit, Logger, auditPlugin, journal, loggerPlugin, stateOf, withHost, quickClose } from "./fixtures.js"
 
 class Clock2 extends Context.Service<Clock2, { readonly now: Effect.Effect<number> }>()("example/Clock") {}
 const clockPlugin = define({ id: "example/clock", requires: [] as const, provides: [Clock2] as const, build: Layer.succeed(Clock2, { now: Effect.succeed(0) }) })
@@ -18,10 +18,11 @@ const settledWithin = <A, E>(f: Fiber.Fiber<A, E>, ms = 20) =>
 
 // BEH-BR-072 transcribed from references/core/behaviors/08-operation-legality.md, without the reconfigure row and column.
 const expected: Record<FlightOp, Record<Op, string>> = {
-  remove:  { install: "duplicate-plugin", remove: "join",      replace: "conflict", retry: "conflict", restart: "conflict",  disable: "conflict",  enable: "conflict" },
-  replace: { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", restart: "conflict", disable: "conflict",  enable: "conflict" },
-  restart: { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", restart: "join",     disable: "supersede", enable: "conflict" },
-  disable: { install: "duplicate-plugin", remove: "supersede", replace: "conflict", retry: "conflict", restart: "conflict",  disable: "join",      enable: "conflict" },
+  remove:      { install: "duplicate-plugin", remove: "join",      replace: "conflict",  retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "conflict",  enable: "conflict" },
+  replace:     { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "conflict",  enable: "conflict" },
+  reconfigure: { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "join-if-equal", restart: "join",    disable: "supersede", enable: "conflict" },
+  restart:     { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "join",          restart: "join",      disable: "supersede", enable: "conflict" },
+  disable:     { install: "duplicate-plugin", remove: "supersede", replace: "conflict",  retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "join",      enable: "conflict" },
 }
 /** Where a winning operation lands once the lease is released. */
 const landing = (op: Op): { state: string; version?: string } =>
@@ -33,7 +34,8 @@ describe("in-flight table (BEH-BR-072)", () => {
     expect(inFlight("restart", "retry")).toEqual({ kind: "conflict", pending: "restart" })
   })
 
-  for (const f of FLIGHT_OPS) for (const op of OPS) {
+  // reconfigure cells need a plugin with configuration: covered in test/p2.test.ts.
+  for (const f of FLIGHT_OPS.filter((x) => x !== "reconfigure")) for (const op of OPS.filter((x) => x !== "reconfigure")) {
     const outcome = expected[f][op]
     it(`live: ${op} while ${f} is in flight → ${outcome}`, async () => {
       const j = journal()
@@ -52,6 +54,7 @@ describe("in-flight table (BEH-BR-072)", () => {
             case "restart": return host.restart("example/logger", { drain: 2_000 })
             case "disable": return host.disable("example/logger", { drain: 2_000 })
             case "enable": return host.enable("example/logger")
+            default: return Effect.die(`unexpected ${o}`)
           }
         }
         const first = yield* Effect.forkChild(run(f, "2"))
@@ -144,7 +147,7 @@ describe("interruption before intent (BEH-BR-067, 188)", () => {
     const records: Array<AuditRecord> = []
     const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const host = yield* Host.make({ auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
+      const host = yield* Host.make({ ...quickClose, auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
       yield* host.install(loggerPlugin(journal())); yield* host.install(auditPlugin(journal())); yield* host.awaitIdle
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
@@ -179,7 +182,7 @@ describe("audit links of joins and supersession (BEH-BR-200)", () => {
     const records: Array<AuditRecord> = []
     const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const host = yield* Host.make({ auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
+      const host = yield* Host.make({ ...quickClose, auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
       yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
