@@ -1,0 +1,10 @@
+kind: appendices
+package: bridger-core
+infix: BR
+entries:
+  - file: "spec-md-migration-map.md"
+    id: "BRIDGER-APP-01"
+    title: "SPEC.md migration map"
+  - file: "cordis-comparison.md"
+    id: "BRIDGER-APP-02"
+    title: "Cordis comparison"

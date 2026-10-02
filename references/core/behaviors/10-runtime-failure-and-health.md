@@ -1,0 +1,376 @@
+# 10 — Runtime Failure and Health
+
+> **Document Control**
+>
+> | Property       | Value                                                        |
+> | -------------- | ------------------------------------------------------------ |
+> | Document ID    | BRIDGER-BEH-10                                               |
+> | Revision       | 0.1                                                          |
+> | Effective Date | — (pending approval)                                         |
+> | Status         | Draft                                                        |
+> | Author         | Bridger Engineering                                          |
+> | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
+> | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
+> | Classification | Functional Specification                                     |
+> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+
+---
+
+An `active` plugin can fail after its `build` succeeded: a background loop
+dies, a health probe stops answering, or the plugin itself detects that it
+can no longer do its job. This file converts SPEC.md "Runtime failure and
+health": the `Plugin.Runtime` service, its `background` and `reportFailure`
+members, health check semantics, the single runtime failure transition, and
+the host's revocation when a drain expires with no caller to report to. This
+file owns BEH-BR-089–096 and uses all eight.
+
+The other `Plugin.Runtime` members are specified where they belong:
+`optional`, `useOptional` and `whenAvailable` in
+[15 — Optional and Reactive Dependencies](./15-optional-and-reactive.md),
+`install` in [14 — Children and Groups](./14-children-and-groups.md).
+
+## BEH-BR-089: Plugin.Runtime is provided to every build
+
+> **See:** [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)
+> **Satisfies:** [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
+
+```ts
+// illustrative — not type-checked
+// Context.Service with identifier "@bridger/core/Plugin.Runtime"
+interface PluginRuntime {
+  // Runs `effect` as a fiber scoped to the plugin's activation (BEH-BR-090).
+  readonly background: <A, E, R>(
+    name: string,
+    effect: Effect.Effect<A, E, R>,
+    options?: {
+      readonly onFailure?: "fail-plugin" | "restart" | "ignore"
+      readonly restart?: Schedule.Schedule<unknown, unknown>
+    }
+  ) => Effect.Effect<void, never, R | Scope.Scope>
+  // Report an unrecoverable condition detected by the plugin itself (BEH-BR-091).
+  readonly reportFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>
+  // Optional and reactive dependencies: behaviour 15.
+  readonly optional: <S>(key: Context.Key<any, S>) => Effect.Effect<Option.Option<S>>
+  readonly useOptional: <S, A, E, R>(key: Context.Key<any, S>, run: (service: S) => Effect.Effect<A, E, R>) =>
+    Effect.Effect<Option.Option<A>, E | LeaseRevoked | LeaseTimeout, R>
+  readonly whenAvailable: <const Keys extends readonly Context.Key<any, any>[], A, E, R>(
+    keys: Keys,
+    run: (services: ServicesOf<Keys>) => Effect.Effect<A, E, R | Scope.Scope>,
+    options?: { readonly name?: string; readonly onFailure?: "fail-plugin" | "restart" | "ignore" }
+  ) => Effect.Effect<void, never, Scope.Scope>
+  // Children: behaviour 14.
+  readonly install: <R extends Keys, P extends Keys, E, C>(child: PluginDefinition<R, P, E, C>, options?: InstallOptions) =>
+    Effect.Effect<PluginHandle, InstallError, Scope.Scope>
+}
+```
+
+```
+REQUIREMENT: The host MUST provide a `Plugin.Runtime` service (identifier
+             `@bridger/core/Plugin.Runtime`) to the `build` layer of every
+             activation, bound to that activation's scope and plugin
+             identity.
+```
+
+```
+REQUIREMENT: A `Plugin.Runtime` instance MUST NOT outlive its activation:
+             work it starts MUST be owned by that activation's scope and end
+             when the scope closes.
+```
+
+One instance per activation is what lets every member close over the right
+scope without the author passing it around, and what makes a restarted
+plugin start from a clean runtime rather than inheriting fibers from a
+closed scope.
+
+## BEH-BR-090: Supervised background work and its failure policy
+
+> **See:** [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)
+> **Satisfies:** [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
+> **Risk:** [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016)
+
+```
+REQUIREMENT: `background(name, effect, options)` MUST run `effect` as a fiber
+             forked into the activation scope (`Effect.forkIn(effect,
+             activationScope)`) and apply the failure policy
+             `options.onFailure`, whose default MUST be "fail-plugin".
+```
+
+```
+REQUIREMENT: Under "fail-plugin", a failure or defect of the fiber MUST be
+             reported through `reportFailure` and so start the runtime
+             failure transition (BEH-BR-094).
+```
+
+```
+REQUIREMENT: Under "restart", the effect MUST be wrapped with the given
+             `restart` schedule (`Effect.retry` / `Effect.repeat`). A restart
+             MUST restart only that fiber and MUST NOT change plugin state.
+```
+
+```
+REQUIREMENT: Under "ignore", a failure MUST NOT change plugin state, but it
+             MUST still be logged at error level with the plugin ID and the
+             background `name`.
+```
+
+```
+REQUIREMENT: Interruption of a background fiber caused by its activation
+             scope closing MUST NOT be treated as a failure.
+```
+
+```
+REQUIREMENT: Fibers forked in `build` without `background` are not tracked
+             by the host. The host MUST NOT claim to supervise them.
+```
+
+`inspect` reports each background fiber by name, policy, restart count and
+whether it is running ([13 — Observability and Diagnostics](./13-observability-and-diagnostics.md)).
+A fiber that dies silently is how a plugin ends up `active` while doing
+nothing, which is the hidden runtime failure
+[RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016) names; hence even
+"ignore" logs.
+
+**Settled here.** (1) When `onFailure` is "restart" and no `restart`
+schedule is given, a default schedule is applied that is bounded (finite
+attempts) and spaced (non-zero delay); its exact parameters are fixed at
+prototype. (2) When a restart schedule is exhausted, the final failure is
+handled as "fail-plugin". Both settle a gap in SPEC.md in the direction that
+never leaves a failure unbounded or unreported.
+
+## BEH-BR-091: reportFailure is an immediate runtime failure
+
+> **See:** [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)
+> **Satisfies:** [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
+> **Risk:** [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016)
+
+```
+REQUIREMENT: `reportFailure(cause)` on an `active` plugin MUST start the
+             runtime failure transition of BEH-BR-094 immediately.
+```
+
+```
+REQUIREMENT: Several runtime failure signals for the same activation MUST
+             result in one transition. Signals after the first MUST be
+             logged and MUST NOT start a second transition.
+```
+
+```
+REQUIREMENT: The full `cause` MUST stay inside the core's diagnostics (logs).
+             Snapshots, events and errors MUST carry only the plugin ID and a
+             message.
+```
+
+**Settled here.** SPEC.md does not say what a runtime failure signal does
+when the plugin is not `active`. (1) A signal raised while the plugin is
+still `starting` (from a background fiber or `reportFailure` inside `build`)
+fails that activation with phase `activation`; nothing is published, so no
+partially working plugin becomes visible
+([INV-BR-003](../invariants.md#inv-br-003-publication-is-atomic)). (2) A
+signal raised while the plugin is already `stopping` for another reason is
+logged and emitted as a `runtime-failure` event but does not change the
+destination of the stop already in flight: the plugin is already leaving
+service, and redirecting a caller's `remove` into `failed` would contradict
+the operation that caller recorded.
+
+## BEH-BR-092: Health checks run only while active
+
+> **See:** [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)
+> **Satisfies:** [URS-BR-004](../urs.md#urs-br-004-know-why-a-plugin-is-not-running), [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
+> **Risk:** [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016)
+
+```ts
+// PluginDefinition.health (behaviour 01)
+readonly health?: {
+  readonly check: Effect.Effect<void, unknown, IdentifiersOf<Requires>>
+  readonly every: Duration.Input
+  readonly timeout: Duration.Input
+  readonly failureThreshold: number
+}
+```
+
+```
+REQUIREMENT: If `health` is declared, the host MUST run `check` every `every`,
+             each run bounded by `timeout`, and only while the plugin is
+             `active`.
+```
+
+```
+REQUIREMENT: The check MUST run in the plugin's activation scope against the
+             plugin's captured services. It MUST count as a short lease on
+             the plugin itself, bounded by `timeout`, so that a drain waits
+             for at most one in-flight check.
+```
+
+```
+REQUIREMENT: `failureThreshold` consecutive failed checks MUST count as one
+             runtime failure (BEH-BR-094). A successful check MUST reset the
+             consecutive count to zero.
+```
+
+```
+REQUIREMENT: The snapshot of an `active` plugin MUST show `health` as
+             "healthy" (last check succeeded), "degraded" (at least one
+             consecutive failure, below the threshold) or "unknown" (no check
+             declared, or none completed yet in this activation).
+```
+
+```
+REQUIREMENT: When `health` becomes "degraded" from another value and an
+             `AuditSink` is wired, the host MUST write the system transition
+             `health-degraded`, attributed to `Actor.system`.
+```
+
+Timing comes from the `Clock` service
+([INV-BR-024](../invariants.md#inv-br-024-time-and-identifiers-come-only-from-services)),
+so a test drives health checks with `TestClock` rather than waiting.
+
+**Settled here.** (1) Each new activation starts with `health: "unknown"`
+and a zero count; failures do not carry across a restart. (2)
+`failureThreshold` below 1 is an `InvalidDefinition` at install, since a
+threshold of 0 would fail a plugin that never failed a check. (3) Only the
+transition into "degraded" is audited, not each failed check, so a flapping
+probe cannot flood the audit trail; the counts are visible in logs and
+metrics.
+
+## BEH-BR-093: A health check is not a transition
+
+> **See:** [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)
+> **Satisfies:** [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
+
+```
+REQUIREMENT: When the plugin leaves `active` for any reason (removal,
+             replacement, dependency loss, runtime failure, disable, restart,
+             reconfigure or shutdown), an in-flight check MUST be interrupted
+             and its outcome discarded. It MUST NOT be counted as a failure.
+```
+
+```
+REQUIREMENT: A check that exceeds `timeout` MUST count as a failed check.
+```
+
+```
+REQUIREMENT: Checks MUST NOT be transitions: `awaitIdle` MUST neither wait
+             for them nor treat them as activity, and a check MUST NOT change
+             the snapshot `revision` except through a change of `health`.
+```
+
+Counting an interrupted check as a failure would let a routine removal push
+a plugin over its threshold in the instant before it stops, producing a
+runtime failure that never happened.
+
+## BEH-BR-094: Three signals, one runtime failure transition
+
+> **Invariant:** [INV-BR-005](../invariants.md#inv-br-005-dependents-stop-before-their-providers), [INV-BR-006](../invariants.md#inv-br-006-a-leased-provider-does-not-close-under-its-lease)
+> **See:** [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)
+> **Satisfies:** [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently), [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
+> **Risk:** [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016), [RSK-BR-004](../gxp/03-risk-assessment.md#rsk-br-004)
+
+```
+REQUIREMENT: A failing `background` fiber under "fail-plugin", a health check
+             reaching `failureThreshold`, and `reportFailure` MUST all end in
+             the same transition, in this order:
+             1. the plugin is marked failing: new leases and new dependents
+                are blocked and it is hidden from new consumers;
+             2. its dependents are stopped first;
+             3. its leases drain under the normal drain limit (BEH-BR-085,
+                and BEH-BR-095 on expiry);
+             4. its activation scope is closed;
+             5. it ends `failed` with `failure.phase = "runtime"`.
+```
+
+```
+REQUIREMENT: While the transition runs, the snapshot MUST show the plugin as
+             `stopping` with `reason: "runtime-failure"` and
+             `next: "failed"`. A `runtime-failure` host event MUST be
+             emitted.
+```
+
+```
+REQUIREMENT: When an `AuditSink` is wired, the transition MUST be audited as
+             the system transition `runtime-failure`, attributed to
+             `Actor.system`, with before and after states.
+```
+
+One transition for three signals means one set of guarantees to test and
+one shape for operators to read. The dependents-first and drain steps are the
+same as removal's ([06 — Removal](./06-removal.md)), so a failing provider
+does not tear down a dependent mid-call any more than a removed one does.
+
+**Settled here.** If closing the scope in step 4 itself fails, the plugin
+ends `failed` with phase `cleanup` (the message records that the stop was a
+runtime failure), not phase `runtime`. Cleanup failure is the stricter state
+([08 — Operation Legality](./08-operation-legality.md)): it withholds
+restarting operations until the leak is acknowledged, and Bridger must not
+imply that a leaked resource was released.
+
+## BEH-BR-095: With no caller, the host revokes at the drain limit
+
+> **Invariant:** [INV-BR-017](../invariants.md#inv-br-017-every-drain-is-bounded-unless-declared-forever)
+> **See:** [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md), [ADR-BR-015](../decisions/015-leases-one-primitive.md)
+> **Satisfies:** [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
+> **Risk:** [RSK-BR-015](../gxp/03-risk-assessment.md#rsk-br-015)
+
+```
+REQUIREMENT: If the drain limit expires during a runtime failure transition,
+             the host MUST revoke the remaining leases (callbacks fail with
+             `LeaseRevoked`), await their finalizers, and complete the
+             transition. It MUST NOT leave the plugin `stopping` waiting for
+             a caller that does not exist.
+```
+
+```
+REQUIREMENT: Each such revocation MUST be reported as a `lease-revoked` host
+             event and, when an `AuditSink` is wired, audited as the system
+             transition `lease-revoked` with `causationId` set to the
+             record id of the `runtime-failure` record.
+```
+
+A removal has a caller who can receive `DrainTimeout` and decide; a runtime
+failure does not. Without this rule a failing plugin with one stuck callback
+would hold its dependents, its provider slot and every `awaitIdle` hostage
+indefinitely.
+
+**Settled here.** When `BridgerOptions.drainTimeout` is `"forever"`, the
+runtime failure transition waits indefinitely and does not revoke: the
+application declared unbounded drains explicitly
+([INV-BR-017](../invariants.md#inv-br-017-every-drain-is-bounded-unless-declared-forever)),
+and an automatic revocation could interrupt a regulated write
+([RSK-BR-015](../gxp/03-risk-assessment.md#rsk-br-015)). The stuck plugin
+remains visible as `stopping` in snapshots.
+
+## BEH-BR-096: Runtime failure is sticky
+
+> **Invariant:** [INV-BR-007](../invariants.md#inv-br-007-failure-is-sticky)
+> **See:** [ADR-BR-005](../decisions/005-failure-is-sticky.md)
+> **Satisfies:** [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
+> **Risk:** [RSK-BR-003](../gxp/03-risk-assessment.md#rsk-br-003)
+
+```
+REQUIREMENT: A plugin `failed` with phase "runtime" MUST stay `failed` until
+             one of these explicit operations: `retry`, `restart`, `replace`,
+             `reconfigure`, `disable` or `remove`. The host MUST NOT retry it
+             automatically, including when its requirements disappear and
+             return.
+```
+
+```
+REQUIREMENT: A "restart" policy on a background fiber MUST NOT be used by the
+             host to restart the plugin; it restarts only that fiber
+             (BEH-BR-090).
+```
+
+SPEC.md's runtime failure paragraph listed the exit operations as `retry`,
+`restart`, `replace`, `reconfigure` or `remove`, omitting `disable`, while
+its state rules list `disable` among the operations that leave `failed`. The
+state rules are correct and this list is aligned with them: every failure
+phase, `runtime` included, is left by the same six operations
+([08 — Operation Legality](./08-operation-legality.md)).
+
+Automatic restart after a runtime failure would repeat whatever side effects
+`build` performs on every attempt, and could loop. A caller who wants a
+restart policy builds it on `changes` and `retry`, where it is visible and
+attributable.
+
+---
+
+_Previous: [09 — Leases](./09-leases.md)_ · _Next: [11 — Configuration](./11-configuration.md)_

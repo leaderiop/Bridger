@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "specforge": {
+      "type": "stdio",
+      "command": "specforge",
+      "args": [
+        "mcp",
+        "."
+      ],
+      "env": {}
+    }
+  }
+}

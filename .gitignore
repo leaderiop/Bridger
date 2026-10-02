@@ -1,0 +1,5 @@
+specforge-infer.json
+specforge-report.json
+.specforge/
+node_modules/
+.DS_Store

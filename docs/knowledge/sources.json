@@ -1,0 +1,2390 @@
+{
+  "schema_version": 1,
+  "research_date": "2026-10-02",
+  "note": "Citation inventory, not an independent URL availability audit. Retrieval and version limitations are recorded in the Markdown documents.",
+  "source_count": 141,
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/alchemy-run/alchemy/main/packages/alchemy/package.json",
+      "labels": [
+        "Package metadata",
+        "Package"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 7
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 38
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://raw.githubusercontent.com/alchemy-run/alchemy/main/pnpm-workspace.yaml",
+      "labels": [
+        "workspace catalog",
+        "workspace"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 7
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 38
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://alchemy.run/migrating-from-v1/",
+      "labels": [
+        "Migration guide"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 9
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://alchemy.run/getting-started/",
+      "labels": [
+        "Getting started",
+        "Guide"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 11
+        },
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 17
+        }
+      ],
+      "entry_ids": [
+        "A01"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/resource/",
+      "labels": [
+        "Resources"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 18
+        }
+      ],
+      "entry_ids": [
+        "A02"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/outputs/",
+      "labels": [
+        "Inputs and outputs"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 19
+        }
+      ],
+      "entry_ids": [
+        "A03"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/resource-lifecycle/",
+      "labels": [
+        "Lifecycle",
+        "resource lifecycle"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 20
+        },
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 21
+        },
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 67
+        }
+      ],
+      "entry_ids": [
+        "A04",
+        "A05"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/renaming/",
+      "labels": [
+        "Renaming"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 22
+        }
+      ],
+      "entry_ids": [
+        "A06"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/provider/",
+      "labels": [
+        "Providers"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 23
+        }
+      ],
+      "entry_ids": [
+        "A07"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/cli/drift/",
+      "labels": [
+        "Drift"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 24
+        }
+      ],
+      "entry_ids": [
+        "A08"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/state-store/",
+      "labels": [
+        "State"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 25
+        }
+      ],
+      "entry_ids": [
+        "A09"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/environments/stages/",
+      "labels": [
+        "Stages"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 26
+        }
+      ],
+      "entry_ids": [
+        "A10"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/cli/",
+      "labels": [
+        "CLI"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 26
+        }
+      ],
+      "entry_ids": [
+        "A10"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/references/",
+      "labels": [
+        "References"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 27
+        }
+      ],
+      "entry_ids": [
+        "A11"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/action/",
+      "labels": [
+        "Actions"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 28
+        }
+      ],
+      "entry_ids": [
+        "A12"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/phases/",
+      "labels": [
+        "Phases"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 29
+        }
+      ],
+      "entry_ids": [
+        "A13"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/binding/",
+      "labels": [
+        "Bindings"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 30
+        }
+      ],
+      "entry_ids": [
+        "A14"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/layers/",
+      "labels": [
+        "Layers"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 31
+        }
+      ],
+      "entry_ids": [
+        "A15"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/circular-bindings/",
+      "labels": [
+        "Circular bindings"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 32
+        }
+      ],
+      "entry_ids": [
+        "A16"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/environments/secrets/",
+      "labels": [
+        "Secrets"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 33
+        }
+      ],
+      "entry_ids": [
+        "A17"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-code/local-provider/",
+      "labels": [
+        "Local provider"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 34
+        }
+      ],
+      "entry_ids": [
+        "A18"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/testing/",
+      "labels": [
+        "Testing"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 35
+        }
+      ],
+      "entry_ids": [
+        "A19"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/environments/ci/",
+      "labels": [
+        "CI"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 36
+        }
+      ],
+      "entry_ids": [
+        "A20"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/runtime/#instance-scope-vs-request-scope",
+      "labels": [
+        "Runtime scopes"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 37
+        }
+      ],
+      "entry_ids": [
+        "A21"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/event-sources/",
+      "labels": [
+        "Event sources"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 38
+        }
+      ],
+      "entry_ids": [
+        "A22"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/sinks/",
+      "labels": [
+        "Sinks"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 39
+        }
+      ],
+      "entry_ids": [
+        "A23"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/cloudflare/compute/workflows/",
+      "labels": [
+        "Workflows"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 40
+        }
+      ],
+      "entry_ids": [
+        "A24"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/sql/",
+      "labels": [
+        "SQL"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 41
+        }
+      ],
+      "entry_ids": [
+        "A25"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/cloudflare/",
+      "labels": [
+        "Cloudflare"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 42
+        }
+      ],
+      "entry_ids": [
+        "A26"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/aws/",
+      "labels": [
+        "AWS"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 42
+        }
+      ],
+      "entry_ids": [
+        "A26"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/telemetry/",
+      "labels": [
+        "Telemetry"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 43
+        }
+      ],
+      "entry_ids": [
+        "A27"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/cloudflare/compute/worker-loader/",
+      "labels": [
+        "Worker Loader",
+        "Alchemy wrapper",
+        "Alchemy Worker Loader example",
+        "Documentation"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 44
+        },
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 73
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 41
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 49
+        }
+      ],
+      "entry_ids": [
+        "A28"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/cloudflare/compute/workers-for-platforms/",
+      "labels": [
+        "Workers for Platforms"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 45
+        }
+      ],
+      "entry_ids": [
+        "A29"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/cloudflare/frontend/foldkit/",
+      "labels": [
+        "Foldkit integration",
+        "Foldkit guide",
+        "Documentation"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 46
+        },
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 79
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 50
+        }
+      ],
+      "entry_ids": [
+        "A30"
+      ]
+    },
+    {
+      "url": "https://alchemy.run/infrastructure-as-effects/runtime/",
+      "labels": [
+        "runtime scopes",
+        "Runtime scopes",
+        "Runtime lifecycle"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 67
+        },
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 77
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 51
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://developers.cloudflare.com/dynamic-workers/api-reference/",
+      "labels": [
+        "Dynamic Workers API"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 73
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://developers.cloudflare.com/dynamic-workers/platform/limits/",
+      "labels": [
+        "Platform limits"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 75
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://developers.cloudflare.com/dynamic-workers/usage/limits/",
+      "labels": [
+        "custom limits"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ALCHEMY.md",
+          "line": 75
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/package.json",
+      "labels": [
+        "Current package",
+        "Export map",
+        "Source",
+        "Effect export map"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 7
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 9
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 37
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 37
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://effect.website/docs/v4/onboarding",
+      "labels": [
+        "v4 documentation"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 7
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://github.com/Effect-TS/effect-smol",
+      "labels": [
+        "repository move"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 7
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/index.ts",
+      "labels": [
+        "SQL annotations",
+        "SQL exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 9
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 67
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 68
+        }
+      ],
+      "entry_ids": [
+        "E30",
+        "E31"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/http-api/index.ts",
+      "labels": [
+        "HTTP API annotations",
+        "HTTP API exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 9
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 82
+        }
+      ],
+      "entry_ids": [
+        "E40"
+      ]
+    },
+    {
+      "url": "https://www.effect.website/docs/v4/api/effect/LayerRef",
+      "labels": [
+        "LayerRef reference"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 13
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://www.effect.website/docs/v4/api/effect/LayerMap",
+      "labels": [
+        "LayerMap reference"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 13
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://www.effect.website/docs/v4/api/effect/RcRef",
+      "labels": [
+        "RcRef reference"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 13
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Effect.ts",
+      "labels": [
+        "Effect"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 23
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 27
+        }
+      ],
+      "entry_ids": [
+        "E01",
+        "E05"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Context.ts",
+      "labels": [
+        "Context"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 24
+        }
+      ],
+      "entry_ids": [
+        "E02"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Layer.ts",
+      "labels": [
+        "Layer"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 25
+        }
+      ],
+      "entry_ids": [
+        "E03"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Scope.ts",
+      "labels": [
+        "Scope"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 26
+        }
+      ],
+      "entry_ids": [
+        "E04"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/LayerRef.ts",
+      "labels": [
+        "LayerRef"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 28
+        }
+      ],
+      "entry_ids": [
+        "E06"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/LayerMap.ts",
+      "labels": [
+        "LayerMap"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 29
+        }
+      ],
+      "entry_ids": [
+        "E07"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/RcRef.ts",
+      "labels": [
+        "RcRef"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 30
+        }
+      ],
+      "entry_ids": [
+        "E08"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts",
+      "labels": [
+        "exports",
+        "core exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 30
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 32
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 33
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 41
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 44
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 46
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 59
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 60
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 85
+        }
+      ],
+      "entry_ids": [
+        "E08",
+        "E10",
+        "E11",
+        "E14",
+        "E17",
+        "E19",
+        "E27",
+        "E28",
+        "E43"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ScopedCache.ts",
+      "labels": [
+        "ScopedCache"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 31
+        }
+      ],
+      "entry_ids": [
+        "E09"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Graph.ts",
+      "labels": [
+        "Graph"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 34
+        }
+      ],
+      "entry_ids": [
+        "E12"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/TxRef.ts",
+      "labels": [
+        "TxRef"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 40
+        }
+      ],
+      "entry_ids": [
+        "E13"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/PartitionedSemaphore.ts",
+      "labels": [
+        "PartitionedSemaphore"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 42
+        }
+      ],
+      "entry_ids": [
+        "E15"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/SubscriptionRef.ts",
+      "labels": [
+        "SubscriptionRef"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 43
+        }
+      ],
+      "entry_ids": [
+        "E16"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/RequestResolver.ts",
+      "labels": [
+        "RequestResolver"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 45
+        }
+      ],
+      "entry_ids": [
+        "E18"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ExecutionPlan.ts",
+      "labels": [
+        "ExecutionPlan"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 47
+        }
+      ],
+      "entry_ids": [
+        "E20"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Schema.ts",
+      "labels": [
+        "Schema"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 53
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 54
+        }
+      ],
+      "entry_ids": [
+        "E21",
+        "E22"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/SchemaRepresentation.ts",
+      "labels": [
+        "SchemaRepresentation"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 55
+        }
+      ],
+      "entry_ids": [
+        "E23"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/schema/index.ts",
+      "labels": [
+        "schema exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 56
+        }
+      ],
+      "entry_ids": [
+        "E24"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/BigDecimal.ts",
+      "labels": [
+        "BigDecimal"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 57
+        }
+      ],
+      "entry_ids": [
+        "E25"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/DateTime.ts",
+      "labels": [
+        "DateTime"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 58
+        }
+      ],
+      "entry_ids": [
+        "E26"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/SqlClient.ts",
+      "labels": [
+        "SqlClient"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 66
+        }
+      ],
+      "entry_ids": [
+        "E29"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/persistence/index.ts",
+      "labels": [
+        "persistence exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 69
+        }
+      ],
+      "entry_ids": [
+        "E32"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Workflow.ts",
+      "labels": [
+        "Workflow"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 70
+        },
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 73
+        }
+      ],
+      "entry_ids": [
+        "E33",
+        "E36"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Activity.ts",
+      "labels": [
+        "Activity"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 71
+        }
+      ],
+      "entry_ids": [
+        "E34"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/index.ts",
+      "labels": [
+        "workflow exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 72
+        }
+      ],
+      "entry_ids": [
+        "E35"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/DurableDeferred.ts",
+      "labels": [
+        "DurableDeferred"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 72
+        }
+      ],
+      "entry_ids": [
+        "E35"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/cluster/index.ts",
+      "labels": [
+        "cluster exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 74
+        }
+      ],
+      "entry_ids": [
+        "E37"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/cluster/Entity.ts",
+      "labels": [
+        "Entity"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 74
+        }
+      ],
+      "entry_ids": [
+        "E37"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/eventlog/EventLog.ts",
+      "labels": [
+        "EventLog"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 75
+        }
+      ],
+      "entry_ids": [
+        "E38"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/eventlog/index.ts",
+      "labels": [
+        "exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 75
+        }
+      ],
+      "entry_ids": [
+        "E38"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/http/index.ts",
+      "labels": [
+        "HTTP exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 81
+        }
+      ],
+      "entry_ids": [
+        "E39"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/rpc/Rpc.ts",
+      "labels": [
+        "Rpc"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 83
+        }
+      ],
+      "entry_ids": [
+        "E41"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/reactivity/index.ts",
+      "labels": [
+        "reactivity exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 84
+        }
+      ],
+      "entry_ids": [
+        "E42"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/observability/Otlp.ts",
+      "labels": [
+        "OTLP"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 85
+        }
+      ],
+      "entry_ids": [
+        "E43"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/testing/index.ts",
+      "labels": [
+        "testing exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 86
+        }
+      ],
+      "entry_ids": [
+        "E44"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Arbitrary.ts",
+      "labels": [
+        "Arbitrary"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 86
+        }
+      ],
+      "entry_ids": [
+        "E44"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ai/index.ts",
+      "labels": [
+        "AI exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/EFFECT-V4.md",
+          "line": 87
+        }
+      ],
+      "entry_ids": [
+        "E45"
+      ]
+    },
+    {
+      "url": "https://developer.intacct.com/api/",
+      "labels": [
+        "REST API for new clients",
+        "API domain catalog",
+        "Finance API catalog",
+        "Cash management catalog",
+        "Intacct ledger catalog",
+        "Order entry catalog",
+        "Purchasing catalog",
+        "Intacct inventory catalog",
+        "Project/resource catalog",
+        "Contract catalog",
+        "Consolidation catalog",
+        "Intacct DDS catalog"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 9
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 26
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 35
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 36
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 37
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 38
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 39
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 40
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 42
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 44
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 45
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 53
+        }
+      ],
+      "entry_ids": [
+        "R10",
+        "R14",
+        "R15",
+        "R16",
+        "R17",
+        "R18",
+        "R19",
+        "R21",
+        "R23",
+        "R24",
+        "R27"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/zh_CN/developer/reference/backend/module.html",
+      "labels": [
+        "Module manifests"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 17
+        }
+      ],
+      "entry_ids": [
+        "R01"
+      ]
+    },
+    {
+      "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/0f69f8fb28ac4bf48d2b57b9637e81fa/533228e1e854433ab16d013f161ca509.html",
+      "labels": [
+        "SAP extensibility"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 18
+        }
+      ],
+      "entry_ids": [
+        "R02"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/nl/developer/reference/upgrades/upgrade_scripts.html",
+      "labels": [
+        "Upgrade scripts",
+        "Upgrades"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 19
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 56
+        }
+      ],
+      "entry_ids": [
+        "R03",
+        "R30"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/developer/reference/backend/orm.html",
+      "labels": [
+        "ORM API"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 20
+        }
+      ],
+      "entry_ids": [
+        "R04"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/ar/developer/reference/user_interface/view_architectures.html",
+      "labels": [
+        "Odoo views",
+        "Odoo search architecture"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 21
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 53
+        }
+      ],
+      "entry_ids": [
+        "R05",
+        "R27"
+      ]
+    },
+    {
+      "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/0f69f8fb28ac4bf48d2b57b9637e81fa/3ccb50e724b045508fea8b2cf1774b2b.html",
+      "labels": [
+        "SAP key-user extensibility"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 21
+        }
+      ],
+      "entry_ids": [
+        "R05"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/saas-19.3/applications/studio/approval_rules.html",
+      "labels": [
+        "Approval rules"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 22
+        }
+      ],
+      "entry_ids": [
+        "R06"
+      ]
+    },
+    {
+      "url": "https://developer.intacct.com/web-services/requests/",
+      "labels": [
+        "Request authentication",
+        "XML request semantics"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 23
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 51
+        }
+      ],
+      "entry_ids": [
+        "R07",
+        "R25"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/th/developer/reference/backend/security.html",
+      "labels": [
+        "Odoo security"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 24
+        }
+      ],
+      "entry_ids": [
+        "R08"
+      ]
+    },
+    {
+      "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/a630d57fc5004c6383e7a81efee7a8bb/4236eef12b8b4d4286c53aa89899a6f5.html",
+      "labels": [
+        "SAP business roles"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 24
+        }
+      ],
+      "entry_ids": [
+        "R08"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/fr/developer/howtos/company.html",
+      "labels": [
+        "Multi-company guidelines"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 25
+        }
+      ],
+      "entry_ids": [
+        "R09"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/applications/finance/accounting.html",
+      "labels": [
+        "Accounting",
+        "Multi-currency accounting overview"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 32
+        },
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 33
+        }
+      ],
+      "entry_ids": [
+        "R11",
+        "R12"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/applications/finance/fiscal_localizations.html",
+      "labels": [
+        "Fiscal localizations"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 34
+        }
+      ],
+      "entry_ids": [
+        "R13"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/applications/finance.html",
+      "labels": [
+        "Odoo finance"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 37
+        }
+      ],
+      "entry_ids": [
+        "R16"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/saas-19.4/nl/applications/inventory_and_mrp/inventory/shipping_receiving/reservation_methods.html",
+      "labels": [
+        "Odoo reservations, SaaS 19.4"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 40
+        }
+      ],
+      "entry_ids": [
+        "R19"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/fr/applications/inventory_and_mrp/manufacturing/basic_setup/bill_configuration.html",
+      "labels": [
+        "Bill of materials"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 41
+        }
+      ],
+      "entry_ids": [
+        "R20"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/applications/hr/payroll/payroll_localizations.html",
+      "labels": [
+        "Payroll localizations"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 43
+        }
+      ],
+      "entry_ids": [
+        "R22"
+      ]
+    },
+    {
+      "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/d5699934e7004d048c4801b552f3b013/4c4047f1989f4b9a836dbc24f82989e8.html",
+      "labels": [
+        "SAP data migration"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 52
+        }
+      ],
+      "entry_ids": [
+        "R26"
+      ]
+    },
+    {
+      "url": "https://developer.intacct.com/api/company-console/attachments/",
+      "labels": [
+        "Attachments"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 54
+        }
+      ],
+      "entry_ids": [
+        "R28"
+      ]
+    },
+    {
+      "url": "https://developer.intacct.com/api/company-console/advanced-audit-trails/",
+      "labels": [
+        "Advanced audit trails"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 55
+        }
+      ],
+      "entry_ids": [
+        "R29"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/developer/reference/backend/testing.html",
+      "labels": [
+        "Testing"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 56
+        }
+      ],
+      "entry_ids": [
+        "R30"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/administration/odoo_sh/getting_started/create.html",
+      "labels": [
+        "Odoo.sh operations"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 57
+        }
+      ],
+      "entry_ids": [
+        "R31"
+      ]
+    },
+    {
+      "url": "https://www.odoo.com/documentation/19.0/nl/legal/licenses.html",
+      "labels": [
+        "Odoo licenses"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ERP-CAPABILITIES.md",
+          "line": 58
+        }
+      ],
+      "entry_ids": [
+        "R32"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/foldkit/foldkit/main/packages/foldkit/package.json",
+      "labels": [
+        "Package source",
+        "Package metadata",
+        "Source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 7
+        },
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 32
+        },
+        {
+          "file": "knowledge/README.md",
+          "line": 39
+        }
+      ],
+      "entry_ids": [
+        "F16"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/foldkit/foldkit/main/packages/foldkit/src/runtime/public.ts",
+      "labels": [
+        "Public exports"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 9
+        }
+      ],
+      "entry_ids": []
+    },
+    {
+      "url": "https://foldkit.dev/core/embedding",
+      "labels": [
+        "embedding contract",
+        "Embedding"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 9
+        },
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 23
+        }
+      ],
+      "entry_ids": [
+        "F07"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/resources",
+      "labels": [
+        "Resources"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 17
+        }
+      ],
+      "entry_ids": [
+        "F01"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/commands",
+      "labels": [
+        "Commands"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 18
+        }
+      ],
+      "entry_ids": [
+        "F02"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/commands#interrupting-commands",
+      "labels": [
+        "Interrupting Commands"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 19
+        }
+      ],
+      "entry_ids": [
+        "F03"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/subscriptions",
+      "labels": [
+        "Subscriptions"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 20
+        }
+      ],
+      "entry_ids": [
+        "F04"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/managed-resources",
+      "labels": [
+        "Managed Resources"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 21
+        }
+      ],
+      "entry_ids": [
+        "F05"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/managed-resources#building-a-layer-in-acquire",
+      "labels": [
+        "Layer acquisition"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 22
+        }
+      ],
+      "entry_ids": [
+        "F06"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/embedding#the-schema-boundary",
+      "labels": [
+        "Port boundary"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 24
+        }
+      ],
+      "entry_ids": [
+        "F08"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/submodel",
+      "labels": [
+        "Submodel"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 25
+        }
+      ],
+      "entry_ids": [
+        "F09"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/mount",
+      "labels": [
+        "Mount"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 26
+        }
+      ],
+      "entry_ids": [
+        "F10"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/#example-applications",
+      "labels": [
+        "Testing examples"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 27
+        }
+      ],
+      "entry_ids": [
+        "F11"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/devtools",
+      "labels": [
+        "DevTools"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 28
+        }
+      ],
+      "entry_ids": [
+        "F12"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/server-rendering",
+      "labels": [
+        "Server rendering"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 29
+        }
+      ],
+      "entry_ids": [
+        "F13"
+      ]
+    },
+    {
+      "url": "https://foldkit.dev/core/runtime",
+      "labels": [
+        "Runtime entry points"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 30
+        }
+      ],
+      "entry_ids": [
+        "F14"
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/foldkit/foldkit/main/packages/foldkit/src/runtime/runtime.ts",
+      "labels": [
+        "Runtime source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/FOLDKIT-BRIDGER.md",
+          "line": 31
+        }
+      ],
+      "entry_ids": [
+        "F15"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/module.py",
+      "labels": [
+        "module.py",
+        "Module import source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 13
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 30
+        }
+      ],
+      "entry_ids": [
+        "O01"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/module_graph.py",
+      "labels": [
+        "module_graph.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 13
+        }
+      ],
+      "entry_ids": [
+        "O01"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/registry.py",
+      "labels": [
+        "registry.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 14
+        }
+      ],
+      "entry_ids": [
+        "O02"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/loading.py",
+      "labels": [
+        "loading.py",
+        "Loader source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 15
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 28
+        }
+      ],
+      "entry_ids": [
+        "O03"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/migration.py",
+      "labels": [
+        "migration.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 15
+        }
+      ],
+      "entry_ids": [
+        "O03"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/environments.py",
+      "labels": [
+        "environments.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 16
+        }
+      ],
+      "entry_ids": [
+        "O04"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/model_classes.py",
+      "labels": [
+        "model_classes.py",
+        "Model composition source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 17
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 60
+        }
+      ],
+      "entry_ids": [
+        "O05"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/fields.py",
+      "labels": [
+        "fields.py",
+        "Field setup source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 18
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 72
+        }
+      ],
+      "entry_ids": [
+        "O06"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_model.py",
+      "labels": [
+        "ir_model.py",
+        "Model access"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 19
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 66
+        }
+      ],
+      "entry_ids": [
+        "O07"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_rule.py",
+      "labels": [
+        "ir_rule.py",
+        "Record rules"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 19
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 66
+        }
+      ],
+      "entry_ids": [
+        "O07"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/tools/convert.py",
+      "labels": [
+        "convert.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 20
+        }
+      ],
+      "entry_ids": [
+        "O08"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_ui_view.py",
+      "labels": [
+        "ir_ui_view.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 21
+        }
+      ],
+      "entry_ids": [
+        "O09"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_actions.py",
+      "labels": [
+        "ir_actions.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 22
+        }
+      ],
+      "entry_ids": [
+        "O10"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_ui_menu.py",
+      "labels": [
+        "ir_ui_menu.py",
+        "Menu source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 22
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 78
+        }
+      ],
+      "entry_ids": [
+        "O10"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/http.py",
+      "labels": [
+        "http.py"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 23
+        }
+      ],
+      "entry_ids": [
+        "O11"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/service/model.py",
+      "labels": [
+        "service/model.py",
+        "Retry source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 24
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 84
+        }
+      ],
+      "entry_ids": [
+        "O12"
+      ]
+    },
+    {
+      "url": "https://github.com/odoo/odoo/blob/19.0/odoo/sql_db.py",
+      "labels": [
+        "sql_db.py",
+        "Cursor source"
+      ],
+      "citations": [
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 24
+        },
+        {
+          "file": "knowledge/ODOO-CORE.md",
+          "line": 84
+        }
+      ],
+      "entry_ids": [
+        "O12"
+      ]
+    }
+  ]
+}

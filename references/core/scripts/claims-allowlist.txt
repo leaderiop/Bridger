@@ -1,0 +1,13 @@
+# claims-allowlist.txt — lines allowed to use a restricted claim word
+# (validated, qualified, compliant, tamper-evident, durable) without a
+# negation on the same line. Format:  <path relative to references/core>::<exact substring of the line>
+# The list fails in both directions: an entry whose substring no longer
+# appears in its file is itself a failure. Add an entry only with a reason.
+# Consumer-owned obligations listed by name; the requirement assigns them to the consumer on the next line.
+behaviors/23-audit-sink-and-record.md::archiving, backup, durability, access control, printing or
+# "validated" describes the regulated user's own validated plugin, not Bridger.
+behaviors/25-operation-gate.md::replacing a validated plugin, reconfiguring a GMP-relevant one
+# Title of the ISPE GAMP 5 guide, quoted.
+glossary.md::ISPE's *A Risk-Based Approach to Compliant GxP Computerized Systems*, second
+# "qualified" in the sense of an ADR status qualifier, not qualification.
+process/requirement-id-scheme.md::Proposed, Accepted, Superseded, Withdrawn (optionally qualified,

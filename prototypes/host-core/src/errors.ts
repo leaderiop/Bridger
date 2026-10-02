@@ -1,0 +1,21 @@
+// Tagged errors of the host core (references/core ADR-BR-008). Identifiers and messages only.
+import { Schema } from "effect"
+
+export class DuplicatePlugin extends Schema.TaggedError<DuplicatePlugin>()("DuplicatePlugin", { id: Schema.String }) {}
+export class DuplicateProvider extends Schema.TaggedError<DuplicateProvider>()("DuplicateProvider", { serviceId: Schema.String, providerId: Schema.String }) {}
+export class DependencyCycle extends Schema.TaggedError<DependencyCycle>()("DependencyCycle", { path: Schema.Array(Schema.String) }) {}
+export class InvalidDefinition extends Schema.TaggedError<InvalidDefinition>()("InvalidDefinition", { id: Schema.String, reason: Schema.String }) {}
+export type InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | InvalidDefinition
+
+export class ReplaceError extends Schema.TaggedError<ReplaceError>()("ReplaceError", { id: Schema.String, cause: Schema.String }) {}
+export class UnknownPlugin extends Schema.TaggedError<UnknownPlugin>()("UnknownPlugin", { id: Schema.String }) {}
+export class Conflict extends Schema.TaggedError<Conflict>()("Conflict", { id: Schema.String, pending: Schema.String }) {}
+export class HostClosed extends Schema.TaggedError<HostClosed>()("HostClosed", {}) {}
+export class CleanupError extends Schema.TaggedError<CleanupError>()("CleanupError", { id: Schema.String, message: Schema.String }) {}
+export class DrainTimeout extends Schema.TaggedError<DrainTimeout>()("DrainTimeout", { id: Schema.String, leases: Schema.Number }) {}
+export class WouldDeadlock extends Schema.TaggedError<WouldDeadlock>()("WouldDeadlock", { id: Schema.String }) {}
+export class ServiceUnavailable extends Schema.TaggedError<ServiceUnavailable>()("ServiceUnavailable", { serviceId: Schema.String }) {}
+export class LeaseRevoked extends Schema.TaggedError<LeaseRevoked>()("LeaseRevoked", { serviceId: Schema.String }) {}
+export class LeaseTimeout extends Schema.TaggedError<LeaseTimeout>()("LeaseTimeout", { serviceId: Schema.String }) {}
+export class ActivationFailed extends Schema.TaggedError<ActivationFailed>()("ActivationFailed", { id: Schema.String, phase: Schema.String, message: Schema.String }) {}
+export class PluginRemoved extends Schema.TaggedError<PluginRemoved>()("PluginRemoved", { id: Schema.String }) {}

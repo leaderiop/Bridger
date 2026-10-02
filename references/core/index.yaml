@@ -1,0 +1,26 @@
+kind: root
+package: bridger-core
+infix: BR
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-00"
+    title: "Bridger Core — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-OVW"
+    title: "Overview"
+  - file: "glossary.md"
+    id: "BRIDGER-GLOSSARY"
+    title: "Glossary"
+  - file: "urs.md"
+    id: "BRIDGER-URS"
+    title: "User Requirements"
+  - file: "invariants.md"
+    id: "BRIDGER-INV"
+    title: "Runtime Invariants"
+  - file: "traceability.md"
+    id: "BRIDGER-TRACE"
+    title: "Traceability"
+  - file: "roadmap.md"
+    id: "BRIDGER-ROADMAP"
+    title: "Roadmap"

@@ -1,0 +1,4409 @@
+{
+  "schema_version": 1,
+  "research_date": "2026-10-02",
+  "scope": "Bridger design research: generic runtime, Effect v4, Alchemy, FoldKit, ERP requirements",
+  "effect_unstable_policy": {
+    "status": "user-approved",
+    "scope": "All Effect v4 unstable features are eligible; maturity is not an exclusion or separate approval gate",
+    "version_policy": "Use pinned release imports and validate compatibility"
+  },
+  "limitations": [
+    "Not exhaustive",
+    "Repository versions, not verified npm dist-tags",
+    "No runtime or compatibility tests",
+    "Proposed uses are not implemented features",
+    "Odoo Context7 snippets had version-mismatched links; Odoo claims use direct 19.0 source inspection"
+  ],
+  "context7": {
+    "alchemy": "/alchemy-run/alchemy",
+    "foldkit": "/foldkit/foldkit",
+    "effect": "/websites/effect_website_v4",
+    "odoo": "/odoo/odoo/__branch__19.0"
+  },
+  "entry_count": 153,
+  "counts": {
+    "effect": 45,
+    "alchemy": 30,
+    "erp": 32,
+    "foldkit": 16,
+    "architecture": 18,
+    "odoo": 12
+  },
+  "tag_method": "Keyword-derived retrieval aids, not reviewed classifications",
+  "entries": [
+    {
+      "id": "E01",
+      "title": "Typed computations and errors: `Effect`, `Cause`, `Exit` from `effect`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 23,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[Effect](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Effect.ts)",
+        "Proposed Bridger / ERP use": "Describe activation, service calls and typed operational failures; preserve cleanup defects in host diagnostics.",
+        "Maturity and limitation": "Core. Typed error channels do not prevent arbitrary JavaScript defects or prove business correctness."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "inventory",
+        "observability",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Effect",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Effect.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E02",
+      "title": "Service keys and dependency environments: `Context.Service`, `Context.Reference`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 24,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[Context](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Context.ts)",
+        "Proposed Bridger / ERP use": "Shared contracts package for plugin services; request-scoped tenant, actor and locale environments.",
+        "Maturity and limitation": "Core. TypeScript types erase at runtime; runtime-loaded modules need manifest/schema checks and matching service identities."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "tenancy",
+        "data-model",
+        "observability",
+        "testing",
+        "integration",
+        "versioning",
+        "localization"
+      ],
+      "sources": [
+        {
+          "title": "Context",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Context.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E03",
+      "title": "Layer construction and memoization: `Layer`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 25,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[Layer](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Layer.ts)",
+        "Proposed Bridger / ERP use": "Build activation dependency environments and share intended infrastructure layers.",
+        "Maturity and limitation": "Core. Layer graph construction is not a dynamic plugin resolver; memo-map ownership must match activation lifetimes."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "infrastructure",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "Layer",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Layer.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E04",
+      "title": "Resource ownership and finalization: `Scope`, acquire/release operations",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 26,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[Scope](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Scope.ts)",
+        "Proposed Bridger / ERP use": "One scope per activation, nested scopes per call, deterministic cleanup of connections and handlers.",
+        "Maturity and limitation": "Core. Closing a scope does not undo committed database writes or external actions."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Scope",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Scope.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E05",
+      "title": "Structured concurrency and interruption: fibers and scoped forks",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 27,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[Effect](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Effect.ts)",
+        "Proposed Bridger / ERP use": "Tie background plugin workers to activation lifetime; coordinate cancellation on removal.",
+        "Maturity and limitation": "Core. Choose fork ownership deliberately; detached work and uninterruptible operations can outlive intended teardown."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "accounting",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "Effect",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Effect.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E06",
+      "title": "Refreshable layer contexts: `LayerRef`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 28,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[LayerRef](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/LayerRef.ts)",
+        "Proposed Bridger / ERP use": "Rebuild a credential-dependent connector or service generation while existing users finish.",
+        "Maturity and limitation": "Core. Invalidation does not revoke already borrowed contexts. This is useful evidence for leases, not a complete hot-replacement protocol."
+      },
+      "tags": [
+        "lifecycle",
+        "security",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "LayerRef",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/LayerRef.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E07",
+      "title": "Keyed scoped service families: `LayerMap`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 29,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[LayerMap](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/LayerMap.ts)",
+        "Proposed Bridger / ERP use": "Cache tenant or regional connector environments with idle release.",
+        "Maturity and limitation": "Core. Tenant selection and authorization remain application rules; bound resource cardinality."
+      },
+      "tags": [
+        "lifecycle",
+        "tenancy",
+        "security",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "LayerMap",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/LayerMap.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E08",
+      "title": "Reference-counted scoped resources: `RcRef`, `RcMap`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 30,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[RcRef](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/RcRef.ts), [exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "Candidate primitives underneath leased provider generations.",
+        "Maturity and limitation": "Core. Reference counting alone does not block new leases, validate plugin dependencies, or order dependent shutdown."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "RcRef",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/RcRef.ts"
+        },
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E09",
+      "title": "Scope-owning cache: `ScopedCache`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 31,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[ScopedCache](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ScopedCache.ts)",
+        "Proposed Bridger / ERP use": "Deduplicate expensive connector acquisition with bounded entries and cleanup on eviction.",
+        "Maturity and limitation": "Core. Cached ownership differs from borrowed ownership; do not assume eviction is safe for escaped handles."
+      },
+      "tags": [
+        "lifecycle",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "ScopedCache",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ScopedCache.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E10",
+      "title": "Mutable refreshable resources: `Resource`, `ScopedRef`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 32,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "Candidate mechanism for refreshed configuration or replaceable scoped values.",
+        "Maturity and limitation": "Core exports verified. Recheck current replacement/failure semantics before choosing over E06\u2013E08."
+      },
+      "tags": [
+        "lifecycle",
+        "ui",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E11",
+      "title": "Runtime bridge: `ManagedRuntime`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 33,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "One application-owned execution boundary for React, imperative integrations and command entry points.",
+        "Maturity and limitation": "Core export verified. Runtime disposal and plugin removal are separate ownership operations."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E12",
+      "title": "Dependency analysis: `Graph`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 34,
+      "section": "Runtime, ownership and plugin composition",
+      "fields": {
+        "Evidence": "[Graph](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Graph.ts)",
+        "Proposed Bridger / ERP use": "Represent provider-consumer edges, inspect topology and export diagnostic diagrams.",
+        "Maturity and limitation": "Core. Bridger still defines edge meanings, optional dependencies, cycles and teardown policy."
+      },
+      "tags": [
+        "lifecycle",
+        "ui",
+        "observability",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Graph",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Graph.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E13",
+      "title": "In-memory transactions: `Effect.tx`, `TxRef` and transactional collections",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 40,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[TxRef](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/TxRef.ts)",
+        "Proposed Bridger / ERP use": "Atomically update related host registry state and generation counters.",
+        "Maturity and limitation": "Core. Transactions retry on conflict; they do not enlist SQL, files or remote APIs. Avoid non-repeatable external effects inside them."
+      },
+      "tags": [
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "TxRef",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/TxRef.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E14",
+      "title": "Transactional coordination: `TxQueue`, `TxPubSub`, `TxSemaphore`, `TxSubscriptionRef`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 41,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "Evaluate atomic coordination between host state and local notifications.",
+        "Maturity and limitation": "Core exports verified. Process-local structures are neither a durable event log nor a distributed lock."
+      },
+      "tags": [
+        "ui",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E15",
+      "title": "Partition-aware concurrency limits: `PartitionedSemaphore`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 42,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[PartitionedSemaphore](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/PartitionedSemaphore.ts)",
+        "Proposed Bridger / ERP use": "Let tenants share bounded database/import capacity without one busy tenant monopolizing released permits.",
+        "Maturity and limitation": "Core. This bounds concurrent work in one runtime; it is not a global throughput quota."
+      },
+      "tags": [
+        "lifecycle",
+        "tenancy",
+        "accounting",
+        "ui",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "PartitionedSemaphore",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/PartitionedSemaphore.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E16",
+      "title": "Observable current state: `SubscriptionRef`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 43,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[SubscriptionRef](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/SubscriptionRef.ts)",
+        "Proposed Bridger / ERP use": "Implement host snapshots and lifecycle subscriptions consumed by FoldKit/React adapters.",
+        "Maturity and limitation": "Core. Publishes initial state and committed updates; remote reconnection, replay IDs and UI scheduling remain adapter work."
+      },
+      "tags": [
+        "ui",
+        "observability",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "SubscriptionRef",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/SubscriptionRef.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E17",
+      "title": "Backpressured pipelines: `Stream`, `Channel`, `Sink`, `Queue`, `PubSub`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 44,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "CSV imports, report exports, change feeds and bounded plugin event fan-out.",
+        "Maturity and limitation": "Core exports. Choose buffering and slow-consumer policy; local PubSub has no durable delivery guarantee."
+      },
+      "tags": [
+        "plugins",
+        "ui",
+        "integration",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E18",
+      "title": "Request batching and deduplication: `RequestResolver`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 45,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[RequestResolver](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/RequestResolver.ts)",
+        "Proposed Bridger / ERP use": "Batch record lookups across rich screens and avoid N+1 service calls.",
+        "Maturity and limitation": "Core. Include tenant, authorization scope and consistency requirements in request/cache identity."
+      },
+      "tags": [
+        "lifecycle",
+        "tenancy",
+        "security",
+        "ui",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "RequestResolver",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/RequestResolver.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E19",
+      "title": "Retry and scheduling: `Schedule`, `Cron`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 46,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "Backoff for imports/connectors and scheduled maintenance.",
+        "Maturity and limitation": "Core exports. An in-memory schedule does not survive process loss; write idempotent jobs and decide distributed ownership."
+      },
+      "tags": [
+        "ui",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E20",
+      "title": "Ordered fallback providers: `ExecutionPlan`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 47,
+      "section": "Coordination, load and observable state",
+      "fields": {
+        "Evidence": "[ExecutionPlan](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ExecutionPlan.ts)",
+        "Proposed Bridger / ERP use": "Switch among approved email, document extraction or integration providers with explicit attempt policy.",
+        "Maturity and limitation": "Core. Fallback after ambiguous remote success can duplicate an action; use operation IDs and reconciliation."
+      },
+      "tags": [
+        "observability",
+        "integration",
+        "ai"
+      ],
+      "sources": [
+        {
+          "title": "ExecutionPlan",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ExecutionPlan.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E21",
+      "title": "Runtime codecs and boundary validation: `Schema`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 53,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[Schema](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Schema.ts)",
+        "Proposed Bridger / ERP use": "Validate manifests, configuration, commands and imported data; distinguish encoded transport shapes from domain values.",
+        "Maturity and limitation": "Core. Successful decoding does not authorize a command or enforce cross-record invariants."
+      },
+      "tags": [
+        "security",
+        "data-model",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Schema",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Schema.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E22",
+      "title": "Schema-derived JSON Schema, formatters, equivalence, optics and differs",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 54,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[Schema](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Schema.ts)",
+        "Proposed Bridger / ERP use": "Reuse contract metadata for API docs, validation messages and form/update tooling.",
+        "Maturity and limitation": "Core capabilities. UI layout, permissions and workflow semantics require explicit metadata; arbitrary transformations are not portable JSON Schema."
+      },
+      "tags": [
+        "security",
+        "data-model",
+        "workflow",
+        "ui",
+        "observability",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Schema",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Schema.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E23",
+      "title": "Extensible schema representation: `SchemaRepresentation`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 55,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[SchemaRepresentation](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/SchemaRepresentation.ts)",
+        "Proposed Bridger / ERP use": "Evaluate serializable field catalogs and compiler tooling for installed module contracts.",
+        "Maturity and limitation": "Core export. Opaque checks need representation identities/handlers; serializing a schema is not serializing arbitrary executable code."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "ui",
+        "observability",
+        "testing",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "SchemaRepresentation",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/SchemaRepresentation.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E24",
+      "title": "Variant models and schema compilation: `Model`, `VariantSchema`, AOT/JIT compilers from `effect/schema`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 56,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[schema exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/schema/index.ts)",
+        "Proposed Bridger / ERP use": "Explore distinct insert/update/read shapes and compile expensive validation paths after measurement.",
+        "Maturity and limitation": "Unstable. Keep compiler and persistence details behind adapters; confirm deployment/CSP compatibility for JIT."
+      },
+      "tags": [
+        "data-model",
+        "infrastructure",
+        "ui",
+        "integration",
+        "versioning",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "schema exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/schema/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E25",
+      "title": "Decimal arithmetic: `BigDecimal`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 57,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[BigDecimal](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/BigDecimal.ts)",
+        "Proposed Bridger / ERP use": "Foundation for quantities, prices and exchange calculations without binary floating-point representation.",
+        "Maturity and limitation": "Core. Define currency, scale, rounding stage/mode and SQL/JSON encoding explicitly; no accounting rules are supplied."
+      },
+      "tags": [
+        "accounting",
+        "infrastructure",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "BigDecimal",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/BigDecimal.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E26",
+      "title": "Instants and time zones: `DateTime`, with `Duration` / `Clock`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 58,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[DateTime](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/DateTime.ts)",
+        "Proposed Bridger / ERP use": "Distinguish timestamps, durations and zone-aware scheduling.",
+        "Maturity and limitation": "Core. DateTime represents an instant; date-only accounting periods and local calendar dates need their own model."
+      },
+      "tags": [
+        "integration",
+        "localization"
+      ],
+      "sources": [
+        {
+          "title": "DateTime",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/DateTime.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E27",
+      "title": "Nominal identities and structured updates: `Brand`, `Newtype`, `Optic`, `JsonPatch`, `JsonPointer`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 59,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "Prevent accidental ID mixing and describe selective form/document updates.",
+        "Maturity and limitation": "Core exports. Branded types do not validate unknown input; patches need field-level authorization and concurrency checks."
+      },
+      "tags": [
+        "security",
+        "data-model",
+        "accounting",
+        "ui",
+        "testing",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E28",
+      "title": "Configuration and secret display protection: `Config`, `ConfigProvider`, `Redacted`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 60,
+      "section": "Contracts, metadata and business data",
+      "fields": {
+        "Evidence": "[exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts)",
+        "Proposed Bridger / ERP use": "Typed plugin config and connector credentials that resist accidental default printing.",
+        "Maturity and limitation": "Core exports. Redaction is not encryption, secret storage, access control or protection against malicious trusted code."
+      },
+      "tags": [
+        "plugins",
+        "security",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E29",
+      "title": "SQL transactions and connections: `SqlClient` from `effect/sql`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 66,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[SqlClient](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/SqlClient.ts)",
+        "Proposed Bridger / ERP use": "Transactional domain commands; nested transaction support is implemented using connection transaction controls/savepoints.",
+        "Maturity and limitation": "Unstable. Requires driver, database isolation choices, tenant enforcement and integration tests; external effects are outside the SQL transaction."
+      },
+      "tags": [
+        "tenancy",
+        "security",
+        "ui",
+        "testing",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "SqlClient",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/SqlClient.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E30",
+      "title": "SQL schemas, models and batched resolvers: `SqlSchema`, `SqlModel`, `SqlResolver`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 67,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[SQL exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/index.ts)",
+        "Proposed Bridger / ERP use": "Typed persistence boundary and batched data retrieval behind ERP repositories.",
+        "Maturity and limitation": "Unstable. This is not an Odoo-style extensible model registry or a complete ORM inheritance system."
+      },
+      "tags": [
+        "data-model",
+        "ui",
+        "integration",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "SQL exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E31",
+      "title": "Migration primitives: `Migrator` from `effect/sql`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 68,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[SQL exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/index.ts)",
+        "Proposed Bridger / ERP use": "Execute versioned schema changes for a deployment or module upgrade.",
+        "Maturity and limitation": "Unstable. Bridger/ERP must specify locking, expand/contract changes, backups, compatibility windows and upgrade failure recovery."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "infrastructure",
+        "ui",
+        "observability",
+        "integration",
+        "versioning",
+        "migrations",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "SQL exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/sql/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E32",
+      "title": "Persistent caches, queues and rate limiting: `effect/persistence`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 69,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[persistence exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/persistence/index.ts)",
+        "Proposed Bridger / ERP use": "Cache remote metadata, buffer integration work and enforce connector quotas.",
+        "Maturity and limitation": "Unstable. Verify backend durability, acknowledgement and retry semantics; presence of PersistedQueue alone is not an exactly-once guarantee."
+      },
+      "tags": [
+        "data-model",
+        "ui",
+        "testing",
+        "integration",
+        "versioning",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "persistence exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/persistence/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E33",
+      "title": "Durable workflow definitions: `Workflow`, `WorkflowEngine` from `effect/workflow`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 70,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[Workflow](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Workflow.ts)",
+        "Proposed Bridger / ERP use": "Model procurement approvals, document processing and long-running fulfillment with schema-defined payloads/results and deterministic execution identities.",
+        "Maturity and limitation": "Unstable. Persistence depends on engine choice; pin code/schema versions for outstanding workflows."
+      },
+      "tags": [
+        "data-model",
+        "inventory",
+        "workflow",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Workflow",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Workflow.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E34",
+      "title": "Durable activity execution: `Activity` from `effect/workflow`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 71,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[Activity](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Activity.ts)",
+        "Proposed Bridger / ERP use": "Isolate resumable steps and remote calls within a workflow.",
+        "Maturity and limitation": "Unstable. External side effects still require idempotency and handling for success-before-recording crash windows."
+      },
+      "tags": [
+        "security",
+        "workflow",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Activity",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Activity.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E35",
+      "title": "Durable waits and queues: `DurableClock`, `DurableDeferred`, `DurableQueue`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 72,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[workflow exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/index.ts), [DurableDeferred](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/DurableDeferred.ts)",
+        "Proposed Bridger / ERP use": "Wait for human approval, a webhook or a deadline without treating an ordinary sleeping fiber as durable storage.",
+        "Maturity and limitation": "Unstable. Define authorization, event correlation, timeout and duplicate-response behavior at the application boundary."
+      },
+      "tags": [
+        "security",
+        "workflow",
+        "ui",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "workflow exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/index.ts"
+        },
+        {
+          "title": "DurableDeferred",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/DurableDeferred.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E36",
+      "title": "Workflow compensation and terminal lifecycle",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 73,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[Workflow](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Workflow.ts)",
+        "Proposed Bridger / ERP use": "Describe compensating business actions when a multi-step process fails.",
+        "Maturity and limitation": "Unstable. Compensation is not rollback. Source explicitly limits compensation finalizers to top-level workflow effects, excluding nested activities."
+      },
+      "tags": [
+        "lifecycle",
+        "workflow",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Workflow",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/workflow/Workflow.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E37",
+      "title": "Cluster entities, sharding and workflow engine: `effect/cluster`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 74,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[cluster exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/cluster/index.ts), [Entity](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/cluster/Entity.ts)",
+        "Proposed Bridger / ERP use": "Evaluate distributed ownership of account/order actors and durable workflow execution across workers.",
+        "Maturity and limitation": "Unstable. Distribution is an optional infrastructure choice; rolling upgrades, fencing and message/storage semantics need a failure model."
+      },
+      "tags": [
+        "workflow",
+        "infrastructure",
+        "ui",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "cluster exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/cluster/index.ts"
+        },
+        {
+          "title": "Entity",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/cluster/Entity.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E38",
+      "title": "Event journals and synchronization: `effect/eventlog`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 75,
+      "section": "Persistence and durable business processes",
+      "fields": {
+        "Evidence": "[EventLog](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/eventlog/EventLog.ts), [exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/eventlog/index.ts)",
+        "Proposed Bridger / ERP use": "Explore append/replay/synchronization infrastructure and event projections.",
+        "Maturity and limitation": "Unstable. Do not assume it is a legally sufficient audit ledger or a complete event-sourced ERP. Define ordering, conflict resolution, retention and authorization separately."
+      },
+      "tags": [
+        "security",
+        "accounting",
+        "infrastructure",
+        "ui",
+        "observability",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "EventLog",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/eventlog/EventLog.ts"
+        },
+        {
+          "title": "exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/eventlog/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E39",
+      "title": "HTTP clients and server primitives: `effect/http`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 81,
+      "section": "Interfaces, observability and verification",
+      "fields": {
+        "Evidence": "[HTTP exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/http/index.ts)",
+        "Proposed Bridger / ERP use": "Integration connectors, attachment transfer and incoming webhooks using Effect resource/error conventions.",
+        "Maturity and limitation": "Unstable. Platform server layers and deployment support must be selected separately."
+      },
+      "tags": [
+        "data-model",
+        "infrastructure",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "HTTP exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/http/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E40",
+      "title": "Schema-defined APIs and documentation: `effect/http-api`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 82,
+      "section": "Interfaces, observability and verification",
+      "fields": {
+        "Evidence": "[HTTP API exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/http-api/index.ts)",
+        "Proposed Bridger / ERP use": "Share endpoint contracts, generated clients, OpenAPI documentation and middleware between modules.",
+        "Maturity and limitation": "Unstable. Dynamic installation requires an explicit route-registration seam and collision/removal policy."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "data-model",
+        "ui",
+        "observability",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "HTTP API exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/http-api/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E41",
+      "title": "Typed RPC definitions: `Rpc` from `effect/rpc`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 83,
+      "section": "Interfaces, observability and verification",
+      "fields": {
+        "Evidence": "[Rpc](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/rpc/Rpc.ts)",
+        "Proposed Bridger / ERP use": "Typed service boundaries between browser, server and workers.",
+        "Maturity and limitation": "Unstable. Typed protocol definitions are not authentication or cross-version negotiation; verify transport and streaming contracts."
+      },
+      "tags": [
+        "security",
+        "ui",
+        "observability",
+        "testing",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Rpc",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/rpc/Rpc.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E42",
+      "title": "Reactive atoms, resource results and API adapters: `effect/reactivity`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 84,
+      "section": "Interfaces, observability and verification",
+      "fields": {
+        "Evidence": "[reactivity exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/reactivity/index.ts)",
+        "Proposed Bridger / ERP use": "Evaluate UI data caching/invalidation and remote result state alongside Bridger lifecycle snapshots.",
+        "Maturity and limitation": "Unstable. FoldKit already has its own state/update model; choose a single owner for each state and bridge subscriptions deliberately."
+      },
+      "tags": [
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "reactivity exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/reactivity/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E43",
+      "title": "Logs, metrics, tracing and OTLP",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 85,
+      "section": "Interfaces, observability and verification",
+      "fields": {
+        "Evidence": "[core exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts), [OTLP](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/observability/Otlp.ts)",
+        "Proposed Bridger / ERP use": "Correlate plugin activation, generation, tenant and command IDs; inspect failure causes and export telemetry.",
+        "Maturity and limitation": "Core Logger/Metric/Tracer exports; observability integration requires version review. Telemetry is not the business audit record; avoid high-cardinality labels and sensitive payloads."
+      },
+      "tags": [
+        "plugins",
+        "tenancy",
+        "ui",
+        "observability",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "core exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/index.ts"
+        },
+        {
+          "title": "OTLP",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/observability/Otlp.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E44",
+      "title": "Controlled time, schema checks and generated test data: `effect/testing`, `Arbitrary`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 86,
+      "section": "Interfaces, observability and verification",
+      "fields": {
+        "Evidence": "[testing exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/testing/index.ts), [Arbitrary](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Arbitrary.ts)",
+        "Proposed Bridger / ERP use": "Exercise lease-drain timeouts, retry policies, schema round trips and generated module/configuration cases.",
+        "Maturity and limitation": "Testing exports verified; Arbitrary explicitly unstable. Database races and restart recovery still need integration/fault tests."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "data-model",
+        "ui",
+        "testing",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "testing exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/testing/index.ts"
+        },
+        {
+          "title": "Arbitrary",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/Arbitrary.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "E45",
+      "title": "AI services and tools: `effect/ai`",
+      "category": "effect",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/EFFECT-V4.md",
+      "line": 87,
+      "section": "Interfaces, observability and verification",
+      "fields": {
+        "Evidence": "[AI exports](https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ai/index.ts)",
+        "Proposed Bridger / ERP use": "Optional invoice extraction, assisted search and drafting plugins behind a shared application service.",
+        "Maturity and limitation": "Unstable. Keep authorization, business validation and human approval outside model discretion; AI is not required by Bridger core."
+      },
+      "tags": [
+        "plugins",
+        "security",
+        "accounting",
+        "workflow",
+        "ui",
+        "observability",
+        "integration",
+        "ai"
+      ],
+      "sources": [
+        {
+          "title": "AI exports",
+          "url": "https://raw.githubusercontent.com/Effect-TS/effect/main/packages/effect/src/ai/index.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A01",
+      "title": "Effect stacks",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 17,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "`Alchemy.Stack` runs an Effect describing resources, providers, state and outputs. [Guide](https://alchemy.run/getting-started/)",
+        "Relevance to Bridger / ERP": "Compose deployable ERP infrastructure in TypeScript.",
+        "Limit or design implication": "A stack is a deployment unit; it is not a tenant's active plugin registry."
+      },
+      "tags": [
+        "plugins",
+        "tenancy",
+        "infrastructure",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Guide",
+          "url": "https://alchemy.run/getting-started/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A02",
+      "title": "Resource identity and dependencies",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 18,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Resource attributes are typed deferred Outputs; using one as another resource's input creates a graph edge. [Resources](https://alchemy.run/infrastructure-as-code/resource/)",
+        "Relevance to Bridger / ERP": "Stable infrastructure IDs per module and explicit dependency ordering.",
+        "Limit or design implication": "Renaming an identifier can affect physical resource lifecycle."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Resources",
+          "url": "https://alchemy.run/infrastructure-as-code/resource/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A03",
+      "title": "Deferred outputs",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 19,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Outputs model values available after provisioning. [Inputs and outputs](https://alchemy.run/infrastructure-as-code/outputs/)",
+        "Relevance to Bridger / ERP": "Wire database addresses, queue URLs and browser API endpoints without manual copying.",
+        "Limit or design implication": "Keep deploy-time Outputs out of ordinary plugin service contracts."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "ui",
+        "observability",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Inputs and outputs",
+          "url": "https://alchemy.run/infrastructure-as-code/outputs/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A04",
+      "title": "Plan and converge",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 20,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Lifecycle plans create/update/replace/delete/no-op and invokes convergent reconciliation. [Lifecycle](https://alchemy.run/infrastructure-as-code/resource-lifecycle/)",
+        "Relevance to Bridger / ERP": "Review module infrastructure requirements before applying them.",
+        "Limit or design implication": "Reconciliation is not an atomic business transaction."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "ui",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Lifecycle",
+          "url": "https://alchemy.run/infrastructure-as-code/resource-lifecycle/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A05",
+      "title": "Retention and teardown",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 21,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Deletion follows reverse dependencies; `RemovalPolicy.retain()` keeps the cloud object while removing its state entry. [Lifecycle](https://alchemy.run/infrastructure-as-code/resource-lifecycle/)",
+        "Relevance to Bridger / ERP": "Preserve records and attachments when disabling modules.",
+        "Limit or design implication": "Retention also forgets management state; it is not a backup or reversible uninstall."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "inventory",
+        "infrastructure",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Lifecycle",
+          "url": "https://alchemy.run/infrastructure-as-code/resource-lifecycle/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A06",
+      "title": "Resource renaming",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 22,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "`renamedFrom` records an identity move. [Renaming](https://alchemy.run/infrastructure-as-code/renaming/)",
+        "Relevance to Bridger / ERP": "Evolve module packaging without accidental infrastructure replacement.",
+        "Limit or design implication": "Validate all state addresses and dependency references during a rename."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Renaming",
+          "url": "https://alchemy.run/infrastructure-as-code/renaming/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A07",
+      "title": "Adoption and provider extension",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 23,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Providers define reconciliation, diff, deletion and optional read; read can distinguish owned and unowned resources. [Providers](https://alchemy.run/infrastructure-as-code/provider/)",
+        "Relevance to Bridger / ERP": "Bring existing ERP infrastructure under deployment management; add vendor integrations.",
+        "Limit or design implication": "Adoption is provider-specific ownership takeover, not importing ERP data."
+      },
+      "tags": [
+        "infrastructure",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Providers",
+          "url": "https://alchemy.run/infrastructure-as-code/provider/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A08",
+      "title": "Drift detection",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 24,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "CLI exposes `alchemy drift` for detection and optional repair. [Drift](https://alchemy.run/cli/drift/)",
+        "Relevance to Bridger / ERP": "Detect manual infrastructure changes that invalidate plugin assumptions.",
+        "Limit or design implication": "Schedule and approve repair independently of runtime activation; verify provider coverage."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Drift",
+          "url": "https://alchemy.run/cli/drift/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A09",
+      "title": "State stores and locks",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 25,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "State is scoped by stack/stage; local, Cloudflare, Postgres and memory implementations are documented. Postgres uses a session advisory lock per stack/stage. [State](https://alchemy.run/state-store/)",
+        "Relevance to Bridger / ERP": "Coordinate team deployments and recover provisioning progress.",
+        "Limit or design implication": "This state is infrastructure metadata, not the ERP database or an install journal."
+      },
+      "tags": [
+        "lifecycle",
+        "data-model",
+        "infrastructure",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "State",
+          "url": "https://alchemy.run/state-store/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A10",
+      "title": "Stages and credential profiles",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 26,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Separate environment stages and auth profiles are CLI concepts. [Stages](https://alchemy.run/environments/stages/), [CLI](https://alchemy.run/cli/)",
+        "Relevance to Bridger / ERP": "Preview, development and production environments with explicit deployment identity.",
+        "Limit or design implication": "Stage separation does not establish row-level tenant isolation."
+      },
+      "tags": [
+        "tenancy",
+        "security",
+        "infrastructure",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Stages",
+          "url": "https://alchemy.run/environments/stages/"
+        },
+        {
+          "title": "CLI",
+          "url": "https://alchemy.run/cli/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A11",
+      "title": "Cross-stack references",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 27,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "References read persisted upstream outputs at plan time; borrowers do not own referenced resources. [References](https://alchemy.run/infrastructure-as-code/references/)",
+        "Relevance to Bridger / ERP": "Share foundational databases or artifact stores across module deployments.",
+        "Limit or design implication": "Upstream must already exist; reference resolution does not orchestrate its deployment."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "References",
+          "url": "https://alchemy.run/infrastructure-as-code/references/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A12",
+      "title": "Deployment Actions",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 28,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Actions run Effects on changed input hashes; they have no delete/replace lifecycle. [Actions](https://alchemy.run/infrastructure-as-code/action/)",
+        "Relevance to Bridger / ERP": "Build artifacts, seed infrastructure or apply controlled deployment work.",
+        "Limit or design implication": "Removing an Action does not undo its side effects; design idempotence and migration history."
+      },
+      "tags": [
+        "lifecycle",
+        "infrastructure",
+        "testing",
+        "integration",
+        "versioning",
+        "migrations",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Actions",
+          "url": "https://alchemy.run/infrastructure-as-code/action/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A13",
+      "title": "Runtime construction phases",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 29,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Outer constructors run during planning and cold start; returned handlers run for events. [Phases](https://alchemy.run/infrastructure-as-effects/phases/)",
+        "Relevance to Bridger / ERP": "Express infrastructure needs alongside service implementations.",
+        "Limit or design implication": "Plugin activation side effects cannot blindly run in this constructor."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Phases",
+          "url": "https://alchemy.run/infrastructure-as-effects/phases/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A14",
+      "title": "Typed bindings and IAM",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 30,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Bindings connect infrastructure to a runtime and provide typed clients; implementations generate native bindings or IAM/env wiring. [Bindings](https://alchemy.run/infrastructure-as-effects/binding/)",
+        "Relevance to Bridger / ERP": "Host adapters can supply storage or queue capabilities to plugins.",
+        "Limit or design implication": "Runtime-loaded plugins cannot infer and provision new deployment permissions merely by calling a service."
+      },
+      "tags": [
+        "plugins",
+        "security",
+        "infrastructure",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Bindings",
+          "url": "https://alchemy.run/infrastructure-as-effects/binding/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A15",
+      "title": "Layers owning infrastructure",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 31,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Effect Layers can encapsulate resources and bindings behind an application service. [Layers](https://alchemy.run/infrastructure-as-effects/layers/)",
+        "Relevance to Bridger / ERP": "A strong seam for `Storage`, `Jobs`, `Database` implementations.",
+        "Limit or design implication": "Keep those deployment Layers distinct from per-activation plugin scopes."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "infrastructure",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Layers",
+          "url": "https://alchemy.run/infrastructure-as-effects/layers/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A16",
+      "title": "Circular runtime bindings",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 32,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Tag/implementation separation is documented for mutually bound deployed runtimes. [Circular bindings](https://alchemy.run/infrastructure-as-effects/circular-bindings/)",
+        "Relevance to Bridger / ERP": "Useful for infrastructure topology research.",
+        "Limit or design implication": "The page still describes create/update hooks while newer lifecycle docs use reconcile; verify source before copying. This does not justify cyclic Bridger activation dependencies."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Circular bindings",
+          "url": "https://alchemy.run/infrastructure-as-effects/circular-bindings/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A17",
+      "title": "Secret/config discovery",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 33,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Config resolved in Construction becomes a runtime binding; `Config.Redacted` uses the secret channel. [Secrets](https://alchemy.run/environments/secrets/)",
+        "Relevance to Bridger / ERP": "Inject provider credentials without hardcoding them into plugins.",
+        "Limit or design implication": "Config first read only inside a handler is not discovered for binding; browser configuration must contain no secrets."
+      },
+      "tags": [
+        "plugins",
+        "security",
+        "infrastructure",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Secrets",
+          "url": "https://alchemy.run/environments/secrets/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A18",
+      "title": "Local and live providers",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 34,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "`ProviderLayer.dual` switches implementations, with local data-plane routing and scoped process management. [Local provider](https://alchemy.run/infrastructure-as-code/local-provider/)",
+        "Relevance to Bridger / ERP": "Exercise adapters against emulators while retaining the same contracts.",
+        "Limit or design implication": "Development hot reload is a different lifecycle from installing a production plugin."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "infrastructure",
+        "observability",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Local provider",
+          "url": "https://alchemy.run/infrastructure-as-code/local-provider/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A19",
+      "title": "Real infrastructure tests",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 35,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "A suite deploys once, tests live resources, then destroys; local mode is also supported. [Testing](https://alchemy.run/testing/)",
+        "Relevance to Bridger / ERP": "Test queue, database, permissions and deployment contracts that mocks miss.",
+        "Limit or design implication": "Tests need isolated stages, cleanup and controlled cost; no tests were executed here."
+      },
+      "tags": [
+        "lifecycle",
+        "security",
+        "infrastructure",
+        "ui",
+        "observability",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Testing",
+          "url": "https://alchemy.run/testing/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A20",
+      "title": "CI and previews",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 36,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Official CI guidance covers stage-based deployment workflows. [CI](https://alchemy.run/environments/ci/)",
+        "Relevance to Bridger / ERP": "Review each ERP/module release in an isolated environment.",
+        "Limit or design implication": "Preview data provisioning and anonymization still require application policy."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "security",
+        "workflow",
+        "infrastructure",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "CI",
+          "url": "https://alchemy.run/environments/ci/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A21",
+      "title": "Runtime lifetime and finalizers",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 37,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Request scopes close per event; instance cleanup on Workers is unavailable and on Lambda is best effort. [Runtime scopes](https://alchemy.run/infrastructure-as-effects/runtime/#instance-scope-vs-request-scope)",
+        "Relevance to Bridger / ERP": "Determines where Bridger can keep an in-memory host and lease counters.",
+        "Limit or design implication": "Cloud eviction is not a graceful `host.remove`; durable business cleanup cannot depend on scope finalization."
+      },
+      "tags": [
+        "lifecycle",
+        "infrastructure",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Runtime scopes",
+          "url": "https://alchemy.run/infrastructure-as-effects/runtime/#instance-scope-vs-request-scope"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A22",
+      "title": "Event sources",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 38,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Bindings expose cloud events as Effect Streams and wire source/handler infrastructure. [Event sources](https://alchemy.run/infrastructure-as-effects/event-sources/)",
+        "Relevance to Bridger / ERP": "Inbound integrations, scheduled work and background processing.",
+        "Limit or design implication": "Persist business events and handle redelivery rather than treating an in-memory subscription as durable delivery."
+      },
+      "tags": [
+        "infrastructure",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Event sources",
+          "url": "https://alchemy.run/infrastructure-as-effects/event-sources/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A23",
+      "title": "Batched sinks",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 39,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "SQS, SNS and Kinesis sinks expose batch APIs through Effect Sink with generated permissions. [Sinks](https://alchemy.run/infrastructure-as-effects/sinks/)",
+        "Relevance to Bridger / ERP": "Bulk imports, reporting pipelines and outbound integration events.",
+        "Limit or design implication": "Batch sizing, partial failures and business idempotency need explicit contracts."
+      },
+      "tags": [
+        "security",
+        "infrastructure",
+        "ui",
+        "observability",
+        "integration",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Sinks",
+          "url": "https://alchemy.run/infrastructure-as-effects/sinks/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A24",
+      "title": "Durable workflows",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 40,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Cloudflare workflow tasks checkpoint results, support retries, rollback callbacks, sleep and event waits. [Workflows](https://alchemy.run/cloudflare/compute/workflows/)",
+        "Relevance to Bridger / ERP": "Purchase approvals, long imports and integration orchestration.",
+        "Limit or design implication": "Replay requires stable step IDs and serializable values; external writes still need idempotency. Plugin removal must account for running workflow versions."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "workflow",
+        "infrastructure",
+        "ui",
+        "testing",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Workflows",
+          "url": "https://alchemy.run/cloudflare/compute/workflows/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A25",
+      "title": "SQL and migration integration",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 41,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Effect SQL, Drizzle and Prisma integration paths include existing databases, Postgres and migration guidance. [SQL](https://alchemy.run/sql/)",
+        "Relevance to Bridger / ERP": "Relational ERP persistence and controlled schema evolution.",
+        "Limit or design implication": "Migration deployment is not a complete module migration protocol or an ORM extension model."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "infrastructure",
+        "integration",
+        "migrations",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "SQL",
+          "url": "https://alchemy.run/sql/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A26",
+      "title": "Cloud resource families",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 42,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Cloudflare documents D1/KV/R2/Hyperdrive/Queues/DOs; AWS documents Lambda, S3, SQS, DynamoDB and other services. [Cloudflare](https://alchemy.run/cloudflare/), [AWS](https://alchemy.run/aws/)",
+        "Relevance to Bridger / ERP": "Documents, relational connectivity, caches, jobs and compute.",
+        "Limit or design implication": "Provider breadth is not semantic interchangeability; choose consistency, transaction and regional behavior explicitly."
+      },
+      "tags": [
+        "infrastructure",
+        "integration",
+        "versioning",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Cloudflare",
+          "url": "https://alchemy.run/cloudflare/"
+        },
+        {
+          "title": "AWS",
+          "url": "https://alchemy.run/aws/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A27",
+      "title": "Composable telemetry",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 43,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "OTLP Layers configure signals and destinations; destinations can fan out while preserving span IDs, with stack/stage attributes. [Telemetry](https://alchemy.run/infrastructure-as-effects/telemetry/)",
+        "Relevance to Bridger / ERP": "Correlate plugin activation, service calls, jobs and infrastructure changes.",
+        "Limit or design implication": "Add plugin generation, tenant and operation IDs yourself; operational telemetry is not the audit ledger."
+      },
+      "tags": [
+        "plugins",
+        "tenancy",
+        "accounting",
+        "inventory",
+        "infrastructure",
+        "observability",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Telemetry",
+          "url": "https://alchemy.run/infrastructure-as-effects/telemetry/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A28",
+      "title": "Dynamic Worker Loader",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 44,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "`Cloudflare.WorkerLoader` supplies runtime `load`/`get` for source modules in separate isolates. [Worker Loader](https://alchemy.run/cloudflare/compute/worker-loader/)",
+        "Relevance to Bridger / ERP": "A verified cloud primitive for hot-loaded code, including trusted modules.",
+        "Limit or design implication": "It needs a Bridger transport adapter; it does not share the host's Effect Context or scopes."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "security",
+        "infrastructure",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Worker Loader",
+          "url": "https://alchemy.run/cloudflare/compute/worker-loader/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A29",
+      "title": "Workers for Platforms",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 45,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "Dispatch namespaces are documented for executing deployed tenant Workers. [Workers for Platforms](https://alchemy.run/cloudflare/compute/workers-for-platforms/)",
+        "Relevance to Bridger / ERP": "Alternative boundary for independently deployed tenant/module execution.",
+        "Limit or design implication": "Dynamic dispatch and same-process service installation have different lifecycle and latency contracts."
+      },
+      "tags": [
+        "plugins",
+        "tenancy",
+        "data-model",
+        "infrastructure",
+        "ui",
+        "observability",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Workers for Platforms",
+          "url": "https://alchemy.run/cloudflare/compute/workers-for-platforms/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "A30",
+      "title": "Native Foldkit deployment",
+      "category": "alchemy",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/ALCHEMY.md",
+      "line": 46,
+      "section": "Capability catalog",
+      "fields": {
+        "Verified behavior and source": "`Cloudflare.Website.Foldkit` supplies Vite deployment and SPA fallback; frontend Effect pinning belongs to the app. [Foldkit integration](https://alchemy.run/cloudflare/frontend/foldkit/)",
+        "Relevance to Bridger / ERP": "Deploy the ERP shell and its API address alongside backend infrastructure.",
+        "Limit or design implication": "Browser bundles cannot access Worker bindings directly; use API routes and design browser module loading separately."
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Foldkit integration",
+          "url": "https://alchemy.run/cloudflare/frontend/foldkit/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R01",
+      "title": "Module identity, provenance and dependencies",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 17,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Odoo manifests declare metadata and prerequisite modules. [Module manifests](https://www.odoo.com/documentation/19.0/zh_CN/developer/reference/backend/module.html)",
+        "Proposed contract or investigation": "Versioned manifests, publisher identity, artifact digest, compatible host/schema ranges, required/optional services and contribution ownership. Reject incompatible graphs before activation. Administrator approval of trusted code is an application policy."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "workflow",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Module manifests",
+          "url": "https://www.odoo.com/documentation/19.0/zh_CN/developer/reference/backend/module.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R02",
+      "title": "Extensibility boundaries",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 18,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "SAP distinguishes key-user, developer and side-by-side extensions. [SAP extensibility](https://help.sap.com/docs/SAP_S4HANA_CLOUD/0f69f8fb28ac4bf48d2b57b9637e81fa/533228e1e854433ab16d013f161ca509.html)",
+        "Proposed contract or investigation": "Specify separate seams for metadata customization, trusted code plugins and external integrations. Published contracts need compatibility policy and deprecation windows. Avoid requiring internal table access for ordinary extensions."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "infrastructure",
+        "observability",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "SAP extensibility",
+          "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/0f69f8fb28ac4bf48d2b57b9637e81fa/533228e1e854433ab16d013f161ca509.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R03",
+      "title": "Runtime lifecycle versus durable installation",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 19,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Odoo has module upgrade scripts and phases. [Upgrade scripts](https://www.odoo.com/documentation/19.0/nl/developer/reference/upgrades/upgrade_scripts.html)",
+        "Proposed contract or investigation": "Track artifact availability, schema readiness, tenant enablement and runtime activation separately. Removing an activation must not drop tables or reverse business transactions. Hot-install code does not prove safe online schema migration."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "tenancy",
+        "data-model",
+        "observability",
+        "integration",
+        "versioning",
+        "migrations",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Upgrade scripts",
+          "url": "https://www.odoo.com/documentation/19.0/nl/developer/reference/upgrades/upgrade_scripts.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R04",
+      "title": "Extensible records and computed fields",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 20,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Odoo's ORM supports model inheritance, fields and record caching. [ORM API](https://www.odoo.com/documentation/19.0/developer/reference/backend/orm.html)",
+        "Proposed contract or investigation": "Decide typed extension composition, namespaced fields, relation ownership, validation, persisted versus derived fields, dependency invalidation, cycle rejection and query batching. Record schema version must remain intelligible after a plugin is disabled."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "ui",
+        "integration",
+        "versioning",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "ORM API",
+          "url": "https://www.odoo.com/documentation/19.0/developer/reference/backend/orm.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R05",
+      "title": "UI contribution metadata",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 21,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Odoo interprets view definitions; SAP exposes custom fields and extension inventory. [Odoo views](https://www.odoo.com/documentation/19.0/ar/developer/reference/user_interface/view_architectures.html), [SAP key-user extensibility](https://help.sap.com/docs/SAP_S4HANA_CLOUD/0f69f8fb28ac4bf48d2b57b9637e81fa/3ccb50e724b045508fea8b2cf1774b2b.html)",
+        "Proposed contract or investigation": "An ERP UI package owns forms, lists, actions, routes, menus, reports and extension slots. Define deterministic ordering and conflict errors. FoldKit adapts those contributions into Model/Message/update/view; Bridger only owns their availability and lifetime."
+      },
+      "tags": [
+        "lifecycle",
+        "data-model",
+        "inventory",
+        "infrastructure",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Odoo views",
+          "url": "https://www.odoo.com/documentation/19.0/ar/developer/reference/user_interface/view_architectures.html"
+        },
+        {
+          "title": "SAP key-user extensibility",
+          "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/0f69f8fb28ac4bf48d2b57b9637e81fa/3ccb50e724b045508fea8b2cf1774b2b.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R06",
+      "title": "Human workflow and approvals",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 22,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Odoo Studio supports ordered steps and exclusive approval. This source is SaaS 19.3. [Approval rules](https://www.odoo.com/documentation/saas-19.3/applications/studio/approval_rules.html)",
+        "Proposed contract or investigation": "Persist transitions, approver identity, policy revision, deadlines and delegation. Enforce approvals server-side, including API calls. Define escalation, cancellation and reassignment if a plugin version retires. Approval must survive process restart."
+      },
+      "tags": [
+        "plugins",
+        "workflow",
+        "ui",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Approval rules",
+          "url": "https://www.odoo.com/documentation/saas-19.3/applications/studio/approval_rules.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R07",
+      "title": "Authentication and session context",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 23,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Intacct authenticates company-scoped operations and supports entity context. [Request authentication](https://developer.intacct.com/web-services/requests/)",
+        "Proposed contract or investigation": "A platform identity adapter supplies principal, session, tenant, company and delegation. Plan SSO/MFA and service accounts separately. Never let a caller-supplied company identifier substitute for authorization."
+      },
+      "tags": [
+        "lifecycle",
+        "tenancy",
+        "security",
+        "data-model",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Request authentication",
+          "url": "https://developer.intacct.com/web-services/requests/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R08",
+      "title": "Authorization and separation of duties",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 24,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Odoo documents model, record and field access; SAP groups application access through roles/catalogs. [Odoo security](https://www.odoo.com/documentation/19.0/th/developer/reference/backend/security.html), [SAP business roles](https://help.sap.com/docs/SAP_S4HANA_CLOUD/a630d57fc5004c6383e7a81efee7a8bb/4236eef12b8b4d4286c53aa89899a6f5.html)",
+        "Proposed contract or investigation": "Define deny-by-default permissions, row/field policies and action checks. Separate payee maintenance, payment approval and payment execution. Enforce the same policy in queries, exports, reports, background jobs and integrations."
+      },
+      "tags": [
+        "security",
+        "data-model",
+        "accounting",
+        "workflow",
+        "infrastructure",
+        "ui",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Odoo security",
+          "url": "https://www.odoo.com/documentation/19.0/th/developer/reference/backend/security.html"
+        },
+        {
+          "title": "SAP business roles",
+          "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/a630d57fc5004c6383e7a81efee7a8bb/4236eef12b8b4d4286c53aa89899a6f5.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R09",
+      "title": "Tenant and company boundaries",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 25,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Odoo checks cross-company relations and supports company-dependent values. [Multi-company guidelines](https://www.odoo.com/documentation/19.0/fr/developer/howtos/company.html)",
+        "Proposed contract or investigation": "Distinguish customer tenant from legal entity, branch and reporting group. Decide database isolation, shared records and tenant plugin sets. Include tenant/company in cache, job and idempotency keys. Trusted in-process plugins share process privileges; scoped services are not a security sandbox."
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "tenancy",
+        "security",
+        "ui",
+        "testing",
+        "integration",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Multi-company guidelines",
+          "url": "https://www.odoo.com/documentation/19.0/fr/developer/howtos/company.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R10",
+      "title": "Master data and reference identity",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 26,
+      "section": "Platform and extension contracts",
+      "fields": {
+        "Vendor evidence": "Intacct exposes customers, vendors, items and units. [API domain catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Establish parties, addresses, products, variants, units and external identifiers as explicit shared contracts. Support merge/alias history without breaking posted documents. Agree which module owns each identity and which consumers may enrich it."
+      },
+      "tags": [
+        "plugins",
+        "ui",
+        "observability",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "API domain catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R11",
+      "title": "General ledger and posting",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 32,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Odoo uses double-entry bookkeeping. [Accounting](https://www.odoo.com/documentation/19.0/applications/finance/accounting.html)",
+        "Proposed contract or investigation": "Balanced journal entries, explicit posting commands, period checks, stable numbering, immutable posted representation and linked corrective entries. A posted invoice and its ledger effects must share a deliberate transaction boundary."
+      },
+      "tags": [
+        "accounting",
+        "testing",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Accounting",
+          "url": "https://www.odoo.com/documentation/19.0/applications/finance/accounting.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R12",
+      "title": "Money, exchange and rounding",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 33,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Odoo retains company and transaction currency values. [Multi-currency accounting overview](https://www.odoo.com/documentation/19.0/applications/finance/accounting.html)",
+        "Proposed contract or investigation": "Use decimal money with currency, documented precision and rounding stage. Snapshot rates and policy revisions on documents. Define residual allocation, gains/losses and historical conversion. Never assume a JavaScript number alone represents money safely."
+      },
+      "tags": [
+        "tenancy",
+        "accounting",
+        "infrastructure",
+        "ui",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Multi-currency accounting overview",
+          "url": "https://www.odoo.com/documentation/19.0/applications/finance/accounting.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R13",
+      "title": "Taxes, localizations and electronic documents",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 34,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Odoo packages fiscal rules by country and constrains switching after posting. [Fiscal localizations](https://www.odoo.com/documentation/19.0/applications/finance/fiscal_localizations.html)",
+        "Proposed contract or investigation": "Locale packages own effective-dated tax rules, legal document formats, declarations and exchange adapters. Validate each target locale with domain specialists and fixtures; installing a package alone is not compliance evidence. Preserve the rule version used historically."
+      },
+      "tags": [
+        "data-model",
+        "accounting",
+        "inventory",
+        "ui",
+        "testing",
+        "integration",
+        "versioning",
+        "localization"
+      ],
+      "sources": [
+        {
+          "title": "Fiscal localizations",
+          "url": "https://www.odoo.com/documentation/19.0/applications/finance/fiscal_localizations.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R14",
+      "title": "Receivables, payables and reconciliation",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 35,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Intacct exposes invoices, bills, payments and aging. [Finance API catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Partial settlement, credit notes, disputes, due dates, allocations and duplicate detection. Maintain reconciled versus outstanding amounts through atomic transitions. Distinguish invoice state, payment attempt state and settlement state."
+      },
+      "tags": [
+        "accounting",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Finance API catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R15",
+      "title": "Banking and payment integrations",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 36,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Intacct includes bank feeds, accounts and transfers. [Cash management catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Payment providers are adapters with durable requests, external references, webhook verification and reconciliation. An unknown result must remain pending investigation rather than automatically creating a second transfer. No raw payment credentials in plugin logs."
+      },
+      "tags": [
+        "plugins",
+        "security",
+        "accounting",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Cash management catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R16",
+      "title": "Assets, budgeting and financial analysis",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 37,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Odoo finance covers assets and analytics; Intacct exposes budgets and allocations. [Odoo finance](https://www.odoo.com/documentation/19.0/applications/finance.html), [Intacct ledger catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Separate asset lifecycle, depreciation policy, budgets, cost centers and analytical dimensions. Version financial report definitions and preserve drill-down to source entries. Local accounting policy remains an explicit selection and validation task."
+      },
+      "tags": [
+        "accounting",
+        "inventory",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Odoo finance",
+          "url": "https://www.odoo.com/documentation/19.0/applications/finance.html"
+        },
+        {
+          "title": "Intacct ledger catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R17",
+      "title": "Sales, pricing and customer lifecycle",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 38,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Intacct covers orders and price lists. [Order entry catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Quote-to-order-to-delivery-to-invoice lineage, price validity, discount approvals, credit limits, returns and CRM handoff. Snapshot accepted commercial terms so later price plugin changes do not rewrite existing orders."
+      },
+      "tags": [
+        "plugins",
+        "accounting",
+        "workflow",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Order entry catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R18",
+      "title": "Procurement and supplier lifecycle",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 39,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Intacct covers purchasing and vendor transactions. [Purchasing catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Requisitions, RFQs, purchase orders, receipts and invoice matching. Define quantity/price tolerances, supplier approvals and backorders. A three-way matching policy must state its exceptions and authority to override."
+      },
+      "tags": [
+        "security",
+        "accounting",
+        "inventory",
+        "workflow",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Purchasing catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R19",
+      "title": "Inventory, reservations and traceability",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 40,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Odoo offers reservation timing policies; Intacct exposes warehouses and inventory transactions. [Odoo reservations, SaaS 19.4](https://www.odoo.com/documentation/saas-19.4/nl/applications/inventory_and_mrp/inventory/shipping_receiving/reservation_methods.html), [Intacct inventory catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Stock movements, reservations, lots/serials, locations, units, counts and returns. Prevent two orders reserving the same availability through database concurrency control. Define negative-stock policy and valuation/posting integration explicitly."
+      },
+      "tags": [
+        "accounting",
+        "inventory",
+        "observability",
+        "integration",
+        "versioning",
+        "performance",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Odoo reservations, SaaS 19.4",
+          "url": "https://www.odoo.com/documentation/saas-19.4/nl/applications/inventory_and_mrp/inventory/shipping_receiving/reservation_methods.html"
+        },
+        {
+          "title": "Intacct inventory catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R20",
+      "title": "Manufacturing, quality and maintenance",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 41,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Odoo bills of materials describe components and production operations. [Bill of materials](https://www.odoo.com/documentation/19.0/fr/applications/inventory_and_mrp/manufacturing/basic_setup/bill_configuration.html)",
+        "Proposed contract or investigation": "Explore BOM revisions, routings, work centers, capacity, yield, scrap, subcontracting and work-in-progress costing. Quality checks and maintenance are adjacent module proposals needing further domain research. Preserve the production revision actually used."
+      },
+      "tags": [
+        "plugins",
+        "inventory",
+        "observability",
+        "testing",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "Bill of materials",
+          "url": "https://www.odoo.com/documentation/19.0/fr/applications/inventory_and_mrp/manufacturing/basic_setup/bill_configuration.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R21",
+      "title": "Projects, time, expenses and service delivery",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 42,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Intacct exposes projects, tasks and timesheets. [Project/resource catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Cost and billable time, expense approvals, rate cards, milestones and resource calendars. Define corrections after billing and avoid charging one time entry twice. Plan field service/helpdesk as optional extensions with their own process research."
+      },
+      "tags": [
+        "data-model",
+        "workflow",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Project/resource catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R22",
+      "title": "People, payroll and sensitive records",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 43,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Odoo payroll has locale-specific modules. [Payroll localizations](https://www.odoo.com/documentation/19.0/applications/hr/payroll/payroll_localizations.html)",
+        "Proposed contract or investigation": "Separate personnel records, leave, schedules, payroll calculations and payment exports. Use effective-dated contracts and restricted fields. Payroll rules and retention require validation for every supported locale; no universal payroll claim."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "accounting",
+        "ui",
+        "observability",
+        "integration",
+        "localization"
+      ],
+      "sources": [
+        {
+          "title": "Payroll localizations",
+          "url": "https://www.odoo.com/documentation/19.0/applications/hr/payroll/payroll_localizations.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R23",
+      "title": "Contracts, subscriptions and revenue schedules",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 44,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Intacct exposes contract billing/revenue schedules. [Contract catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Separate recurring billing from revenue recognition, usage metering, amendments and entitlements. Contract revisions need deterministic effective dates and replay rules. Recognition policy must be validated for the applicable reporting regime."
+      },
+      "tags": [
+        "ui",
+        "observability",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Contract catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R24",
+      "title": "Intercompany and consolidation",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 45,
+      "section": "Business capabilities",
+      "fields": {
+        "Vendor evidence": "Intacct distinguishes domestic and global consolidation. [Consolidation catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Explicit paired intercompany documents, ownership structures, elimination rules, currency translation and consolidation runs. Reconcile rather than silently repair mismatches. Scope this as an advanced finance package, with a separate acceptance dataset."
+      },
+      "tags": [
+        "lifecycle",
+        "tenancy",
+        "accounting",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Consolidation catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R25",
+      "title": "APIs, events and reliable integrations",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 51,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "Intacct distinguishes request correlation from duplicate suppression and offers transaction grouping. [XML request semantics](https://developer.intacct.com/web-services/requests/)",
+        "Proposed contract or investigation": "Version API/event schemas, outbox/inbox records, deduplication keys, retry categories and dead-letter recovery. Domain mutation plus outbox insertion must be atomic. A successful retry mechanism does not establish exactly-once business effects. New Intacct adapters should investigate REST independently."
+      },
+      "tags": [
+        "data-model",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "XML request semantics",
+          "url": "https://developer.intacct.com/web-services/requests/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R26",
+      "title": "Data import, migration and reconciliation",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 52,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "SAP provides migration objects and staging/direct migration approaches. [SAP data migration](https://help.sap.com/docs/SAP_S4HANA_CLOUD/d5699934e7004d048c4801b552f3b013/4c4047f1989f4b9a836dbc24f82989e8.html)",
+        "Proposed contract or investigation": "Staging validation, field mapping, external IDs, dry run, resumable batches and per-row errors. Reconcile opening balances and quantities to control totals before activation. Keep business data import distinct from module schema upgrades."
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "infrastructure",
+        "ui",
+        "integration",
+        "versioning",
+        "performance",
+        "migrations"
+      ],
+      "sources": [
+        {
+          "title": "SAP data migration",
+          "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/d5699934e7004d048c4801b552f3b013/4c4047f1989f4b9a836dbc24f82989e8.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R27",
+      "title": "Reporting, search and exports",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 53,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "Odoo search views filter records; Intacct supports data delivery for analytics. [Odoo search architecture](https://www.odoo.com/documentation/19.0/ar/developer/reference/user_interface/view_architectures.html), [Intacct DDS catalog](https://developer.intacct.com/api/)",
+        "Proposed contract or investigation": "Authorized query contracts, pagination, saved filters, export jobs, report snapshots and searchable projections. Record index lag and report consistency point. Search must not expose hidden records or field snippets. Translation/timezone formatting belongs to presentation contracts."
+      },
+      "tags": [
+        "security",
+        "data-model",
+        "ui",
+        "observability",
+        "integration",
+        "localization"
+      ],
+      "sources": [
+        {
+          "title": "Odoo search architecture",
+          "url": "https://www.odoo.com/documentation/19.0/ar/developer/reference/user_interface/view_architectures.html"
+        },
+        {
+          "title": "Intacct DDS catalog",
+          "url": "https://developer.intacct.com/api/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R28",
+      "title": "Attachments and business documents",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 54,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "Intacct has an attachment API. [Attachments](https://developer.intacct.com/api/company-console/attachments/)",
+        "Proposed contract or investigation": "Object storage with record authorization, metadata, checksums, versions, upload limits and retention. Define orphan cleanup and malware scanning adapters. Database and blob backups need a consistent restore strategy."
+      },
+      "tags": [
+        "lifecycle",
+        "tenancy",
+        "security",
+        "data-model",
+        "testing",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Attachments",
+          "url": "https://developer.intacct.com/api/company-console/attachments/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R29",
+      "title": "Business audit and evidence",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 55,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "Intacct exposes advanced audit trails. [Advanced audit trails](https://developer.intacct.com/api/company-console/advanced-audit-trails/)",
+        "Proposed contract or investigation": "Capture actor/delegation, tenant/company, action, record revision, policy/plugin version and correlation. Audit storage and retention are durable business contracts. Runtime spans/logs supplement them; logs alone do not prove an approved posting or access history."
+      },
+      "tags": [
+        "plugins",
+        "tenancy",
+        "accounting",
+        "observability",
+        "testing",
+        "integration",
+        "versioning",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Advanced audit trails",
+          "url": "https://developer.intacct.com/api/company-console/advanced-audit-trails/"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R30",
+      "title": "Upgrades, tests and historical replay",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 56,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "Odoo documents phased upgrade scripts, unit tests and integration tours. [Upgrades](https://www.odoo.com/documentation/19.0/nl/developer/reference/upgrades/upgrade_scripts.html), [Testing](https://www.odoo.com/documentation/19.0/developer/reference/backend/testing.html)",
+        "Proposed contract or investigation": "Module compatibility matrix, representative data upgrades, contract tests, role/company isolation tests and posting/reservation race tests. Durable jobs must retain compatible handlers or explicit migration. Restoring code alone cannot roll back a data migration."
+      },
+      "tags": [
+        "plugins",
+        "tenancy",
+        "security",
+        "accounting",
+        "inventory",
+        "observability",
+        "testing",
+        "integration",
+        "versioning",
+        "migrations",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Upgrades",
+          "url": "https://www.odoo.com/documentation/19.0/nl/developer/reference/upgrades/upgrade_scripts.html"
+        },
+        {
+          "title": "Testing",
+          "url": "https://www.odoo.com/documentation/19.0/developer/reference/backend/testing.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R31",
+      "title": "Operations, resilience and deployment",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 57,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "Odoo.sh documents backups including filestore and production import. [Odoo.sh operations](https://www.odoo.com/documentation/19.0/administration/odoo_sh/getting_started/create.html)",
+        "Proposed contract or investigation": "Define service objectives, tested restore, job recovery, capacity limits, connection budgets, tenant quotas and incident tooling. Alchemy provisions resources; an ERP operations layer owns migration coordination, backup policy and business reconciliation. Choose deployment targets only after persistence and workload requirements."
+      },
+      "tags": [
+        "tenancy",
+        "infrastructure",
+        "ui",
+        "testing",
+        "integration",
+        "performance",
+        "migrations",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Odoo.sh operations",
+          "url": "https://www.odoo.com/documentation/19.0/administration/odoo_sh/getting_started/create.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "R32",
+      "title": "Licensing, editions and ecosystem governance",
+      "category": "erp",
+      "claim_kind": "vendor-evidence-with-proposed-contract",
+      "file": "knowledge/ERP-CAPABILITIES.md",
+      "line": 58,
+      "section": "Integration, information and operations",
+      "fields": {
+        "Vendor evidence": "Odoo Community and Enterprise use different licenses; commercial apps can differ again. [Odoo licenses](https://www.odoo.com/documentation/19.0/nl/legal/licenses.html)",
+        "Proposed contract or investigation": "Record package license/provenance and dependencies in the catalog. Public documentation is capability evidence, not permission to copy proprietary implementations. SAP/Sage product entitlements and adapter access must be checked per product/contract; this index does not establish reusable source rights."
+      },
+      "tags": [
+        "security",
+        "observability",
+        "testing",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Odoo licenses",
+          "url": "https://www.odoo.com/documentation/19.0/nl/legal/licenses.html"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F01",
+      "title": "Runtime `resources` Layers",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 17,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Supply the application host and API client once to UI Commands and Subscriptions.",
+        "Boundary or required work": "Runtime resources do not make a dynamically replaced plugin service safe to cache; use leases.",
+        "Evidence": "[Resources](https://foldkit.dev/core/resources)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui",
+        "integration",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "Resources",
+          "url": "https://foldkit.dev/core/resources"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F02",
+      "title": "Named, schema-argument Commands with result Messages",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 18,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Record posting, approval, and install requests as explicit UI operations.",
+        "Boundary or required work": "A UI success Message is not the authoritative business transaction; return a server result with an operation ID.",
+        "Evidence": "[Commands](https://foldkit.dev/core/commands)"
+      },
+      "tags": [
+        "security",
+        "data-model",
+        "accounting",
+        "workflow",
+        "ui",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "Commands",
+          "url": "https://foldkit.dev/core/commands"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F03",
+      "title": "Command interruption keys",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 19,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Cancel a report fetch or superseded lookup by request ID.",
+        "Boundary or required work": "Cancellation cannot undo an already committed posting. Explicitly transition UI pending state on cancellation.",
+        "Evidence": "[Interrupting Commands](https://foldkit.dev/core/commands#interrupting-commands)"
+      },
+      "tags": [
+        "accounting",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Interrupting Commands",
+          "url": "https://foldkit.dev/core/commands#interrupting-commands"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F04",
+      "title": "Model-dependent scoped Subscriptions",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 20,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Follow host state or a filtered activity feed while its screen is open.",
+        "Boundary or required work": "Host snapshot changes concern availability, not arbitrary domain-data changes. Long leases require coordinated stop.",
+        "Evidence": "[Subscriptions](https://foldkit.dev/core/subscriptions)"
+      },
+      "tags": [
+        "lifecycle",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Subscriptions",
+          "url": "https://foldkit.dev/core/subscriptions"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F05",
+      "title": "ManagedResource acquire / release from Model conditions",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 21,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Own a camera, scanner session, connection, or worker while a feature is mounted.",
+        "Boundary or required work": "Resource ownership and plugin ownership must agree on stop order; obtaining a bare handle is not a Bridger lease.",
+        "Evidence": "[Managed Resources](https://foldkit.dev/core/managed-resources)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Managed Resources",
+          "url": "https://foldkit.dev/core/managed-resources"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F06",
+      "title": "`Layer.build` inside managed acquisition",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 22,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Reuse Effect setup and finalizers in feature-scoped UI resources.",
+        "Boundary or required work": "Test the combined finalizer order before the resource depends on a removable plugin.",
+        "Evidence": "[Layer acquisition](https://foldkit.dev/core/managed-resources#building-a-layer-in-acquire)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Layer acquisition",
+          "url": "https://foldkit.dev/core/managed-resources#building-a-layer-in-acquire"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F07",
+      "title": "`makeElement` and `Runtime.embed`",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 23,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Host independently loaded plugin screens in shell-owned containers.",
+        "Boundary or required work": "Establish a teardown acknowledgement before a plugin's required services close.",
+        "Evidence": "[Embedding](https://foldkit.dev/core/embedding)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Embedding",
+          "url": "https://foldkit.dev/core/embedding"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F08",
+      "title": "Schema-typed inbound and outbound Ports",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 24,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Give dynamic screens versioned data contracts without coupling the shell to their private Model.",
+        "Boundary or required work": "Serialize data, not live services or DOM references; incompatible port versions need explicit rejection or adaptation.",
+        "Evidence": "[Port boundary](https://foldkit.dev/core/embedding#the-schema-boundary)"
+      },
+      "tags": [
+        "data-model",
+        "ui",
+        "observability",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Port boundary",
+          "url": "https://foldkit.dev/core/embedding#the-schema-boundary"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F09",
+      "title": "Submodels and explicit parent/child communication",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 25,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Compose known screens and reusable UI workflows within one build.",
+        "Boundary or required work": "A static Message union cannot validate arbitrary future plugin Messages without a separate versioned boundary.",
+        "Evidence": "[Submodel](https://foldkit.dev/core/submodel)"
+      },
+      "tags": [
+        "plugins",
+        "workflow",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [
+        {
+          "title": "Submodel",
+          "url": "https://foldkit.dev/core/submodel"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F10",
+      "title": "Element-scoped Mount lifecycle",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 26,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Attach imperative grids, charts, editors, or scanners to a rendered element.",
+        "Boundary or required work": "Coordinate DOM cleanup with plugin shutdown; a menu contribution disappearing is not a cleanup acknowledgement.",
+        "Evidence": "[Mount](https://foldkit.dev/core/mount)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Mount",
+          "url": "https://foldkit.dev/core/mount"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F11",
+      "title": "Story and Scene tests",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 27,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Exercise approval forms and command outcomes independently of live ERP services.",
+        "Boundary or required work": "Add server invariant, authorization, and integration tests; UI stories cannot establish accounting correctness.",
+        "Evidence": "[Testing examples](https://foldkit.dev/#example-applications)"
+      },
+      "tags": [
+        "security",
+        "data-model",
+        "workflow",
+        "ui",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Testing examples",
+          "url": "https://foldkit.dev/#example-applications"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F12",
+      "title": "Model / Message DevTools",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 28,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Explain why a screen is waiting, failed, or showing a stale result.",
+        "Boundary or required work": "Keep sensitive business payloads out of exported histories; debug replay is not a financial audit trail.",
+        "Evidence": "[DevTools](https://foldkit.dev/core/devtools)"
+      },
+      "tags": [
+        "accounting",
+        "ui",
+        "observability",
+        "integration",
+        "durability"
+      ],
+      "sources": [
+        {
+          "title": "DevTools",
+          "url": "https://foldkit.dev/core/devtools"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F13",
+      "title": "Experimental SSR / SSG and hydration",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 29,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Evaluate public portals or pre-rendered content independently of the back-office application.",
+        "Boundary or required work": "Official docs mark server rendering experimental; pin and validate build identity, per-request flags, and tenant-sensitive caching.",
+        "Evidence": "[Server rendering](https://foldkit.dev/core/server-rendering)"
+      },
+      "tags": [
+        "tenancy",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Server rendering",
+          "url": "https://foldkit.dev/core/server-rendering"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F14",
+      "title": "One page owner, container-scoped elements",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 30,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Let the shell own routing and page metadata; plugin widgets own only their containers.",
+        "Boundary or required work": "Multiple independently page-owning applications need an explicit routing and document ownership strategy.",
+        "Evidence": "[Runtime entry points](https://foldkit.dev/core/runtime)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "data-model",
+        "ui",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Runtime entry points",
+          "url": "https://foldkit.dev/core/runtime"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F15",
+      "title": "Commands and perpetual fibers attached to runtime scope",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 31,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Support orderly shutdown of a UI runtime and its ongoing work.",
+        "Boundary or required work": "Inspect pinned shutdown implementation and test asynchronous finalizers; public disposal completion is still a design check.",
+        "Evidence": "[Runtime source](https://raw.githubusercontent.com/foldkit/foldkit/main/packages/foldkit/src/runtime/runtime.ts)"
+      },
+      "tags": [
+        "lifecycle",
+        "ui",
+        "testing",
+        "integration"
+      ],
+      "sources": [
+        {
+          "title": "Runtime source",
+          "url": "https://raw.githubusercontent.com/foldkit/foldkit/main/packages/foldkit/src/runtime/runtime.ts"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "F16",
+      "title": "Explicit peer dependency versions",
+      "category": "foldkit",
+      "claim_kind": "documented-capability-with-proposed-use",
+      "file": "knowledge/FOLDKIT-BRIDGER.md",
+      "line": 32,
+      "section": "Feature index",
+      "fields": {
+        "ERP / Bridger use": "Define a compatible plugin build contract for the browser shell.",
+        "Boundary or required work": "The observed FoldKit package pins Effect 4.0.0; independently compiled plugins must share compatible framework and service-key identities.",
+        "Evidence": "[Package metadata](https://raw.githubusercontent.com/foldkit/foldkit/main/packages/foldkit/package.json)"
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "ui",
+        "observability",
+        "integration",
+        "versioning",
+        "performance"
+      ],
+      "sources": [
+        {
+          "title": "Package metadata",
+          "url": "https://raw.githubusercontent.com/foldkit/foldkit/main/packages/foldkit/package.json"
+        }
+      ],
+      "related_documents": []
+    },
+    {
+      "id": "B01",
+      "title": "Generic runtime boundary",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 51,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Keep dependency resolution, activation, leases, and scoped contribution cleanup in Bridger.",
+        "What must be demonstrated": "Core examples work without ERP models or a UI framework.",
+        "Evidence": "[Current SPEC](../SPEC.md)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "ui"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Current SPEC",
+          "url": "../SPEC.md"
+        }
+      ]
+    },
+    {
+      "id": "B02",
+      "title": "Version and compatibility policy",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 52,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Pin a tested Effect / Alchemy / FoldKit tuple and plugin ABI version.",
+        "What must be demonstrated": "Packages resolve one compatible service-key/runtime graph; upgrades pass compatibility checks.",
+        "Evidence": "[Effect](EFFECT-V4.md), [Alchemy](ALCHEMY.md), [FoldKit](FOLDKIT-BRIDGER.md)"
+      },
+      "tags": [
+        "plugins",
+        "infrastructure",
+        "ui",
+        "testing",
+        "versioning"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Effect",
+          "url": "EFFECT-V4.md"
+        },
+        {
+          "title": "Alchemy",
+          "url": "ALCHEMY.md"
+        },
+        {
+          "title": "FoldKit",
+          "url": "FOLDKIT-BRIDGER.md"
+        }
+      ]
+    },
+    {
+      "id": "B03",
+      "title": "Runtime topology",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 53,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Compare a long-lived process with remote/isolate execution before choosing a deployment target.",
+        "What must be demonstrated": "Hot loading, restart recovery, tenancy, and resource limits hold in the actual target.",
+        "Evidence": "[Alchemy](ALCHEMY.md)"
+      },
+      "tags": [
+        "security",
+        "infrastructure",
+        "durability"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Alchemy",
+          "url": "ALCHEMY.md"
+        }
+      ]
+    },
+    {
+      "id": "B04",
+      "title": "Plugin artifact and loader contract",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 54,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Versioned manifest, dependency range, artifact digest, approved entry point, declared host capabilities.",
+        "What must be demonstrated": "Failed or incompatible loads cannot publish partial providers. Import-time behavior stays constrained by policy.",
+        "Evidence": "[Current loading seam](../SPEC.md)"
+      },
+      "tags": [
+        "plugins",
+        "ui",
+        "observability",
+        "integration",
+        "versioning"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Current loading seam",
+          "url": "../SPEC.md"
+        }
+      ]
+    },
+    {
+      "id": "B05",
+      "title": "Tenant and company isolation",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 55,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Choose host topology separately from database isolation and company visibility.",
+        "What must be demonstrated": "Concurrent tenant requests cannot share mutable tenant context, cache entries, or authorization decisions.",
+        "Evidence": "[ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "tenancy",
+        "security",
+        "versioning",
+        "performance"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B06",
+      "title": "Authorization",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 56,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Central application policy with tenant/company/record/field/action decisions and service identities.",
+        "What must be demonstrated": "UI, API, background job, import, and report paths enforce the same policy.",
+        "Evidence": "[ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "tenancy",
+        "security",
+        "data-model",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B07",
+      "title": "Data model extension",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 57,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Define metadata, IDs, relationships, constraints, extension precedence, and schema evolution above core.",
+        "What must be demonstrated": "Independently installed extensions cannot silently override invariant enforcement or redefine incompatible fields.",
+        "Evidence": "[ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "data-model",
+        "versioning",
+        "migrations"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B08",
+      "title": "Plugin migrations",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 58,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Expand/contract schema changes, migration history, forward recovery, explicit data retention policy.",
+        "What must be demonstrated": "Deactivation is safe without dropping schema; old and new code have a tested compatibility window.",
+        "Evidence": "[ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "plugins",
+        "data-model",
+        "observability",
+        "testing",
+        "versioning",
+        "migrations",
+        "durability"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B09",
+      "title": "Transaction and outbox boundary",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 59,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Place domain state changes and their outbox records in the same database transaction.",
+        "What must be demonstrated": "Crash tests show no missing committed event and consumers tolerate duplicate delivery.",
+        "Evidence": "[Effect SQL research](EFFECT-V4.md)"
+      },
+      "tags": [
+        "testing",
+        "durability"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Effect SQL research",
+          "url": "EFFECT-V4.md"
+        }
+      ]
+    },
+    {
+      "id": "B10",
+      "title": "Durable process ownership",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 60,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Record workflow definition version, module owner, execution IDs, retry and compensation decisions.",
+        "What must be demonstrated": "A process survives host restart and a safe plugin upgrade without changing already recorded meaning.",
+        "Evidence": "[Effect workflow research](EFFECT-V4.md)"
+      },
+      "tags": [
+        "plugins",
+        "workflow",
+        "versioning",
+        "durability"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Effect workflow research",
+          "url": "EFFECT-V4.md"
+        }
+      ]
+    },
+    {
+      "id": "B11",
+      "title": "Money, units, and time",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 61,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Use explicit currencies, units, decimal arithmetic, rounding policy, business dates, and time zones.",
+        "What must be demonstrated": "Posting and stock examples satisfy domain invariants across currencies and period boundaries.",
+        "Evidence": "[ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "accounting",
+        "inventory",
+        "versioning",
+        "localization"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B12",
+      "title": "UI contributions",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 62,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Schema-defined descriptors, versioned ports, activation generations, explicit teardown acknowledgement.",
+        "What must be demonstrated": "Removing a provider cannot race cleanup code in a still-mounted screen.",
+        "Evidence": "[FoldKit seams](FOLDKIT-BRIDGER.md)"
+      },
+      "tags": [
+        "plugins",
+        "lifecycle",
+        "data-model",
+        "ui",
+        "versioning"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "FoldKit seams",
+          "url": "FOLDKIT-BRIDGER.md"
+        }
+      ]
+    },
+    {
+      "id": "B13",
+      "title": "Domain event contracts",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 63,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Separate host lifecycle snapshots from durable domain events and user audit records.",
+        "What must be demonstrated": "Correlation, retention, ordering scope, and replay semantics are explicit for each stream.",
+        "Evidence": "[Effect streaming research](EFFECT-V4.md), [ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "lifecycle",
+        "observability",
+        "versioning",
+        "durability"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Effect streaming research",
+          "url": "EFFECT-V4.md"
+        },
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B14",
+      "title": "Search, analytics, reports",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 64,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Build authorized read models with tenant/company filters and freshness indicators.",
+        "What must be demonstrated": "Exports and background aggregates cannot bypass field/record policy. Rebuilds are reproducible.",
+        "Evidence": "[ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "tenancy",
+        "security",
+        "data-model",
+        "ui",
+        "integration",
+        "versioning"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B15",
+      "title": "Operations and recovery",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 65,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Treat migrations, restore drills, disaster recovery, secrets, rollout, and telemetry as product capabilities.",
+        "What must be demonstrated": "Restore tests recover domain data and in-flight processes into a compatible artifact set.",
+        "Evidence": "[Alchemy](ALCHEMY.md), [ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "security",
+        "infrastructure",
+        "observability",
+        "testing",
+        "versioning",
+        "migrations",
+        "durability"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Alchemy",
+          "url": "ALCHEMY.md"
+        },
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B16",
+      "title": "Localization scope",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 66,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Pick countries, legal entities, industry, and supported business processes before promising parity.",
+        "What must be demonstrated": "Qualified domain review validates locale-specific posting, tax, payroll, documents, and reporting rules.",
+        "Evidence": "[ERP requirements](ERP-CAPABILITIES.md)"
+      },
+      "tags": [
+        "lifecycle",
+        "accounting",
+        "ui",
+        "versioning",
+        "localization"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "ERP requirements",
+          "url": "ERP-CAPABILITIES.md"
+        }
+      ]
+    },
+    {
+      "id": "B17",
+      "title": "Shared state contribution semantics",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 67,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "Prefer keyed registries and explicit extension composition over mutable global patches.",
+        "What must be demonstrated": "Removing one extension preserves other registrations and their deterministic ordering.",
+        "Evidence": "[Current SPEC](../SPEC.md)"
+      },
+      "tags": [
+        "lifecycle",
+        "inventory"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Current SPEC",
+          "url": "../SPEC.md"
+        }
+      ]
+    },
+    {
+      "id": "B18",
+      "title": "Domain and infrastructure safety",
+      "category": "architecture",
+      "claim_kind": "design-proposal",
+      "file": "knowledge/ARCHITECTURE.md",
+      "line": 68,
+      "section": "Decision index",
+      "fields": {
+        "Suggested starting point": "ERP runtime roles receive application data permissions; infrastructure mutations use a separate deployment identity.",
+        "What must be demonstrated": "Disabling a business module cannot trigger accidental destruction of shared infrastructure.",
+        "Evidence": "[Alchemy](ALCHEMY.md)"
+      },
+      "tags": [
+        "plugins",
+        "security",
+        "infrastructure"
+      ],
+      "sources": [],
+      "related_documents": [
+        {
+          "title": "Alchemy",
+          "url": "ALCHEMY.md"
+        }
+      ]
+    },
+    {
+      "id": "O01",
+      "title": "`Manifest._from_path` parses manifest literals; `ModuleGraph` resolves installed state, dependencies and ordered phases. Missing dependencies and loops cause modules to be skipped. [module.py](https://github.com/odoo/odoo/blob/19.0/odoo/modules/module.py), [module_graph.py](https://github.com/odoo/odoo/blob/19.0/odoo/modules/module_graph.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Declarative identity, version, owned contributions and prerequisite graph; inspect installation plans before applying them.",
+        "Deliberate difference in the Effect design": "Validate JSON-compatible manifest data separately from executing trusted code. Return typed graph errors with dependency paths; do not silently accept a partially applicable installation plan."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "module.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/module.py"
+        },
+        {
+          "title": "module_graph.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/module_graph.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 13,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O02",
+      "title": "`Registry` maps model names to classes per database; signaling coordinates registry reloads and cache invalidation across processes. [registry.py](https://github.com/odoo/odoo/blob/19.0/odoo/orm/registry.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "A coherent catalog of installed model definitions and explicit invalidation generations.",
+        "Deliberate difference in the Effect design": "Separate durable ERP catalog revisions from Bridger runtime provider generations. A database, tenant and legal company are distinct identities. Publish compatible catalog snapshots rather than mutating existing consumers invisibly."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "registry.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/registry.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 14,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O03",
+      "title": "Loading runs migration phases, model/schema setup, data loading and lifecycle hooks; uninstall processes records and rebuilds the registry. [loading.py](https://github.com/odoo/odoo/blob/19.0/odoo/modules/loading.py), [migration.py](https://github.com/odoo/odoo/blob/19.0/odoo/modules/migration.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Dependency-aware install/upgrade planning, migration history, postconditions and explicit uninstall policy.",
+        "Deliberate difference in the Effect design": "Define separate artifact import, durable installation, tenant enablement and runtime activation commands. Deactivation releases runtime resources; deleting persistent data requires its own migration/retention operation."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "loading.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/loading.py"
+        },
+        {
+          "title": "migration.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/modules/migration.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 15,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O04",
+      "title": "`Environment` carries cursor, user, context and superuser mode, plus record cache/recomputation state. [environments.py](https://github.com/odoo/odoo/blob/19.0/odoo/orm/environments.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Consistent command context and a transaction-bound repository session.",
+        "Deliberate difference in the Effect design": "Use typed Effect services for principal, tenant/company, transaction and repositories. Do not pass arbitrary dictionaries as authorization context. Keep transaction-scoped services from escaping their scope."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "environments.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/environments.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 16,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O05",
+      "title": "Model classes combine module definitions using Python MRO; field overrides depend on definitions present in the registry. [model_classes.py](https://github.com/odoo/odoo/blob/19.0/odoo/orm/model_classes.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Modules can extend existing business records and behavior without copying the original module.",
+        "Deliberate difference in the Effect design": "Namespaced field contributions and typed hooks with explicit ordering, collision checks and version constraints. Prefer relations/composition over implicit method replacement and `super()` chains across separately installed modules."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "model_classes.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/model_classes.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 17,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O06",
+      "title": "Fields support computation, inverse/related behavior, dependency and context tracking; stored computed fields default to elevated computation. [fields.py](https://github.com/odoo/odoo/blob/19.0/odoo/orm/fields.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Declare derived field dependencies, materialization, invalidation and display metadata.",
+        "Deliberate difference in the Effect design": "Make execution privilege and transaction policy explicit. Validate dependency graphs and query cost. Wire schemas describe data; adding Effect Schema does not itself create persistence, recomputation or a safe extension ORM."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "fields.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/orm/fields.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 18,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O07",
+      "title": "`ir.model.access` grants model CRUD rights; `ir.rule` intersects global domains and unions applicable group domains. [ir_model.py](https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_model.py), [ir_rule.py](https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_rule.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Separate model/action grants, row restrictions and field visibility. Treat authorization composition as specified behavior.",
+        "Deliberate difference in the Effect design": "Define a policy algebra with explicit mandatory tenant/company filters and default denial. Record whether a plugin contributes a grant or restriction. Never let an optional plugin widen mandatory isolation rules."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "ir_model.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_model.py"
+        },
+        {
+          "title": "ir_rule.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_rule.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 19,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O08",
+      "title": "XML/CSV conversion loads records through model APIs, resolves external IDs and supports `noupdate`. [convert.py](https://github.com/odoo/odoo/blob/19.0/odoo/tools/convert.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Stable namespaced IDs for seed data, menus, views and permissions; reconcile owned definitions on upgrade.",
+        "Deliberate difference in the Effect design": "Typed contribution declarations with ownership and explicit replace/preserve policy. Separate developer defaults from customer overrides. Seed installation must be repeatable without duplicating business records."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "convert.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/tools/convert.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 20,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O09",
+      "title": "`ir.ui.view` stores view architecture, priority, inheritance and primary/extension modes. [ir_ui_view.py](https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_ui_view.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Metadata-driven forms/lists and third-party extension points.",
+        "Deliberate difference in the Effect design": "Use a typed view AST and named slots instead of brittle XPath targeting. Compile validated metadata into FoldKit views; retain custom screens for workflows beyond generated CRUD. UI metadata does not grant server access."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "ir_ui_view.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_ui_view.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 21,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O10",
+      "title": "Actions carry target model, domain, context and views; menus filter by groups and model read rights. [ir_actions.py](https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_actions.py), [ir_ui_menu.py](https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_ui_menu.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Stable navigation/action IDs and authorized menu projection.",
+        "Deliberate difference in the Effect design": "Distinguish navigation actions from authenticated business commands. Client-visible descriptors contain serializable schemas/references, not database handles or arbitrary server code. FoldKit messages invoke typed command adapters."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "ir_actions.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_actions.py"
+        },
+        {
+          "title": "ir_ui_menu.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/addons/base/models/ir_ui_menu.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 22,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O11",
+      "title": "HTTP handling selects the database registry/environment and authenticates before dispatching an endpoint. [http.py](https://github.com/odoo/odoo/blob/19.0/odoo/http.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "A common ingress path for routing, identity, decoding and error mapping.",
+        "Deliberate difference in the Effect design": "Explicit published endpoints and versioned DTOs rather than exposing arbitrary public model methods. Acquire a compatible plugin-generation lease for command execution; recheck authorization inside the business boundary."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "http.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/http.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 23,
+      "section": "Mechanism index"
+    },
+    {
+      "id": "O12",
+      "title": "Request processing retries selected transaction failures; cursors provide commit/rollback callbacks and run postcommit callbacks after SQL commit. [service/model.py](https://github.com/odoo/odoo/blob/19.0/odoo/service/model.py), [sql_db.py](https://github.com/odoo/odoo/blob/19.0/odoo/sql_db.py)",
+      "category": "odoo",
+      "claim_kind": "documented-odoo-mechanism-with-proposed-design",
+      "fields": {
+        "Adopt in the ERP platform": "Transaction ownership, bounded concurrency retries and clear after-commit semantics.",
+        "Deliberate difference in the Effect design": "Persist outbox work in the transaction for durable delivery. Retry the entire valid unit of work only when safe. Effect finalizers handle resource lifetime; they neither reverse committed business facts nor ensure delivery after a crash."
+      },
+      "tags": [
+        "odoo",
+        "plugins",
+        "erp"
+      ],
+      "sources": [
+        {
+          "title": "service/model.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/service/model.py"
+        },
+        {
+          "title": "sql_db.py",
+          "url": "https://github.com/odoo/odoo/blob/19.0/odoo/sql_db.py"
+        }
+      ],
+      "related_documents": [
+        "ERP-SPEC.md",
+        "ERP-TODO-WALKTHROUGH.md"
+      ],
+      "file": "knowledge/ODOO-CORE.md",
+      "line": 24,
+      "section": "Mechanism index"
+    }
+  ]
+}
