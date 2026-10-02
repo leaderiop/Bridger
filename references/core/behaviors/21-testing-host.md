@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -451,6 +451,23 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  definition's `version` and `digest`; a gate can refuse a
                  definition by its digest (25 — Operation Gate,
                  BEH-BR-219; 23 — Audit Sink and Record, BEH-BR-196).
+             43. While a stop of one plugin waits on a lease, an operation
+                 on an unrelated plugin completes without waiting, and a
+                 lease callback that calls a mutating operation either
+                 fails at once with `WouldDeadlock` or proceeds without
+                 waiting for the drain (08 — Operation Legality,
+                 BEH-BR-078).
+             44. A provider's removal that meets an operator operation in
+                 flight on a dependent waits for the dependent's step only:
+                 the dependent's scope closes once, its operation completes
+                 for its own caller, and its rebuild does not capture the
+                 removed provider (BEH-BR-079).
+             45. A provider's removal that meets a dependent whose stop is
+                 parked resumes it under the removal's options, ends the
+                 parked intent with the dependent `waiting`, and records a
+                 `system-stop` caused by the removal; without `force` it
+                 fails with `DrainTimeout` naming the dependent
+                 (BEH-BR-080).
 ```
 
 Checks 31–42 exist because the GxP hooks are only worth specifying if each

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-00                                                   |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Master Index                      |
-> | Change History | 0.5 (2026-10-02): CCR-BR-005 registered (CCR-BR-005)<br>0.4 (2026-10-02): CCR-BR-004 registered (CCR-BR-004)<br>0.3 (2026-10-02): CCR-BR-003 registered (CCR-BR-003)<br>0.2 (2026-10-02): CCR-BR-002 registered (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-10-02): CCR-BR-006 registered (CCR-BR-006)<br>0.5 (2026-10-02): CCR-BR-005 registered (CCR-BR-005)<br>0.4 (2026-10-02): CCR-BR-004 registered (CCR-BR-004)<br>0.3 (2026-10-02): CCR-BR-003 registered (CCR-BR-003)<br>0.2 (2026-10-02): CCR-BR-002 registered (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -143,3 +143,4 @@ Changes follow [change control](./process/change-control.md).
 | CCR-BR-003 | 2026-10-02 | Effect API prototype (`prototypes/effect-v4-api`, effect 4.0.0): open items G2–G4 closed — sliding `PubSub` lag is per subscriber, `Layer.effectContext` exists, `runtime.context()` forces a `ManagedRuntime` build; finding G9 recorded — a naive `forkChild` + `join` releases the lease before the child's finalizers, so BEH-BR-084 needs explicit interrupt-and-await. Platform facts only; no Bridger behaviour is evidenced. |
 | CCR-BR-004 | 2026-10-02 | Host-core prototype (`prototypes/host-core`, phase P1, 24 scenario tests on effect 4.0.0). Findings: G10 `IdentifiersOf` made distributive (BEH-BR-002); G11 cross-plugin stop ordering recorded as an open design item; G12 scoped-lease revocation interrupts the acquiring fiber (BEH-BR-086). The prototype is not the implementation and evidences no requirement. |
 | CCR-BR-005 | 2026-10-02 | GxP hooks prototype (phase P3, in `prototypes/host-core`: attribution, `AuditSink` single writer with in-place retry and the latch, `OperationGate`, `IdGenerator`; 11 scenario tests for acceptance checks 31–36, 38, 39, 41, 42). Finding G13: acknowledging the latch waits for the drained backlog (BEH-BR-206); G11 extended. The prototype evidences no requirement. |
+| CCR-BR-006 | 2026-10-02 | Cross-plugin stop ordering; closes URS gap G11. ADR-BR-038 (no host-wide operation order; waits run only from a provider to its dependents; a cascade waits for a dependent's step, never its operation; a cascade resumes a parked stop and ends the parked intent; `WouldDeadlock` before any wait); BEH-BR-078–080 (reserved IDs of file 08 now used), BEH-BR-074, BEH-BR-045, BEH-BR-088 amended; INV-BR-030; RSK-BR-023; acceptance checks 43–45 (REQ-BR-043–045). Host-core prototype: host-wide lock replaced by per-plugin admission and step locks; 3 scenario tests, which fail against the previous prototype. The prototype evidences no requirement. |

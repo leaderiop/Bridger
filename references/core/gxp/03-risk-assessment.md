@@ -5,18 +5,18 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-03                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): RSK-BR-023 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
-This document assesses the hazards that `@bridger/core` itself could introduce into a regulated user's computerized system, scores them with the GAMP 5 FMEA method under the ICH Q9(R1) process, names the specified behaviours and invariants that control each one, and states the residual risk and who owns it. It defines the risk identifiers `RSK-BR-001` to `RSK-BR-022` that behaviours cite on their `**Risk:**` lines.
+This document assesses the hazards that `@bridger/core` itself could introduce into a regulated user's computerized system, scores them with the GAMP 5 FMEA method under the ICH Q9(R1) process, names the specified behaviours and invariants that control each one, and states the residual risk and who owns it. It defines the risk identifiers `RSK-BR-001` to `RSK-BR-023` that behaviours cite on their `**Risk:**` lines.
 
 It is a **supplier-side** assessment of a component. It does not replace the regulated user's risk assessment of their system, which decides the extent of their validation (EU GMP Annex 11 §1). Every control named here is *specified*, not implemented, and every verification is *Planned*: nothing has been executed, so no residual score below is yet supported by evidence ([ADR-BR-036](../decisions/036-prospective-specification.md)).
 
@@ -415,6 +415,21 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Residual risk and acceptability | Tests reduce but cannot exclude runtime defects, especially in true parallelism that `TestHost` does not reach deterministically. Acceptable with re-execution on every Effect upgrade, by the supplier and, for the system, by the regulated user. |
 | Owner | Core (residual: Consumer — re-qualification on upgrade) |
 
+<a id="rsk-br-023"></a>
+### RSK-BR-023: Host transitions stall each other or complete under the wrong call
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A stop of a provider and an operation on one of its dependents wait on each other, or an unrelated operation waits behind a drain, so a change cannot be made or hangs; or a provider's removal completes a dependent's parked operation, so a dependent is unregistered or disabled under another operator's call. Trigger: concurrent administration of plugins linked by dependencies, with leases held. |
+| Effect on GMP data / processes | Operator changes are delayed or blocked; in the second case a lasting change appears in the trail under a call that did not ask for it, attributed only through a causation link. |
+| Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Controls | No host-wide operation order; waits run only from a provider to its dependents (BEH-BR-078); a cascade waits for a dependent's step, never its operation, and never overrules an operator operation with a waiting caller (BEH-BR-079); a cascade resumes a parked stop and ends the parked intent rather than completing it (BEH-BR-080); `WouldDeadlock` is decided before any wait (BEH-BR-088). Invariants INV-BR-030, INV-BR-002, INV-BR-016. |
+| Risks introduced by controls | An operator whose parked `remove` or `disable` was ended by a provider's removal must issue it again; a cascade's wait is bounded by two drain limits in sequence, not one. |
+| Verification | Planned — the property test of INV-BR-030 over random histories on random acyclic graphs; REQ-BR scenarios for acceptance checks 43–45 of BEH-BR-184; mutation testing. |
+| Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) |
+| Residual risk and acceptability | A wait closed through a fiber that does not carry the held-plugin reference remains undetectable ([RSK-BR-011](#rsk-br-011)) and is bounded by the drain limit. Acceptable. |
+| Owner | Core |
+
 ## §4 Summary
 
 | ID | Title | Class before | Priority | Residual (class / priority) | Owner |
@@ -441,6 +456,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | [RSK-BR-020](#rsk-br-020) | Slow audit sink blocks the host | High | High | Medium / Low | Core + Consumer |
 | [RSK-BR-021](#rsk-br-021) | Wall-clock step reorders records | Medium | Medium | Low / Low | Core |
 | [RSK-BR-022](#rsk-br-022) | Defect in the Effect runtime | High | High | Medium / Medium | Core |
+| [RSK-BR-023](#rsk-br-023) | Host transitions stall each other or complete under the wrong call | High | High | Medium / Low | Core |
 
 **Residuals the regulated user must carry into their own assessment:** identity binding and enabling required attribution (RSK-BR-005); wiring a sink and the store's completeness and continuity (RSK-BR-004, RSK-BR-006); clock synchronisation (RSK-BR-007, RSK-BR-021); plugin version control and regression testing (RSK-BR-010); deployment-level isolation (RSK-BR-013); wiring a gate and its availability (RSK-BR-014); atomic external writes and drain sizing (RSK-BR-015); health checks and state monitoring (RSK-BR-016); code provenance (RSK-BR-017); supplier assessment and independent review (RSK-BR-018); business continuity during sink outages (RSK-BR-020); re-qualification on upgrade (RSK-BR-022).
 

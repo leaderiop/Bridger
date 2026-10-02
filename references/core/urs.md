@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-URS                                                  |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -334,7 +334,7 @@ Behaviours are cited by file; individual `BEH-BR` identifiers are listed in
 | G7 | Independent review of this specification is not yet possible (single maintainer). | Open — see [change control](./process/change-control.md) §5 |
 | G8 | The `@bridger/gxp` companion is not yet specified. | Planned — `references/gxp/` |
 | G10 | The `IdentifiersOf` helper as first written yields `unknown` for an empty tuple, so a plugin that provides nothing could not type-check. | Closed (CCR-BR-004): made distributive in BEH-BR-002; found by the compiler in `prototypes/host-core` |
-| G11 | A system-initiated stop of a dependent (its provider is being removed) can meet an operator operation already in flight on that dependent; the specification orders operations per plugin but does not say how a stop that crosses plugins is ordered against them. | Open — design item for P1 implementation. The prototype avoids it by linearizing operator operations host-wide, which is correct but makes unrelated operations wait behind a drain — and, with the GxP hooks, a lease holder that calls a mutating operation while another operation waits on its lease blocks until that drain times out instead of failing fast with `WouldDeadlock` |
+| G11 | A system-initiated stop of a dependent (its provider is being removed) can meet an operator operation already in flight on that dependent; the specification ordered operations per plugin but did not say how a stop that crosses plugins is ordered against them. | Closed by [ADR-BR-038](./decisions/038-cross-plugin-stop-ordering.md) and BEH-BR-078–080 (CCR-BR-006): no host-wide order; waits run only from a provider to its dependents; a cascade waits for a dependent's step, never its operation, and ends a parked intent rather than completing it; `WouldDeadlock` is decided before any wait. The host-core prototype replaced its host-wide lock with per-plugin admission and confirmed the rule (scenarios for acceptance checks 43–45) |
 | G12 | How a forced removal revokes a scoped `lease()` was unspecified. | Closed (CCR-BR-004): it interrupts the acquiring fiber (BEH-BR-086) |
 | G13 | Whether acknowledging the audit latch needs only a writable sink or a drained backlog. | Closed (CCR-BR-005): a drained backlog (BEH-BR-206); found by the GxP prototype in `prototypes/host-core` |
 | G9 | A naive supervised child (`forkChild` + `join` inside the lease) releases the lease before the child's finalizers run when the caller is interrupted, which would break BEH-BR-084. | Design constraint recorded (CCR-BR-003): the implementation interrupts and awaits the child before release; prototype checks E7a–E7b show the failure and the fix |

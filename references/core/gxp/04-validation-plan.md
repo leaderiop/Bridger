@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-04                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -57,7 +57,7 @@ Applied to the current register:
 
 | Rigour | Risks | Behaviour files mainly exercised |
 | ------ | ----- | -------------------------------- |
-| High | RSK-BR-001 to RSK-BR-006, RSK-BR-008 to RSK-BR-010, RSK-BR-012 to RSK-BR-020, RSK-BR-022 | [05](../behaviors/05-activation.md), [06](../behaviors/06-removal.md), [07](../behaviors/07-replacement-and-reactivation.md), [08](../behaviors/08-operation-legality.md), [09](../behaviors/09-leases.md), [10](../behaviors/10-runtime-failure-and-health.md), [11](../behaviors/11-configuration.md), [12](../behaviors/12-shutdown-and-hosting.md), [22](../behaviors/22-attributable-operations.md), [23](../behaviors/23-audit-sink-and-record.md), [24](../behaviors/24-time-ids-and-sequence.md), [25](../behaviors/25-operation-gate.md) |
+| High | RSK-BR-001 to RSK-BR-006, RSK-BR-008 to RSK-BR-010, RSK-BR-012 to RSK-BR-020, RSK-BR-022, RSK-BR-023 | [05](../behaviors/05-activation.md), [06](../behaviors/06-removal.md), [07](../behaviors/07-replacement-and-reactivation.md), [08](../behaviors/08-operation-legality.md), [09](../behaviors/09-leases.md), [10](../behaviors/10-runtime-failure-and-health.md), [11](../behaviors/11-configuration.md), [12](../behaviors/12-shutdown-and-hosting.md), [22](../behaviors/22-attributable-operations.md), [23](../behaviors/23-audit-sink-and-record.md), [24](../behaviors/24-time-ids-and-sequence.md), [25](../behaviors/25-operation-gate.md) |
 | Medium | RSK-BR-007, RSK-BR-011, RSK-BR-021 | [21](../behaviors/21-testing-host.md), [24](../behaviors/24-time-ids-and-sequence.md), [09](../behaviors/09-leases.md) |
 | Low | None in the current register. Behaviours that control no listed risk and have no GxP impact may be verified at this level, unless they are among the required checks of BEH-BR-183 and BEH-BR-184, which are always scripted. | — |
 

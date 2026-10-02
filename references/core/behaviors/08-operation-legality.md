@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -24,7 +24,8 @@ the outcome of every operation in every state and against every operation
 already in flight. It converts the SPEC.md section "Operation semantics and
 races" and the linearization sentence of "State and lifecycle", and applies
 the settled legality decisions that close the gaps SPEC.md left. This file
-owns BEH-BR-065–080; it uses 065–077, and 078–080 are reserved.
+owns BEH-BR-065–080 and uses all sixteen; 078–080 order stops that cross
+plugins ([ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)).
 
 The eight operations that name a plugin — `install`, `remove`, `replace`,
 `retry`, `reconfigure`, `restart`, `disable`, `enable` — are mutating
@@ -53,7 +54,7 @@ REQUIREMENT: Operations that name a plugin MUST be linearized per plugin —
 REQUIREMENT: A plugin MUST have at most one transition in flight at any
              time. Operations on different plugins MUST NOT be ordered
              against each other except through dependency ordering
-             (05 — Activation, 06 — Removal).
+             (05 — Activation, 06 — Removal, and BEH-BR-078–080).
 ```
 
 ```
@@ -448,8 +449,11 @@ REQUIREMENT: When an operation fails with `DrainTimeout`, its intent MUST
 ```
 REQUIREMENT: A parked stop MUST NOT complete by itself, even when its leases
              end. It MUST resume only when a call joins or supersedes the
-             parked operation, and it MUST then drain under that call's
-             `drain` and `force` options (or the host default).
+             parked operation, when an operator call arrives on the plugin
+             while the parked stop is a system stop (BEH-BR-073), or when a
+             stop of one of its providers needs it stopped (BEH-BR-080). It
+             MUST then drain under that call's `drain` and `force` options
+             (or the host default).
 ```
 
 ```
@@ -464,6 +468,13 @@ every completion tied to a call an operator made — the repeated `remove` with
 a longer `drain`, or with `force` — and audited as such. For `reconfigure`,
 which takes no `drain` option, the joining `restart` is the way to resume with
 a longer drain or `force` ([11 — Configuration](./11-configuration.md)).
+
+A system stop parks in the same way when the call that drives it fails with
+`DrainTimeout`: a dependency-loss stop parks with the provider's removal that
+cascaded into it (BEH-BR-080). An operator call that arrives on such a plugin
+resumes the stop under its own options and is then decided against the state
+the plugin lands in, as BEH-BR-073 requires; otherwise it would wait for a
+stop that never settles by itself.
 
 **Settled here.** SPEC.md says only that after `DrainTimeout` "the plugin stays
 `stopping` … and the operation can be repeated with a longer `drain`, or with
@@ -537,6 +548,143 @@ refuses, and `reconcile` cannot reach a state that the same sequence of
 individual calls could not. That is also what keeps the `OperationGate`
 unavoidable: there is no second entry point with its own rules
 ([25 — Operation Gate](./25-operation-gate.md)).
+
+## BEH-BR-078: Operations on different plugins never wait for each other
+
+> **Invariant:** [INV-BR-030](../invariants.md#inv-br-030-host-transitions-never-wait-on-each-other-in-a-cycle), [INV-BR-009](../invariants.md#inv-br-009-at-most-one-transition-in-flight-per-plugin)
+> **See:** [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md), [ADR-BR-012](../decisions/012-intent-and-linearization.md)
+> **Satisfies:** [URS-BR-002](../urs.md#urs-br-002-remove-or-replace-a-plugin-safely-while-it-is-in-use)
+> **Risk:** [RSK-BR-023](../gxp/03-risk-assessment.md#rsk-br-023)
+
+```
+REQUIREMENT: The host MUST NOT order operations by a host-wide lock. A call
+             MUST NOT wait for the admission, linearization or transition of
+             a call on another plugin, except where this file and
+             06 — Removal make one plugin's stop wait for its dependents.
+```
+
+```
+REQUIREMENT: A transition on plugin P MUST wait only for its own step, for
+             steps of plugins that depend on P (directly or transitively,
+             through captured services or as children), and for leases on
+             those plugins. It MUST NOT wait for a step of a provider of P or
+             of any plugin unrelated to P. A build MUST NOT wait for any
+             transition of another plugin.
+```
+
+```
+REQUIREMENT: A child mount that would close a cycle through parent–child
+             and dependency edges MUST fail the parent's activation with
+             `DependencyCycle { path }` and mount nothing (14 — Children and
+             Groups).
+```
+
+A *step* is one build, or one stop (drain, then scope close), of one plugin;
+a plugin runs at most one step at a time. Waits that run only from a provider
+to its dependents follow the edges of a graph that is acyclic
+([INV-BR-002](../invariants.md#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope)),
+so no two host transitions can wait on each other, and no lock order has to be
+maintained to keep it so. Only a lease callback can close a cycle — the case
+`WouldDeadlock` and the drain limit exist for (09 — Leases).
+
+The audit writer of [23 — Audit Sink and Record](./23-audit-sink-and-record.md)
+is shared by every call, but it orders records, not operations: a call waits
+there for its own `requested` record, never for another call's transition.
+
+**Settled here.** The host-core prototype first linearized every operator
+operation host-wide. That was correct but made an `install` of one plugin
+wait behind a drain of another, and made a lease callback that issued any
+mutating call block until an unrelated drain timed out (URS gap G11).
+
+## BEH-BR-079: A cascade waits for a dependent's step, never for its operation
+
+> **Invariant:** [INV-BR-030](../invariants.md#inv-br-030-host-transitions-never-wait-on-each-other-in-a-cycle), [INV-BR-005](../invariants.md#inv-br-005-dependents-stop-before-their-providers)
+> **See:** [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)
+> **Satisfies:** [URS-BR-002](../urs.md#urs-br-002-remove-or-replace-a-plugin-safely-while-it-is-in-use), [URS-BR-005](../urs.md#urs-br-005-never-lose-a-provider-in-the-middle-of-a-call)
+> **Risk:** [RSK-BR-023](../gxp/03-risk-assessment.md#rsk-br-023), [RSK-BR-019](../gxp/03-risk-assessment.md#rsk-br-019)
+
+```
+REQUIREMENT: When stopping P needs a dependent D stopped (06 — Removal,
+             BEH-BR-043) and no step is running on D, the host MUST start a
+             stop of D with `reason` "dependency-loss".
+```
+
+```
+REQUIREMENT: When a step is running on D — a build or a stop, owned by an
+             operator operation, a system transition or another cascade —
+             the cascade MUST wait for that step to settle, and MUST then
+             stop D only if D still holds a service of P.
+```
+
+```
+REQUIREMENT: A cascade MUST NOT join, supersede, redirect or cancel an
+             operator operation in flight on D whose caller is still waiting.
+             That operation MUST continue after its step settles, and any
+             build it then starts MUST NOT capture P.
+```
+
+```
+REQUIREMENT: Two cascades that need the same dependent stopped MUST share
+             its one stop: the later MUST wait for the step the earlier
+             started, and MUST NOT start a second stop of D.
+```
+
+Waiting for the step rather than the operation keeps a provider's removal
+from waiting on work it does not need — the rebuild at the end of a
+dependent's `restart` — and from waiting forever on a parked operation. The
+step boundary is safe because P was hidden in the revision its stop began
+(BEH-BR-042): whatever the dependent's operation does next, it cannot capture
+P again, so it lands by availability
+([07 — Replacement and Reactivation](./07-replacement-and-reactivation.md),
+BEH-BR-057).
+
+The cascade's total wait is bounded by the limit of the step it waits for and
+then by its own drain limit — two bounds in sequence, not one.
+
+## BEH-BR-080: A cascade resumes a parked stop and ends the parked intent
+
+> **Invariant:** [INV-BR-017](../invariants.md#inv-br-017-every-drain-is-bounded-unless-declared-forever), [INV-BR-030](../invariants.md#inv-br-030-host-transitions-never-wait-on-each-other-in-a-cycle)
+> **See:** [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md), [ADR-BR-015](../decisions/015-leases-one-primitive.md)
+> **Satisfies:** [URS-BR-010](../urs.md#urs-br-010-detect-a-plugin-that-waits-forever), [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
+> **Risk:** [RSK-BR-023](../gxp/03-risk-assessment.md#rsk-br-023), [RSK-BR-004](../gxp/03-risk-assessment.md#rsk-br-004)
+
+```
+REQUIREMENT: When a cascade needs D stopped and D's stop is parked
+             (BEH-BR-074), the cascade MUST resume that stop under the
+             cascading call's `drain` and `force` options (or the host
+             default).
+```
+
+```
+REQUIREMENT: When the resumed stop settles and the parked operation was an
+             operator operation, its intent MUST end there: D MUST land where
+             a dependency-loss stop leads (`waiting`, or `starting` when
+             another provider is available), and the parked operation's
+             remaining steps — unregistering, disabling, swapping the
+             definition, rebuilding — MUST NOT run.
+```
+
+```
+REQUIREMENT: The stop MUST be recorded as a `system-stop` of D whose
+             `causationId` is the cascading call's `requested` record
+             (23 — Audit Sink and Record).
+```
+
+```
+REQUIREMENT: When the resumed drain expires again without `force`, the
+             cascading call MUST fail with `DrainTimeout { id, leases }`, where
+             `id` names the plugin whose leases did not drain; D's stop MUST
+             stay parked, now owned by the cascading call.
+```
+
+The parked call has already returned `DrainTimeout`, and its own terminal
+record says so. Completing its intent later under a different operator's call
+would put a lasting change — a dependent unregistered or disabled — in the
+trail under the wrong call, attributed only through a causation link. Ending
+the intent with the stop the cascade needed leaves the dependent somewhere the
+snapshot explains (`waiting`, with the lost keys) and leaves the operator who
+parked the call to issue it again; from `waiting`, a `remove` unregisters at
+once and a `disable` applies at once (BEH-BR-071).
 
 ---
 

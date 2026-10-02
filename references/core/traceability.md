@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-TRACE                                                |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.2 (2026-10-02): Regenerated after consistency fixes; REQ-BR-042 added (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): Regenerated; INV-BR-030, ADR-BR-038, RSK-BR-023 and REQ-BR-043–045 added (CCR-BR-006)<br>0.2 (2026-10-02): Regenerated after consistency fixes; REQ-BR-042 added (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -48,7 +48,7 @@ This document carries the rest of the chain.
 | BEH-BR-033–040 | [05-activation.md](behaviors/05-activation.md) | `packages/core/src/Lifecycle.ts` *(Planned)*, `packages/core/src/Resolver.ts` *(Planned)* |
 | BEH-BR-041–048 | [06-removal.md](behaviors/06-removal.md) | `packages/core/src/Lifecycle.ts` *(Planned)* |
 | BEH-BR-049–062 | [07-replacement-and-reactivation.md](behaviors/07-replacement-and-reactivation.md) | `packages/core/src/Lifecycle.ts` *(Planned)* |
-| BEH-BR-065–077 | [08-operation-legality.md](behaviors/08-operation-legality.md) | `packages/core/src/Legality.ts` *(Planned)*, `packages/core/src/Lifecycle.ts` *(Planned)* |
+| BEH-BR-065–080 | [08-operation-legality.md](behaviors/08-operation-legality.md) | `packages/core/src/Legality.ts` *(Planned)*, `packages/core/src/Lifecycle.ts` *(Planned)* |
 | BEH-BR-081–088 | [09-leases.md](behaviors/09-leases.md) | `packages/core/src/Lease.ts` *(Planned)* |
 | BEH-BR-089–096 | [10-runtime-failure-and-health.md](behaviors/10-runtime-failure-and-health.md) | `packages/core/src/PluginRuntime.ts` *(Planned)*, `packages/core/src/Health.ts` *(Planned)* |
 | BEH-BR-097–104 | [11-configuration.md](behaviors/11-configuration.md) | `packages/core/src/Config.ts` *(Planned)* |
@@ -75,11 +75,11 @@ This document carries the rest of the chain.
 | [INV-BR-002](invariants.md#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope) | [BEH-BR-020](behaviors/03-installation.md), [BEH-BR-052](behaviors/07-replacement-and-reactivation.md), [BEH-BR-062](behaviors/07-replacement-and-reactivation.md), [BEH-BR-148](behaviors/17-realms-and-interception.md) | scenario tests *(Planned)* |
 | [INV-BR-003](invariants.md#inv-br-003-publication-is-atomic) | [BEH-BR-033](behaviors/05-activation.md), [BEH-BR-037](behaviors/05-activation.md), [BEH-BR-097](behaviors/11-configuration.md), [BEH-BR-124](behaviors/14-children-and-groups.md), [BEH-BR-170](behaviors/20-generation.md) | scenario tests *(Planned)* |
 | [INV-BR-004](invariants.md#inv-br-004-no-stale-build-is-published) | [BEH-BR-039](behaviors/05-activation.md) | property test over random operation histories *(Planned)* |
-| [INV-BR-005](invariants.md#inv-br-005-dependents-stop-before-their-providers) | [BEH-BR-035](behaviors/05-activation.md), [BEH-BR-043](behaviors/06-removal.md), [BEH-BR-044](behaviors/06-removal.md), [BEH-BR-051](behaviors/07-replacement-and-reactivation.md), [BEH-BR-094](behaviors/10-runtime-failure-and-health.md), [BEH-BR-101](behaviors/11-configuration.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-121](behaviors/14-children-and-groups.md), [BEH-BR-124](behaviors/14-children-and-groups.md), [BEH-BR-133](behaviors/15-optional-and-reactive.md) | property test over random operation histories *(Planned)* |
+| [INV-BR-005](invariants.md#inv-br-005-dependents-stop-before-their-providers) | [BEH-BR-035](behaviors/05-activation.md), [BEH-BR-043](behaviors/06-removal.md), [BEH-BR-044](behaviors/06-removal.md), [BEH-BR-051](behaviors/07-replacement-and-reactivation.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-094](behaviors/10-runtime-failure-and-health.md), [BEH-BR-101](behaviors/11-configuration.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-121](behaviors/14-children-and-groups.md), [BEH-BR-124](behaviors/14-children-and-groups.md), [BEH-BR-133](behaviors/15-optional-and-reactive.md) | property test over random operation histories *(Planned)* |
 | [INV-BR-006](invariants.md#inv-br-006-a-leased-provider-does-not-close-under-its-lease) | [BEH-BR-042](behaviors/06-removal.md), [BEH-BR-043](behaviors/06-removal.md), [BEH-BR-076](behaviors/08-operation-legality.md), [BEH-BR-081](behaviors/09-leases.md), [BEH-BR-082](behaviors/09-leases.md), [BEH-BR-086](behaviors/09-leases.md), [BEH-BR-094](behaviors/10-runtime-failure-and-health.md), [BEH-BR-131](behaviors/15-optional-and-reactive.md), [BEH-BR-133](behaviors/15-optional-and-reactive.md), [BEH-BR-152](behaviors/17-realms-and-interception.md), [BEH-BR-166](behaviors/19-contribution-registry.md), [BEH-BR-172](behaviors/20-generation.md), [BEH-BR-176](behaviors/20-generation.md) | property test over random operation histories *(Planned)* |
 | [INV-BR-007](invariants.md#inv-br-007-failure-is-sticky) | [BEH-BR-021](behaviors/03-installation.md), [BEH-BR-024](behaviors/03-installation.md), [BEH-BR-031](behaviors/04-states-and-snapshots.md), [BEH-BR-046](behaviors/06-removal.md), [BEH-BR-053](behaviors/07-replacement-and-reactivation.md), [BEH-BR-055](behaviors/07-replacement-and-reactivation.md), [BEH-BR-056](behaviors/07-replacement-and-reactivation.md), [BEH-BR-071](behaviors/08-operation-legality.md), [BEH-BR-073](behaviors/08-operation-legality.md), [BEH-BR-096](behaviors/10-runtime-failure-and-health.md), [BEH-BR-160](behaviors/18-reconciliation-and-confluence.md) | scenario tests *(Planned)* |
 | [INV-BR-008](invariants.md#inv-br-008-snapshot-revisions-never-regress) | [BEH-BR-029](behaviors/04-states-and-snapshots.md), [BEH-BR-030](behaviors/04-states-and-snapshots.md), [BEH-BR-165](behaviors/19-contribution-registry.md) | property test over random operation histories *(Planned)* |
-| [INV-BR-009](invariants.md#inv-br-009-at-most-one-transition-in-flight-per-plugin) | [BEH-BR-026](behaviors/04-states-and-snapshots.md), [BEH-BR-065](behaviors/08-operation-legality.md), [BEH-BR-072](behaviors/08-operation-legality.md), [BEH-BR-073](behaviors/08-operation-legality.md), [BEH-BR-128](behaviors/14-children-and-groups.md) | property test over random operation histories *(Planned)* |
+| [INV-BR-009](invariants.md#inv-br-009-at-most-one-transition-in-flight-per-plugin) | [BEH-BR-026](behaviors/04-states-and-snapshots.md), [BEH-BR-065](behaviors/08-operation-legality.md), [BEH-BR-072](behaviors/08-operation-legality.md), [BEH-BR-073](behaviors/08-operation-legality.md), [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-128](behaviors/14-children-and-groups.md) | property test over random operation histories *(Planned)* |
 | [INV-BR-010](invariants.md#inv-br-010-intent-survives-caller-interruption) | [BEH-BR-066](behaviors/08-operation-legality.md), [BEH-BR-067](behaviors/08-operation-legality.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-101](behaviors/11-configuration.md), [BEH-BR-188](behaviors/22-attributable-operations.md) | property test over random operation histories *(Planned)* |
 | [INV-BR-011](invariants.md#inv-br-011-every-state-and-operation-pair-has-a-defined-outcome) | [BEH-BR-047](behaviors/06-removal.md), [BEH-BR-069](behaviors/08-operation-legality.md), [BEH-BR-071](behaviors/08-operation-legality.md), [BEH-BR-072](behaviors/08-operation-legality.md), [BEH-BR-077](behaviors/08-operation-legality.md), [BEH-BR-109](behaviors/12-shutdown-and-hosting.md) | property test over random operation histories *(Planned)* |
 | [INV-BR-012](invariants.md#inv-br-012-a-definition-error-registers-nothing) | [BEH-BR-003](behaviors/01-plugin-definition.md), [BEH-BR-018](behaviors/03-installation.md), [BEH-BR-050](behaviors/07-replacement-and-reactivation.md), [BEH-BR-070](behaviors/08-operation-legality.md) | scenario tests *(Planned)* |
@@ -87,7 +87,7 @@ This document carries the rest of the chain.
 | [INV-BR-014](invariants.md#inv-br-014-every-activation-gets-a-fresh-scope-and-memo-map) | [BEH-BR-036](behaviors/05-activation.md), [BEH-BR-058](behaviors/07-replacement-and-reactivation.md), [BEH-BR-099](behaviors/11-configuration.md) | scenario tests *(Planned)* |
 | [INV-BR-015](invariants.md#inv-br-015-key-identity-is-checked-by-identifier-and-by-object) | [BEH-BR-006](behaviors/01-plugin-definition.md), [BEH-BR-038](behaviors/05-activation.md) | type-level and scenario tests *(Planned)* |
 | [INV-BR-016](invariants.md#inv-br-016-a-re-entrant-wait-fails-fast) | [BEH-BR-040](behaviors/05-activation.md), [BEH-BR-088](behaviors/09-leases.md), [BEH-BR-136](behaviors/15-optional-and-reactive.md), [BEH-BR-144](behaviors/16-event-bus.md) | scenario tests *(Planned)* |
-| [INV-BR-017](invariants.md#inv-br-017-every-drain-is-bounded-unless-declared-forever) | [BEH-BR-045](behaviors/06-removal.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-085](behaviors/09-leases.md), [BEH-BR-095](behaviors/10-runtime-failure-and-health.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-107](behaviors/12-shutdown-and-hosting.md), [BEH-BR-167](behaviors/19-contribution-registry.md), [BEH-BR-173](behaviors/20-generation.md), [BEH-BR-174](behaviors/20-generation.md), [BEH-BR-176](behaviors/20-generation.md) | property test over random operation histories *(Planned)* |
+| [INV-BR-017](invariants.md#inv-br-017-every-drain-is-bounded-unless-declared-forever) | [BEH-BR-045](behaviors/06-removal.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-085](behaviors/09-leases.md), [BEH-BR-095](behaviors/10-runtime-failure-and-health.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-107](behaviors/12-shutdown-and-hosting.md), [BEH-BR-167](behaviors/19-contribution-registry.md), [BEH-BR-173](behaviors/20-generation.md), [BEH-BR-174](behaviors/20-generation.md), [BEH-BR-176](behaviors/20-generation.md) | property test over random operation histories *(Planned)* |
 | [INV-BR-018](invariants.md#inv-br-018-shutdown-reports-every-failure) | [BEH-BR-075](behaviors/08-operation-legality.md), [BEH-BR-106](behaviors/12-shutdown-and-hosting.md), [BEH-BR-108](behaviors/12-shutdown-and-hosting.md) | scenario tests *(Planned)* |
 | [INV-BR-019](invariants.md#inv-br-019-optional-dependencies-never-gate-activation) | [BEH-BR-129](behaviors/15-optional-and-reactive.md), [BEH-BR-130](behaviors/15-optional-and-reactive.md), [BEH-BR-132](behaviors/15-optional-and-reactive.md) | scenario tests *(Planned)* |
 | [INV-BR-020](invariants.md#inv-br-020-a-realm-changes-resolution-only) | [BEH-BR-145](behaviors/17-realms-and-interception.md), [BEH-BR-146](behaviors/17-realms-and-interception.md), [BEH-BR-150](behaviors/17-realms-and-interception.md) | scenario tests *(Planned)* |
@@ -100,6 +100,7 @@ This document carries the rest of the chain.
 | [INV-BR-027](invariants.md#inv-br-027-a-refused-or-unauditable-mutation-changes-nothing) | [BEH-BR-014](behaviors/02-host-construction.md), [BEH-BR-066](behaviors/08-operation-legality.md), [BEH-BR-070](behaviors/08-operation-legality.md), [BEH-BR-158](behaviors/18-reconciliation-and-confluence.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [BEH-BR-203](behaviors/23-audit-sink-and-record.md), [BEH-BR-218](behaviors/25-operation-gate.md), [BEH-BR-220](behaviors/25-operation-gate.md), [BEH-BR-221](behaviors/25-operation-gate.md), [BEH-BR-222](behaviors/25-operation-gate.md) | property test over random operation histories *(Planned)* |
 | [INV-BR-028](invariants.md#inv-br-028-audit-records-carry-no-configuration-values) | [BEH-BR-103](behaviors/11-configuration.md), [BEH-BR-197](behaviors/23-audit-sink-and-record.md), [BEH-BR-219](behaviors/25-operation-gate.md) | scenario tests *(Planned)* |
 | [INV-BR-029](invariants.md#inv-br-029-the-audit-degraded-latch-blocks-operator-mutations) | [BEH-BR-110](behaviors/12-shutdown-and-hosting.md), [BEH-BR-205](behaviors/23-audit-sink-and-record.md), [BEH-BR-206](behaviors/23-audit-sink-and-record.md), [BEH-BR-220](behaviors/25-operation-gate.md) | scenario tests *(Planned)* |
+| [INV-BR-030](invariants.md#inv-br-030-host-transitions-never-wait-on-each-other-in-a-cycle) | [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md) | property test over random operation histories *(Planned)* |
 
 ## §3 Decision traceability
 
@@ -116,10 +117,10 @@ This document carries the rest of the chain.
 | [ADR-BR-009](decisions/009-managedruntime-hosting.md) — Non-Effect hosting through ManagedRuntime | Proposed | BEH-BR-009, BEH-BR-111–112 |
 | [ADR-BR-010](decisions/010-cordis-parity.md) — Cordis feature parity and what is not adopted | Proposed | BEH-BR-151 |
 | [ADR-BR-011](decisions/011-serviceid-is-key-identity.md) — ServiceId is key identity and mismatched key objects fail | Proposed | BEH-BR-006–007, BEH-BR-038, BEH-BR-138 |
-| [ADR-BR-012](decisions/012-intent-and-linearization.md) — Operations record intent and are linearized per plugin | Proposed | BEH-BR-013, BEH-BR-017, BEH-BR-034, BEH-BR-065–068, BEH-BR-072, BEH-BR-156, BEH-BR-200 |
+| [ADR-BR-012](decisions/012-intent-and-linearization.md) — Operations record intent and are linearized per plugin | Proposed | BEH-BR-013, BEH-BR-017, BEH-BR-034, BEH-BR-065–068, BEH-BR-072, BEH-BR-078, BEH-BR-156, BEH-BR-200 |
 | [ADR-BR-013](decisions/013-total-operation-legality.md) — The state by operation table is total | Proposed | BEH-BR-026, BEH-BR-047, BEH-BR-069, BEH-BR-071–072, BEH-BR-200 |
 | [ADR-BR-014](decisions/014-discriminated-plugin-snapshot.md) — PluginSnapshot is a discriminated union | Proposed | BEH-BR-027, BEH-BR-149 |
-| [ADR-BR-015](decisions/015-leases-one-primitive.md) — Leases are one bounded primitive with a supervised child | Proposed | BEH-BR-045, BEH-BR-074, BEH-BR-081–087, BEH-BR-095, BEH-BR-107, BEH-BR-131, BEH-BR-166–167, BEH-BR-172, BEH-BR-174 |
+| [ADR-BR-015](decisions/015-leases-one-primitive.md) — Leases are one bounded primitive with a supervised child | Proposed | BEH-BR-045, BEH-BR-074, BEH-BR-080–087, BEH-BR-095, BEH-BR-107, BEH-BR-131, BEH-BR-166–167, BEH-BR-172, BEH-BR-174 |
 | [ADR-BR-016](decisions/016-reentrancy-detection.md) — Re-entrancy is detected through a carried reference | Proposed | BEH-BR-088, BEH-BR-136, BEH-BR-187 |
 | [ADR-BR-017](decisions/017-runtime-failure-one-transition.md) — Three runtime failure signals and one transition | Proposed | BEH-BR-073, BEH-BR-089–095, BEH-BR-134, BEH-BR-190, BEH-BR-199 |
 | [ADR-BR-018](decisions/018-configuration-decoded-before-build.md) — Configuration is decoded before build and never observable | Proposed | BEH-BR-097–104, BEH-BR-118, BEH-BR-197 |
@@ -142,6 +143,7 @@ This document carries the rest of the chain.
 | [ADR-BR-035](decisions/035-evidence-from-executed-tests.md) — Qualification evidence comes only from executed tests | Proposed | BEH-BR-183–184 |
 | [ADR-BR-036](decisions/036-prospective-specification.md) — This specification is prospective | Proposed | — (process or scope decision) |
 | [ADR-BR-037](decisions/037-audit-sequence-separate-from-event-seq.md) — The audit sequence is separate from the event seq | Proposed | BEH-BR-113, BEH-BR-115, BEH-BR-195, BEH-BR-202, BEH-BR-207, BEH-BR-212–215 |
+| [ADR-BR-038](decisions/038-cross-plugin-stop-ordering.md) — Cross-plugin stops wait only along dependency edges | Proposed | BEH-BR-078–080 |
 
 ## §4 Test file map
 
@@ -177,7 +179,7 @@ Every path is planned. Type-level tests use `tstyche` (`*.tst.ts`); property tes
 
 ## §5 Acceptance scenario traceability
 
-One scenario per required acceptance check of [BEH-BR-183](behaviors/21-testing-host.md) (checks 1–20) and [BEH-BR-184](behaviors/21-testing-host.md) (checks 21–42), in the same order. Each will be a tagged scenario in `features/` once code exists; until then none has run.
+One scenario per required acceptance check of [BEH-BR-183](behaviors/21-testing-host.md) (checks 1–20) and [BEH-BR-184](behaviors/21-testing-host.md) (checks 21–45), in the same order. Each will be a tagged scenario in `features/` once code exists; until then none has run.
 
 | Scenario | Check | Behaviours | Status |
 | --- | --- | --- | --- |
@@ -223,6 +225,9 @@ One scenario per required acceptance check of [BEH-BR-183](behaviors/21-testing-
 | REQ-BR-040 | 40. reconcile consults the gate once per entry action | [BEH-BR-158](behaviors/18-reconciliation-and-confluence.md) | Not run |
 | REQ-BR-041 | 41. No ambient time or randomness in core sources (static check) | [BEH-BR-211](behaviors/24-time-ids-and-sequence.md) | Not run |
 | REQ-BR-042 | 42. Gate requests and audit records carry the definition version and digest | [BEH-BR-196](behaviors/23-audit-sink-and-record.md), [BEH-BR-219](behaviors/25-operation-gate.md) | Not run |
+| REQ-BR-043 | 43. No operation waits on an unrelated drain; a lease holder's call fails fast or proceeds | [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-088](behaviors/09-leases.md) | Not run |
+| REQ-BR-044 | 44. A provider's removal waits for a dependent's step, never its operation | [BEH-BR-079](behaviors/08-operation-legality.md) | Not run |
+| REQ-BR-045 | 45. A provider's removal resumes a dependent's parked stop and ends the parked intent | [BEH-BR-080](behaviors/08-operation-legality.md) | Not run |
 
 ## §6 Coverage targets
 
@@ -252,7 +257,7 @@ Each risk's controls are the behaviours and invariants cited in its entry of the
 | [RSK-BR-008](gxp/03-risk-assessment.md#rsk-br-008) | Secret leaks into logs or audit | BEH-BR-028, BEH-BR-103, BEH-BR-114, BEH-BR-116, BEH-BR-117, BEH-BR-118, BEH-BR-184, BEH-BR-192, BEH-BR-197, BEH-BR-219, INV-BR-013, INV-BR-028 | REQ-BR-030, REQ-BR-037, REQ-BR-038, REQ-BR-042 |
 | [RSK-BR-009](gxp/03-risk-assessment.md#rsk-br-009) | Silent resource leak on cleanup failure | BEH-BR-046, BEH-BR-047, BEH-BR-055, BEH-BR-071, BEH-BR-106, BEH-BR-108, BEH-BR-161, BEH-BR-183, INV-BR-007, INV-BR-011, INV-BR-018 | REQ-BR-004, REQ-BR-008 |
 | [RSK-BR-010](gxp/03-risk-assessment.md#rsk-br-010) | Changed service shape under unchanged ServiceId | BEH-BR-002, BEH-BR-006, BEH-BR-007, BEH-BR-038, BEH-BR-138, BEH-BR-183, BEH-BR-219, INV-BR-015 | REQ-BR-011, REQ-BR-025, REQ-BR-037, REQ-BR-042 |
-| [RSK-BR-011](gxp/03-risk-assessment.md#rsk-br-011) | Re-entrant deadlock via another fiber | BEH-BR-040, BEH-BR-085, BEH-BR-088, BEH-BR-120, BEH-BR-136, BEH-BR-183, INV-BR-016, INV-BR-017 | REQ-BR-002, REQ-BR-003, REQ-BR-006, REQ-BR-030 |
+| [RSK-BR-011](gxp/03-risk-assessment.md#rsk-br-011) | Re-entrant deadlock via another fiber | BEH-BR-040, BEH-BR-085, BEH-BR-088, BEH-BR-120, BEH-BR-136, BEH-BR-183, INV-BR-016, INV-BR-017 | REQ-BR-002, REQ-BR-003, REQ-BR-006, REQ-BR-030, REQ-BR-043 |
 | [RSK-BR-012](gxp/03-risk-assessment.md#rsk-br-012) | Lossy event feed mistaken for audit trail | BEH-BR-030, BEH-BR-113, BEH-BR-115, BEH-BR-183, BEH-BR-192, BEH-BR-207, INV-BR-008 | REQ-BR-015, REQ-BR-038 |
 | [RSK-BR-013](gxp/03-risk-assessment.md#rsk-br-013) | Realm mistaken for security boundary | BEH-BR-145, BEH-BR-146, BEH-BR-150, BEH-BR-152, BEH-BR-184, INV-BR-020 | REQ-BR-026 |
 | [RSK-BR-014](gxp/03-risk-assessment.md#rsk-br-014) | Approval bypass through the raw Host | BEH-BR-015, BEH-BR-077, BEH-BR-144, BEH-BR-158, BEH-BR-182, BEH-BR-184, BEH-BR-217, BEH-BR-218, BEH-BR-221, BEH-BR-222, INV-BR-026, INV-BR-027 | REQ-BR-032, REQ-BR-040 |
@@ -264,6 +269,7 @@ Each risk's controls are the behaviours and invariants cited in its entry of the
 | [RSK-BR-020](gxp/03-risk-assessment.md#rsk-br-020) | Slow audit sink blocks the host | BEH-BR-110, BEH-BR-184, BEH-BR-202, BEH-BR-204, BEH-BR-205, BEH-BR-206, INV-BR-029 | REQ-BR-034, REQ-BR-035 |
 | [RSK-BR-021](gxp/03-risk-assessment.md#rsk-br-021) | Wall-clock step reorders records | BEH-BR-202, BEH-BR-209, BEH-BR-212, BEH-BR-214, BEH-BR-216, INV-BR-023 | REQ-BR-035 |
 | [RSK-BR-022](gxp/03-risk-assessment.md#rsk-br-022) | Defect in the Effect runtime | BEH-BR-036, BEH-BR-037, BEH-BR-177, BEH-BR-183, BEH-BR-184, INV-BR-003, INV-BR-014 | REQ-BR-016 |
+| [RSK-BR-023](gxp/03-risk-assessment.md#rsk-br-023) | Host transitions stall each other or complete under the wrong call | BEH-BR-078, BEH-BR-079, BEH-BR-080, BEH-BR-088, BEH-BR-184, INV-BR-002, INV-BR-016, INV-BR-030 | REQ-BR-003, REQ-BR-043, REQ-BR-044, REQ-BR-045 |
 
 ## §8 Regulatory clause traceability
 

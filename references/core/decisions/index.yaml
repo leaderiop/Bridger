@@ -150,3 +150,7 @@ entries:
     file: "037-audit-sequence-separate-from-event-seq.md"
     title: "The audit sequence is separate from the event seq"
     status: "Proposed"
+  - id: "ADR-BR-038"
+    file: "038-cross-plugin-stop-ordering.md"
+    title: "Cross-plugin stops wait only along dependency edges"
+    status: "Proposed"

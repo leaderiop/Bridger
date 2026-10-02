@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-06                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -230,6 +230,16 @@ REQUIREMENT: A `remove` that would wait for a lease held by its own fiber,
              (09 — Leases).
 ```
 
+```
+REQUIREMENT: The `id` of that `DrainTimeout` MUST name the plugin whose
+             leases did not drain, which is a dependent of the removed
+             plugin when the drain that expired was the dependent's
+             (08 — Operation Legality, BEH-BR-080).
+```
+
+How the stop of a dependent is ordered against an operation already in flight
+on that dependent is specified in
+[08 — Operation Legality](./08-operation-legality.md) (BEH-BR-079, BEH-BR-080).
 What happens to the pending removal after a `DrainTimeout`, and how a
 repeated call resumes it, is specified in
 [08 — Operation Legality](./08-operation-legality.md); how `force` revokes

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -976,3 +976,34 @@ the latch once its `requested` record is written; a property test that the
 latch never clears without a successful acknowledgement.
 
 **Related**: [BEH-BR-110](behaviors/12-shutdown-and-hosting.md), [BEH-BR-205](behaviors/23-audit-sink-and-record.md), [BEH-BR-206](behaviors/23-audit-sink-and-record.md), [BEH-BR-220](behaviors/25-operation-gate.md), [ADR-BR-031](decisions/031-audit-failure-policy.md).
+
+## INV-BR-030: Host transitions never wait on each other in a cycle
+
+A transition on a plugin waits only for its own step, for steps of plugins
+that depend on it (through captured services or as children), and for leases
+on those plugins; no operation waits for a call on an unrelated plugin.
+
+**Source**: `packages/core/src/Lifecycle.ts` *(Planned)* — one step runner per
+plugin; the stop path walks dependents from a provider and, for each, waits
+for the dependent's running step before stopping it (BEH-BR-079), and resumes
+a parked stop under the cascading call's options (BEH-BR-080). There is no
+host-wide operation lock in `packages/core/src/Host.ts` *(Planned)*; builds
+capture providers when they start and await no other plugin. The child-mount
+cycle check is in `packages/core/src/PluginRuntime.ts` *(Planned)*.
+
+**Implication**: the wait-for relation between host transitions follows the
+edges of a graph that is acyclic
+([INV-BR-002](#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope),
+and the child-mount check of BEH-BR-078), so host transitions cannot deadlock
+among themselves. A lease callback is the only way to close a cycle; it fails
+fast with `WouldDeadlock` when the carried reference shows it
+([INV-BR-016](#inv-br-016-a-re-entrant-wait-fails-fast)) and is bounded by the
+drain limit otherwise
+([INV-BR-017](#inv-br-017-every-drain-is-bounded-unless-declared-forever)).
+
+**Verification** *(Planned)*: a property test over random operation histories
+on random acyclic graphs, with leases held and released at random points,
+asserting that every history ends with every call settled within the sum of
+its limits; scenarios for acceptance checks 43–45 of BEH-BR-184.
+
+**Related**: [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-088](behaviors/09-leases.md), [ADR-BR-038](decisions/038-cross-plugin-stop-ordering.md).
