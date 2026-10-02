@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -157,7 +157,10 @@ REQUIREMENT: Interrupting a caller after its intent has been recorded MUST
 
 ```
 REQUIREMENT: Interrupting a caller before its intent has been recorded MUST
-             leave the host unchanged.
+             leave the host unchanged. If the call's `requested` record was
+             already enqueued, the call MUST end with a `failed` terminal
+             record whose `error._tag` is "Interrupted" (22 — Attributable
+             Operations, BEH-BR-188).
 ```
 
 ```
@@ -459,6 +462,14 @@ REQUIREMENT: A parked stop MUST NOT complete by itself, even when its leases
 ```
 REQUIREMENT: A parked operation MUST NOT count as a running transition for
              `awaitIdle`.
+```
+
+```
+REQUIREMENT: The call that parked an operation has already received its
+             terminal record (`failed`, `DrainTimeout`). When the parked
+             operation is later joined, superseded, resumed or ended, the
+             host MUST NOT write a further terminal record for that call; the
+             outcome is recorded on the call that resumed or ended it.
 ```
 
 After `DrainTimeout` the caller has been told the change did not complete; a

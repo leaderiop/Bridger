@@ -24,11 +24,35 @@ export const legality = (row: Row, op: Op): Outcome => {
     case "waiting":  return op === "retry" || op === "restart" || op === "enable" ? N : P
     case "starting": return op === "retry" || op === "enable" ? N : P   // restart supersedes the in-flight build
     case "active":   return op === "retry" || op === "enable" ? N : P
-    // A stop parked after DrainTimeout (BEH-BR-074): only remove may proceed (it resumes or supersedes the stop);
-    // the in-flight table refines this for joins and supersession, which this serial prototype does not reach.
+    // Not reached from the host: a stopping plugin has a flight (decided by `inFlight`, BEH-BR-072) or a
+    // system stop that settles first (BEH-BR-073). Kept so that the table stays total.
     case "stopping": return op === "remove" ? P : C("stopping")
     case "failed":   return op === "enable" ? N : P
     case "failed-cleanup": return op === "remove" ? P : C("cleanup-failure")
     case "disabled": return op === "retry" || op === "restart" ? C("disabled") : op === "disable" ? N : P
+  }
+}
+
+// The in-flight operation table of BEH-BR-072, without `reconfigure` (no configuration in this prototype).
+// Rows: the operator operation in flight on the plugin (also while parked); columns: the incoming call.
+export type FlightOp = "remove" | "replace" | "restart" | "disable"
+export const FLIGHT_OPS: ReadonlyArray<FlightOp> = ["remove", "replace", "restart", "disable"]
+export type InFlightOutcome =
+  | { readonly kind: "join" }
+  | { readonly kind: "supersede" }
+  | { readonly kind: "conflict"; readonly pending: FlightOp }
+  | { readonly kind: "duplicate-plugin" }
+
+const J: InFlightOutcome = { kind: "join" }
+const S: InFlightOutcome = { kind: "supersede" }
+
+export const inFlight = (flight: FlightOp, op: Op): InFlightOutcome => {
+  if (op === "install") return { kind: "duplicate-plugin" }
+  const conflict: InFlightOutcome = { kind: "conflict", pending: flight }
+  switch (flight) {
+    case "remove":  return op === "remove" ? J : conflict
+    case "replace": return op === "remove" || op === "replace" ? S : conflict
+    case "restart": return op === "restart" ? J : op === "remove" || op === "replace" || op === "disable" ? S : conflict
+    case "disable": return op === "disable" ? J : op === "remove" ? S : conflict
   }
 }

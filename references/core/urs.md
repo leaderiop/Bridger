@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-URS                                                  |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -337,6 +337,8 @@ Behaviours are cited by file; individual `BEH-BR` identifiers are listed in
 | G11 | A system-initiated stop of a dependent (its provider is being removed) can meet an operator operation already in flight on that dependent; the specification ordered operations per plugin but did not say how a stop that crosses plugins is ordered against them. | Closed by [ADR-BR-038](./decisions/038-cross-plugin-stop-ordering.md) and BEH-BR-078–080 (CCR-BR-006): no host-wide order; waits run only from a provider to its dependents; a cascade waits for a dependent's step, never its operation, and ends a parked intent rather than completing it; `WouldDeadlock` is decided before any wait. The host-core prototype replaced its host-wide lock with per-plugin admission and confirmed the rule (scenarios for acceptance checks 43–45) |
 | G12 | How a forced removal revokes a scoped `lease()` was unspecified. | Closed (CCR-BR-004): it interrupts the acquiring fiber (BEH-BR-086) |
 | G13 | Whether acknowledging the audit latch needs only a writable sink or a drained backlog. | Closed (CCR-BR-005): a drained backlog (BEH-BR-206); found by the GxP prototype in `prototypes/host-core` |
+| G14 | With per-plugin ordering, a call can wait for its turn at the linearization point after its `requested` record, and that turn can be held by a call waiting for a system stop to drain; BEH-BR-188 made that span uninterruptible. | Closed (CCR-BR-007): interruption is allowed; the call changes nothing and ends with a `failed` terminal record (`Interrupted`) (BEH-BR-188, BEH-BR-067); found by the in-flight table prototype |
+| G15 | Whether a call that parked an operation gets a second terminal record when the parked operation is later joined, superseded or ended. | Closed (CCR-BR-007): no; its `failed` (`DrainTimeout`) record is final (BEH-BR-074) |
 | G9 | A naive supervised child (`forkChild` + `join` inside the lease) releases the lease before the child's finalizers run when the caller is interrupted, which would break BEH-BR-084. | Design constraint recorded (CCR-BR-003): the implementation interrupts and awaits the child before release; prototype checks E7a–E7b show the failure and the fix |
 
 ---

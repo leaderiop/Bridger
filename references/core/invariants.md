@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -319,9 +319,11 @@ Once a call's intent is recorded, interrupting the caller ends only the
 caller's wait — the transition and its terminal audit record proceed — and
 interrupting it before that point leaves the host unchanged.
 
-**Source**: `packages/core/src/Host.ts` *(Planned)* — writing the `requested`
-record and recording the intent form one uninterruptible region; the
-transition then runs in the reconciler's fibers, and the caller awaits its
+**Source**: `packages/core/src/Host.ts` *(Planned)* — enqueueing the
+`requested` record is uninterruptible; from then until the intent is recorded,
+an interruption writes a `failed` terminal record (`Interrupted`) and changes
+nothing; deciding the outcome at the linearization point is uninterruptible;
+the transition then runs in the reconciler's fibers, and the caller awaits its
 outcome through a `Deferred`. `packages/core/src/Audit.ts` *(Planned)* — the
 terminal record is written by the reconciler, not by the caller. Core offers
 no cancel operation; undoing a request is the opposite operation.

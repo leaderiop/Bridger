@@ -2,18 +2,17 @@
 //
 // Deliberate simplifications (recorded in RESULTS.md):
 //  - Operations are admitted and linearized per plugin (ADR-BR-038): no host-wide operation lock.
-//    A call that meets another operator operation in flight on the same plugin queues behind it
-//    instead of being decided by the in-flight table (BEH-BR-072: joins, supersession), which
-//    this prototype does not implement.
+//    An operator operation in flight is a `Flight` run by a host fiber; an incoming call joins,
+//    supersedes or conflicts with it (BEH-BR-072). `reconfigure` is absent (no configuration yet).
 //  - No realms, configuration, events, health, children or reconcile (later phases).
 //  - Builds run concurrently in forked fibers, bounded by `concurrency`.
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Scope, Semaphore, SubscriptionRef } from "effect"
 import {
   CleanupError, Conflict, DependencyCycle, DrainTimeout, DuplicatePlugin, DuplicateProvider, HostClosed,
   InvalidDefinition, LeaseRevoked, LeaseTimeout, ServiceUnavailable, UnknownPlugin, WouldDeadlock,
-  ActivationFailed, PluginRemoved, type InstallError, ReplaceError
+  ActivationFailed, PluginRemoved, type InstallError, ReplaceError, Superseded
 } from "./errors.js"
-import { legality, type Op, type PluginState, type Row } from "./legality.js"
+import { inFlight, legality, type FlightOp, type Op, type Outcome, type PluginState, type Row } from "./legality.js"
 import {
   Actor, AuditSink, AuditUnavailable, CurrentActor, IdGenerator, OperationGate, OperationRejected, ReasonRequired, Unattributed,
   awaitWritten, defaultIdGenerator, makeWriter, type AttributionOptions, type DefinitionRef, type Draft, type Operation,
@@ -106,6 +105,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   const defaultDrain = options.drainTimeout ?? 30_000
 
   const entries = new Map<string, Entry>()
+  const flights = new Map<string, Flight>()      // operator operations in flight, per plugin (BEH-BR-072)
   const base = new Map<string, { key: Context.Key<any, any>; service: unknown }>()
   for (const [k, s] of options.base ?? []) base.set(sid(k), { key: k, service: s })
   let order = 0
@@ -132,7 +132,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     const b = base.get(serviceId)
     if (b) return Option.some({ id: "base", key: b.key, service: b.service })
     for (const e of entries.values()) {
-      if (e.state !== "active" || !e.services) continue
+      if (e.state !== "active" || !e.services || flights.has(e.id)) continue   // not leasable while an operation is in flight (BEH-BR-076)
       const k = e.def.provides.find((p) => sid(p) === serviceId)
       if (k) return Option.some({ id: e.id, key: k, service: Context.getUnsafe(e.services, k) })
     }
@@ -297,6 +297,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       return true
     }
     if (e.state !== "active" && e.state !== "stopping") return false
+    if (e.state === "stopping" && !e.scope) return false                     // already closed by the step this call waited for
     // Hidden from new consumers in the revision the stop begins, before dependents stop (BEH-BR-042),
     // so no build started meanwhile — a dependent's own restart included — can capture it.
     const drained = yield* locked(Effect.gen(function* () {
@@ -311,7 +312,8 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       const stopped = yield* stopTree(d.id, "dependency-loss", opts, id)
       if (!stopped) continue
       yield* locked(Effect.gen(function* () {
-        if (d.state === "stopping") d.state = "waiting"                    // a parked intent ends here (BEH-BR-080)
+        if (d.state === "stopping") d.state = "waiting"
+        if (flights.get(d.id)?.parked) flights.delete(d.id)                  // a parked intent ends here, not completed (BEH-BR-080)
         yield* commit
         yield* systemRecord("system-stop", d, yield* CurrentCause)
       }))
@@ -350,8 +352,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     if (e.state === "failed" && e.cleanupFailed) return "failed-cleanup"
     return e.state
   }
-  const legal = (id: string, op: Op) => Effect.gen(function* () {
-    const out = legality(rowOf(id), op)
+  const decided = (id: string, out: Outcome) => Effect.gen(function* () {
     switch (out.kind) {
       case "unknown-plugin": return yield* Effect.fail(new UnknownPlugin({ id }))
       case "duplicate-plugin": return yield* Effect.fail(new DuplicatePlugin({ id }))
@@ -359,6 +360,14 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       default: return out.kind
     }
   })
+  /** The state × operation table at the linearization point (BEH-BR-071). */
+  const legal = (id: string, op: Op) => decided(id, legality(rowOf(id), op))
+  /**
+   * Step 4 only: definite refusals before the gate. A plugin with an operation in flight, or a
+   * system stop, is decided at the linearization point instead (BEH-BR-072, 073).
+   */
+  const legalEarly = (id: string, op: Op) =>
+    flights.has(id) || entries.get(id)?.state === "stopping" ? Effect.succeed("proceed" as const) : legal(id, op)
   /** Re-entrancy check (BEH-BR-088): fail fast when the caller holds a lease the operation would wait for. */
   const deadlockCheck = (id: string) => Effect.gen(function* () {
     const held = yield* HeldPlugins
@@ -367,28 +376,178 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     for (const h of held) if (affected.has(h)) return yield* Effect.fail(new WouldDeadlock({ id: h }))
   })
   const stateOfId = (id: string) => ({ state: entries.get(id)?.state ?? "uninstalled", revision })
+  const errorOf = (c: Cause.Cause<unknown>) => {
+    const err = Cause.squash(c)
+    return { _tag: (err as { _tag?: string })?._tag ?? "Defect", message: msg(err) }
+  }
+
+  // ---------------------------------------------------------------- calls and flights (BEH-BR-066..074, 200)
+  /** An admitted call: passed steps 1–7, its `requested` record (if any) written. */
+  interface Call {
+    readonly correlationId: string
+    readonly causeId: string | undefined
+    readonly terminal: (phase: "completed" | "failed" | "superseded" | "joined", extra: Partial<Draft>) => Effect.Effect<void>
+    /** Set once the call's intent is recorded or its outcome decided; before that, an interruption ends it `Interrupted`. */
+    readonly intent: { value: boolean }
+  }
+  type Settlement = Exit.Exit<any, any>
+  interface Caller { readonly call: Call; readonly done: Deferred.Deferred<Settlement>; readonly joined: boolean }
+  type Target =
+    | { readonly kind: "gone" }
+    | { readonly kind: "swap"; readonly def: AnyPlugin; readonly disabled: boolean }
+    | { readonly kind: "rebuild" }
+    | { readonly kind: "disabled" }
+  /** An operator operation in flight on one plugin, from its linearization point until it completes (BEH-BR-072). */
+  interface Flight {
+    op: FlightOp
+    target: Target
+    opts: RemoveOptions
+    callers: Array<Caller>
+    correlationId: string                       // of the call that owns it (joined records point here)
+    causeId: string | undefined                 // causation for the system records of its transition
+    parked: boolean                             // after DrainTimeout (BEH-BR-074)
+  }
+
+  /** Settle one caller and write its terminal record — from the host's fiber, so a caller's interruption cannot skip it. */
+  const finishCaller = (c: Caller, f: Flight | undefined, exit: Settlement, noop = false) => Effect.gen(function* () {
+    c.call.intent.value = true
+    const error = Exit.isFailure(exit) ? { error: errorOf(exit.cause) } : {}
+    if (c.joined && f) yield* c.call.terminal("joined", { correlationId: f.correlationId, causationId: c.call.correlationId, ...error })   // BEH-BR-200
+    else yield* c.call.terminal(Exit.isSuccess(exit) ? "completed" : "failed", { ...(noop ? { noop: true } : {}), ...error })
+    yield* Deferred.succeed(c.done, exit)
+  })
+  const supersede = (c: Caller, id: string, by: string | undefined) => Effect.gen(function* () {
+    yield* c.call.terminal("superseded", { ...(by ? { causationId: by } : {}), error: { _tag: "Superseded", message: id } })
+    yield* Deferred.succeed(c.done, Exit.fail(new Superseded({ id })))
+  })
+
+  const apply = (id: string, t: Target) => Effect.gen(function* () {
+    const e = entries.get(id)
+    if (!e) return
+    switch (t.kind) {
+      case "gone": entries.delete(id); break        // a cleanup-failed plugin: the leak is acknowledged, not re-run (BEH-BR-047)
+      case "swap": e.def = t.def; e.failure = undefined; e.cleanupFailed = false; e.state = t.disabled ? "disabled" : "waiting"; break
+      case "rebuild": e.state = "waiting"; e.failure = undefined; break
+      case "disabled": e.state = "disabled"; e.failure = undefined; break
+    }
+    yield* commit
+    yield* settle
+  })
+
+  /**
+   * The transition of a flight, in a host fiber (BEH-BR-066, 067). The stop step settles first; the
+   * target is read afterwards, so a call that superseded the flight meanwhile redirects it without
+   * interrupting the step (BEH-BR-069). Completion is decided under the plugin's operation order,
+   * so no call is linearized between the transition's end and its callers' settlement.
+   */
+  const drive = (id: string, f: Flight): Effect.Effect<void> => Effect.gen(function* () {
+    const e = entries.get(id)
+    const skipStop = !e || (e.cleanupFailed && f.target.kind === "gone")
+    const stop = yield* Effect.exit(skipStop ? Effect.succeed(false) : stopTree(id, f.op, f.opts))
+    yield* Semaphore.withPermit(semOf(opLocks, id), Effect.gen(function* () {
+      let result: Settlement = Exit.void
+      if (Exit.isFailure(stop)) {
+        result = stop
+        if (Cause.squash(stop.cause) instanceof DrainTimeout) f.parked = true    // intent stays pending (BEH-BR-074)
+        else flights.delete(id)
+      } else {
+        flights.delete(id)
+        if (closing) { result = Exit.fail(new HostClosed()); yield* locked(commit) }   // shutdown took over (BEH-BR-075)
+        else yield* locked(apply(id, f.target))
+      }
+      const callers = f.callers
+      f.callers = []
+      for (const c of callers) yield* finishCaller(c, f, result)
+    }))
+  }).pipe(Effect.provideService(CurrentCause, f.causeId))
+
+  /** BEH-BR-073: a system stop on the plugin settles (resumed under this call's options if parked) before the call is decided. */
+  const settleSystemStop = (id: string, opts: RemoveOptions) => Effect.gen(function* () {
+    const e = entries.get(id)
+    if (!e || e.state !== "stopping" || flights.has(id)) return
+    yield* stopTree(id, e.stopReason ?? "dependency-loss", opts)
+    yield* locked(Effect.gen(function* () {
+      if (e.state === "stopping") { e.state = "waiting"; yield* commit; yield* settle }
+    }))
+  })
+
+  /** Linearization of a stopping operation (remove, replace, restart, disable): BEH-BR-072 if one is in flight, else BEH-BR-071. */
+  const flightOp = (id: string, op: FlightOp, target: (e: Entry) => Target, opts: RemoveOptions, call: Call, recheck: Effect.Effect<void, unknown> = Effect.void) =>
+    Effect.gen(function* () {
+      const done = yield* Deferred.make<Settlement>()
+      const me: Caller = { call, done, joined: false }
+      const refuse = (err: unknown) => finishCaller(me, undefined, Exit.fail(err)).pipe(Effect.as(done))
+      // Re-validation fails only this call and leaves an operation in flight unaffected (BEH-BR-072).
+      // Waiting for a system stop to settle is interruptible: no intent is recorded yet (BEH-BR-067, 188).
+      const pre = yield* Effect.exit(recheck.pipe(Effect.andThen(settleSystemStop(id, opts))))
+      if (Exit.isFailure(pre)) {
+        if (Cause.hasInterrupts(pre.cause)) return yield* Effect.interrupt
+        yield* finishCaller(me, undefined, pre); return done
+      }
+      return yield* Effect.uninterruptible(Effect.gen(function* () {
+      call.intent.value = true
+      const f = flights.get(id)
+      if (f) {
+        const out = inFlight(f.op, op)
+        if (out.kind === "conflict") return yield* refuse(new Conflict({ id, pending: out.pending }))
+        if (out.kind === "duplicate-plugin") return yield* refuse(new DuplicatePlugin({ id }))
+        if (out.kind === "join") f.callers.push({ call, done, joined: true })
+        else {
+          // Supersede: every caller of the earlier operation, joined ones included, completes with Superseded.
+          const earlier = f.callers
+          f.callers = [me]
+          for (const c of earlier) yield* supersede(c, id, call.causeId)
+          f.op = op; f.target = target(entries.get(id)!); f.correlationId = call.correlationId; f.causeId = call.causeId
+        }
+        // A parked stop resumes under the options of the call that joins or supersedes it (BEH-BR-074).
+        if (f.parked) {
+          f.parked = false; f.opts = opts; f.causeId = call.causeId
+          yield* Effect.forkIn(drive(id, f), hostScope)
+        }
+        return done
+      }
+      const kind = yield* Effect.exit(legal(id, op))
+      if (Exit.isFailure(kind)) { yield* finishCaller(me, undefined, kind); return done }
+      if (kind.value === "noop") { yield* finishCaller(me, undefined, Exit.void, true); return done }
+      const nf: Flight = { op, target: target(entries.get(id)!), opts, callers: [me], correlationId: call.correlationId, causeId: call.causeId, parked: false }
+      flights.set(id, nf)
+      yield* Effect.forkIn(drive(id, nf), hostScope)
+      return done
+      }))
+    })
+
+  /** Linearization of an operation that completes at its linearization point (install, retry, enable, …). */
+  const immediate = <A>(call: Call, eff: Effect.Effect<{ readonly value: A; readonly noop?: boolean }, unknown>) => Effect.gen(function* () {
+    const done = yield* Deferred.make<Settlement>()
+    const exit = yield* Effect.exit(Effect.uninterruptible(eff.pipe(Effect.provideService(CurrentCause, call.causeId))))
+    yield* finishCaller({ call, done, joined: false }, undefined, Exit.isSuccess(exit) ? Exit.succeed(exit.value.value) : exit, Exit.isSuccess(exit) && !!exit.value.noop)
+    return done
+  })
 
   type MutationError = HostClosed | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected
   /**
    * The order of a mutating call (BEH-BR-188): HostClosed → attribution → latch → validation →
-   * gate → requested record → WouldDeadlock → (linearization point: re-validation, intent,
-   * transition) → terminal record. Steps 1–7 run under the plugin's admission order, so
-   * WouldDeadlock is decided before the call waits for anything a held lease could block
-   * (BEH-BR-088). Nothing is ordered host-wide (ADR-BR-038).
+   * gate → requested record → WouldDeadlock → linearization point (re-validation, legality,
+   * intent) → terminal record. Steps 1–7 run under the plugin's admission order, so WouldDeadlock
+   * is decided before the call waits for anything a held lease could block (BEH-BR-088). The
+   * linearization is short; a transition runs in a host fiber and the caller only awaits it.
    */
-  const mutating = <A, E1, E2>(spec: {
+  const mutating = <A, E>(spec: {
     readonly operation: Operation
     readonly target?: string
     readonly options?: OperationOptions | undefined
     readonly definition?: DefinitionRef
-    readonly validate: Effect.Effect<"proceed" | "noop", E1>
-    readonly run: Effect.Effect<A, E2>
-    readonly noopValue: A
-  }): Effect.Effect<A, MutationError | E1 | E2 | WouldDeadlock> => Effect.gen(function* () {
+    readonly validate: Effect.Effect<unknown, E>
+    readonly linearize: (call: Call) => Effect.Effect<Deferred.Deferred<Settlement>>
+  }): Effect.Effect<A, MutationError | E | WouldDeadlock | Conflict | Superseded | UnknownPlugin | DuplicatePlugin | DrainTimeout | CleanupError> => Effect.gen(function* () {
     const op = spec.operation
     const key = spec.target ?? "@host"
     const exempt = op === "shutdown" || op === "acknowledgeAuditDegraded"
-    const admitted = yield* Semaphore.withPermit(semOf(admissions, key), Effect.gen(function* () {
+    // Once a `requested` record is enqueued, a call interrupted before its intent changes nothing
+    // and still ends with a terminal record: `failed`, error `Interrupted` (BEH-BR-067, 188).
+    const pending: { owed?: Call["terminal"]; intent: { value: boolean } } = { intent: { value: false } }
+    return yield* Effect.onInterrupt(Effect.gen(function* () {
+    const call = yield* Semaphore.withPermit(semOf(admissions, key), Effect.gen(function* () {
       // 1. host closed
       if (closed || closing) return yield* Effect.fail(new HostClosed())
       // 2. attribution
@@ -420,7 +579,8 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       // 6. requested record — fail closed, except shutdown (BEH-BR-203, BEH-BR-110)
       let causeId: string | undefined
       if (writer) {
-        const req = yield* writer.enqueue({ ...base, phase: "requested", ...(before ? { before } : {}) })
+        const req = yield* Effect.uninterruptible(writer.enqueue({ ...base, phase: "requested", ...(before ? { before } : {}) }).pipe(
+          Effect.tap((r) => Effect.sync(() => { if (r) pending.owed = (ph, ex) => terminal(ph, ex) }))))
         const ok = req ? yield* awaitWritten(req.written, auditTimeout) : false
         if (!ok && op !== "shutdown") {
           if (req) yield* writer.enqueue({ ...base, phase: "failed", causationId: req.recordId, error: { _tag: "AuditUnavailable", message: "requested record not written in time" } })
@@ -428,30 +588,26 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
         }
         causeId = req?.recordId
       }
-      const terminal = (phase: "completed" | "failed", extra: Partial<Draft>) => writer
+      const terminal: Call["terminal"] = (phase, extra) => writer
         ? writer.enqueue({ ...base, phase, ...(causeId ? { causationId: causeId } : {}), ...(spec.target !== undefined ? { after: { ...stateOfId(spec.target), ...(spec.definition ?? {}) } } : {}), ...extra }).pipe(Effect.asVoid)
         : Effect.void
-      const failWith = <E>(cause: Cause.Cause<E>): Effect.Effect<never, E> => Effect.gen(function* () {
-        const err = Cause.squash(cause)
-        yield* terminal("failed", { error: { _tag: (err as { _tag?: string })?._tag ?? "Defect", message: msg(err) } })
-        return yield* Effect.failCause(cause)
-      })
       // 7. WouldDeadlock — before any wait on the plugin's order, a step or a drain (BEH-BR-088, ADR-BR-038)
       if (spec.target !== undefined) {
         const dl = yield* Effect.exit(deadlockCheck(spec.target))
-        if (Exit.isFailure(dl)) return yield* failWith(dl.cause)
+        if (Exit.isFailure(dl)) {
+          yield* terminal("failed", { error: errorOf(dl.cause) })
+          return yield* Effect.failCause(dl.cause)
+        }
       }
-      return { causeId, terminal, failWith }
+      return { correlationId, causeId, terminal, intent: pending.intent } satisfies Call
     }))
-    // Linearization point: re-evaluate what may have changed since step 4 (BEH-BR-066), then the transition.
-    return yield* Semaphore.withPermit(semOf(opLocks, key), Effect.gen(function* () {
-      const kind = yield* Effect.exit(spec.validate)
-      if (Exit.isFailure(kind)) return yield* admitted.failWith(kind.cause)
-      if (kind.value === "noop") { yield* admitted.terminal("completed", { noop: true }); return spec.noopValue }
-      const exit = yield* Effect.exit(spec.run.pipe(Effect.provideService(CurrentCause, admitted.causeId)))
-      if (Exit.isSuccess(exit)) { yield* admitted.terminal("completed", {}); return exit.value }
-      return yield* admitted.failWith(exit.cause)
-    }))
+    // 8. linearization point under the plugin's operation order; then await the outcome.
+    const done = yield* Semaphore.withPermit(semOf(opLocks, key), spec.linearize(call))
+    const exit = yield* Deferred.await(done)
+    return Exit.isSuccess(exit) ? exit.value as A : yield* Effect.failCause(exit.cause)
+    }), () => pending.owed && !pending.intent.value
+      ? pending.owed("failed", { error: { _tag: "Interrupted", message: "caller interrupted before its intent was recorded" } })
+      : Effect.void)
   })
 
   const handleOf = (id: string): PluginHandle => ({
@@ -467,82 +623,81 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     })
   })
 
-  const install = (def: AnyPlugin, opts: OperationOptions & { readonly disabled?: boolean } = {}) => mutating({
-    operation: "install", target: def.id, options: opts, definition: defRef(def), noopValue: handleOf(def.id),
-    validate: legal(def.id, "install").pipe(Effect.andThen(validate(def)), Effect.as("proceed" as const)),   // registers nothing on error (BEH-BR-018)
-    run: locked(Effect.gen(function* () {
-      entries.set(def.id, { id: def.id, def, state: opts.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++ })
-      yield* commit
-      yield* settle
-      return handleOf(def.id)
+  const install = (def: AnyPlugin, opts: OperationOptions & { readonly disabled?: boolean } = {}) => mutating<PluginHandle, InstallError | UnknownPlugin | Conflict>({
+    operation: "install", target: def.id, options: opts, definition: defRef(def),
+    validate: legalEarly(def.id, "install").pipe(Effect.andThen(validate(def))),     // registers nothing on error (BEH-BR-018)
+    linearize: (call) => immediate(call, Effect.gen(function* () {
+      yield* legal(def.id, "install"); yield* validate(def)
+      return yield* locked(Effect.gen(function* () {
+        entries.set(def.id, { id: def.id, def, state: opts.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++ })
+        yield* commit
+        yield* settle
+        return { value: handleOf(def.id) }
+      }))
     }))
   })
 
-  const remove = (id: string, opts: RemoveOptions = {}) => mutating({
-    operation: "remove", target: id, options: opts, definition: entries.get(id) ? defRef(entries.get(id)!.def) : {}, noopValue: undefined,
-    validate: legal(id, "remove"),
-    run: Effect.gen(function* () {
-      const e = entries.get(id)!
-      if (!e.cleanupFailed) yield* stopTree(id, "remove", opts)
-      // Removing a cleanup-failed plugin acknowledges the leak; cleanup is not re-run (BEH-BR-047).
-      yield* locked(Effect.gen(function* () { entries.delete(id); yield* commit; yield* settle }))
-    })
+  const remove = (id: string, opts: RemoveOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+    operation: "remove", target: id, options: opts, definition: entries.get(id) ? defRef(entries.get(id)!.def) : {},
+    validate: legalEarly(id, "remove"),
+    linearize: (call) => flightOp(id, "remove", () => ({ kind: "gone" }), opts, call)
   })
 
-  const replace = (def: AnyPlugin, opts: RemoveOptions = {}) => mutating({
-    operation: "replace", target: def.id, options: opts, definition: defRef(def), noopValue: undefined,
-    validate: legal(def.id, "replace").pipe(Effect.tap(() =>
-      validate(def, def.id).pipe(Effect.mapError((c) => new ReplaceError({ id: def.id, cause: c._tag }))))),   // before anything stops (BEH-BR-050)
-    run: Effect.gen(function* () {
-      const e = entries.get(def.id)!
-      const wasDisabled = e.state === "disabled"
-      yield* stopTree(def.id, "replace", opts)
-      yield* locked(Effect.gen(function* () {
-        e.def = def; e.failure = undefined; e.cleanupFailed = false
-        e.state = wasDisabled ? "disabled" : "waiting"
-        yield* commit; yield* settle
-      }))
+  const replace = (def: AnyPlugin, opts: RemoveOptions = {}) => {
+    const check = validate(def, def.id).pipe(Effect.mapError((c) => new ReplaceError({ id: def.id, cause: c._tag })))
+    return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | ReplaceError>({
+      operation: "replace", target: def.id, options: opts, definition: defRef(def),
+      validate: legalEarly(def.id, "replace").pipe(Effect.andThen(check)),           // before anything stops (BEH-BR-050)
+      linearize: (call) => flightOp(def.id, "replace", (e) => ({ kind: "swap", def, disabled: e.state === "disabled" }), opts, call, check)
     })
-  })
+  }
 
   const reactivate = (id: string) => locked(Effect.gen(function* () {
     const e = entries.get(id)!; e.state = "waiting"; e.failure = undefined; yield* commit; yield* settle
   }))
 
-  const retry = (id: string, opts: OperationOptions = {}) => mutating({
-    operation: "retry", target: id, options: opts, noopValue: undefined, validate: legal(id, "retry"), run: reactivate(id)
+  /** retry and enable start a plugin that is not running; they conflict with everything in flight (BEH-BR-072). */
+  const startOp = (id: string, op: "retry" | "enable", call: Call) => settleSystemStop(id, {}).pipe(
+    Effect.catchCause((c) => Cause.hasInterrupts(c) ? Effect.interrupt : Effect.void),   // a stop still pending is decided below
+    Effect.andThen(immediate(call, Effect.gen(function* () {
+    const f = flights.get(id)
+    if (f) return yield* Effect.fail(new Conflict({ id, pending: f.op }))
+    if ((yield* legal(id, op)) === "noop") return { value: undefined, noop: true }
+    if (op === "enable") yield* validate(entries.get(id)!.def, id)                    // re-check (BEH-BR-062)
+    yield* reactivate(id)
+    return { value: undefined }
+  }))))
+
+  const retry = (id: string, opts: OperationOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+    operation: "retry", target: id, options: opts, validate: legalEarly(id, "retry"), linearize: (call) => startOp(id, "retry", call)
   })
 
-  const restart = (id: string, opts: RemoveOptions = {}) => mutating({
-    operation: "restart", target: id, options: opts, noopValue: undefined, validate: legal(id, "restart"),
-    run: stopTree(id, "restart", opts).pipe(Effect.andThen(reactivate(id)))
+  const restart = (id: string, opts: RemoveOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+    operation: "restart", target: id, options: opts, validate: legalEarly(id, "restart"),
+    linearize: (call) => flightOp(id, "restart", () => ({ kind: "rebuild" }), opts, call)
   })
 
-  const disable = (id: string, opts: RemoveOptions = {}) => mutating({
-    operation: "disable", target: id, options: opts, noopValue: undefined, validate: legal(id, "disable"),
-    run: stopTree(id, "disable", opts).pipe(Effect.andThen(locked(Effect.gen(function* () {
-      const e = entries.get(id)!; e.state = "disabled"; e.failure = undefined; yield* commit; yield* settle
-    }))))
+  const disable = (id: string, opts: RemoveOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+    operation: "disable", target: id, options: opts, validate: legalEarly(id, "disable"),
+    linearize: (call) => flightOp(id, "disable", () => ({ kind: "disabled" }), opts, call)
   })
 
-  const enable = (id: string, opts: OperationOptions = {}) => mutating({
-    operation: "enable", target: id, options: opts, noopValue: undefined,
-    validate: legal(id, "enable").pipe(Effect.tap((k) => k === "proceed" ? validate(entries.get(id)!.def, id) : Effect.void)),   // re-check (BEH-BR-062)
-    run: reactivate(id)
+  const enable = (id: string, opts: OperationOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | InstallError>({
+    operation: "enable", target: id, options: opts,
+    validate: legalEarly(id, "enable").pipe(Effect.tap((k) => k === "proceed" && !flights.has(id) && entries.get(id)?.state === "disabled" ? validate(entries.get(id)!.def, id) : Effect.void)),
+    linearize: (call) => startOp(id, "enable", call)
   })
 
   /** Leaving the audit latch (BEH-BR-206): attributed, reason always required, its own record must be written. */
   const acknowledgeAuditDegraded = (opts: { readonly context: OperationContext }) => Effect.gen(function* () {
     if (!opts.context.reason?.trim()) return yield* Effect.fail(new ReasonRequired({ operation: "acknowledgeAuditDegraded" }))
-    const dropped = writer?.state.droppedSinceAck ?? 0
-    yield* mutating({
-      operation: "acknowledgeAuditDegraded", options: opts, noopValue: undefined, validate: Effect.succeed("proceed" as const),
-      run: Effect.suspend(() => {
+    yield* mutating<void, never>({
+      operation: "acknowledgeAuditDegraded", options: opts, validate: Effect.void,
+      linearize: (call) => immediate(call, Effect.suspend(() => {
         if (writer) { writer.state.degraded = false; writer.state.droppedSinceAck = 0 }
-        return locked(commit)
-      })
+        return locked(commit).pipe(Effect.as({ value: undefined }))
+      }))
     })
-    void dropped
   })
 
   // ---------------------------------------------------------------- leases (BEH-BR-081..088)
@@ -609,17 +764,17 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     const held = yield* HeldPlugins
     if (held.size > 0) return yield* Effect.fail(new WouldDeadlock({ id: [...held][0]! }))
     while (true) {
-      const busy = [...entries.values()].some((e) => e.state === "starting") ||
+      const busy = [...flights.values()].some((f) => !f.parked) || [...entries.values()].some((e) => e.state === "starting") ||
         [...entries.values()].some((e) => e.state === "waiting" && missing(e).length === 0)
       if (!busy) return snapshotOf()
       yield* Effect.sleep(1)
     }
   })
 
-  const shutdown = (opts: OperationOptions & { readonly drain?: number } = {}) => mutating({
-    operation: "shutdown", options: opts, noopValue: undefined as unknown as CloseReport, validate: Effect.succeed("proceed" as const),
-    run: Effect.gen(function* () {
-      closing = true                                               // later calls fail with HostClosed (BEH-BR-075)
+  const shutdown = (opts: OperationOptions & { readonly drain?: number } = {}) => mutating<CloseReport, never>({
+    operation: "shutdown", options: opts, validate: Effect.void,
+    linearize: (call) => immediate(call, Effect.gen(function* () {
+      closing = true                                               // later calls fail with HostClosed; flights end with it (BEH-BR-075)
       const stopped: Array<string> = [], failed: Array<{ id: string; cause: "cleanup" | "drain"; message: string }> = []
       // Reverse dependency order: stop plugins nothing depends on first (stopTree handles the rest).
       const isLive = (e: Entry) => e.state === "active" || e.state === "starting" || (e.state === "stopping" && !!e.scope)
@@ -631,8 +786,8 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       }
       for (const e of entries.values()) if (e.state === "stopping" || e.state === "waiting") stopped.push(e.id)
       closed = true
-      return { stopped: stopped.sort(), failed, forced: [...forced], auditDegraded: writer?.state.degraded ?? false } satisfies CloseReport
-    })
+      return { value: { stopped: stopped.sort(), failed, forced: [...forced], auditDegraded: writer?.state.degraded ?? false } satisfies CloseReport }
+    }))
   })
 
   return {

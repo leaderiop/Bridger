@@ -19,3 +19,4 @@ export class LeaseRevoked extends Schema.TaggedError<LeaseRevoked>()("LeaseRevok
 export class LeaseTimeout extends Schema.TaggedError<LeaseTimeout>()("LeaseTimeout", { serviceId: Schema.String }) {}
 export class ActivationFailed extends Schema.TaggedError<ActivationFailed>()("ActivationFailed", { id: Schema.String, phase: Schema.String, message: Schema.String }) {}
 export class PluginRemoved extends Schema.TaggedError<PluginRemoved>()("PluginRemoved", { id: Schema.String }) {}
+export class Superseded extends Schema.TaggedError<Superseded>()("Superseded", { id: Schema.String }) {}

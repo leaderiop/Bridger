@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-22                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -298,14 +298,28 @@ REQUIREMENT: Every call that passes step 6 MUST reach step 8: exactly one
 ```
 
 ```
-REQUIREMENT: Step 6 and the start of step 7 MUST be uninterruptible as a
-             unit: once the `requested` record is written, the call MUST
-             either fail with `WouldDeadlock` (decided before the intent) or
-             record its intent. Interrupting the caller during steps 1–5 ends
-             the call with no change. Interrupting it after the intent is
-             recorded ends only the caller's wait; the transition and its
+REQUIREMENT: A caller MAY be interrupted at any step. Interrupting it
+             during steps 1–5 MUST end the call with no change and no
+             record. Interrupting it after its `requested` record has been
+             enqueued and before its intent is recorded — including while it
+             waits for that record to be written, or for its turn at the
+             plugin's linearization point (08 — Operation Legality,
+             BEH-BR-065, BEH-BR-073) — MUST change nothing and MUST end the
+             call with a `failed` terminal record whose `error._tag` is
+             "Interrupted". Interrupting it after the intent is recorded
+             MUST end only the caller's wait; the transition and its
              terminal record proceed (INV-BR-010).
 ```
+
+**Settled here.** An earlier revision made step 6 and the start of step 7 one
+uninterruptible unit. With per-plugin ordering
+([ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)), the span
+between the `WouldDeadlock` check and the intent can include a wait for the
+plugin's turn, and that turn can be held by a call that waits for a system
+stop to drain. An uninterruptible wait as long as a drain would make a
+caller's own timeout meaningless. The host-core prototype showed the
+alternative is cheap: the call is still answered by exactly one terminal
+record, and nothing changes because no intent was recorded (URS gap G14).
 
 ```
 REQUIREMENT: Configuration values MUST be decoded at step 4 for
