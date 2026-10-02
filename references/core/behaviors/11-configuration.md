@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-11                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -142,8 +142,11 @@ REQUIREMENT: When the host holds an override for the plugin, the override
 REQUIREMENT: An override MUST be set by `InstallOptions.config` (initial
              override) or by `reconfigure(ref, raw)`; MUST be cleared by
              `reconfigure(ref)` without a value; MUST be dropped by `remove`
-             and by `replace`; and MUST be kept by `retry`, `restart`,
-             `disable` and `enable`.
+             and by `replace`; MUST be kept by `retry`, `restart`,
+             `disable` and `enable`; and, when a parked operator intent under
+             which it was changed is ended, MUST revert to the override in
+             effect before the first change made under that intent
+             (BEH-BR-101).
 ```
 
 Reading at every activation makes the source the single default: an operator
@@ -231,6 +234,29 @@ REQUIREMENT: `reconfigure` is a restart, not a live mutation. The host MUST
              place.
 ```
 
+```
+REQUIREMENT: When a parked operator intent (08 — Operation Legality,
+             BEH-BR-074) is ended by a cascade, whatever its root, or by
+             shutdown (BEH-BR-080; 12 — Shutdown and Hosting, BEH-BR-105),
+             every override change made under that intent — by any call: a
+             parked `reconfigure`, or a `reconfigure` that joined a parked
+             operation — MUST revert, in the same revision in which the
+             intent ends, to the override in effect before the first of them
+             (the last completed configuration), including to no override.
+             The `intent-ended` record that the host writes in that revision
+             (23 — Audit Sink and Record) MUST carry `configChange.paths` with
+             the paths of every reverted field, and never their values; the
+             plugin's later `system-stop` record MUST NOT carry them.
+```
+
+```
+REQUIREMENT: A `reconfigure` that resumes a parked system stop (08 — Operation
+             Legality, BEH-BR-074) MUST store its override only when it is
+             decided, after the stop has settled. If its drain expires again,
+             it parks as its own parked operation with nothing of it stored,
+             and ending that intent MUST revert nothing of it.
+```
+
 On a plugin that is not `active`, `reconfigure` stores and validates the
 value and then follows the state table: a `failed` plugin starts or waits, a
 `waiting` plugin simply carries the new value into its next activation, and a
@@ -244,10 +270,26 @@ settled legality table produces when a `remove`, `replace` or `disable`
 supersedes an in-flight `reconfigure`. `reconfigure` takes no
 `drain`/`force` options: it drains under `BridgerOptions.drainTimeout` and
 never forces. On `DrainTimeout` the new value is already recorded (intent
-survives) and the plugin stays `stopping`; the caller completes the change
-with `restart` and a longer `drain` or `force`. Never forcing here is the
+survives) and the plugin stays `stopping`, its stop parked; the caller
+completes the change with `restart` and a longer `drain` or `force`, which
+joins and resumes the parked operation. Never forcing here is the
 conservative choice: a configuration change should not, by itself, interrupt
 a running write.
+
+**Settled here.** When a cascade ends a parked `reconfigure`'s intent
+(CCR-BR-008), keeping the new value would let the plugin's next activation —
+started by availability, not by any call — run a configuration whose change
+was never completed and whose caller was told `DrainTimeout`. The override
+therefore reverts with the intent, and the `intent-ended` record — written
+when the intent ends, not when the stop later settles — names the reverted
+paths, so the trail shows that the stored configuration changed back and which
+fields did. An intent can carry more than one override change: a `reconfigure`
+that joins a parked `restart` sets its override under the restart's intent,
+on top of any change already made under it. Reverting only the last change
+would leave an earlier one standing, so all of them revert together, to the
+configuration last completed before the intent. A
+`reconfigure` that resumes a parked system stop has stored nothing yet — it is
+decided only once the stop settles — so there is nothing of it to revert.
 
 ## BEH-BR-102: A volatile-only change does not restart
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -42,8 +42,20 @@ is governed by [ADR-BR-035](../decisions/035-evidence-from-executed-tests.md).
 // import { TestHost, Fault } from "@bridger/core/testing"
 interface TestHost extends Host {
   readonly step: Effect.Effect<boolean>                  // false when nothing can progress without the clock
+  readonly stepPlugin: (ref: PluginRef) => Effect.Effect<boolean>   // advance the first pending item whose pluginId is that plugin
+  readonly pending: Effect.Effect<ReadonlyArray<PendingStep>>       // pending items, in step order
   readonly runUntilIdle: Effect.Effect<HostSnapshot>
   readonly inject: (fault: Fault) => Effect.Effect<void, never, Scope.Scope>
+}
+
+interface PendingStep {
+  readonly kind: "build" | "stop" | "wait"   // a transition step, or a wait of a call or cascade
+  readonly pluginId: string                  // the plugin stepped; for "wait", the plugin waited on
+  readonly realm: string
+  readonly waiter?: string                   // for "wait" only: the plugin whose call or cascade waits
+  readonly owner: string                     // the operation or system transition it belongs to, e.g. "remove", "dependency-loss"
+  readonly correlationId?: string            // the owner's, when the owner is an operator call
+  readonly parked: boolean                   // a parked stop: not advanced by `step` (BEH-BR-178)
 }
 
 TestHost.make(options?: BridgerOptions): Effect.Effect<TestHost, never, Scope.Scope>
@@ -88,11 +100,42 @@ REQUIREMENT: In a `TestHost`, transitions MUST NOT advance on their own.
 ```
 
 ```
-REQUIREMENT: `step` MUST advance exactly one pending transition step — the
-             next in the ready-set order of 05 — Activation — to its next
-             settlement point: a published state change, or a suspension on
-             the clock or on a lease. It MUST return `false` when no step can
-             make progress without advancing the clock.
+REQUIREMENT: The `TestHost` MUST keep a total, deterministic order over its
+             pending items — pending transition steps (one build, or one
+             stop, of one plugin) and pending waits (of a call or a cascade,
+             on a transition step, a drain or the call order of
+             22 — Attributable Operations): items are ordered by the arrival
+             of the call or transition that created them, and ties are
+             broken by (realm, id) of the plugin. Builds made ready together
+             MUST follow the ready-set order of 05 — Activation. `pending`
+             MUST return the items in that order.
+```
+
+```
+REQUIREMENT: `step` MUST advance exactly one pending item — the first in
+             that order that can make progress — to its next settlement
+             point: a published state change, the end of a wait, or a
+             suspension on the clock or on a lease. It MUST return `false`
+             when no item can make progress without advancing the clock. A
+             parked stop MUST NOT be advanced by `step`; it advances only
+             when a call, a cascade or shutdown resumes it.
+```
+
+```
+REQUIREMENT: `stepPlugin(ref)` MUST do what `step` does, restricted to the
+             first item in that order whose `pluginId` is the named plugin,
+             and MUST return `false` when no such item can make progress
+             without advancing the clock.
+```
+
+```
+REQUIREMENT: Each `PendingStep` MUST describe its item: for a transition step,
+             `pluginId` is the plugin stepped; for a wait (`kind` "wait"),
+             `pluginId` is the plugin waited on and `waiter` names the plugin
+             whose call or cascade waits. `owner` MUST name the operation or
+             system transition the item belongs to, and `correlationId` MUST
+             be the owner's, present exactly when the owner is an operator
+             call.
 ```
 
 ```
@@ -103,7 +146,8 @@ REQUIREMENT: `runUntilIdle` MUST call `step` until it returns `false`, and
 ```
 REQUIREMENT: The `concurrency` limit MUST still hold: the number of builds
              started and not yet settled (including builds suspended on the
-             clock) MUST never exceed it.
+             clock) MUST never exceed it. Stops take no slot
+             (05 — Activation, BEH-BR-034).
 ```
 
 A test that awaits a mutating call forks it, steps the host, and then joins
@@ -114,6 +158,12 @@ point: every interleaving a test exercises is one the test chose.
 step is. A step ends at the next point where something observable happens
 (a revision) or where nothing can happen without the test's say (the clock, a
 held lease), so one test script always produces one sequence of revisions.
+Since operations on different plugins no longer share one host-wide order
+(08 — Operation Legality, BEH-BR-078), several transition steps and waits
+can be pending at once; the arrival order with a (realm, id) tie-break makes
+`step` pick among them the same way on every run, and `pending` and
+`stepPlugin` let a test that needs a particular interleaving — a cascade that
+meets a dependent's build, say — choose it explicitly (CCR-BR-008).
 
 ## BEH-BR-179: Time comes from TestClock and identifiers from a counter
 
@@ -416,8 +466,8 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  changes nothing; a `requested` write failure or timeout
                  fails with `AuditUnavailable` and changes nothing.
              33. Exactly one `requested` and one terminal record per
-                 admitted call, including joins, supersession, no-ops,
-                 interrupted callers and reconcile entries.
+                 call that passed step 6, including joins, supersession,
+                 no-ops, interrupted callers and reconcile entries.
              34. A failed terminal or system write sets the latch, emits
                  `audit-degraded`, refuses operator mutations, allows
                  `shutdown` and `acknowledgeAuditDegraded`; acknowledgement
@@ -462,12 +512,50 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  the dependent's scope closes once, its operation completes
                  for its own caller, and its rebuild does not capture the
                  removed provider (BEH-BR-079).
-             45. A provider's removal that meets a dependent whose stop is
-                 parked resumes it under the removal's options, ends the
-                 parked intent with the dependent `waiting`, and records a
-                 `system-stop` caused by the removal; without `force` it
-                 fails with `DrainTimeout` naming the dependent
-                 (BEH-BR-080).
+             45. Two tests of a provider's removal that meets a dependent
+                 whose operation is parked (BEH-BR-080). (a) The removal
+                 resumes the dependent's stop under the removal's options,
+                 and the resumed drain succeeds: the dependent lands
+                 `waiting` (or `starting` when another provider is
+                 available), the parked intent ends without its remaining
+                 actions, and an `intent-ended` record caused by the
+                 removal's `requested` record carries `endsIntentOf` naming
+                 the parked call's `requested` record. (b) The resumed drain
+                 expires again without `force`: the removal fails with
+                 `DrainTimeout { id, target }`, `id` naming the dependent and
+                 `target` the removed plugin; the dependent stays `stopping`
+                 as a parked system stop with `reason` "dependency-loss",
+                 `parked` true and `next` the dependency-loss destination;
+                 and the `intent-ended` record was already written when the
+                 removal resumed the stop.
+             46. Interruption records: a caller interrupted while the gate
+                 decides gets the `rejected` record ("caller-interrupted")
+                 and changes nothing; one interrupted after its `requested`
+                 record and before its intent ends `failed` with
+                 `error._tag` "Interrupted" and changes nothing; when the
+                 interruption comes while the `requested` record is still
+                 being written, no `AuditUnavailable` record follows it,
+                 and an `auditTimeout` that expired first ends the call with
+                 `AuditUnavailable` instead; one interrupted after its intent
+                 ends only its wait, and the transition completes
+                 (BEH-BR-188, BEH-BR-067).
+             47. Parked operations: a call that joins or supersedes a
+                 parked operation resumes it and writes its own terminal
+                 record, carrying `resumes` set to the parked call's
+                 `requested` record, and the parked call writes nothing more;
+                 `retry` and `enable` on a plugin whose system stop is parked
+                 fail with `Conflict` "dependency-loss"; a cascade rooted in
+                 a runtime failure revokes on expiry and never parks; a
+                 parent's stop removes a child that has a parked operation
+                 (BEH-BR-072, BEH-BR-073, BEH-BR-074, BEH-BR-080,
+                 BEH-BR-095, BEH-BR-125).
+             48. Re-entrancy and cascade limits: a `build` that calls
+                 `restart` on its own plugin, and a finalizer that calls
+                 `remove` on its plugin's provider, each fail with
+                 `WouldDeadlock`; a cascade that waits on another call's
+                 transition step running under `drain: "forever"` fails with
+                 `DrainTimeout` when its own drain limit expires (BEH-BR-088,
+                 BEH-BR-079, BEH-BR-085).
 ```
 
 Checks 31–42 exist because the GxP hooks are only worth specifying if each

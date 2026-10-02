@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-04                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -146,7 +146,7 @@ type PluginSnapshot = PluginCommon & (
   | { readonly state: "waiting";  readonly missingServiceIds: readonly [ServiceId, ...ServiceId[]] }
   | { readonly state: "starting"; readonly providerIds: readonly string[] }
   | { readonly state: "active";   readonly providerIds: readonly string[]; readonly health: "healthy" | "degraded" | "unknown" }
-  | { readonly state: "stopping"; readonly reason: StopReason; readonly next: "waiting" | "starting" | "disabled" | "gone" | "failed" }
+  | { readonly state: "stopping"; readonly reason: StopReason; readonly next: "waiting" | "starting" | "disabled" | "gone" | "failed"; readonly parked: boolean }
   | { readonly state: "failed";   readonly failure: { readonly phase: "build" | "activation" | "runtime" | "cleanup"; readonly message: string }; readonly missingServiceIds: readonly ServiceId[] }
   | { readonly state: "disabled" }
 )
@@ -188,10 +188,60 @@ REQUIREMENT: `health` MUST be "unknown" when no check is declared or none
 ```
 
 ```
-REQUIREMENT: On a `stopping` entry, `reason` MUST name what began the stop
-             and `next` MUST name where the plugin will go when the stop
-             completes ("gone" for removal). `next` MUST be updated in the
-             same revision as any change to the stop's destination.
+REQUIREMENT: On a `stopping` entry, `reason` MUST name what began the stop,
+             except as the following requirements state (a cascade's
+             takeover of a parked operation → "dependency-loss"; a call's
+             resumption → its operation; shutdown → "shutdown"). `next` MUST
+             name where the plugin will go when the stop completes ("gone"
+             for removal), and MUST be updated in the same revision as any
+             change to the stop's destination, parked or not.
+```
+
+```
+REQUIREMENT: On a `stopping` entry, `parked` MUST be true exactly while the
+             stop is parked — its drain expired without `force`, or the call
+             that drove it failed with `DrainTimeout` and left it unsettled,
+             and it waits for a call, a cascade or shutdown to resume it —
+             whether it is a parked operation or a parked system stop
+             (08 — Operation Legality, BEH-BR-074). When a call fails with
+             `DrainTimeout`, every stop it drives that has not settled — its
+             own stop and every dependency-loss stop it started, at any depth
+             — parks in the same revision (BEH-BR-079), and `parked` MUST
+             become true on each of them in that revision. It MUST become
+             false in the revision in which a call, a cascade or shutdown
+             resumes the stop.
+```
+
+```
+REQUIREMENT: When a cascade resumes a parked operation's stop and so ends
+             the parked operator intent (08 — Operation Legality,
+             BEH-BR-080), `reason` MUST become "dependency-loss" and `next`
+             MUST become the destination of a dependency-loss stop —
+             "waiting" or "starting", or "gone" for a child (14 — Children
+             and Groups, BEH-BR-125) — in the revision in which the cascade
+             resumes it. When that resumed drain expires again, the stop
+             MUST stay `stopping` as a parked system stop with `reason`
+             "dependency-loss", `parked` true, and `next` the destination of
+             the dependency-loss stop — "waiting" or "starting", or "gone"
+             for a child — kept current while it stays parked.
+```
+
+```
+REQUIREMENT: When a call resumes a parked stop, `reason` MUST become, in the
+             revision in which it resumes it, the operation the call is in
+             flight for: for a parked operation, the operation BEH-BR-072's
+             row names (the in-flight operation for a join, the incoming one
+             for a supersede), with `next` its destination; for a parked
+             system stop, the call's operation, with `next` the
+             dependency-loss destination until the stop settles and the call
+             is decided (08 — Operation Legality, BEH-BR-074).
+```
+
+```
+REQUIREMENT: When shutdown resumes a parked stop, `reason` MUST become
+             "shutdown" in the revision in which shutdown resumes it, with
+             `next` the destination of shutdown's stop (12 — Shutdown and
+             Hosting, BEH-BR-105).
 ```
 
 ```
@@ -218,6 +268,19 @@ registered at a given revision can be read from the record
 A failure with phase "cleanup" stays distinguishable by its phase. The full
 rationale and alternatives are in
 [ADR-BR-014](../decisions/014-discriminated-plugin-snapshot.md).
+
+**Settled here.** A parked stop looks, by `state`, `reason` and `next` alone,
+exactly like a stop still draining; only the second needs no operator. The
+`stopping` variant therefore carries `parked`, so a screen or script can tell
+"waiting for leases" from "waiting for you" without reading the audit trail
+(CCR-BR-008). When a cascade takes over a parked operation, the operator's
+destination no longer applies, and `reason` and `next` say so in the same
+revision rather than naming an intent that will not complete. When a call
+resumes a stop, `reason` names that call's operation — the one now in flight —
+while `next` still says where the stop itself will land, since the call is
+decided only once the stop settles; shutdown's takeover is shown as
+"shutdown". `reason` therefore names what the stop is now for, which is what
+began it except across a resumption.
 
 ## BEH-BR-028: HostSnapshot
 

@@ -14,7 +14,7 @@ export interface OperationOptions { readonly context?: OperationContext }
 export const CurrentActor = Context.Reference<Actor>("@bridger/core/CurrentActor", { defaultValue: () => Actor.unattributed })
 
 export type Operation = "install" | "remove" | "replace" | "retry" | "restart" | "disable" | "enable" | "shutdown" | "acknowledgeAuditDegraded"
-export type SystemTransition = "system-start" | "system-stop" | "runtime-failure" | "lease-revoked"
+export type SystemTransition = "system-start" | "system-stop" | "runtime-failure" | "lease-revoked" | "intent-ended"
 export type AuditPhase = "requested" | "rejected" | "completed" | "failed" | "superseded" | "joined" | "system"
 
 export interface AttributionOptions { readonly require?: boolean; readonly requireReason?: ReadonlyArray<Operation> }
@@ -48,6 +48,8 @@ export interface AuditRecord {
   readonly after?: { readonly state: string; readonly revision: number } & DefinitionRef
   readonly error?: { readonly _tag: string; readonly message: string }
   readonly droppedSinceAck?: number
+  readonly endsIntentOf?: string                    // `intent-ended` only: the parked call's `requested` record id (BEH-BR-080)
+  readonly resumes?: string                         // a resumer's terminal record: the parked call's `requested` record id (BEH-BR-200)
 }
 export class AuditSink extends Context.Service<AuditSink, {
   readonly record: (r: AuditRecord) => Effect.Effect<void, AuditWriteFailed>

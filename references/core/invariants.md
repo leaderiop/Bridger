@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -69,14 +69,23 @@ was disabled.
 ## INV-BR-002: The dependency graph is acyclic per resolution scope
 
 The graph whose edges join each installed, non-`disabled` plugin to the
-provider each of its required keys resolves to under `scopeOf` contains no
-cycle.
+provider each of its required keys resolves to under `scopeOf` (dependency
+edges, dependent→provider), and each child to the parent that mounted it
+(mount edges, child→parent), contains no cycle.
 
 **Source**: `packages/core/src/Resolver.ts` *(Planned)* — cycle detection over
-the resolved-edge graph, run by `install`, `replace` (whose `requires` are
-evaluated afresh) and `enable` in `packages/core/src/Host.ts` *(Planned)*
-before any state changes. Keys listed in `optional` and the base services
-contribute no edges; a disabled plugin contributes none.
+the resolved-edge graph with its child→parent mount edges — a child depends
+on the parent that mounted it, so a child that requires its parent's services
+is legal and a parent that requires a service of its own child is a cycle —
+run by `install`,
+`replace` (whose `requires` are evaluated afresh) and `enable` in
+`packages/core/src/Host.ts` *(Planned)*, and by `Plugin.Runtime.install` of a
+child in `packages/core/src/PluginRuntime.ts` *(Planned)*, before any state
+changes. A child install that would close a cycle fails with
+`DependencyCycle { path }`, the path beginning with the child, and registers
+nothing; whether that fails the parent's build is the parent author's choice
+(BEH-BR-121). Keys listed in `optional` and the base services contribute no
+edges; a disabled plugin contributes none.
 
 **Implication**: a cycle would leave every plugin on it `waiting` for another
 forever and would make dependents-first stopping
@@ -90,10 +99,13 @@ refusals.
 **Verification** *(Planned)*: a property test over generated definition
 graphs and realm layouts, asserting that `install` succeeds exactly when the
 resolved graph stays acyclic and that `path` starts with the installed id;
-scenarios for a cycle closed by `replace` and by `enable`, and for a
-cross-realm layout that is not a cycle.
+scenarios for a cycle closed by `replace` and by `enable`, for a child install
+whose dependency or mount edges would close a cycle (it fails, the path
+begins with the child, and nothing is registered), for a child that requires
+its parent's services (legal), and for a cross-realm layout that is not a
+cycle.
 
-**Related**: [BEH-BR-020](behaviors/03-installation.md), [BEH-BR-052](behaviors/07-replacement-and-reactivation.md), [BEH-BR-062](behaviors/07-replacement-and-reactivation.md), [BEH-BR-148](behaviors/17-realms-and-interception.md), [ADR-BR-003](decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-019](decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-022](decisions/022-optional-and-reactive-dependencies.md).
+**Related**: [BEH-BR-020](behaviors/03-installation.md), [BEH-BR-052](behaviors/07-replacement-and-reactivation.md), [BEH-BR-062](behaviors/07-replacement-and-reactivation.md), [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-121](behaviors/14-children-and-groups.md), [BEH-BR-148](behaviors/17-realms-and-interception.md), [ADR-BR-003](decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-019](decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-022](decisions/022-optional-and-reactive-dependencies.md).
 
 ---
 
@@ -287,16 +299,27 @@ revisions per subscriber, equality of snapshots with equal revisions, and
 ## INV-BR-009: At most one transition in flight per plugin
 
 Operations on one plugin — the pair (realm, ID) — are linearized in call
-order, and the plugin never has more than one transition running at a time,
-whether the transition was requested by an operator or begun by the system.
+order; the plugin runs at most one transition step (one build, or one stop)
+at a time, whether the step serves an operator or the system; and it has at
+most one operator operation in flight (BEH-BR-072). A parked stop — a parked
+operation or a parked system stop — is the one case of a stop in flight with
+no step running: it runs none until a call, a cascade or shutdown resumes it
+(BEH-BR-074, BEH-BR-080, BEH-BR-105).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — a per-plugin operation
-queue keyed by (realm, ID), owned by the reconciler, through which every route
+order keyed by (realm, ID), owned by the reconciler, through which every route
 passes: `Host` methods, `PluginHandle`, group operations as one unit, and each
 `reconcile` entry action. `packages/core/src/Lifecycle.ts` *(Planned)* starts
-transitions only from that queue; system transitions (automatic starts,
-dependency-loss and runtime-failure stops, child mounts) take the same slot,
-and an operator call arriving during one waits behind it.
+transition steps only from that order; system transitions (automatic starts,
+dependency-loss and runtime-failure stops, child mounts) take the same slot.
+An operator call that arrives while a system stop is running waits for it to
+settle — before its intent, so the wait is interruptible — and is then decided
+against the state the plugin landed in (BEH-BR-073); a call that arrives on a
+parked system stop, or whose awaited system stop parks while it waits,
+resumes it, or, for `retry` and `enable`, fails with
+`Conflict { pending: "dependency-loss" }` (BEH-BR-073, BEH-BR-074). Once
+shutdown has begun, no stop parks: shutdown takes over every stop under its
+own limits (BEH-BR-105, BEH-BR-107).
 
 **Implication**: two builds, or a build and a stop, of the same plugin never
 race, so a plugin's resources are never acquired twice or released while
@@ -305,11 +328,13 @@ outcome instead of interleaving
 ([RSK-BR-019](gxp/03-risk-assessment.md#rsk-br-019)).
 
 **Verification** *(Planned)*: a property test on the test host with many
-concurrent callers per plugin, asserting at most one transition in flight per
-plugin at every step and linearization in arrival order; scenarios for an
-operator call arriving while a system-induced stop is in progress.
+concurrent callers per plugin, asserting at every step at most one transition
+step running and at most one operator operation in flight per plugin, no step
+running for a parked stop, and linearization in arrival order; scenarios for
+an operator call arriving while a system stop is running, and for each call
+arriving on a parked system stop.
 
-**Related**: [BEH-BR-026](behaviors/04-states-and-snapshots.md), [BEH-BR-065](behaviors/08-operation-legality.md), [BEH-BR-072](behaviors/08-operation-legality.md), [BEH-BR-073](behaviors/08-operation-legality.md), [BEH-BR-128](behaviors/14-children-and-groups.md), [ADR-BR-012](decisions/012-intent-and-linearization.md), [ADR-BR-013](decisions/013-total-operation-legality.md).
+**Related**: [BEH-BR-026](behaviors/04-states-and-snapshots.md), [BEH-BR-065](behaviors/08-operation-legality.md), [BEH-BR-072](behaviors/08-operation-legality.md), [BEH-BR-073](behaviors/08-operation-legality.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-128](behaviors/14-children-and-groups.md), [ADR-BR-012](decisions/012-intent-and-linearization.md), [ADR-BR-013](decisions/013-total-operation-legality.md).
 
 ---
 
@@ -317,16 +342,21 @@ operator call arriving while a system-induced stop is in progress.
 
 Once a call's intent is recorded, interrupting the caller ends only the
 caller's wait — the transition and its terminal audit record proceed — and
-interrupting it before that point leaves the host unchanged.
+interrupting it before that point leaves the host unchanged, with no record,
+one `rejected` record (interrupted while the gate decides), or a `requested`
+record answered by one `failed` (`Interrupted`) record.
 
-**Source**: `packages/core/src/Host.ts` *(Planned)* — enqueueing the
-`requested` record is uninterruptible; from then until the intent is recorded,
-an interruption writes a `failed` terminal record (`Interrupted`) and changes
-nothing; deciding the outcome at the linearization point is uninterruptible;
-the transition then runs in the reconciler's fibers, and the caller awaits its
-outcome through a `Deferred`. `packages/core/src/Audit.ts` *(Planned)* — the
-terminal record is written by the reconciler, not by the caller. Core offers
-no cancel operation; undoing a request is the opposite operation.
+**Source**: `packages/core/src/Host.ts` *(Planned)* — the passage from the
+gate's approval (or from validation, when no gate is wired) to the enqueue of
+the `requested` record is uninterruptible; from that enqueue until the intent
+is recorded, an interruption runs an interruption finalizer on the call path
+that writes a `failed` terminal record (`Interrupted`), which is then the
+call's only terminal record, and changes nothing; deciding the outcome at the
+linearization point is uninterruptible; the transition then runs in the
+reconciler's fibers, and the caller awaits its outcome through a `Deferred`.
+`packages/core/src/Audit.ts` *(Planned)* — the terminal record of a call
+whose intent was recorded is written by the reconciler, not by the caller.
+Core offers no cancel operation; undoing a request is the opposite operation.
 
 **Implication**: an interrupted caller never leaves a half-applied operation —
 a plugin stopped but not restarted, a definition swapped but not built — and
@@ -337,11 +367,16 @@ wait.
 **Verification** *(Planned)*: scenarios on the steppable test host that
 interrupt the caller at each step of the call order and at each step of the
 transition; a property test asserting that for every interruption point
-either the host is unchanged with no record or one `rejected` record, or the
-transition completes and exactly one terminal record follows the `requested`
-record.
+exactly one of these holds: the host is unchanged with no record; the host is
+unchanged with one `rejected` record ("caller-interrupted"); the host is
+unchanged with a `requested` record followed by one `failed` (`Interrupted`)
+record; or the transition completes and exactly one terminal record follows
+the `requested` record. A scenario interrupts a caller whose `requested`
+record is still being retried and asserts that no `failed`
+(`AuditUnavailable`) record follows the `Interrupted` one (acceptance check
+46 of BEH-BR-184).
 
-**Related**: [BEH-BR-066](behaviors/08-operation-legality.md), [BEH-BR-067](behaviors/08-operation-legality.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-101](behaviors/11-configuration.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [ADR-BR-012](decisions/012-intent-and-linearization.md).
+**Related**: [BEH-BR-066](behaviors/08-operation-legality.md), [BEH-BR-067](behaviors/08-operation-legality.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-101](behaviors/11-configuration.md), [BEH-BR-156](behaviors/18-reconciliation-and-confluence.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [BEH-BR-203](behaviors/23-audit-sink-and-record.md), [BEH-BR-221](behaviors/25-operation-gate.md), [ADR-BR-012](decisions/012-intent-and-linearization.md), [ADR-BR-008](decisions/008-error-taxonomy.md).
 
 ---
 
@@ -494,37 +529,51 @@ whenever every required key is the very object its provider declared.
 
 ## INV-BR-016: A re-entrant wait fails fast
 
-A call that would wait for plugin P to drain, made from a fiber that carries
-P in `@bridger/core/HeldPlugins`, fails immediately with `WouldDeadlock`
-without recording intent.
+A call that would wait for a transition step of plugin P — P's drain, its
+build or its stop — made from a fiber that carries P in
+`@bridger/core/HeldPlugins`, fails immediately with `WouldDeadlock` without
+recording intent.
 
 **Source**: `packages/core/src/Lease.ts` *(Planned)* — admitting a lease adds
 the provider's ID to the `HeldPlugins` fiber reference of the callback's
 fiber, inherited by every fiber it forks, by `useOptional` callbacks and
-`whenAvailable` runs. `packages/core/src/EventBus.ts` *(Planned)* dispatches
-listeners in the dispatcher's fiber context, so the reference follows the
-call. `packages/core/src/Host.ts` *(Planned)* checks the reference for
-`remove`, `replace`, `restart`, `disable`, `reconfigure` of P or of a
-provider whose stopping would first stop P at step 7 of the call order
-(BEH-BR-188): after the `requested` record and before the intent, so that a
-refused call changes nothing and, with a sink wired, ends with a `failed`
-terminal record. For `awaitIdle`, which is not a mutating call, it checks the
-reference when the call is made.
+`whenAvailable` runs. `packages/core/src/Lifecycle.ts` *(Planned)* runs each
+build of P, and each finalizer of P's activation scope, in a fiber that
+carries P in the same reference, and so does every fiber that build or
+finalizer forks and awaits before returning. Fibers forked into the
+activation scope (`background`, `whenAvailable`) carry only the leases they
+hold, not P. `packages/core/src/EventBus.ts` *(Planned)*
+dispatches listeners in the dispatcher's fiber context, so the reference
+follows the call. `packages/core/src/Host.ts` *(Planned)* checks the
+reference for `remove`, `replace`, `restart`, `disable`, `reconfigure` of P
+or of a provider whose stopping would first stop P, and for `retry` and
+`enable` of P while a system stop of P is running, at step 7 of the call
+order (BEH-BR-188): before the call waits for anything, and again at the
+linearization point before the intent, where a join — and so a wait for the
+joined operation's step — first becomes known. Both checks follow the
+`requested` record and precede the intent, so that a refused call changes
+nothing and, with a sink wired, ends with a `failed` terminal record. For
+`awaitIdle`, which is not a mutating call, it checks the reference when the
+call is made.
 
-**Implication**: a callback that asks the host to stop the plugin it is
-using fails at once instead of waiting for its own lease to end. The check
-follows the carried reference only: a request relayed through a fiber that
-does not inherit it is not detected, and this invariant does not claim it is
+**Implication**: a lease callback, a build or a finalizer that asks the host
+to stop the plugin it belongs to or is using fails at once instead of waiting
+for its own step or lease to end. The check follows the carried reference
+only: a request relayed through a fiber that does not inherit it is not
+detected, and this invariant does not claim it is
 ([RSK-BR-011](gxp/03-risk-assessment.md#rsk-br-011)).
 
 **Verification** *(Planned)*: one scenario per guarded operation and for
-`awaitIdle` from a lease callback, a forked fiber, a `whenAvailable` run and an
-event listener; with a sink wired, a scenario asserting that a mutating call
-refused with `WouldDeadlock` leaves exactly one `requested` and one `failed`
-record and an unchanged snapshot; a scenario pinning the stated limit, in
-which the request is relayed through an unrelated fiber and is not detected.
+`awaitIdle` from a lease callback, a forked fiber, a `whenAvailable` run, an
+event listener, a build, a fiber a build forks and awaits, and a finalizer of
+the activation scope (acceptance check 48 of BEH-BR-184); a scenario in which
+the join that would make the call wait is known only at the linearization
+point; with a sink wired, a scenario asserting that a mutating call refused
+with `WouldDeadlock` leaves exactly one `requested` and one `failed` record
+and an unchanged snapshot; a scenario pinning the stated limit, in which the
+request is relayed through an unrelated fiber and is not detected.
 
-**Related**: [BEH-BR-040](behaviors/05-activation.md), [BEH-BR-088](behaviors/09-leases.md), [BEH-BR-136](behaviors/15-optional-and-reactive.md), [BEH-BR-144](behaviors/16-event-bus.md), [ADR-BR-016](decisions/016-reentrancy-detection.md).
+**Related**: [BEH-BR-040](behaviors/05-activation.md), [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-088](behaviors/09-leases.md), [BEH-BR-136](behaviors/15-optional-and-reactive.md), [BEH-BR-144](behaviors/16-event-bus.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [ADR-BR-016](decisions/016-reentrancy-detection.md).
 
 ---
 
@@ -537,23 +586,43 @@ value — has a finite limit unless the caller declared `"forever"` explicitly.
 **Source**: `packages/core/src/Lease.ts` *(Planned)* — every drain takes a
 `Duration | "forever"` limit measured with `Clock`, defaulting to
 `BridgerOptions.drainTimeout` (30 seconds); no default is unbounded. On
-expiry an operator call fails with `DrainTimeout` and leaves the plugin
-`stopping`; a path with no caller (runtime failure, the overall shutdown
-limit in `packages/core/src/Host.ts` *(Planned)*) revokes instead.
-`packages/core/src/ContributionRegistry.ts` and
+expiry without `force`, the outcome depends on whether an operator call is at
+the root of the path. On a path rooted in an operator call — the call's own
+stop, or a cascade whose root is that call — the call under whose options the
+drain ran fails with `DrainTimeout`, and every stop it drives that has not
+settled — its own stop and every dependency-loss stop it started, at any
+depth — parks in the same revision, leaving those plugins `stopping`
+(BEH-BR-074, BEH-BR-079, BEH-BR-080); a dependent's stop parked this way is a
+parked system stop (`reason` "dependency-loss"). The cascading call's drain
+limit also runs while it waits for a dependent's running build step, and
+expires as `DrainTimeout` with `leases` 0. A path with no caller — a runtime
+failure, a cascade whose root is a runtime failure, or a dependency-loss stop
+with no operator call at its root — never parks: it revokes the remaining
+leases, including those on dependents (BEH-BR-086, BEH-BR-095), and an expiry
+while it waits for a build continues the wait under `buildTimeout`. Shutdown,
+whose limits are in `packages/core/src/Host.ts` *(Planned)*, never parks
+either: once it has begun, no drain expiry parks a stop; shutdown takes the
+stop over, drains under `drainTimeout` and revokes only once its overall limit
+has passed (BEH-BR-105, BEH-BR-107). A parked stop met by a path with no
+caller, or by shutdown, is resumed under those limits and revoked on
+expiry. `packages/core/src/ContributionRegistry.ts` and
 `packages/core/src/Generation.ts` *(both Planned)* apply the same rule.
 
 **Implication**: a lease that is never released cannot hang an operator call,
-a runtime-failure transition or shutdown indefinitely. An unbounded wait is a
-visible decision in the caller's code, not an accident of a default.
+a runtime-failure transition, a cascade or shutdown indefinitely. An unbounded
+wait is a visible decision in the caller's code, not an accident of a
+default.
 
 **Verification** *(Planned)*: a type-level check that drain options admit only
 a duration or the literal `"forever"`; scenarios on the test host with
 `Fault.holdLease` and `TestClock` advanced past each limit, asserting
-`DrainTimeout` with the held count, the plugin left `stopping`, and
-revocation on the paths with no caller.
+`DrainTimeout` with the held count, the plugin left `stopping` and parked on
+operator-rooted paths, including a cascade whose dependent's stop becomes a
+parked system stop; and revocation on every path with no caller, including a
+runtime-failure cascade and a parked stop it meets (acceptance check 47 of
+BEH-BR-184).
 
-**Related**: [BEH-BR-045](behaviors/06-removal.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-085](behaviors/09-leases.md), [BEH-BR-095](behaviors/10-runtime-failure-and-health.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-107](behaviors/12-shutdown-and-hosting.md), [BEH-BR-167](behaviors/19-contribution-registry.md), [BEH-BR-173](behaviors/20-generation.md), [BEH-BR-174](behaviors/20-generation.md), [BEH-BR-176](behaviors/20-generation.md), [ADR-BR-015](decisions/015-leases-one-primitive.md), [ADR-BR-017](decisions/017-runtime-failure-one-transition.md), [ADR-BR-024](decisions/024-shared-state-helpers.md).
+**Related**: [BEH-BR-045](behaviors/06-removal.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-085](behaviors/09-leases.md), [BEH-BR-086](behaviors/09-leases.md), [BEH-BR-095](behaviors/10-runtime-failure-and-health.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-107](behaviors/12-shutdown-and-hosting.md), [BEH-BR-167](behaviors/19-contribution-registry.md), [BEH-BR-173](behaviors/20-generation.md), [BEH-BR-174](behaviors/20-generation.md), [BEH-BR-176](behaviors/20-generation.md), [ADR-BR-015](decisions/015-leases-one-primitive.md), [ADR-BR-017](decisions/017-runtime-failure-one-transition.md), [ADR-BR-024](decisions/024-shared-state-helpers.md).
 
 ---
 
@@ -682,12 +751,14 @@ refused for attribution or by the latch produces no record.
 This holds when an `AuditSink` is wired; with none, no call produces a record
 ([INV-BR-026](#inv-br-026-an-unwired-sink-or-gate-changes-nothing)). A call
 that fails `HostClosed` or validation — checks that precede the gate — also
-produces no record. The terminal record is one of `completed`, `failed`,
-`superseded` or `joined`, and a no-op is recorded as `completed` with
-`noop: true`. `reconcile` produces one such pair for the call and one pair (or
-one `rejected` record) per entry action. `shutdown` is not gated; its
-`requested` record is attempted, and when it cannot be written shutdown
-proceeds and the latch is set
+produces no record, and so does a call whose `requested` record is dropped
+because the writer's queue is full: it fails at once with `AuditUnavailable`,
+and the latch and the drop count record the loss (BEH-BR-202). The terminal
+record is one of `completed`, `failed`, `superseded` or `joined`, and a no-op
+is recorded as `completed` with `noop: true`. `reconcile` produces one such
+pair for the call and one pair (or one `rejected` record) per entry action.
+`shutdown` is not gated; its `requested` record is attempted, and when it
+cannot be written shutdown proceeds and the latch is set
 ([INV-BR-029](#inv-br-029-the-audit-degraded-latch-blocks-operator-mutations)).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — the fixed call pipeline
@@ -697,7 +768,10 @@ intent). `packages/core/src/OperationGate.ts` *(Planned)* creates the
 the `requested` record before intent and the terminal record from the
 reconciler once the outcome is known, after every system record the
 transition produced, so neither caller interruption nor a failed transition
-can skip it.
+can skip it; for a call interrupted before its intent, the call path's
+interruption finalizer creates the `failed` (`Interrupted`) record instead
+(BEH-BR-188). The first terminal cause wins, so no call receives a second
+terminal record (BEH-BR-198).
 
 **Implication**: every lifecycle change an operator requested is bracketed in
 the trail by its request and its outcome
@@ -707,12 +781,22 @@ case ([RSK-BR-006](gxp/03-risk-assessment.md#rsk-br-006)). A refusal is
 recorded as a refusal, never as a request that was later abandoned.
 
 **Verification** *(Planned)*: a property test on the test host with the
-in-memory sink fixture over generated operation sequences, refusals and
-caller interruptions, asserting per `correlationId` exactly one `requested`
-and one terminal record for admitted calls, exactly one `rejected` record for
-gate refusals and none for attribution, latch, `HostClosed` or validation
-failures; scenarios for join, supersession, no-op, `reconcile` and
-`shutdown`.
+in-memory sink fixture over generated operation sequences (each generated
+call with its own `correlationId`), refusals and caller interruptions,
+pairing each `requested` record with the terminal record of the same call —
+the record of that call's `correlationId`, `operation` and `target` that
+follows it; a `joined` record, which carries the joined operation's
+`correlationId`, is linked to its call as BEH-BR-200 states — and asserting
+exactly one terminal record for every call that passed step 6 of BEH-BR-188,
+exactly one `rejected` record for gate refusals and none for attribution,
+latch, `HostClosed` or validation failures, or for a call whose `requested`
+record was dropped for overflow; scenarios for join, supersession, no-op,
+`reconcile` and `shutdown`; for a resumption of a parked operation, whose
+caller's terminal record carries `resumes` and the parked call receives no
+further record; for a caller interrupted before its intent (`failed`,
+`Interrupted`); and for an interruption while the `requested` record is being
+retried, where `Interrupted` is the only terminal record and no
+`AuditUnavailable` record follows.
 
 **Related**: [BEH-BR-158](behaviors/18-reconciliation-and-confluence.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [BEH-BR-190](behaviors/22-attributable-operations.md), [BEH-BR-195](behaviors/23-audit-sink-and-record.md), [BEH-BR-196](behaviors/23-audit-sink-and-record.md), [BEH-BR-198](behaviors/23-audit-sink-and-record.md), [BEH-BR-199](behaviors/23-audit-sink-and-record.md), [BEH-BR-200](behaviors/23-audit-sink-and-record.md), [BEH-BR-201](behaviors/23-audit-sink-and-record.md), [BEH-BR-218](behaviors/25-operation-gate.md), [BEH-BR-220](behaviors/25-operation-gate.md), [ADR-BR-030](decisions/030-audit-sink-port.md), [ADR-BR-031](decisions/031-audit-failure-policy.md), [ADR-BR-012](decisions/012-intent-and-linearization.md), [ADR-BR-023](decisions/023-desired-state-reconcile.md), [ADR-BR-028](decisions/028-gxp-scope.md).
 
@@ -795,7 +879,12 @@ milliseconds.
 
 A mutating call whose resolved context does not meet the attribution policy
 fails with `Unattributed` or `ReasonRequired` before the latch, the gate or
-any record, and changes nothing. The one exemption is the host-originated
+any record, and changes nothing. The one check made later is a `reconcile`'s:
+`requireReason` is applied at step 2 to the diff computed at the call, and
+again to the diff recomputed at its intent; when the recomputed diff adds an
+operation that needs a reason the call lacks, the call fails with
+`ReasonRequired`, a parent `failed` terminal record, and no entry action, so
+it still changes nothing. The one exemption is the host-originated
 `shutdown` performed when the host scope closes: it is attributed to
 `Actor.system` and is not subject to `attribution.require` or
 `attribution.requireReason`. An explicit `shutdown()` call is checked.
@@ -810,10 +899,13 @@ an operation listed in `attribution.requireReason` fails without a non-blank
 a non-blank reason. `packages/core/src/Host.ts` *(Planned)* runs this check
 second in the call order, immediately after `HostClosed`, and skips it only
 for the scope-close `shutdown`, which it attributes to `Actor.system` with no
-reason (otherwise `require` would refuse the reserved actor and the host
-scope could not close). Actor identity is
-never inferred from a fiber, a plugin id or `ActivePlugin`, and core does not
-authenticate.
+reason (otherwise `require` would refuse the reserved actor and the host scope
+could not close). For `reconcile`, `requireReason` is applied to the
+operations of a provisional diff at step 2, and
+`packages/core/src/Reconcile.ts` *(Planned)* applies it again to the diff
+recomputed at the intent, before any entry action (BEH-BR-158). Actor identity
+is never inferred from a fiber, a plugin id or `ActivePlugin`, and core does
+not authenticate.
 
 **Implication**: when a deployment requires attribution, no lifecycle change
 is made without an actor and, where demanded, a reason
@@ -828,9 +920,12 @@ per-call override of `CurrentActor`, reserved actors, blank reasons,
 `acknowledgeAuditDegraded` with the default policy, and closing the host
 scope under `require: true` and `requireReason: ["shutdown"]` (the shutdown
 runs, attributed to `Actor.system`) while an explicit `shutdown()` under the
-same policy is refused.
+same policy is refused; and a `reconcile` with no reason whose recomputed diff
+adds a prune `remove` under `requireReason: ["remove"]`, which fails with
+`ReasonRequired`, a `requested` and a `failed` parent record, and no entry
+action.
 
-**Related**: [BEH-BR-014](behaviors/02-host-construction.md), [BEH-BR-185](behaviors/22-attributable-operations.md), [BEH-BR-186](behaviors/22-attributable-operations.md), [BEH-BR-187](behaviors/22-attributable-operations.md), [BEH-BR-189](behaviors/22-attributable-operations.md), [BEH-BR-190](behaviors/22-attributable-operations.md), [BEH-BR-108](behaviors/12-shutdown-and-hosting.md), [BEH-BR-206](behaviors/23-audit-sink-and-record.md), [ADR-BR-029](decisions/029-attributable-mutations.md), [ADR-BR-028](decisions/028-gxp-scope.md).
+**Related**: [BEH-BR-014](behaviors/02-host-construction.md), [BEH-BR-185](behaviors/22-attributable-operations.md), [BEH-BR-186](behaviors/22-attributable-operations.md), [BEH-BR-187](behaviors/22-attributable-operations.md), [BEH-BR-189](behaviors/22-attributable-operations.md), [BEH-BR-190](behaviors/22-attributable-operations.md), [BEH-BR-108](behaviors/12-shutdown-and-hosting.md), [BEH-BR-158](behaviors/18-reconciliation-and-confluence.md), [BEH-BR-206](behaviors/23-audit-sink-and-record.md), [ADR-BR-029](decisions/029-attributable-mutations.md), [ADR-BR-028](decisions/028-gxp-scope.md).
 
 ---
 
@@ -981,31 +1076,49 @@ latch never clears without a successful acknowledgement.
 
 ## INV-BR-030: Host transitions never wait on each other in a cycle
 
-A transition on a plugin waits only for its own step, for steps of plugins
-that depend on it (through captured services or as children), and for leases
-on those plugins; no operation waits for a call on an unrelated plugin.
+A transition on a plugin waits only for its own transition step, for steps of
+plugins that depend on it (through captured services or as children), and for
+leases on those plugins; no operation that names a plugin waits for a call on
+an unrelated plugin, the serialization of `reconcile` calls and `awaitIdle`
+aside.
 
 **Source**: `packages/core/src/Lifecycle.ts` *(Planned)* — one step runner per
 plugin; the stop path walks dependents from a provider and, for each, waits
 for the dependent's running step before stopping it (BEH-BR-079), and resumes
-a parked stop under the cascading call's options (BEH-BR-080). There is no
-host-wide operation lock in `packages/core/src/Host.ts` *(Planned)*; builds
-capture providers when they start and await no other plugin. The child-mount
-cycle check is in `packages/core/src/PluginRuntime.ts` *(Planned)*.
+a parked stop under the cascading call's options, or the no-caller limits
+(BEH-BR-080). There is no host-wide operation lock in
+`packages/core/src/Host.ts` *(Planned)*; builds capture providers when they
+start and wait for no transition of another plugin (a free `concurrency` slot
+aside), and stops take no `concurrency` slot and never wait for one
+(BEH-BR-078). Each build and each finalizer of an activation scope runs with
+its plugin's ID in `HeldPlugins`, and so does every fiber it forks and awaits
+before returning. The child-install cycle check is in
+`packages/core/src/PluginRuntime.ts` *(Planned)*.
 
 **Implication**: the wait-for relation between host transitions follows the
 edges of a graph that is acyclic
 ([INV-BR-002](#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope),
-and the child-mount check of BEH-BR-078), so host transitions cannot deadlock
-among themselves. A lease callback is the only way to close a cycle; it fails
-fast with `WouldDeadlock` when the carried reference shows it
-([INV-BR-016](#inv-br-016-a-re-entrant-wait-fails-fast)) and is bounded by the
-drain limit otherwise
-([INV-BR-017](#inv-br-017-every-drain-is-bounded-unless-declared-forever)).
+whose graph includes child→parent mount edges), so host transitions cannot
+deadlock among themselves. A cycle can be closed only by code that runs inside
+a lease, a build or a finalizer and calls the host. The carried reference
+catches such a call within the fiber tree, which fails fast with
+`WouldDeadlock` ([INV-BR-016](#inv-br-016-a-re-entrant-wait-fails-fast)); a
+hand-off to another fiber remains the residual of
+[RSK-BR-011](gxp/03-risk-assessment.md#rsk-br-011), bounded by the drain
+limits
+([INV-BR-017](#inv-br-017-every-drain-is-bounded-unless-declared-forever)) and
+`buildTimeout`.
 
 **Verification** *(Planned)*: a property test over random operation histories
-on random acyclic graphs, with leases held and released at random points,
-asserting that every history ends with every call settled within the sum of
-its limits; scenarios for acceptance checks 43–45 of BEH-BR-184.
+on random acyclic graphs, with leases held and released at random points and
+re-entrant calls issued from leases, builds and finalizers, asserting that no
+wait-for cycle forms among host fibers and that, with finite drain limits,
+finite `buildTimeout` and finalizers that return, every call returns within
+its bound: for a cascading call, its own drain limit for the plugin it named
+and for each plugin on the dependency path below it, plus `buildTimeout` for
+each build step it waits for (BEH-BR-079). Finalizer running time is not
+bounded by the core (BEH-BR-107), so the bound is asserted only for
+finalizers that return. Scenarios for acceptance checks 43–45 and 48 of
+BEH-BR-184.
 
-**Related**: [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-088](behaviors/09-leases.md), [ADR-BR-038](decisions/038-cross-plugin-stop-ordering.md).
+**Related**: [BEH-BR-040](behaviors/05-activation.md), [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-088](behaviors/09-leases.md), [BEH-BR-107](behaviors/12-shutdown-and-hosting.md), [BEH-BR-121](behaviors/14-children-and-groups.md), [ADR-BR-016](decisions/016-reentrancy-detection.md), [ADR-BR-038](decisions/038-cross-plugin-stop-ordering.md).

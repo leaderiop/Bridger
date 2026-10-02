@@ -144,16 +144,17 @@ describe("interruption before intent (BEH-BR-067, 188)", () => {
     const records: Array<AuditRecord> = []
     const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const host = yield* Host.make({ auditTimeout: 50, drainTimeout: 5_000 }).pipe(Effect.provideService(AuditSink, sink))
+      const host = yield* Host.make({ auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
       yield* host.install(loggerPlugin(journal())); yield* host.install(auditPlugin(journal())); yield* host.awaitIdle
       const entered = yield* Deferred.make<void>()
-      yield* Effect.forkChild(host.use(Audit, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
+      const release = yield* Deferred.make<void>()
+      yield* Effect.forkChild(host.use(Audit, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
-      // The provider's removal parks the dependent's system stop (dependency-loss), with no operator operation on it.
-      expect(failedWith(yield* Effect.exit(host.remove("example/logger", { drain: 20 })), "DrainTimeout")).toBe(true)
-      expect(yield* stateOf(host, "example/audit")).toBe("stopping")
+      // The provider's removal runs a dependency-loss stop of the dependent, draining its lease.
+      const removal = yield* Effect.forkChild(host.remove("example/logger", { drain: 5_000 }))
+      yield* Effect.sleep(10)
       const ctx = (c: string) => ({ context: { actor: { id: "user-alice", kind: "user" as const }, correlationId: c } })
-      // A waits at the linearization point for the system stop to settle (BEH-BR-073); B waits behind A.
+      // A waits for that running system stop before its intent (BEH-BR-073); B waits behind A for the plugin's turn.
       const a = yield* Effect.forkChild(host.retry("example/audit", ctx("c-a")))
       yield* Effect.sleep(20)
       const b = yield* Effect.forkChild(host.restart("example/audit", { drain: 20, ...ctx("c-b") }))
@@ -167,6 +168,8 @@ describe("interruption before intent (BEH-BR-067, 188)", () => {
         expect(mine.map((r) => r.phase)).toEqual(["requested", "failed"])
         expect(mine[1]!.error?._tag).toBe("Interrupted")
       }
+      yield* Deferred.succeed(release, undefined)
+      yield* Fiber.join(removal)
     })))
   })
 })

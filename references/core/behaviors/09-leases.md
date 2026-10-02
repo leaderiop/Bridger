@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-09                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-10-02): Builds and finalizers carry HeldPlugins (forks they await too, not fibers forked into the activation scope); WouldDeadlock rechecked at linearization and raised by `retry`/`enable`; DrainTimeout `id`/`target`, `leases` 0 while waiting on a build; one parking rule; no-caller cascades revoke (CCR-BR-008)<br>0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -288,10 +288,39 @@ REQUIREMENT: `remove`, `replace`, `restart` and `disable` MUST wait for the
 
 ```
 REQUIREMENT: When the drain limit expires without `force`, the call MUST fail
-             with `DrainTimeout { id, leases }`, where `leases` is the number
-             still held. The plugin MUST remain `stopping` and unavailable to
-             new consumers, and the operation MAY be repeated with a longer
-             `drain` or with `force: true`.
+             with `DrainTimeout { id, leases, target? }`, where `id` names the
+             plugin (or `Generation`) whose leases did not drain, or whose
+             running transition step the call was waiting for, `leases` is
+             the number still held on it (0 when the call was waiting for a
+             build step), and `target` names the plugin the call named,
+             present exactly when it differs from `id`. The plugin MUST
+             remain `stopping` and unavailable to new consumers, its stop
+             parked (08 — Operation Legality, BEH-BR-074), and the operation
+             MAY be repeated with a longer `drain` or with `force: true`.
+```
+
+```
+REQUIREMENT: When a call fails with `DrainTimeout`, every stop it drives that
+             has not settled — its own stop and every dependency-loss stop
+             it started, at any depth — MUST park in the same revision
+             (08 — Operation Legality, BEH-BR-079). Only the call under whose
+             options the drain ran MUST fail; another cascade waiting on that
+             stop MUST then find it parked and resume it under its own
+             options (BEH-BR-080).
+```
+
+```
+REQUIREMENT: While a stopping call waits for a dependent's running
+             transition step — a build or a stop (08 — Operation Legality,
+             BEH-BR-079) — its own drain limit MUST run. When the limit
+             expires without `force`, the call MUST fail with `DrainTimeout`
+             naming that dependent in `id` (`leases` 0 when the step is a
+             build), and every stop it drives that has not settled MUST park
+             as the previous requirement states; the dependent's step
+             continues under its owner's options. With `force`, the
+             dependent's remaining leases MUST be revoked (BEH-BR-086). For a
+             cascade with no caller at its root, an expiry while it waits for
+             a build step MUST continue the wait under `buildTimeout`.
 ```
 
 ```
@@ -301,7 +330,11 @@ REQUIREMENT: An unbounded drain MUST be requested explicitly with
 ```
 
 ```
-REQUIREMENT: A `DrainTimeout` MUST emit a `drain-timeout` host event.
+REQUIREMENT: A `DrainTimeout` MUST emit a `drain-timeout` host event whose
+             `pluginId` is the error's `id` and whose `target` is the error's
+             `target`, and each stop that parks MUST emit a `stop-parked`
+             event whose `target` names the plugin named by the one failing
+             call (13 — Observability and Diagnostics).
 ```
 
 A lease is held for as long as a callback runs, so a stuck callback would
@@ -312,8 +345,24 @@ back to `active`: the provider has already been hidden from new consumers and
 its dependents have already stopped, and silently republishing it would undo
 a removal the caller asked for.
 
-How a `DrainTimeout` interacts with the per-plugin operation lock and with a
+How a `DrainTimeout` interacts with the per-plugin operation order and with a
 repeated call is specified in [08 — Operation Legality](./08-operation-legality.md).
+A cascading call's total wait is bounded by its own drain limit for the
+plugin it named and for each plugin on the dependency path below it, plus
+`buildTimeout` for each build step it waits for: its own limit runs while it
+waits, so another call's limit — even `drain: "forever"` — does not add to it.
+Finalizer running time is not bounded by the core
+([12 — Shutdown and Hosting](./12-shutdown-and-hosting.md), BEH-BR-107), so
+the bound holds for finalizers that return.
+
+**Settled here.** When a call fails with `DrainTimeout`, every stop it was
+driving parks with it, at any depth (CCR-BR-008). A dependency-loss stop that
+the failing call started and left running would have no call driving it and
+no limit of its own; parking it makes it visible (`parked` true) and lets the
+next call, cascade or shutdown resume it. Only the call whose options the
+drain ran under fails: another cascade waiting on the same stop is not told
+`DrainTimeout` for a limit it did not set, and resumes the parked stop under
+its own options.
 
 ## BEH-BR-086: Force revokes leases, and revocation is reported and audited
 
@@ -361,8 +410,21 @@ REQUIREMENT: Every revocation MUST be reported as a `lease-revoked` host
 ```
 REQUIREMENT: `force` MUST NOT be applied unless the caller passed
              `force: true`, except where this specification names a path
-             with no caller: the runtime failure transition (BEH-BR-095)
-             and the overall shutdown limit (behaviour 12).
+             with no caller: the runtime failure transition (BEH-BR-095),
+             the overall shutdown limit (behaviour 12), and a cascade whose
+             root is a runtime failure, a dependency-loss stop with no
+             operator call at its root, or shutdown (08 — Operation
+             Legality, BEH-BR-080). On such a path the host MUST revoke the
+             leases still held when the drain limit expires — for shutdown,
+             only once the overall shutdown limit has passed (BEH-BR-107) —
+             and MUST NOT park the stop, including a parked stop that the
+             path resumes.
+```
+
+```
+REQUIREMENT: A path whose cascade root is an operator call MUST NOT revoke
+             without that call's `force: true`: on expiry it MUST fail the
+             call with `DrainTimeout` and park the stop (BEH-BR-085).
 ```
 
 Interruption does **not** undo external effects. A callback interrupted
@@ -428,19 +490,35 @@ REQUIREMENT: A fiber holding a lease on plugin P, and every fiber it forks,
 ```
 
 ```
-REQUIREMENT: From such a fiber, any call that would wait for P to drain MUST
-             fail immediately with `WouldDeadlock { id }` without recording
-             intent: `remove`, `replace`, `restart`, `disable` or
-             `reconfigure` of P; the same operations on any provider whose
+REQUIREMENT: A fiber running plugin P's `build` or one of the finalizers of
+             P's activation scope MUST carry P's ID in
+             `@bridger/core/HeldPlugins`, and so MUST every fiber it forks
+             and awaits before returning. Fibers forked into the activation
+             scope (`background`, `whenAvailable`) MUST carry only the
+             leases they hold.
+```
+
+```
+REQUIREMENT: From such a fiber, any call that would wait for P to drain, or
+             for a transition step of P, MUST fail immediately with
+             `WouldDeadlock { id }` without recording intent: `remove`,
+             `replace`, `restart`, `disable` or `reconfigure` of P; `retry`
+             or `enable` of P while a system stop of P is running
+             (08 — Operation Legality, BEH-BR-073); `remove`, `replace`,
+             `restart`, `disable` or `reconfigure` of any provider whose
              stopping would first stop P; and `awaitIdle`.
 ```
 
 ```
-REQUIREMENT: The check MUST be decided before the call waits for anything a
-             held lease can block: a step on its target, a step on a
-             dependent, or the call in flight it would join. A call from
-             such a fiber on a plugin whose stop would not wait for P MUST
-             NOT wait for P's drain (08 — Operation Legality, BEH-BR-078).
+REQUIREMENT: For a mutating call, the check MUST be made at step 7 of
+             BEH-BR-188, before the call waits for anything a carried plugin
+             can block — a step on its target, a step on a dependent, or the
+             call in flight it would join — and MUST be made again at the
+             linearization point, before the intent is recorded, since only
+             there is it known whether the call joins an operation in
+             flight. A call from such a fiber on a plugin whose stop would
+             not wait for P MUST NOT wait for P's drain or step
+             (08 — Operation Legality, BEH-BR-078).
 ```
 
 ```
@@ -454,23 +532,42 @@ REQUIREMENT: The check MUST follow the carried reference only. This
              deadlock is detected.
 ```
 
-The limit is real and stated: a wait that goes through another fiber — a
-callback that awaits a fiber which did not inherit the reference and which
-then calls `remove` — cannot be detected. `DrainTimeout` (BEH-BR-085) is the
-only backstop for it, exactly as for any stuck lease. Failing fast where the
-reference makes the cycle visible turns the commonest case (a callback that
-removes its own provider) from a hang into a typed error.
+A cycle of waits can be closed only by code that runs inside a lease, a build
+or a finalizer and calls the host: the host's own transitions wait only along
+dependency edges (08 — Operation Legality, BEH-BR-078). The carried reference
+catches such a call anywhere in the fiber tree that inherited it. The limit is
+real and stated: a wait that goes through another fiber — a callback that
+hands work to a fiber which did not inherit the reference and which then
+calls `remove` — cannot be detected. That residual is RSK-BR-011's; it is
+bounded by the drain limits (BEH-BR-085) and by `buildTimeout`, exactly as
+for any stuck lease or build. Failing fast where the reference makes the cycle
+visible turns the commonest cases — a callback that removes its own provider,
+a build or finalizer that restarts its own plugin — from a hang into a typed
+error.
 
 **Settled here.** SPEC.md's re-entrancy list did not name `reconfigure`.
 Because `reconfigure` restarts through the same stop path as `replace`
 ([11 — Configuration](./11-configuration.md)), it waits for P to drain and is
 included. For a mutating call, `WouldDeadlock` is decided after the
 `requested` record and before intent is recorded (step 7 of the order in
-[22 — Attributable Operations](./22-attributable-operations.md), BEH-BR-188),
-so the call changes nothing
+[22 — Attributable Operations](./22-attributable-operations.md), BEH-BR-188,
+and again at the linearization point), so the call changes nothing
 and, with a sink wired, ends with a `failed` terminal record; this keeps one
 `requested` and one terminal record per call
 ([INV-BR-022](../invariants.md#inv-br-022-one-requested-and-one-terminal-record-per-mutating-call)).
+
+**Settled here.** SPEC.md attached `HeldPlugins` to lease holders only. A
+`build` that calls `restart` on its own plugin, or a finalizer that calls
+`remove` on it, waits for its own transition step just as a callback that
+removes its own provider waits for its own drain. Builds and finalizers
+therefore carry their plugin's ID as well (CCR-BR-008), and the check is
+repeated at the linearization point because a join, which waits for the
+step in flight, is decided only there. The ID passes to the fibers a build or
+finalizer forks and awaits, since their wait is the step's wait; it does not
+pass to the fibers forked into the activation scope (`background`,
+`whenAvailable`), which outlive the build and do not hold up its step — they
+carry only the leases they hold. `retry` and `enable` are on the list because
+they wait for a running system stop of their plugin.
 
 ---
 

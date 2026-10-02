@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-02                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -90,7 +90,7 @@ Plugin.Config      // "@bridger/core/Plugin.Config"   — per activation, input 
 Bridger.Events     // "@bridger/core/Events"          — typed event bus, a base service (16)
 
 // Context.Reference values (identifiers and defaults are exact)
-HeldPlugins        // "@bridger/core/HeldPlugins"   ReadonlySet<string>, default: empty set (09)
+HeldPlugins        // "@bridger/core/HeldPlugins"   ReadonlySet<string>, default: empty set (09; leases, builds, finalizers)
 ActivePlugin       // "@bridger/core/ActivePlugin"  default: none (13)
 CurrentActor       // "@bridger/core/CurrentActor"  default: Actor.unattributed (22)
 ```
@@ -131,7 +131,7 @@ beside them.
 interface BridgerOptions<EBase = never> {
   readonly base?: Context.Context<any> | Layer.Layer<any, EBase>  // stable application services (BEH-BR-012)
   readonly config?: ConfigSource                       // default: the ambient ConfigProvider (11)
-  readonly concurrency?: number | "unbounded"          // concurrent builds and independent stops; default 4 (05)
+  readonly concurrency?: number | "unbounded"          // concurrent builds only; stops take no slot; default 4 (05, 06)
   readonly buildTimeout?: Duration.Input               // per build; default 60 seconds (05)
   readonly drainTimeout?: Duration.Input | "forever"   // lease drain on stop; default 30 seconds (09)
   readonly shutdownTimeout?: Duration.Input            // host close; default 60 seconds (12)
@@ -250,7 +250,7 @@ interface Host {
     Effect.Effect<void, ReplaceError | UnknownPlugin | Conflict | Superseded | CleanupError
       | DrainTimeout | WouldDeadlock | HostClosed | G>                                           // 07
   retry(ref: PluginRef, options?: OperationOptions):
-    Effect.Effect<void, UnknownPlugin | Conflict | HostClosed | G>                               // 07
+    Effect.Effect<void, UnknownPlugin | Conflict | WouldDeadlock | HostClosed | G>               // 07
   reconfigure(ref: PluginRef, config?: unknown, options?: OperationOptions):
     Effect.Effect<void, UnknownPlugin | ConfigInvalid | Conflict | Superseded | CleanupError
       | DrainTimeout | WouldDeadlock | HostClosed | G>                                           // 11
@@ -261,7 +261,7 @@ interface Host {
     Effect.Effect<void, UnknownPlugin | Conflict | Superseded | CleanupError
       | DrainTimeout | WouldDeadlock | HostClosed | G>                                           // 07
   enable(ref: PluginRef, options?: OperationOptions):
-    Effect.Effect<void, UnknownPlugin | Conflict | InstallError | HostClosed | G>                // 07
+    Effect.Effect<void, UnknownPlugin | Conflict | InstallError | WouldDeadlock | HostClosed | G> // 07
   reconcile(desired: readonly DesiredPlugin[], options?: ReconcileOptions & OperationOptions):
     Effect.Effect<ReconcileReport, Unattributed | ReasonRequired | AuditUnavailable | HostClosed> // 18; gate refusals are per entry
   defineRealm(id: string, options: RealmOptions, operation?: OperationOptions):
@@ -338,7 +338,7 @@ and `lease` carry no `HostClosed`: after shutdown begins every provider is
 stopping or gone, and they fail with `ServiceUnavailable`
 ([09 — Leases](./09-leases.md)).
 
-**Settled here.** The error unions differ from SPEC.md in five places, each to
+**Settled here.** The error unions differ from SPEC.md in six places, each to
 make a reachable outcome representable rather than leave it to a defect or to
 a silent success:
 
@@ -364,6 +364,10 @@ a silent success:
    Confluence](./18-reconciliation-and-confluence.md) (gate refusals are
    reported per entry in `ReconcileReport.rejected`, never as an error of the
    call); every other mutating operation adds the GxP errors (BEH-BR-014).
+6. `retry` and `enable` add `WouldDeadlock` (CCR-BR-008): either can wait
+   for a running system stop of the plugin it names (08 — Operation
+   Legality, BEH-BR-073), and a call from a fiber that holds that plugin
+   would wait for itself ([09 — Leases](./09-leases.md), BEH-BR-088).
 
 ## BEH-BR-014: Every mutating operation takes OperationOptions and reports the GxP errors
 

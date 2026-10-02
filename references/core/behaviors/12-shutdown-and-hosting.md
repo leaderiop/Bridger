@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-12                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -38,7 +38,8 @@ shutdown(options?: { readonly timeout?: Duration.Input } & OperationOptions):
 ```
 REQUIREMENT: `shutdown` MUST stop every plugin that has a live activation
              scope, dependents before their providers, with independent
-             subtrees stopping concurrently up to `concurrency`.
+             subtrees stopping concurrently. Stops MUST NOT take a
+             `concurrency` slot (05 — Activation, BEH-BR-034).
 ```
 
 ```
@@ -52,6 +53,53 @@ REQUIREMENT: The whole shutdown MUST be bounded by `options.timeout`, default
 REQUIREMENT: Plugins with nothing to stop — `disabled`, `waiting`, and
              `failed` plugins whose scope is already closed — MUST be
              skipped by the stop sequence.
+```
+
+```
+REQUIREMENT: Shutdown MUST resume every parked stop — a parked operation or
+             a parked system stop (08 — Operation Legality, BEH-BR-074) —
+             under its own limits: the drain under `drainTimeout`, then
+             revocation once the overall limit has passed (BEH-BR-107). It
+             MUST NOT leave any stop parked, and the plugin's snapshot
+             `reason` MUST become "shutdown" in the revision in which
+             shutdown resumes it (04 — States and Snapshots, BEH-BR-027).
+             Each resumption MUST emit a `stop-resumed` event with `by`
+             "shutdown" and, when it ends a parked operator intent,
+             `endsIntent` (13 — Observability and Diagnostics).
+```
+
+```
+REQUIREMENT: When shutdown resumes a parked operation, the parked operator
+             intent MUST end in that revision: its remaining actions MUST
+             NOT run, the call that parked it MUST NOT receive a further
+             terminal record, the reservations of a parked `replace` MUST be
+             released (07 — Replacement and Reactivation, BEH-BR-050), and
+             every override change made under the intent MUST revert
+             (11 — Configuration, BEH-BR-101). In the same revision the
+             host MUST write the system record `intent-ended` with `target`
+             the plugin, `endsIntentOf` the `recordId` of the parked call's
+             `requested` record, `configChange.paths` of every reverted
+             override path (paths only), and as `causationId` the `recordId`
+             of the `requested` record of `shutdown` (23 — Audit Sink and
+             Record; 22 — Attributable Operations, BEH-BR-190).
+```
+
+```
+REQUIREMENT: Once shutdown has begun, a drain expiry MUST NOT park any stop,
+             whoever began it: shutdown MUST take the stop over under its own
+             limits, and a call still waiting on that stop MUST complete with
+             `HostClosed` (08 — Operation Legality, BEH-BR-075).
+```
+
+```
+REQUIREMENT: Every stop shutdown drives, including the stops of dependents
+             it cascades into, is a stop with no caller: it MUST drain under
+             `drainTimeout`, MUST revoke only once the overall shutdown limit
+             has passed (BEH-BR-107), MUST NOT park, and its system records
+             MUST carry as
+             `causationId` the `recordId` of the `requested` record of
+             `shutdown` (22 — Attributable Operations, BEH-BR-190;
+             10 — Runtime Failure and Health, BEH-BR-095).
 ```
 
 ```
@@ -76,6 +124,22 @@ caller waits, the overall limit eventually forces the remaining leases
 (including the caller's, which interrupts its wait), and shutdown completes
 and delivers its report to `onClose`. `shutdown` therefore does not fail with
 `WouldDeadlock`.
+
+**Settled here.** A parked stop waits for an operator call; once shutdown
+has begun, every such call fails with `HostClosed`
+([08 — Operation Legality](./08-operation-legality.md), BEH-BR-075), so
+nothing but shutdown could ever resume it. Shutdown therefore resumes parked
+stops of every kind under its own limits and revokes once the overall limit
+passes, exactly as it does for any other plugin (CCR-BR-008). For the same
+reason no stop parks once shutdown has begun: a stop whose drain expires then
+is taken over by shutdown, and a call still waiting on it is answered with
+`HostClosed`, since nothing could resume it. A parked intent that shutdown ends
+gets its own `intent-ended` record, written when it ends, so the trail shows
+that the operator's change will not happen — with the reverted override
+paths, if any — before the plugin's `system-stop` record, which is an ordinary
+one caused by the shutdown. A drain that expired before shutdown and expires
+again during it is reported in `CloseReport.failed` with cause "drain" like
+any other.
 
 ## BEH-BR-106: CloseReport reports every failure
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -78,7 +78,71 @@ caller stops waiting.
 
 ### Linearization
 
-Operations on one plugin take effect in call order, one transition at a time.
+Operations on one plugin take effect in call order, one transition step at a
+time, with at most one operator operation in flight on the plugin. There is no
+host-wide order: operations on different plugins never wait for each other,
+except that a provider's stop waits for its dependents' stops (a cascade)
+([behaviour 08](./behaviors/08-operation-legality.md), BEH-BR-078).
+
+### Transition step
+
+One build, or one stop, of one plugin; at most one runs per plugin at a time.
+A **stop step** begins when the plugin becomes `stopping` and includes waiting
+for its dependents' stops, its lease drain and its scope close. Not to be
+confused with a numbered step of the call order of BEH-BR-188, which is always
+cited with its number.
+
+### Operation in flight
+
+An operator operation on a plugin from its linearization point until it
+completes or its intent is ended (BEH-BR-080), including while its stop is
+parked. A call that resumes a parked system stop is in flight from the
+resumption. At most one is in flight per plugin; what an incoming call does
+meanwhile is given by the in-flight operation table (BEH-BR-072). `inspect`
+reports it as `pending`.
+
+### System transition, system stop
+
+A transition no operator call asked for: an automatic start, a
+dependency-loss or runtime-failure stop, a child mount or removal by its
+parent, or shutdown's stops. A **system stop** is such a stop; it is audited as
+a system record attributed to `Actor.system`, never gated.
+
+### Cascade, cascade root, cascading call
+
+A **cascade** is the stop of a dependent that a provider's stop requires
+(BEH-BR-043), whatever began that stop. The **cascade root** is what began the
+provider's stop: an operator call (the **cascading call**), a runtime failure,
+a dependency-loss stop, or shutdown. An **operator-rooted** cascade — one whose
+root is an operator call — drains under that call's `drain` and `force`; a
+cascade whose root has no caller drains under `drainTimeout`, never parks, and
+revokes on expiry (shutdown: only once its overall limit has passed).
+
+### Parked, parked operation, parked system stop
+
+A stop is **parked** when its drain expired without `force`, or when the call
+driving it failed with `DrainTimeout` and left it unsettled, and it waits for a
+call, a cascade or shutdown to resume it; the plugin stays `stopping` with
+`parked` true. When a call fails with `DrainTimeout`, every stop it drives that
+has not settled — its own stop and every dependency-loss stop it started, at
+any depth — parks in the same revision; only that call fails. A **parked
+operation** is an operator operation's parked stop; a **parked system stop** is
+a parked dependency-loss stop. Only stops driven by an operator call — its own
+stop, or a cascade whose root is an operator call — park, and none parks once
+shutdown has begun. A parked operation resumes when a call joins or supersedes
+it, a parked system stop when a `remove`, `replace`, `restart`, `disable` or
+`reconfigure` arrives on the plugin, and either kind when a cascade needs it or
+at shutdown.
+
+### Ended intent
+
+A parked operator intent that a cascade or shutdown ends when it resumes the
+stop (BEH-BR-080): its remaining actions never run, a `replace`'s reservations
+are released and every override change made under it reverts, in the same
+revision, in which the host writes an `intent-ended` system record whose
+`endsIntentOf` is the `recordId` of the parked call's `requested` record. A
+call that instead resumes a parked operation by joining or superseding it
+records `resumes`, naming that same record, on its own terminal record.
 
 ### Legality table
 
@@ -97,9 +161,13 @@ limit.
 
 ### Drain, force, revocation
 
-**Draining** is waiting for leases to end before closing a provider. When the
-drain limit passes, **force** interrupts the remaining lease holders; that
-interruption is a **revocation** (`LeaseRevoked`).
+**Draining** is waiting for leases to end before closing a provider, bounded by
+the drain limit (`drain`, default `drainTimeout`). When the limit passes,
+**force** interrupts the remaining lease holders; that interruption is a
+**revocation** (`LeaseRevoked`). Without `force`, an operator call fails with
+`DrainTimeout` and every stop it drives that has not settled parks; a stop
+with no caller at its cascade root revokes instead (shutdown: once its overall
+limit has passed).
 
 ### Generation
 

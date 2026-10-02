@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-18                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -64,8 +64,8 @@ interface ReconcileReport {
     readonly id: string
     readonly reason:
       | InstallError | ConfigInvalid | OperationRejected
-      // Settled here (BEH-BR-157): an admitted entry action that then fails
-      // operationally is reported too, never dropped.
+      // Settled here (BEH-BR-157): an entry action that passes step 6 of
+      // BEH-BR-188 and then fails operationally is reported, never dropped.
       | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock
   }[]
 }
@@ -258,16 +258,32 @@ prevent.
 
 ```
 REQUIREMENT: `reconcile` MUST compute its diff against the host state at the
-             moment the call is admitted, and then act in this fixed order:
-             first the prune removals, in reverse dependency order; then the
-             entries, in list order.
+             moment its intent is recorded (below), and then act in this
+             fixed order: first the prune removals, in reverse dependency
+             order; then the entries, in list order.
 ```
 
 ```
 REQUIREMENT: Calls to `reconcile` on one host MUST be serialized in call
-             order: a reconcile is admitted only after the previous one has
-             completed. Other host operations are not blocked and interleave
-             under the per-plugin linearization of 08 — Operation Legality.
+             order: a reconcile's intent is recorded only after the previous
+             reconcile has completed. Other host operations are not blocked
+             and interleave under the per-plugin linearization of
+             08 — Operation Legality.
+```
+
+```
+REQUIREMENT: A `reconcile` call's parent `requested` record MUST be enqueued
+             once the call passes steps 1–3 of BEH-BR-188, and its intent
+             MUST be recorded when that record has been written and its turn
+             in the serialization above has begun (with no sink wired, when
+             its turn begins). An interruption of the caller before the
+             intent MUST be treated as 22 — Attributable Operations,
+             BEH-BR-188 states for any call: no record while steps 1–3 run;
+             a parent `failed` (`Interrupted`) terminal record once the
+             parent `requested` record is enqueued; no change in either
+             case. An interruption after the intent MUST end only the
+             caller's wait: the remaining entry actions MUST still be
+             issued, and the parent terminal record MUST still be written.
 ```
 
 ```
@@ -293,6 +309,18 @@ reconciles may overlap. Overlapping reconciles would each diff against a
 state the other is changing; serializing them per host removes that race
 without touching ordinary operations.
 
+**Settled here.** A `reconcile` has no linearization point of its own: it is
+not addressed to one plugin, and each entry action meets the linearization
+point of its plugin separately. Its intent — the diff, and the decision to
+issue the actions it implies — is therefore recorded with its parent
+`requested` record, once its turn begins. From then on it behaves like any
+call whose intent is recorded (INV-BR-010): a caller that stops waiting does
+not leave a batch half-issued and unexplained, because the remaining entries
+still run and the parent terminal record still closes the batch in the trail.
+The parent record cannot be ended early in its place: entry actions already
+issued would then have no parent outcome, and the ones still to come would
+be silently dropped.
+
 ## BEH-BR-157: Errors are per entry, and the report accounts for every entry
 
 > **See:** [ADR-BR-023](../decisions/023-desired-state-reconcile.md)
@@ -300,10 +328,10 @@ without touching ordinary operations.
 
 ```
 REQUIREMENT: An entry whose action fails validation, is refused by the gate,
-             or is admitted and then fails MUST be reported in `rejected` with
-             the error, MUST receive no further actions in this call, and MUST
-             NOT stop the other entries — except as stated below for audit
-             unavailability.
+             or passes step 6 of BEH-BR-188 and then fails MUST be reported
+             in `rejected` with the error, MUST receive no further actions in
+             this call, and MUST NOT stop the other entries — except as
+             stated below for audit unavailability.
 ```
 
 ```
@@ -346,18 +374,19 @@ others". For audit unavailability that rule is reversed: once one entry's
 change cannot be recorded, continuing would only produce a run of further
 refusals or, worse, a partially recorded batch. The completed actions are not
 undone, because each is an ordinary operation with its own pair of records,
-and an automatic reversal would itself be an unrequested change. A caller
-that fails with `AuditUnavailable` reads the snapshot (and, once the sink is
-back, the trail) to see how far the batch went. (2) The latch is checked once
-for the call, but a latch that becomes set *during* the call also stops it:
+and an automatic reversal would itself be an unrequested change. A caller that
+fails with `AuditUnavailable` reads the snapshot (and, once the sink is back,
+the trail) to see how far the batch went. (2) The latch is checked once for
+the call, but a latch that becomes set *during* the call also stops it:
 continuing would issue operator-initiated changes while the host is in the
-state [INV-BR-029](../invariants.md#inv-br-029-the-audit-degraded-latch-blocks-operator-mutations)
-exists to block. (3) An admitted entry action that then fails operationally
-(`Conflict`, `Superseded`, `UnknownPlugin`, `CleanupError`, `DrainTimeout`,
-`WouldDeadlock`) is reported in `rejected` with that error; the
-`InstallError | ConfigInvalid | OperationRejected` union is extended by those
-tags, because dropping such an entry from the report would hide a change that
-was requested, recorded as `failed`, and not made.
+state
+[INV-BR-029](../invariants.md#inv-br-029-the-audit-degraded-latch-blocks-operator-mutations)
+exists to block. (3) An entry action that passes step 6 of BEH-BR-188 and then
+fails operationally (`Conflict`, `Superseded`, `UnknownPlugin`,
+`CleanupError`, `DrainTimeout`, `WouldDeadlock`) is reported in `rejected`
+with that error; the `InstallError | ConfigInvalid | OperationRejected` union
+is extended by those tags, because dropping such an entry from the report
+would hide a change that was requested, recorded as `failed`, and not made.
 
 ## BEH-BR-158: Each entry action is gated and audited on its own
 
@@ -376,10 +405,21 @@ REQUIREMENT: The `reconcile` call MUST run steps 1–3 of BEH-BR-188 (host
 ```
 
 ```
-REQUIREMENT: The attribution check of the call MUST apply `requireReason` to
-             `reconcile` and to every operation the computed diff would
-             issue. When any of them requires a reason and the context has
-             none, the call MUST fail with `ReasonRequired` before any entry
+REQUIREMENT: The attribution check of the call (step 2 of BEH-BR-188) MUST
+             apply `requireReason` to `reconcile` and to every operation of
+             a provisional diff computed against the host state at the
+             call. When any of them requires a reason and the context has
+             none, the call MUST fail with `ReasonRequired` and MUST write no
+             record.
+```
+
+```
+REQUIREMENT: When the intent is recorded, the diff is recomputed
+             (BEH-BR-156). When the recomputed diff issues an operation that
+             is listed in `requireReason` and the provisional diff did not,
+             and the context has no reason, the call MUST fail with
+             `ReasonRequired`, MUST write a parent `failed` terminal record
+             with that error (`children: 0`), and MUST issue no entry
              action.
 ```
 
@@ -428,7 +468,15 @@ request from that approval — but core never collapses the decisions for it.
 `requireReason` rule naming, say, `remove` would otherwise never be applied to
 a prune. Applying it to every operation the diff would issue — computed
 before any change — keeps the rule meaning the same whether a removal is
-requested directly or through a list.
+requested directly or through a list. The diff that is acted on is the one
+computed at the intent, and the host may change between the call and the
+intent (another operator's call, or the previous reconcile in the
+serialization). The check at step 2 therefore runs on a provisional diff, so
+that the common refusal leaves no record; and the recomputed diff is checked
+again at the intent, where a newly needed reason fails the call with a
+recorded `failed` (`ReasonRequired`) terminal record — the parent `requested`
+record already exists and must be answered — before any entry runs (URS gap
+G16, second review pass).
 
 ## BEH-BR-159: Reconcile is idempotent and convergent
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-015                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): `DrainTimeout` fields and parking aligned with BEH-BR-074 and BEH-BR-085; second pass: `id` also names a dependent whose build the call waited for, every unsettled stop of a failing call parks, shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -28,7 +28,7 @@ SPEC.md also offers three entry points: `use` (one key, one callback), `useAll` 
 
 1. **One primitive.** `lease(keys, { realm })` is the primitive: all-or-nothing, it returns the services for the lifetime of the caller's `Scope` and releases them when the scope closes; if any key is unavailable it fails with `ServiceUnavailable` and holds nothing. `use` and `useAll` are `Effect.scoped(lease(keys))` plus a supervised child: the callback runs via `Effect.forkChild` and the caller joins it. There is one admission, drain and revocation path.
 2. **Canonical order.** Multi-key leases are acquired in a canonical key order, so two concurrent `useAll` calls cannot deadlock each other.
-3. **Bounded drain.** `remove`, `replace`, `restart` and `disable` wait for leases up to `drain` (default the host's `drainTimeout`, 30 seconds). On expiry the call fails with `DrainTimeout { id, leases }`; the plugin stays `stopping`, hidden from new consumers, and the call can be repeated with a longer `drain` or with `force`. `drain: "forever"` is allowed only when written explicitly.
+3. **Bounded drain.** `remove`, `replace`, `restart` and `disable` wait for leases up to `drain` (default the host's `drainTimeout`, 30 seconds). On expiry the call fails with `DrainTimeout { id, leases, target? }` — `id` names the plugin whose leases did not drain, or whose running transition step the call was waiting for (`leases` 0 for a build), `target` the plugin the call named when that differs — and every stop the call drives that has not settled parks: each plugin stays `stopping`, hidden from new consumers, until a call, a cascade or shutdown resumes it ([08 — Operation legality](../behaviors/08-operation-legality.md), BEH-BR-074, BEH-BR-079). The operator resumes it by repeating the call with a longer `drain` or with `force`. Paths with no caller revoke instead of parking ([ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)); shutdown never parks and revokes only once its overall limit has passed. `drain: "forever"` is allowed only when written explicitly.
 4. **Force.** With `force: true`, after the drain limit the host interrupts the remaining callbacks, waits for their finalizers, then closes the scope. Interrupted callbacks fail with `LeaseRevoked`. Forcing is *reported* as a host event (`lease-revoked`); with an `AuditSink` wired it is *also* an audit record (system transition `lease-revoked`). (SPEC.md said "audited as a host event"; a host event is a diagnostic, not an audit record, so the wording is corrected.) Interruption does not undo external effects.
 5. **Supervised child edge rules.** The host never interrupts the caller's own fiber. If the caller is interrupted while the callback runs, the host interrupts the child, awaits its finalizers, and only then releases the lease. The child inherits the caller's fiber references (span, log annotations, `@bridger/core/HeldPlugins`, `@bridger/core/CurrentActor`) and `R` environment. The callback's own failures and defects propagate unchanged; `LeaseRevoked` and `LeaseTimeout` appear only when the host interrupted the child. Fibers the callback forks outside the child's scope are not leased.
 6. **Per-call timeout.** `options.timeout` bounds one callback; expiry interrupts the child and fails with `LeaseTimeout { serviceId, timeout }` (built on `Effect.timeoutOrElse` over the supervised child).

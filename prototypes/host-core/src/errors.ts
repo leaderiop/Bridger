@@ -12,7 +12,8 @@ export class UnknownPlugin extends Schema.TaggedError<UnknownPlugin>()("UnknownP
 export class Conflict extends Schema.TaggedError<Conflict>()("Conflict", { id: Schema.String, pending: Schema.String }) {}
 export class HostClosed extends Schema.TaggedError<HostClosed>()("HostClosed", {}) {}
 export class CleanupError extends Schema.TaggedError<CleanupError>()("CleanupError", { id: Schema.String, message: Schema.String }) {}
-export class DrainTimeout extends Schema.TaggedError<DrainTimeout>()("DrainTimeout", { id: Schema.String, leases: Schema.Number }) {}
+/** `id`: the plugin whose leases did not drain; `target`: the plugin the call named, when different (BEH-BR-085). */
+export class DrainTimeout extends Schema.TaggedError<DrainTimeout>()("DrainTimeout", { id: Schema.String, leases: Schema.Number, target: Schema.optional(Schema.String) }) {}
 export class WouldDeadlock extends Schema.TaggedError<WouldDeadlock>()("WouldDeadlock", { id: Schema.String }) {}
 export class ServiceUnavailable extends Schema.TaggedError<ServiceUnavailable>()("ServiceUnavailable", { serviceId: Schema.String }) {}
 export class LeaseRevoked extends Schema.TaggedError<LeaseRevoked>()("LeaseRevoked", { serviceId: Schema.String }) {}

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-06                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -63,10 +63,12 @@ REQUIREMENT: `remove` MUST complete successfully only once the plugin has no
 ```
 
 ```
-REQUIREMENT: Dependents of the removed plugin MUST remain installed. Each
-             one that was `starting` or `active` MUST end `waiting` with the
-             lost keys in `missingServiceIds`; `waiting`, `failed` and
-             `disabled` dependents MUST keep their state.
+REQUIREMENT: Dependents of the removed plugin MUST remain installed, except
+             its children, which MUST be removed (14 — Children and Groups,
+             BEH-BR-125). Each other dependent that was `starting` or
+             `active` MUST end `waiting` with the lost keys in
+             `missingServiceIds`; `waiting`, `failed` and `disabled`
+             dependents MUST keep their state.
 ```
 
 ```
@@ -144,12 +146,13 @@ sequenceDiagram
 ```
 
 ```
-REQUIREMENT: Before closing a provider's activation scope, the host MUST
-             stop every live dependent of it — every plugin that captured
-             one of its services, every child plugin (14 — Children and
-             Groups), and every `whenAvailable` block that holds one of its
-             services (15 — Optional and Reactive Dependencies) —
-             transitively, in reverse dependency order.
+REQUIREMENT: Before a provider's activation scope begins to close, the host
+             MUST stop every live dependent of it — every plugin that
+             captured one of its services, every child plugin, which is
+             removed as a dependent (14 — Children and Groups, BEH-BR-125),
+             and every `whenAvailable` block that holds one of its services
+             (15 — Optional and Reactive Dependencies) — transitively, in
+             reverse dependency order.
 ```
 
 ```
@@ -162,16 +165,20 @@ REQUIREMENT: Stopping one plugin MUST consist of: becoming `stopping` and
 ```
 
 ```
-REQUIREMENT: Stops of independent subtrees MAY run concurrently, up to
-             `BridgerOptions.concurrency`; stops along one dependency path
-             MUST NOT.
+REQUIREMENT: Stops of independent subtrees MAY run concurrently, without
+             limit; stops along one dependency path MUST NOT. A stop MUST
+             NOT take or wait for a `concurrency` slot, which bounds builds
+             only (05 — Activation, BEH-BR-034; 08 — Operation Legality,
+             BEH-BR-078).
 ```
 
 ```
 REQUIREMENT: Each dependent stopped because its provider is leaving MUST
              show `stopping` with `reason` "dependency-loss", and MUST then
              go to `waiting`, or to `starting` when a replacement provider
-             is already available (07 — Replacement and Reactivation).
+             is already available (07 — Replacement and Reactivation). A
+             child of the leaving provider MUST instead be removed, whatever
+             services it holds (14 — Children and Groups, BEH-BR-125).
 ```
 
 Closing a provider first would leave each dependent holding a captured
@@ -182,8 +189,12 @@ withdrawal, made bounded by the drain limit.
 
 A child plugin removed because its parent stops is a consequence of the
 parent's activation, not an operator decision: it is audited as a
-`system-stop` whose `causationId` is the parent's triggering record
-([22 — Attributable Operations](../behaviors/22-attributable-operations.md)).
+`system-stop` whose `causationId` is the cascade root's record, as
+[22 — Attributable Operations](../behaviors/22-attributable-operations.md)
+(BEH-BR-190) gives it — when the parent was stopped directly by an operator
+call, that call's `requested` record. Children are removed as dependents,
+before the parent's scope begins to close, never by the parent's own
+finalizers.
 
 ## BEH-BR-044: The spatial guarantee
 
@@ -218,9 +229,22 @@ also released in the reverse of the order it acquired them.
 ```
 REQUIREMENT: When the lease drain of a removal exceeds `drain` (default
              `BridgerOptions.drainTimeout`) and `force` is not set, `remove`
-             MUST fail with `DrainTimeout { id, leases }`, and the plugin
-             MUST stay `stopping`, hidden from new consumers. It MUST NOT be
-             republished.
+             MUST fail with `DrainTimeout { id, leases, target? }`, and the
+             plugin MUST stay `stopping`, hidden from new consumers, with its
+             stop parked (08 — Operation Legality, BEH-BR-074). It MUST NOT
+             be republished. The same MUST hold for every operation that
+             stops a plugin — `replace`, `restart`, `reconfigure` and
+             `disable`.
+```
+
+```
+REQUIREMENT: When a call fails with `DrainTimeout`, every stop it drives that
+             has not settled — its own stop and every dependency-loss stop
+             it started, at any depth — MUST park in the same revision
+             (08 — Operation Legality, BEH-BR-079). Only the call under whose
+             options the drain ran MUST fail; another cascade waiting on that
+             stop MUST then find it parked and resume it under its own
+             options (BEH-BR-080).
 ```
 
 ```
@@ -231,21 +255,60 @@ REQUIREMENT: A `remove` that would wait for a lease held by its own fiber,
 ```
 
 ```
-REQUIREMENT: The `id` of that `DrainTimeout` MUST name the plugin whose
-             leases did not drain, which is a dependent of the removed
-             plugin when the drain that expired was the dependent's
-             (08 — Operation Legality, BEH-BR-080).
+REQUIREMENT: The `id` of that `DrainTimeout` MUST name the plugin (or the
+             `Generation`) whose leases did not drain, or whose running
+             transition step the call was waiting for; it is a dependent of
+             the named plugin when the drain or step was the dependent's
+             (08 — Operation Legality, BEH-BR-079, BEH-BR-080). `target` MUST
+             name the plugin the call named, and MUST be present exactly
+             when it differs from `id`. `leases` MUST be the number of leases
+             still held on `id`, and 0 when the call was waiting for a build
+             step.
+```
+
+```
+REQUIREMENT: While a stopping operation waits for a dependent's running
+             transition step — a build or a stop (08 — Operation Legality,
+             BEH-BR-079) — its own `drain` limit MUST run. When it expires
+             without `force`, the call MUST fail with `DrainTimeout` naming
+             that dependent (`leases` 0 when the step is a build), and every
+             stop it drives that has not settled MUST park as the previous
+             requirement states; the dependent's step continues under its
+             owner's options. With `force`, the dependent's remaining leases
+             MUST be revoked (09 — Leases, BEH-BR-086); when the step is a
+             build there is nothing to revoke, and the wait MUST continue
+             under `buildTimeout`. For a cascade with no
+             caller at its root, an expiry while it waits for a build step
+             MUST continue the wait under `buildTimeout`.
 ```
 
 How the stop of a dependent is ordered against an operation already in flight
 on that dependent is specified in
 [08 — Operation Legality](./08-operation-legality.md) (BEH-BR-079, BEH-BR-080).
+A cascading call's total wait is therefore bounded by its own drain limit for
+the plugin it named and for each plugin on the dependency path below it, plus
+`buildTimeout` for each build step it waits for; it is not the sum of another
+call's limits, since its own limit runs while it waits. Finalizer running time
+is not bounded by the core ([12 — Shutdown and
+Hosting](./12-shutdown-and-hosting.md), BEH-BR-107), so the bound assumes
+finalizers that return.
 What happens to the pending removal after a `DrainTimeout`, and how a
 repeated call resumes it, is specified in
 [08 — Operation Legality](./08-operation-legality.md); how `force` revokes
 leases, and why that is reported and audited, in [09 — Leases](./09-leases.md).
 `force` interrupts work that may be mid-write (RSK-BR-015), which is why it is
 never the default.
+
+**Settled here.** `DrainTimeout` names, in `id`, the plugin whose leases did
+not drain, and, in `target`, the plugin the call named when the two differ
+(CCR-BR-008). A caller that removed `Logger` and is told `Audit` did not drain
+can see both without parsing a message. The cascading call's own drain limit
+runs while it waits for a dependent's step, so a dependent's `drain: "forever"`
+operation cannot hold another operator's call without bound; when the step is
+a build, `leases` is 0, since nothing was left to drain. When the call fails,
+every stop it was driving parks with it: a dependency-loss stop it started
+that stayed running with no call driving it could otherwise wait for a step
+that nobody would ever resume.
 
 ## BEH-BR-046: A cleanup failure is reported, never hidden
 

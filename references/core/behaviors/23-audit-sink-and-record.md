@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-23                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -179,7 +179,13 @@ interface AuditRecord {
   readonly children?: number                       // reconcile parent terminal record only
   readonly error?: { readonly _tag: string; readonly message: string }
   readonly droppedSinceAck?: number                // acknowledgeAuditDegraded records only (BEH-BR-202)
+  readonly endsIntentOf?: string                   // intent-ended records only: recordId of the parked call's requested record (BEH-BR-199)
+  readonly resumes?: string                        // terminal record of a call that resumed a parked operation only: recordId of the parked call's requested record (BEH-BR-200)
 }
+
+// SystemTransition (22 — Attributable Operations, BEH-BR-185):
+//   "system-start" | "system-stop" | "runtime-failure" | "lease-revoked"
+//   | "health-degraded" | "intent-ended"
 ```
 
 ```
@@ -214,7 +220,10 @@ every reader. (2) `droppedSinceAck` is part of the version-1 shape. It was
 added in revision 0.2 of this file without changing `schemaVersion`: the
 specification is pre-release and no record of an earlier shape has ever been
 handed to a sink, so there is nothing for a store to tell apart. The rule of
-the third requirement above applies from the first release on.
+the third requirement above applies from the first release on. (3)
+`endsIntentOf` and `resumes`, and the `SystemTransition` value
+"intent-ended", were added in revision 0.4 on the same ground, and are part
+of the version-1 shape too.
 
 ## BEH-BR-196: What each field records
 
@@ -252,7 +261,12 @@ REQUIREMENT: `before` MUST describe the target as it was when the record was
 REQUIREMENT: `error` MUST be present on `rejected`, `failed`, `superseded`
              records and on system records that end in failure, and MUST
              carry only the tagged error's `_tag` and `message`. It MUST NOT
-             carry a cause, a stack, a fiber or a configuration value.
+             carry a cause, a stack, a fiber or a configuration value. The
+             one `error` that is not a tagged error is the record-only
+             `{ _tag: "Interrupted", message: "caller interrupted before
+             its intent was recorded" }` of a call interrupted before its
+             intent (22 — Attributable Operations, BEH-BR-188;
+             ADR-BR-008).
 ```
 
 ```
@@ -301,6 +315,26 @@ REQUIREMENT: `configChange` MUST be present on the `requested` and terminal
              corresponding `reconcile` entry actions). Paths MUST be written
              as dot-separated field paths with array indices as numbers
              ("db.pool.max", "hosts.0").
+```
+
+```
+REQUIREMENT: `configChange` MUST also be present on the terminal record of a
+             call that resumes a parked operation which stores an override —
+             a parked `reconfigure`, or a parked `restart` whose override a
+             joining `reconfigure` set (BEH-BR-200) — and its `paths` MUST be
+             the paths recorded for that override.
+```
+
+```
+REQUIREMENT: `configChange` MUST also be present on the `intent-ended` record
+             (BEH-BR-199) of an intent under which the stored override was
+             changed — by the parked call or by a call that joined it
+             (11 — Configuration, BEH-BR-101; 08 — Operation Legality,
+             BEH-BR-080). The override reverts, in the same revision, to the
+             one in effect before the first of those changes. Its `paths`
+             MUST be the reverted paths — the paths recorded for those
+             changes — and nothing else. No other system record MAY carry
+             `configChange`.
 ```
 
 ```
@@ -362,14 +396,23 @@ other value is.
 ```
 REQUIREMENT: With a sink wired, every mutating call that passes the
              attribution, latch and gate checks MUST produce exactly one
-             `requested` and one terminal record. A call refused at the gate
-             MUST produce exactly one `rejected` record and no `requested`
-             record. A call refused for attribution or by the latch, and a
-             call that fails validation before the gate (BEH-BR-188 step 4),
-             MUST produce no record. A call that passes the gate and then
-             fails — re-validation when the intent is recorded, or
-             `WouldDeadlock` (BEH-BR-188 step 7) — MUST end with a `failed`
-             terminal record.
+             `requested` and one terminal record, except a call whose
+             `requested` record is dropped because the writer's queue is
+             full (BEH-BR-202), which MUST produce no record. A call refused
+             at the gate MUST produce exactly one `rejected` record and no
+             `requested` record. A call refused for attribution or by the
+             latch, and a call that fails validation before the gate
+             (BEH-BR-188 step 4), MUST produce no record. A call that passes
+             the gate, has its `requested` record queued, and then fails
+             before its intent MUST end with a `failed` terminal record. Its
+             causes are: `AuditUnavailable` when its `requested` record was
+             not written within `auditTimeout` (BEH-BR-203); "Interrupted"
+             when the caller was interrupted after that record was enqueued
+             (BEH-BR-188); re-validation failing when the intent would be
+             recorded — for `reconcile`, a recomputed diff that needs a
+             reason the call lacks, `ReasonRequired` (18 — Reconciliation
+             and Confluence, BEH-BR-158); and `WouldDeadlock`, `Conflict` or
+             another named error decided at BEH-BR-188 step 7.
 ```
 
 ```
@@ -377,6 +420,14 @@ REQUIREMENT: The terminal record MUST be one of `completed`, `failed`,
              `superseded` or `joined`, and MUST share the `correlationId`
              and `actor` of its `requested` record (except as BEH-BR-200
              states for `joined`).
+```
+
+```
+REQUIREMENT: A call MUST have exactly one terminal record, and the first
+             terminal cause MUST win: once a terminal record has been
+             created for a call, no later event — the delayed write of its
+             `requested` record, a later outcome of an operation it parked
+             (08 — Operation Legality, BEH-BR-074) — MAY create another.
 ```
 
 ```
@@ -417,9 +468,13 @@ REQUIREMENT: With a sink wired, the host MUST write one record with phase
              - `runtime-failure` when a runtime failure is confirmed, before
                the dependents are stopped;
              - `lease-revoked` for each plugin whose leases the host revoked
-               (forced drain, runtime failure at the drain limit, shutdown);
+               (a forced drain; a drain limit reached on a path with no
+               caller — a runtime failure, or a cascade whose root is not an
+               operator call; shutdown);
              - `health-degraded` each time a plugin's health enters
-               `degraded`; leaving `degraded` is not recorded.
+               `degraded`; leaving `degraded` is not recorded;
+             - `intent-ended` each time a parked operator intent is ended
+               (below).
 ```
 
 ```
@@ -427,6 +482,37 @@ REQUIREMENT: A system record's `causationId` MUST follow BEH-BR-190, and its
              `correlationId` MUST be that of the operator call or root system
              record at the start of its causation chain; a root system record
              MUST receive a newly generated `correlationId`.
+```
+
+```
+REQUIREMENT: When a parked operator intent is ended — by a cascade that
+             resumes the parked stop (08 — Operation Legality, BEH-BR-080),
+             or by shutdown (08 — Operation Legality, BEH-BR-075;
+             12 — Shutdown and Hosting, BEH-BR-105) — the host MUST create,
+             in the revision in which the intent ends, one record with:
+             - `operation` "intent-ended", `phase` `system`, actor
+               `Actor.system` and no `reason`;
+             - `target` the plugin whose parked operation's intent ended;
+             - `endsIntentOf` the `recordId` of the `requested` record of
+               the call that parked that operation;
+             - `configChange` with the paths of every override change it
+               reverts, when it reverts any (BEH-BR-197), and otherwise no
+               `configChange`;
+             - `causationId` the cause that 22 — Attributable Operations,
+               BEH-BR-190, gives for what ended the intent: the record of
+               the cascade root, or the `requested` record of `shutdown`.
+             It MUST be created when the intent ends, not when the stop
+             later settles, so it precedes in the trail every record of
+             that stop's settling.
+```
+
+```
+REQUIREMENT: `endsIntentOf`, and the `configChange` of a reverted override,
+             MUST be carried by the `intent-ended` record only. The
+             `system-stop` written when the plugin's stop settles MUST be an
+             ordinary `system-stop`, caused by whatever drove the settling
+             (BEH-BR-190), and MUST carry neither. Every other record MUST
+             omit `endsIntentOf`.
 ```
 
 ```
@@ -467,7 +553,21 @@ time sets the latch instead (BEH-BR-205). (3) A child's mount and its
 activation are two state changes — the child becomes known, then it becomes
 `active` or `failed` — so they are two `system-start` records, told apart by
 `before`/`after` and chained by `causationId`; a reviewer who sees both is
-not looking at a duplicate.
+not looking at a duplicate. (4) When a cascade or shutdown ends a parked
+operator intent, the parked call's own correlation holds its `requested`
+record, the system records its stop step wrote before the drain expired (a
+dependent's `system-stop`, for instance) and its `failed` (`DrainTimeout`)
+record; nothing in it says that the intent later ended. The `intent-ended`
+record says so: it belongs to the correlation of the cascade root or of
+`shutdown`, and its `endsIntentOf` holds the `recordId` of the parked call's
+`requested` record, so a reviewer holding that record can find where the
+intent ended, which override paths it reverted, and that its remaining
+actions never ran. It is a record of its own, rather than a field on the
+`system-stop` of the stop that was resumed, because the intent ends when the
+stop is resumed while that `system-stop` is written only when the stop
+settles — perhaps much later, perhaps after the resumed drain expired again
+and the stop was resumed by somebody else — and a revert that happens at one
+moment must be recorded at that moment (URS gap G16, second review pass).
 
 ## BEH-BR-200: Joins, supersession and no-ops are recorded as such
 
@@ -499,6 +599,32 @@ REQUIREMENT: A call superseded by a later one MUST write a `superseded`
              to the `recordId` of the superseding call's `requested` record.
 ```
 
+```
+REQUIREMENT: The two requirements above MUST NOT apply to a resumption. A
+             call that, per 08 — Operation Legality, BEH-BR-072, joins or
+             supersedes an operation that is parked (BEH-BR-074) resumes it
+             and becomes its owner: it MUST write its own terminal record,
+             `completed` or `failed`, in its own correlation, with the
+             outcome of the resumed operation, and MUST NOT write `joined`
+             or `superseded`. The call that parked the operation MUST
+             receive no further record. The system records of the resumed
+             stop MUST carry, as `causationId`, the `recordId` of the
+             resuming call's `requested` record (22 — Attributable
+             Operations, BEH-BR-190).
+```
+
+```
+REQUIREMENT: The terminal record of a call that resumed a parked operation
+             MUST carry `resumes`: the `recordId` of the `requested` record
+             of the call that parked it. When the resumed operation stores
+             an override — a parked `reconfigure`, or a parked `restart`
+             whose override a joining `reconfigure` set — that terminal
+             record MUST also carry `configChange` with the paths recorded
+             for that override (BEH-BR-197). Its `correlationId` and
+             `causationId` MUST be those of any terminal record of the
+             resuming call. Every other record MUST omit `resumes`.
+```
+
 A no-op is still a request somebody made, and a reviewer reading "retry
 requested by J. Rivera" needs to see "and it changed nothing" rather than a
 gap. Joins and supersession are where two operators' actions meet; the
@@ -510,6 +636,19 @@ The `joined` record is the one place where `causationId` holds a correlation
 rather than a record id: the record belongs, by `correlationId`, to the
 operation that actually ran, and points back to the joining call's own
 correlation, where its `requested` record is.
+
+**Settled here.** A parked operation has no waiting caller: the call that
+parked it has already received its terminal record (BEH-BR-074). A call that
+joins or supersedes it therefore shares an outcome with nobody and overtakes
+nobody; it is the call that makes the stop move again, under its own `drain`
+and `force`. Recording it as `joined` or `superseded` would point the trail at
+a correlation whose call ended long before, so it is recorded like any call
+that ran its own operation. What it carried out, though, is somebody else's
+request — possibly an override stored under the parked call — so its
+terminal record names that request in `resumes` and the stored override's
+paths in `configChange`; a reviewer reading the resumer's correlation alone
+can then see whose change it completed and which configuration it put into
+effect (URS gap G16, second review pass).
 
 ## BEH-BR-201: The records of a reconcile
 
@@ -545,8 +684,12 @@ REQUIREMENT: Each entry action that reaches the gate MUST write its own
 ```
 
 ```
-REQUIREMENT: A parent terminal record with `children: 0` MUST carry
-             `noop: true`.
+REQUIREMENT: A parent `completed` record with `children: 0` MUST carry
+             `noop: true`. A parent `failed` record MUST NOT carry `noop`,
+             whatever its `children` count — for instance the `failed`
+             (`ReasonRequired`) record of a reconcile whose recomputed diff
+             needs a reason (18 — Reconciliation and Confluence,
+             BEH-BR-158).
 ```
 
 The shared `correlationId` groups the batch; the `causationId` on each entry
@@ -588,6 +731,14 @@ REQUIREMENT: Records waiting behind the writer MUST be held in a queue of at
 ```
 
 ```
+REQUIREMENT: When the dropped record is a call's `requested` record, the
+             call MUST fail at once with `AuditUnavailable`, MUST change
+             nothing, and MUST receive no terminal record: there is no
+             `requested` record for one to answer. The latch and the drop
+             count (below) record the loss.
+```
+
+```
 REQUIREMENT: The host MUST count records dropped for overflow, expose the
              count as `HostSnapshot.auditDropped`, and carry the count since
              the previous acknowledgement as `droppedSinceAck` on the
@@ -617,7 +768,10 @@ overflow is never numbered, so its loss is **not** visible as a gap in
 `HostSnapshot.auditDropped` counter and the `droppedSinceAck` count carried
 by the `acknowledgeAuditDegraded` records that must follow. This is the one
 path on which core loses a record while the host runs, and it is stated
-rather than hidden.
+rather than hidden. (4) A call whose `requested` record is dropped fails at
+once rather than after `auditTimeout`: the record will never be written, so
+waiting would only delay the answer, and a terminal record written later
+would answer a request that is not in the trail.
 
 ## BEH-BR-203: A change that cannot be recorded is not made
 
@@ -641,7 +795,21 @@ REQUIREMENT: The unwritten `requested` record of such a call remains in the
              writer and is retried (BEH-BR-202). When it is eventually
              written, the host MUST follow it with a `failed` terminal record
              for that call, with `error` `AuditUnavailable`, so the trail
-             shows that the request was made and did nothing.
+             shows that the request was made and did nothing. A `requested`
+             record dropped because the writer's queue is full is not in the
+             writer: its call fails at once and receives no terminal record
+             (BEH-BR-202).
+```
+
+```
+REQUIREMENT: The first terminal cause MUST win (BEH-BR-198). A call whose
+             caller was interrupted while it waited for its `requested`
+             record, before `auditTimeout` expired, ends with the `failed`
+             (`Interrupted`) record of 22 — Attributable Operations,
+             BEH-BR-188, and MUST NOT receive a `failed`
+             (`AuditUnavailable`) record when its `requested` record is
+             later written. A call whose `auditTimeout` expired first ends
+             with `AuditUnavailable` as stated above.
 ```
 
 ```

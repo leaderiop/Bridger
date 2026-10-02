@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-OVW                                                  |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): Parked stops, `DrainTimeout` fields, `Interrupted` record-only tag, TestHost members; `intent-ended` record and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -40,7 +40,13 @@ runtime.
 **Guarded withdrawal.** Removing a provider stops its dependents first, waits
 for the leases on it, and only then closes it. A dependent can still use its
 provider in its own finalizers. Waiting is bounded, and forcing is explicit
-([ADR-BR-015](./decisions/015-leases-one-primitive.md)).
+for an operator's call: a call whose drain expires fails with `DrainTimeout`
+and leaves every stop it was driving parked for an operator to resume, while a
+stop that no caller waits for revokes at the limit rather than hang
+([ADR-BR-015](./decisions/015-leases-one-primitive.md)). When a cascade or
+shutdown ends a parked operator intent instead, an `intent-ended` audit record
+says so; a call that resumes a parked operation names it in `resumes` on its
+own terminal record.
 
 **State is data, failure is visible.** Every plugin's state is published as an
 immutable, discriminated snapshot. A failed plugin stays failed until someone
@@ -85,7 +91,7 @@ All signatures are illustrative until code exists.
 | `Host.install`, `remove`, `replace`, `retry`, `reconfigure`, `restart`, `disable`, `enable` | methods | Lifecycle operations, linearized per plugin, all attributable |
 | `Host.reconcile`, `defineRealm` | methods | Desired-state convergence, realm definition |
 | `Host.use`, `useAll`, `lease` | methods | Leased access to services |
-| `Host.snapshot`, `changes`, `events`, `inspect`, `awaitIdle` | members | Observation and diagnostics |
+| `Host.snapshot`, `changes`, `events`, `inspect`, `awaitIdle` | members | Observation and diagnostics; a parked stop shows as `parked` in the snapshot and `inspect`, with `stop-parked` and `stop-resumed` events |
 | `Host.shutdown`, `acknowledgeAuditDegraded` | methods | Shutdown with `CloseReport`; leaving the audit latch |
 | `PluginHandle`, `PluginRef`, `PluginState`, `PluginSnapshot`, `HostSnapshot`, `CloseReport`, `HostEvent`, `PluginInspection` | types | Handles, references, snapshots, reports |
 | `BridgerOptions`, `InstallOptions`, `RemoveOptions`, `ReplaceOptions`, `OperationOptions`, `ConfigSource` | types | Options |
@@ -106,14 +112,16 @@ All signatures are illustrative until code exists.
 | ------ | ---- | ------- |
 | `Actor`, `Actor.system`, `Actor.unattributed` | type, constants | Who performed an operation |
 | `OperationContext`, `CurrentActor` | type, reference | Actor, reason and correlation for a call |
-| `AuditSink`, `AuditRecord`, `AuditPhase` | port, types | Sequenced lifecycle records handed to a sink; losses are signalled by the latch |
+| `AuditSink`, `AuditRecord`, `AuditPhase` | port, types | Sequenced lifecycle records handed to a sink, including the `intent-ended` system record (`endsIntentOf`) and `resumes` on a resuming call's terminal record; losses are signalled by the latch |
 | `OperationGate`, `OperationRequest` | port, type | Refuse or approve a lifecycle operation |
 | `IdGenerator` | service | Identifiers for records and hosts |
 | `verifyAuditSequence` | function | Gap and duplicate detection over records — not tamper evidence |
 
 ### Testing — [behaviour 21](./behaviors/21-testing-host.md)
 
-`TestHost`, `Fault.buildFails`, `Fault.stopFails`, `Fault.holdLease`,
+`TestHost` (with `step`, `stepPlugin`, `pending` and `runUntilIdle` over a
+deterministic order of pending transition steps and waits), `PendingStep`,
+`Fault.buildFails`, `Fault.stopFails`, `Fault.holdLease`,
 `Fault.runtimeFailure`, and fixtures for the clock, identifiers, audit sink and
 gate.
 
@@ -131,6 +139,14 @@ configuration values, keys, fibers or raw causes
 | Handles | `ActivationFailed`, `PluginRemoved`, `WaitTimeout` |
 | Helpers | `AdmissionClosed`, `DuplicateContribution`, `ContributionUnavailable` |
 | GxP | `Unattributed`, `ReasonRequired`, `AuditUnavailable`, `AuditWriteFailed`, `OperationRejected` |
+
+`DrainTimeout { id, leases, target? }` names in `id` the plugin (or
+`Generation`) whose leases did not drain, or whose running transition step the
+call was waiting for (`leases` is 0 when that step is a build), and, in
+`target`, the plugin the call named when the two differ. `Interrupted` is a
+record-only tag: it appears only in `AuditRecord.error`, for a call
+interrupted after its `requested` record is enqueued and before its intent,
+and is never a member of an error union.
 
 ## Core exclusions
 

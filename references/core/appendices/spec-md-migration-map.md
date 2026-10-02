@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-APP-01                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Appendix — Informative                                       |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): Items 31 and 72 and the Concurrency and scheduling row widened; items 12 and 24 narrowed (callers already answered; child causation); ended intents and `resumes` in item 72 (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -57,7 +57,7 @@ not whether anything meets them.
 | Operation semantics and races | [08](../behaviors/08-operation-legality.md); [ADR-BR-012](../decisions/012-intent-and-linearization.md); [ADR-BR-013](../decisions/013-total-operation-legality.md) | BEH-BR-065–077; ADR-BR-012, ADR-BR-013 | Converted and completed. Linearization and intent → BEH-BR-065, BEH-BR-066; caller interruption → BEH-BR-067. The race table became two total tables: state × operation (BEH-BR-071) and in-flight × incoming (BEH-BR-072). Several rows changed meaning (see §2). |
 | Leases: limits, supervision and re-entrancy | [09](../behaviors/09-leases.md); [ADR-BR-015](../decisions/015-leases-one-primitive.md); [ADR-BR-016](../decisions/016-reentrancy-detection.md) | BEH-BR-081–088; ADR-BR-015, ADR-BR-016 | Converted. Drain limit → BEH-BR-085; force → BEH-BR-086; supervised callbacks and edge rules → BEH-BR-084; per-call timeout → BEH-BR-087; one primitive and scoped leases → BEH-BR-083; re-entrancy → BEH-BR-088. "Forcing is audited as a host event" reworded (see §2). |
 | Runtime failure and health | [10](../behaviors/10-runtime-failure-and-health.md); [15](../behaviors/15-optional-and-reactive.md); [14](../behaviors/14-children-and-groups.md); [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md); [ADR-BR-005](../decisions/005-failure-is-sticky.md) | BEH-BR-089–096, BEH-BR-129–134, BEH-BR-121; ADR-BR-017, ADR-BR-005 | Split. `Plugin.Runtime`, `background`, `reportFailure`, health checks, the transition and host revocation → BEH-BR-089–096. The `optional`/`useOptional`/`whenAvailable` members → 15; the `install` member → BEH-BR-121. Exit list now includes `disable` (see §2). |
-| Concurrency and scheduling | [05](../behaviors/05-activation.md); [06](../behaviors/06-removal.md); [ADR-BR-012](../decisions/012-intent-and-linearization.md) | BEH-BR-034, BEH-BR-040, BEH-BR-043; ADR-BR-012 | Split. Ready set and FIFO → BEH-BR-034 (tie-break added); stops in reverse dependency order → BEH-BR-043; build timeout, idle, `awaitIdle` and fairness → BEH-BR-040. |
+| Concurrency and scheduling | [05](../behaviors/05-activation.md); [06](../behaviors/06-removal.md); [08](../behaviors/08-operation-legality.md); [ADR-BR-012](../decisions/012-intent-and-linearization.md); [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md) | BEH-BR-034, BEH-BR-040, BEH-BR-043, BEH-BR-073, BEH-BR-074, BEH-BR-078–080; ADR-BR-012, ADR-BR-038 | Split. Ready set and FIFO → BEH-BR-034 (tie-break added); stops in reverse dependency order → BEH-BR-043; build timeout, idle, `awaitIdle` and fairness → BEH-BR-040 (a parked stop does not count as a running transition). The per-plugin order was widened (CCR-BR-006–008): operations on different plugins never wait for each other, a cascade waits for a dependent's transition step under its own drain limit, and parked stops, system stops and their resumption are ruled → BEH-BR-073, BEH-BR-074, BEH-BR-078–080, ADR-BR-038. |
 | Configuration and metadata | [11](../behaviors/11-configuration.md); [07](../behaviors/07-replacement-and-reactivation.md); [18](../behaviors/18-reconciliation-and-confluence.md); [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md); [ADR-BR-033](../decisions/033-no-config-values-in-audit.md) | BEH-BR-097–104, BEH-BR-054, BEH-BR-154; ADR-BR-018, ADR-BR-033 | Converted. Decode before build → BEH-BR-097; `ConfigSource` → BEH-BR-098; read at every activation and override → BEH-BR-099; `reconfigure` → BEH-BR-101; values never observable → BEH-BR-103 (stricter, see §2); `meta` → BEH-BR-104. Override dropped by `replace` → BEH-BR-054; `meta` comparison by `reconcile` → BEH-BR-154. |
 | Shutdown | [12](../behaviors/12-shutdown-and-hosting.md); [ADR-BR-031](../decisions/031-audit-failure-policy.md) | BEH-BR-105–110; ADR-BR-031 | Converted. Reverse-order bounded stop → BEH-BR-105; `CloseReport` → BEH-BR-106 (`phase` renamed `cause`, `auditDegraded` added); force after the overall limit → BEH-BR-107; scope-close path and `onClose` → BEH-BR-108; `HostClosed` → BEH-BR-109; shutdown under the audit latch → BEH-BR-110 (new). |
 | Observability | [13](../behaviors/13-observability-and-diagnostics.md); [23](../behaviors/23-audit-sink-and-record.md); [ADR-BR-007](../decisions/007-observation-primitives.md); [ADR-BR-030](../decisions/030-audit-sink-port.md); [ADR-BR-037](../decisions/037-audit-sequence-separate-from-event-seq.md) | BEH-BR-113–117, BEH-BR-207; ADR-BR-007, ADR-BR-030, ADR-BR-037 | Converted. Events as a diagnostic feed → BEH-BR-113; event catalogue → BEH-BR-114 (adds `audit-degraded`, `audit-acknowledged`); `seq` and sliding PubSub → BEH-BR-115; spans and logs → BEH-BR-116; metrics → BEH-BR-117. That the event feed is not an audit trail is now a requirement (BEH-BR-207). The prototype-time caveat on sliding-PubSub lag → ADR-BR-001 smoke test. |
@@ -144,7 +144,10 @@ behaviour files; 97 onward the consistency fixes from the independent review
     operation fails with `HostClosed` except `shutdown`, which joins a
     shutdown in progress (and after completion returns the original report);
     an operation already in flight lets its step settle and its caller
-    receives `HostClosed` — *BEH-BR-075, BEH-BR-109*.
+    receives `HostClosed`, unless its caller had already received its
+    terminal outcome (including a call that parked); once shutdown has begun
+    no stop parks, and shutdown takes over a stop whose drain expires —
+    *BEH-BR-075, BEH-BR-105, BEH-BR-109*.
 
 ### 2.2 Snapshot shape
 
@@ -205,7 +208,8 @@ behaviour files; 97 onward the consistency fixes from the independent review
 24. **S5 — children.** SPEC.md was silent on attribution → mounting a child
     through `Plugin.Runtime.install` and removing it with its parent are
     system transitions (`system-start` / `system-stop`) whose `target` is the
-    child and whose `causationId` is the parent's triggering record; they are
+    child and whose `causationId` is the parent's triggering record for a
+    mount and the cascade root's record (BEH-BR-190) for a removal; they are
     not gated — *BEH-BR-126, ADR-BR-021*.
 25. **S6 — `PluginHandle.restart` is a function.** SPEC.md: a bare `Effect`
     value → `(options?: RemoveOptions) => Effect<void, …>`, so it can carry
@@ -241,9 +245,16 @@ behaviour files; 97 onward the consistency fixes from the independent review
     `restart` and `enable` fail with `Conflict { pending: "disable" }` —
     *BEH-BR-072*.
 31. **S12 — system-induced `stopping`.** SPEC.md was silent → an operator
-    operation that arrives while a plugin is stopping because of dependency
-    loss or runtime failure waits behind that transition and is then decided
-    against the state the plugin lands in — *BEH-BR-073*.
+    operation that arrives while a system stop (dependency loss or runtime
+    failure) is running waits, before its intent, for that stop to settle and
+    is then decided against the state the plugin lands in; on a parked system
+    stop, `remove`, `replace`, `restart`, `disable` and `reconfigure` resume
+    it as their intent, while `retry` and `enable` fail with
+    `Conflict { pending: "dependency-loss" }` (also when the stop parks while
+    they wait); only stops driven by an operator call — its own stop, or a
+    cascade whose root is an operator call — park, and stops with no caller
+    revoke on expiry —
+    *BEH-BR-073, BEH-BR-074, BEH-BR-080, BEH-BR-095*.
 32. **S13 — `restart` on `disabled`.** SPEC.md: `Conflict` →
     `Conflict { pending: "disabled" }` — *BEH-BR-058, BEH-BR-071*.
 33. **S14 — competing `reconfigure`.** SPEC.md: an in-flight `reconfigure`
@@ -322,8 +333,8 @@ behaviour files; 97 onward the consistency fixes from the independent review
 48. **`CloseReport.auditDegraded`.** New → the report states whether the
     latch was set when it was produced — *BEH-BR-106, BEH-BR-110*.
 49. **System transitions are audited.** New → `system-start`,
-    `system-stop`, `runtime-failure`, `lease-revoked` and `health-degraded`
-    are recorded with `Actor.system` and a `causationId`; only the entry
+    `system-stop`, `runtime-failure`, `lease-revoked`, `health-degraded`
+    and `intent-ended` (CCR-BR-008) are recorded with `Actor.system` and a `causationId`; only the entry
     into `degraded` health is recorded, not each failed check —
     *BEH-BR-190, BEH-BR-199, BEH-BR-092*.
 
@@ -404,9 +415,16 @@ behaviour files; 97 onward the consistency fixes from the independent review
     every operation completes when the state it asked for has been entered —
     *BEH-BR-068*.
 72. **After `DrainTimeout`.** SPEC.md: "the plugin stays `stopping` … the
-    operation can be repeated" → the intent stays pending, the stop does not
-    complete on its own, and repeating the operation (or a superseding one)
-    resumes it — *BEH-BR-074*.
+    operation can be repeated" → the intent stays pending and the stop parks
+    (`parked` true in the snapshot): it does not complete on its own, and
+    repeating the operation (or a superseding one) resumes it, the resuming
+    call writing its own terminal record with `resumes` naming the parked
+    call's `requested` record; every stop the failing call drives that has
+    not settled parks with it; a provider's stop that needs the dependent
+    resumes it and ends the parked intent, and shutdown resumes it under its
+    own limits, either writing an `intent-ended` record when it ends an
+    intent; `DrainTimeout` carries `{ id, leases, target? }` —
+    *BEH-BR-074, BEH-BR-078–080, BEH-BR-085, BEH-BR-105; ADR-BR-038*.
 73. **Leases after shutdown begins.** SPEC.md was silent → `use`, `useAll`
     and `lease` fail with `ServiceUnavailable`, not `HostClosed`; base-service
     leases never delay plugin removal — *BEH-BR-081*.

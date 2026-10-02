@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-029                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): `intent-ended` added to the system transitions (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -35,7 +35,7 @@ interface OperationOptions { readonly context?: OperationContext }
 - **Two sources, one precedence.** The `Context.Reference` `@bridger/core/CurrentActor` (default `Actor.unattributed`) supplies an actor for every call in its fiber; a per-call `options.context` wins over it. Handle methods take the same options: `PluginHandle.restart(options?)` and `PluginHandle.remove(options?)` accept `RemoveOptions`, which extends `OperationOptions`. When a caller supplies no `correlationId`, the host generates one with `IdGenerator`, so every record carries one.
 - **Requirement is opt-in.** `BridgerOptions.attribution = { require?: boolean; requireReason?: readonly Operation[] }`, defaults `false` and `[]`. With `require`, a call whose effective actor is `Actor.unattributed` fails with `Unattributed { operation }`; a call to an operation listed in `requireReason` without a reason fails with `ReasonRequired { operation }`. `acknowledgeAuditDegraded` always requires a reason ([ADR-BR-031](../decisions/031-audit-failure-policy.md)). The one exemption is the `shutdown` the host performs itself when its scope closes: it has no caller to supply a context, so it is attributed to `Actor.system` and is not checked against `require` or `requireReason`; an explicit `shutdown()` call is checked like any other.
 - **Checked early, nothing recorded, nothing changed.** Attribution is step 2 of the eight-step order of a mutating call fixed in [22 — Attributable operations](../behaviors/22-attributable-operations.md) (BEH-BR-188): (1) `HostClosed`, (2) attribution, (3) audit-degraded latch, (4) validation, (5) gate, (6) `requested` record, (7) `WouldDeadlock` check, then intent and transition, (8) terminal record. Only the host-closed check precedes it. A call refused here writes no audit record and changes nothing.
-- **System transitions are attributed to `Actor.system`.** `system-start`, `system-stop`, `runtime-failure`, `lease-revoked` and `health-degraded` are recorded with `Actor.system` and a `causationId` — the record ID of the triggering operation's record, or of the system record that caused it — or none for a root system record, one with no cause in the trail (a runtime failure the plugin reports, a health check entering `degraded`).
+- **System transitions are attributed to `Actor.system`.** `system-start`, `system-stop`, `runtime-failure`, `lease-revoked`, `health-degraded` and `intent-ended` (a parked operator intent ended by a cascade or by shutdown, [08 — Operation legality](../behaviors/08-operation-legality.md), BEH-BR-080) are recorded with `Actor.system` and a `causationId` — the record ID of the triggering operation's record, or of the system record that caused it — or none for a root system record, one with no cause in the trail (a runtime failure the plugin reports, a health check entering `degraded`).
 - **Never inferred, never authenticated.** The core does not derive an actor from a fiber, a plugin, `@bridger/core/ActivePlugin` or anything else, and it does not authenticate. The `Actor` it records is the one it is given. Binding that value to an authenticated identity, and controlling identification codes and passwords, is the consumer's job (Part 11 §11.10(d), §11.300).
 
 ## Alternatives considered

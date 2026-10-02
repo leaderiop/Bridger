@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-15                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -191,9 +191,28 @@ REQUIREMENT: The run's interruption MUST begin as soon as the provider starts
              09 applying on expiry.
 ```
 
+```
+REQUIREMENT: In the provider P's stop, a `whenAvailable` run that holds a
+             service of P MUST be treated as a lease on P: it is interrupted
+             and its finalizers awaited as part of P's drain. P's stop MUST
+             NOT wait for a transition step of the run's own plugin, and
+             MUST NOT stop that plugin on account of the run (08 — Operation
+             Legality, BEH-BR-078). The run's plugin MUST still be stopped,
+             or removed, when it is otherwise a dependent or a child of P
+             (06 — Removal, BEH-BR-043).
+```
+
 This is the guarded-withdrawal guarantee extended to the reactive form: a
 `whenAvailable` run may use its services in its finalizers, because the
 provider closes only after them.
+
+**Settled here.** "Counts as a dependent" means it is closed before the
+provider, not that it is a cascade: the run's plugin keeps its state
+(BEH-BR-132), so P waits for the run as it waits for any lease, under its own
+drain limit, and never for a build or stop of the run's plugin (CCR-BR-008).
+The run alone does not make its plugin a dependent of P; a plugin that also
+captured a service of P, or that is P's child, is stopped or removed for that
+reason, as any dependent or child is.
 
 ## BEH-BR-134: whenAvailable failures follow the background policy
 
@@ -251,7 +270,10 @@ keys say which provider is absent.
 REQUIREMENT: Fibers running a `useOptional` callback or a `whenAvailable` run
              MUST carry the leased providers' IDs in
              `@bridger/core/HeldPlugins`, so that the `WouldDeadlock` rules
-             of behaviour 09 apply to them.
+             of behaviour 09 apply to them. A `whenAvailable` run is forked
+             into the activation scope, so it MUST carry only the leases it
+             holds, not the ID of the plugin whose build registered it
+             (09 — Leases, BEH-BR-088).
 ```
 
 ```

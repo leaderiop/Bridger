@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-25                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): An approval is never consumed without a `requested` record; interruption outcomes aligned with BEH-BR-188; that rule placed after the refusal rules; `intent-ended` is not gated (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -264,6 +264,15 @@ REQUIREMENT: In every case the refusal MUST be recorded as BEH-BR-220
              specifies.
 ```
 
+```
+REQUIREMENT: Once `authorize` has succeeded, the call MUST NOT be
+             interruptible until its `requested` record has been enqueued
+             (22 — Attributable Operations, BEH-BR-188). An interruption of
+             the caller after that point is recorded as BEH-BR-188 states —
+             a `failed` (`Interrupted`) record before the intent, the
+             ordinary terminal record after it — never as a refusal.
+```
+
 Failing closed is the only reading under which a gate is a control: a gate
 whose outage lets changes through is a gate that works only when nobody is
 testing it. The timeout exists so that a stuck approval service turns into a
@@ -277,7 +286,11 @@ default timeout is a minute, not a shift.
 **Settled here.** SPEC.md and the GxP hook design do not say what happens
 when the *caller* abandons a call during authorization. Nothing has changed
 at that point, so the call simply ends; the `rejected` record is written so
-that the trail still shows every request that reached the gate.
+that the trail still shows every request that reached the gate. The other
+side of the decision is closed too: an approval the gate has given is
+followed, without a window for interruption, by the enqueue of the
+`requested` record of the request it approved, so an approval is never
+consumed by a call that leaves no record of its request (URS gap G16).
 
 ## BEH-BR-222: The gate cannot be bypassed through the Host it guards
 
@@ -324,10 +337,10 @@ to close them by other means.
 
 ```
 REQUIREMENT: System transitions — `system-start`, `system-stop`,
-             `runtime-failure`, `lease-revoked`, `health-degraded`, including
-             a child's mount and its removal with its parent — MUST NOT be
-             submitted to the gate. They MUST be audited as specified in
-             23 — Audit Sink and Record.
+             `runtime-failure`, `lease-revoked`, `health-degraded` and
+             `intent-ended`, including a child's mount and its removal with
+             its parent — MUST NOT be submitted to the gate. They MUST be
+             audited as specified in 23 — Audit Sink and Record.
 ```
 
 ```

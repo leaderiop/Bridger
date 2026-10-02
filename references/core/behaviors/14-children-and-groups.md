@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-14                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -48,9 +48,11 @@ REQUIREMENT: `Plugin.Runtime.install(child, options)` MUST install `child` for
 ```
 
 ```
-REQUIREMENT: When the activation scope closes, the host MUST remove each child
-             (the child's own dependents first), in last-in-first-out order
-             with the parent's other finalizers.
+REQUIREMENT: When the parent stops, the host MUST remove each child as a
+             dependent of the parent, before the parent's activation scope
+             begins to close (06 — Removal, BEH-BR-043; 08 — Operation
+             Legality, BEH-BR-079): the child's own dependents first, in
+             reverse dependency order, as for any dependent.
 ```
 
 ```
@@ -59,12 +61,48 @@ REQUIREMENT: A child install that fails its definition checks MUST fail with
              `Host.install` does.
 ```
 
-Tying the child to the activation scope means there is no separate list of
-children for anyone to keep in step with the parent: the scope already
-records what must be undone and in what order. Whether an `InstallError`
-from a child fails the parent's `build` is the parent author's choice — it
-propagates like any other failure in the build layer, and is caught like
-one.
+```
+REQUIREMENT: A child install whose dependency edges (dependent→provider) or
+             mount edge (child→parent: a child depends on the parent that
+             mounted it) would close a cycle in the plugin graph MUST fail
+             with `DependencyCycle { path }`, where `path` begins with the
+             child, and MUST register nothing. A child that requires its
+             parent's services therefore closes no cycle; a parent that
+             requires a service of its own child does.
+```
+
+```
+REQUIREMENT: When the parent stops, each child MUST be removed — stopped,
+             then unregistered — whatever services it holds, including
+             services of plugins other than its parent. A child's stop MUST
+             NOT end in `waiting` or `starting`. The intent of an operator
+             operation parked on a child (08 — Operation Legality,
+             BEH-BR-074) MUST end with its `intent-ended` record
+             (BEH-BR-080), and the child MUST be removed when its stop
+             completes.
+```
+
+Tying the child to the activation means there is no separate list of
+children for anyone to keep in step with the parent: whatever ends the
+activation removes its children first, in the dependents-first order every
+stop follows. Whether an `InstallError`
+from a child — `DependencyCycle` included — fails the parent's `build` is the
+parent author's choice — it propagates like any other failure in the build
+layer, and is caught like one.
+
+**Settled here.** A child mount that would close a cycle through mount and
+dependency edges is refused at the child's install, not by failing the
+parent: the graph of [INV-BR-002](../invariants.md#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope)
+includes mount edges, child→parent, because a child depends on the parent
+that mounted it, and the parent's code is what decides whether the parent can
+run without that child (CCR-BR-008). Children are removed as dependents,
+before the parent's scope begins to close, not by the parent's own finalizers:
+a child stopped from inside the closing scope would run its finalizers after
+the parent's resources had begun to go, and its stop would sit outside the
+dependents-first order of 06. A parked operation on a child does not survive
+the parent's stop: the child's lifetime is the parent's activation, so the
+parked intent ends, the child is removed, and the child's records are caused
+by the cascade root's record (BEH-BR-126).
 
 ## BEH-BR-122: A child is an ordinary plugin with a prefixed identity
 
@@ -157,7 +195,28 @@ fiber.
 REQUIREMENT: Any transition that closes the parent's activation scope —
              `remove`, `replace`, `disable`, `restart`, a non-volatile
              `reconfigure`, dependency loss, runtime failure, shutdown — MUST
-             remove its children.
+             remove its children, whatever services they hold, before its
+             activation scope begins to close. When a child's stop is
+             parked, the parent's stop MUST resume it and MUST end any
+             parked operator intent, with its `intent-ended` record
+             (08 — Operation Legality, BEH-BR-080): the snapshot MUST show
+             the child `stopping` with `next` "gone", the parked operation's
+             remaining actions MUST NOT run, and the child MUST be removed
+             when its stop completes. If that resumed drain expires again,
+             the child's stop MUST become a parked system stop with `next`
+             "gone".
+```
+
+```
+REQUIREMENT: The parent's stop MUST drain each child under the rules of the
+             parent's stop: a cascading call's `drain` and `force` when an
+             operator call is the cascade root (08 — Operation Legality,
+             BEH-BR-080), and otherwise `BridgerOptions.drainTimeout`,
+             revoking on expiry and never parking (10 — Runtime Failure and
+             Health, BEH-BR-095). Under shutdown a child drains under
+             `drainTimeout`, is revoked only once the overall shutdown limit
+             has passed, and never parks (12 — Shutdown and Hosting,
+             BEH-BR-105, BEH-BR-107).
 ```
 
 ```
@@ -181,8 +240,7 @@ directly to a child do. Because a child is an ordinary plugin
 (BEH-BR-122), operations on it follow the state table of
 [08 — Operation Legality](./08-operation-legality.md). A child removed
 directly stays removed for the rest of the parent's activation; when the
-parent's scope later closes, its finalizer finds the child gone and does
-nothing.
+parent later stops, it finds the child gone and does nothing.
 
 ## BEH-BR-126: Mounting and unmounting children is a system transition
 
@@ -200,9 +258,12 @@ REQUIREMENT: A child installed or removed because of its parent's activation
 REQUIREMENT: When an `AuditSink` is wired, each such mount and unmount MUST
              be audited as the system transition `system-start` or
              `system-stop`, attributed to `Actor.system`, whose `target` is
-             the child and whose `causationId` is the record id of the
+             the child. A mount's `causationId` MUST be the record id of the
              parent's triggering record (the operation or system transition
-             that activated or stopped the parent).
+             that activated the parent). An unmount's `causationId` MUST be
+             the cascade root's record as 22 — Attributable Operations,
+             BEH-BR-190, gives it — when the parent was stopped directly by
+             an operator call, that call's `requested` record.
 ```
 
 **Settled here.** SPEC.md is silent on attribution and approval of

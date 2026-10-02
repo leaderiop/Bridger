@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-05                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -118,11 +118,25 @@ REQUIREMENT: At most `BridgerOptions.concurrency` builds (default 4) MUST run
              ready MUST NOT occupy a build slot.
 ```
 
+```
+REQUIREMENT: `concurrency` MUST bound builds only. A stop MUST NOT take a
+             slot and MUST NOT wait for one: stops of independent subtrees
+             MUST run concurrently without limit (06 — Removal, BEH-BR-043;
+             08 — Operation Legality, BEH-BR-078).
+```
+
 FIFO order and finite per-step timeouts mean no plugin starves another
 indefinitely, and a plugin whose requirement never appears stays `waiting`
 without consuming a slot. Stops follow their own ordering, reverse dependency
-order with independent subtrees concurrent up to the same limit
-([06 — Removal](./06-removal.md)).
+order with independent subtrees concurrent ([06 — Removal](./06-removal.md)),
+and take no slot.
+
+**Settled here.** A stop never waits for a build slot (CCR-BR-008). A stop
+frees resources and lets a waiting cascade, call or shutdown proceed; making
+it queue behind builds — which may wait on providers that are themselves
+stopping — would add a wait that no drain limit bounds, and a stop limit of
+its own would add a second queue whose order would need its own rules.
+`concurrency` exists to bound the load of building, so it bounds builds.
 
 **Settled here.** SPEC.md orders ready plugins "in FIFO order of becoming
 ready" without a tie-break. Several plugins can become ready in one revision
@@ -319,6 +333,16 @@ REQUIREMENT: When the target change was an operator operation, the stale
              plugin MUST go to `waiting`.
 ```
 
+```
+REQUIREMENT: When both happened while the build ran — an operator operation
+             changed the target and a captured provider began to stop — the
+             operator operation MUST decide: the stale build's outcome,
+             success or failure, MUST be discarded, and the operation MUST
+             proceed, subject to the cascade rules of 08 — Operation
+             Legality (BEH-BR-079), so that any build it then starts does
+             not capture the stopping provider.
+```
+
 A build captured its providers at its start (BEH-BR-035); if one of them is
 leaving, a successful result is built on a service that is about to close.
 Publishing it would let consumers lease a plugin whose dependency is gone —
@@ -335,7 +359,11 @@ operation decides the destination and the old attempt's outcome is moot. When
 nobody asked — a provider simply left — a failure is still a failure and is
 kept sticky, because silently turning it into `waiting` would let the same
 failing build run again unattended when the provider returns
-([RSK-BR-003](../gxp/03-risk-assessment.md#rsk-br-003)).
+([RSK-BR-003](../gxp/03-risk-assessment.md#rsk-br-003)). When both happen to
+one build — an operator operation and a provider's loss — the operator
+operation decides and the stale result is discarded either way (CCR-BR-008):
+the operation already names a destination, and a failure of a build nobody
+will use is not the failure of the plugin the operator asked for.
 
 ## BEH-BR-040: Builds are bounded, and idle is defined
 
@@ -364,6 +392,13 @@ REQUIREMENT: The host MUST be idle exactly when no transition is running and
 ```
 
 ```
+REQUIREMENT: A parked stop of any kind — a parked operation or a parked
+             system stop (08 — Operation Legality, BEH-BR-074) — MUST NOT
+             count as a running transition. Parked stops (`parked` true,
+             04 — States and Snapshots) MUST NOT prevent idleness.
+```
+
+```
 REQUIREMENT: `awaitIdle` MUST return the snapshot of the first idle
              revision at or after the call. It MUST NOT wait for missing
              providers. With `timeout`, it MUST fail with
@@ -372,9 +407,11 @@ REQUIREMENT: `awaitIdle` MUST return the snapshot of the first idle
 ```
 
 ```
-REQUIREMENT: `awaitIdle` called from a fiber that holds a lease MUST fail at
-             once with `WouldDeadlock` (09 — Leases), and after shutdown has
-             begun it MUST fail with `HostClosed`.
+REQUIREMENT: `awaitIdle` called from a fiber that carries a plugin ID in
+             `@bridger/core/HeldPlugins` — one that holds a lease, or runs a
+             plugin's `build` or a finalizer of its activation scope — MUST
+             fail at once with `WouldDeadlock` (09 — Leases, BEH-BR-088), and
+             after shutdown has begun it MUST fail with `HostClosed`.
 ```
 
 `awaitIdle` is how a test or a startup sequence says "do everything that can
@@ -383,7 +420,11 @@ never be installed, which is why plugins waiting for missing providers are
 excluded. Because idleness depends on builds and drains finishing, both are
 bounded by their own timeouts, so a host with a stuck build still becomes idle
 — with that plugin `failed` — instead of never. A fiber holding a lease cannot
-wait for idle, because idleness may require the provider it holds to drain.
+wait for idle, because idleness may require the provider it holds to drain;
+nor can a build or a finalizer, because idleness requires its own step to
+settle. A parked stop waits for an operator, not for time, so counting it
+would make `awaitIdle` hang exactly when an operator must act; the snapshot's
+`parked` flag shows it instead.
 
 **Settled here.** SPEC.md's `awaitIdle` signature omitted `HostClosed`; it is
 added, as [12 — Shutdown and Hosting](./12-shutdown-and-hosting.md) also

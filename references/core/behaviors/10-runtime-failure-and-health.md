@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-10                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -271,11 +271,25 @@ REQUIREMENT: A failing `background` fiber under "fail-plugin", a health check
              the same transition, in this order:
              1. the plugin is marked failing: new leases and new dependents
                 are blocked and it is hidden from new consumers;
-             2. its dependents are stopped first;
+             2. its dependents are stopped first, as a cascade whose root is
+                this runtime failure (08 — Operation Legality, BEH-BR-079,
+                BEH-BR-080);
              3. its leases drain under the normal drain limit (BEH-BR-085,
                 and BEH-BR-095 on expiry);
              4. its activation scope is closed;
              5. it ends `failed` with `failure.phase = "runtime"`.
+```
+
+```
+REQUIREMENT: The dependents' stops of step 2 MUST drain under
+             `BridgerOptions.drainTimeout` and, on expiry, MUST revoke as
+             BEH-BR-095 requires; they MUST NOT park. A dependent whose stop
+             is already parked MUST be resumed under those options and
+             revoked on expiry, and the parked operator intent it carries
+             MUST end as BEH-BR-080 requires, with its `intent-ended` record
+             (23 — Audit Sink and Record). The system records of these stops,
+             and that `intent-ended` record, MUST carry as `causationId` the
+             record id of the `runtime-failure` record.
 ```
 
 ```
@@ -312,23 +326,45 @@ imply that a leaked resource was released.
 
 ```
 REQUIREMENT: If the drain limit expires during a runtime failure transition,
-             the host MUST revoke the remaining leases (callbacks fail with
-             `LeaseRevoked`), await their finalizers, and complete the
-             transition. It MUST NOT leave the plugin `stopping` waiting for
-             a caller that does not exist.
+             the host MUST revoke the remaining leases — the failing
+             plugin's and those of its dependents being stopped by the
+             transition (callbacks fail with `LeaseRevoked`) — await their
+             finalizers, and complete the transition. It MUST NOT leave the
+             plugin or any of those dependents `stopping` waiting for a
+             caller that does not exist.
+```
+
+```
+REQUIREMENT: The same MUST hold for every cascade with no caller at its
+             root: a dependency-loss stop with no operator call at its root,
+             and shutdown. Its stops MUST drain under
+             `BridgerOptions.drainTimeout` and MUST never park; they MUST
+             revoke on expiry — shutdown only once the overall shutdown limit
+             has passed (12 — Shutdown and Hosting, BEH-BR-107). A parked
+             stop such a cascade meets MUST be resumed under those options
+             and revoked as above, and a parked operator intent it ends MUST
+             get its `intent-ended` record (08 — Operation Legality,
+             BEH-BR-080). An expiry while such a cascade waits for a running
+             build step MUST continue the wait under `buildTimeout`. The
+             system records of these stops MUST carry the `causationId` that
+             22 — Attributable Operations (BEH-BR-190) gives for the cascade
+             root.
 ```
 
 ```
 REQUIREMENT: Each such revocation MUST be reported as a `lease-revoked` host
              event and, when an `AuditSink` is wired, audited as the system
              transition `lease-revoked` with `causationId` set to the
-             record id of the `runtime-failure` record.
+             record id of the `runtime-failure` record (for another cascade
+             root, as BEH-BR-190 gives it).
 ```
 
 A removal has a caller who can receive `DrainTimeout` and decide; a runtime
 failure does not. Without this rule a failing plugin with one stuck callback
 would hold its dependents, its provider slot and every `awaitIdle` hostage
-indefinitely.
+indefinitely. Only a path whose cascade root is an operator call parks on
+expiry, because only there is a caller told `DrainTimeout` and able to resume
+the stop (08 — Operation Legality, BEH-BR-074, BEH-BR-080).
 
 **Settled here.** When `BridgerOptions.drainTimeout` is `"forever"`, the
 runtime failure transition waits indefinitely and does not revoke: the
@@ -336,7 +372,19 @@ application declared unbounded drains explicitly
 ([INV-BR-017](../invariants.md#inv-br-017-every-drain-is-bounded-unless-declared-forever)),
 and an automatic revocation could interrupt a regulated write
 ([RSK-BR-015](../gxp/03-risk-assessment.md#rsk-br-015)). The stuck plugin
-remains visible as `stopping` in snapshots.
+remains visible as `stopping` in snapshots, with `parked` false: it is still
+draining, not waiting for a call.
+
+**Settled here.** CCR-BR-008 extends the no-caller rule from the failing
+plugin to the whole cascade below it, and to every cascade whose root has no
+caller. A dependent stopped by a runtime failure, by a dependency-loss stop
+that no operator call began, or by shutdown has nobody to receive
+`DrainTimeout`; parking it would leave a stop that only a later, unrelated
+call could resume. Shutdown is the one root that does not revoke at the drain
+limit: it drains under `drainTimeout`, reports an expiry in `CloseReport`, and
+revokes once its overall limit has passed, but it never parks either. A
+cascade with no caller that meets a running build has no drain to revoke; it
+waits for the build, which `buildTimeout` bounds.
 
 ## BEH-BR-096: Runtime failure is sticky
 

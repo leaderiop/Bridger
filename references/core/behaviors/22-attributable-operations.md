@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-22                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): Interruption outcome per stage of the call order; approval-to-`requested` passage uninterruptible; record-only `Interrupted` wins over a later `AuditUnavailable`; `WouldDeadlock` checked before any wait and at the linearization point; resumption of a parked stop is the call's intent; causation of system records in cascades; second review pass: `SystemTransition` "intent-ended" and its cause; a child's removal caused by the cascade root's record; pre-intent waits are a running system stop and the call's turn only; a `requested` record dropped for overflow fails the call at once (CCR-BR-008)<br>0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -81,6 +81,7 @@ type Operation =
 
 type SystemTransition =
   | "system-start" | "system-stop" | "runtime-failure" | "lease-revoked" | "health-degraded"
+  | "intent-ended"
 ```
 
 ```
@@ -270,16 +271,24 @@ step  check / action                  failure                    records written
       `reconfigure` only, decoding
       a supplied config value)
  5    OperationGate.authorize         OperationRejected          one `rejected`
-      (when wired)
- 6    `requested` record              AuditUnavailable           (the write failed)
-      (when a sink is wired)
- 7    WouldDeadlock check; then       WouldDeadlock, Conflict,   system records of the
-      intent recorded: re-validation, Superseded, DrainTimeout,  transition (23)
-      legality, joins, supersession;  ...
+      (when wired)                    (also "caller-interrupted")
+ 6    `requested` record              AuditUnavailable;          `requested`, or none yet
+      (when a sink is wired)          Interrupted*               when the write failed
+ 7    WouldDeadlock check before any  WouldDeadlock, Conflict,   system records of the
+      wait; turn at the plugin's      Superseded, DrainTimeout,  transition (23)
+      linearization point; there:     Interrupted* (before the
+      WouldDeadlock again,            intent), ...
+      re-validation, legality,
+      joins, supersession,
+      resumption; intent recorded;
       transition runs
  8    terminal record                 —                          one of `completed`,
       (when a sink is wired)                                     `failed`, `superseded`,
                                                                  `joined`
+
+ * record-only tag: the caller's fiber is interrupted and receives no error;
+   "Interrupted" appears only as `error._tag` of the call's `failed` record
+   (ADR-BR-008).
 ```
 
 ```
@@ -287,8 +296,13 @@ REQUIREMENT: Every mutating call MUST pass the steps above in this order.
              A call that fails at step 1, 2, 3 or 4 MUST change nothing and
              MUST write no record. A call refused at step 5 MUST change
              nothing and MUST write exactly one `rejected` record (when a sink
-             is wired). A call whose step 6 fails MUST change nothing and
-             MUST fail with `AuditUnavailable`.
+             is wired). A call whose step 6 fails because its `requested`
+             record was not written within `auditTimeout` MUST change
+             nothing and MUST fail with `AuditUnavailable`
+             (23 — Audit Sink and Record, BEH-BR-203). A call whose
+             `requested` record cannot be queued because the writer's queue
+             is full MUST fail at once with `AuditUnavailable`, MUST change
+             nothing and MUST receive no terminal record (BEH-BR-202).
 ```
 
 ```
@@ -298,28 +312,79 @@ REQUIREMENT: Every call that passes step 6 MUST reach step 8: exactly one
 ```
 
 ```
-REQUIREMENT: A caller MAY be interrupted at any step. Interrupting it
-             during steps 1–5 MUST end the call with no change and no
-             record. Interrupting it after its `requested` record has been
-             enqueued and before its intent is recorded — including while it
-             waits for that record to be written, or for its turn at the
-             plugin's linearization point (08 — Operation Legality,
-             BEH-BR-065, BEH-BR-073) — MUST change nothing and MUST end the
-             call with a `failed` terminal record whose `error._tag` is
-             "Interrupted". Interrupting it after the intent is recorded
-             MUST end only the caller's wait; the transition and its
-             terminal record proceed (INV-BR-010).
+REQUIREMENT: A caller MAY be interrupted at any step, except in the passage
+             below. The outcome MUST depend on where the interruption lands:
+             - during steps 1–4: the call ends with no change and no record;
+             - during step 5, while the gate is deciding: the call ends with
+               no change and, with a sink wired, the one `rejected` record
+               ("caller-interrupted") of 25 — Operation Gate, BEH-BR-221;
+             - after its `requested` record is enqueued and before its
+               intent is recorded — including while it waits for that
+               record to be written, for a running system stop on the
+               plugin to settle (08 — Operation Legality, BEH-BR-073), or
+               for its turn at the plugin's linearization point
+               (BEH-BR-065) — the call changes nothing and ends with a
+               `failed` terminal record whose `error._tag` is "Interrupted";
+             - after its intent is recorded: only the caller's wait ends;
+               the transition and its terminal record proceed (INV-BR-010).
+               A call that waits for a running build after its intent is
+               recorded (BEH-BR-071, `starting` row) is in this case.
+             With no sink wired, an interruption before the intent changes
+             nothing and writes nothing.
+```
+
+```
+REQUIREMENT: The passage from the gate's approval — or from the end of step
+             4 when no gate is wired — to the enqueue of the `requested`
+             record MUST be uninterruptible, so that an approval is never
+             consumed without a record. The passage MUST NOT wait for
+             anything other than the enqueue itself.
+```
+
+```
+REQUIREMENT: The `failed` (`Interrupted`) record MUST be written by the
+             host's call path — an interruption finalizer of the call — and
+             not by the reconciler, which has received no intent. It MUST be
+             the call's only terminal record: the first terminal cause wins
+             (23 — Audit Sink and Record, BEH-BR-203). A call interrupted
+             while it waits for its `requested` record to be written MUST
+             NOT also receive a `failed` (`AuditUnavailable`) record when
+             that record is later written; a call whose `auditTimeout`
+             expired before any interruption ends with `AuditUnavailable`
+             as BEH-BR-203 states.
+```
+
+```
+REQUIREMENT: A call that resumes a parked stop — by joining or superseding a
+             parked operation, or as one of the calls that may resume a
+             parked system stop (08 — Operation Legality, BEH-BR-072,
+             BEH-BR-073, BEH-BR-074) — MUST record its intent when it
+             resumes the stop and becomes its owner. An interruption after
+             that MUST end only its wait.
 ```
 
 **Settled here.** An earlier revision made step 6 and the start of step 7 one
 uninterruptible unit. With per-plugin ordering
 ([ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)), the span
-between the `WouldDeadlock` check and the intent can include a wait for the
-plugin's turn, and that turn can be held by a call that waits for a system
-stop to drain. An uninterruptible wait as long as a drain would make a
-caller's own timeout meaningless. The host-core prototype showed the
-alternative is cheap: the call is still answered by exactly one terminal
+between the `WouldDeadlock` check and the intent can include a wait for a
+running system stop or for the plugin's turn, and that turn can be held
+by a stop that waits for a drain. An uninterruptible wait as long as a drain
+would make a caller's own timeout meaningless. The host-core prototype showed
+the alternative is cheap: the call is still answered by exactly one terminal
 record, and nothing changes because no intent was recorded (URS gap G14).
+
+**Settled here.** The review of CCR-BR-003..007 (URS gap G16) found two
+holes in that rule, closed here. (1) An interruption that landed between the
+gate's approval and the enqueue of the `requested` record would have consumed
+an approval with no record of the request it approved; that passage waits for
+nothing but the enqueue, so making it uninterruptible costs nothing. (2) A
+call interrupted while its `requested` record was still being retried could
+have been answered twice — `Interrupted` from the call path and, later,
+`AuditUnavailable` from BEH-BR-203. The first terminal cause wins, so the
+"one requested, one terminal" rule holds on every path. The `Interrupted`
+record comes from the call path because no intent reached the reconciler;
+the tag is record-only, since the interrupted caller is no longer there to
+receive an error.
 
 ```
 REQUIREMENT: Configuration values MUST be decoded at step 4 for
@@ -376,7 +441,11 @@ change is ever made that the trail does not already announce.
 `requested` record, because they depend on the activity on the plugin at the
 moment the intent is recorded. They are therefore always recorded, with a
 `failed`, `superseded`, `joined` or `completed` (`noop: true`) terminal
-record.
+record. `WouldDeadlock` is checked twice within step 7: before the call waits
+for anything — a running system stop, or its turn — and again at the
+linearization point before the intent, because whether the call joins an
+operation in flight, and so would wait for that operation's step, is known
+only there ([09 — Leases](./09-leases.md), BEH-BR-088).
 
 `shutdown` is exempt from the latch and the gate, and from fail-closed audit,
 because stopping is the safe direction: refusing to stop a host whose audit
@@ -482,8 +551,9 @@ direction (BEH-BR-188).
 REQUIREMENT: A change the host makes as a consequence — not as the direct
              request of a caller — MUST be attributed to `Actor.system` and
              recorded as a system transition: `system-start`,
-             `system-stop`, `runtime-failure`, `lease-revoked` or
-             `health-degraded` (23 — Audit Sink and Record, BEH-BR-199).
+             `system-stop`, `runtime-failure`, `lease-revoked`,
+             `health-degraded` or `intent-ended` (23 — Audit Sink and
+             Record, BEH-BR-199).
 ```
 
 ```
@@ -496,11 +566,37 @@ REQUIREMENT: A system record MUST carry `causationId`: the `recordId` of the
 ```
 
 ```
-REQUIREMENT: Mounting a child through `Plugin.Runtime.install` and removing
-             it with its parent MUST be recorded as `system-start` and
-             `system-stop` records whose `target` is the child and whose
-             `causationId` is the record of the parent's triggering
-             transition. They MUST NOT be gated.
+REQUIREMENT: In a cascade (08 — Operation Legality, BEH-BR-079), the cause
+             of a system record MUST be taken from the cascade root:
+             - root an operator call (the cascading call): that call's
+               `requested` record;
+             - root a runtime failure or shutdown: the `recordId` of the
+               record that began the root — the `runtime-failure` record,
+               or the `requested` record of `shutdown`;
+             - root a dependency-loss stop with no operator call at its
+               root: the `causationId` that stop's own `system-stop` record
+               carries, which leads back to one of the roots above.
+             The system records of a parked stop that a call resumes
+             (BEH-BR-074) MUST carry the `recordId` of the resuming call's
+             `requested` record; a parked stop resumed by a cascade follows
+             the cascade root. The `intent-ended` record of a parked intent
+             that a cascade or shutdown ends (23 — Audit Sink and Record,
+             BEH-BR-199) MUST take its cause in the same way: the record of
+             the cascade root, or the `requested` record of `shutdown`.
+```
+
+```
+REQUIREMENT: Mounting a child through `Plugin.Runtime.install` MUST be
+             recorded as a `system-start` record whose `target` is the child
+             and whose `causationId` is the record of the parent's
+             triggering transition — the record that began the parent's
+             activation. Removing a child with its parent is a
+             cascade (08 — Operation Legality, BEH-BR-079): the child's
+             `system-stop` record MUST have the child as `target` and MUST
+             take its `causationId` from the cascade root as above — when
+             the parent was stopped directly by an operator call, that
+             call's `requested` record. The mount and the removal MUST NOT
+             be gated.
 ```
 
 ```

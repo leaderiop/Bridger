@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-008                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): Record-only `Interrupted` tag; `DependencyCycle` raised by child install; `DrainTimeout { id, leases, target? }`, `id` also naming a plugin whose running transition step the call waited for; `WouldDeadlock` raised by `retry` and `enable` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -30,7 +30,7 @@ Every named error is a `Schema.TaggedError` (the v4 constructor name, as SPEC.md
 | --- | --- | --- |
 | `DuplicatePlugin` | `id` | `install` of a known ID in the realm |
 | `DuplicateProvider` | `serviceId`, `providerId` (plugin ID or `"base"`) | `install`, `replace`, `enable` |
-| `DependencyCycle` | `path` (plugin IDs) | `install`, `replace`, `enable` |
+| `DependencyCycle` | `path` (plugin IDs) | `install`, `replace`, `enable`; child install (`Plugin.Runtime.install`, `path` beginning with the child) |
 | `InvalidDefinition` | `id`, `reason` | `install`, `replace` |
 | `UnknownRealm` | `id` | `install` into an undefined realm; `replace` (as cause); `use`, `useAll`, `lease` with an undefined `realm` |
 | `ReplaceError` | `id`, `cause: InstallError` | `replace` |
@@ -40,8 +40,8 @@ Every named error is a `Schema.TaggedError` (the v4 constructor name, as SPEC.md
 | `HostClosed` | — | every operation once shutdown begins |
 | `ConfigInvalid` | `id`, `message` | `reconfigure`; activation failure cause |
 | `CleanupError` | `id`, `message` | `remove`, `replace`, `restart`, `disable`, `reconfigure` |
-| `DrainTimeout` | `id` (plugin or generation name), `leases` | `remove`, `replace`, `restart`, `disable`, `reconfigure`, `Generation` |
-| `WouldDeadlock` | `id` | re-entrant waits ([ADR-BR-016](../decisions/016-reentrancy-detection.md)) |
+| `DrainTimeout` | `id` (the plugin, or `Generation` name, whose leases did not drain, or whose running transition step the call was waiting for), `leases`, `target?` (the plugin the call named, present only when it differs from `id`, as when a cascade's drain limit expired on a dependent) | `remove`, `replace`, `restart`, `disable`, `reconfigure`, `Generation` |
+| `WouldDeadlock` | `id` | re-entrant waits ([ADR-BR-016](../decisions/016-reentrancy-detection.md)): `remove`, `replace`, `restart`, `disable`, `reconfigure`; `retry` and `enable`, which can wait for a running system stop ([08 — Operation legality](../behaviors/08-operation-legality.md), BEH-BR-073); `awaitIdle` |
 | `IdleTimeout` | `snapshot` | `awaitIdle` |
 | `ServiceUnavailable` | `serviceId` | `use`, `useAll`, `lease` |
 | `LeaseRevoked` | `serviceId` or `id` | forced revocation |
@@ -62,6 +62,8 @@ Every named error is a `Schema.TaggedError` (the v4 constructor name, as SPEC.md
 
 - `InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | InvalidDefinition | UnknownRealm`.
 - Every mutating operation's error union additionally includes `Unattributed | ReasonRequired | AuditUnavailable | OperationRejected`, with two exceptions. `shutdown` adds only `Unattributed | ReasonRequired`: it skips the latch, is not gated, and proceeds when its `requested` record cannot be written. `reconcile` fails only with `Unattributed | ReasonRequired | AuditUnavailable | HostClosed`; gate refusals are per entry and are reported in `ReconcileReport.rejected`, not as the call's error ([ADR-BR-023](../decisions/023-desired-state-reconcile.md)). `AuditWriteFailed` never reaches an operation's caller; the host maps it to `AuditUnavailable` or to the audit-degraded latch.
+- **`DrainTimeout` names where the drain stuck.** `id` is always the plugin (or `Generation` name) whose leases did not drain, or whose running transition step the call was waiting for when its drain limit expired, and `leases` its count of leases still held — 0 when the call was waiting for a running build step; `target` is present only when `id` is not the plugin the call named — a cascade whose drain limit expired while it waited on a dependent ([ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)). The `drain-timeout` event carries `pluginId` = `id` and the same `target`. A caller that catches `DrainTimeout` can therefore tell "my plugin is held" from "a dependent of my plugin is held" without a second lookup.
+- **Record-only tag `Interrupted`.** A call interrupted after its `requested` record was enqueued and before its intent was recorded ends with a `failed` record whose `error` is `{ _tag: "Interrupted", message: "caller interrupted before its intent was recorded" }` ([22 — Attributable operations](../behaviors/22-attributable-operations.md), BEH-BR-188). `Interrupted` has no fields and the fixed message above. It is not a `Schema.TaggedError` and never a member of any operation's error union, because the interrupted caller receives no error at all; it appears only in `AuditRecord.error`. A consumer's store that validates `error._tag` against this table must accept it as the one record-only tag.
 - **Activation outcomes are state, not errors.** Missing requirements leave a plugin `waiting`; a build or activation failure leaves it `failed`. `KeyMismatch` and `ConfigInvalid` appear as the cause recorded in that failure, and `install` does not fail for them.
 - **Consistency fixes to SPEC.md.** `PluginHandle.restart` has the same error union as `Host.restart` (SPEC.md omitted `DrainTimeout | WouldDeadlock`); `awaitIdle` and `inspect` also fail with `HostClosed`.
 - **No values.** No field carries a configuration value, a key object, a fiber or a raw cause; full causes stay in the core's diagnostics. A `ConfigInvalid.message` names paths and expected forms and omits the offending values ([ADR-BR-018](../decisions/018-configuration-decoded-before-build.md)).
@@ -91,7 +93,7 @@ Every named error is a `Schema.TaggedError` (the v4 constructor name, as SPEC.md
 ## References
 
 - Behaviours: [03 — Installation](../behaviors/03-installation.md), [08 — Operation legality](../behaviors/08-operation-legality.md), [09 — Leases](../behaviors/09-leases.md), [22 — Attributable operations](../behaviors/22-attributable-operations.md), [23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md), [25 — Operation gate](../behaviors/25-operation-gate.md)
-- Invariants: [INV-BR-012](../invariants.md#inv-br-012-a-definition-error-registers-nothing), [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable), [INV-BR-028](../invariants.md#inv-br-028-audit-records-carry-no-configuration-values)
+- Invariants: [INV-BR-002](../invariants.md#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope), [INV-BR-010](../invariants.md#inv-br-010-intent-survives-caller-interruption), [INV-BR-012](../invariants.md#inv-br-012-a-definition-error-registers-nothing), [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable), [INV-BR-028](../invariants.md#inv-br-028-audit-records-carry-no-configuration-values)
 - Risks: [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008)
-- Decisions: [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-023](../decisions/023-desired-state-reconcile.md), [ADR-BR-029](../decisions/029-attributable-mutations.md), [ADR-BR-031](../decisions/031-audit-failure-policy.md), [ADR-BR-032](../decisions/032-operation-gate.md)
+- Decisions: [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md), [ADR-BR-023](../decisions/023-desired-state-reconcile.md), [ADR-BR-029](../decisions/029-attributable-mutations.md), [ADR-BR-031](../decisions/031-audit-failure-policy.md), [ADR-BR-032](../decisions/032-operation-gate.md)
 - Source: `docs/SPEC.md` — "Errors", "Host interface", "API decisions" row 6

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-07                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -107,11 +107,23 @@ REQUIREMENT: A definition that fails a check MUST fail the call with
 ```
 
 ```
-REQUIREMENT: From the moment a replace is accepted until it completes, the
+REQUIREMENT: From the moment a replace is accepted until it completes or
+             its intent is ended (08 — Operation Legality, BEH-BR-080), the
              host MUST reserve both the old and the new definition's provider
              slots and dependency edges, so that a concurrent `install`,
              `enable` or `replace` that would conflict with either fails its
-             own checks.
+             own checks. A parked `replace` (BEH-BR-074) MUST keep its
+             reservations while it is parked.
+```
+
+```
+REQUIREMENT: When a cascade, whatever its root, or shutdown ends a parked
+             `replace`'s intent (08 — Operation Legality, BEH-BR-080;
+             12 — Shutdown and Hosting, BEH-BR-105), the reservations of the
+             new definition MUST be released in the same revision in which
+             the intent ends, the revision of its `intent-ended` record
+             (23 — Audit Sink and Record); the definition registered under
+             the ID MUST stay the old one, and the swap MUST NOT happen.
 ```
 
 Checking first is what makes a rejected replace harmless: a typo in the new
@@ -125,7 +137,9 @@ reservation, another `install` could claim a key the new definition provides
 during that window, and the replace would then publish a duplicate provider or
 fail at a point where the old activation is already gone. Reserving both sets
 of slots for the window closes it; the reservation of the old set ends with the
-swap.
+swap. When the window ends without a swap — a cascade ends a parked `replace`
+(CCR-BR-008) — the new set's reservation ends at once, in the same revision,
+so that no slot stays held for a definition that will never be registered.
 
 ## BEH-BR-051: Changed provides: dropped keys strand dependents, added keys are checked
 
@@ -260,7 +274,7 @@ snapshot names the code that leaked rather than code that never ran.
 // illustrative — not type-checked
 retry(ref: PluginRef, options?: OperationOptions):
   Effect.Effect<void,
-    | UnknownPlugin | Conflict | HostClosed
+    | UnknownPlugin | Conflict | WouldDeadlock | HostClosed
     | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
 ```
 
@@ -277,6 +291,18 @@ REQUIREMENT: `retry` MUST be a no-op success on a `waiting`, `starting` or
              "cleanup-failure" }` on a plugin failed with phase "cleanup";
              and MUST fail with `Conflict { pending: "disabled" }` on a
              `disabled` plugin.
+```
+
+```
+REQUIREMENT: `retry` on a `stopping` plugin whose system stop is parked MUST
+             fail with `Conflict { id, pending: "dependency-loss" }`; on a
+             running system stop it MUST wait for the stop to settle; if
+             that stop parks while it waits, it MUST fail with
+             `Conflict { id, pending: "dependency-loss" }`; otherwise it is
+             decided against the state the plugin landed in (08 — Operation
+             Legality, BEH-BR-073). A `retry` from a fiber that holds the
+             plugin MUST fail with `WouldDeadlock` instead of waiting
+             (09 — Leases, BEH-BR-088).
 ```
 
 ```
@@ -475,7 +501,7 @@ is that `enable` must check again (BEH-BR-062).
 // illustrative — not type-checked
 enable(ref: PluginRef, options?: OperationOptions):
   Effect.Effect<void,
-    | UnknownPlugin | Conflict | InstallError | HostClosed
+    | UnknownPlugin | Conflict | InstallError | WouldDeadlock | HostClosed
     | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
 ```
 
@@ -500,12 +526,36 @@ REQUIREMENT: `enable` MUST be a no-op success on a `waiting`, `starting`,
              "cleanup-failure" }` on a plugin failed with phase "cleanup".
 ```
 
+```
+REQUIREMENT: `enable` on a `stopping` plugin whose system stop is parked
+             MUST fail with `Conflict { id, pending: "dependency-loss" }`; on
+             a running system stop it MUST wait for the stop to settle; if
+             that stop parks while it waits, it MUST fail with
+             `Conflict { id, pending: "dependency-loss" }`; otherwise it is
+             decided against the state the plugin landed in (08 — Operation
+             Legality, BEH-BR-073). An `enable` from a fiber that holds the
+             plugin MUST fail with `WouldDeadlock` instead of waiting
+             (09 — Leases, BEH-BR-088).
+```
+
 A competing provider may have appeared while the plugin was disabled — that is
 what disabling permits. Enabling over it would create two providers of one
 key, so the check runs again and the plugin stays disabled until the conflict
 is resolved. `enable` on a `failed` plugin does not clear the failure; that is
 `retry`'s job, and keeping the two apart means "enable everything" never
 silently retries a failure.
+
+**Settled here.** `retry` and `enable` start a plugin that is not running;
+neither carries a `drain` or `force` that could resume a parked system stop,
+and resuming one only to leave the plugin where the dependency loss puts it
+would not be what either asked for. On a parked system stop they therefore
+fail with `Conflict { pending: "dependency-loss" }` (CCR-BR-008), and so does
+one that was waiting for a running system stop that then parked; `remove`,
+`replace`, `restart`, `disable` and `reconfigure` are the calls that resume it.
+`Conflict` is already a member of their unions. Waiting for a running system
+stop is a wait for that plugin's transition step, so a `retry` or `enable`
+issued from that plugin's own lease, build or finalizer would wait for itself;
+their unions therefore gain `WouldDeadlock`.
 
 ---
 

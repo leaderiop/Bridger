@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-13                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -96,7 +96,9 @@ type HostEvent = HostEventCommon & (
   | { readonly type: "runtime-failure"; readonly message: string }
   | { readonly type: "lease-timeout"; readonly serviceId: ServiceId }
   | { readonly type: "lease-revoked"; readonly leases: number }
-  | { readonly type: "drain-timeout"; readonly leases: number }
+  | { readonly type: "drain-timeout"; readonly leases: number; readonly target?: string }   // pluginId = DrainTimeout.id
+  | { readonly type: "stop-parked"; readonly leases: number; readonly target?: string }
+  | { readonly type: "stop-resumed"; readonly by: "operator" | "cascade" | "shutdown"; readonly endsIntent?: string }
   | { readonly type: "config-rejected"; readonly message: string }
   | { readonly type: "config-updated"; readonly paths: readonly string[] }
   | { readonly type: "plugin-stalled"; readonly missingServiceIds: readonly ServiceId[] }
@@ -112,9 +114,35 @@ REQUIREMENT: `Host.events` MUST emit, without coalescing: `plugin-installed`,
              `plugin-removed`, `build-started`, `build-finished` (with
              duration and outcome), `state-changed` (from, to, reason),
              `runtime-failure`, `lease-timeout`, `lease-revoked`,
-             `drain-timeout`, `config-rejected`, `config-updated`,
-             `plugin-stalled`, `listener-failed`, `closed`, `audit-degraded`
-             and `audit-acknowledged`.
+             `drain-timeout`, `stop-parked`, `stop-resumed`,
+             `config-rejected`, `config-updated`, `plugin-stalled`,
+             `listener-failed`, `closed`, `audit-degraded` and
+             `audit-acknowledged`.
+```
+
+```
+REQUIREMENT: A `drain-timeout` event MUST be emitted for each call that
+             fails with `DrainTimeout`, with `pluginId` set to the error's
+             `id` and `target` set to the error's `target` (present exactly
+             when the call named another plugin) (09 — Leases, BEH-BR-085).
+```
+
+```
+REQUIREMENT: A `stop-parked` event MUST be emitted for each stop that parks
+             — a parked operation or a parked system stop (08 — Operation
+             Legality, BEH-BR-074), including every stop that parks with the
+             one call that failed with `DrainTimeout` (BEH-BR-079) — with
+             `pluginId` the plugin whose stop parked, `leases` the number of
+             leases still held on it, and `target` the plugin named by that
+             one failing call, present when it differs from `pluginId`.
+             A `stop-resumed` event MUST be emitted when a parked stop
+             resumes, with `by` naming what resumed it: an operator call
+             ("operator"), a cascade ("cascade") or shutdown ("shutdown").
+             When the resumption ends a parked operator intent (BEH-BR-080),
+             `endsIntent` MUST name that operation (for example "remove");
+             when a call resumes a parked operation, the operation in flight
+             is the one BEH-BR-072's row names (the in-flight operation for a
+             join, the incoming one for a supersede).
 ```
 
 ```
@@ -138,7 +166,22 @@ and `audit-acknowledged` when
 [23 — Audit Sink and Record](./23-audit-sink-and-record.md). They appear on
 the diagnostic feed so that monitoring notices a degraded audit channel; the
 feed reporting them does not make it part of the audit trail. Fields beyond
-the common ones are illustrative and are fixed with the implementation.
+the common ones are illustrative and are fixed with the implementation,
+except the `drain-timeout`, `stop-parked` and `stop-resumed` fields, which
+the requirements above fix.
+
+**Settled here.** `drain-timeout` reports a call's failure; `stop-parked`
+reports what that failure leaves behind — a stop waiting for an operator —
+and `stop-resumed` reports when that wait ends and by whom (CCR-BR-008). The
+two are separate because they differ in number: one call that fails with
+`DrainTimeout` parks every stop it was driving — its own and each
+dependency-loss stop it started — so one `drain-timeout` can come with several
+`stop-parked` events, all with the same `target`; and a cascade with no caller
+resumes a parked stop with no `drain-timeout` at all. Which operator intent a
+resumption ended is recorded in the audit trail by the `intent-ended` record,
+whose `endsIntentOf` is the `recordId` of the parked call's `requested` record
+([23 — Audit Sink and Record](./23-audit-sink-and-record.md)); the event's
+`endsIntent` only names the operation, for monitoring.
 
 ## BEH-BR-115: seq is monotonic, and loss shows as a gap
 
@@ -256,6 +299,12 @@ interface PluginInspection {
   readonly leases: number
   readonly contributions: readonly { readonly registry: string; readonly id: string }[]
   readonly lastBuildMs?: number
+  readonly parked: boolean                                                            // the plugin's stop is parked (BEH-BR-074)
+  readonly pending?: {                                                               // the operator operation in flight, if any
+    readonly operation: string
+    readonly correlationId: string
+    readonly requestedRecordId?: string                                              // present only with an AuditSink wired
+  }
 }
 ```
 
@@ -271,6 +320,22 @@ REQUIREMENT: `inspect` MUST fail with `UnknownPlugin` for an unknown
 ```
 
 ```
+REQUIREMENT: `parked` MUST equal the `parked` field of the plugin's
+             `stopping` snapshot entry, and MUST be false in every other
+             state (04 — States and Snapshots, BEH-BR-027). `pending` MUST be
+             present exactly while an operator operation is in flight on the
+             plugin (08 — Operation Legality, BEH-BR-072), parked or not —
+             including a call that has resumed a parked system stop — naming
+             the operation BEH-BR-072's row names and the `correlationId` of
+             the call that owns it; it MUST be absent while only a system
+             stop runs or is parked. When an `AuditSink` is wired,
+             `requestedRecordId` MUST be the `recordId` of the owning call's
+             `requested` record (23 — Audit Sink and Record), the identifier
+             that `endsIntentOf` and `resumes` use; without a sink it MUST be
+             absent.
+```
+
+```
 REQUIREMENT: `inspect` is not a mutating operation: it MUST NOT require
              attribution, consult the gate, or write audit records.
 ```
@@ -278,7 +343,14 @@ REQUIREMENT: `inspect` is not a mutating operation: it MUST NOT require
 `inspect` is the counterpart of Cordis's effect tree: it answers "what does
 this plugin own right now". SPEC.md's signature omitted `HostClosed`; it is
 added, consistent with every other host read that waits on host state
-([12 — Shutdown and Hosting](./12-shutdown-and-hosting.md)).
+([12 — Shutdown and Hosting](./12-shutdown-and-hosting.md)). `parked` and
+`pending` (CCR-BR-008) answer the operator's question after a `DrainTimeout`
+— "is this plugin waiting for me, and on whose call?" — without the audit
+trail; a `correlationId` is an identifier, not a value, so it does not widen
+what `inspect` exposes. `requestedRecordId` identifies the owning call the way
+the audit trail does: a later `intent-ended` record names it in
+`endsIntentOf`, and the terminal record of a call that resumes the operation
+names it in `resumes`, so an operator can match the inspection to both.
 
 ## BEH-BR-119: Ownership is reported through ActivePlugin
 
