@@ -17,6 +17,7 @@ export type HostEventBody =
   | { readonly type: "closed" }
   | { readonly type: "audit-degraded"; readonly message: string }
   | { readonly type: "audit-acknowledged" }
+  | { readonly type: "listener-failed"; readonly event: string; readonly message: string }
 
 export type HostEvent = { readonly hostId: string; readonly seq: number; readonly timestamp: string; readonly pluginId?: string } & HostEventBody
 

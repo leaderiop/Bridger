@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-05                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -125,6 +125,13 @@ REQUIREMENT: `concurrency` MUST bound builds only. A stop MUST NOT take a
              08 — Operation Legality, BEH-BR-078).
 ```
 
+```
+REQUIREMENT: A build MUST begin only once it holds a slot. A stop of a
+             `starting` plugin whose build has not begun MUST cancel that
+             build without waiting for a slot; the cancellation MUST NOT be
+             recorded as a failure.
+```
+
 FIFO order and finite per-step timeouts mean no plugin starves another
 indefinitely, and a plugin whose requirement never appears stays `waiting`
 without consuming a slot. Stops follow their own ordering, reverse dependency
@@ -164,10 +171,32 @@ REQUIREMENT: The captured services MUST remain the activation's dependency
              activation.
 ```
 
+```
+REQUIREMENT: When a `starting` plugin's build would begin and a key in its
+             `requires` no longer has an `active` provider in its
+             resolution scope — the provider began to stop, or an operation
+             on the provider was linearized, after the plugin became
+             `starting` — the build MUST NOT begin, the plugin MUST return to
+             `waiting` in that revision, and no failure MUST be recorded. It
+             starts again by itself when the requirement returns
+             (BEH-BR-033).
+```
+
 This is Cordis's "committed view" rule. A dependent never sees its provider
 change underneath it: a provider cannot be removed or replaced without first
 stopping its dependents ([06 — Removal](./06-removal.md)), so the captured
 view is never stale while the activation is alive.
+
+**Settled here.** A plugin becomes `starting` when its requirements are
+available, but captures its providers only when its build begins, and the two
+moments can be apart: the build may wait for a slot, and an operation on a
+provider hides the provider when it is linearized, before the provider's stop
+reaches a dependent that has captured nothing yet. A requirement that is gone
+at capture is not a failure of the plugin: nothing it did went wrong, and a
+sticky failure there would make the settled state depend on scheduling, which
+BEH-BR-160 rules out. The host-core prototype first recorded such a plugin as
+`failed`, and its confluence property test, with racing operations, found the
+difference (URS gap G25, CCR-BR-010).
 
 ## BEH-BR-036: Each activation builds its Layer with a fresh memo map in a forked scope
 

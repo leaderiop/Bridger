@@ -1,9 +1,11 @@
 // Plugin definition (references/core behaviour 01). The build is an Effect Layer whose
 // input may not exceed the declared requirements and whose output must cover the
 // declared provisions — both checked by the compiler through `define`.
-import type { Context, Effect, Layer, Schema } from "effect"
+import { Effect, Layer, type Context, type Schema } from "effect"
+import type { ActivationFailed, PluginRemoved } from "./errors.js"
+import type { OperationOptions } from "./gxp.js"
 import type { PluginConfig } from "./config.js"
-import type { PluginRuntime } from "./runtime.js"
+import { PluginRuntime } from "./runtime.js"
 
 export type Keys = ReadonlyArray<Context.Key<any, any>>
 // Distributive form. The form written in references/core (`K[number] extends Context.Key<infer I, any> ? I : never`)
@@ -16,6 +18,8 @@ export interface PluginDefinition<R extends Keys = Keys, P extends Keys = Keys, 
   readonly id: string
   readonly requires: R
   readonly provides: P
+  /** Services used if present; never gate activation (BEH-BR-129). */
+  readonly optional?: Keys
   /** The build sees its requirements plus the per-activation Plugin.Runtime and Plugin.Config (BEH-BR-089, 097). */
   readonly build: Layer.Layer<IdentifiersOf<P>, E, IdentifiersOf<R> | PluginRuntime | PluginConfig>
   readonly meta?: { readonly version?: string; readonly digest?: string; readonly description?: string }
@@ -29,6 +33,8 @@ export interface PluginDefinition<R extends Keys = Keys, P extends Keys = Keys, 
     readonly timeout: number
     readonly failureThreshold: number
   }
+  /** Set by `group` only: the handle's awaitActive waits for every member (BEH-BR-127). */
+  readonly group?: true
 }
 
 export const define = <const R extends Keys, const P extends Keys, E>(
@@ -36,3 +42,31 @@ export const define = <const R extends Keys, const P extends Keys, E>(
 ): PluginDefinition<R, P, E> => definition
 
 export type AnyPlugin = PluginDefinition<Keys, Keys, unknown>
+
+/** A consumer-side decoration of one key (BEH-BR-151). */
+export interface Interception<S = any> {
+  readonly key: Context.Key<any, S>
+  readonly wrap: (service: S, consumer: { readonly pluginId: string; readonly realm: string }) => S
+}
+
+export interface InstallOptions extends OperationOptions {
+  readonly realm?: string
+  readonly config?: unknown
+  readonly disabled?: boolean
+  readonly intercept?: ReadonlyArray<Interception>
+}
+
+export interface PluginHandle {
+  readonly id: string
+  readonly realm: string
+  readonly awaitActive: Effect.Effect<void, ActivationFailed | PluginRemoved>
+}
+
+/** `Plugin.group` (BEH-BR-127): sugar over children — provides nothing, mounts each member as a child. */
+export const group = (id: string, members: ReadonlyArray<AnyPlugin>): AnyPlugin => ({
+  id, requires: [], provides: [], group: true,
+  build: Layer.effectDiscard(Effect.gen(function* () {
+    const runtime = yield* PluginRuntime
+    for (const m of members) yield* runtime.install(m)
+  })) as AnyPlugin["build"]
+})

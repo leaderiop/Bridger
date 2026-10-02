@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-14                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-02): No mount once the parent's stop or shutdown has begun; a parked child removal resumes only as a removal; mount and activation records; a parent awaiting a child in its build can starve for a slot; a group member's install error fails the group with phase "build" (prototype findings G19–G22) (CCR-BR-010)<br>0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -38,7 +38,7 @@ uses all eight.
 readonly install: <R extends Keys, P extends Keys, E, C>(
   child: PluginDefinition<R, P, E, C>,
   options?: InstallOptions
-) => Effect.Effect<PluginHandle, InstallError, Scope.Scope>
+) => Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed, Scope.Scope>
 ```
 
 ```
@@ -82,6 +82,15 @@ REQUIREMENT: When the parent stops, each child MUST be removed — stopped,
              completes.
 ```
 
+```
+REQUIREMENT: Once the parent's stop has begun — the parent is `stopping`,
+             or a runtime failure of the parent is being handled — a call to
+             `Plugin.Runtime.install` MUST fail with
+             `Conflict { id: <parent ID>, pending }`, `pending` naming the
+             stop's reason, and once shutdown has begun with `HostClosed`;
+             in both cases it MUST register nothing.
+```
+
 Tying the child to the activation means there is no separate list of
 children for anyone to keep in step with the parent: whatever ends the
 activation removes its children first, in the dependents-first order every
@@ -103,6 +112,14 @@ dependents-first order of 06. A parked operation on a child does not survive
 the parent's stop: the child's lifetime is the parent's activation, so the
 parked intent ends, the child is removed, and the child's records are caused
 by the cascade root's record (BEH-BR-126).
+
+**Settled here.** A fiber of the parent — a `background` fiber, a
+`whenAvailable` run — keeps running while the parent drains, after its
+children have been removed and before its scope closes. A child it mounted
+then would be removed by nothing: it is not a dependent of the stop already
+under way, and the parent's next activation does not know it. The mount is
+therefore refused once the stop has begun, with the `Conflict` an operation
+on a stopping plugin gets (URS gap G19, CCR-BR-010).
 
 ## BEH-BR-122: A child is an ordinary plugin with a prefixed identity
 
@@ -179,12 +196,25 @@ REQUIREMENT: When the parent stops, a child that depends on the parent's
              available for the child's teardown.
 ```
 
+```
+REQUIREMENT: Documentation MUST state that a parent awaiting a child's
+             `awaitActive` inside its own build holds a build slot while the
+             child's build waits for one (05 — Activation, BEH-BR-034).
+             Parents SHOULD await their children after their build returns.
+```
+
 A parent that awaits `awaitActive` *inside its own build* on a child that
 requires the parent's services would wait for itself: the child cannot start
 until the parent publishes, and the parent does not publish until its build
 returns. The parent's `buildTimeout` bounds that mistake; authors who need
 the child active await it after the build, for example from a `background`
 fiber.
+
+The same wait can starve even when the child needs nothing of its parent: the
+parent's build holds a slot, and the child's build needs one. With
+`concurrency` 1, or with as many such parents building at once as there are
+slots, the parent fails at `buildTimeout` every time, and its children are
+removed with the failed activation (URS gap G21, CCR-BR-010).
 
 ## BEH-BR-125: Stopping the parent removes its children
 
@@ -205,6 +235,14 @@ REQUIREMENT: Any transition that closes the parent's activation scope —
              when its stop completes. If that resumed drain expires again,
              the child's stop MUST become a parked system stop with `next`
              "gone".
+```
+
+```
+REQUIREMENT: A parked child stop whose `next` is "gone" MUST be resumed only
+             by its parent's stop, by shutdown or by an operator `remove` of
+             the child, and MUST end with the child removed. Any other
+             operation addressed to the child MUST fail with
+             `Conflict { id, pending: "remove" }` and change nothing.
 ```
 
 ```
@@ -266,6 +304,14 @@ REQUIREMENT: When an `AuditSink` is wired, each such mount and unmount MUST
              an operator call, that call's `requested` record.
 ```
 
+```
+REQUIREMENT: The mount record's `after.state` MUST be the state in which the
+             child is registered (`waiting` or `disabled`). When the child
+             becomes `starting` in the revision of its mount, the
+             `system-start` record of that activation, or of its failure,
+             MUST carry the mount record's `recordId` as `causationId`.
+```
+
 **Settled here.** SPEC.md is silent on attribution and approval of
 children. Mounting a child is a consequence of a decision already taken —
 installing or starting the parent — not a new decision, so it is treated as
@@ -275,6 +321,11 @@ approval for every piece of code that can run approves the parent's
 definition, whose `meta.digest` covers the code that mounts the children.
 Operations a caller addresses to a child directly (BEH-BR-125) are ordinary
 operator calls and are attributed, gated and audited as such.
+
+A child's mount and its activation are both `system-start` records. They are
+told apart by `after.state` and by the causation chain: the activation points
+at the mount, the mount at the parent's activation (URS gap G20,
+CCR-BR-010).
 
 ## BEH-BR-127: A group is a plugin that mounts members as children
 
@@ -323,9 +374,11 @@ REQUIREMENT: `remove`, `disable`, `enable` and `restart` of a group MUST act on
 
 ```
 REQUIREMENT: If any member fails its install checks during the group's
-             build, the group's activation MUST fail with phase "activation"
-             and members already mounted in that activation MUST be removed,
-             so that no partial group remains mounted.
+             build, the group's activation MUST fail with phase "build" —
+             the `InstallError` fails the group's build Layer (05 —
+             Activation, BEH-BR-037; BEH-BR-121) — and members already
+             mounted in that activation MUST be removed, so that no partial
+             group remains mounted.
 ```
 
 The SPEC's acceptance list asks that "group operations are atomic". Here
@@ -336,7 +389,10 @@ caller waits for all of them.
 
 **Settled here.** The all-or-none mount on a member's `InstallError`
 settles a case SPEC.md does not cover; a group in which some members were
-silently missing would contradict the reason for grouping them.
+silently missing would contradict the reason for grouping them. The phase is
+"build", as for any parent whose build lets a child's `InstallError`
+propagate: a group is sugar over children, and a separate phase for groups
+would be a second mechanism (URS gap G22, CCR-BR-010).
 
 ---
 

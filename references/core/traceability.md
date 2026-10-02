@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-TRACE                                                |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.4 (2026-10-02): Regenerated; REQ-BR-046–048 added (CCR-BR-008)<br>0.3 (2026-10-02): Regenerated; INV-BR-030, ADR-BR-038, RSK-BR-023 and REQ-BR-043–045 added (CCR-BR-006)<br>0.2 (2026-10-02): Regenerated after consistency fixes; REQ-BR-042 added (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-10-02): Regenerated; REQ-BR-049–052 added (CCR-BR-010)<br>0.4 (2026-10-02): Regenerated; REQ-BR-046–048 added (CCR-BR-008)<br>0.3 (2026-10-02): Regenerated; INV-BR-030, ADR-BR-038, RSK-BR-023 and REQ-BR-043–045 added (CCR-BR-006)<br>0.2 (2026-10-02): Regenerated after consistency fixes; REQ-BR-042 added (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -179,7 +179,7 @@ Every path is planned. Type-level tests use `tstyche` (`*.tst.ts`); property tes
 
 ## §5 Acceptance scenario traceability
 
-One scenario per required acceptance check of [BEH-BR-183](behaviors/21-testing-host.md) (checks 1–20) and [BEH-BR-184](behaviors/21-testing-host.md) (checks 21–48), in the same order. Each will be a tagged scenario in `features/` once code exists; until then none has run.
+One scenario per required acceptance check of [BEH-BR-183](behaviors/21-testing-host.md) (checks 1–20) and [BEH-BR-184](behaviors/21-testing-host.md) (checks 21–52), in the same order. Each will be a tagged scenario in `features/` once code exists; until then none has run.
 
 | Scenario | Check | Behaviours | Status |
 | --- | --- | --- | --- |
@@ -231,6 +231,10 @@ One scenario per required acceptance check of [BEH-BR-183](behaviors/21-testing-
 | REQ-BR-046 | 46. Interruption records: gate rejected, failed (Interrupted) before intent, first terminal cause wins | [BEH-BR-067](behaviors/08-operation-legality.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [BEH-BR-203](behaviors/23-audit-sink-and-record.md), [BEH-BR-221](behaviors/25-operation-gate.md) | Not run |
 | REQ-BR-047 | 47. Parked operations: resumption ownership, Conflict on retry/enable, no-caller cascades revoke, children removed | [BEH-BR-072](behaviors/08-operation-legality.md), [BEH-BR-073](behaviors/08-operation-legality.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-095](behaviors/10-runtime-failure-and-health.md), [BEH-BR-125](behaviors/14-children-and-groups.md) | Not run |
 | REQ-BR-048 | 48. Re-entrancy from builds and finalizers; a cascade's drain limit runs while it waits | [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-085](behaviors/09-leases.md), [BEH-BR-088](behaviors/09-leases.md) | Not run |
+| REQ-BR-049 | 49. Capture at build begin: a vanished requirement returns the plugin to waiting; confluence under racing histories | [BEH-BR-034](behaviors/05-activation.md), [BEH-BR-035](behaviors/05-activation.md), [BEH-BR-160](behaviors/18-reconciliation-and-confluence.md) | Not run |
+| REQ-BR-050 | 50. A child's lifetime edges: no mount after the parent's stop began; a parked child removal resumes only as a removal | [BEH-BR-121](behaviors/14-children-and-groups.md), [BEH-BR-125](behaviors/14-children-and-groups.md) | Not run |
+| REQ-BR-051 | 51. Child mount and activation records; a group with an invalid member fails with phase build and keeps no member | [BEH-BR-126](behaviors/14-children-and-groups.md), [BEH-BR-128](behaviors/14-children-and-groups.md) | Not run |
+| REQ-BR-052 | 52. A listener removed mid-dispatch fails the dispatch; a child's own intercept replaces inheritance | [BEH-BR-141](behaviors/16-event-bus.md), [BEH-BR-142](behaviors/16-event-bus.md), [BEH-BR-151](behaviors/17-realms-and-interception.md) | Not run |
 
 ## §6 Coverage targets
 
@@ -252,8 +256,8 @@ Each risk's controls are the behaviours and invariants cited in its entry of the
 | --- | --- | --- | --- |
 | [RSK-BR-001](gxp/03-risk-assessment.md#rsk-br-001) | Provider closed mid-call | BEH-BR-042, BEH-BR-043, BEH-BR-044, BEH-BR-076, BEH-BR-081, BEH-BR-082, BEH-BR-083, BEH-BR-084, BEH-BR-085, BEH-BR-130, BEH-BR-183, INV-BR-005, INV-BR-006, INV-BR-017 | REQ-BR-001, REQ-BR-002, REQ-BR-012, REQ-BR-018, REQ-BR-048 |
 | [RSK-BR-002](gxp/03-risk-assessment.md#rsk-br-002) | Stale build published | BEH-BR-036, BEH-BR-037, BEH-BR-039, BEH-BR-065, BEH-BR-066, BEH-BR-072, BEH-BR-196, INV-BR-003, INV-BR-004, INV-BR-009, INV-BR-014 | REQ-BR-004, REQ-BR-016, REQ-BR-042, REQ-BR-047 |
-| [RSK-BR-003](gxp/03-risk-assessment.md#rsk-br-003) | Silent retry repeats side effects | BEH-BR-031, BEH-BR-053, BEH-BR-056, BEH-BR-096, BEH-BR-160, BEH-BR-183, BEH-BR-198, INV-BR-007 | REQ-BR-010, REQ-BR-029, REQ-BR-033 |
-| [RSK-BR-004](gxp/03-risk-assessment.md#rsk-br-004) | Unaudited lifecycle change | BEH-BR-067, BEH-BR-077, BEH-BR-086, BEH-BR-110, BEH-BR-126, BEH-BR-158, BEH-BR-184, BEH-BR-188, BEH-BR-194, BEH-BR-198, BEH-BR-199, BEH-BR-200, BEH-BR-203, BEH-BR-205, INV-BR-010, INV-BR-022, INV-BR-027, INV-BR-029 | REQ-BR-002, REQ-BR-032, REQ-BR-033, REQ-BR-034, REQ-BR-038, REQ-BR-039, REQ-BR-040, REQ-BR-046 |
+| [RSK-BR-003](gxp/03-risk-assessment.md#rsk-br-003) | Silent retry repeats side effects | BEH-BR-031, BEH-BR-053, BEH-BR-056, BEH-BR-096, BEH-BR-160, BEH-BR-183, BEH-BR-198, INV-BR-007 | REQ-BR-010, REQ-BR-029, REQ-BR-033, REQ-BR-049 |
+| [RSK-BR-004](gxp/03-risk-assessment.md#rsk-br-004) | Unaudited lifecycle change | BEH-BR-067, BEH-BR-077, BEH-BR-086, BEH-BR-110, BEH-BR-126, BEH-BR-158, BEH-BR-184, BEH-BR-188, BEH-BR-194, BEH-BR-198, BEH-BR-199, BEH-BR-200, BEH-BR-203, BEH-BR-205, INV-BR-010, INV-BR-022, INV-BR-027, INV-BR-029 | REQ-BR-002, REQ-BR-032, REQ-BR-033, REQ-BR-034, REQ-BR-038, REQ-BR-039, REQ-BR-040, REQ-BR-046, REQ-BR-051 |
 | [RSK-BR-005](gxp/03-risk-assessment.md#rsk-br-005) | Unattributed change | BEH-BR-184, BEH-BR-185, BEH-BR-186, BEH-BR-187, BEH-BR-189, BEH-BR-191, BEH-BR-192, INV-BR-025 | REQ-BR-031, REQ-BR-038 |
 | [RSK-BR-006](gxp/03-risk-assessment.md#rsk-br-006) | Undetected audit gap | BEH-BR-184, BEH-BR-198, BEH-BR-202, BEH-BR-203, BEH-BR-205, BEH-BR-208, BEH-BR-212, BEH-BR-213, BEH-BR-215, INV-BR-022, INV-BR-023, INV-BR-029 | REQ-BR-032, REQ-BR-033, REQ-BR-034, REQ-BR-035, REQ-BR-036, REQ-BR-046 |
 | [RSK-BR-007](gxp/03-risk-assessment.md#rsk-br-007) | Non-reproducible or wrong time | BEH-BR-016, BEH-BR-179, BEH-BR-209, BEH-BR-210, BEH-BR-211, BEH-BR-216, INV-BR-024 | REQ-BR-041 |
@@ -265,14 +269,14 @@ Each risk's controls are the behaviours and invariants cited in its entry of the
 | [RSK-BR-013](gxp/03-risk-assessment.md#rsk-br-013) | Realm mistaken for security boundary | BEH-BR-145, BEH-BR-146, BEH-BR-150, BEH-BR-152, BEH-BR-184, INV-BR-020 | REQ-BR-026 |
 | [RSK-BR-014](gxp/03-risk-assessment.md#rsk-br-014) | Approval bypass through the raw Host | BEH-BR-015, BEH-BR-077, BEH-BR-144, BEH-BR-158, BEH-BR-182, BEH-BR-184, BEH-BR-217, BEH-BR-218, BEH-BR-221, BEH-BR-222, INV-BR-026, INV-BR-027 | REQ-BR-032, REQ-BR-040, REQ-BR-046 |
 | [RSK-BR-015](gxp/03-risk-assessment.md#rsk-br-015) | Forced revocation interrupts a GMP write | BEH-BR-045, BEH-BR-085, BEH-BR-086, BEH-BR-095, BEH-BR-107, BEH-BR-167, BEH-BR-174, BEH-BR-199, INV-BR-006, INV-BR-017 | REQ-BR-002, REQ-BR-021, REQ-BR-022, REQ-BR-039, REQ-BR-047, REQ-BR-048 |
-| [RSK-BR-016](gxp/03-risk-assessment.md#rsk-br-016) | Hidden runtime failure | BEH-BR-021, BEH-BR-031, BEH-BR-090, BEH-BR-091, BEH-BR-092, BEH-BR-094, BEH-BR-096, BEH-BR-123, BEH-BR-134, BEH-BR-141, BEH-BR-183, BEH-BR-199, BEH-BR-223, INV-BR-007 | REQ-BR-005, REQ-BR-010, REQ-BR-014, REQ-BR-025, REQ-BR-039 |
+| [RSK-BR-016](gxp/03-risk-assessment.md#rsk-br-016) | Hidden runtime failure | BEH-BR-021, BEH-BR-031, BEH-BR-090, BEH-BR-091, BEH-BR-092, BEH-BR-094, BEH-BR-096, BEH-BR-123, BEH-BR-134, BEH-BR-141, BEH-BR-183, BEH-BR-199, BEH-BR-223, INV-BR-007 | REQ-BR-005, REQ-BR-010, REQ-BR-014, REQ-BR-025, REQ-BR-039, REQ-BR-052 |
 | [RSK-BR-017](gxp/03-risk-assessment.md#rsk-br-017) | Unverified dynamically loaded code | BEH-BR-001, BEH-BR-008, BEH-BR-048, BEH-BR-104, BEH-BR-196, BEH-BR-219 | REQ-BR-037, REQ-BR-042 |
 | [RSK-BR-018](gxp/03-risk-assessment.md#rsk-br-018) | Over-claiming qualification evidence | BEH-BR-181, BEH-BR-182, BEH-BR-183, BEH-BR-184, BEH-BR-194, BEH-BR-208, BEH-BR-215, BEH-BR-224 | REQ-BR-036, REQ-BR-038 |
 | [RSK-BR-019](gxp/03-risk-assessment.md#rsk-br-019) | Conflicting concurrent operator actions | BEH-BR-065, BEH-BR-069, BEH-BR-071, BEH-BR-072, BEH-BR-155, BEH-BR-156, BEH-BR-183, BEH-BR-200, INV-BR-009, INV-BR-011 | REQ-BR-004, REQ-BR-029, REQ-BR-033, REQ-BR-047 |
 | [RSK-BR-020](gxp/03-risk-assessment.md#rsk-br-020) | Slow audit sink blocks the host | BEH-BR-110, BEH-BR-184, BEH-BR-202, BEH-BR-204, BEH-BR-205, BEH-BR-206, INV-BR-029 | REQ-BR-034, REQ-BR-035 |
 | [RSK-BR-021](gxp/03-risk-assessment.md#rsk-br-021) | Wall-clock step reorders records | BEH-BR-202, BEH-BR-209, BEH-BR-212, BEH-BR-214, BEH-BR-216, INV-BR-023 | REQ-BR-035 |
 | [RSK-BR-022](gxp/03-risk-assessment.md#rsk-br-022) | Defect in the Effect runtime | BEH-BR-036, BEH-BR-037, BEH-BR-177, BEH-BR-183, BEH-BR-184, INV-BR-003, INV-BR-014 | REQ-BR-016 |
-| [RSK-BR-023](gxp/03-risk-assessment.md#rsk-br-023) | Host transitions stall each other or complete under the wrong call | BEH-BR-027, BEH-BR-078, BEH-BR-079, BEH-BR-080, BEH-BR-088, BEH-BR-095, BEH-BR-105, BEH-BR-107, BEH-BR-114, BEH-BR-121, BEH-BR-184, BEH-BR-199, BEH-BR-200, INV-BR-002, INV-BR-016, INV-BR-017, INV-BR-030 | REQ-BR-003, REQ-BR-008, REQ-BR-023, REQ-BR-033, REQ-BR-039, REQ-BR-043, REQ-BR-044, REQ-BR-045, REQ-BR-047, REQ-BR-048 |
+| [RSK-BR-023](gxp/03-risk-assessment.md#rsk-br-023) | Host transitions stall each other or complete under the wrong call | BEH-BR-027, BEH-BR-078, BEH-BR-079, BEH-BR-080, BEH-BR-088, BEH-BR-095, BEH-BR-105, BEH-BR-107, BEH-BR-114, BEH-BR-121, BEH-BR-184, BEH-BR-199, BEH-BR-200, INV-BR-002, INV-BR-016, INV-BR-017, INV-BR-030 | REQ-BR-003, REQ-BR-008, REQ-BR-023, REQ-BR-033, REQ-BR-039, REQ-BR-043, REQ-BR-044, REQ-BR-045, REQ-BR-047, REQ-BR-048, REQ-BR-050 |
 
 ## §8 Regulatory clause traceability
 

@@ -13,7 +13,7 @@ export interface OperationContext { readonly actor: Actor; readonly reason?: str
 export interface OperationOptions { readonly context?: OperationContext }
 export const CurrentActor = Context.Reference<Actor>("@bridger/core/CurrentActor", { defaultValue: () => Actor.unattributed })
 
-export type Operation = "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart" | "disable" | "enable" | "shutdown" | "acknowledgeAuditDegraded"
+export type Operation = "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart" | "disable" | "enable" | "reconcile" | "defineRealm" | "shutdown" | "acknowledgeAuditDegraded"
 export type SystemTransition = "system-start" | "system-stop" | "runtime-failure" | "lease-revoked" | "intent-ended" | "health-degraded"
 export type AuditPhase = "requested" | "rejected" | "completed" | "failed" | "superseded" | "joined" | "system"
 
@@ -51,6 +51,7 @@ export interface AuditRecord {
   readonly configChange?: { readonly paths: ReadonlyArray<string> }   // paths only, never values (BEH-BR-197)
   readonly endsIntentOf?: string                    // `intent-ended` only: the parked call's `requested` record id (BEH-BR-080)
   readonly resumes?: string                         // a resumer's terminal record: the parked call's `requested` record id (BEH-BR-200)
+  readonly children?: number                        // reconcile parent terminal record only (BEH-BR-201)
 }
 export class AuditSink extends Context.Service<AuditSink, {
   readonly record: (r: AuditRecord) => Effect.Effect<void, AuditWriteFailed>

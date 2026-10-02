@@ -1,18 +1,21 @@
-// Prototype of the Bridger host core (references/core behaviours 02–13, 22–25): phases P1, P2 and P3.
+// Prototype of the Bridger host core (references/core behaviours 02–18, 22–25): phases P1–P4.
 //
 // Deliberate simplifications (recorded in RESULTS.md):
 //  - Operations are linearized per plugin (ADR-BR-038): no host-wide operation lock. An operator
 //    operation in flight is a `Flight` run by a host fiber; an incoming call joins, supersedes or
 //    conflicts with it (BEH-BR-072).
-//  - No realms, children, optional dependencies, event bus or reconcile (phase P4).
+//  - A plugin's identity (id, realm) is held as one internal key: the id in the default realm,
+//    `id@realm` elsewhere (BEH-BR-147). Snapshots and records show the pair.
 //  - Configuration comes from a function source only (no ConfigProvider default); `ConfigInvalid`
 //    carries a fixed message rather than per-path issues.
 //  - Builds run concurrently in forked fibers, bounded by `concurrency`; stops take no slot.
+//  - The event bus keeps an ordered listener list equivalent to the ContributionRegistry (phase P5).
+//  - Children, realms, interception, optional dependencies and reconcile: phase P4 (RESULTS.md).
 import { Cause, Clock, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Schedule, Schema, Scope, Semaphore, Stream, SubscriptionRef } from "effect"
 import {
   CleanupError, Conflict, DependencyCycle, DrainTimeout, DuplicatePlugin, DuplicateProvider, HostClosed,
   InvalidDefinition, LeaseRevoked, LeaseTimeout, ServiceUnavailable, UnknownPlugin, WouldDeadlock,
-  ActivationFailed, PluginRemoved, type InstallError, ReplaceError, Superseded, ConfigInvalid
+  ActivationFailed, PluginRemoved, type InstallError, ReplaceError, Superseded, ConfigInvalid, UnknownRealm, DuplicateRealm
 } from "./errors.js"
 import { PluginConfig, changedPaths } from "./config.js"
 import { makeEvents, type HostEvent, type HostEventBody } from "./events.js"
@@ -23,21 +26,25 @@ import {
   awaitWritten, defaultIdGenerator, makeWriter, type AttributionOptions, type DefinitionRef, type Draft, type Operation,
   type OperationContext, type OperationOptions, type SystemTransition
 } from "./gxp.js"
-import type { AnyPlugin, Keys, ServicesOf } from "./plugin.js"
+import type { AnyPlugin, InstallOptions, Interception, Keys, PluginHandle, ServicesOf } from "./plugin.js"
+import { Events, makeBus } from "./bus.js"
+import { deepEqual, type DesiredPlugin } from "./desired.js"
+export type { PluginHandle } from "./plugin.js"
 
 // ------------------------------------------------------------------ public types
-export type PluginSnapshot = { readonly id: string; readonly meta?: AnyPlugin["meta"] } & (
+export type PluginSnapshot = { readonly id: string; readonly realm: string; readonly parentId?: string; readonly meta?: AnyPlugin["meta"] } & (
   | { readonly state: "waiting"; readonly missingServiceIds: ReadonlyArray<string> }
   | { readonly state: "starting"; readonly providerIds: ReadonlyArray<string> }
   | { readonly state: "active"; readonly providerIds: ReadonlyArray<string>; readonly health: "healthy" | "degraded" | "unknown" }
-  | { readonly state: "stopping"; readonly reason: string; readonly parked: boolean }
+  | { readonly state: "stopping"; readonly reason: string; readonly parked: boolean; readonly next?: "gone" }
   | { readonly state: "failed"; readonly failure: { readonly phase: string; readonly message: string }; readonly missingServiceIds: ReadonlyArray<string> }
   | { readonly state: "disabled" }
 )
 export interface HostSnapshot {
   readonly revision: number
   readonly plugins: ReadonlyArray<PluginSnapshot>
-  readonly availableServiceIds: ReadonlyArray<string>
+  readonly availableServiceIds: ReadonlyArray<string>            // the default realm's list (BEH-BR-149)
+  readonly realms: ReadonlyArray<{ readonly id: string; readonly isolatedServiceIds: ReadonlyArray<string>; readonly availableServiceIds: ReadonlyArray<string> }>
   readonly audit: "wired" | "unwired"
   readonly auditDegraded: boolean
   readonly auditDropped: number
@@ -52,7 +59,10 @@ export interface CloseReport {
 }
 export interface PluginInspection {
   readonly id: string
+  readonly realm: string
   readonly state: PluginState
+  readonly optional: ReadonlyArray<string>
+  readonly whenAvailable: ReadonlyArray<{ readonly name: string; readonly keys: ReadonlyArray<string>; readonly running: boolean }>
   readonly requires: ReadonlyArray<string>
   readonly provides: ReadonlyArray<string>
   readonly background: ReadonlyArray<{ readonly name: string; readonly policy: FailurePolicy; readonly restarts: number; readonly running: boolean }>
@@ -61,10 +71,20 @@ export interface PluginInspection {
   readonly parked: boolean
   readonly pending?: { readonly operation: string; readonly correlationId: string; readonly requestedRecordId?: string }
 }
-export interface PluginHandle {
-  readonly id: string
-  readonly awaitActive: Effect.Effect<void, ActivationFailed | PluginRemoved>
+/** A plugin is addressed by ID within a realm; a bare string means the default realm (BEH-BR-147). */
+export type PluginRef = string | { readonly id: string; readonly realm: string }
+export interface ReconcileOptions { readonly scope?: string; readonly prune?: boolean }
+export interface ReconcileReport {
+  readonly installed: ReadonlyArray<string>
+  readonly replaced: ReadonlyArray<string>
+  readonly reconfigured: ReadonlyArray<string>
+  readonly enabled: ReadonlyArray<string>
+  readonly disabled: ReadonlyArray<string>
+  readonly removed: ReadonlyArray<string>
+  readonly unchanged: ReadonlyArray<string>
+  readonly rejected: ReadonlyArray<{ readonly id: string; readonly reason: { readonly _tag: string } }>
 }
+export interface RealmOptions { readonly isolate: ReadonlyArray<Context.Key<any, any>>; readonly interceptors?: ReadonlyArray<Interception> }
 export interface Options {
   readonly base?: ReadonlyArray<readonly [Context.Key<any, any>, unknown]>
   readonly concurrency?: number
@@ -80,6 +100,9 @@ export interface Options {
   readonly onClose?: (report: CloseReport) => Effect.Effect<void>
 }
 
+/** Internal options of a reconcile entry action (BEH-BR-158, 201). */
+interface EntryAction { readonly causedBy?: string; readonly reached?: () => void }
+
 /** Record id of the operator record that caused the work running in this fiber (for system records' causationId). */
 export const CurrentCause = Context.Reference<string | undefined>("bridger/prototype/CurrentCause", { defaultValue: () => undefined })
 
@@ -88,7 +111,15 @@ export const HeldPlugins = Context.Reference<ReadonlySet<string>>("@bridger/core
 
 // ------------------------------------------------------------------ internal state
 interface Entry {
-  readonly id: string
+  readonly id: string                         // internal key of (pluginId, realm)
+  readonly pluginId: string
+  readonly realm: string
+  readonly parentKey?: string                 // a child: the internal key of its parent (BEH-BR-121)
+  readonly intercept: { readonly inherited: ReadonlyArray<Interception>; readonly own: ReadonlyArray<Interception> }
+  removing?: boolean                          // a child whose stop ends in removal (`next` "gone", BEH-BR-125)
+  owner?: string                              // the reconcile scope that installed it (BEH-BR-155)
+  reactive: Set<Fiber.Fiber<unknown, unknown>> // whenAvailable runs holding a lease on this plugin (BEH-BR-133)
+  whenAvailable?: Array<{ name: string; keys: ReadonlyArray<string>; running: boolean }>
   def: AnyPlugin
   state: PluginState
   cleanupFailed: boolean
@@ -102,6 +133,7 @@ interface Entry {
   drained?: Deferred.Deferred<void>
   epoch: number                               // bumped whenever the target changes; a build of an older epoch is stale
   build?: Fiber.Fiber<void, never>
+  buildBegun?: boolean                        // the build holds its slot and has captured (BEH-BR-034, 035)
   order: number                               // registration order (FIFO among ready plugins)
   cause?: string                              // causation of the activation in flight
   stepRunning: boolean                        // a stop step is running (BEH-BR-078)
@@ -120,7 +152,13 @@ interface Entry {
 }
 
 const sid = (k: Context.Key<any, any>): string => (k as unknown as { key: string }).key
-const msg = (u: unknown): string => (u instanceof Error ? u.message : String(u)).split("\n")[0]!.slice(0, 200)
+const keyOf = (id: string, realm: string) => realm === "default" ? id : `${id}@${realm}`
+const refKey = (ref: PluginRef) => typeof ref === "string" ? ref : keyOf(ref.id, ref.realm)
+const msg = (u: unknown): string => {
+  const m = u instanceof Error ? u.message : String(u)
+  const tag = (u as { _tag?: unknown } | null)?._tag
+  return (m || (typeof tag === "string" ? tag : "")).split("\n")[0]!.slice(0, 200)
+}
 
 export const make = (options: Options = {}) => Effect.gen(function* () {
   const hostScope = yield* Effect.scope
@@ -145,6 +183,11 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   const flights = new Map<string, Flight>()      // operator operations in flight, per plugin (BEH-BR-072)
   const base = new Map<string, { key: Context.Key<any, any>; service: unknown }>()
   for (const [k, s] of options.base ?? []) base.set(sid(k), { key: k, service: s })
+  // Realms (BEH-BR-145): "default" always exists and isolates nothing; definitions never change.
+  const realms = new Map<string, { readonly isolate: ReadonlyMap<string, Context.Key<any, any>>; readonly interceptors: ReadonlyArray<Interception> }>(
+    [["default", { isolate: new Map(), interceptors: [] }]])
+  /** scopeOf(R, K): the realm's own slot when it isolates K, the default realm's otherwise (BEH-BR-146). */
+  const slotOf = (realm: string, serviceId: string) => realms.get(realm)?.isolate.has(serviceId) ? realm : "default"
   let order = 0
   let closed = false
   let closing = false
@@ -160,29 +203,49 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   let degradedHook: (why: string) => Effect.Effect<void> = () => Effect.void
   const events = yield* makeEvents(hostId, options.eventBuffer ?? 1024)
   const emit = (body: HostEventBody, pluginId?: string) => events.emit(body, pluginId)
+  // Bridger.Events is a base service of the default realm (BEH-BR-137, 147); its listener fibers belong to the host.
+  const bus = makeBus({ drainTimeout: options.drainTimeout ?? 30_000, supervisor: hostScope,
+    onListenerFailed: (event, message) => emit({ type: "listener-failed", event, message }) })
+  if (!base.has(sid(Events))) base.set(sid(Events), { key: Events, service: bus })
   const closedSignal = yield* Deferred.make<void>()
   const writer = Option.isSome(sinkOpt)
     ? yield* makeWriter({ sink: sinkOpt.value, hostId, ids, auditTimeout, capacity: options.auditCapacity ?? 1024, onDegraded: (w) => degradedHook(w) })
     : undefined
-  const feed = yield* SubscriptionRef.make<HostSnapshot>({ revision: 0, plugins: [], availableServiceIds: [...base.keys()].sort(), audit: writer ? "wired" : "unwired", auditDegraded: false, auditDropped: 0 })
+  const feed = yield* SubscriptionRef.make<HostSnapshot>({ revision: 0, plugins: [], availableServiceIds: [...base.keys()].sort(), realms: [{ id: "default", isolatedServiceIds: [], availableServiceIds: [...base.keys()].sort() }], audit: writer ? "wired" : "unwired", auditDegraded: false, auditDropped: 0 })
   const locked = <A, E, R>(e: Effect.Effect<A, E, R>) => Semaphore.withPermit(lock, e)
 
   // ---------------------------------------------------------------- resolution helpers
-  const activeProvider = (serviceId: string): Option.Option<{ id: string; key: Context.Key<any, any>; service: unknown }> => {
-    const b = base.get(serviceId)
+  /** The provider a consumer in `realm` resolves `serviceId` to, in the slot scopeOf(realm, key) (BEH-BR-146). */
+  const activeProvider = (serviceId: string, realm = "default"): Option.Option<{ id: string; key: Context.Key<any, any>; service: unknown }> => {
+    const slot = slotOf(realm, serviceId)
+    const b = slot === "default" ? base.get(serviceId) : undefined   // an isolated key hides the base service (BEH-BR-146)
     if (b) return Option.some({ id: "base", key: b.key, service: b.service })
     for (const e of entries.values()) {
       if (e.state !== "active" || !e.services || flights.has(e.id) || e.failing) continue   // not leasable while an operation or a runtime failure is in flight (BEH-BR-076, 094)
+      if (slotOf(e.realm, serviceId) !== slot) continue
       const k = e.def.provides.find((p) => sid(p) === serviceId)
       if (k) return Option.some({ id: e.id, key: k, service: Context.getUnsafe(e.services, k) })
     }
     return Option.none()
   }
-  const missing = (e: Entry): Array<string> => e.def.requires.map(sid).filter((s) => Option.isNone(activeProvider(s)))
+  const missing = (e: Entry): Array<string> => e.def.requires.map(sid).filter((s) => Option.isNone(activeProvider(s, e.realm)))
   /** Plugins whose current activation captured `id` as a provider — including a stop parked before its close. */
   const holds = (e: Entry, id: string) => [...e.providers.values()].includes(id)
+  /** Dependents in removal ordering: plugins that captured `id`, and its children in any state (BEH-BR-043, 121). */
   const dependentsOf = (id: string): Array<Entry> =>
-    [...entries.values()].filter((e) => (e.state === "active" || e.state === "starting" || e.state === "stopping") && holds(e, id))
+    [...entries.values()].filter((e) => e.parentKey === id || ((e.state === "active" || e.state === "starting" || e.state === "stopping") && holds(e, id)))
+  /** Interceptions in scope for a consumer's key, composed realm → inherited → own (BEH-BR-151). */
+  const wrapFor = (e: Entry, k: Context.Key<any, any>, service: unknown) =>
+    [...(realms.get(e.realm)?.interceptors ?? []), ...e.intercept.inherited, ...e.intercept.own]
+      .filter((i) => sid(i.key) === sid(k))
+      .reduce((svc, i) => i.wrap(svc, { pluginId: e.pluginId, realm: e.realm }), service)
+  const availableIn = (realm: string): Array<string> => {
+    const out = new Set<string>()
+    for (const s of base.keys()) if (slotOf(realm, s) === "default") out.add(s)
+    for (const e of entries.values()) if (e.state === "active")
+      for (const k of e.def.provides) if (slotOf(e.realm, sid(k)) === slotOf(realm, sid(k))) out.add(sid(k))
+    return [...out].sort()
+  }
   const transitiveDependents = (id: string, acc = new Set<string>()): Set<string> => {
     for (const d of dependentsOf(id)) if (!acc.has(d.id)) { acc.add(d.id); transitiveDependents(d.id, acc) }
     return acc
@@ -192,17 +255,19 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   const snapshotOf = (): HostSnapshot => ({
     revision,
     plugins: [...entries.values()].sort((a, b) => a.order - b.order).map((e): PluginSnapshot => {
-      const common = { id: e.id, ...(e.def.meta ? { meta: e.def.meta } : {}) }
+      const parent = e.parentKey !== undefined ? entries.get(e.parentKey) : undefined
+      const common = { id: e.pluginId, realm: e.realm, ...(parent ? { parentId: parent.pluginId } : {}), ...(e.def.meta ? { meta: e.def.meta } : {}) }
       switch (e.state) {
         case "waiting": return { ...common, state: "waiting", missingServiceIds: missing(e) }
         case "starting": return { ...common, state: "starting", providerIds: [...new Set(e.providers.values())] }
         case "active": return { ...common, state: "active", providerIds: [...new Set(e.providers.values())], health: e.health ?? "unknown" }
-        case "stopping": return { ...common, state: "stopping", reason: e.stopReason ?? "unknown", parked: e.parkedSystem || !!flights.get(e.id)?.parked }
+        case "stopping": return { ...common, state: "stopping", reason: e.stopReason ?? "unknown", parked: e.parkedSystem || !!flights.get(e.id)?.parked, ...(e.removing ? { next: "gone" as const } : {}) }
         case "failed": return { ...common, state: "failed", failure: e.failure ?? { phase: "build", message: "" }, missingServiceIds: missing(e) }
         case "disabled": return { ...common, state: "disabled" }
       }
     }),
-    availableServiceIds: [...base.keys(), ...[...entries.values()].filter((e) => e.state === "active").flatMap((e) => e.def.provides.map(sid))].sort(),
+    availableServiceIds: availableIn("default"),
+    realms: [...realms].map(([id, r]) => ({ id, isolatedServiceIds: [...r.isolate.keys()].sort(), availableServiceIds: availableIn(id) })),
     audit: writer ? "wired" : "unwired",
     auditDegraded: writer?.state.degraded ?? false,
     auditDropped: writer?.state.dropped ?? 0
@@ -226,20 +291,24 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     writer ? Effect.gen(function* () {
       const draft: Draft = {
         actor: Actor.system, correlationId: causationId ?? (yield* ids.next), operation, phase: "system",
-        target: { id: e.id, realm: "default" }, after: { state: e.state, revision, ...defRef(e.def) },
+        target: { id: e.pluginId, realm: e.realm }, after: { state: e.state, revision, ...defRef(e.def) },
         ...(causationId ? { causationId } : {}), ...(error ? { error } : {}), ...extra
       }
       return (yield* writer.enqueue(draft))?.recordId
     }) : Effect.succeed(undefined)
   const defRef = (d: AnyPlugin): DefinitionRef => ({ ...(d.meta?.version ? { version: d.meta.version } : {}), ...(d.meta?.digest ? { digest: d.meta.digest } : {}) })
 
-  // ---------------------------------------------------------------- validation (BEH-BR-003, 018–020)
-  const validate = (def: AnyPlugin, excluding?: string): Effect.Effect<void, InstallError> => Effect.suspend((): Effect.Effect<void, InstallError> => {
+  // ---------------------------------------------------------------- validation (BEH-BR-003, 018–020, 129, 146–148)
+  interface Ident { readonly key: string; readonly id: string; readonly realm: string; readonly parentKey?: string }
+  const identOf = (e: Entry): Ident => ({ key: e.id, id: e.pluginId, realm: e.realm, ...(e.parentKey !== undefined ? { parentKey: e.parentKey } : {}) })
+  const validate = (def: AnyPlugin, ident: Ident, excluding?: string): Effect.Effect<void, InstallError> => Effect.suspend((): Effect.Effect<void, InstallError> => {
+    if (!realms.has(ident.realm)) return Effect.fail(new UnknownRealm({ id: ident.realm }))
     if (!def.id || def.id.trim() !== def.id) return Effect.fail(new InvalidDefinition({ id: def.id, reason: "malformed id" }))
-    const req = def.requires.map(sid), prov = def.provides.map(sid)
-    if (new Set(req).size !== req.length || new Set(prov).size !== prov.length)
+    const req = def.requires.map(sid), prov = def.provides.map(sid), opt = (def.optional ?? []).map(sid)
+    if (new Set(req).size !== req.length || new Set(prov).size !== prov.length || new Set(opt).size !== opt.length)
       return Effect.fail(new InvalidDefinition({ id: def.id, reason: "a key is listed twice" }))
     if (req.some((r) => prov.includes(r))) return Effect.fail(new InvalidDefinition({ id: def.id, reason: "requires a key it provides" }))
+    if (opt.some((o) => req.includes(o))) return Effect.fail(new InvalidDefinition({ id: def.id, reason: "a key is both required and optional" }))   // BEH-BR-129
     if (def.health && def.health.failureThreshold < 1) return Effect.fail(new InvalidDefinition({ id: def.id, reason: "failureThreshold below 1" }))
     if (def.volatile?.length && !def.config) return Effect.fail(new InvalidDefinition({ id: def.id, reason: "volatile without config" }))
     if (def.volatile?.length && def.config) {
@@ -247,18 +316,24 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       const unknownName = def.volatile.find((v) => !fields || !(v in fields))
       if (unknownName !== undefined) return Effect.fail(new InvalidDefinition({ id: def.id, reason: `volatile names no field: ${unknownName}` }))
     }
-    if (excluding === undefined && entries.has(def.id)) return Effect.fail(new DuplicatePlugin({ id: def.id }))
-    const others = [...entries.values()].filter((e) => e.id !== excluding && e.id !== def.id && e.state !== "disabled")
+    if (excluding === undefined && entries.has(ident.key)) return Effect.fail(new DuplicatePlugin({ id: ident.id }))
+    const others = [...entries.values()].filter((e) => e.id !== excluding && e.id !== ident.key && e.state !== "disabled")
+    // One provider per slot scopeOf(R, K) (BEH-BR-146, 148); the base occupies the default realm's slots.
     for (const p of prov) {
-      if (base.has(p)) return Effect.fail(new DuplicateProvider({ serviceId: p, providerId: "base" }))
-      const owner = others.find((e) => e.def.provides.some((k) => sid(k) === p))
-      if (owner) return Effect.fail(new DuplicateProvider({ serviceId: p, providerId: owner.id }))
+      const slot = slotOf(ident.realm, p)
+      if (slot === "default" && base.has(p)) return Effect.fail(new DuplicateProvider({ serviceId: p, providerId: "base" }))
+      const owner = others.find((e) => slotOf(e.realm, p) === slot && e.def.provides.some((k) => sid(k) === p))
+      if (owner) return Effect.fail(new DuplicateProvider({ serviceId: p, providerId: owner.pluginId }))
     }
-    // cycle: edge A → B when A requires a key B provides
-    const defs = [...others.map((e) => e.def), def]
+    // Cycle over resolved edges (consumer → the provider its key resolves to) and mount edges child → parent
+    // (INV-BR-002, BEH-BR-121, 148). Optional keys take no part (BEH-BR-129).
+    const nodes: Array<{ ident: Ident; def: AnyPlugin }> = [...others.map((e) => ({ ident: identOf(e), def: e.def })), { ident, def }]
     const providerOf = new Map<string, string>()
-    for (const d of defs) for (const k of d.provides) providerOf.set(sid(k), d.id)
-    const edges = new Map(defs.map((d) => [d.id, d.requires.map((k) => providerOf.get(sid(k))).filter((x): x is string => !!x)]))
+    for (const n of nodes) for (const k of n.def.provides) providerOf.set(`${slotOf(n.ident.realm, sid(k))}|${sid(k)}`, n.ident.key)
+    const edges = new Map(nodes.map((n) => [n.ident.key, [
+      ...n.def.requires.map((k) => providerOf.get(`${slotOf(n.ident.realm, sid(k))}|${sid(k)}`)).filter((x): x is string => !!x),
+      ...(n.ident.parentKey !== undefined ? [n.ident.parentKey] : [])
+    ]]))
     const path: Array<string> = []
     const onPath = new Set<string>(), done = new Set<string>()
     const visit = (n: string): Array<string> | undefined => {
@@ -269,7 +344,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       onPath.delete(n); path.pop(); done.add(n)
       return undefined
     }
-    const cycle = visit(def.id)
+    const cycle = visit(ident.key)
     return cycle ? Effect.fail(new DependencyCycle({ path: cycle })) : Effect.void
   })
 
@@ -280,32 +355,56 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     let changed = false
     for (const e of [...entries.values()].sort((a, b) => a.order - b.order)) {
       if (e.state !== "waiting" || missing(e).length > 0) continue
-      e.providers = new Map(e.def.requires.map((k) => [sid(k), Option.getOrThrow(activeProvider(sid(k))).id]))
-      e.state = "starting"; e.epoch++; changed = true
+      e.providers = new Map(e.def.requires.map((k) => [sid(k), Option.getOrThrow(activeProvider(sid(k), e.realm)).id]))
+      e.state = "starting"; e.epoch++; e.buildBegun = false; changed = true
       e.cause = yield* CurrentCause
       e.build = yield* Effect.forkIn(runBuild(e, e.epoch), hostScope)
     }
     if (changed) yield* commit
   })
 
-  const runBuild = (e: Entry, epoch: number): Effect.Effect<void> => Semaphore.withPermit(buildSem, Effect.gen(function* () {
+  /**
+   * A build begins when it holds a slot (BEH-BR-034); it captures its providers then (BEH-BR-035). Until then a
+   * stop cancels it rather than waiting for a slot (BEH-BR-034), and a requirement that vanished meanwhile sends
+   * the plugin back to `waiting`, not to `failed` (prototype finding G25).
+   */
+  const runBuild = (e: Entry, epoch: number): Effect.Effect<void> => Effect.gen(function* () {
+    yield* buildSem.take(1)
+    let held = true
+    const releaseSlot = Effect.suspend(() => { if (!held) return Effect.void; held = false; return buildSem.release(1) })
+    return yield* runBuildInSlot(e, epoch, releaseSlot).pipe(Effect.ensuring(releaseSlot))
+  })
+  const runBuildInSlot = (e: Entry, epoch: number, releaseSlot: Effect.Effect<unknown>): Effect.Effect<void> => Effect.gen(function* () {
+    const begun = yield* locked(Effect.sync(() => {
+      if (e.epoch !== epoch || e.state !== "starting") return false
+      e.buildBegun = true
+      return true
+    }))
+    if (!begun) return
     // Captured services, with the KeyMismatch check (BEH-BR-038): same ServiceId, different key object.
     let ctx = Context.empty() as Context.Context<any>
+    const failActivation = (message: string) => locked(Effect.gen(function* () {
+      if (e.epoch !== epoch) return
+      e.state = "failed"; e.failure = { phase: "activation", message }
+      yield* commit
+    }))
     for (const k of e.def.requires) {
-      const p = Option.getOrUndefined(activeProvider(sid(k)))
-      if (!p || p.key !== k) {
-        return yield* locked(Effect.gen(function* () {
-          if (e.epoch !== epoch) return
-          e.state = "failed"; e.failure = { phase: "activation", message: p ? `KeyMismatch ${sid(k)}` : `provider of ${sid(k)} left` }
-          yield* commit
-        }))
-      }
-      ctx = Context.add(ctx, k, p.service)
+      const p = Option.getOrUndefined(activeProvider(sid(k), e.realm))
+      if (!p) return yield* locked(Effect.gen(function* () {
+        if (e.epoch !== epoch || e.state !== "starting") return
+        e.state = "waiting"; e.providers = new Map(); e.buildBegun = false
+        yield* commit
+      }))
+      if (p.key !== k) return yield* failActivation(`KeyMismatch ${sid(k)}`)
+      // The consumer receives its interceptions' wrapper; a wrap that throws fails this activation only (BEH-BR-151, 152).
+      const wrapped = yield* Effect.try({ try: () => wrapFor(e, k, p.service), catch: (u) => u }).pipe(Effect.exit)
+      if (Exit.isFailure(wrapped)) return yield* failActivation(`interception of ${sid(k)} failed: ${msg(Cause.squash(wrapped.cause))}`)
+      ctx = Context.add(ctx, k, wrapped.value)
     }
     // Configuration is read and decoded afresh before build (BEH-BR-097, 099); a failure publishes nothing.
     let cfg: unknown = undefined
     if (e.def.config) {
-      const raw = e.override ? Effect.succeed(e.override.raw) : options.config ? options.config(e.id) : Effect.succeed(undefined)
+      const raw = e.override ? Effect.succeed(e.override.raw) : options.config ? options.config(e.pluginId) : Effect.succeed(undefined)
       const decoded = yield* Effect.exit(raw.pipe(Effect.flatMap((r) => Schema.decodeUnknownEffect(e.def.config!)(r))))
       if (Exit.isFailure(decoded)) {
         // The message names the plugin only: decode issues can quote the offending value (BEH-BR-103).
@@ -322,18 +421,20 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     }
     const configRef = yield* SubscriptionRef.make<unknown>(cfg)
     ctx = Context.add(ctx, PluginConfig, { value: cfg, current: SubscriptionRef.get(configRef), changes: SubscriptionRef.changes(configRef) })
-    e.background = []
+    e.background = []; e.whenAvailable = []
     ctx = Context.add(ctx, PluginRuntime, runtimeFor(e, epoch))
     const scope = yield* Scope.fork(pluginsScope, "sequential")
     const memo = yield* Layer.makeMemoMap                       // fresh per activation (BEH-BR-036)
     yield* emit({ type: "build-started" }, e.id)
     const startedAt = yield* Clock.currentTimeMillis
+    // The build slot covers the build only: discarding an activation (below) may wait for its children's builds.
     const exit = yield* Layer.buildWithMemoMap(e.def.build, memo, scope).pipe(
       Effect.provideContext(ctx),
       // A build, and the finalizers it registers, carry the plugin in HeldPlugins (BEH-BR-088, R11).
       Effect.provideService(HeldPlugins, new Set([e.id])),
       Effect.timeoutOrElse({ duration: buildTimeout, orElse: () => Effect.fail(new Error("build timeout")) }),
       Effect.exit)
+    yield* releaseSlot                                         // discarding below may wait for children's builds
     const durationMs = (yield* Clock.currentTimeMillis) - startedAt
     e.lastBuildMs = durationMs
     yield* emit({ type: "build-finished", durationMs, outcome: Exit.isSuccess(exit) ? "success" : Cause.hasInterruptsOnly(exit.cause) ? "interrupted" : "failure" }, e.id)
@@ -362,8 +463,12 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       if (e.def.health) e.healthFiber = yield* Effect.forkIn(healthLoop(e, epoch, ctx), scope)
       yield* settle
     }))
-    if (discard) yield* Scope.close(scope, Exit.void)
-  }))
+    if (discard) {
+      // Children mounted by a discarded activation are removed before its scope closes (BEH-BR-121, 128).
+      yield* unmountChildren(e)
+      yield* Scope.close(scope, Exit.void)
+    }
+  })
 
   // ---------------------------------------------------------------- runtime failure and health (BEH-BR-089..096)
   /** One Plugin.Runtime per activation, bound to its scope (BEH-BR-089). */
@@ -389,8 +494,86 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
         Effect.provideService(HeldPlugins, new Set<string>()))   // scope-owned fibers carry only their own leases (T14)
       yield* Effect.forkIn(supervised, scope)
     }),
-    reportFailure: (cause) => failRuntime(e, epoch, msg(Cause.squash(cause)))
+    reportFailure: (cause) => failRuntime(e, epoch, msg(Cause.squash(cause))),
+
+    // ---- children (BEH-BR-121–126)
+    install: (child, o = {}) => Effect.gen(function* () {
+      yield* Effect.scope                                    // only inside the activation (BEH-BR-121)
+      const realm = o.realm ?? e.realm
+      const id = `${e.pluginId}/${child.id}`                 // always prefixed (BEH-BR-122)
+      const ident: Ident = { key: keyOf(id, realm), id, realm, parentKey: e.id }
+      // Inherited unless the options set them (BEH-BR-122, 151).
+      const intercept = o.intercept !== undefined ? { inherited: [], own: o.intercept } : { inherited: [...e.intercept.inherited, ...e.intercept.own], own: [] }
+      return yield* locked(Effect.gen(function* () {
+        if (closing || closed) return yield* Effect.fail(new HostClosed())
+        // A parent that has begun to leave mounts nothing: its children are being removed (prototype finding G19).
+        if (e.epoch !== epoch || entries.get(e.id) !== e || (e.state !== "starting" && e.state !== "active") || e.failing)
+          return yield* Effect.fail(new Conflict({ id: e.pluginId, pending: e.stopReason ?? "stopping" }))
+        yield* validate(child, ident)                        // registers nothing on error (BEH-BR-121)
+        const c = newEntry(child, ident, { ...(o.disabled ? { disabled: true } : {}), ...(o.config !== undefined ? { config: o.config } : {}), intercept })
+        entries.set(c.id, c)
+        yield* emit({ type: "plugin-installed" }, c.id)
+        yield* commit
+        // A mount is a system transition caused by the record that began the parent's activation (BEH-BR-126, 190).
+        const rid = yield* systemRecord("system-start", c, e.cause)
+        yield* settle.pipe(Effect.provideService(CurrentCause, rid ?? e.cause))
+        return handleOf(c.id)
+      }))
+    }),
+
+    // ---- optional and reactive dependencies (BEH-BR-129–136)
+    optional: (key) => Effect.gen(function* () {
+      if (!declaredOptional(e, key)) return yield* undeclared(e, key)
+      const p = Option.getOrUndefined(activeProvider(sid(key), e.realm))
+      return p ? Option.some(wrapFor(e, key, p.service) as never) : Option.none()     // not leased (BEH-BR-130)
+    }),
+    useOptional: (key, run) => Effect.gen(function* () {
+      if (!declaredOptional(e, key)) return yield* undeclared(e, key)
+      const r = yield* Effect.exit(useAllIn([key] as const, ([s]) => run(s as never), { realm: e.realm, consumer: e }))
+      if (Exit.isSuccess(r)) return Option.some(r.value)
+      const err = Cause.squash(r.cause)
+      if (err instanceof ServiceUnavailable && !Cause.hasInterrupts(r.cause)) return Option.none()   // unavailable is normal (BEH-BR-131)
+      return yield* Effect.failCause(r.cause as Cause.Cause<never>)
+    }),
+    whenAvailable: (keys, run, o = {}) => Effect.gen(function* () {
+      const scope = yield* Effect.scope                      // the activation scope: the registration ends with it (BEH-BR-132)
+      const reg = { name: o.name ?? `whenAvailable#${(e.whenAvailable?.length ?? 0) + 1}`, keys: keys.map(sid), running: false }
+      e.whenAvailable?.push(reg)
+      const policy = o.onFailure ?? "fail-plugin"
+      const allAvailable = () => keys.every((k) => Option.isSome(activeProvider(sid(k), e.realm)))
+      const waitFor = (pred: () => boolean) => SubscriptionRef.changes(feed).pipe(Stream.filter(() => pred()), Stream.take(1), Stream.runDrain)
+      // One run: a lease on every key held by the run's own fiber, then a child scope; finalizers run before the lease ends.
+      const once = Effect.scoped(Effect.gen(function* () {
+        const self = yield* Effect.fiber
+        const granted = yield* acquire(keys, self as Fiber.Fiber<unknown, unknown>, e.realm, true)
+        reg.running = true
+        yield* Effect.addFinalizer(() => Effect.sync(() => { reg.running = false }))
+        const services = keys.map((k, i) => wrapFor(e, k, (granted.services as ReadonlyArray<unknown>)[i])) as unknown as ServicesOf<typeof keys>
+        // A run carries only the leases it holds (BEH-BR-136).
+        return yield* run(services).pipe(Effect.provideService(HeldPlugins, new Set(granted.ids)))
+      }))
+      const loop = Effect.gen(function* () {
+        let failures = 0
+        while (true) {
+          yield* waitFor(allAvailable)
+          const fiber = yield* Effect.forkChild(once)
+          const exit = yield* Fiber.await(fiber)
+          if (Exit.isSuccess(exit)) { yield* waitFor(() => !allAvailable()); continue }   // ran to completion: again when the keys return
+          if (Cause.hasInterruptsOnly(exit.cause)) continue                               // a provider leaving is not a failure (BEH-BR-134)
+          if (Cause.squash(exit.cause) instanceof ServiceUnavailable) continue           // a provider left between the check and the lease
+          const message = `whenAvailable ${reg.name}: ${msg(Cause.squash(exit.cause))}`
+          if (policy === "ignore") { yield* Effect.logError(message).pipe(Effect.annotateLogs({ plugin: e.pluginId })); yield* waitFor(() => !allAvailable()); continue }
+          if (policy === "restart" && ++failures <= 3) { yield* Effect.sleep(100); continue }   // the background default schedule (BEH-BR-134)
+          return yield* failRuntime(e, epoch, message)
+        }
+      })
+      yield* Effect.forkIn(loop.pipe(Effect.provideService(HeldPlugins, new Set<string>())), scope)
+    })
   })
+  const declaredOptional = (e: Entry, key: Context.Key<any, any>) => (e.def.optional ?? []).some((k) => sid(k) === sid(key))
+  /** An undeclared optional key: None and a warning naming it (BEH-BR-130). */
+  const undeclared = (e: Entry, key: Context.Key<any, any>) =>
+    Effect.logWarning(`undeclared optional dependency ${sid(key)}`).pipe(Effect.annotateLogs({ plugin: e.pluginId }), Effect.as(Option.none()))
 
   /** A runtime failure signal (BEH-BR-091): one transition per activation; later signals are logged only. */
   const failRuntime = (e: Entry, epoch: number, message: string): Effect.Effect<void> => locked(Effect.gen(function* () {
@@ -517,16 +700,74 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       return yield* restore(stopStep(id, reason, opts, cascadeFrom, root)).pipe(Effect.ensuring(sem.release(1)))
     }))
 
+  /**
+   * One dependent or child in a provider's stop (BEH-BR-043, 079, 080). A child is removed — stopped, then
+   * unregistered — whatever it holds; a dependent that is not a child lands in `waiting` (BEH-BR-121, 125).
+   */
+  const stopDependent = (d: Entry, id: string, opts: StopOpts, root: string): Effect.Effect<void, StopFailure> => Effect.gen(function* () {
+    const isChild = d.parentKey === id
+    // A cascade that meets a parked operation resumes it and ends its intent, with its own record (BEH-BR-080, T1).
+    yield* locked(Effect.gen(function* () {
+      const pf = flights.get(d.id)
+      if (pf?.parked) yield* endIntent(d, pf, "cascade")
+      else if (d.parkedSystem) yield* emit({ type: "stop-resumed", by: "cascade" }, d.id)
+      if (isChild && !d.removing) { d.removing = true; yield* commit }
+    }))
+    const r = yield* Effect.exit(stopTree(d.id, "dependency-loss", { ...opts, land: undefined }, id, root))
+    if (Exit.isFailure(r)) {
+      const err = Cause.squash(r.cause)
+      if (err instanceof CleanupError) {
+        // A dependent's cleanup failure is its own (failed, phase cleanup); the provider's stop continues (BEH-BR-046).
+        opts.hooks?.cleanupFailed?.(d.id, err.message)
+        if (isChild) return yield* unregister(d, { _tag: "CleanupError", message: err.message })
+        yield* locked(Effect.gen(function* () { yield* commit; yield* systemRecord("system-stop", d, yield* CurrentCause, { _tag: "CleanupError", message: err.message }) }))
+        return
+      }
+      // Every dependency-loss stop this call started that has not settled parks with it (BEH-BR-079, R9);
+      // a child's parked stop keeps `next` "gone" (BEH-BR-125).
+      if (err instanceof DrainTimeout && d.state === "stopping")
+        yield* locked(Effect.gen(function* () {
+          d.parkedSystem = true; d.stopReason = "dependency-loss"; yield* commit
+          yield* emit({ type: "stop-parked", leases: d.leases, ...(root !== d.id ? { target: root } : {}) }, d.id)
+        }))
+      return yield* Effect.failCause(r.cause)
+    }
+    if (isChild) { yield* unregister(d); opts.hooks?.stopped?.(d.id); return }
+    if (!r.value) return
+    yield* locked(Effect.gen(function* () {
+      if (d.state === "stopping") d.state = "waiting"
+      d.parkedSystem = false
+      yield* commit
+      yield* systemRecord("system-stop", d, yield* CurrentCause)
+    }))
+    opts.hooks?.stopped?.(d.id)
+  })
+  /** Unregisters a removed child: its `system-stop` record is caused by the cascade root (BEH-BR-126, 190). */
+  const unregister = (d: Entry, error?: { readonly _tag: string; readonly message: string }) => locked(Effect.gen(function* () {
+    if (entries.get(d.id) !== d) return                       // removed directly meanwhile: nothing to do (BEH-BR-125)
+    entries.delete(d.id); flights.delete(d.id)
+    yield* emit({ type: "plugin-removed" }, d.id)
+    yield* commit
+    yield* systemRecord("system-stop", d, yield* CurrentCause, error, { after: { state: "uninstalled", revision, ...defRef(d.def) } })
+  }))
+  /** Children of an activation that ended without a stop (a failed or discarded build) (BEH-BR-121, 128). */
+  const unmountChildren = (e: Entry) => Effect.gen(function* () {
+    for (const c of [...entries.values()].filter((x) => x.parentKey === e.id).sort((a, b) => b.order - a.order))
+      yield* Effect.exit(stopDependent(c, e.id, { mode: "no-caller" }, e.id))
+  })
+
   const stopStep = (id: string, reason: string, opts: StopOpts, cascadeFrom: string | undefined, root: string): Effect.Effect<boolean, StopFailure> => Effect.gen(function* () {
     const e = entries.get(id)
     if (!e) return false
-    if (cascadeFrom !== undefined && !holds(e, cascadeFrom)) return false    // its own step already released the provider
+    if (cascadeFrom !== undefined && !holds(e, cascadeFrom) && e.parentKey !== cascadeFrom) return false   // its own step already released the provider
     // A build in flight is invalidated and allowed to settle; its result is discarded (BEH-BR-039).
     if (e.state === "starting") {
       const b = e.build
       // Parked in "stopping" (not "waiting") so that no other settle starts a second build meanwhile.
-      yield* locked(Effect.sync(() => { e.epoch++; e.state = "stopping"; e.stopReason = reason }))
-      if (b) yield* Fiber.await(b)
+      const begun = yield* locked(Effect.sync(() => { e.epoch++; e.state = "stopping"; e.stopReason = reason; e.stepRunning = true; return !!e.buildBegun }))
+      // A begun build settles uninterrupted (BEH-BR-039); one still waiting for a slot is cancelled (BEH-BR-034).
+      if (b) yield* (begun ? Fiber.await(b) : Fiber.interrupt(b)).pipe(Effect.ensuring(Effect.sync(() => { e.stepRunning = false })))
+      else e.stepRunning = false
       return true
     }
     if (e.state !== "active" && e.state !== "stopping") return false
@@ -544,42 +785,11 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     }))
     // Leaving `active` interrupts an in-flight health check; its lease ends with it, uncounted (BEH-BR-092, 093).
     if (e.healthFiber) { const hf = e.healthFiber; e.healthFiber = undefined; yield* Fiber.interrupt(hf) }
+    // A whenAvailable run holding this provider is interrupted as the stop begins, without waiting for the drain
+    // limit; its finalizers and lease are then drained like any lease (BEH-BR-133).
+    for (const f of [...e.reactive]) yield* Effect.forkDetach(Fiber.interrupt(f))
     // Dependents first, each fully stopped before the provider (BEH-BR-043).
-    for (const d of dependentsOf(id).sort((a, b) => b.order - a.order)) {
-      // A cascade that meets a parked operation resumes it and ends its intent (BEH-BR-080).
-      yield* locked(Effect.gen(function* () {
-        const pf = flights.get(d.id)
-        // The intent ends now, and its own record says so, before the stop settles (BEH-BR-080, T1).
-        if (pf?.parked) yield* endIntent(d, pf, "cascade")
-        else if (d.parkedSystem) yield* emit({ type: "stop-resumed", by: "cascade" }, d.id)
-      }))
-      const childOpts: StopOpts = { ...opts, land: undefined }
-      const r = yield* Effect.exit(stopTree(d.id, "dependency-loss", childOpts, id, root))
-      if (Exit.isFailure(r)) {
-        const err = Cause.squash(r.cause)
-        if (err instanceof CleanupError) {
-          // A dependent's cleanup failure is its own (failed, phase cleanup); the provider's stop continues (BEH-BR-046).
-          opts.hooks?.cleanupFailed?.(d.id, err.message)
-          yield* locked(Effect.gen(function* () { yield* commit; yield* systemRecord("system-stop", d, yield* CurrentCause, { _tag: "CleanupError", message: err.message }) }))
-          continue
-        }
-        // Every dependency-loss stop this call started that has not settled parks with it (BEH-BR-079, R9).
-        if (err instanceof DrainTimeout && d.state === "stopping")
-          yield* locked(Effect.gen(function* () {
-            d.parkedSystem = true; d.stopReason = "dependency-loss"; yield* commit
-            yield* emit({ type: "stop-parked", leases: d.leases, ...(root !== d.id ? { target: root } : {}) }, d.id)
-          }))
-        return yield* Effect.failCause(r.cause)
-      }
-      if (!r.value) continue
-      yield* locked(Effect.gen(function* () {
-        if (d.state === "stopping") d.state = "waiting"
-        d.parkedSystem = false
-        yield* commit
-        yield* systemRecord("system-stop", d, yield* CurrentCause)
-      }))
-      opts.hooks?.stopped?.(d.id)
-    }
+    for (const d of dependentsOf(id).sort((a, b) => b.order - a.order)) yield* stopDependent(d, id, opts, root)
     // Drain leases (BEH-BR-085).
     const limit = opts.drain ?? defaultDrain
     const mode = opts.mode ?? "operator"
@@ -787,6 +997,8 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       const e = entries.get(id)
       // Resuming a parked system stop is this call's intent: it owns the stop, then applies its target (R10).
       if (pre.value === "parked" && e && e.parkedSystem && !flights.has(id)) {
+        // A parked child removal (`next` "gone") resumes only as a removal (prototype choice, finding G19).
+        if (e.removing && op !== "remove") return yield* refuse(new Conflict({ id, pending: "remove" }))
         e.parkedSystem = false; e.stopReason = op
         const nf: Flight = { op, target: target(e), opts, callers: [me], correlationId: call.correlationId, causeId: call.causeId, parked: false,
           ...(override ? { reconfigureValue: override.value, deferredOverride: () => setOverride(e, undefined, override.next) } : {}) }
@@ -858,7 +1070,9 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
    */
   const mutating = <A, E>(spec: {
     readonly operation: Operation
-    readonly target?: string
+    readonly target?: { readonly id: string; readonly realm: string }
+    /** defineRealm: records name the realm as `{ id: R, realm: R }` (BEH-BR-196). */
+    readonly realmTarget?: string
     readonly options?: OperationOptions | undefined
     readonly definition?: DefinitionRef
     readonly validate: Effect.Effect<unknown, E>
@@ -869,11 +1083,14 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     readonly system?: boolean
   }): Effect.Effect<A, MutationError | E | WouldDeadlock | Conflict | Superseded | UnknownPlugin | DuplicatePlugin | DrainTimeout | CleanupError> => Effect.gen(function* () {
     const op = spec.operation
-    const key = spec.target ?? "@host"
+    const tkey = spec.target ? keyOf(spec.target.id, spec.target.realm) : undefined
+    const key = tkey ?? "@host"
     const exempt = op === "shutdown" || op === "acknowledgeAuditDegraded"
     // Once a `requested` record is enqueued, a call interrupted before its intent changes nothing
     // and still ends with a terminal record: `failed`, error `Interrupted` (BEH-BR-067, 188).
     const pending: { owed?: Call["terminal"]; intent: { value: boolean } } = { intent: { value: false } }
+    // A reconcile entry action: its records are caused by the parent `requested` record (BEH-BR-201).
+    const internal = (spec.options ?? {}) as EntryAction
     return yield* Effect.onInterrupt(Effect.gen(function* () {
     const call = yield* Semaphore.withPermit(semOf(admissions, key), Effect.gen(function* () {
       // 1. host closed (a shutdown joins the one in progress, BEH-BR-109)
@@ -888,17 +1105,19 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       if (writer?.state.degraded && !exempt) return yield* Effect.fail(new AuditUnavailable({ operation: op, message: "audit degraded" }))
       // 4. validation (no record on failure)
       yield* spec.validate
-      const target = spec.target !== undefined ? { id: spec.target, realm: "default" } : undefined
-      const base = { actor: ctx.actor, correlationId, operation: op, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.extra?.() ?? {}) }
-      const before = spec.target !== undefined ? { ...stateOfId(spec.target), ...(spec.definition ?? {}) } : undefined
+      const target = spec.target ?? (spec.realmTarget !== undefined ? { id: spec.realmTarget, realm: spec.realmTarget } : undefined)
+      const base = { actor: ctx.actor, correlationId, operation: op, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.extra?.() ?? {}),
+        ...(internal.causedBy ? { causationId: internal.causedBy } : {}) }
+      const before = tkey !== undefined ? { ...stateOfId(tkey), ...(spec.definition ?? {}) } : undefined
       let causeId: string | undefined
       const terminal: Call["terminal"] = (phase, extra) => writer
-        ? writer.enqueue({ ...base, phase, ...(causeId ? { causationId: causeId } : {}), ...(spec.target !== undefined ? { after: { ...stateOfId(spec.target), ...(spec.definition ?? {}) } } : {}), ...extra }).pipe(Effect.asVoid)
+        ? writer.enqueue({ ...base, phase, ...(internal.causedBy ? {} : causeId ? { causationId: causeId } : {}), ...(tkey !== undefined ? { after: { ...stateOfId(tkey), ...(spec.definition ?? {}) } } : {}), ...extra }).pipe(Effect.asVoid)
         : Effect.void
       // 5. gate — never for shutdown (BEH-BR-223); a defect or timeout is a refusal (BEH-BR-221).
       // 6. requested record — fail closed, except shutdown (BEH-BR-203, BEH-BR-110).
       // From the gate's approval to the enqueue of the `requested` record nothing may interrupt the call,
       // so an approval is never consumed without a record (BEH-BR-188, R1).
+      internal.reached?.()                                    // counted in the reconcile parent's `children` (BEH-BR-201)
       const req = yield* Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
         if (Option.isSome(gateOpt) && op !== "shutdown") {
           const verdict = yield* restore(gateOpt.value.authorize({ operation: op, actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.definition ? { definition: spec.definition } : {}) }).pipe(
@@ -930,8 +1149,8 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
         causeId = req?.recordId
       }
       // 7. WouldDeadlock — before any wait on the plugin's order, a step or a drain (BEH-BR-088, ADR-BR-038)
-      if (spec.target !== undefined) {
-        const dl = yield* Effect.exit(deadlockCheck(spec.target))
+      if (tkey !== undefined) {
+        const dl = yield* Effect.exit(deadlockCheck(tkey))
         if (Exit.isFailure(dl)) {
           yield* terminal("failed", { error: errorOf(dl.cause) })
           return yield* Effect.failCause(dl.cause)
@@ -948,47 +1167,76 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       : Effect.void)
   })
 
-  const handleOf = (id: string): PluginHandle => ({
-    id,
-    awaitActive: Effect.gen(function* () {
-      while (true) {
-        const e = entries.get(id)
-        if (!e) return yield* Effect.fail(new PluginRemoved({ id }))
-        if (e.state === "active") return
-        if (e.state === "failed") return yield* Effect.fail(new ActivationFailed({ id, phase: e.failure?.phase ?? "build", message: e.failure?.message ?? "" }))
-        yield* Effect.yieldNow
-      }
-    })
+  const newEntry = (def: AnyPlugin, ident: Ident, o: { readonly disabled?: boolean; readonly config?: unknown; readonly intercept?: Entry["intercept"]; readonly owner?: string }): Entry => ({
+    id: ident.key, pluginId: ident.id, realm: ident.realm, ...(ident.parentKey !== undefined ? { parentKey: ident.parentKey } : {}),
+    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), ...(o.owner !== undefined ? { owner: o.owner } : {}),
+    def, state: o.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++,
+    stepRunning: false, parkedSystem: false, ...(o.config !== undefined ? { override: { raw: o.config } } : {})
   })
 
-  const install = (def: AnyPlugin, opts: OperationOptions & { readonly disabled?: boolean; readonly config?: unknown } = {}) => mutating<PluginHandle, InstallError | UnknownPlugin | Conflict>({
-    operation: "install", target: def.id, options: opts, definition: defRef(def),
-    validate: legalEarly(def.id, "install").pipe(Effect.andThen(validate(def))),     // registers nothing on error (BEH-BR-018)
-    linearize: (call) => immediate(call, Effect.gen(function* () {
-      yield* legal(def.id, "install"); yield* validate(def)
-      return yield* locked(Effect.gen(function* () {
-        entries.set(def.id, { id: def.id, def, state: opts.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++, stepRunning: false, parkedSystem: false,
-          ...(opts.config !== undefined ? { override: { raw: opts.config } } : {}) })
-        yield* emit({ type: "plugin-installed" }, def.id)
-        yield* commit
-        yield* settle
-        return { value: handleOf(def.id) }
+  const handleOf = (key: string): PluginHandle => {
+    const first = entries.get(key)
+    return {
+      id: first?.pluginId ?? key, realm: first?.realm ?? "default",
+      awaitActive: Effect.gen(function* () {
+        while (true) {
+          const e = entries.get(key)
+          if (!e) return yield* Effect.fail(new PluginRemoved({ id: key }))
+          if (e.state === "failed") return yield* Effect.fail(new ActivationFailed({ id: e.pluginId, phase: e.failure?.phase ?? "build", message: e.failure?.message ?? "" }))
+          if (e.state === "active") {
+            if (!e.def.group) return
+            // A group is active when every member is; the first failed member fails it fast (BEH-BR-127).
+            const members = [...entries.values()].filter((m) => m.parentKey === key)
+            const failed = members.find((m) => m.state === "failed")
+            if (failed) return yield* Effect.fail(new ActivationFailed({ id: failed.pluginId, phase: failed.failure?.phase ?? "build", message: failed.failure?.message ?? "" }))
+            if (members.every((m) => m.state === "active")) return
+          }
+          yield* Effect.yieldNow
+        }
+      })
+    }
+  }
+  const toRef = (ref: PluginRef) => typeof ref === "string" ? { id: ref, realm: "default" } : ref
+
+  const install = (def: AnyPlugin, opts: InstallOptions & { readonly owner?: string } = {}) => {
+    const realm = opts.realm ?? "default"
+    const ident: Ident = { key: keyOf(def.id, realm), id: def.id, realm }
+    return mutating<PluginHandle, InstallError | UnknownPlugin | Conflict>({
+      operation: "install", target: { id: def.id, realm }, options: opts, definition: defRef(def),
+      validate: knownRealm(realm).pipe(Effect.andThen(legalEarly(ident.key, "install")), Effect.andThen(validate(def, ident))),   // registers nothing on error (BEH-BR-018)
+      linearize: (call) => immediate(call, Effect.gen(function* () {
+        yield* legal(ident.key, "install"); yield* validate(def, ident)
+        return yield* locked(Effect.gen(function* () {
+          entries.set(ident.key, newEntry(def, ident, {
+            ...(opts.disabled ? { disabled: true } : {}), ...(opts.config !== undefined ? { config: opts.config } : {}), ...(opts.owner !== undefined ? { owner: opts.owner } : {}),
+            ...(opts.intercept ? { intercept: { inherited: [], own: opts.intercept } } : {}) }))
+          yield* emit({ type: "plugin-installed" }, ident.key)
+          yield* commit
+          yield* settle
+          return { value: handleOf(ident.key) }
+        }))
       }))
-    }))
-  })
+    })
+  }
 
-  const remove = (id: string, opts: RemoveOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
-    operation: "remove", target: id, options: opts, definition: entries.get(id) ? defRef(entries.get(id)!.def) : {},
-    validate: legalEarly(id, "remove"),
-    linearize: (call) => flightOp(id, "remove", () => ({ kind: "gone" }), opts, call)
-  })
+  const remove = (ref: PluginRef, opts: RemoveOptions = {}) => {
+    const id = refKey(ref)
+    return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+      operation: "remove", target: toRef(ref), options: opts, definition: entries.get(id) ? defRef(entries.get(id)!.def) : {},
+      validate: legalEarly(id, "remove"),
+      linearize: (call) => flightOp(id, "remove", () => ({ kind: "gone" }), opts, call)
+    })
+  }
 
-  const replace = (def: AnyPlugin, opts: RemoveOptions = {}) => {
-    const check = validate(def, def.id).pipe(Effect.mapError((c) => new ReplaceError({ id: def.id, cause: c._tag })))
+  const replace = (def: AnyPlugin, opts: RemoveOptions & { readonly realm?: string } = {}) => {
+    const realm = opts.realm ?? "default"
+    const key = keyOf(def.id, realm)
+    const identNow = (): Ident => entries.get(key) ? identOf(entries.get(key)!) : { key, id: def.id, realm }
+    const check = Effect.suspend(() => validate(def, identNow(), key)).pipe(Effect.mapError((c) => new ReplaceError({ id: def.id, cause: c._tag })))
     return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | ReplaceError>({
-      operation: "replace", target: def.id, options: opts, definition: defRef(def),
-      validate: legalEarly(def.id, "replace").pipe(Effect.andThen(check)),           // before anything stops (BEH-BR-050)
-      linearize: (call) => flightOp(def.id, "replace", (e) => ({ kind: "swap", def, disabled: e.state === "disabled" }), opts, call, check)
+      operation: "replace", target: { id: def.id, realm }, options: opts, definition: defRef(def),
+      validate: legalEarly(key, "replace").pipe(Effect.andThen(check)),           // before anything stops (BEH-BR-050)
+      linearize: (call) => flightOp(key, "replace", (e) => ({ kind: "swap", def, disabled: e.state === "disabled" }), opts, call, check)
     })
   }
 
@@ -1004,42 +1252,67 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     const f = flights.get(id)
     if (f) return yield* Effect.fail(new Conflict({ id, pending: f.op }))
     if ((yield* legal(id, op)) === "noop") return { value: undefined, noop: true }
-    if (op === "enable") yield* validate(entries.get(id)!.def, id)                    // re-check (BEH-BR-062)
+    if (op === "enable") yield* validate(entries.get(id)!.def, identOf(entries.get(id)!), id)   // re-check (BEH-BR-062)
     yield* reactivate(id)
     return { value: undefined }
   }))))
 
-  const retry = (id: string, opts: OperationOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
-    operation: "retry", target: id, options: opts, validate: legalEarly(id, "retry"), linearize: (call) => startOp(id, "retry", call)
-  })
+  const retry = (ref: PluginRef, opts: OperationOptions = {}) => {
+    const id = refKey(ref)
+    return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+      operation: "retry", target: toRef(ref), options: opts, validate: legalEarly(id, "retry"), linearize: (call) => startOp(id, "retry", call)
+    })
+  }
 
-  const restart = (id: string, opts: RemoveOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
-    operation: "restart", target: id, options: opts, validate: legalEarly(id, "restart"),
-    linearize: (call) => flightOp(id, "restart", () => ({ kind: "rebuild" }), opts, call)
-  })
+  const restart = (ref: PluginRef, opts: RemoveOptions = {}) => {
+    const id = refKey(ref)
+    return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+      operation: "restart", target: toRef(ref), options: opts, validate: legalEarly(id, "restart"),
+      linearize: (call) => flightOp(id, "restart", () => ({ kind: "rebuild" }), opts, call)
+    })
+  }
 
-  const disable = (id: string, opts: RemoveOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
-    operation: "disable", target: id, options: opts, validate: legalEarly(id, "disable"),
-    linearize: (call) => flightOp(id, "disable", () => ({ kind: "disabled" }), opts, call)
-  })
+  const disable = (ref: PluginRef, opts: RemoveOptions = {}) => {
+    const id = refKey(ref)
+    return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict>({
+      operation: "disable", target: toRef(ref), options: opts, validate: legalEarly(id, "disable"),
+      linearize: (call) => flightOp(id, "disable", () => ({ kind: "disabled" }), opts, call)
+    })
+  }
 
-  const enable = (id: string, opts: OperationOptions = {}) => mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | InstallError>({
-    operation: "enable", target: id, options: opts,
-    validate: legalEarly(id, "enable").pipe(Effect.tap((k) => k === "proceed" && !flights.has(id) && entries.get(id)?.state === "disabled" ? validate(entries.get(id)!.def, id) : Effect.void)),
-    linearize: (call) => startOp(id, "enable", call)
+  const enable = (ref: PluginRef, opts: OperationOptions = {}) => {
+    const id = refKey(ref)
+    return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | InstallError>({
+      operation: "enable", target: toRef(ref), options: opts,
+      validate: legalEarly(id, "enable").pipe(Effect.tap((k) => k === "proceed" && !flights.has(id) && entries.get(id)?.state === "disabled" ? validate(entries.get(id)!.def, identOf(entries.get(id)!), id) : Effect.void)),
+      linearize: (call) => startOp(id, "enable", call)
+    })
+  }
+
+  /** defineRealm (BEH-BR-145): a mutating operation; `DuplicateRealm` is its validation step. */
+  const defineRealm = (id: string, o: RealmOptions, opts: OperationOptions = {}) => mutating<void, DuplicateRealm>({
+    operation: "defineRealm", realmTarget: id, options: opts,
+    validate: Effect.suspend(() => realms.has(id) ? Effect.fail(new DuplicateRealm({ id })) : Effect.void),
+    linearize: (call) => immediate(call, Effect.gen(function* () {
+      if (realms.has(id)) return yield* Effect.fail(new DuplicateRealm({ id }))
+      realms.set(id, { isolate: new Map(o.isolate.map((k) => [sid(k), k])), interceptors: [...(o.interceptors ?? [])] })   // fixed once defined
+      yield* locked(commit)
+      return { value: undefined }
+    }))
   })
 
   /**
    * reconfigure (BEH-BR-101, 102): decoded before anything stops; a volatile-only or empty change applies in place;
    * otherwise the same stop/start path as restart, with the override stored under the flight's intent.
    */
-  const reconfigure = (id: string, config?: unknown, opts: OperationOptions = {}) => {
+  const reconfigure = (ref: PluginRef, config?: unknown, opts: OperationOptions = {}) => {
+    const id = refKey(ref)
     const st: { decoded?: unknown; next?: Entry["override"]; paths: Array<string> } = { paths: [] }
     const decode = Effect.gen(function* () {
       const e = entries.get(id)
       if (!e) return yield* Effect.fail(new UnknownPlugin({ id }))
       const next = config === undefined ? undefined : { raw: config }
-      const raw = next ? Effect.succeed(next.raw) : options.config ? options.config(id) : Effect.succeed(undefined)
+      const raw = next ? Effect.succeed(next.raw) : options.config ? options.config(e.pluginId) : Effect.succeed(undefined)
       const decoded = e.def.config
         ? yield* raw.pipe(
             Effect.flatMap((r) => Schema.decodeUnknownEffect(e.def.config!)(r)),
@@ -1052,7 +1325,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       st.decoded = decoded; st.next = next; st.paths = changedPaths(e.configValue, decoded)
     })
     return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | ConfigInvalid>({
-      operation: "reconfigure", target: id, options: opts,
+      operation: "reconfigure", target: toRef(ref), options: opts,
       extra: () => ({ configChange: { paths: st.paths } }),     // paths only, never values (BEH-BR-103)
       validate: legalEarly(id, "reconfigure").pipe(Effect.andThen(decode)),
       linearize: (call) => Effect.gen(function* () {
@@ -1094,36 +1367,45 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   })
 
   // ---------------------------------------------------------------- leases (BEH-BR-081..088)
-  const acquire = <K extends Keys>(keys: K, holder: Fiber.Fiber<unknown, unknown>) => Effect.gen(function* () {
+  /** All-or-nothing lease in `realm` (BEH-BR-082, 147); `reactive` marks a whenAvailable run (BEH-BR-133). */
+  const acquire = <K extends Keys>(keys: K, holder: Fiber.Fiber<unknown, unknown>, realm = "default", reactive = false) => Effect.gen(function* () {
     const sorted = [...keys].sort((a, b) => (sid(a) < sid(b) ? -1 : sid(a) > sid(b) ? 1 : 0))   // canonical order (BEH-BR-082)
     const claimed = yield* locked(Effect.gen(function* () {
       const found: Array<{ key: Context.Key<any, any>; id: string; service: unknown }> = []
       for (const k of sorted) {
-        const p = Option.getOrUndefined(activeProvider(sid(k)))
+        const p = Option.getOrUndefined(activeProvider(sid(k), realm))
         if (!p || closed) return yield* Effect.fail(new ServiceUnavailable({ serviceId: sid(k) }))   // all or nothing
         found.push({ ...p, key: k })
       }
-      for (const f of found) { const e = entries.get(f.id); if (e) { e.leases++; e.holders.add(holder) } }
+      for (const f of found) { const e = entries.get(f.id); if (e) { e.leases++; e.holders.add(holder); if (reactive) e.reactive.add(holder) } }
       return found
     }))
     yield* Effect.addFinalizer(() => locked(Effect.gen(function* () {
       for (const f of claimed) {
         const e = entries.get(f.id); if (!e) continue
-        e.leases--; e.holders.delete(holder)
+        e.leases--; e.holders.delete(holder); e.reactive.delete(holder)
         if (e.leases === 0 && e.drained) yield* Deferred.succeed(e.drained, undefined)
       }
     })))
     const byId = new Map(claimed.map((c) => [sid(c.key), c]))
     return { services: keys.map((k) => byId.get(sid(k))!.service) as unknown as ServicesOf<K>, ids: claimed.map((c) => c.id).filter((i) => i !== "base") }
   })
+  const knownRealm = (realm: string) => realms.has(realm) ? Effect.void : Effect.fail(new UnknownRealm({ id: realm }))
 
-  const lease = <K extends Keys>(keys: K) => Effect.gen(function* () {
+  const lease = <K extends Keys>(keys: K, opts: { readonly realm?: string } = {}) => Effect.gen(function* () {
+    yield* knownRealm(opts.realm ?? "default")
     const self = yield* Effect.fiber
-    return (yield* acquire(keys, self)).services
+    return (yield* acquire(keys, self, opts.realm ?? "default")).services
   })
 
-  const useAll = <K extends Keys, A, E, R>(keys: K, run: (services: ServicesOf<K>) => Effect.Effect<A, E, R>, opts: { readonly timeout?: number } = {}) =>
+  /**
+   * The lease primitive of use/useAll/useOptional (BEH-BR-084). `consumer`: a plugin activation, whose
+   * interceptions wrap the services; application callers are never wrapped (BEH-BR-151).
+   */
+  const useAllIn = <K extends Keys, A, E, R>(keys: K, run: (services: ServicesOf<K>) => Effect.Effect<A, E, R>, opts: { readonly timeout?: number; readonly realm?: string; readonly consumer?: Entry } = {}) =>
     Effect.scoped(Effect.gen(function* () {
+      const realm = opts.realm ?? "default"
+      yield* knownRealm(realm)                                 // before any lease or callback (BEH-BR-147)
       const callerHeld = yield* HeldPlugins
       const gate = yield* Deferred.make<void>()
       const box: { services?: ServicesOf<K>; ids?: Array<string> } = {}
@@ -1133,8 +1415,10 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
         yield* Deferred.await(gate)
         return yield* run(box.services!).pipe(Effect.provideService(HeldPlugins, new Set([...callerHeld, ...box.ids!])))
       }))
-      const granted = yield* acquire(keys, child as Fiber.Fiber<unknown, unknown>).pipe(Effect.onError(() => Fiber.interrupt(child)))
-      box.services = granted.services; box.ids = granted.ids
+      const granted = yield* acquire(keys, child as Fiber.Fiber<unknown, unknown>, realm).pipe(Effect.onError(() => Fiber.interrupt(child)))
+      const consumer = opts.consumer
+      box.services = consumer ? keys.map((k, i) => wrapFor(consumer, k, (granted.services as ReadonlyArray<unknown>)[i])) as unknown as ServicesOf<K> : granted.services
+      box.ids = granted.ids
       yield* Deferred.succeed(gate, undefined)
       // Caller interrupted: interrupt and await the child before the lease is released (prototype finding G9).
       const joined = Fiber.join(child).pipe(Effect.onInterrupt(() => Fiber.interrupt(child)))
@@ -1148,9 +1432,146 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       if (Cause.hasInterrupts(result.cause)) return yield* Effect.fail(new LeaseRevoked({ serviceId: sid(keys[0]!) }))
       return yield* Effect.failCause(result.cause)
     }))
+  const useAll = <K extends Keys, A, E, R>(keys: K, run: (services: ServicesOf<K>) => Effect.Effect<A, E, R>, opts: { readonly timeout?: number; readonly realm?: string } = {}) =>
+    useAllIn(keys, run, opts)
 
-  const use = <S, A, E, R>(key: Context.Key<any, S>, run: (service: S) => Effect.Effect<A, E, R>, opts: { readonly timeout?: number } = {}) =>
+  const use = <S, A, E, R>(key: Context.Key<any, S>, run: (service: S) => Effect.Effect<A, E, R>, opts: { readonly timeout?: number; readonly realm?: string } = {}) =>
     useAll([key] as const, ([s]) => run(s as S), opts)
+
+  // ---------------------------------------------------------------- reconcile (BEH-BR-153..160, 201)
+  type ActionKind = "install" | "replace" | "reconfigure" | "disable" | "enable" | "remove"
+  interface Plan {
+    readonly invalid: Array<{ id: string; reason: InvalidDefinition }>
+    readonly owned: Array<{ id: string; reason: DuplicatePlugin }>
+    readonly prune: Array<Entry>
+    readonly entries: Array<{ d: DesiredPlugin; key: string; actions: Array<ActionKind> }>
+  }
+  /** Same definition: the same object, or both carry version and digest and both pairs are equal (BEH-BR-154). */
+  const sameDefinition = (a: AnyPlugin, b: AnyPlugin) => a === b ||
+    (!!a.meta?.version && !!a.meta?.digest && !!b.meta?.version && !!b.meta?.digest && a.meta.version === b.meta.version && a.meta.digest === b.meta.digest)
+  /** The keyed diff against the host state now (BEH-BR-154..156). */
+  const planOf = (desired: ReadonlyArray<DesiredPlugin>, scope: string, prune: boolean): Plan => {
+    const plan: Plan = { invalid: [], owned: [], prune: [], entries: [] }
+    const counts = new Map<string, number>()
+    for (const d of desired) { const k = keyOf(d.id, d.realm ?? "default"); counts.set(k, (counts.get(k) ?? 0) + 1) }
+    const listed = new Set(counts.keys())
+    for (const d of desired) {
+      const key = keyOf(d.id, d.realm ?? "default")
+      if (d.id !== d.plugin.id) { plan.invalid.push({ id: d.id, reason: new InvalidDefinition({ id: d.id, reason: "entry id differs from plugin.id" }) }); continue }
+      if (counts.get(key)! > 1) { plan.invalid.push({ id: d.id, reason: new InvalidDefinition({ id: d.id, reason: "listed more than once" }) }); continue }
+      const e = entries.get(key)
+      if (!e) { plan.entries.push({ d, key, actions: ["install"] }); continue }
+      if (e.owner !== scope) { plan.owned.push({ id: d.id, reason: new DuplicatePlugin({ id: d.id }) }); continue }   // never adopted (BEH-BR-155)
+      const replace = !sameDefinition(e.def, d.plugin)
+      // `replace` drops the override, so a listed override follows it (BEH-BR-154).
+      const reconfigure = replace ? d.config !== undefined : !((e.override === undefined && d.config === undefined) || (e.override !== undefined && d.config !== undefined && deepEqual(e.override.raw, d.config)))
+      const wantDisabled = d.disabled ?? false
+      const flip = wantDisabled !== (e.state === "disabled")
+      const actions: Array<ActionKind> = wantDisabled
+        ? [...(flip ? ["disable" as const] : []), ...(replace ? ["replace" as const] : []), ...(reconfigure ? ["reconfigure" as const] : [])]
+        : [...(replace ? ["replace" as const] : []), ...(reconfigure ? ["reconfigure" as const] : []), ...(flip ? ["enable" as const] : [])]
+      plan.entries.push({ d, key, actions })
+    }
+    if (prune) {
+      // Owned and absent; never a child, never an entry whose key is listed (even invalidly) (BEH-BR-153, 155).
+      const pruned = [...entries.values()].filter((e) => e.owner === scope && e.parentKey === undefined && !listed.has(e.id))
+      // Reverse dependency order: a plugin before any plugin it requires (BEH-BR-156).
+      const providerOf = new Map<string, string>()
+      for (const e of pruned) for (const k of e.def.provides) providerOf.set(`${slotOf(e.realm, sid(k))}|${sid(k)}`, e.id)
+      const needs = (e: Entry) => e.def.requires.map((k) => providerOf.get(`${slotOf(e.realm, sid(k))}|${sid(k)}`)).filter((x): x is string => !!x)
+      const left = new Set(pruned.map((e) => e.id))
+      while (left.size) {
+        const free = pruned.filter((e) => left.has(e.id) && ![...left].some((o) => o !== e.id && needs(entries.get(o)!).includes(e.id)))
+        const pick = (free.length ? free : pruned.filter((e) => left.has(e.id))).sort((a, b) => b.order - a.order)[0]!
+        plan.prune.push(pick); left.delete(pick.id)
+      }
+    }
+    return plan
+  }
+  const opsOf = (plan: Plan): Set<Operation> => new Set<Operation>([...plan.entries.flatMap((x) => x.actions), ...(plan.prune.length ? ["remove" as const] : [])])
+  const reconcileTurn = Semaphore.makeUnsafe(1)                 // reconciles are serialized in call order (BEH-BR-156)
+
+  const reconcile = (desired: ReadonlyArray<DesiredPlugin>, opts: ReconcileOptions & OperationOptions = {}): Effect.Effect<ReconcileReport, Unattributed | ReasonRequired | AuditUnavailable | HostClosed> =>
+    Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
+      const list = desired.map((d) => ({ ...d }))               // not retained, not mutated (BEH-BR-153)
+      const scope = opts.scope ?? "default", prune = opts.prune ?? true
+      // Steps 1–3 once for the call (BEH-BR-158).
+      if (closed || closing) return yield* Effect.fail(new HostClosed())
+      const ctx: OperationContext = opts.context ?? { actor: yield* CurrentActor }
+      if (!ctx.actor.id.trim() || (attribution.require && ctx.actor.id.startsWith("bridger:"))) return yield* Effect.fail(new Unattributed({ operation: "reconcile" }))
+      const needReason = (ops: Set<Operation>) => !ctx.reason?.trim() && (attribution.requireReason ?? []).some((o) => o === "reconcile" || ops.has(o))
+      const provisional = opsOf(planOf(list, scope, prune))
+      if (needReason(provisional)) return yield* Effect.fail(new ReasonRequired({ operation: "reconcile" }))   // no record
+      if (writer?.state.degraded) return yield* Effect.fail(new AuditUnavailable({ operation: "reconcile", message: "audit degraded" }))
+      const correlationId = ctx.correlationId ?? (yield* ids.next)
+      const base = { actor: ctx.actor, correlationId, operation: "reconcile" as const, ...(ctx.reason ? { reason: ctx.reason } : {}) }
+      const req = writer ? yield* writer.enqueue({ ...base, phase: "requested" }) : undefined
+      const parentEnd = (phase: "completed" | "failed", children: number, error?: { _tag: string; message: string }) =>
+        writer && req ? writer.enqueue({ ...base, phase, causationId: req.recordId, children, ...(phase === "completed" && children === 0 ? { noop: true as const } : {}), ...(error ? { error } : {}) }).pipe(Effect.asVoid) : Effect.void
+      // The intent is recorded once the parent record is written and this call's turn begins (BEH-BR-156).
+      const turn = yield* Effect.exit(restore(Effect.gen(function* () {
+        if (writer && req && !(yield* awaitWritten(req.written, auditTimeout))) return yield* Effect.fail(new AuditUnavailable({ operation: "reconcile", message: "requested record not written" }))
+        if (writer && !req) return yield* Effect.fail(new AuditUnavailable({ operation: "reconcile", message: "requested record not written" }))
+        yield* reconcileTurn.take(1)
+      })))
+      if (Exit.isFailure(turn)) {
+        const interrupted = Cause.hasInterrupts(turn.cause) && !Cause.hasFails(turn.cause)
+        yield* parentEnd("failed", 0, interrupted ? { _tag: "Interrupted", message: "caller interrupted before its intent was recorded" } : errorOf(turn.cause))
+        return yield* Effect.failCause(turn.cause)
+      }
+      // From the intent on, the batch runs in a host fiber: an interrupted caller stops waiting, nothing else (BEH-BR-156).
+      const done = yield* Deferred.make<ReconcileReport, AuditUnavailable | ReasonRequired | HostClosed>()
+      const batch = Effect.gen(function* () {
+        const plan = planOf(list, scope, prune)                 // recomputed at the intent
+        const newly = [...opsOf(plan)].filter((o) => !provisional.has(o))
+        if (needReason(new Set(newly)) && newly.length) {
+          yield* parentEnd("failed", 0, { _tag: "ReasonRequired", message: "the recomputed diff needs a reason" })
+          return yield* Effect.fail(new ReasonRequired({ operation: "reconcile" }))
+        }
+        const r = { installed: [] as Array<string>, replaced: [] as Array<string>, reconfigured: [] as Array<string>, enabled: [] as Array<string>, disabled: [] as Array<string>, removed: [] as Array<string>, unchanged: [] as Array<string>, rejected: [] as Array<{ id: string; reason: { _tag: string } }> }
+        for (const x of [...plan.invalid, ...plan.owned]) r.rejected.push(x)
+        let children = 0
+        const entryOpts: OperationOptions & EntryAction = { context: { actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}) }, ...(req ? { causedBy: req.recordId } : {}), reached: () => { children++ } }
+        const listOf: Record<ActionKind, Array<string>> = { install: r.installed, replace: r.replaced, reconfigure: r.reconfigured, enable: r.enabled, disable: r.disabled, remove: r.removed }
+        /** One entry action; false when the entry is done for this call. AuditUnavailable stops the batch (BEH-BR-157). */
+        const act = (id: string, kind: ActionKind, run: Effect.Effect<unknown, unknown>) => Effect.gen(function* () {
+          if (writer?.state.degraded) return yield* Effect.fail(new AuditUnavailable({ operation: kind, message: "audit degraded during reconcile" }))
+          const exit = yield* Effect.exit(run)
+          if (Exit.isSuccess(exit)) { listOf[kind].push(id); return true }
+          const err = Cause.squash(exit.cause)
+          if (err instanceof AuditUnavailable) return yield* Effect.fail(err)
+          if (err instanceof HostClosed) return yield* Effect.fail(err)
+          r.rejected.push({ id, reason: err instanceof ReplaceError ? { _tag: err.cause } : (err as { _tag: string }) })
+          return false
+        })
+        const result = yield* Effect.exit(Effect.gen(function* () {
+          for (const e of plan.prune) yield* act(e.pluginId, "remove", remove({ id: e.pluginId, realm: e.realm }, entryOpts))
+          for (const { d, actions } of plan.entries) {
+            if (actions.length === 0) { r.unchanged.push(d.id); continue }
+            for (const a of actions) {
+              const realm = d.realm ?? "default"
+              const ref = { id: d.id, realm }
+              const run: Effect.Effect<unknown, unknown> =
+                a === "install" ? install(d.plugin, { ...entryOpts, realm, owner: scope, ...(d.config !== undefined ? { config: d.config } : {}), ...(d.disabled ? { disabled: true } : {}) }) :
+                a === "replace" ? replace(d.plugin, { ...entryOpts, realm }) :
+                a === "reconfigure" ? reconfigure(ref, d.config, entryOpts) :
+                a === "disable" ? disable(ref, entryOpts) : enable(ref, entryOpts)
+              if (!(yield* act(d.id, a, run))) break              // no further actions for this entry (BEH-BR-157)
+            }
+          }
+        }))
+        if (Exit.isFailure(result)) {
+          yield* parentEnd("failed", children, errorOf(result.cause))
+          return yield* Effect.failCause(result.cause as Cause.Cause<AuditUnavailable | HostClosed>)
+        }
+        yield* parentEnd("completed", children)
+        return r satisfies ReconcileReport
+      })
+      yield* Effect.forkIn(batch.pipe(
+        Effect.provideService(CurrentActor, ctx.actor),
+        Effect.exit, Effect.flatMap((x) => Deferred.done(done, x)), Effect.ensuring(reconcileTurn.release(1))), hostScope)
+      return yield* restore(Deferred.await(done))
+    }))
 
   // ---------------------------------------------------------------- idle and shutdown (BEH-BR-040, 105..109)
   const awaitIdle: Effect.Effect<HostSnapshot, WouldDeadlock | HostClosed> = Effect.gen(function* () {
@@ -1158,7 +1579,8 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     const held = yield* HeldPlugins
     if (held.size > 0) return yield* Effect.fail(new WouldDeadlock({ id: [...held][0]! }))
     while (true) {
-      const busy = [...flights.values()].some((f) => !f.parked) || [...entries.values()].some((e) => e.state === "starting" || e.failing) ||
+      // A stop still running (a cascade, an unmount) is a transition in flight; a parked one is not.
+      const busy = [...flights.values()].some((f) => !f.parked) || [...entries.values()].some((e) => e.state === "starting" || e.failing || (e.state === "stopping" && e.stepRunning && !e.parkedSystem)) ||
         [...entries.values()].some((e) => e.state === "waiting" && missing(e).length === 0)
       if (!busy) return snapshotOf()
       yield* Effect.yieldNow
@@ -1166,13 +1588,15 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   })
 
   /** BEH-BR-118: names and counts only. */
-  const inspect = (id: string): Effect.Effect<PluginInspection, UnknownPlugin | HostClosed> => Effect.gen(function* () {
+  const inspect = (ref: PluginRef): Effect.Effect<PluginInspection, UnknownPlugin | HostClosed> => Effect.gen(function* () {
+    const id = refKey(ref)
     if (closing || closed) return yield* Effect.fail(new HostClosed())
     const e = entries.get(id)
     if (!e) return yield* Effect.fail(new UnknownPlugin({ id }))
     const f = flights.get(id)
     return {
-      id, state: e.state, requires: e.def.requires.map(sid), provides: e.def.provides.map(sid),
+      id: e.pluginId, realm: e.realm, state: e.state, requires: e.def.requires.map(sid), provides: e.def.provides.map(sid),
+      optional: (e.def.optional ?? []).map(sid), whenAvailable: (e.whenAvailable ?? []).map((w) => ({ ...w })),   // BEH-BR-135
       background: (e.background ?? []).map((b) => ({ ...b })), leases: e.leases,
       ...(e.lastBuildMs !== undefined ? { lastBuildMs: e.lastBuildMs } : {}),
       parked: e.state === "stopping" && (e.parkedSystem || !!f?.parked),
@@ -1267,7 +1691,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   }))
 
   return {
-    install, remove, replace, retry, reconfigure, restart, disable, enable, acknowledgeAuditDegraded,
+    install, remove, replace, retry, reconfigure, restart, disable, enable, acknowledgeAuditDegraded, defineRealm, reconcile,
     use, useAll, lease, awaitIdle, inspect, shutdown,
     snapshot: Effect.sync(snapshotOf),
     changes: SubscriptionRef.changes(feed).pipe(Stream.interruptWhen(Deferred.await(closedSignal))),   // ends when the host closes

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-16                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -191,7 +191,9 @@ bus, so they are interrupted when the host closes, and each running listener
 holds its registry contribution as a `use` does, so its plugin's removal
 waits for it under the registry's `drainTimeout`. A listener fiber does not
 belong to the emitter, so interrupting the emitter does not interrupt the
-listeners it started.
+listeners it started. (3) A listener interrupted because its plugin was
+removed (BEH-BR-140) has not failed: it is not reported as `listener-failed`
+(URS gap G23, CCR-BR-010).
 
 ## BEH-BR-142: parallel and serial
 
@@ -218,11 +220,22 @@ REQUIREMENT: Cordis's `bail` MUST NOT be provided: Effect has no synchronous
              dispatch, and `serial` covers the decision pattern.
 ```
 
+```
+REQUIREMENT: When a listener of a `parallel`, `serial` or `waterfall`
+             dispatch is interrupted because its plugin was removed during
+             the dispatch (BEH-BR-140), the dispatch MUST fail with a defect
+             naming the event identifier. It MUST NOT skip the listener or
+             substitute a result for it.
+```
+
 **Settled here.** (1) `parallel` returns results in listener order, not
 completion order, so the result is deterministic. (2) "Defined" in `serial`
 means not `undefined`; `null` is a result. (3) A listener defect in
 `parallel` or `serial` propagates as a defect of the dispatch, as a callback
-defect does under `use`.
+defect does under `use`. (4) A listener cut off by its plugin's removal is
+treated the same way: its result is missing, and a dispatch that skipped it
+would return a result that depends on when the removal happened (URS gap
+G23, CCR-BR-010).
 
 ## BEH-BR-143: waterfall composes around listeners
 

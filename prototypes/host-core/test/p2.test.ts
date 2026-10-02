@@ -146,7 +146,7 @@ describe("runtime failure (behaviour 10)", () => {
       yield* host.install(early); yield* host.awaitIdle
       const p = (yield* host.snapshot).plugins[0]!
       expect(p.state === "failed" && p.failure.phase).toBe("activation")
-      expect((yield* host.snapshot).availableServiceIds).toEqual([])
+      expect((yield* host.snapshot).availableServiceIds).toEqual(["@bridger/core/Events"])   // only the base event bus (BEH-BR-137)
     }))
   })
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-17                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -321,17 +321,21 @@ REQUIREMENT: When the host captures a provider's service for a consumer
 ```
 REQUIREMENT: A consumer is in scope of an interception set by its realm's
              `interceptors`, by its own `InstallOptions.intercept`, or
-             inherited from its parent plugin (children inherit unless their
-             install options say otherwise).
+             inherited from its parent plugin. A child inherits the
+             interceptions its parent inherited and those of the parent's
+             own `InstallOptions.intercept` — never the parent's realm
+             interceptors, which reach a child only through the child's own
+             realm — unless the child's install options set `intercept`,
+             which then replaces the inherited interceptions.
 ```
 
 ```
 REQUIREMENT: When several interceptions apply to one key, they MUST compose
              in this fixed order, each wrapping the result of the previous:
-             realm interceptors (in list order), then inherited parent
-             interceptions (in list order), then the consumer's own
-             `InstallOptions.intercept` (in list order). The consumer's own
-             interception is therefore the outermost.
+             realm interceptors (in list order), then the consumer's
+             inherited interceptions or, when it has them, those of its own
+             `InstallOptions.intercept` (in list order). The realm's
+             interceptors are therefore always the innermost.
 ```
 
 ```
@@ -355,7 +359,12 @@ same for the same configuration on every host. (2) SPEC.md does not say
 whether optional and reactive captures are intercepted; they are, because a
 service reached optionally is still that consumer's view of the provider.
 (3) Application callers of `Host.use` are not "consumers" in SPEC.md's sense
-(a consumer is a plugin) and are not wrapped.
+(a consumer is a plugin) and are not wrapped. (4) Revision 0.1 composed
+"realm, then inherited, then own", but BEH-BR-122 lets a child's own
+`intercept` replace what it inherits, so the two middle terms never applied
+together, and it did not say whether a parent's realm interceptors were
+inherited. They are not: a child in another realm would otherwise carry the
+first realm's decoration into the second (URS gap G24, CCR-BR-010).
 
 ## BEH-BR-152: An interception changes neither leases nor other consumers
 

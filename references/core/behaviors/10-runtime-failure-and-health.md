@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-10                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -60,7 +60,7 @@ interface PluginRuntime {
   ) => Effect.Effect<void, never, Scope.Scope>
   // Children: behaviour 14.
   readonly install: <R extends Keys, P extends Keys, E, C>(child: PluginDefinition<R, P, E, C>, options?: InstallOptions) =>
-    Effect.Effect<PluginHandle, InstallError, Scope.Scope>
+    Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed, Scope.Scope>
 }
 ```
 

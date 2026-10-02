@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -556,6 +556,37 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  transition step running under `drain: "forever"` fails with
                  `DrainTimeout` when its own drain limit expires (BEH-BR-088,
                  BEH-BR-079, BEH-BR-085).
+             49. Capture at build begin: a `starting` plugin whose
+                 provider is hidden by an operation before its build begins
+                 returns to `waiting` and is not `failed`; a stop of a
+                 `starting` plugin whose build holds no slot completes
+                 without waiting for one; and seeded random operation
+                 histories, with racing operations, across realms, optional
+                 dependencies and a parent with a child, settle to the
+                 snapshot of a direct install of the final set (05 —
+                 Activation, BEH-BR-034, BEH-BR-035; 18 — Reconciliation and
+                 Confluence, BEH-BR-160).
+             50. A child's lifetime edges: a mount attempted by a fiber of
+                 the parent after the parent's stop began fails with
+                 `Conflict` and registers nothing; a child whose drain
+                 expires under its parent's removal shows `parked` true and
+                 `next` "gone", a `restart` of it fails with `Conflict`
+                 "remove", and a forced removal of the parent removes it
+                 (14 — Children and Groups, BEH-BR-121, BEH-BR-125).
+             51. Child and group records: a mount's `system-start` record
+                 carries the child's registration state and is caused by the
+                 record that began the parent's activation; the child's
+                 activation that begins in the mount's revision is caused by
+                 the mount record; a group whose member fails its install
+                 checks is `failed` with phase "build" and keeps no member
+                 mounted (BEH-BR-126, BEH-BR-128).
+             52. A listener whose plugin is removed during a `serial`
+                 dispatch fails the dispatch with a defect naming the event,
+                 and one cut off under `emit` is not reported as
+                 `listener-failed`; a child whose install options set
+                 `intercept` receives its realm's interceptors and its own,
+                 not its parent's (16 — Event Bus, BEH-BR-141, BEH-BR-142;
+                 17 — Realms and Interception, BEH-BR-151).
 ```
 
 Checks 31–42 exist because the GxP hooks are only worth specifying if each

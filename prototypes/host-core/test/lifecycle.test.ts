@@ -73,7 +73,7 @@ describe("installation and activation", () => {
       yield* host.remove("example/logger")
       const snap = yield* host.snapshot
       expect(snap.plugins).toEqual([])
-      expect(snap.availableServiceIds).toEqual([])
+      expect(snap.availableServiceIds).toEqual(["@bridger/core/Events"])   // only the base event bus (BEH-BR-137)
       expect(j.lines).toEqual(["logger:build", "logger:close"])                  // the stale build's scope was closed
     }))
   })

@@ -5,7 +5,9 @@ export class DuplicatePlugin extends Schema.TaggedError<DuplicatePlugin>()("Dupl
 export class DuplicateProvider extends Schema.TaggedError<DuplicateProvider>()("DuplicateProvider", { serviceId: Schema.String, providerId: Schema.String }) {}
 export class DependencyCycle extends Schema.TaggedError<DependencyCycle>()("DependencyCycle", { path: Schema.Array(Schema.String) }) {}
 export class InvalidDefinition extends Schema.TaggedError<InvalidDefinition>()("InvalidDefinition", { id: Schema.String, reason: Schema.String }) {}
-export type InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | InvalidDefinition
+export class UnknownRealm extends Schema.TaggedError<UnknownRealm>()("UnknownRealm", { id: Schema.String }) {}
+export class DuplicateRealm extends Schema.TaggedError<DuplicateRealm>()("DuplicateRealm", { id: Schema.String }) {}
+export type InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | InvalidDefinition | UnknownRealm
 
 export class ReplaceError extends Schema.TaggedError<ReplaceError>()("ReplaceError", { id: Schema.String, cause: Schema.String }) {}
 export class UnknownPlugin extends Schema.TaggedError<UnknownPlugin>()("UnknownPlugin", { id: Schema.String }) {}
