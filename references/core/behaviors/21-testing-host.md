@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -83,6 +83,20 @@ REQUIREMENT: The production host MUST contain no fault-injection hook, test
              scheduling, not through branches inside the production path.
 ```
 
+```
+REQUIREMENT: The host MUST run every transition step and every wait of
+             BEH-BR-178 through one internal scheduling interface. The
+             production host's implementation MUST run each at once;
+             `TestHost` supplies one that holds each until stepped. The
+             interface MUST NOT be exported from `@bridger/core`.
+```
+
+**Settled here.** "No alternate scheduling path" and "`TestHost` owns the
+scheduling" are reconciled by a seam that the production path always goes
+through: the production host does not branch on whether it is being tested,
+it hands each step to a scheduler that runs it at once. The host-core
+prototype built `TestHost` this way (URS gap G30, CCR-BR-011).
+
 A test host that runs different code from the production host tests the
 wrong thing. Keeping the difference to scheduling and injected services keeps
 a passing `TestHost` test meaningful for `Bridger.make`.
@@ -144,6 +158,30 @@ REQUIREMENT: `runUntilIdle` MUST call `step` until it returns `false`, and
 ```
 
 ```
+REQUIREMENT: `pending` MUST be read at a settlement point, as `step` is: a
+             transition that an operation started before `pending` was
+             called MUST be listed.
+```
+
+```
+REQUIREMENT: `awaitIdle` on a `TestHost` MUST keep the meaning of
+             05 — Activation, BEH-BR-040: it waits for an idle revision,
+             which a `TestHost` reaches only through steps. Documentation
+             MUST state that a test awaiting it in its own fiber, without
+             stepping, waits for ever, and that `runUntilIdle` is the
+             stepping form.
+```
+
+```
+REQUIREMENT: Once the scope of a `TestHost` begins to close, its pending
+             and later transitions MUST advance without steps, so that the
+             scope-close shutdown (12 — Shutdown and Hosting, BEH-BR-108)
+             completes. Documentation MUST state that drain and shutdown
+             limits still read `TestClock`, so a lease still held when the
+             scope closes holds the close until the test's clock advances.
+```
+
+```
 REQUIREMENT: The `concurrency` limit MUST still hold: the number of builds
              started and not yet settled (including builds suspended on the
              clock) MUST never exceed it. Stops take no slot
@@ -153,6 +191,14 @@ REQUIREMENT: The `concurrency` limit MUST still hold: the number of builds
 A test that awaits a mutating call forks it, steps the host, and then joins
 it. That is more ceremony than calling the operation directly, and it is the
 point: every interleaving a test exercises is one the test chose.
+
+**Settled here.** A settlement point is a property of observable state, but
+detecting one needs the host to know when its own fibers have nothing left
+to run, which Effect does not report. The host-core prototype polls the
+observable state until it stops changing; a real implementation should track
+the host's own runnable work instead (URS gap G29). The test's scope closing
+cannot be stepped — its finalizers run after the test body — which is why
+transitions then run on their own (URS gaps G27 and G28, CCR-BR-011).
 
 **Settled here.** SPEC.md names `step` and `runUntilIdle` but not what one
 step is. A step ends at the next point where something observable happens
@@ -247,6 +293,16 @@ REQUIREMENT: Every injected failure MUST carry a message that identifies it
 ```
 REQUIREMENT: An injected fault MUST travel the same path as the real failure
              it imitates: the same state, events, audit records and errors.
+```
+
+```
+REQUIREMENT: A fault MUST apply to plugins installed through the
+             `TestHost`'s own `install`, `replace` and `reconcile`. Whatever
+             it adds to a definition MUST keep one definition object per
+             (definition, realm), so that `reconcile` still finds the same
+             definition the same (18 — Reconciliation and Confluence,
+             BEH-BR-154). Documentation MUST state that a child mounted by
+             `Plugin.Runtime.install` is outside a fault's reach.
 ```
 
 **Settled here.** SPEC.md names the four faults without their duration.
@@ -581,12 +637,27 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  checks is `failed` with phase "build" and keeps no member
                  mounted (BEH-BR-126, BEH-BR-128).
              52. A listener whose plugin is removed during a `serial`
-                 dispatch fails the dispatch with a defect naming the event,
-                 and one cut off under `emit` is not reported as
-                 `listener-failed`; a child whose install options set
-                 `intercept` receives its realm's interceptors and its own,
-                 not its parent's (16 — Event Bus, BEH-BR-141, BEH-BR-142;
-                 17 — Realms and Interception, BEH-BR-151).
+                 dispatch — while it runs, or before its turn — fails the
+                 dispatch with a defect naming the event, and one cut off
+                 under `emit` is not reported as `listener-failed`; a child
+                 whose install options set `intercept` receives its realm's
+                 interceptors and its own, not its parent's (16 — Event Bus,
+                 BEH-BR-141, BEH-BR-142; 17 — Realms and Interception,
+                 BEH-BR-151).
+             53. A generation's forced drain interrupts the fiber that took
+                 an `acquire` lease and fails a `use` callback with
+                 `LeaseRevoked` after its finalizers; made inside an
+                 activation, the generation reports the revocation as a
+                 `lease-revoked` host event naming it (20 — Generation,
+                 BEH-BR-172, BEH-BR-174).
+             54. `TestHost` edges: `pending` lists the transition an
+                 operation just started; `awaitIdle` completes only once the
+                 test steps; a test that ends with pending items closes its
+                 scope; and seeded random histories whose step order is
+                 itself chosen at random settle to the snapshot of a direct
+                 install of the final set on `Bridger.make` (BEH-BR-177,
+                 BEH-BR-178; 18 — Reconciliation and Confluence,
+                 BEH-BR-160).
 ```
 
 Checks 31–42 exist because the GxP hooks are only worth specifying if each

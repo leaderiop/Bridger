@@ -25,3 +25,6 @@ export class PluginRemoved extends Schema.TaggedError<PluginRemoved>()("PluginRe
 export class Superseded extends Schema.TaggedError<Superseded>()("Superseded", { id: Schema.String }) {}
 /** Decode failure of a plugin's configuration; the message never quotes a value (BEH-BR-103). */
 export class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigInvalid", { id: Schema.String, message: Schema.String }) {}
+export class DuplicateContribution extends Schema.TaggedError<DuplicateContribution>()("DuplicateContribution", { id: Schema.String }) {}
+export class ContributionUnavailable extends Schema.TaggedError<ContributionUnavailable>()("ContributionUnavailable", { id: Schema.String }) {}
+export class AdmissionClosed extends Schema.TaggedError<AdmissionClosed>()("AdmissionClosed", { name: Schema.String }) {}

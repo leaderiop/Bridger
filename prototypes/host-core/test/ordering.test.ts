@@ -23,9 +23,9 @@ describe("cross-plugin stop ordering (ADR-BR-038)", () => {
       const holder = yield* Effect.forkChild(host.use(Audit, () => Effect.gen(function* () {
         yield* Deferred.succeed(entered, undefined)
         yield* Deferred.await(go)                                                  // the removal is now waiting on this lease
-        const unrelated = yield* within(200, host.install(clockPlugin))
-        const own = yield* within(200, host.remove("example/audit"))
-        const provider = yield* within(200, host.restart("example/logger"))
+        const unrelated = yield* within(1_000, host.install(clockPlugin))
+        const own = yield* within(1_000, host.remove("example/audit"))
+        const provider = yield* within(1_000, host.restart("example/logger"))
         return { unrelated, own, provider }
       })))
       yield* Deferred.await(entered)

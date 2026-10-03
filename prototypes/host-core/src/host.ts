@@ -1,4 +1,4 @@
-// Prototype of the Bridger host core (references/core behaviours 02–18, 22–25): phases P1–P4.
+// Prototype of the Bridger host core (references/core behaviours 02–25): phases P1–P5.
 //
 // Deliberate simplifications (recorded in RESULTS.md):
 //  - Operations are linearized per plugin (ADR-BR-038): no host-wide operation lock. An operator
@@ -9,7 +9,7 @@
 //  - Configuration comes from a function source only (no ConfigProvider default); `ConfigInvalid`
 //    carries a fixed message rather than per-path issues.
 //  - Builds run concurrently in forked fibers, bounded by `concurrency`; stops take no slot.
-//  - The event bus keeps an ordered listener list equivalent to the ContributionRegistry (phase P5).
+//  - Transition steps and contended waits run through `Scheduling` (`immediate` here; held by TestHost).
 //  - Children, realms, interception, optional dependencies and reconcile: phase P4 (RESULTS.md).
 import { Cause, Clock, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Schedule, Schema, Scope, Semaphore, Stream, SubscriptionRef } from "effect"
 import {
@@ -28,6 +28,7 @@ import {
 } from "./gxp.js"
 import type { AnyPlugin, InstallOptions, Interception, Keys, PluginHandle, ServicesOf } from "./plugin.js"
 import { Events, makeBus } from "./bus.js"
+import { ActivePlugin } from "./active.js"
 import { deepEqual, type DesiredPlugin } from "./desired.js"
 export type { PluginHandle } from "./plugin.js"
 
@@ -63,6 +64,7 @@ export interface PluginInspection {
   readonly state: PluginState
   readonly optional: ReadonlyArray<string>
   readonly whenAvailable: ReadonlyArray<{ readonly name: string; readonly keys: ReadonlyArray<string>; readonly running: boolean }>
+  readonly contributions: ReadonlyArray<{ readonly registry: string; readonly id: string }>
   readonly requires: ReadonlyArray<string>
   readonly provides: ReadonlyArray<string>
   readonly background: ReadonlyArray<{ readonly name: string; readonly policy: FailurePolicy; readonly restarts: number; readonly running: boolean }>
@@ -100,6 +102,31 @@ export interface Options {
   readonly onClose?: (report: CloseReport) => Effect.Effect<void>
 }
 
+/** A pending item of a steppable reconciler (BEH-BR-178). */
+export interface StepItem {
+  readonly kind: "build" | "stop" | "wait"
+  readonly pluginId: string                  // the plugin stepped; for "wait", the plugin waited on
+  readonly realm: string
+  readonly waiter?: string                   // "wait" only: the plugin whose call or cascade waits
+  readonly owner: string                     // the operation or system transition it belongs to
+  readonly correlationId?: string            // the owner's, when the owner is an operator call
+  readonly seq: number                       // arrival of the call or transition that created it
+  readonly tie: string                       // ready-set order for builds, (realm, id) otherwise
+}
+/**
+ * How the host schedules its transition steps and contended waits (BEH-BR-177, 178). Every step and wait
+ * goes through it: the production host runs them at once (`immediate`); a test host holds them until stepped.
+ * Not part of the public `Host`; it is the one seam `TestHost` owns.
+ */
+export interface Scheduling {
+  readonly transition: <A, E>(item: StepItem, ready: () => boolean, body: Effect.Effect<A, E>) => Effect.Effect<A, E>
+  readonly wait: <A, E>(item: StepItem, body: Effect.Effect<A, E>) => Effect.Effect<A, E>
+}
+export const immediate: Scheduling = { transition: (_item, _ready, body) => body, wait: (_item, body) => body }
+
+/** The operation a build or stop belongs to, for StepItem.owner (BEH-BR-178). */
+const CurrentOwner = Context.Reference<{ readonly owner: string; readonly correlationId?: string } | undefined>("bridger/prototype/CurrentOwner", { defaultValue: () => undefined })
+
 /** Internal options of a reconcile entry action (BEH-BR-158, 201). */
 interface EntryAction { readonly causedBy?: string; readonly reached?: () => void }
 
@@ -120,6 +147,7 @@ interface Entry {
   owner?: string                              // the reconcile scope that installed it (BEH-BR-155)
   reactive: Set<Fiber.Fiber<unknown, unknown>> // whenAvailable runs holding a lease on this plugin (BEH-BR-133)
   whenAvailable?: Array<{ name: string; keys: ReadonlyArray<string>; running: boolean }>
+  contributions: Array<{ registry: string; id: string }>   // reported through ActivePlugin (BEH-BR-168)
   def: AnyPlugin
   state: PluginState
   cleanupFailed: boolean
@@ -133,6 +161,8 @@ interface Entry {
   drained?: Deferred.Deferred<void>
   epoch: number                               // bumped whenever the target changes; a build of an older epoch is stale
   build?: Fiber.Fiber<void, never>
+  buildSeq: number                            // StepItem of the pending build (BEH-BR-178)
+  buildOwner?: { readonly owner: string; readonly correlationId?: string }
   buildBegun?: boolean                        // the build holds its slot and has captured (BEH-BR-034, 035)
   order: number                               // registration order (FIFO among ready plugins)
   cause?: string                              // causation of the activation in flight
@@ -160,7 +190,9 @@ const msg = (u: unknown): string => {
   return (m || (typeof tag === "string" ? tag : "")).split("\n")[0]!.slice(0, 200)
 }
 
-export const make = (options: Options = {}) => Effect.gen(function* () {
+export const make = (options: Options = {}) => makeWith(options, immediate)
+
+export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen(function* () {
   const hostScope = yield* Effect.scope
   // Activation scopes live under this scope, forked before the shutdown finalizer is registered: closing the
   // host scope therefore runs the dependents-first shutdown before any activation scope closes (BEH-BR-108).
@@ -175,7 +207,15 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     if (!x) { x = Semaphore.makeUnsafe(1); m.set(k, x) }
     return x
   }
-  const buildSem = yield* Semaphore.make(options.concurrency ?? 4)
+  const concurrency = options.concurrency ?? 4
+  const buildSem = yield* Semaphore.make(concurrency)
+  let buildsRunning = 0
+  let arrivals = 0                               // creation order of calls and transitions, for StepItem.seq
+  /** Takes a step lock; a contended wait goes through the scheduler (BEH-BR-178). */
+  const takeStep = (sem: Semaphore.Semaphore, item: () => StepItem) => Effect.gen(function* () {
+    if (yield* sem.takeIfAvailable(1)) return
+    yield* scheduling.wait(item(), sem.take(1))
+  })
   const buildTimeout = options.buildTimeout ?? 60_000
   const defaultDrain = options.drainTimeout ?? 30_000
 
@@ -353,12 +393,15 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   const settle: Effect.Effect<void> = Effect.gen(function* () {
     if (closed) return
     let changed = false
+    const pass = ++arrivals                      // builds made ready together share one arrival (BEH-BR-178)
+    const owner = yield* CurrentOwner
     for (const e of [...entries.values()].sort((a, b) => a.order - b.order)) {
       if (e.state !== "waiting" || missing(e).length > 0) continue
       e.providers = new Map(e.def.requires.map((k) => [sid(k), Option.getOrThrow(activeProvider(sid(k), e.realm)).id]))
       e.state = "starting"; e.epoch++; e.buildBegun = false; changed = true
       e.cause = yield* CurrentCause
-      e.build = yield* Effect.forkIn(runBuild(e, e.epoch), hostScope)
+      e.buildSeq = pass; e.buildOwner = owner
+      e.build = yield* Effect.forkIn(runBuild(e, e.epoch).pipe(Effect.provideService(CurrentOwner, undefined)), hostScope)
     }
     if (changed) yield* commit
   })
@@ -369,9 +412,15 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
    * the plugin back to `waiting`, not to `failed` (prototype finding G25).
    */
   const runBuild = (e: Entry, epoch: number): Effect.Effect<void> => Effect.gen(function* () {
+    // A build is a transition step; it can progress only when a slot is free (BEH-BR-178).
+    yield* scheduling.transition({
+      kind: "build", pluginId: e.pluginId, realm: e.realm, owner: e.buildOwner?.owner ?? "system-start",
+      ...(e.buildOwner?.correlationId ? { correlationId: e.buildOwner.correlationId } : {}), seq: e.buildSeq, tie: String(e.order).padStart(12, "0")
+    }, () => buildsRunning < concurrency, Effect.void)
     yield* buildSem.take(1)
+    buildsRunning++
     let held = true
-    const releaseSlot = Effect.suspend(() => { if (!held) return Effect.void; held = false; return buildSem.release(1) })
+    const releaseSlot = Effect.suspend(() => { if (!held) return Effect.void; held = false; buildsRunning--; return buildSem.release(1) })
     return yield* runBuildInSlot(e, epoch, releaseSlot).pipe(Effect.ensuring(releaseSlot))
   })
   const runBuildInSlot = (e: Entry, epoch: number, releaseSlot: Effect.Effect<unknown>): Effect.Effect<void> => Effect.gen(function* () {
@@ -432,6 +481,13 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       Effect.provideContext(ctx),
       // A build, and the finalizers it registers, carry the plugin in HeldPlugins (BEH-BR-088, R11).
       Effect.provideService(HeldPlugins, new Set([e.id])),
+      // Helpers called inside the activation report ownership through ActivePlugin (BEH-BR-163, 168, 174).
+      Effect.provideService(ActivePlugin, Option.some({
+        pluginId: e.pluginId, realm: e.realm,
+        contributed: (registry: string, id: string) => { e.contributions.push({ registry, id }) },
+        withdrawn: (registry: string, id: string) => { e.contributions = e.contributions.filter((c) => c.registry !== registry || c.id !== id) },
+        revoked: (generation: string, leases: number) => { Effect.runFork(emit({ type: "lease-revoked", leases, generation }, e.id)) }
+      })),
       Effect.timeoutOrElse({ duration: buildTimeout, orElse: () => Effect.fail(new Error("build timeout")) }),
       Effect.exit)
     yield* releaseSlot                                         // discarding below may wait for children's builds
@@ -640,6 +696,8 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
    */
   interface StopOpts extends RemoveOptions {
     readonly mode?: "operator" | "no-caller" | "shutdown"
+    readonly correlationId?: string                       // the operator call that owns the stop (StepItem)
+    readonly seq?: number                                 // arrival of the stop's root (StepItem)
     readonly land?: (e: Entry) => void                     // final state, set in the revision the scope closes
     readonly hooks?: {
       readonly drainExpired?: (id: string, leases: number) => void
@@ -683,10 +741,16 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
       const sem = semOf(steps, id)
       const limit = opts.drain ?? defaultDrain
+      if (opts.seq === undefined) opts = { ...opts, seq: ++arrivals }
+      const waitItem = (): StepItem => {
+        const e = entries.get(id), w = cascadeFrom !== undefined ? entries.get(cascadeFrom) : undefined
+        return { kind: "wait", pluginId: e?.pluginId ?? id, realm: e?.realm ?? "default", ...(w ? { waiter: w.pluginId } : {}), owner: reason,
+          ...(opts.correlationId ? { correlationId: opts.correlationId } : {}), seq: opts.seq!, tie: `${e?.realm ?? "default"}\u0000${e?.pluginId ?? id}` }
+      }
       const timeoutOf = (leases: number) => new DrainTimeout({ id, leases, ...(root !== id ? { target: root } : {}) })
       // A cascade waits for the dependent's running transition step under its own drain limit (BEH-BR-079, R12).
       if (cascadeFrom !== undefined && limit !== "forever") {
-        const got = yield* restore(sem.take(1).pipe(Effect.as(true), Effect.timeoutOrElse({ duration: limit, orElse: () => Effect.succeed(false) })))
+        const got = yield* restore(takeStep(sem, waitItem).pipe(Effect.as(true), Effect.timeoutOrElse({ duration: limit, orElse: () => Effect.succeed(false) })))
         if (!got) {
           const e = entries.get(id)
           if (!opts.force && (opts.mode ?? "operator") === "operator" && !closing) {
@@ -694,9 +758,9 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
             return yield* Effect.fail(timeoutOf(e?.leases ?? 0))
           }
           if (e && e.leases > 0) yield* revoke(e)
-          yield* restore(sem.take(1))
+          yield* restore(takeStep(sem, waitItem))
         }
-      } else yield* restore(sem.take(1))
+      } else yield* restore(takeStep(sem, waitItem))
       return yield* restore(stopStep(id, reason, opts, cascadeFrom, root)).pipe(Effect.ensuring(sem.release(1)))
     }))
 
@@ -713,7 +777,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       else if (d.parkedSystem) yield* emit({ type: "stop-resumed", by: "cascade" }, d.id)
       if (isChild && !d.removing) { d.removing = true; yield* commit }
     }))
-    const r = yield* Effect.exit(stopTree(d.id, "dependency-loss", { ...opts, land: undefined }, id, root))
+    const r = yield* Effect.exit(stopTree(d.id, "dependency-loss", { ...opts, land: undefined, correlationId: undefined }, id, root))
     if (Exit.isFailure(r)) {
       const err = Cause.squash(r.cause)
       if (err instanceof CleanupError) {
@@ -756,7 +820,17 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       yield* Effect.exit(stopDependent(c, e.id, { mode: "no-caller" }, e.id))
   })
 
-  const stopStep = (id: string, reason: string, opts: StopOpts, cascadeFrom: string | undefined, root: string): Effect.Effect<boolean, StopFailure> => Effect.gen(function* () {
+  /** A stop step that has work to do is a transition step of the scheduler (BEH-BR-178). */
+  const stopStep = (id: string, reason: string, opts: StopOpts, cascadeFrom: string | undefined, root: string): Effect.Effect<boolean, StopFailure> => Effect.suspend(() => {
+    const e = entries.get(id)
+    const work = !!e && (cascadeFrom === undefined || holds(e, cascadeFrom) || e.parentKey === cascadeFrom) &&
+      (e.state === "starting" || e.state === "active" || (e.state === "stopping" && !!e.scope))
+    const body = stopStepBody(id, reason, opts, cascadeFrom, root)
+    if (!work) return body
+    return scheduling.transition({ kind: "stop", pluginId: e!.pluginId, realm: e!.realm, owner: reason,
+      ...(opts.correlationId ? { correlationId: opts.correlationId } : {}), seq: opts.seq ?? ++arrivals, tie: `${e!.realm}\u0000${e!.pluginId}` }, () => true, body)
+  })
+  const stopStepBody = (id: string, reason: string, opts: StopOpts, cascadeFrom: string | undefined, root: string): Effect.Effect<boolean, StopFailure> => Effect.gen(function* () {
     const e = entries.get(id)
     if (!e) return false
     if (cascadeFrom !== undefined && !holds(e, cascadeFrom) && e.parentKey !== cascadeFrom) return false   // its own step already released the provider
@@ -940,7 +1014,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   const drive = (id: string, f: Flight): Effect.Effect<void> => Effect.gen(function* () {
     const e = entries.get(id)
     const skipStop = !e || (e.cleanupFailed && f.target.kind === "gone")
-    const stop = yield* Effect.exit(skipStop ? Effect.succeed(false) : stopTree(id, f.op, f.opts))
+    const stop = yield* Effect.exit(skipStop ? Effect.succeed(false) : stopTree(id, f.op, { ...f.opts, correlationId: f.correlationId }))
     yield* Semaphore.withPermit(semOf(opLocks, id), Effect.gen(function* () {
       let result: Settlement = Exit.void
       if (Exit.isFailure(stop)) {
@@ -959,18 +1033,20 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       f.callers = []
       for (const c of callers) yield* finishCaller(c, f, result)
     }))
-  }).pipe(Effect.provideService(CurrentCause, f.causeId))
+  }).pipe(Effect.provideService(CurrentCause, f.causeId), Effect.provideService(CurrentOwner, { owner: f.op, correlationId: f.correlationId }))
 
   /**
    * BEH-BR-073: a running system stop on the plugin is waited for before the call is decided (no intent
    * yet, so the wait is interruptible). Returns "parked" when the plugin's system stop is parked — then
    * only a stopping operation may resume it (BEH-BR-074, R8, R10).
    */
-  const awaitSystemStop = (id: string) => Effect.gen(function* () {
+  const awaitSystemStop = (id: string, op: string) => Effect.gen(function* () {
     const e = entries.get(id)
     if (!e || e.state !== "stopping" || flights.has(id)) return "none" as const
     if (e.parkedSystem && !e.stepRunning) return "parked" as const
-    yield* Semaphore.withPermit(semOf(steps, id), Effect.void)               // the running step settles
+    // The running step settles; a contended wait is a pending item (BEH-BR-178).
+    yield* takeStep(semOf(steps, id), () => ({ kind: "wait", pluginId: e.pluginId, realm: e.realm, waiter: e.pluginId, owner: op, seq: ++arrivals, tie: `${e.realm}\u0000${e.pluginId}` }))
+    yield* semOf(steps, id).release(1)
     if (e.parkedSystem) return "parked" as const                            // it parked meanwhile: decided as parked
     yield* locked(Effect.gen(function* () {
       if (e.state === "stopping" && !e.scope && !flights.has(id)) { e.state = "waiting"; yield* commit; yield* settle }
@@ -987,7 +1063,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       const refuse = (err: unknown) => finishCaller(me, undefined, Exit.fail(err)).pipe(Effect.as(done))
       // Re-validation fails only this call and leaves an operation in flight unaffected (BEH-BR-072).
       // Waiting for a system stop to settle is interruptible: no intent is recorded yet (BEH-BR-067, 188).
-      const pre = yield* Effect.exit(recheck.pipe(Effect.andThen(awaitSystemStop(id))))
+      const pre = yield* Effect.exit(recheck.pipe(Effect.andThen(awaitSystemStop(id, op))))
       if (Exit.isFailure(pre)) {
         if (Cause.hasInterrupts(pre.cause)) return yield* Effect.interrupt
         yield* finishCaller(me, undefined, pre); return done
@@ -1159,7 +1235,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
       return { correlationId, causeId, terminal, intent: pending.intent } satisfies Call
     }))
     // 8. linearization point under the plugin's operation order; then await the outcome.
-    const done = yield* Semaphore.withPermit(semOf(opLocks, key), spec.linearize(call))
+    const done = yield* Semaphore.withPermit(semOf(opLocks, key), spec.linearize(call).pipe(Effect.provideService(CurrentOwner, { owner: op, correlationId: call.correlationId })))
     const exit = yield* Deferred.await(done)
     return Exit.isSuccess(exit) ? exit.value as A : yield* Effect.failCause(exit.cause)
     }), () => pending.owed && !pending.intent.value
@@ -1169,9 +1245,9 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
 
   const newEntry = (def: AnyPlugin, ident: Ident, o: { readonly disabled?: boolean; readonly config?: unknown; readonly intercept?: Entry["intercept"]; readonly owner?: string }): Entry => ({
     id: ident.key, pluginId: ident.id, realm: ident.realm, ...(ident.parentKey !== undefined ? { parentKey: ident.parentKey } : {}),
-    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), ...(o.owner !== undefined ? { owner: o.owner } : {}),
+    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], ...(o.owner !== undefined ? { owner: o.owner } : {}),
     def, state: o.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++,
-    stepRunning: false, parkedSystem: false, ...(o.config !== undefined ? { override: { raw: o.config } } : {})
+    stepRunning: false, parkedSystem: false, buildSeq: 0, ...(o.config !== undefined ? { override: { raw: o.config } } : {})
   })
 
   const handleOf = (key: string): PluginHandle => {
@@ -1245,7 +1321,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
   }))
 
   /** retry and enable start a plugin that is not running; they conflict with everything in flight (BEH-BR-072). */
-  const startOp = (id: string, op: "retry" | "enable", call: Call) => awaitSystemStop(id).pipe(
+  const startOp = (id: string, op: "retry" | "enable", call: Call) => awaitSystemStop(id, op).pipe(
     Effect.andThen((sys) => immediate(call, Effect.gen(function* () {
     // retry and enable never resume a parked system stop (BEH-BR-073, R8).
     if (sys === "parked") return yield* Effect.fail(new Conflict({ id, pending: "dependency-loss" }))
@@ -1597,6 +1673,7 @@ export const make = (options: Options = {}) => Effect.gen(function* () {
     return {
       id: e.pluginId, realm: e.realm, state: e.state, requires: e.def.requires.map(sid), provides: e.def.provides.map(sid),
       optional: (e.def.optional ?? []).map(sid), whenAvailable: (e.whenAvailable ?? []).map((w) => ({ ...w })),   // BEH-BR-135
+      contributions: e.contributions.map((c) => ({ ...c })),                                                       // BEH-BR-168
       background: (e.background ?? []).map((b) => ({ ...b })), leases: e.leases,
       ...(e.lastBuildMs !== undefined ? { lastBuildMs: e.lastBuildMs } : {}),
       parked: e.state === "stopping" && (e.parkedSystem || !!f?.parked),

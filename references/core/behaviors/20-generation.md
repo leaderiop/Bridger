@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-20                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-02): A forced drain revokes an `acquire` lease by interrupting the acquiring fiber, as host leases are revoked (prototype finding G26) (CCR-BR-011)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -185,9 +185,10 @@ REQUIREMENT: A value reference that escapes its lease MUST NOT be described
 ```
 
 `use` exists because a forced drain (BEH-BR-174) interrupts a holder. A holder
-that took its lease with `acquire` is interrupted through its lease scope,
-which also interrupts fibers it forked under the lease; a holder for whom that
-is unacceptable uses `use`, so that only the callback is interrupted.
+that took its lease with `acquire` is interrupted itself — its fiber, and with
+it the scope it is unwinding and the fibers it forked into that scope; a
+holder for whom that is unacceptable uses `use`, so that only the callback is
+interrupted.
 
 ## BEH-BR-173: Draining is bounded unless declared forever
 
@@ -241,10 +242,12 @@ describes, and the operation does exactly one thing.
 
 ```
 REQUIREMENT: With `force: true`, after `timeout` the generation MUST revoke
-             every lease still held on that value: lease scopes MUST be
-             closed with a `LeaseRevoked` cause, callbacks started through
-             `use` MUST be interrupted and fail with `LeaseRevoked`, and the
-             call MUST wait for their finalizers before completing.
+             every lease still held on that value: the fiber that took a
+             lease with `acquire` MUST be interrupted, as a forced removal
+             revokes a scoped host lease (09 — Leases, BEH-BR-086);
+             callbacks started through `use` MUST be interrupted and fail
+             with `LeaseRevoked`; and the call MUST wait for their finalizers
+             before completing.
 ```
 
 ```
@@ -274,7 +277,13 @@ system leaves an interrupted write. That is why force is never the default,
 and why an owner whose generation callbacks write GMP data must record its own
 forced drains: core has no host operation to attach that record to.
 
-**Settled here.** SPEC.md says forcing "emits a `lease-revoked` event through
+**Settled here.** Revision 0.1 closed an `acquire` lease's scope with a
+`LeaseRevoked` cause. The scope an `acquire` runs in belongs to its caller,
+and Effect gives a third party no way to close it; the host-core prototype
+therefore interrupts the acquiring fiber, which is how BEH-BR-086 revokes a
+scoped host lease (URS gaps G12 and G26, CCR-BR-011).
+
+SPEC.md says forcing "emits a `lease-revoked` event through
 the owning coordinator", but a generation has no reference to a host.
 Routing through the `ActivePlugin` reference when it exists, and logging
 otherwise, keeps the revocation visible in both cases. Not auditing it is the

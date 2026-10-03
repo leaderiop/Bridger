@@ -2,7 +2,7 @@
   "name": "@bridger/prototype-host-core",
   "private": true,
   "type": "module",
-  "description": "Throwaway prototype of the Bridger host core (references/core behaviours 01–18, 22–25; phases P1–P4). Not product code.",
+  "description": "Throwaway prototype of the Bridger host core (references/core behaviours 01–25; phases P1–P5). Not product code.",
   "scripts": {
     "check": "tsc --noEmit",
     "test": "vitest run"

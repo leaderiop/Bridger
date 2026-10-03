@@ -8,7 +8,7 @@ export type HostEventBody =
   | { readonly type: "build-finished"; readonly durationMs: number; readonly outcome: "success" | "failure" | "interrupted" }
   | { readonly type: "state-changed"; readonly from: string; readonly to: string; readonly reason?: string }
   | { readonly type: "runtime-failure"; readonly message: string }
-  | { readonly type: "lease-revoked"; readonly leases: number }
+  | { readonly type: "lease-revoked"; readonly leases: number; readonly generation?: string }
   | { readonly type: "drain-timeout"; readonly leases: number; readonly target?: string }
   | { readonly type: "stop-parked"; readonly leases: number; readonly target?: string }
   | { readonly type: "stop-resumed"; readonly by: "operator" | "cascade" | "shutdown"; readonly endsIntent?: string }

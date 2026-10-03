@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-16                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -223,9 +223,10 @@ REQUIREMENT: Cordis's `bail` MUST NOT be provided: Effect has no synchronous
 ```
 REQUIREMENT: When a listener of a `parallel`, `serial` or `waterfall`
              dispatch is interrupted because its plugin was removed during
-             the dispatch (BEH-BR-140), the dispatch MUST fail with a defect
-             naming the event identifier. It MUST NOT skip the listener or
-             substitute a result for it.
+             the dispatch (BEH-BR-140), or its contribution was withdrawn
+             after the dispatch began and before the listener's turn, the
+             dispatch MUST fail with a defect naming the event identifier.
+             It MUST NOT skip the listener or substitute a result for it.
 ```
 
 **Settled here.** (1) `parallel` returns results in listener order, not
