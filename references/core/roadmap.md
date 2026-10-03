@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ROADMAP                                              |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Planning Document — Informative                              |
-> | Change History | 0.9 (2026-10-02): P5 prototyped (CCR-BR-011)<br>0.8 (2026-10-02): P4 prototyped (CCR-BR-010)<br>0.7 (2026-10-02): P2 prototyped (CCR-BR-009)<br>0.6 (2026-10-02): Stale G2–G4 exit criterion and blocker removed; review of CCR-BR-003..007, in two passes, noted (CCR-BR-008)<br>0.5 (2026-10-02): In-flight table prototyped (CCR-BR-007)<br>0.4 (2026-10-02): G11 resolved; P1 prototype extended (CCR-BR-006)<br>0.3 (2026-10-02): P3 prototype recorded (CCR-BR-005)<br>0.2 (2026-10-02): P1 prototype recorded (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.10 (2026-10-03): P5 exit criterion met in the prototype (CCR-BR-012)<br>0.9 (2026-10-02): P5 prototyped (CCR-BR-011)<br>0.8 (2026-10-02): P4 prototyped (CCR-BR-010)<br>0.7 (2026-10-02): P2 prototyped (CCR-BR-009)<br>0.6 (2026-10-02): Stale G2–G4 exit criterion and blocker removed; review of CCR-BR-003..007, in two passes, noted (CCR-BR-008)<br>0.5 (2026-10-02): In-flight table prototyped (CCR-BR-007)<br>0.4 (2026-10-02): G11 resolved; P1 prototype extended (CCR-BR-006)<br>0.3 (2026-10-02): P3 prototype recorded (CCR-BR-005)<br>0.2 (2026-10-02): P1 prototype recorded (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -35,7 +35,7 @@ they are the ones most likely to force a change in the specification.
 | P2 | Runtime failure, health, configuration, shutdown, observability, `ManagedRuntime` — **prototyped** in `prototypes/host-core` (18 scenario tests, several under `TestClock`; findings G17–G18) | 10–13 | Shutdown report and drain/force tests pass under `TestClock` |
 | P3 | GxP hooks: attribution, `AuditSink`, sequence, `OperationGate` — **prototyped** in `prototypes/host-core` (11 scenario tests; finding G13) | 22–25 | INV-BR-022–029 each have a property test; audit records verified by `verifyAuditSequence` across fault-injected runs |
 | P4 | Composition: children and groups, optional and reactive, event bus, realms, reconcile — **prototyped** in `prototypes/host-core` (50 scenario tests, including a confluence property test over 100 seeded random histories; findings G19–G25) | 14–18 | Confluence property test over random operation histories |
-| P5 | Helpers and test host as public API — **prototyped** in `prototypes/host-core` (24 scenario tests, including the confluence property driven through `TestHost` with random step orders; the P4 suites take their fixtures from the testing entry point; findings G26–G32) | 19–21 | `@bridger/core/testing` used by the suites of P1–P4 |
+| P5 | Helpers and test host as public API — **prototyped** in `prototypes/host-core` (24 scenario tests, including the confluence property driven through `TestHost` with random step orders; findings G26–G32). The suites of P1–P4 then moved onto `TestHost` and the testing entry point's fixtures, except the checks that concern `Bridger.make` itself and one confluence run kept on the production host for comparison; the state × operation table gained a live test of every cell (56); finding G33 | 19–21 | `@bridger/core/testing` used by the suites of P1–P4 — met in the prototype |
 | P6 | Companion `@bridger/gxp` specification and implementation | `references/gxp/` | Its own specification approved before code |
 
 ## Blocking first release

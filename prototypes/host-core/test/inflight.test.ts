@@ -2,11 +2,9 @@
 // acceptance check 4 of BEH-BR-183 (in-flight half), with the audit links of BEH-BR-200.
 import { Context, Deferred, Effect, Exit, Fiber, Layer } from "effect"
 import { describe, expect, it } from "vitest"
-import { AuditSink, type AuditRecord } from "../src/gxp.js"
-import * as Host from "../src/host.js"
 import { FLIGHT_OPS, OPS, inFlight, type FlightOp, type Op } from "../src/legality.js"
 import { define } from "../src/plugin.js"
-import { Audit, Logger, auditPlugin, journal, loggerPlugin, stateOf, withHost, quickClose } from "./fixtures.js"
+import { Audit, Logger, auditPlugin, journal, loggerPlugin, drive, idle, memorySink, stateOf, withHost } from "./fixtures.js"
 
 class Clock2 extends Context.Service<Clock2, { readonly now: Effect.Effect<number> }>()("example/Clock") {}
 const clockPlugin = define({ id: "example/clock", requires: [] as const, provides: [Clock2] as const, build: Layer.succeed(Clock2, { now: Effect.succeed(0) }) })
@@ -40,7 +38,7 @@ describe("in-flight table (BEH-BR-072)", () => {
     it(`live: ${op} while ${f} is in flight → ${outcome}`, async () => {
       const j = journal()
       await withHost((host) => Effect.gen(function* () {
-        yield* host.install(loggerPlugin(j, { version: "1" })); yield* host.awaitIdle
+        yield* host.install(loggerPlugin(j, { version: "1" })); yield* idle(host)
         const entered = yield* Deferred.make<void>()
         const release = yield* Deferred.make<void>()
         yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
@@ -58,7 +56,7 @@ describe("in-flight table (BEH-BR-072)", () => {
           }
         }
         const first = yield* Effect.forkChild(run(f, "2"))
-        yield* Effect.sleep(10)
+        yield* host.stepPlugin("example/logger")                                  // its stop step begins and drains the lease
         expect(yield* stateOf(host, "example/logger")).toBe("stopping")
         const second = yield* Effect.forkChild(run(op, "3"))
         const early = yield* settledWithin(second)
@@ -70,9 +68,9 @@ describe("in-flight table (BEH-BR-072)", () => {
           case "supersede": expect(early).toBeUndefined(); expect(failedWith(firstEarly, "Superseded")).toBe(true); break
         }
         yield* Deferred.succeed(release, undefined)
-        const firstExit = yield* Fiber.await(first)
-        const secondExit = yield* Fiber.await(second)
-        yield* host.awaitIdle
+        const firstExit = yield* drive(host, Fiber.await(first))
+        const secondExit = yield* drive(host, Fiber.await(second))
+        yield* idle(host)
         const winner = outcome === "join" || outcome === "supersede" ? op : f
         if (outcome === "join") { expect(Exit.isSuccess(firstExit)).toBe(true); expect(Exit.isSuccess(secondExit)).toBe(true) }
         if (outcome === "supersede") expect(Exit.isSuccess(secondExit)).toBe(true)
@@ -92,31 +90,31 @@ describe("in-flight table (BEH-BR-072)", () => {
 describe("intent and parking (BEH-BR-067, 074)", () => {
   it("BEH-BR-067: interrupting the caller does not cancel the transition", async () => {
     await withHost((host) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       const caller = yield* Effect.forkChild(host.remove("example/logger", { drain: 2_000 }))
-      yield* Effect.sleep(10)
+      yield* host.stepPlugin("example/logger")
       yield* Fiber.interrupt(caller)                                              // a request timeout, a user cancelling
       yield* Deferred.succeed(release, undefined)
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateOf(host, "example/logger")).toBe("uninstalled")
     }))
   })
 
   it("BEH-BR-074: a call that supersedes a parked operation resumes it under its own options", async () => {
     await withHost((host) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const holder = yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
-      expect(failedWith(yield* Effect.exit(host.restart("example/logger", { drain: 20 })), "DrainTimeout")).toBe(true)
-      yield* host.awaitIdle                                                       // a parked operation is not running (BEH-BR-074)
-      const enable = yield* Effect.exit(host.enable("example/logger"))
+      expect(failedWith(yield* Effect.exit(drive(host, host.restart("example/logger", { drain: 20 }))), "DrainTimeout")).toBe(true)
+      yield* idle(host)                                                       // a parked operation is not running (BEH-BR-074)
+      const enable = yield* Effect.exit(drive(host, host.enable("example/logger")))
       expect(failedWith(enable, `"pending":"restart"`)).toBe(true)                // the parked restart is still in flight
-      yield* host.remove("example/logger", { drain: 20, force: true })            // supersedes and resumes it
+      yield* drive(host, host.remove("example/logger", { drain: 20, force: true }))            // supersedes and resumes it
       expect(failedWith(yield* Fiber.await(holder), "LeaseRevoked")).toBe(true)
       expect(yield* stateOf(host, "example/logger")).toBe("uninstalled")
     }))
@@ -124,19 +122,19 @@ describe("intent and parking (BEH-BR-067, 074)", () => {
 
   it("BEH-BR-072: a superseding replace that fails its definition checks fails alone", async () => {
     await withHost((host) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.install(clockPlugin); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* host.install(clockPlugin); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       const first = yield* Effect.forkChild(host.restart("example/logger", { drain: 2_000 }))
-      yield* Effect.sleep(10)
+      yield* host.stepPlugin("example/logger")
       const bad = define({ id: "example/logger", requires: [] as const, provides: [Logger, Clock2] as const,
         build: Layer.mergeAll(Layer.succeed(Logger, { log: () => Effect.void }), Layer.succeed(Clock2, { now: Effect.succeed(1) })) })
-      expect(failedWith(yield* Effect.exit(host.replace(bad)), "ReplaceError")).toBe(true)
+      expect(failedWith(yield* Effect.exit(drive(host, host.replace(bad))), "ReplaceError")).toBe(true)
       yield* Deferred.succeed(release, undefined)
-      expect(Exit.isSuccess(yield* Fiber.await(first))).toBe(true)                // the restart in flight was unaffected
-      yield* host.awaitIdle
+      expect(Exit.isSuccess(yield* drive(host, Fiber.await(first)))).toBe(true)                // the restart in flight was unaffected
+      yield* idle(host)
       expect(yield* stateOf(host, "example/logger")).toBe("active")
     }))
   })
@@ -144,18 +142,16 @@ describe("intent and parking (BEH-BR-067, 074)", () => {
 
 describe("interruption before intent (BEH-BR-067, 188)", () => {
   it("a caller interrupted while waiting for its turn changes nothing and ends with a failed (Interrupted) record", async () => {
-    const records: Array<AuditRecord> = []
-    const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
-    await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const host = yield* Host.make({ ...quickClose, auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
-      yield* host.install(loggerPlugin(journal())); yield* host.install(auditPlugin(journal())); yield* host.awaitIdle
+    const sink = memorySink()
+    await withHost((host) => Effect.gen(function* () {
+      yield* host.install(loggerPlugin(journal())); yield* host.install(auditPlugin(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Audit, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       // The provider's removal runs a dependency-loss stop of the dependent, draining its lease.
       const removal = yield* Effect.forkChild(host.remove("example/logger", { drain: 5_000 }))
-      yield* Effect.sleep(10)
+      yield* host.stepPlugin("example/logger"); yield* host.stepPlugin("example/audit")
       const ctx = (c: string) => ({ context: { actor: { id: "user-alice", kind: "user" as const }, correlationId: c } })
       // A waits for that running system stop before its intent (BEH-BR-073); B waits behind A for the plugin's turn.
       const a = yield* Effect.forkChild(host.retry("example/audit", ctx("c-a")))
@@ -167,51 +163,50 @@ describe("interruption before intent (BEH-BR-067, 188)", () => {
       yield* Effect.sleep(20)
       expect(yield* stateOf(host, "example/audit")).toBe("stopping")             // nothing changed
       for (const c of ["c-a", "c-b"]) {
-        const mine = records.filter((r) => r.correlationId === c)
+        const mine = sink.records.filter((r) => r.correlationId === c)
         expect(mine.map((r) => r.phase)).toEqual(["requested", "failed"])
         expect(mine[1]!.error?._tag).toBe("Interrupted")
       }
       yield* Deferred.succeed(release, undefined)
-      yield* Fiber.join(removal)
-    })))
+      yield* drive(host, Fiber.join(removal))
+    }), {}, sink.layer)
   })
 })
 
 describe("audit links of joins and supersession (BEH-BR-200)", () => {
   it("joined and superseded calls write their own requested and a linked terminal record", async () => {
-    const records: Array<AuditRecord> = []
-    const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
-    await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const host = yield* Host.make({ ...quickClose, auditTimeout: 50 }).pipe(Effect.provideService(AuditSink, sink))
-      yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
+    const sink = memorySink()
+    await withHost((host) => Effect.gen(function* () {
+      yield* host.install(loggerPlugin(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       const ctx = (c: string) => ({ context: { actor: { id: "user-alice", kind: "user" as const }, correlationId: c } })
       const r1 = yield* Effect.forkChild(Effect.exit(host.restart("example/logger", { drain: 2_000, ...ctx("c-restart-1") })))
-      yield* Effect.sleep(10)
+      yield* host.stepPlugin("example/logger")
       const r2 = yield* Effect.forkChild(Effect.exit(host.restart("example/logger", { drain: 2_000, ...ctx("c-restart-2") })))   // joins
       yield* Effect.sleep(10)
       const d = yield* Effect.forkChild(Effect.exit(host.disable("example/logger", { drain: 2_000, ...ctx("c-disable") })))       // supersedes both
       yield* Effect.sleep(10)
       yield* Deferred.succeed(release, undefined)
-      expect(failedWith(yield* Fiber.join(r1), "Superseded")).toBe(true)
-      expect(failedWith(yield* Fiber.join(r2), "Superseded")).toBe(true)          // joined callers of a superseded operation too
-      expect(Exit.isSuccess(yield* Fiber.join(d))).toBe(true)
+      expect(failedWith(yield* drive(host, Fiber.join(r1)), "Superseded")).toBe(true)
+      expect(failedWith(yield* drive(host, Fiber.join(r2)), "Superseded")).toBe(true)   // joined callers of a superseded operation too
+      expect(Exit.isSuccess(yield* drive(host, Fiber.join(d)))).toBe(true)
       // A second pair: remove joined by remove.
-      yield* host.enable("example/logger"); yield* host.awaitIdle
+      yield* drive(host, host.enable("example/logger")); yield* idle(host)
       const e2 = yield* Deferred.make<void>()
       const rel2 = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(e2, undefined).pipe(Effect.andThen(Deferred.await(rel2)))))
       yield* Deferred.await(e2)
       const m1 = yield* Effect.forkChild(host.remove("example/logger", { drain: 2_000, ...ctx("c-remove-1") }))
-      yield* Effect.sleep(10)
+      yield* host.stepPlugin("example/logger")
       const m2 = yield* Effect.forkChild(host.remove("example/logger", { drain: 2_000, ...ctx("c-remove-2") }))
       yield* Effect.sleep(10)
       yield* Deferred.succeed(rel2, undefined)
-      yield* Fiber.join(m1); yield* Fiber.join(m2)
+      yield* drive(host, Fiber.join(m1)); yield* drive(host, Fiber.join(m2))
       yield* Effect.sleep(20)                                                     // let the writer drain
+      const records = sink.records
 
       const reqOf = (c: string) => records.filter((r) => r.correlationId === c && r.phase === "requested")
       const disableReq = reqOf("c-disable")[0]!
@@ -227,6 +222,6 @@ describe("audit links of joins and supersession (BEH-BR-200)", () => {
       expect(joined).toHaveLength(1)
       expect(joined[0]).toMatchObject({ correlationId: "c-remove-1", causationId: "c-remove-2", after: { state: "uninstalled" } })
       expect(records.filter((r) => r.correlationId === "c-remove-1" && r.phase === "completed")).toHaveLength(1)
-    })))
+    }), {}, sink.layer)
   })
 })

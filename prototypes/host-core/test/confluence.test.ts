@@ -4,7 +4,7 @@
 import { Context, Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import { define, type AnyPlugin } from "../src/plugin.js"
-import { withHost } from "./fixtures.js"
+import { drive, idle, withHost } from "./fixtures.js"
 
 class S1 extends Context.Service<S1, {}>()("c/S1") {}
 class S2 extends Context.Service<S2, {}>()("c/S2") {}
@@ -28,13 +28,13 @@ describe("confluence", () => {
           const r = rand()
           const st = installed.get(p.id)
           if (!st) { yield* host.install(p); installed.set(p.id, "on") }
-          else if (r < 0.3) { yield* host.remove(p.id); installed.delete(p.id) }
-          else if (r < 0.5 && st === "on") { yield* host.disable(p.id); installed.set(p.id, "off") }
-          else if (r < 0.7 && st === "off") { yield* host.enable(p.id); installed.set(p.id, "on") }
-          else if (st === "on") yield* host.restart(p.id)
-          if (rand() < 0.3) yield* host.awaitIdle
+          else if (r < 0.3) { yield* drive(host, host.remove(p.id)); installed.delete(p.id) }
+          else if (r < 0.5 && st === "on") { yield* drive(host, host.disable(p.id)); installed.set(p.id, "off") }
+          else if (r < 0.7 && st === "off") { yield* drive(host, host.enable(p.id)); installed.set(p.id, "on") }
+          else if (st === "on") yield* drive(host, host.restart(p.id))
+          if (rand() < 0.3) yield* idle(host)
         }
-        yield* host.awaitIdle
+        yield* idle(host)
         const snap = yield* host.snapshot
         return { installed, states: Object.fromEntries(snap.plugins.map((x) => [x.id, x.state])) }
       }))
@@ -43,7 +43,7 @@ describe("confluence", () => {
           const st = final.installed.get(p.id)
           if (st) yield* host.install(p, { disabled: st === "off" })
         }
-        yield* host.awaitIdle
+        yield* idle(host)
         const snap = yield* host.snapshot
         return Object.fromEntries(snap.plugins.map((x) => [x.id, x.state]))
       }))

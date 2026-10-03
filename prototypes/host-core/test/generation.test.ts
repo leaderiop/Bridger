@@ -5,6 +5,7 @@ import * as Generation from "../src/generation.js"
 import { PluginRuntime } from "../src/runtime.js"
 import type { AnyPlugin } from "../src/plugin.js"
 import { as, run } from "./p4fixtures.js"
+import { drive, idle } from "./fixtures.js"
 
 const failed = (exit: Exit.Exit<unknown, unknown>, tag: string) => Exit.isFailure(exit) && JSON.stringify(exit.cause).includes(tag)
 const scoped = <A, E>(e: Effect.Effect<A, E, Scope.Scope>) => Effect.runPromise(Effect.scoped(e))
@@ -108,7 +109,7 @@ describe("Generation (behaviour 20)", () => {
         build: Layer.effect(Model, Effect.gen(function* () { yield* PluginRuntime; return yield* Generation.make("m1", { name: "active-model" }) })) as unknown as AnyPlugin["build"]
       }
       yield* host.install(coordinator, as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const g = yield* host.use(Model, (m) => Effect.succeed(m))
       const entered = yield* Deferred.make<void>()
       yield* Effect.forkChild(g.use(() => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))

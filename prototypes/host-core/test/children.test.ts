@@ -5,6 +5,7 @@ import { PluginRuntime } from "../src/runtime.js"
 import { define, group, type AnyPlugin } from "../src/plugin.js"
 import { journal, type Journal } from "./fixtures.js"
 import { as, find, memorySink, run, scriptedGate, settleWriter, stateIn } from "./p4fixtures.js"
+import { drive, idle } from "./fixtures.js"
 
 class Parent extends Context.Service<Parent, { readonly name: string }>()("example/Parent") {}
 class Feature extends Context.Service<Feature, { readonly on: boolean }>()("example/Feature") {}
@@ -46,7 +47,7 @@ describe("children (behaviour 14)", () => {
     const { requests, gate } = scriptedGate(() => "allow")
     await run((host) => Effect.gen(function* () {
       yield* host.install(parentDef(j, [childDef(j)]), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const c = yield* find(host, "app/child")
       expect(c?.state).toBe("active")
       expect(c?.parentId).toBe("app")
@@ -68,9 +69,9 @@ describe("children (behaviour 14)", () => {
     const { records, sink } = memorySink()
     await run((host) => Effect.gen(function* () {
       yield* host.install(parentDef(j, [childDef(j)]), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       j.lines.length = 0
-      yield* host.remove("app", as())
+      yield* drive(host, host.remove("app", as()))
       expect(j.lines).toEqual(["child:close", "app:close"])
       expect(yield* stateIn(host, "app/child")).toBe("uninstalled")         // removed, not waiting
       yield* settleWriter
@@ -86,11 +87,11 @@ describe("children (behaviour 14)", () => {
     await run((host) => Effect.gen(function* () {
       const child = define({ id: "feature", requires: [] as const, provides: [Feature] as const, build: Layer.succeed(Feature, { on: true }) })
       yield* host.install(parentDef(j, [child]), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "app/feature")).toBe("active")
       // The same parent, now requiring what its child provides: app → app/feature (requires) and app/feature → app (mount).
       const next = parentDef(j, [child], { requires: [Feature] })
-      const exit = yield* Effect.exit(host.replace(next, as()))
+      const exit = yield* Effect.exit(drive(host, host.replace(next, as())))
       expect(failed(exit, "DependencyCycle")).toBe(true)
       expect(yield* stateIn(host, "app")).toBe("active")                      // nothing stopped (BEH-BR-050)
     }))
@@ -100,7 +101,7 @@ describe("children (behaviour 14)", () => {
     const j = journal()
     await run((host) => Effect.gen(function* () {
       yield* host.install(parentDef(j, [childDef(j, { fail: true })]), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "app")).toBe("active")
       const c = yield* find(host, "app/child")
       expect(c?.state === "failed" && c.failure.phase).toBe("build")
@@ -111,11 +112,11 @@ describe("children (behaviour 14)", () => {
     const j = journal()
     await run((host) => Effect.gen(function* () {
       yield* host.install(parentDef(j, [childDef(j, { requiresParent: true })]), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "app/child")).toBe("active")
       expect(j.lines).toEqual(["app:build", "child:build"])                 // started only after the parent published
       j.lines.length = 0
-      yield* host.remove("app", as())
+      yield* drive(host, host.remove("app", as()))
       expect(j.lines).toEqual(["child:close using app", "app:close"])
     }))
   })
@@ -124,12 +125,12 @@ describe("children (behaviour 14)", () => {
     const j = journal()
     await run((host) => Effect.gen(function* () {
       yield* host.install(parentDef(j, [childDef(j)]), as())
-      yield* host.awaitIdle
-      yield* host.remove("app/child", as())                                 // an ordinary operator call on the child
+      yield* idle(host)
+      yield* drive(host, host.remove("app/child", as()))                                 // an ordinary operator call on the child
       expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
       j.lines.length = 0
-      yield* host.restart("app", as())
-      yield* host.awaitIdle
+      yield* drive(host, host.restart("app", as()))
+      yield* idle(host)
       expect(j.lines).toEqual(["app:close", "app:build", "child:build"])     // the parent found it gone; the rebuild mounted it again
       expect(yield* stateIn(host, "app/child")).toBe("active")
     }))
@@ -140,13 +141,13 @@ describe("children (behaviour 14)", () => {
     const { records, sink } = memorySink()
     await run((host) => Effect.gen(function* () {
       yield* host.install(parentDef(j, [childDef(j, { provides: true })]), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const holder = yield* Effect.forkChild(host.use(Feature, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
-      const parked = yield* Effect.exit(host.restart("app/child", { ...as(), drain: 20 }))
+      const parked = yield* Effect.exit(drive(host, host.restart("app/child", { ...as(), drain: 20 })))
       expect(failed(parked, "DrainTimeout")).toBe(true)
-      yield* host.remove("app", { ...as(), drain: 20, force: true })
+      yield* drive(host, host.remove("app", { ...as(), drain: 20, force: true }))
       expect(failed(yield* Fiber.await(holder), "LeaseRevoked")).toBe(true)
       expect(yield* stateIn(host, "app/child")).toBe("uninstalled")         // removed, the restart's rebuild never ran
       expect(j.lines.filter((l) => l === "child:build")).toHaveLength(1)
@@ -161,17 +162,17 @@ describe("children (behaviour 14)", () => {
     const j = journal()
     await run((host) => Effect.gen(function* () {
       yield* host.install(parentDef(j, [childDef(j, { provides: true })]), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const entered = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Feature, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
-      const first = yield* Effect.exit(host.remove("app", { ...as(), drain: 20 }))
+      const first = yield* Effect.exit(drive(host, host.remove("app", { ...as(), drain: 20 })))
       expect(failed(first, `"id":"app/child"`)).toBe(true)                  // DrainTimeout names the child
       const c = yield* find(host, "app/child")
       expect(c?.state === "stopping" && [c.parked, c.next]).toEqual([true, "gone"])
       // Only a removal resumes a parked child removal (prototype choice, finding G19).
-      expect(failed(yield* Effect.exit(host.restart("app/child", as())), "Conflict")).toBe(true)
-      yield* host.remove("app", { ...as(), drain: 20, force: true })
+      expect(failed(yield* Effect.exit(drive(host, host.restart("app/child", as()))), "Conflict")).toBe(true)
+      yield* drive(host, host.remove("app", { ...as(), drain: 20, force: true }))
       expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
       expect(yield* stateIn(host, "app")).toBe("uninstalled")
     }))
@@ -193,17 +194,18 @@ describe("children (behaviour 14)", () => {
         })
       })
       yield* host.install(parent, as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Parent, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       const removal = yield* Effect.forkChild(host.remove("app", { ...as(), drain: 5_000 }))
-      while ((yield* stateIn(host, "app")) !== "stopping") yield* Effect.yieldNow   // the removal is draining the parent's lease
+      yield* host.stepPlugin("app")                                             // the removal is draining the parent's lease
+      expect(yield* stateIn(host, "app")).toBe("stopping")
       yield* Deferred.succeed(go, undefined)
       expect(failed(yield* Deferred.await(attempt), "Conflict")).toBe(true)
       yield* Deferred.succeed(release, undefined)
-      yield* Fiber.join(removal)
+      yield* drive(host, Fiber.join(removal))
       expect((yield* host.snapshot).plugins).toEqual([])
     }))
   })
@@ -221,7 +223,7 @@ describe("children (behaviour 14)", () => {
         })) as AnyPlugin["build"]
       }
       yield* host.install(parent, as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const app = yield* find(host, "app")
       expect(app?.state === "failed" && app.failure.message).toContain("timeout")
       expect(yield* stateIn(host, "app/child")).toBe("uninstalled")         // unmounted with the failed activation
@@ -238,11 +240,11 @@ describe("groups (BEH-BR-127, 128)", () => {
   it("BEH-BR-127: awaitActive resolves when every member is active and fails fast naming a failed member", async () => {
     await run((host) => Effect.gen(function* () {
       const ok = yield* host.install(group("bundle", [member("a", Feature), member("b", Other)]), as())
-      yield* ok.awaitActive
+      yield* drive(host, ok.awaitActive)
       expect(yield* stateIn(host, "bundle/a")).toBe("active")
       expect(yield* stateIn(host, "bundle/b")).toBe("active")
       const bad = yield* host.install(group("broken", [member("x"), member("y", undefined, true)]), as())
-      const exit = yield* Effect.exit(bad.awaitActive)
+      const exit = yield* Effect.exit(drive(host, bad.awaitActive))
       expect(failed(exit, `"id":"broken/y"`)).toBe(true)
       expect(yield* stateIn(host, "broken")).toBe("active")                  // a failed member does not fail the group (BEH-BR-123)
     }))
@@ -252,16 +254,16 @@ describe("groups (BEH-BR-127, 128)", () => {
     await run((host) => Effect.gen(function* () {
       yield* host.install(define({ id: "owner", requires: [] as const, provides: [Other] as const, build: Layer.succeed(Other, { x: 1 }) }), as())
       const h = yield* host.install(group("bundle", [member("a", Feature), member("b", Other)]), as())   // b: DuplicateProvider
-      yield* host.awaitIdle
+      yield* idle(host)
       const g = yield* find(host, "bundle")
       // BEH-BR-128 says phase "activation"; the member's InstallError fails the build Layer, which BEH-BR-037 calls phase "build" (finding G22).
       expect(g?.state === "failed" && [g.failure.phase, g.failure.message.includes("DuplicateProvider")]).toEqual(["build", true])
       expect(yield* stateIn(host, "bundle/a")).toBe("uninstalled")
-      expect(failed(yield* Effect.exit(h.awaitActive), "ActivationFailed")).toBe(true)
+      expect(failed(yield* Effect.exit(drive(host, h.awaitActive)), "ActivationFailed")).toBe(true)
       // The group acts as one unit: restart mounts all members again (BEH-BR-128).
-      yield* host.remove("owner", as())
-      yield* host.retry("bundle", as())
-      yield* h.awaitActive
+      yield* drive(host, host.remove("owner", as()))
+      yield* drive(host, host.retry("bundle", as()))
+      yield* drive(host, h.awaitActive)
       expect(yield* stateIn(host, "bundle/b")).toBe("active")
     }))
   })

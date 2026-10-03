@@ -7,6 +7,7 @@ import { HeldPlugins } from "../src/host.js"
 import type { AnyPlugin } from "../src/plugin.js"
 import { journal, type Journal } from "./fixtures.js"
 import { alice, as, run, stateIn } from "./p4fixtures.js"
+import { drive, idle } from "./fixtures.js"
 
 const Posted = Event.make<[invoiceId: string], string | undefined, string>()("billing/invoice-posted")
 const Price = Event.make<[sku: string], number, never>()("shop/price")
@@ -27,7 +28,7 @@ describe("event bus (behaviour 16)", () => {
   it("BEH-BR-137: the bus is a base service, obtained by requiring it, which no plugin can provide", async () => {
     await run((host) => Effect.gen(function* () {
       yield* host.install(listenerPlugin("l", () => Effect.void), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "l")).toBe("active")
       const usurper: AnyPlugin = { id: "usurper", requires: [], provides: [Events], build: Layer.succeed(Events, {} as EventBus) as unknown as AnyPlugin["build"] }
       const exit = yield* Effect.exit(host.install(usurper, as()))
@@ -48,12 +49,12 @@ describe("event bus (behaviour 16)", () => {
         yield* bus.on(Posted, say(j, "b-prepend"), { prepend: true })
         yield* bus.on(Posted, say(j, "b-prepend-2"), { prepend: true })
       })), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const bus = yield* busOf(host)
       yield* bus.serial(Posted, "inv-1")
       expect(j.lines).toEqual(["a-early", "b-prepend-2", "b-prepend", "a1", "b1", "a-late"])
       j.lines.length = 0
-      yield* host.remove("a", as())
+      yield* drive(host, host.remove("a", as()))
       yield* bus.serial(Posted, "inv-2")
       expect(j.lines).toEqual(["b-prepend-2", "b-prepend", "b1"])
     }))
@@ -67,7 +68,7 @@ describe("event bus (behaviour 16)", () => {
         yield* bus.on(Posted, () => Effect.fail("posting failed"))
         yield* bus.on(Posted, (id) => Effect.sleep(20).pipe(Effect.andThen(j.push(`slow ${id}`)), Effect.as(undefined)))
       })), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const bus = yield* busOf(host)
       yield* bus.emit(Posted, "inv-1")
       expect(j.lines).toEqual([])                                            // not awaited
@@ -88,13 +89,13 @@ describe("event bus (behaviour 16)", () => {
         yield* bus.on(Posted, () => Effect.sync(() => { order.push("second") }).pipe(Effect.as("second wins")))
         yield* bus.on(Posted, () => Effect.sync(() => { order.push("third") }).pipe(Effect.as("never")))
       })), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const bus = yield* busOf(host)
       expect(yield* bus.parallel(Price, "sku")).toEqual([1, 2])               // listener order, not completion order
       expect(yield* bus.serial(Posted, "inv")).toEqual(Option.some("second wins"))
       expect(order).toEqual(["first", "second"])
       yield* host.install(listenerPlugin("m", (b) => b.on(Posted, () => Effect.fail("refused"))), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(failed(yield* Effect.exit(bus.parallel(Posted, "inv")), "refused")).toBe(true)
     }))
   })
@@ -105,7 +106,7 @@ describe("event bus (behaviour 16)", () => {
         yield* bus.around(Price, (_args, next) => next.pipe(Effect.map((p) => p * 2)))
         yield* bus.around(Price, ([sku], next) => sku === "free" ? Effect.succeed(0) : next.pipe(Effect.map((p) => p + 1)))
       })), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const bus = yield* busOf(host)
       expect(yield* bus.waterfall(Price, ["book"], Effect.succeed(10))).toBe(22)
       expect(yield* bus.waterfall(Price, ["free"], Effect.succeed(10))).toBe(0)
@@ -120,7 +121,7 @@ describe("event bus (behaviour 16)", () => {
         seen.push({ actor: (yield* CurrentActor).id, held: [...(yield* HeldPlugins)] })
         return undefined
       }))), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const bus = yield* busOf(host)
       yield* host.use(Probe, () => bus.serial(Posted, "inv")).pipe(Effect.provideService(CurrentActor, alice))
       expect(seen).toEqual([{ actor: "bridger:unattributed", held: ["probe"] }])
@@ -131,11 +132,11 @@ describe("event bus (behaviour 16)", () => {
     await run((host) => Effect.gen(function* () {
       const started = yield* Deferred.make<void>()
       yield* host.install(listenerPlugin("l", (bus) => bus.on(Posted, () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)))), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const bus = yield* busOf(host)
       const dispatch = yield* Effect.forkChild(bus.serial(Posted, "inv"))
       yield* Deferred.await(started)
-      yield* host.remove("l", as())                                           // its scope closes; the running listener holds it up to drainTimeout
+      yield* drive(host, host.remove("l", as()))                                           // its scope closes; the running listener holds it up to drainTimeout
       const exit = yield* Fiber.await(dispatch)
       // What the dispatch returns is unspecified (finding G23); the prototype dies with ListenerRemoved.
       expect(Exit.isFailure(exit) && Cause.squash(exit.cause) instanceof ListenerRemoved).toBe(true)

@@ -5,6 +5,7 @@ import * as Registry from "../src/registry.js"
 import type { AnyPlugin } from "../src/plugin.js"
 import { Event, Events } from "../src/bus.js"
 import { as, run } from "./p4fixtures.js"
+import { drive, idle } from "./fixtures.js"
 
 const failed = (exit: Exit.Exit<unknown, unknown>, tag: string) => Exit.isFailure(exit) && JSON.stringify(exit.cause).includes(tag)
 const scoped = <A, E>(e: Effect.Effect<A, E, Scope.Scope>) => Effect.runPromise(Effect.scoped(e))
@@ -96,13 +97,13 @@ describe("ContributionRegistry (behaviour 19)", () => {
         })) as unknown as AnyPlugin["build"]
       }
       yield* host.install(contributor, as())
-      yield* host.awaitIdle
+      yield* idle(host)
       const i = yield* host.inspect("pages")
       expect(i.contributions.map((c) => c.registry)).toEqual(["routes", "ops/ping"])
       expect(i.contributions[0]!.id).toBe("pages/home")
       expect(JSON.stringify(i)).not.toContain("route-value-secret")             // the value is never reported
-      yield* host.restart("pages", as())
-      yield* host.awaitIdle
+      yield* drive(host, host.restart("pages", as()))
+      yield* idle(host)
       expect((yield* host.inspect("pages")).contributions).toHaveLength(2)      // withdrawn, then added again
     }), { options: { base: [[Routes, Effect.runSync(Effect.scoped(Registry.make<string>({ name: "routes" })))]] } })
   })

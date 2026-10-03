@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-URS                                                  |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.11 (2026-10-03): G33 recorded and closed from the P5 exit-criterion work (CCR-BR-012)<br>0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -356,6 +356,7 @@ Behaviours are cited by file; individual `BEH-BR` identifiers are listed in
 | G30 | BEH-BR-177 forbade an alternate scheduling path yet had `TestHost` own the scheduling. | Closed (CCR-BR-011): every transition step and wait goes through one internal scheduling interface; production runs each at once (BEH-BR-177); found by the P5 host-core prototype |
 | G31 | Faults need either a production hook or a decoration of definitions; decoration must keep definition identity, and cannot reach children. | Closed (CCR-BR-011): faults apply through the `TestHost`'s own entry points, keeping one object per (definition, realm); children are outside their reach (BEH-BR-180); found by the P5 host-core prototype |
 | G32 | BEH-BR-142 covered a listener interrupted by its plugin's removal, not one withdrawn after the dispatch began and before its turn. | Closed (CCR-BR-011): both fail the dispatch with a defect (BEH-BR-142); found by the P5 host-core prototype |
+| G33 | BEH-BR-040 defined idle as "no transition is running"; a system stop that was requested and not yet begun — held by a `TestHost`, with no operation in flight and no state change yet — did not count, so `awaitIdle` returned with a child of a failed activation still `active`. | Closed (CCR-BR-012): a step requested and not yet begun counts as a transition (BEH-BR-040, BEH-BR-178); acceptance check 6 extended (BEH-BR-183); found when the P4 suites were moved onto `TestHost` |
 | G9 | A naive supervised child (`forkChild` + `join` inside the lease) releases the lease before the child's finalizers run when the caller is interrupted, which would break BEH-BR-084. | Design constraint recorded (CCR-BR-003): the implementation interrupts and awaits the child before release; prototype checks E7a–E7b show the failure and the fix |
 
 ---

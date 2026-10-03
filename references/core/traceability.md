@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-TRACE                                                |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.6 (2026-10-02): Regenerated; REQ-BR-053–054 added (CCR-BR-011)<br>0.5 (2026-10-02): Regenerated; REQ-BR-049–052 added (CCR-BR-010)<br>0.4 (2026-10-02): Regenerated; REQ-BR-046–048 added (CCR-BR-008)<br>0.3 (2026-10-02): Regenerated; INV-BR-030, ADR-BR-038, RSK-BR-023 and REQ-BR-043–045 added (CCR-BR-006)<br>0.2 (2026-10-02): Regenerated after consistency fixes; REQ-BR-042 added (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-10-03): REQ-BR-006 summary follows acceptance check 6 (CCR-BR-012)<br>0.6 (2026-10-02): Regenerated; REQ-BR-053–054 added (CCR-BR-011)<br>0.5 (2026-10-02): Regenerated; REQ-BR-049–052 added (CCR-BR-010)<br>0.4 (2026-10-02): Regenerated; REQ-BR-046–048 added (CCR-BR-008)<br>0.3 (2026-10-02): Regenerated; INV-BR-030, ADR-BR-038, RSK-BR-023 and REQ-BR-043–045 added (CCR-BR-006)<br>0.2 (2026-10-02): Regenerated after consistency fixes; REQ-BR-042 added (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -188,7 +188,7 @@ One scenario per required acceptance check of [BEH-BR-183](behaviors/21-testing-
 | REQ-BR-003 | 3. A callback removing its own provider fails with WouldDeadlock | [BEH-BR-088](behaviors/09-leases.md) | Not run |
 | REQ-BR-004 | 4. Every cell of the state by operation and in-flight tables | [BEH-BR-069](behaviors/08-operation-legality.md), [BEH-BR-071](behaviors/08-operation-legality.md), [BEH-BR-072](behaviors/08-operation-legality.md) | Not run |
 | REQ-BR-005 | 5. Background failure and failing health check end in failed (runtime) after dependents stop | [BEH-BR-090](behaviors/10-runtime-failure-and-health.md), [BEH-BR-092](behaviors/10-runtime-failure-and-health.md), [BEH-BR-094](behaviors/10-runtime-failure-and-health.md) | Not run |
-| REQ-BR-006 | 6. Builds respect concurrency, dependency order and buildTimeout; awaitIdle times out | [BEH-BR-034](behaviors/05-activation.md), [BEH-BR-040](behaviors/05-activation.md) | Not run |
+| REQ-BR-006 | 6. Builds respect concurrency, dependency order and buildTimeout; awaitIdle times out and waits for a requested step | [BEH-BR-034](behaviors/05-activation.md), [BEH-BR-040](behaviors/05-activation.md) | Not run |
 | REQ-BR-007 | 7. Configuration decode failure publishes nothing; reconfigure restarts dependents | [BEH-BR-097](behaviors/11-configuration.md), [BEH-BR-101](behaviors/11-configuration.md) | Not run |
 | REQ-BR-008 | 8. Shutdown reports cleanup failures and forced plugins; scope close runs the same path | [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-106](behaviors/12-shutdown-and-hosting.md), [BEH-BR-108](behaviors/12-shutdown-and-hosting.md) | Not run |
 | REQ-BR-009 | 9. install rejects duplicates and cycles registering nothing; replace validates before stopping | [BEH-BR-018](behaviors/03-installation.md), [BEH-BR-019](behaviors/03-installation.md), [BEH-BR-020](behaviors/03-installation.md), [BEH-BR-050](behaviors/07-replacement-and-reactivation.md), [BEH-BR-051](behaviors/07-replacement-and-reactivation.md) | Not run |

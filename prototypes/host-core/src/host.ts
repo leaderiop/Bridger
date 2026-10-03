@@ -211,6 +211,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const buildSem = yield* Semaphore.make(concurrency)
   let buildsRunning = 0
   let arrivals = 0                               // creation order of calls and transitions, for StepItem.seq
+  let stopsRequested = 0                         // stop steps requested and not settled, begun or not (BEH-BR-040)
   /** Takes a step lock; a contended wait goes through the scheduler (BEH-BR-178). */
   const takeStep = (sem: Semaphore.Semaphore, item: () => StepItem) => Effect.gen(function* () {
     if (yield* sem.takeIfAvailable(1)) return
@@ -827,8 +828,12 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       (e.state === "starting" || e.state === "active" || (e.state === "stopping" && !!e.scope))
     const body = stopStepBody(id, reason, opts, cascadeFrom, root)
     if (!work) return body
+    // Counted from the request, not from the step's start: a scheduler may hold the step (BEH-BR-178), and a
+    // system stop held there has no flight and no state change yet for `awaitIdle` to see (finding G33).
+    stopsRequested++
     return scheduling.transition({ kind: "stop", pluginId: e!.pluginId, realm: e!.realm, owner: reason,
-      ...(opts.correlationId ? { correlationId: opts.correlationId } : {}), seq: opts.seq ?? ++arrivals, tie: `${e!.realm}\u0000${e!.pluginId}` }, () => true, body)
+      ...(opts.correlationId ? { correlationId: opts.correlationId } : {}), seq: opts.seq ?? ++arrivals, tie: `${e!.realm}\u0000${e!.pluginId}` }, () => true, body).pipe(
+      Effect.ensuring(Effect.sync(() => { stopsRequested-- })))
   })
   const stopStepBody = (id: string, reason: string, opts: StopOpts, cascadeFrom: string | undefined, root: string): Effect.Effect<boolean, StopFailure> => Effect.gen(function* () {
     const e = entries.get(id)
@@ -1656,7 +1661,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (held.size > 0) return yield* Effect.fail(new WouldDeadlock({ id: [...held][0]! }))
     while (true) {
       // A stop still running (a cascade, an unmount) is a transition in flight; a parked one is not.
-      const busy = [...flights.values()].some((f) => !f.parked) || [...entries.values()].some((e) => e.state === "starting" || e.failing || (e.state === "stopping" && e.stepRunning && !e.parkedSystem)) ||
+      const busy = stopsRequested > 0 || [...flights.values()].some((f) => !f.parked) || [...entries.values()].some((e) => e.state === "starting" || e.failing || (e.state === "stopping" && e.stepRunning && !e.parkedSystem)) ||
         [...entries.values()].some((e) => e.state === "waiting" && missing(e).length === 0)
       if (!busy) return snapshotOf()
       yield* Effect.yieldNow

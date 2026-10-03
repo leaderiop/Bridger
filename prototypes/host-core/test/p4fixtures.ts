@@ -1,9 +1,9 @@
 // Shared fixtures of the phase-P4 scenarios (behaviours 14–18).
-import { Effect } from "effect"
+import { Effect, Layer, type Scope } from "effect"
 import { AuditSink, OperationGate, type Actor, type AuditRecord, type OperationRequest } from "../src/gxp.js"
 import * as Testing from "../src/testing.js"
 import * as Host from "../src/host.js"
-import { quickClose } from "./fixtures.js"
+import { quickClose, withHost } from "./fixtures.js"
 
 export const alice: Actor = { id: "user-alice", kind: "user", display: "Alice" }
 export const as = (reason?: string, correlationId?: string) => ({ context: { actor: alice, ...(reason ? { reason } : {}), ...(correlationId ? { correlationId } : {}) } })
@@ -21,8 +21,16 @@ export const scriptedGate = (decide: (r: OperationRequest) => "allow" | "deny") 
   return { requests, gate: g.gate }
 }
 
-/** A scoped host with optional sink and gate; deterministic record ids. */
+/** A scoped TestHost (BEH-BR-183) with optional sink and gate; deterministic record ids. */
 export const run = <A, E>(
+  body: (host: Testing.TestHost) => Effect.Effect<A, E, Scope.Scope>,
+  opts: { sink?: AuditSink["Service"]; gate?: OperationGate["Service"]; options?: Host.Options } = {}
+) => withHost(body, { gateTimeout: 50, ...opts.options }, Layer.mergeAll(
+  Testing.counterIdGenerator("id-"),
+  opts.sink ? Layer.succeed(AuditSink, opts.sink) : Layer.empty,
+  opts.gate ? Layer.succeed(OperationGate, opts.gate) : Layer.empty))
+/** The same on the production host, for the scenarios that compare it with a TestHost. */
+export const runProduction = <A, E>(
   body: (host: Host.Host) => Effect.Effect<A, E>,
   opts: { sink?: AuditSink["Service"]; gate?: OperationGate["Service"]; options?: Host.Options } = {}
 ) => Effect.runPromise(Effect.scoped(Effect.gen(function* () {

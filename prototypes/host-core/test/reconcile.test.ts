@@ -6,6 +6,7 @@ import { AuditSink, type AuditRecord } from "../src/gxp.js"
 import { define, type AnyPlugin } from "../src/plugin.js"
 import { Audit, Logger, auditPlugin, journal, loggerPlugin } from "./fixtures.js"
 import { alice, as, find, memorySink, run, scriptedGate, settleWriter, stateIn } from "./p4fixtures.js"
+import { drive, idle } from "./fixtures.js"
 
 const failed = (exit: Exit.Exit<unknown, unknown>, tag: string) => Exit.isFailure(exit) && JSON.stringify(exit.cause).includes(tag)
 const j = journal()
@@ -22,11 +23,11 @@ describe("reconcile (behaviour 18)", () => {
     const { records, sink } = memorySink()
     await run((host) => Effect.gen(function* () {
       const list = [entry(logger), entry(audit)]
-      const first = yield* host.reconcile(list, as("profile"))
+      const first = yield* drive(host, host.reconcile(list, as("profile")))
       expect(first.installed).toEqual(["example/logger", "example/audit"])
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "example/audit")).toBe("active")
-      const second = yield* host.reconcile(list, as("profile"))
+      const second = yield* drive(host, host.reconcile(list, as("profile")))
       expect(second).toMatchObject({ installed: [], unchanged: ["example/logger", "example/audit"], removed: [], rejected: [] })
       yield* settleWriter
       const parents = records.filter((r) => r.operation === "reconcile")
@@ -41,12 +42,12 @@ describe("reconcile (behaviour 18)", () => {
   it("BEH-BR-154: an entry needing several actions gets them in the fixed order, so it builds at most once", async () => {
     const { records, sink } = memorySink()
     await run((host) => Effect.gen(function* () {
-      yield* host.reconcile([entry(versioned("1", "a"))], as())
+      yield* drive(host, host.reconcile([entry(versioned("1", "a"))], as()))
       // Same version and digest on a new object: the same definition (BEH-BR-154).
-      expect((yield* host.reconcile([entry(versioned("1", "a"))], as())).unchanged).toEqual(["svc"])
-      const toDisabled = yield* host.reconcile([entry(versioned("2", "b"), { config: { level: 1 }, disabled: true })], as())
+      expect((yield* drive(host, host.reconcile([entry(versioned("1", "a"))], as()))).unchanged).toEqual(["svc"])
+      const toDisabled = yield* drive(host, host.reconcile([entry(versioned("2", "b"), { config: { level: 1 }, disabled: true })], as()))
       expect(toDisabled).toMatchObject({ disabled: ["svc"], replaced: ["svc"], reconfigured: ["svc"] })
-      const toEnabled = yield* host.reconcile([entry(versioned("3", "c"), { config: { level: 2 } })], as())
+      const toEnabled = yield* drive(host, host.reconcile([entry(versioned("3", "c"), { config: { level: 2 } })], as()))
       expect(toEnabled).toMatchObject({ replaced: ["svc"], reconfigured: ["svc"], enabled: ["svc"] })
       yield* settleWriter
       expect(entryRecords(records)).toEqual([
@@ -60,16 +61,16 @@ describe("reconcile (behaviour 18)", () => {
   it("BEH-BR-155: a scope prunes only what it installed; an entry naming someone else's plugin is rejected, not adopted", async () => {
     await run((host) => Effect.gen(function* () {
       yield* host.install(loggerPlugin(j), as())                                   // by hand
-      const r = yield* host.reconcile([entry(logger), entry(audit)], as())
+      const r = yield* drive(host, host.reconcile([entry(logger), entry(audit)], as()))
       expect(r.installed).toEqual(["example/audit"])
       expect(r.rejected.map((x) => [x.id, x.reason._tag])).toEqual([["example/logger", "DuplicatePlugin"]])
-      const pruned = yield* host.reconcile([], as())
+      const pruned = yield* drive(host, host.reconcile([], as()))
       expect(pruned.removed).toEqual(["example/audit"])
       expect(yield* stateIn(host, "example/logger")).toBe("active")
       // Another scope cannot touch it either; without prune nothing is removed.
-      yield* host.reconcile([entry(audit)], { ...as(), scope: "site" })
-      expect((yield* host.reconcile([], { ...as(), scope: "default" })).removed).toEqual([])
-      expect((yield* host.reconcile([], { ...as(), scope: "site", prune: false })).removed).toEqual([])
+      yield* drive(host, host.reconcile([entry(audit)], { ...as(), scope: "site" }))
+      expect((yield* drive(host, host.reconcile([], { ...as(), scope: "default" }))).removed).toEqual([])
+      expect((yield* drive(host, host.reconcile([], { ...as(), scope: "site", prune: false }))).removed).toEqual([])
       expect(yield* stateIn(host, "example/audit")).toBe("active")
     }))
   })
@@ -77,16 +78,16 @@ describe("reconcile (behaviour 18)", () => {
   it("BEH-BR-153, 156: invalid and duplicate entries are rejected, their plugin untouched and unpruned; prunes run dependents first", async () => {
     const { records, sink } = memorySink()
     await run((host) => Effect.gen(function* () {
-      yield* host.reconcile([entry(logger), entry(audit)], as())
-      yield* host.awaitIdle
-      const r = yield* host.reconcile([entry(logger), entry(logger), { id: "wrong", plugin: audit }], as())
+      yield* drive(host, host.reconcile([entry(logger), entry(audit)], as()))
+      yield* idle(host)
+      const r = yield* drive(host, host.reconcile([entry(logger), entry(logger), { id: "wrong", plugin: audit }], as()))
       expect(r.rejected.map((x) => [x.id, x.reason._tag])).toEqual([["example/logger", "InvalidDefinition"], ["example/logger", "InvalidDefinition"], ["wrong", "InvalidDefinition"]])
       expect(r.removed).toEqual(["example/audit"])                               // audit is unlisted; logger is listed (invalidly) and kept
       expect(yield* stateIn(host, "example/logger")).toBe("active")
-      const both = yield* host.reconcile([entry(logger), entry(audit)], as())     // re-adds audit
+      const both = yield* drive(host, host.reconcile([entry(logger), entry(audit)], as()))     // re-adds audit
       expect(both.installed).toEqual(["example/audit"])
-      yield* host.awaitIdle
-      const last = yield* host.reconcile([], as())
+      yield* idle(host)
+      const last = yield* drive(host, host.reconcile([], as()))
       expect(last.removed).toEqual(["example/audit", "example/logger"])          // dependents first (BEH-BR-156)
       yield* settleWriter
       expect(entryRecords(records).slice(-2)).toEqual(["remove example/audit", "remove example/logger"])
@@ -97,7 +98,7 @@ describe("reconcile (behaviour 18)", () => {
     const { records, sink } = memorySink()
     const { requests, gate } = scriptedGate((r) => r.target?.id === "example/audit" ? "deny" : "allow")
     await run((host) => Effect.gen(function* () {
-      const r = yield* host.reconcile([entry(logger), entry(audit)], as())
+      const r = yield* drive(host, host.reconcile([entry(logger), entry(audit)], as()))
       expect(r.installed).toEqual(["example/logger"])
       expect(r.rejected.map((x) => [x.id, x.reason._tag])).toEqual([["example/audit", "OperationRejected"]])
       expect(requests.map((q) => `${q.operation} ${q.target?.id}`)).toEqual(["install example/logger", "install example/audit"])   // never the batch
@@ -112,14 +113,14 @@ describe("reconcile (behaviour 18)", () => {
   it("BEH-BR-158: requireReason applies to the operations a provisional diff would issue — a prune needs a reason, refused with no record", async () => {
     const { records, sink } = memorySink()
     await run((host) => Effect.gen(function* () {
-      yield* host.reconcile([entry(logger)], as())
-      yield* host.awaitIdle
-      const exit = yield* Effect.exit(host.reconcile([], as()))                     // would prune: remove needs a reason
+      yield* drive(host, host.reconcile([entry(logger)], as()))
+      yield* idle(host)
+      const exit = yield* Effect.exit(drive(host, host.reconcile([], as())))                     // would prune: remove needs a reason
       expect(failed(exit, "ReasonRequired")).toBe(true)
       expect(yield* stateIn(host, "example/logger")).toBe("active")
       yield* settleWriter
       expect(records.filter((r) => r.operation === "reconcile").length).toBe(2)     // only the first call's pair
-      expect((yield* host.reconcile([], as("decommission"))).removed).toEqual(["example/logger"])
+      expect((yield* drive(host, host.reconcile([], as("decommission")))).removed).toEqual(["example/logger"])
     }), { sink, options: { attribution: { requireReason: ["remove"] } } })
   })
 
@@ -128,21 +129,22 @@ describe("reconcile (behaviour 18)", () => {
     const extra = define({ id: "extra", requires: [] as const, provides: [] as const, build: Layer.empty }) as unknown as AnyPlugin
     await run((host) => Effect.gen(function* () {
       yield* host.install(loggerPlugin(j), as())
-      yield* host.reconcile([entry(audit)], { ...as("setup"), scope: "s" })
-      yield* host.awaitIdle
+      yield* drive(host, host.reconcile([entry(audit)], { ...as("setup"), scope: "s" }))
+      yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Audit, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       // A: prunes audit (held up by the lease), then installs extra.
       const a = yield* Effect.forkChild(host.reconcile([entry(extra)], { ...as("swap", "A"), scope: "s" }))
-      while ((yield* stateIn(host, "example/audit")) !== "stopping") yield* Effect.yieldNow
+      yield* host.stepPlugin("example/audit")
+      expect(yield* stateIn(host, "example/audit")).toBe("stopping")
       // B, without a reason: against the state now its diff issues nothing; at its intent, after A, it must prune extra.
       const b = yield* Effect.forkChild(host.reconcile([entry(audit)], { ...as(undefined, "B"), scope: "s" }))
       yield* Effect.sleep(5)
       yield* Deferred.succeed(release, undefined)
-      yield* Fiber.join(a)
-      expect(failed(yield* Fiber.await(b), "ReasonRequired")).toBe(true)
+      yield* drive(host, Fiber.join(a))
+      expect(failed(yield* drive(host, Fiber.await(b)), "ReasonRequired")).toBe(true)
       expect(yield* stateIn(host, "extra")).toBe("active")                     // no entry action ran
       expect(yield* stateIn(host, "example/audit")).toBe("uninstalled")
       yield* settleWriter
@@ -158,15 +160,15 @@ describe("reconcile (behaviour 18)", () => {
       yield* host.install(loggerPlugin(j), as())
       const entered = yield* Deferred.make<void>()
       // Hold a lease on a plugin the batch's first action removes, so the batch is mid-flight when the caller leaves.
-      yield* host.reconcile([entry(audit)], { ...as(), scope: "s" })
-      yield* host.awaitIdle
+      yield* drive(host, host.reconcile([entry(audit)], { ...as(), scope: "s" }))
+      yield* idle(host)
       yield* Effect.forkChild(host.use(Audit, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.sleep(60)))))
       yield* Deferred.await(entered)
       const call = yield* Effect.forkChild(host.reconcile([entry(slow)], { ...as(), scope: "s" }))   // prune audit (drains 60 ms), then install slow
       yield* Effect.sleep(20)
       yield* Fiber.interrupt(call)
       yield* Effect.sleep(80)
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "example/audit")).toBe("uninstalled")
       expect(yield* stateIn(host, "slow")).toBe("active")
       yield* settleWriter
@@ -196,7 +198,7 @@ describe("reconcile (behaviour 18)", () => {
       record: (r) => r.target?.id === "example/audit" ? Effect.never : Effect.sync(() => { records.push(r) })
     }
     await run((host) => Effect.gen(function* () {
-      const exit = yield* Effect.exit(host.reconcile([entry(logger), entry(audit), entry(versioned("1", "a"))], as()))
+      const exit = yield* Effect.exit(drive(host, host.reconcile([entry(logger), entry(audit), entry(versioned("1", "a"))], as())))
       expect(failed(exit, "AuditUnavailable")).toBe(true)
       expect(yield* stateIn(host, "example/logger")).toBe("active")
       expect(yield* stateIn(host, "example/audit")).toBe("uninstalled")
@@ -206,8 +208,8 @@ describe("reconcile (behaviour 18)", () => {
 
   it("BEH-BR-159: two edit histories that end in one list converge on the same owned set", async () => {
     const settle = (lists: ReadonlyArray<ReadonlyArray<DesiredPlugin>>) => run((host) => Effect.gen(function* () {
-      for (const l of lists) { yield* host.reconcile(l, as("x")); yield* host.awaitIdle }
-      const s = yield* host.awaitIdle
+      for (const l of lists) { yield* drive(host, host.reconcile(l, as("x"))); yield* idle(host) }
+      const s = yield* idle(host)
       return s.plugins.map((p) => [p.id, p.state, p.meta?.version])
     }))
     const target = [entry(logger), entry(versioned("2", "b"), { config: { a: 1 } }), entry(audit, { disabled: true })]

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -166,7 +166,9 @@ REQUIREMENT: `pending` MUST be read at a settlement point, as `step` is: a
 ```
 REQUIREMENT: `awaitIdle` on a `TestHost` MUST keep the meaning of
              05 — Activation, BEH-BR-040: it waits for an idle revision,
-             which a `TestHost` reaches only through steps. Documentation
+             which a `TestHost` reaches only through steps. Every pending
+             transition step counts as a transition, whether or not an
+             operation is in flight on its plugin. Documentation
              MUST state that a test awaiting it in its own fiber, without
              stepping, waits for ever, and that `runUntilIdle` is the
              stepping form.
@@ -422,7 +424,9 @@ REQUIREMENT: The core test suite MUST contain at least one test, run against
                 move the plugin to `failed` (phase `runtime`) after stopping
                 dependents.
              6. Builds respect `concurrency`, dependency order and
-                `buildTimeout`; `awaitIdle` times out when it must.
+                `buildTimeout`; `awaitIdle` times out when it must, and
+                does not return while a transition step is requested and
+                not yet begun.
              7. A configuration decode failure fails activation without
                 publishing; `reconfigure` restarts dependents.
              8. Shutdown reports cleanup failures and forced plugins;

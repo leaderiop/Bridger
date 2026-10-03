@@ -3,7 +3,7 @@
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
 import type * as Host from "../src/host.js"
-import { as, run } from "./p4fixtures.js"
+import { as, runProduction } from "./p4fixtures.js"
 import { mulberry32, normal, plugins, present, refOf, setup, universe } from "./universe.js"
 
 /** One random step on a random plugin, mostly an operation its current state admits; refusals stay part of the history. */
@@ -35,7 +35,7 @@ describe("confluence (BEH-BR-160, P4 exit criterion)", () => {
       const rnd = mulberry32(seed)
       // The target: which plugins end installed, and which of those disabled.
       const target = universe.filter(() => rnd() < 0.6).map((u) => ({ ...u, disabled: rnd() < 0.25 }))
-      const history = await run((host) => Effect.gen(function* () {
+      const history = await runProduction((host) => Effect.gen(function* () {
         yield* setup(host)
         const length = 8 + Math.floor(rnd() * 10)
         for (let i = 0; i < length; i++) {
@@ -58,7 +58,7 @@ describe("confluence (BEH-BR-160, P4 exit criterion)", () => {
         if (target.some((t) => t.name === "app" && !t.disabled)) { yield* host.restart("app", as()) }
         return normal(yield* host.awaitIdle)
       }))
-      const direct = await run((host) => Effect.gen(function* () {
+      const direct = await runProduction((host) => Effect.gen(function* () {
         yield* setup(host)
         for (const t of target) yield* host.install(plugins[t.name]!, { ...as(), realm: t.realm, ...(t.disabled ? { disabled: true } : {}) })
         if (target.some((t) => t.name === "app" && !t.disabled)) { yield* host.awaitIdle; yield* host.restart("app", as()) }

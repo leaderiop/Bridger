@@ -5,6 +5,7 @@ import { PluginRuntime } from "../src/runtime.js"
 import { define, type AnyPlugin, type Interception } from "../src/plugin.js"
 import { Logger, journal, loggerPlugin, type Journal } from "./fixtures.js"
 import { as, find, memorySink, run, scriptedGate, settleWriter, stateIn } from "./p4fixtures.js"
+import { drive, idle } from "./fixtures.js"
 
 class Database extends Context.Service<Database, { readonly name: string }>()("example/Database") {}
 class Repo extends Context.Service<Repo, { readonly db: string }>()("example/Repo") {}
@@ -39,7 +40,7 @@ describe("realms (BEH-BR-145–150)", () => {
         yield* host.install({ ...dbPlugin(realm) } as AnyPlugin, { ...as(), realm })
         yield* host.install(repoPlugin as AnyPlugin, { ...as(), realm })
       }
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* host.use(Repo, (r) => Effect.succeed(r.db), { realm: "tenant-a" })).toBe("tenant-a")
       expect(yield* host.use(Repo, (r) => Effect.succeed(r.db), { realm: "tenant-b" })).toBe("tenant-b")
       expect(failed(yield* Effect.exit(host.install(repoPlugin as AnyPlugin, { ...as(), realm: "tenant-a" })), "DuplicatePlugin")).toBe(true)
@@ -57,7 +58,7 @@ describe("realms (BEH-BR-145–150)", () => {
       yield* host.install(dbPlugin("a") as AnyPlugin, { ...as(), realm: "tenant-a" })
       yield* host.install(writer(j, "w"), { ...as(), realm: "tenant-a" })      // Logger is not isolated: resolves to the default provider
       yield* host.install(repoPlugin as AnyPlugin, as())                       // default realm: tenant-a's Database does not leak out
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "w", "tenant-a")).toBe("active")
       const repo = yield* find(host, "repo")
       expect(repo?.state === "waiting" && repo.missingServiceIds).toEqual(["example/Database"])
@@ -74,11 +75,11 @@ describe("realms (BEH-BR-145–150)", () => {
       yield* host.install(repoPlugin as AnyPlugin, { ...as(), realm: "tenant-a" }).pipe(Effect.exit)   // Repo not isolated: DuplicateProvider
       yield* host.defineRealm("tenant-b", { isolate: [Database, Repo] }, as())
       yield* host.install(repoPlugin as AnyPlugin, { ...as(), realm: "tenant-b" })
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* stateIn(host, "repo")).toBe("active")                      // the base Database
       expect(yield* stateIn(host, "repo", "tenant-b")).toBe("waiting")         // base invisible inside tenant-b
       yield* host.install(dbPlugin("b") as AnyPlugin, { ...as(), realm: "tenant-b" })
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(yield* host.use(Repo, (r) => Effect.succeed(r.db), { realm: "tenant-b" })).toBe("b")
       expect(yield* host.use(Repo, (r) => Effect.succeed(r.db))).toBe("base")
     }), { options: { base: [[Database, { name: "base" }]] } })
@@ -93,9 +94,9 @@ describe("realms (BEH-BR-145–150)", () => {
         build: Layer.effectDiscard(Effect.addFinalizer(() => j.push(`${id}:close`))) as unknown as AnyPlugin["build"] })
       yield* host.install(closer("in-default"), as())
       yield* host.install(closer("in-a"), { ...as(), realm: "tenant-a" })
-      yield* host.awaitIdle
+      yield* idle(host)
       j.lines.length = 0
-      yield* host.remove("example/logger", as())
+      yield* drive(host, host.remove("example/logger", as()))
       expect(j.lines).toEqual(["in-a:close", "in-default:close", "logger:close"])
       expect([yield* stateIn(host, "in-default"), yield* stateIn(host, "in-a", "tenant-a")]).toEqual(["waiting", "waiting"])
     }))
@@ -107,7 +108,7 @@ describe("realms (BEH-BR-145–150)", () => {
       yield* host.defineRealm("tenant-a", { isolate: [Database] }, as())
       yield* host.install(loggerPlugin(j), as())
       yield* host.install(dbPlugin("a") as AnyPlugin, { ...as(), realm: "tenant-a" })
-      yield* host.awaitIdle
+      yield* idle(host)
       const s = yield* host.snapshot
       expect(s.plugins.map((p) => [p.id, p.realm])).toEqual([["example/logger", "default"], ["db", "tenant-a"]])
       expect(s.availableServiceIds).toEqual(["@bridger/core/Events", "example/Logger"])
@@ -151,7 +152,7 @@ describe("interception (BEH-BR-151, 152)", () => {
       yield* host.install(loggerPlugin(j), as())
       yield* host.install(writer(j, "parent", { children: [{ def: writer(j, "kid") }, { def: writer(j, "own-kid"), intercept: [tag("O")] }] }), { ...as(), realm: "r", intercept: [tag("P")] })
       yield* host.install(writer(j, "plain"), as())
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(j.lines.filter((l) => l.startsWith("log:")).sort()).toEqual([
         "log:[R] [O] own-kid",                                                 // realm, then its own: inheritance replaced (finding G24)
         "log:[R] [P] kid",                                                     // realm, then inherited from the parent
@@ -175,7 +176,7 @@ describe("interception (BEH-BR-151, 152)", () => {
         })) as unknown as AnyPlugin["build"] }
       yield* host.install(loggerPlugin(j), as())
       yield* host.install(opt, { ...as(), intercept: [tag("O")] })
-      yield* host.awaitIdle
+      yield* idle(host)
       yield* host.use(Out, (o) => o.logOpt("hello"))
       expect(j.lines.at(-1)).toBe("log:[O] hello")
     }))
@@ -187,7 +188,7 @@ describe("interception (BEH-BR-151, 152)", () => {
       yield* host.install(loggerPlugin(j), as())
       const broken: Interception<Logger["Service"]> = { key: Logger, wrap: () => { throw new Error("wrapper crashed") } }
       yield* host.install(writer(j, "w"), { ...as(), intercept: [broken] })
-      yield* host.awaitIdle
+      yield* idle(host)
       const w = yield* find(host, "w")
       expect(w?.state === "failed" && [w.failure.phase, w.failure.message]).toEqual(["activation", "interception of example/Logger failed: wrapper crashed"])
       expect(yield* stateIn(host, "example/logger")).toBe("active")

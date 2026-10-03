@@ -5,32 +5,27 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { PluginConfig } from "../src/config.js"
 import type { HostEvent } from "../src/events.js"
-import { AuditSink, OperationGate, type AuditRecord } from "../src/gxp.js"
+import type { AuditRecord } from "../src/gxp.js"
 import * as Host from "../src/host.js"
 import { define } from "../src/plugin.js"
 import { PluginRuntime } from "../src/runtime.js"
-import { Audit, Logger, auditPlugin, journal, loggerPlugin, quickClose, stateOf, type Journal } from "./fixtures.js"
+import type * as Testing from "../src/testing.js"
+import { Audit, Logger, auditPlugin, drive, idle, journal, loggerPlugin, memorySink, quickClose, scriptedGate, stateOf, withHost, type Journal } from "./fixtures.js"
 
 const failedWith = (exit: Exit.Exit<unknown, unknown> | undefined, text: string) => !!exit && Exit.isFailure(exit) && JSON.stringify(exit.cause).includes(text)
 const ctx = (c: string) => ({ context: { actor: { id: "user-alice", kind: "user" as const }, correlationId: c } })
 
-/** A host with an in-memory sink, an optional TestClock, an event collector started before the body runs. */
+/** A TestHost with the in-memory sink, an optional TestClock, an event collector started before the body runs. */
 const run = <A, E>(
-  body: (host: Host.Host, t: { records: Array<AuditRecord>; events: Array<HostEvent> }) => Effect.Effect<A, E>,
-  opts: { options?: Host.Options; testClock?: boolean; gate?: OperationGate["Service"]; noCollector?: boolean } = {}
+  body: (host: Testing.TestHost, t: { records: ReadonlyArray<AuditRecord>; events: Array<HostEvent> }) => Effect.Effect<A, E>,
+  opts: { options?: Host.Options; testClock?: boolean; noCollector?: boolean } = {}
 ) => {
-  const records: Array<AuditRecord> = []
+  const sink = memorySink()
   const events: Array<HostEvent> = []
-  const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
-  let program = Effect.scoped(Effect.gen(function* () {
-    let make = Host.make({ ...quickClose, auditTimeout: 50, ...opts.options }).pipe(Effect.provideService(AuditSink, sink))
-    if (opts.gate) make = make.pipe(Effect.provideService(OperationGate, opts.gate))
-    const host = yield* make
+  return withHost((host) => Effect.gen(function* () {
     if (!opts.noCollector) { yield* Effect.forkScoped(Stream.runForEach(host.events, (e) => Effect.sync(() => { events.push(e) }))); yield* Effect.yieldNow }
-    return yield* body(host, { records, events })
-  }))
-  if (opts.testClock) program = program.pipe(Effect.provide(TestClock.layer())) as typeof program
-  return Effect.runPromise(program)
+    return yield* body(host, { records: sink.records, events })
+  }), opts.options, opts.testClock ? Layer.merge(sink.layer, TestClock.layer()) : sink.layer)
 }
 
 // -------------------------------------------------------------------------------- plugins
@@ -77,10 +72,10 @@ describe("runtime failure (behaviour 10)", () => {
     const j = journal()
     await run((host, t) => Effect.gen(function* () {
       const trigger = yield* Deferred.make<void>()
-      yield* host.install(workerPlugin(j, trigger, "fail-plugin", 1)); yield* host.install(clientOf(j)); yield* host.awaitIdle
+      yield* host.install(workerPlugin(j, trigger, "fail-plugin", 1)); yield* host.install(clientOf(j)); yield* idle(host)
       j.lines.length = 0
       yield* Deferred.succeed(trigger, undefined)
-      yield* host.awaitIdle
+      yield* idle(host)
       expect(j.lines).toEqual(["client:close", "worker:close"])                       // dependents first
       const w = (yield* host.snapshot).plugins.find((p) => p.id === "x/worker")!
       expect(w.state === "failed" && w.failure.phase).toBe("runtime")
@@ -92,7 +87,7 @@ describe("runtime failure (behaviour 10)", () => {
       expect(t.records.find((r) => r.operation === "system-stop" && r.target?.id === "x/client")!.causationId).toBe(root.recordId)
       // Sticky: the worker's provider-free requirements never restart it; retry does (BEH-BR-096).
       expect(yield* stateOf(host, "x/worker")).toBe("failed")
-      yield* host.retry("x/worker"); yield* host.awaitIdle
+      yield* drive(host, host.retry("x/worker")); yield* idle(host)
       expect(yield* stateOf(host, "x/worker")).toBe("active")
     }))
   })
@@ -100,13 +95,13 @@ describe("runtime failure (behaviour 10)", () => {
   it("BEH-BR-095: with no caller, a lease on a dependent is revoked at the drain limit; nothing parks", async () => {
     await run((host) => Effect.gen(function* () {
       const trigger = yield* Deferred.make<void>()
-      yield* host.install(workerPlugin(journal(), trigger)); yield* host.install(clientOf(journal())); yield* host.awaitIdle
+      yield* host.install(workerPlugin(journal(), trigger)); yield* host.install(clientOf(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const holder = yield* Effect.forkChild(host.use(Client, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
       yield* Deferred.succeed(trigger, undefined)
-      expect(failedWith(yield* Fiber.await(holder), "LeaseRevoked")).toBe(true)
-      yield* host.awaitIdle
+      expect(failedWith(yield* drive(host, Fiber.await(holder)), "LeaseRevoked")).toBe(true)
+      yield* idle(host)
       const snap = yield* host.snapshot
       expect(snap.plugins.find((p) => p.id === "x/worker")!.state).toBe("failed")
       expect(snap.plugins.some((p) => p.state === "stopping")).toBe(false)
@@ -116,7 +111,7 @@ describe("runtime failure (behaviour 10)", () => {
   it("BEH-BR-090: restart restarts only the fiber; ignore logs and changes nothing; inspect reports them", async () => {
     await run((host) => Effect.gen(function* () {
       const trigger = yield* Deferred.make<void>()
-      yield* host.install(workerPlugin(journal(), trigger, "restart", 2)); yield* host.awaitIdle
+      yield* host.install(workerPlugin(journal(), trigger, "restart", 2)); yield* idle(host)
       yield* Deferred.succeed(trigger, undefined)
       yield* Effect.sleep(300)                                                             // default schedule: spaced 100 ms
       expect(yield* stateOf(host, "x/worker")).toBe("active")
@@ -125,7 +120,7 @@ describe("runtime failure (behaviour 10)", () => {
     }))
     await run((host) => Effect.gen(function* () {
       const trigger = yield* Deferred.make<void>()
-      yield* host.install(workerPlugin(journal(), trigger, "ignore")); yield* host.awaitIdle
+      yield* host.install(workerPlugin(journal(), trigger, "ignore")); yield* idle(host)
       yield* Deferred.succeed(trigger, undefined)
       yield* Effect.sleep(10)
       expect(yield* stateOf(host, "x/worker")).toBe("active")
@@ -143,7 +138,7 @@ describe("runtime failure (behaviour 10)", () => {
       }))
     })
     await run((host) => Effect.gen(function* () {
-      yield* host.install(early); yield* host.awaitIdle
+      yield* host.install(early); yield* idle(host)
       const p = (yield* host.snapshot).plugins[0]!
       expect(p.state === "failed" && p.failure.phase).toBe("activation")
       expect((yield* host.snapshot).availableServiceIds).toEqual(["@bridger/core/Events"])   // only the base event bus (BEH-BR-137)
@@ -158,10 +153,10 @@ describe("runtime failure (behaviour 10)", () => {
       build: Layer.succeed(Worker, { ping: Effect.succeed("pong") })
     })
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(probed); yield* host.awaitIdle
+      yield* host.install(probed); yield* idle(host)
       const health = Effect.map(host.snapshot, (s) => { const p = s.plugins[0]!; return p.state === "active" ? p.health : p.state })
       expect(yield* health).toBe("unknown")
-      yield* TestClock.adjust(1_000); yield* host.awaitIdle
+      yield* TestClock.adjust(1_000); yield* idle(host)
       expect(yield* health).toBe("healthy")
       healthy = false
       yield* TestClock.adjust(1_000); yield* Effect.yieldNow
@@ -171,7 +166,7 @@ describe("runtime failure (behaviour 10)", () => {
       expect(yield* health).toBe("healthy")                                             // a success resets the count
       healthy = false
       for (let i = 0; i < 3; i++) { yield* TestClock.adjust(1_000); yield* Effect.yieldNow }
-      yield* host.awaitIdle
+      yield* idle(host)
       const p = (yield* host.snapshot).plugins[0]!
       expect(p.state === "failed" && p.failure.phase).toBe("runtime")
       expect(t.records.filter((r) => r.operation === "health-degraded")).toHaveLength(2)   // only the entries into degraded
@@ -184,10 +179,10 @@ describe("runtime failure (behaviour 10)", () => {
       build: Layer.succeed(Worker, { ping: Effect.succeed("pong") })
     })
     await run((host) => Effect.gen(function* () {
-      yield* host.install(slow); yield* host.awaitIdle
+      yield* host.install(slow); yield* idle(host)
       yield* TestClock.adjust(1_000); yield* Effect.yieldNow
       expect(gate.started).toBe(1)
-      yield* host.remove("x/slow")                                                       // does not wait for the check's timeout
+      yield* drive(host, host.remove("x/slow"))                                                       // does not wait for the check's timeout
       expect(yield* stateOf(host, "x/slow")).toBe("uninstalled")
     }), { testClock: true })
   })
@@ -199,17 +194,17 @@ describe("configuration (behaviour 11)", () => {
     const j = journal()
     let value: unknown = { url: "db://a", level: 1 }
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(cfgPlugin(j)); yield* host.awaitIdle
+      yield* host.install(cfgPlugin(j)); yield* idle(host)
       expect(j.lines).toEqual([`cfg:build:{"url":"db://a","level":1}`])
       value = { url: 42 }                                                                // a corrected source is read on the next activation
-      yield* host.restart("x/cfg"); yield* host.awaitIdle
+      yield* drive(host, host.restart("x/cfg")); yield* idle(host)
       const p = (yield* host.snapshot).plugins[0]!
       expect(p.state === "failed" && p.failure.phase).toBe("activation")
       expect(p.state === "failed" && p.failure.message).toContain("ConfigInvalid")
       expect(t.events.some((e) => e.type === "config-rejected")).toBe(true)
       expect(j.lines.filter((l) => l.startsWith("cfg:build"))).toHaveLength(1)        // build never ran
       value = { url: "db://b", level: 2 }
-      yield* host.retry("x/cfg"); yield* host.awaitIdle
+      yield* drive(host, host.retry("x/cfg")); yield* idle(host)
       expect(j.lines.at(-1)).toBe(`cfg:build:{"url":"db://b","level":2}`)
     }), { options: { config: () => Effect.sync(() => value) } })
   })
@@ -217,16 +212,16 @@ describe("configuration (behaviour 11)", () => {
   it("check 13 / BEH-BR-099, 101: an override wins over the source; reconfigure without a value clears it; ConfigInvalid leaves the plugin running", async () => {
     const j = journal()
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(cfgPlugin(j), { config: { url: "db://override", level: 1 } }); yield* host.awaitIdle
+      yield* host.install(cfgPlugin(j), { config: { url: "db://override", level: 1 } }); yield* idle(host)
       expect(j.lines.at(-1)).toBe(`cfg:build:{"url":"db://override","level":1}`)
-      const bad = yield* Effect.exit(host.reconfigure("x/cfg", { url: 7, level: 1 }, ctx("c-bad")))
+      const bad = yield* Effect.exit(drive(host, host.reconfigure("x/cfg", { url: 7, level: 1 }, ctx("c-bad"))))
       expect(failedWith(bad, "ConfigInvalid")).toBe(true)
       expect(yield* stateOf(host, "x/cfg")).toBe("active")
       yield* Effect.sleep(20)
       expect(t.records.some((r) => r.correlationId === "c-bad")).toBe(false)            // refused at step 4: no record
-      yield* host.reconfigure("x/cfg"); yield* host.awaitIdle                           // clear: back to the source
+      yield* drive(host, host.reconfigure("x/cfg")); yield* idle(host)                           // clear: back to the source
       expect(j.lines.at(-1)).toBe(`cfg:build:{"url":"db://source","level":0}`)
-      yield* host.restart("x/cfg"); yield* host.awaitIdle                               // restart keeps (no) override
+      yield* drive(host, host.restart("x/cfg")); yield* idle(host)                               // restart keeps (no) override
       expect(j.lines.at(-1)).toBe(`cfg:build:{"url":"db://source","level":0}`)
     }), { options: { config: source({ url: "db://source", level: 0 }) } })
   })
@@ -234,20 +229,20 @@ describe("configuration (behaviour 11)", () => {
   it("check 28 / BEH-BR-102: a volatile-only change updates in place; a non-volatile change restarts with configChange paths", async () => {
     const j = journal()
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(cfgPlugin(j)); yield* host.awaitIdle
+      yield* host.install(cfgPlugin(j)); yield* idle(host)
       const cfg = yield* host.use(Cfg, (c) => Effect.succeed(c))
-      yield* host.reconfigure("x/cfg", { url: "db://a", level: 5 }, ctx("c-vol"))
+      yield* drive(host, host.reconfigure("x/cfg", { url: "db://a", level: 5 }, ctx("c-vol")))
       expect(j.lines.filter((l) => l.startsWith("cfg:build"))).toHaveLength(1)        // no restart
       expect(cfg.value).toEqual({ url: "db://a", level: 0 })                             // `value` never changes
       expect(yield* cfg.current).toEqual({ url: "db://a", level: 5 })
       expect(t.events.find((e) => e.type === "config-updated")).toMatchObject({ paths: ["level"] })
-      yield* host.reconfigure("x/cfg", { url: "db://b", level: 5 }, ctx("c-url")); yield* host.awaitIdle
+      yield* drive(host, host.reconfigure("x/cfg", { url: "db://b", level: 5 }, ctx("c-url"))); yield* idle(host)
       expect(j.lines.at(-1)).toBe(`cfg:build:{"url":"db://b","level":5}`)
       yield* Effect.sleep(20)
       for (const c of ["c-vol", "c-url"]) for (const r of t.records.filter((x) => x.correlationId === c && x.operation === "reconfigure"))
         expect(r.configChange).toEqual({ paths: c === "c-vol" ? ["level"] : ["url"] })
       // equal value: a no-op success
-      yield* host.reconfigure("x/cfg", { url: "db://b", level: 5 }, ctx("c-same"))
+      yield* drive(host, host.reconfigure("x/cfg", { url: "db://b", level: 5 }, ctx("c-same")))
       yield* Effect.sleep(20)
       expect(t.records.find((r) => r.correlationId === "c-same" && r.phase === "completed")!.noop).toBe(true)
     }), { options: { config: source({ url: "db://a", level: 0 }) } })
@@ -256,10 +251,10 @@ describe("configuration (behaviour 11)", () => {
   it("check 37 / BEH-BR-103: no configuration value appears in any record, event, snapshot or error", async () => {
     const secret = "s3cr3t-Pa55"
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(cfgPlugin(journal()), { config: { url: secret, level: 1 }, ...ctx("c-1") }); yield* host.awaitIdle
-      yield* host.reconfigure("x/cfg", { url: `${secret}-2`, level: 1 }, ctx("c-2")); yield* host.awaitIdle
-      const bad = yield* Effect.exit(host.reconfigure("x/cfg", { url: secret, level: secret }, ctx("c-3")))
-      yield* host.reconfigure("x/cfg", { url: `${secret}-2`, level: 9 }, ctx("c-4"))
+      yield* host.install(cfgPlugin(journal()), { config: { url: secret, level: 1 }, ...ctx("c-1") }); yield* idle(host)
+      yield* drive(host, host.reconfigure("x/cfg", { url: `${secret}-2`, level: 1 }, ctx("c-2"))); yield* idle(host)
+      const bad = yield* Effect.exit(drive(host, host.reconfigure("x/cfg", { url: secret, level: secret }, ctx("c-3"))))
+      yield* drive(host, host.reconfigure("x/cfg", { url: `${secret}-2`, level: 9 }, ctx("c-4")))
       yield* Effect.sleep(20)
       const surfaces = JSON.stringify([t.records, t.events, yield* host.snapshot, bad, yield* host.inspect("x/cfg")])
       expect(surfaces).not.toContain(secret)
@@ -270,24 +265,24 @@ describe("configuration (behaviour 11)", () => {
   it("BEH-BR-072 (reconfigure cells): joins a restart in flight; equal value joins; a different value supersedes; remove supersedes", async () => {
     const j = journal()
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(cfgPlugin(j)); yield* host.awaitIdle
+      yield* host.install(cfgPlugin(j)); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Cfg, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       const r1 = yield* Effect.forkChild(host.reconfigure("x/cfg", { url: "db://1", level: 0 }, ctx("c-r1")))
-      yield* Effect.sleep(10)
+      yield* host.stepPlugin("x/cfg")                                                     // its stop step drains the lease
       const r2 = yield* Effect.forkChild(host.reconfigure("x/cfg", { url: "db://1", level: 0 }, ctx("c-r2")))   // equal: joins
       const r3 = yield* Effect.forkChild(host.reconfigure("x/cfg", { url: "db://3", level: 0 }, ctx("c-r3")))   // different: supersedes
       yield* Effect.sleep(10)
       const restart = yield* Effect.forkChild(host.restart("x/cfg", ctx("c-rs")))                               // restart joins a reconfigure
       yield* Effect.sleep(10)
       yield* Deferred.succeed(release, undefined)
-      expect(failedWith(yield* Fiber.await(r1), "Superseded")).toBe(true)
-      expect(failedWith(yield* Fiber.await(r2), "Superseded")).toBe(true)
-      expect(Exit.isSuccess(yield* Fiber.await(r3))).toBe(true)
-      expect(Exit.isSuccess(yield* Fiber.await(restart))).toBe(true)
-      yield* host.awaitIdle
+      expect(failedWith(yield* drive(host, Fiber.await(r1)), "Superseded")).toBe(true)
+      expect(failedWith(yield* drive(host, Fiber.await(r2)), "Superseded")).toBe(true)
+      expect(Exit.isSuccess(yield* drive(host, Fiber.await(r3)))).toBe(true)
+      expect(Exit.isSuccess(yield* drive(host, Fiber.await(restart)))).toBe(true)
+      yield* idle(host)
       expect(j.lines.at(-1)).toBe(`cfg:build:{"url":"db://3","level":0}`)              // the later value is the target
       yield* Effect.sleep(20)
       // A joined record carries the correlation of the call it joined, and the joiner's in causationId (BEH-BR-200).
@@ -303,14 +298,14 @@ describe("configuration (behaviour 11)", () => {
       build: Layer.effect(Needs, Effect.gen(function* () { const c = yield* PluginConfig; yield* j.push(`cfg:build:${JSON.stringify(c.value)}`); return {} }))
     })
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.install(cfgOnLogger); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* host.install(cfgOnLogger); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Needs, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
       // reconfigure drains under drainTimeout (200 ms here) and never forces: it parks with the new override stored.
-      expect(failedWith(yield* Effect.exit(host.reconfigure("x/cfg", { url: "db://new", level: 0 }, ctx("c-park"))), "DrainTimeout")).toBe(true)
-      yield* host.remove("example/logger", { drain: 20, force: true })                  // ends the parked intent
-      yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
+      expect(failedWith(yield* Effect.exit(drive(host, host.reconfigure("x/cfg", { url: "db://new", level: 0 }, ctx("c-park")))), "DrainTimeout")).toBe(true)
+      yield* drive(host, host.remove("example/logger", { drain: 20, force: true }))                  // ends the parked intent
+      yield* host.install(loggerPlugin(journal())); yield* idle(host)
       expect(j.lines.at(-1)).toBe(`cfg:build:{"url":"db://a","level":0}`)              // reverted to the last completed configuration
       yield* Effect.sleep(20)
       const parkReq = t.records.find((r) => r.correlationId === "c-park" && r.phase === "requested")!
@@ -325,14 +320,16 @@ describe("shutdown and hosting (behaviour 12)", () => {
   it("check 8 / BEH-BR-105–107: the report lists cleanup failures, drain shortfalls and forced plugins; durationMs from the Clock", async () => {
     let report: Host.CloseReport | undefined
     await run((host) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal(), { failCleanup: true })); yield* host.install(auditPlugin(journal())); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal(), { failCleanup: true })); yield* host.install(auditPlugin(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       const holder = yield* Effect.forkChild(host.use(Audit, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
       const call = yield* Effect.forkChild(host.shutdown({ timeout: 5_000 }))
+      expect((yield* host.pending).map((p) => [p.kind, p.pluginId, p.owner])).toEqual([["stop", "example/audit", "shutdown"]])
+      yield* host.step                                                                      // audit's stop begins and drains
       yield* TestClock.adjust(200)                                                          // audit's drain limit passes
-      yield* TestClock.adjust(5_000)                                                        // then the overall limit: force
-      report = yield* Fiber.join(call)
+      yield* TestClock.adjust(4_800)                                                        // then the overall limit (5 s from the start): force
+      report = yield* drive(host, Fiber.join(call))                                         // the logger's stop is the next step; no time passes
       expect(failedWith(yield* Fiber.await(holder), "LeaseRevoked")).toBe(true)
     }), { testClock: true })
     expect(report!.failed).toEqual([
@@ -345,16 +342,16 @@ describe("shutdown and hosting (behaviour 12)", () => {
 
   it("BEH-BR-109: concurrent shutdowns join; after completion the original report returns and nothing is recorded; HostClosed, changes and events end", async () => {
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* idle(host)
       const changesDone = yield* Effect.forkChild(Stream.runDrain(host.changes))
       const a = yield* Effect.forkChild(host.shutdown(ctx("c-a")))
       const b = yield* Effect.forkChild(host.shutdown(ctx("c-b")))
-      const ra = yield* Fiber.join(a); const rb = yield* Fiber.join(b)
+      const ra = yield* drive(host, Fiber.join(a)); const rb = yield* drive(host, Fiber.join(b))
       expect(rb).toEqual(ra)
       yield* Effect.sleep(20)
       expect(t.records.find((r) => r.correlationId === "c-a" && r.phase === "joined")).toMatchObject({ causationId: "c-b" })
       const count = t.records.length
-      expect(yield* host.shutdown(ctx("c-c"))).toEqual(ra)
+      expect(yield* drive(host, host.shutdown(ctx("c-c")))).toEqual(ra)
       yield* Effect.sleep(20)
       expect(t.records.length).toBe(count)                                                // no record after completion
       for (const op of [host.install(loggerPlugin(journal())), host.awaitIdle, host.inspect("example/logger")] as Array<Effect.Effect<unknown, unknown>>)
@@ -367,16 +364,18 @@ describe("shutdown and hosting (behaviour 12)", () => {
   it("BEH-BR-108, 110: closing the scope shuts down as Actor.system despite required attribution and a set latch; onClose gets the report once", async () => {
     const reports: Array<Host.CloseReport> = []
     let latchProbe = false
-    const records: Array<AuditRecord> = []
-    const sink: AuditSink["Service"] = { record: (r) => Effect.sync(() => { records.push(r) }) }
-    const denyAll: OperationGate["Service"] = { authorize: () => Effect.die("must not be consulted") }
-    await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
-      const host = yield* Host.make({ ...quickClose, auditTimeout: 50, attribution: { require: true, requireReason: ["shutdown"] },
-        onClose: (r) => Effect.sync(() => { reports.push(r) }) }).pipe(Effect.provideService(AuditSink, sink), Effect.provideService(OperationGate, denyAll))
+    const sink = memorySink()
+    const gate = scriptedGate((r) => r.operation === "install" ? "allow" : "die")         // a shutdown must not consult it
+    await withHost((host) => Effect.gen(function* () {
+      yield* host.install(loggerPlugin(journal()), { context: { actor: { id: "user-alice", kind: "user" } } }); yield* idle(host)
       latchProbe = (yield* host.snapshot).auditDegraded
-    })))
+    }), { attribution: { require: true, requireReason: ["shutdown"] }, onClose: (r) => Effect.sync(() => { reports.push(r) }) },
+    Layer.merge(sink.layer, gate.layer))
+    expect(gate.requests.map((r) => r.operation)).toEqual(["install"])
+    const records = sink.records
     expect(latchProbe).toBe(false)
     expect(reports).toHaveLength(1)
+    expect(reports[0]!.stopped).toEqual(["example/logger"])
     const req = records.find((r) => r.operation === "shutdown" && r.phase === "requested")!
     expect(req.actor.id).toBe("bridger:system")
     expect(records.find((r) => r.operation === "shutdown" && r.phase === "completed")).toBeDefined()
@@ -384,12 +383,12 @@ describe("shutdown and hosting (behaviour 12)", () => {
 
   it("BEH-BR-105 (T1, T7): shutdown resumes a parked stop, ends its intent with intent-ended caused by shutdown, and never parks", async () => {
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
-      expect(failedWith(yield* Effect.exit(host.remove("example/logger", { drain: 20, ...ctx("c-park") })), "DrainTimeout")).toBe(true)
-      const report = yield* host.shutdown(ctx("c-shut"))
+      expect(failedWith(yield* Effect.exit(drive(host, host.remove("example/logger", { drain: 20, ...ctx("c-park") }))), "DrainTimeout")).toBe(true)
+      const report = yield* drive(host, host.shutdown(ctx("c-shut")))
       expect(report.forced).toEqual(["example/logger"])
       yield* Effect.sleep(20)
       const shutReq = t.records.find((r) => r.correlationId === "c-shut" && r.phase === "requested")!
@@ -404,7 +403,7 @@ describe("shutdown and hosting (behaviour 12)", () => {
     const runtime = ManagedRuntime.make(Host.layer({ ...quickClose, onClose: (r) => Effect.sync(() => { reports.push(r) }) }))
     await runtime.context()                                                               // forces the build
     await runtime.runPromise(Effect.gen(function* () {
-      const host = yield* Host.BridgerHost
+      const host = yield* Host.BridgerHost                                                // the production host: this check concerns Bridger.make itself (BEH-BR-183)
       yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
     }))
     const report = await runtime.runPromise(Effect.gen(function* () { return yield* (yield* Host.BridgerHost).shutdown() }))
@@ -418,7 +417,7 @@ describe("shutdown and hosting (behaviour 12)", () => {
 describe("observability (behaviour 13)", () => {
   it("check 15 / BEH-BR-114, 115: seq starts at 1 and steps by one; a slow subscriber sees loss only as a gap", async () => {
     await run((host, t) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.install(auditPlugin(journal())); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* host.install(auditPlugin(journal())); yield* idle(host)
       yield* Effect.sleep(10)
       expect(t.events.map((e) => e.seq)).toEqual(t.events.map((_, i) => i + 1))
       const logger = t.events.filter((e) => e.pluginId === "example/logger").map((e) => e.type)
@@ -430,7 +429,7 @@ describe("observability (behaviour 13)", () => {
       const slow = yield* Effect.forkChild(Stream.runForEach(host.events, (e) => Effect.sleep(5).pipe(Effect.andThen(Effect.sync(() => { seen.push(e.seq) })))))
       yield* Effect.yieldNow
       for (let i = 0; i < 6; i++) { yield* host.install(define({ id: `x/p${i}`, requires: [] as const, provides: [] as const, build: Layer.empty })) }
-      yield* host.awaitIdle
+      yield* idle(host)
       yield* Effect.sleep(200)
       yield* Fiber.interrupt(slow)
       expect(seen.length).toBeGreaterThan(0)
@@ -441,11 +440,11 @@ describe("observability (behaviour 13)", () => {
 
   it("BEH-BR-118: inspect shows parked and pending during a parked removal", async () => {
     await run((host) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(journal())); yield* host.awaitIdle
+      yield* host.install(loggerPlugin(journal())); yield* idle(host)
       const entered = yield* Deferred.make<void>()
       yield* Effect.forkChild(host.use(Logger, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
       yield* Deferred.await(entered)
-      yield* Effect.exit(host.remove("example/logger", { drain: 20, ...ctx("c-park") }))
+      yield* Effect.exit(drive(host, host.remove("example/logger", { drain: 20, ...ctx("c-park") })))
       const i = yield* host.inspect("example/logger")
       expect(i).toMatchObject({ state: "stopping", parked: true, leases: 1, pending: { operation: "remove", correlationId: "c-park" } })
       expect(i.pending!.requestedRecordId).toBeDefined()
