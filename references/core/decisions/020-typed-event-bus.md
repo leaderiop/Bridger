@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-020                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): Listeners run with `CurrentActor` reset (BEH-BR-144) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -36,7 +36,7 @@ yield* bus.emit(InvoicePosted, "INV-1")
 - **Keys, not merged declarations.** An event is an `EventKey<Args, Result, E>` made by `Event.make`; its owner exports the key and consumers import it. A listener whose signature does not match is a compile error, and dispatch results and errors are typed.
 - **Dispatch modes.** `emit` (fire and forget; each listener in a supervised fiber; failures become `listener-failed` events and never reach the emitter), `parallel` (all awaited; the first typed failure interrupts the rest), `serial` (priority order; the first defined result ends the chain), `waterfall` with `around` listeners (middleware over `final`). Cordis's `bail` is not adopted: Effect has no synchronous mode and `serial` covers the pattern.
 - **Order and lifetime.** Listeners are ordered by `priority` ascending, then registration order; `prepend` puts a listener first among equals. The listener list for each event is a `ContributionRegistry` ([ADR-BR-024](../decisions/024-shared-state-helpers.md)), so a dispatch uses the list as of its start and a listener is removed, with drain and revocation, when its plugin's activation scope closes. There is no manual unregistration.
-- **Environment.** A listener's environment is `never`: it closes over the services of the plugin that registered it. `serial`, `parallel` and `waterfall` run listeners in the dispatcher's fiber context; `emit` runs them in child fibers that inherit it.
+- **Environment.** A listener's environment is `never`: it closes over the services of the plugin that registered it. `serial`, `parallel` and `waterfall` run listeners in the dispatcher's fiber context; `emit` runs them in child fibers that inherit it — except that every listener runs with `@bridger/core/CurrentActor` reset to `Actor.unattributed` (BEH-BR-144).
 - **No veto hooks over host operations.** Application events have no hook through which a listener can veto, delay or rewrite a host operation (Cordis's `internal/update` waterfall is not reproduced). Lifecycle observation stays on `Host.events`. [ADR-BR-032](../decisions/032-operation-gate.md) amends this for **host lifecycle operations only**, by adding a dedicated `OperationGate` port; it does not add a veto event, and application events keep no veto over the host.
 
 ## Alternatives considered

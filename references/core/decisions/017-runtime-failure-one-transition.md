@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-017                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-10-02): Dependents' stops in a runtime failure are a cascade with no caller: they revoke and never park, and resume a parked stop; only stops under an operator's cascade park; second pass: an ended intent gets its `intent-ended` record, a wait on a build continues under `buildTimeout` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-03): An exhausted restart schedule fails the plugin; an in-flight health check never delays a drain (G17) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Dependents' stops in a runtime failure are a cascade with no caller: they revoke and never park, and resume a parked stop; only stops under an operator's cascade park; second pass: an ended intent gets its `intent-ended` record, a wait on a build continues under `buildTimeout` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -28,8 +28,8 @@ There is also no caller. A runtime failure is not an operation; if draining its 
 
 **Three signals** (SPEC.md "Runtime failure and health"):
 
-1. **Supervised background work.** `Plugin.Runtime.background(name, effect, { onFailure, restart })` forks `effect` into the activation scope (`Effect.forkIn`). `onFailure` is `"fail-plugin"` (default; reports through `reportFailure`), `"restart"` (retries that fiber with the given `Schedule` and never changes plugin state) or `"ignore"`. Fibers forked without `background` are not tracked. `whenAvailable` uses the same policy.
-2. **Health check.** If declared, `check` runs every `every`, bounded by `timeout`, only while the plugin is `active`, in its activation scope, against its captured services. A timeout counts as a failed check. `failureThreshold` consecutive failures is a runtime failure; fewer show `health: "degraded"`. A check is a short lease on the plugin itself, so a drain waits for at most one in-flight check. When the plugin leaves `active`, an in-flight check is interrupted and not counted. Checks are not transitions; `awaitIdle` ignores them.
+1. **Supervised background work.** `Plugin.Runtime.background(name, effect, { onFailure, restart })` forks `effect` into the activation scope (`Effect.forkIn`). `onFailure` is `"fail-plugin"` (default; reports through `reportFailure`), `"restart"` (retries that fiber with the given, or a bounded default, `Schedule` without changing plugin state; an exhausted schedule is handled as `"fail-plugin"`) or `"ignore"`. Fibers forked without `background` are not tracked. `whenAvailable` uses the same policy.
+2. **Health check.** If declared, `check` runs every `every`, bounded by `timeout`, only while the plugin is `active`, in its activation scope, against its captured services. A timeout counts as a failed check. `failureThreshold` consecutive failures is a runtime failure; fewer show `health: "degraded"`. A check is a short lease on the plugin itself, so the scope never closes under a running check; when a stop begins, or the plugin otherwise leaves `active`, an in-flight check is interrupted, its lease ends at once, and it is not counted (BEH-BR-092). Checks are not transitions; `awaitIdle` ignores them.
 3. **`Plugin.Runtime.reportFailure(cause)`**: immediate runtime failure.
 
 **One transition.** The plugin is marked failing (hidden from new consumers; new leases and dependents blocked), its dependents stop first, its leases drain under the normal drain limit, its scope closes, and it ends `failed` with `failure.phase = "runtime"`. If the drain limit expires, the host revokes the remaining leases (`LeaseRevoked`, event `lease-revoked`) and completes the transition, so a failing plugin cannot hold the host hostage.
@@ -60,7 +60,6 @@ There is also no caller. A runtime failure is not an operation; if draining its 
 - Revocation at the drain limit can interrupt in-flight work of a failing plugin and of its dependents; external effects are not undone.
 - A parked operator intent on a dependent is ended, not completed, by the failure's cascade; the operator re-issues it.
 - Work forked outside `background` is invisible to the host.
-- A health check takes a lease slot and can delay a drain by up to its `timeout`.
 
 **Trade-off accepted**: forced revocation of a failing plugin's callers at the drain limit, in exchange for a single failure model and a host that cannot be held hostage by a failing plugin.
 

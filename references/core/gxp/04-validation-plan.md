@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-04                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-03): Known-gaps list no longer cites the Effect 4.x items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -192,7 +192,7 @@ These notes are for a regulated user's supplier assessment (GAMP 5 supplier invo
 | Agreements and support | **No service-level agreement**, no support contract, no formal supplier agreement, and no commitment to response times for defects. |
 | Quality system | The development process is the specification's process documents: [identifier scheme](../process/requirement-id-scheme.md), [Definitions of Done](../process/definitions-of-done.md) and [change control](../process/change-control.md). There is no certified quality management system. |
 | Status | Prospective: no implementation, no executed tests, no evidence ([ADR-BR-036](../decisions/036-prospective-specification.md)). |
-| Known gaps | Listed in [urs.md](../urs.md#7-known-gaps-and-open-items) §7: unverified requirements, unconfirmed Effect 4.x details, undetectable changed service shapes, cross-fiber re-entrancy, single maintainer, unspecified companion. |
+| Known gaps | Listed in [urs.md](../urs.md#7-known-gaps-and-open-items) §7: unverified requirements, undetectable changed service shapes, cross-fiber re-entrancy, single maintainer, unspecified companion. |
 | Sub-supplier | Effect 4.x is the only runtime dependency; Bridger's guarantees are no stronger than Effect's (URS assumption A5). A regulated user should include Effect in their assessment. |
 
 **Suggested actions for a regulated user** who adopts Bridger: review this specification independently, as part of supplier assessment, since the supplier has not had it reviewed; re-execute the library's suites in their own environment rather than relying only on published results; carry the consumer-owned residual risks of the [risk assessment](./03-risk-assessment.md) §4 into their own; and plan for the absence of supplier support in their business-continuity and change processes.

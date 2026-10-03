@@ -13,7 +13,7 @@ This index gathers documented features that are easy to overlook and maps them t
 - [ERP on the core](../ERP-RUNTIME.md) and [Records, model logic and platform data services](../ERP-RECORDS.md): shared module activations and tenant generations; constraints, hooks, relations, queries, seeds, services, sequences, settings, money, translations.
 - Area specs: [storage](../ERP-STORAGE.md), [identity](../ERP-IDENTITY.md), [distribution](../ERP-DISTRIBUTION.md), [browser](../ERP-BROWSER.md), [business platform](../ERP-BUSINESS.md), [operations](../ERP-OPERATIONS.md), [developer experience](../ERP-DX.md).
 - [Permissions and policies with `@qadi/core`](../ERP-ACCESS.md): permission tokens, role DAG, SQL-compiled row rules, error mapping and the proposed `@bridger/qadi` wrapper.
-- [Bridger core](../SPEC.md), [React adapter](../REACT-API.md) and [FoldKit adapter](../FOLDKIT-API.md): the generic runtime and its UI adapter proposals.
+- [Bridger core](../SPEC.md), [React adapter](../REACT-API.md) (with [UI plugins](../REACT-UI-PLUGINS.md)) and [FoldKit adapter](../FOLDKIT-API.md): the generic runtime and its UI adapter proposals.
 - [Shared models and database ownership](../ERP-MODELS.md): multiple plugins contributing to one table, typed projections, tenant-specific activation and migration rules.
 
 - [Effect Schema integration](../ERP-SCHEMA-DESIGN.md): schema-first fields, database and transport variants, and patch semantics.

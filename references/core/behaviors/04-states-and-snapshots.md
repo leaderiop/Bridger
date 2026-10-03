@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-04                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -40,7 +40,7 @@ type PluginState = "waiting" | "starting" | "active" | "stopping" | "failed" | "
 | State | Meaning |
 | --- | --- |
 | `waiting` | At least one required service has no active provider in the plugin's resolution scope. |
-| `starting` | Every required service is available; the plugin is queued for a build slot or its `build` is running. |
+| `starting` | Every required service was available when it entered `starting`; the plugin is queued for a build slot or its `build` is running. A requirement gone before its build begins returns it to `waiting` (05 — Activation, BEH-BR-035). |
 | `active` | The build succeeded and every provided service is published. |
 | `stopping` | The plugin accepts no new dependents or leases; its dependents, leases and activation scope are being closed. |
 | `failed` | Activation, runtime or cleanup failed; the phase and a message are visible. It holds no live scope. |
@@ -83,12 +83,13 @@ stateDiagram-v2
     [*] --> waiting: install, a requirement missing
     [*] --> starting: install, requirements available
     [*] --> disabled: install with disabled
-    waiting --> starting: requirements available (also replace, reconfigure)
+    waiting --> starting: requirements available (also replace)
     waiting --> disabled: disable
     waiting --> [*]: remove
     starting --> active: build succeeds and is published
     starting --> failed: build or activation fails, or build times out
     starting --> stopping: target changes; the in-flight step settles first
+    starting --> waiting: a requirement is gone when the build would begin (05, BEH-BR-035)
     active --> stopping: dependency loss, remove, replace, restart, reconfigure, disable, runtime failure, shutdown
     stopping --> waiting: requirements missing
     stopping --> starting: requirements available (replace, restart, reconfigure, provider returned)
@@ -116,9 +117,11 @@ REQUIREMENT: A plugin in `failed` with phase "cleanup" MUST leave `failed`
 
 ```
 REQUIREMENT: A plugin that has entered `starting` MUST leave it only to
-             `active`, `failed` or `stopping`. When it leaves for `stopping`
-             before its build has begun, the stop MUST complete without
-             running any finalizer, since none exists.
+             `active`, `failed` or `stopping`, or to `waiting` when a key in
+             its `requires` has no `active` provider at the moment its build
+             would begin (05 — Activation, BEH-BR-035). When it leaves for
+             `stopping` before its build has begun, the stop MUST complete
+             without running any finalizer, since none exists.
 ```
 
 Which operation causes which transition, and what each operation does in each
@@ -128,12 +131,14 @@ the set of edges that table may use. Changes that keep the state —
 `replace` of a `disabled` plugin, `reconfigure` of a `waiting` one, a health
 check result — are not transitions, though they may change the snapshot.
 
-**Settled here.** Three edges differ from SPEC.md's diagram. `[*] → starting`
+**Settled here.** Four edges differ from SPEC.md's diagram. `[*] → starting`
 and `disabled → starting` are added because a plugin with nothing missing
 cannot be a `waiting` entry (BEH-BR-025); SPEC.md's prose already said
 `enable` "moves the plugin to `waiting` or `starting`". `failed → disabled` is
 withheld after a cleanup failure, because settled legality allows only
-`remove` there (BEH-BR-030).
+`remove` there (BEH-BR-030). `starting → waiting` was added by CCR-BR-010: a
+`starting` plugin whose requirement is gone when its build would begin returns
+to `waiting` without a stop (05 — Activation, BEH-BR-035).
 
 ## BEH-BR-027: PluginSnapshot is a discriminated union on state
 
@@ -442,9 +447,11 @@ REQUIREMENT: A `failed` plugin MUST stay `failed` when its requirements
 ```
 
 ```
-REQUIREMENT: Dependency loss MUST change only `starting` and `active`
-             plugins, each through `stopping`. It MUST NOT change the state
-             of a `waiting`, `failed` or `disabled` plugin.
+REQUIREMENT: Dependency loss MUST change only `starting` and `active` plugins,
+             each through `stopping`, except a `starting` plugin whose build
+             has not begun when its requirement is gone, which returns to
+             `waiting` directly (05 — Activation, BEH-BR-035). It MUST NOT
+             change the state of a `waiting`, `failed` or `disabled` plugin.
 ```
 
 ```

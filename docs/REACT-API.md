@@ -4,6 +4,8 @@ Status: design examples for review. These APIs do not exist yet and have not bee
 
 `@bridger/react` adapts the generic Bridger host to React. Plugin definitions still use `@bridger/core`. The adapter owns React subscriptions and component actions; the core owns activation, dependency ordering, leases, and finalizers.
 
+This document covers the service and state layer: connecting a client, calling services and observing plugin state. Building the UI itself from plugins (shell, menus, routes, pages and plugin-defined slots) is specified in [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md), which uses these hooks inside contributed components.
+
 ```mermaid
 flowchart LR
     UI[React components] --> Hooks[React hooks]
@@ -136,7 +138,7 @@ The adapter consumes one subscription per client and caches the latest snapshot.
 - React Strict Mode subscription setup and cleanup must not install or remove plugins.
 - Service actions return data; returning a live service or resource from a lease remains unsupported.
 - Reactive domain data needs an explicit service stream or external-store contract. Host lifecycle observation alone cannot make arbitrary service fields reactive.
-- Rendering plugin-contributed components needs a separate contribution and teardown contract: hiding a contribution must coordinate with React unmount before resources used by component cleanup are released. A raw component registry alone cannot guarantee this.
+- Rendering plugin-contributed components needs a separate contribution and teardown contract: hiding a contribution must coordinate with React unmount before resources used by component cleanup are released. A raw component registry alone cannot guarantee this. That contract is [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5.
 - These examples cover client rendering. SSR requires a request-scoped host and a matching hydration snapshot; server and browser hosts do not share live service objects.
 
 React references: [external store subscription and snapshot contracts](https://react.dev/reference/react/useSyncExternalStore), [Strict Mode lifecycle checks](https://react.dev/reference/react/StrictMode).

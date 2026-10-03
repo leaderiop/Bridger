@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-OVW                                                  |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.3 (2026-10-02): Parked stops, `DrainTimeout` fields, `Interrupted` record-only tag, TestHost members; `intent-ended` record and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-03): The gate covers operator mutations other than `shutdown`; system transitions are recorded, never gated (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Parked stops, `DrainTimeout` fields, `Interrupted` record-only tag, TestHost members; `intent-ended` record and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -54,8 +54,9 @@ acts ([ADR-BR-005](./decisions/005-failure-is-sticky.md)); every operation in
 every state has a defined outcome ([ADR-BR-013](./decisions/013-total-operation-legality.md)).
 
 **Attributable by construction, honest by rule.** Every mutation of the plugin
-set can be attributed to an actor and recorded through an `AuditSink`, and can
-be refused by an `OperationGate`. The core makes no compliance claim it has not
+set can be attributed to an actor and recorded through an `AuditSink`, and every
+operator mutation except `shutdown` can be refused by an `OperationGate`;
+system transitions are recorded, never gated. The core makes no compliance claim it has not
 assembled and tested ([ADR-BR-028](./decisions/028-gxp-scope.md)).
 
 ## Packages

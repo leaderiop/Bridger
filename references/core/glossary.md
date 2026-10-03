@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -131,7 +131,8 @@ a parked dependency-loss stop. Only stops driven by an operator call — its own
 stop, or a cascade whose root is an operator call — park, and none parks once
 shutdown has begun. A parked operation resumes when a call joins or supersedes
 it, a parked system stop when a `remove`, `replace`, `restart`, `disable` or
-`reconfigure` arrives on the plugin, and either kind when a cascade needs it or
+`reconfigure` arrives on the plugin (on a child whose stop removes it, only
+`remove`), and either kind when a cascade needs it or
 at shutdown.
 
 ### Ended intent
@@ -182,8 +183,10 @@ contributing scope closes.
 ### Reconcile, desired state, confluence
 
 **Reconcile** makes the host match a declared list of plugins (the **desired
-state**). **Confluence** is the property that the converged state depends on the
-desired state, not on the history of operations that reached it.
+state**). **Confluence** is the property that, once the host is idle, the
+state depends on what is installed, not on the history of operations that
+reached it — except that a past failure may differ until that plugin is acted
+on explicitly (BEH-BR-160).
 
 ## Observation
 
@@ -239,8 +242,11 @@ their order.
 
 ### Audit-degraded latch
 
-The host condition, after a record could not be written, in which operator
-mutations are refused until acknowledged.
+The host condition, after a terminal, `rejected` or system record (or
+`shutdown`'s `requested` record) could not be written, or a record was dropped
+for writer-queue overflow, in which operator mutations are refused until
+acknowledged (BEH-BR-205). An ordinary call whose `requested` record cannot be
+written fails with `AuditUnavailable` instead and sets no latch.
 
 ### Operation gate
 

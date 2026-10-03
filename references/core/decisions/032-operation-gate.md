@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-032                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amends ADR-BR-020                                 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-03): Step 7 of the call order in full (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -37,7 +37,7 @@ type OperationRequest = {
 ```
 
 - **A port in core, inside the host.** The host consults `@bridger/core/OperationGate`, when wired, on every operator mutation, whichever path reached it: a direct `Host` call, a `PluginHandle` method or a `reconcile` entry. The core guarantees that the gate cannot be bypassed through the `Host` it guards.
-- **Position.** The gate is step 5 of the eight-step order of a mutating call fixed in [22 — Attributable operations](../behaviors/22-attributable-operations.md) (BEH-BR-188): (1) `HostClosed`, (2) attribution, (3) audit-degraded latch, (4) validation, (5) gate, (6) `requested` record, (7) `WouldDeadlock` check, then intent and transition, (8) terminal record. That behaviour is the single statement of the order; this ADR does not restate it differently. The gate therefore always sees an attributed request for something that can happen, and runs before anything is recorded or changed.
+- **Position.** The gate is step 5 of the eight-step order of a mutating call fixed in [22 — Attributable operations](../behaviors/22-attributable-operations.md) (BEH-BR-188): (1) `HostClosed`, (2) attribution, (3) audit-degraded latch, (4) validation, (5) gate, (6) `requested` record, (7) `WouldDeadlock` check, the turn at the plugin's linearization point, `WouldDeadlock` again, re-validation and legality, then intent and transition, (8) terminal record. That behaviour is the single statement of the order; this ADR does not restate it differently. The gate therefore always sees an attributed request for something that can happen, and runs before anything is recorded or changed.
 - **Refusal changes nothing.** A refusal fails the call with `OperationRejected { operation, target, reason }` and, when a sink is wired, writes one `rejected` record. No intent is recorded and no transition runs.
 - **Fail closed on gate defects.** A gate that dies, or fails or times out in any way other than a typed refusal, is treated as a refusal. An approval service that cannot answer has not approved. The bound is `BridgerOptions.gateTimeout` (default 60 seconds; `"forever"` only when declared), and the refusal reason is `"gate-timeout"` or `"gate-defect"`. Human approval is meant to be obtained *before* the call — the companion records the approval and the gate checks it — not by holding the call open while someone decides.
 - **No default implementation, not even a permissive one.** Unwired, there is no gate and behaviour is unchanged. A provided allow-all gate would be a control that does nothing while appearing in the configuration as a control; that is the false compliance affordance Qadi ADR-QD-056 refused when it declined a no-op signature service.

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -334,7 +334,7 @@ REQUIREMENT: Every call that reaches its linearization point MUST have
              - conflict: it fails with `Conflict { id, pending }` and
                changes nothing;
              - or a named error from the tables (`UnknownPlugin`,
-               `DuplicatePlugin`, `HostClosed`).
+               `DuplicatePlugin`, `InstallError`, `HostClosed`).
              A join or supersede of a parked operation is a resumption
              instead (BEH-BR-074): the call becomes the operation's owner
              and completes with its outcome. A parked operation has no
@@ -575,7 +575,11 @@ REQUIREMENT: When an operator call reaches its linearization point while the
              plugin's system stop is parked (BEH-BR-074), or when the stop
              it waits for parks:
              - `remove`, `replace`, `restart`, `disable` and `reconfigure`
-               MUST resume the parked system stop as BEH-BR-074 requires;
+               MUST resume the parked system stop as BEH-BR-074 requires,
+               except on a child whose parked stop has `next` "gone": only
+               `remove` resumes it, and every other operation fails with
+               `Conflict { id, pending: "remove" }` (14 — Children and
+               Groups, BEH-BR-125);
              - `retry` and `enable` MUST fail with
                `Conflict { id, pending: "dependency-loss" }` and change
                nothing;
@@ -673,7 +677,8 @@ REQUIREMENT: A parked stop MUST NOT complete by itself, even when its leases
              end. It MUST resume only when:
              - a call joins or supersedes the parked operation (BEH-BR-072);
              - `remove`, `replace`, `restart`, `disable` or `reconfigure`
-               arrives on a plugin whose system stop is parked (BEH-BR-073);
+               arrives on a plugin whose system stop is parked (BEH-BR-073;
+               on a child whose stop removes it, only `remove`);
              - a stop of one of its providers, or of its parent, needs it
                stopped (BEH-BR-080);
              - shutdown takes it over (BEH-BR-075).
@@ -694,7 +699,8 @@ REQUIREMENT: A call that joins or supersedes a parked operation MUST become
              `reconfigure`, or a parked `restart` whose override a joining
              `reconfigure` set), `configChange.paths` of that override
              (paths only; 23 — Audit Sink and Record, BEH-BR-200). Its
-             `causationId` names its own `requested` record. The system
+             `correlationId` and `causationId` are those of any terminal
+             record of the resuming call (BEH-BR-200). The system
              records of the resumed stop MUST carry as `causationId` the
              resuming call's `requested` record.
 ```
@@ -714,13 +720,14 @@ REQUIREMENT: A call that resumes a parked system stop MUST record its intent
 ```
 
 ```
-REQUIREMENT: When the resumed system stop settles, the call MUST be decided
-             by BEH-BR-071 against the state the plugin landed in, within the
+REQUIREMENT: When the resumed system stop settles, the call MUST be decided by
+             BEH-BR-071 against the state the plugin landed in, within the
              same call (for example, `remove` then unregisters the `waiting`
              plugin). When the stop removed the plugin (a child), `remove`
-             MUST complete successfully and any other operation MUST fail
-             with `UnknownPlugin`. A refusal decided then MUST be the call's
-             `failed` terminal record (BEH-BR-070).
+             MUST complete successfully; no other operation can have resumed
+             such a stop (14 — Children and Groups, BEH-BR-125). A refusal
+             decided then MUST be the call's `failed` terminal record
+             (BEH-BR-070).
 ```
 
 ```

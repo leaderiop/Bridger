@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-036                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): Revisions below 1.0, not only 0.1 (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -26,7 +26,7 @@ In a GxP context that misreading is not harmless. A regulated reader treats an a
 
 Until code and tests exist, the specification is marked and written as prospective.
 
-- **Status.** Every document is `Draft`, Revision `0.1`, Effective Date `— (pending approval)`. Every ADR is `Proposed`. The initial drafts are recorded under change control record `CCR-BR-001`.
+- **Status.** Every document is `Draft`, at a Revision below 1.0 (initially `0.1`), Effective Date `— (pending approval)`. Every ADR is `Proposed`. The initial drafts are recorded under change control record `CCR-BR-001`.
 - **Review and approval are stated as absent.** Reviewed by and Approved by name no person while there is a single maintainer and no independent reviewer (PROC-03 §5). A status changes only through a recorded review and approval.
 - **Planned paths.** Every source or test path is written with the marker *(Planned)*, for example `packages/core/src/Host.ts` *(Planned)*. The marker is removed in the same change that adds the file.
 - **Illustrative code.** TypeScript blocks are illustrative and not type-checked; the first block in each file says so on its first line.

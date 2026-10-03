@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-026                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): `step` advances one pending item; checks concerning `Bridger.make` are exempt (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -27,10 +27,10 @@ Plugin authors face the same problem one level up: they need to show that their 
 `@bridger/core/testing` *(Planned)* is part of the core's public contract, versioned and released with `@bridger/core`. It provides `TestHost`:
 
 - **The same machine.** `TestHost` runs the production reconciler, operation table and lease machinery; it differs only in how the reconciler is driven and in the services it is given. A test host with its own lifecycle logic would prove properties of a different machine.
-- **Steppable reconciler.** `step` advances one transition; `runUntilIdle` runs to idle. A test can stop between "removal began" and "dependent stopped" and assert on the snapshot there.
+- **Steppable reconciler.** `step` advances one pending item (a transition step or a wait) to its next settlement point; `stepPlugin` and `pending` choose among them; `runUntilIdle` runs to idle (BEH-BR-178). A test can stop between "removal began" and "dependent stopped" and assert on the snapshot there.
 - **Test time and identifiers.** Time comes from `TestClock`, so timeouts (`buildTimeout`, `drainTimeout`, `stallWarning`, `auditTimeout`) fire when the test adjusts the clock. `IdGenerator` yields a counter sequence ([ADR-BR-025](../decisions/025-deterministic-time-and-ids.md)).
 - **Injectable faults.** `Fault.buildFails(id)`, `Fault.stopFails(id)`, `Fault.holdLease(id)` and `Fault.runtimeFailure(id)` produce build failures, cleanup failures, stuck leases and runtime failures without writing a misbehaving plugin for each.
-- **Acceptance checks.** The required behaviours listed in SPEC.md "Testing the core" — every row of the operation table, drain and force, `WouldDeadlock`, sticky failure, configuration, shutdown reports, registry and generation drains, children, optional dependencies, events, realms, reconcile, hosting — are written against `TestHost`, and they are the core's acceptance tests.
+- **Acceptance checks.** The required behaviours listed in SPEC.md "Testing the core" — every row of the operation table, drain and force, `WouldDeadlock`, sticky failure, configuration, shutdown reports, registry and generation drains, children, optional dependencies, events, realms, reconcile, hosting — are written against `TestHost`, except those that concern `Bridger.make` itself (BEH-BR-183), and they are the core's acceptance tests.
 
 ## Alternatives considered
 

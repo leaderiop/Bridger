@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-APP-02                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Appendix — Informative                                       |
-> | Change History | 0.1 (2026-10-02): Initial draft, moved from `docs/SPEC.md` "Comparison with Cordis" (CCR-BR-001) |
+> | Change History | 0.2 (2026-10-03): No "lossless" claim about the audit sequence (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft, moved from `docs/SPEC.md` "Comparison with Cordis" (CCR-BR-001) |
 
 ---
 
@@ -56,7 +56,7 @@ Bridger's core is built on the same paradigm as Cordis (revertible effects for t
 ## GxP features Cordis does not address
 
 Cordis has no notion of attributing a lifecycle change to an actor, recording
-it in a lossless sequence, refusing it pending approval, or controlling time
+it in a numbered, gap-detectable sequence, refusing it pending approval, or controlling time
 and identifiers for reproducible verification. Bridger adds these as optional
 ports ([behaviours 22–25](../behaviors/22-attributable-operations.md)); none of
 them changes the parity mapping above.

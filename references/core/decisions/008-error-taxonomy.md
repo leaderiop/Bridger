@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-008                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-10-02): Record-only `Interrupted` tag; `DependencyCycle` raised by child install; `DrainTimeout { id, leases, target? }`, `id` also naming a plugin whose running transition step the call waited for; `WouldDeadlock` raised by `retry` and `enable` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-03): `Conflict` and `HostClosed` also raised by child install (BEH-BR-121) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Record-only `Interrupted` tag; `DependencyCycle` raised by child install; `DrainTimeout { id, leases, target? }`, `id` also naming a plugin whose running transition step the call waited for; `WouldDeadlock` raised by `retry` and `enable` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -35,9 +35,9 @@ Every named error is a `Schema.TaggedError` (the v4 constructor name, as SPEC.md
 | `UnknownRealm` | `id` | `install` into an undefined realm; `replace` (as cause); `use`, `useAll`, `lease` with an undefined `realm` |
 | `ReplaceError` | `id`, `cause: InstallError` | `replace` |
 | `UnknownPlugin` | `id` | every operation on an unknown ref |
-| `Conflict` | `id`, `pending` | illegal pairs ([ADR-BR-013](../decisions/013-total-operation-legality.md)) |
+| `Conflict` | `id`, `pending` | illegal pairs ([ADR-BR-013](../decisions/013-total-operation-legality.md)); child install (`Plugin.Runtime.install`) once the parent's stop has begun |
 | `Superseded` | `id` | an earlier caller overtaken by a later operation |
-| `HostClosed` | — | every operation once shutdown begins |
+| `HostClosed` | — | every operation once shutdown begins, child install (`Plugin.Runtime.install`) included |
 | `ConfigInvalid` | `id`, `message` | `reconfigure`; activation failure cause |
 | `CleanupError` | `id`, `message` | `remove`, `replace`, `restart`, `disable`, `reconfigure` |
 | `DrainTimeout` | `id` (the plugin, or `Generation` name, whose leases did not drain, or whose running transition step the call was waiting for), `leases`, `target?` (the plugin the call named, present only when it differs from `id`, as when a cascade's drain limit expired on a dependent) | `remove`, `replace`, `restart`, `disable`, `reconfigure`, `Generation` |

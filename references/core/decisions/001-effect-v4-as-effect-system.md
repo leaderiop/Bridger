@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-001                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Prototype items closed with evidence from the Effect API prototype (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-03): Consequence aligned with the prototype items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Prototype items closed with evidence from the Effect API prototype (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -56,7 +56,7 @@ Effect v4 is Bridger's effect system and its only runtime dependency (NFR-BR-006
 
 - Effect is a large dependency with a real learning curve.
 - A defect in the Effect runtime becomes a defect in every host ([RSK-BR-022](../gxp/03-risk-assessment.md#rsk-br-022)); Bridger cannot mitigate it except by pinning and by its own tests.
-- Three behaviours the design leans on are unconfirmed until a prototype runs.
+- The three behaviours the design leaned on were confirmed against effect 4.0.0 only by a throwaway prototype (CCR-BR-003); the planned smoke test re-checks them on every upgrade.
 
 **Trade-off accepted**: depending on one large, versioned runtime, gated by a smoke test and an unstable-import register, is a smaller and more visible risk than re-deriving scope, interruption and typed-error semantics by hand.
 

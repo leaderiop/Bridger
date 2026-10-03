@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-005                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): Dependency loss of a `starting` plugin whose build has not begun (BEH-BR-035) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -32,7 +32,7 @@ A plugin that merely *lost a dependency* is a different case. It did not fail; i
 - A plugin leaves `failed` only through an explicit operation: `retry`, `restart`, `replace`, `reconfigure`, `disable` or `remove`. This holds for every failure phase, including `runtime`. (SPEC.md's runtime-failure section omits `disable` from this list; its state-and-lifecycle section and the state diagram include it. This ADR resolves the inconsistency in favour of including `disable`.)
 - `retry`, `restart`, `replace` and `reconfigure` on a failed plugin go to `starting` when its requirements are available and to `waiting` otherwise.
 - A failure with phase `cleanup` is narrower still: the scope is already closed and its finalizers cannot run again, so only `remove` is allowed, and it records the leak as acknowledged rather than claiming recovery ([ADR-BR-013](../decisions/013-total-operation-legality.md)).
-- Dependency loss moves only `starting` and `active` plugins (through `stopping` to `waiting`); a `waiting` plugin whose requirements appear starts by itself.
+- Dependency loss moves only `starting` and `active` plugins to `waiting` — directly when a `starting` plugin's build has not begun (BEH-BR-035), otherwise through `stopping`; a `waiting` plugin whose requirements appear starts by itself.
 - Retry policy, where an application wants one, is built outside the core on `Host.changes` and `retry`, where its decisions are the application's own attributable operations ([ADR-BR-029](../decisions/029-attributable-mutations.md)).
 
 ## Alternatives considered

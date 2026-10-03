@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-03                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see §5)                      |
 > | Approved by    | — (pending; single maintainer, see §5)                       |
 > | Classification | Process Specification                                        |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): CCRs before CCR-BR-006 carry no impact record (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 _Previous: [Definitions of Done](./definitions-of-done.md)_
 
@@ -52,7 +52,8 @@ REQUIREMENT: Once code exists, any change to `packages/core` that alters a
 
 ## 3. Impact assessment
 
-Every CCR answers, in writing:
+Every CCR from CCR-BR-006 on answers, in writing (CCR-BR-002 to CCR-BR-005
+predate this record and carry none):
 
 1. **Identifiers affected.** Which `URS`, `BEH`, `INV`, `ADR`, `REQ` and `RSK`
    identifiers are added, changed or withdrawn.

@@ -19,7 +19,7 @@ Status: **index of proposals**. Date: 2026-10-02. Nothing listed here is impleme
    - [ERP-BUSINESS.md](ERP-BUSINESS.md): events, jobs, workflows, integrations, attachments, search, reports, imports, API, domain contracts.
    - [ERP-OPERATIONS.md](ERP-OPERATIONS.md): deployment, replicas, observability, backup, administration.
    - [ERP-DX.md](ERP-DX.md): CLI, test kit, CI.
-7. Adapters: [REACT-API.md](REACT-API.md), [FOLDKIT-API.md](FOLDKIT-API.md).
+7. Adapters: [REACT-API.md](REACT-API.md), [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md), [FOLDKIT-API.md](FOLDKIT-API.md).
 8. Research: [knowledge/README.md](knowledge/README.md).
 
 ## Package map
@@ -27,7 +27,7 @@ Status: **index of proposals**. Date: 2026-10-02. Nothing listed here is impleme
 | Package | Kind | Status | Specified in |
 | --- | --- | --- | --- |
 | `@bridger/core` | Generic plugin runtime | Proposed | [SPEC.md](SPEC.md) |
-| `@bridger/react`, `@bridger/foldkit` | UI adapters over core | Proposed | [REACT-API.md](REACT-API.md), [FOLDKIT-API.md](FOLDKIT-API.md) |
+| `@bridger/react`, `@bridger/foldkit` | UI adapters over core | Proposed | [REACT-API.md](REACT-API.md), [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md), [FOLDKIT-API.md](FOLDKIT-API.md) |
 | `@bridger/erp/contracts` | Browser-safe model/command/permission contracts | Proposed | [ERP-SPEC.md](ERP-SPEC.md) |
 | `@bridger/erp` | Server: Module, Model.serve, Records, Erp | Proposed | [ERP-SPEC.md](ERP-SPEC.md) |
 | `@bridger/erp/ui`, `@bridger/erp/client` | Browser-safe UI descriptors and client | Proposed | [ERP-SPEC.md](ERP-SPEC.md), [ERP-BROWSER.md](ERP-BROWSER.md) |

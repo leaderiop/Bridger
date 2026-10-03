@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-038                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Parked system stops, resumption ownership, cascades with no caller, cascade drain limit and bound, children removed, re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, drain limit while waiting on a build, child→parent mount edges, stops take no slot, `intent-ended` record, shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft; closes URS gap G11 (CCR-BR-006) |
+> | Change History | 0.3 (2026-10-03): `awaitIdle` counts requested steps (G33); a child's parked removal resumed only by `remove` (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Parked system stops, resumption ownership, cascades with no caller, cascade drain limit and bound, children removed, re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, drain limit while waiting on a build, child→parent mount edges, stops take no slot, `intent-ended` record, shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft; closes URS gap G11 (CCR-BR-006) |
 
 ---
 
@@ -33,7 +33,7 @@ Terms, as in [08 — Operation legality](../behaviors/08-operation-legality.md):
 
 ## Decision
 
-1. **No host-wide operation order.** Calls on one plugin pass steps 1–7 of BEH-BR-188 and reach their linearization points in arrival order, as ADR-BR-012 says. A call of an operation that names a plugin never waits for a call on another plugin to pass those steps or to reach its linearization point. Two waits across plugins exist by design and are outside this rule: `reconcile` serializes its own entries (BEH-BR-156), and `awaitIdle` waits for every running transition step (BEH-BR-040). The single audit writer orders *records*, not operations; the writer's queue is the only host-wide point a call passes.
+1. **No host-wide operation order.** Calls on one plugin pass steps 1–7 of BEH-BR-188 and reach their linearization points in arrival order, as ADR-BR-012 says. A call of an operation that names a plugin never waits for a call on another plugin to pass those steps or to reach its linearization point. Two waits across plugins exist by design and are outside this rule: `reconcile` serializes its own entries (BEH-BR-156), and `awaitIdle` waits for every transition step running or requested and not yet begun, and for every plugin ready to build (BEH-BR-040). The single audit writer orders *records*, not operations; the writer's queue is the only host-wide point a call passes.
 2. **Waits follow dependency edges, from provider to dependent.** A transition step on *P* may wait only for:
    - transition steps of plugins that depend on *P* — that captured a service of *P*, or are children of *P* — directly or transitively;
    - leases on *P* and on those plugins.
@@ -54,7 +54,7 @@ Terms, as in [08 — Operation legality](../behaviors/08-operation-legality.md):
    A cascading call's total wait is at most its own drain limit for the plugin it named and for each plugin on the dependency path below it, plus `buildTimeout` for each build step it waits for. Finalizer running time is not bounded by the core (BEH-BR-107), so the bound holds for finalizers that return.
 5. **A parked stop is resumed by the next call that needs it, and the resumer owns it.** A parked stop never completes by itself (BEH-BR-074). It resumes when:
    - a call joins or supersedes the parked operation (BEH-BR-072): the call resumes it under its own `drain` and `force`, becomes its owner, completes with its outcome, and writes its own `completed` or `failed` record — never `joined` or `superseded` — whose `resumes` is the `recordId` of the parked call's `requested` record. The resumed operation is the one the in-flight table's row names: the operation in flight for a join, the incoming one for a supersede. The parked call, already answered with `DrainTimeout`, writes nothing more;
-   - `remove`, `replace`, `restart`, `disable` or `reconfigure` arrives on a plugin whose system stop is parked (BEH-BR-073): the call records its intent when it resumes the stop and is the operation in flight from then on (the in-flight table applies to later calls). Its own effects — an override, a `replace`'s reservations — are applied only when it is decided, after the stop settles, by the state table against where the plugin landed; if the stop removed the plugin (a child), `remove` completes and any other operation fails with `UnknownPlugin`. If its own drain expires again, it parks as its own parked operation with nothing of it stored. `retry` and `enable` there fail with `Conflict { pending: "dependency-loss" }`;
+   - `remove`, `replace`, `restart`, `disable` or `reconfigure` arrives on a plugin whose system stop is parked (BEH-BR-073; on a child whose stop removes it, only `remove`, BEH-BR-125): the call records its intent when it resumes the stop and is the operation in flight from then on (the in-flight table applies to later calls). Its own effects — an override, a `replace`'s reservations — are applied only when it is decided, after the stop settles, by the state table against where the plugin landed; if the stop removed the plugin (a child), `remove` completes. If its own drain expires again, it parks as its own parked operation with nothing of it stored. `retry` and `enable` there fail with `Conflict { pending: "dependency-loss" }`;
    - a cascade from one of the plugin's providers, or from its parent, needs it stopped (BEH-BR-080), under the limits of item 4;
    - shutdown takes it over, under its own limits, never parking again.
 

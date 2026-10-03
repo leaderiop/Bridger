@@ -19,7 +19,7 @@ The ERP browser UI is **framework-neutral at its core and renders with either Fo
 | Data contracts | Public field schemas only. Policies, migrations and handlers never reach the browser ([ERP-SPEC.md](ERP-SPEC.md) §1). |
 | Authentication | awthaq cookie session with CSRF; `@awthaq/client` ([ERP-IDENTITY.md](ERP-IDENTITY.md)). |
 | Server contact | HTTP + JSON only. The browser's Effect copy never needs to match the server's. |
-| Custom code | Approved, content-addressed **UI plugins** installed into the browser host; one implementation per framework (or a neutral one); torn down by the core's lease and drain rules (§9). |
+| Custom code | Approved, content-addressed **UI plugins** installed into the browser host; one implementation per framework (or a neutral one); torn down by the core's lease and drain rules (§9). In React deployments UI plugins may also contribute routes, menu items, commands and slot entries ([REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md)). |
 | Choosing a renderer | Per deployment. Mixing both in one page is not supported. A deployment may ship one renderer only. |
 
 ## 2. Modules and seams
@@ -240,6 +240,8 @@ ViewRenderers.add("kanban", { descriptorSchema, react: …, foldkit: … })
 interface WidgetProps { value: unknown; onChange(v: unknown): void; readOnly: boolean; invalid?: string; locale: string; field: FieldDescriptor }
 ```
 
+In React deployments a UI plugin may also contribute to the extension points of [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) (`Routes`, `MainMenu`, `Commands`, and slots opened by built-in views); its manifest lists them in `contributes` (for example `route:/app/reports`, `slot:erp/record.actions`).
+
 Widgets exchange only schema-validated data with the form machine; the form machine, not the widget, owns validity, errors, pending state and idempotency. The shell's machines and Message/event types are never modified at run time.
 
 ## 9. Teardown through the core's lease rules
@@ -307,11 +309,12 @@ These are design acceptance scenarios, not tests already executed.
 | # | Item | Decision |
 | --- | --- | --- |
 | 1 | Sharing FoldKit and Effect with widgets | **Import map provided by the shell**, for evergreen browsers. A bundler-level approach (module federation) is the fallback if a supported browser fails the widget acceptance test. |
-| 2 | View AST with named slots | **Deferred.** The first release has collection and form descriptors; extension is through widgets. Trigger: a second view kind is needed. |
+| 2 | View AST with named slots | **Superseded for React by [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md)** (2026-10-03): in React deployments the shell, menus, routes and view slots are plugin contributions to extension points, and built-in views may open named slots (for example record actions) that UI plugins fill. The shell's machines and Message/event types stay closed: contributions are components and descriptors, never new machine events. FoldKit parity is item 8. |
 | 3 | SSR/SSG | **Out of scope** for both renderers (experimental in FoldKit; the React renderer is client-rendered, see [REACT-API.md](REACT-API.md)). |
 | 4 | Offline queue persistence | **In tab memory only.** Persisting intents beyond the tab could replay stale intent after a policy or grant change; the retry-with-same-key rule covers the tab lifetime. |
 | 5 | Sign-in screens | **Fixed components per method type** (password, OAuth/OIDC, passkey later), shown according to `GET /erp/session/methods`, a Bridger endpoint that reports the methods enabled in the awthaq configuration. No generated forms. |
 | 6 | Renderer choice | **Per deployment, FoldKit or React,** on one shared UI core; both must pass the UI conformance suite (§11). |
-| 7 | UI plugin teardown | **Core leases and drain** (§9), not a custom handshake. |
+| 7 | UI plugin teardown | **Core leases and drain** (§9), not a custom handshake. Slot entries use the same rules through `PluginBoundary` ([REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5). |
+| 8 | Slots and shell contributions in FoldKit | **Open.** The extension point tokens are framework-neutral; [FOLDKIT-API.md](FOLDKIT-API.md) has no rendering model for them yet. Until it does, FoldKit deployments extend through widgets and view renderers only, and the conformance suite (§11) covers slots in React only. |
 
-No remaining open items in this document.
+One open item remains (8).

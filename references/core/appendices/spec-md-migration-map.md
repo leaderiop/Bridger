@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-APP-01                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Appendix — Informative                                       |
-> | Change History | 0.3 (2026-10-02): Items 31 and 72 and the Concurrency and scheduling row widened; items 12 and 24 narrowed (callers already answered; child causation); ended intents and `resumes` in item 72 (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-03): The review recorded as CCR-BR-002 was not the independent review of PROC-03 §5 (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Items 31 and 72 and the Concurrency and scheduling row widened; items 12 and 24 narrowed (callers already answered; child causation); ended intents and `resumes` in item 72 (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -88,8 +88,8 @@ Each item reads: **what SPEC.md said** → **what `references/core/` says** —
 *where*. Items 1–12 are the settled legality decisions; 13 the snapshot shape;
 14–19 the consistency fixes; 20–37 the additional settlements S1–S18; 38–49 the
 GxP additions; 50–96 the notable "Settled here" decisions recorded in the
-behaviour files; 97 onward the consistency fixes from the independent review
-(CCR-BR-002).
+behaviour files; 97 onward the consistency fixes from the review recorded as
+CCR-BR-002 (an agent review, not the independent review of PROC-03 §5).
 
 ### 2.1 Operation legality
 
@@ -518,7 +518,7 @@ behaviour files; 97 onward the consistency fixes from the independent review
     rather than as an `auditSeq` gap; `auditTimeout` has no `"forever"` form —
     *BEH-BR-202, BEH-BR-204*.
 
-### 2.7 Consistency fixes from the independent review (CCR-BR-002)
+### 2.7 Consistency fixes from the review recorded as CCR-BR-002
 
 97. **When `WouldDeadlock` is decided.** SPEC.md: calls from a fiber that
     would wait for a plugin it holds "fail immediately with `WouldDeadlock`"

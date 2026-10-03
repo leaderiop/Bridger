@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -167,8 +167,9 @@ REQUIREMENT: `pending` MUST be read at a settlement point, as `step` is: a
 REQUIREMENT: `awaitIdle` on a `TestHost` MUST keep the meaning of
              05 — Activation, BEH-BR-040: it waits for an idle revision,
              which a `TestHost` reaches only through steps. Every pending
-             transition step counts as a transition, whether or not an
-             operation is in flight on its plugin. Documentation
+             transition step that is not a parked stop counts as a
+             transition, whether or not an operation is in flight on its
+             plugin. Documentation
              MUST state that a test awaiting it in its own fiber, without
              stepping, waits for ever, and that `runUntilIdle` is the
              stepping form.
@@ -486,9 +487,10 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
              22. `Generation`: `drain` fails with `DrainTimeout` and succeeds
                  with `force`, revoking `acquire` and `use` holders; several
                  retired values drain independently.
-             23. Child plugins are removed with their parent in LIFO order; a
-                 failing child leaves the parent running; group operations
-                 are atomic.
+             23. Child plugins are removed with their parent, as its
+                 dependents, in reverse dependency order and before the
+                 parent's scope begins to close; a failing child leaves the
+                 parent running; group operations are atomic.
              24. `optional` services never gate activation or appear in
                  `missingServiceIds`; `useOptional` returns `None` when
                  unavailable; `whenAvailable` runs, is interrupted and re-runs
@@ -552,10 +554,12 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
              40. `reconcile` consults the gate once per entry action, and a
                  refused entry appears in `ReconcileReport.rejected`.
              41. No source file of the core reads `Date.now()`,
-                 `performance.now()`, `crypto.randomUUID()`, `Math.random()`
-                 or an argument-less `new Date()` outside the default
-                 `IdGenerator` implementation (a static check). That is the
-                 only exemption: the default `Clock` is Effect's own
+                 `performance.now()`, `crypto.randomUUID()`,
+                 `crypto.getRandomValues()`, `Math.random()` or an
+                 argument-less `new Date()`, except `crypto.randomUUID()`
+                 inside the default `IdGenerator` implementation (a static
+                 check; 24 — Time, Identifiers and Sequence, BEH-BR-211). That
+                 is the only exemption: the default `Clock` is Effect's own
                  implementation, not a file of the core.
              42. `OperationRequest` and audit records carry the
                  definition's `version` and `digest`; a gate can refuse a

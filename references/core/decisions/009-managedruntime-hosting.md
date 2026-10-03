@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-009                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Build forcing confirmed: runtime.context() (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-03): Forced build no longer described as unconfirmed (CCR-BR-003) (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Build forcing confirmed: runtime.context() (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -31,7 +31,7 @@ Effect's answer for holding a layer from non-Effect code is `ManagedRuntime`. Th
 Non-Effect code hosts Bridger through `ManagedRuntime.make(Bridger.layer(options))`, with these rules (SPEC.md "API decisions" row 7):
 
 1. **Shutdown before dispose.** An adapter's dispose calls `host.shutdown()` first, surfaces its `CloseReport`, and only then calls `runtime.dispose()`. The runtime cannot be reused after dispose.
-2. **Force the build before "ready".** An adapter that promises readiness forces the layer build with `runtime.context()` — which builds without running an effect, caches the result and rejects on a layer failure (prototype checks E3a–E3e, [ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md)) — and awaits the first `snapshot()` before resolving, so a base-layer build failure fails startup rather than the first user action. That running a trivial effect (`runtime.runPromise(Effect.void)`) forces the build and surfaces a base build failure to the caller is **to be confirmed at prototype** ([ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md)).
+2. **Force the build before "ready".** An adapter that promises readiness forces the layer build with `runtime.context()` — which builds without running an effect, caches the result and rejects on a layer failure (prototype checks E3a–E3e, [ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md)) — and awaits the first `snapshot()` before resolving, so a base-layer build failure fails startup rather than the first user action. `context()` is used rather than running a trivial effect.
 3. **The runtime holds the static part only.** Its `R` contains `Bridger.Host` and the application's base services. Plugin services never appear in `R`; they are reached only through `host.use`, `useAll` and `lease`. This is what lets plugins leave.
 4. **One runtime per application, never per plugin.** A plugin uses `Scope` and `Plugin.Runtime`, so its resources stay inside its activation scope.
 5. **The scope-close path still reports.** If the runtime is disposed without a prior `shutdown()`, the host performs the same shutdown from its scope finalizer, passes the report to `BridgerOptions.onClose` and logs each failure at error level; it is not returned to anyone.
@@ -54,7 +54,6 @@ Non-Effect code hosts Bridger through `ManagedRuntime.make(Bridger.layer(options
 **Negative**:
 
 - Adapters must follow a two-step dispose and an explicit build-forcing step; getting either wrong loses a report or delays a startup failure.
-- How a forced build behaves is unconfirmed until a prototype runs.
 
 **Trade-off accepted**: a small, documented adapter discipline, in exchange for reusing Effect's runtime holder instead of a parallel Promise API in core.
 

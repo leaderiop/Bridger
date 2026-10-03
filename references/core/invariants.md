@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -219,8 +219,9 @@ interception wraps the service but leases the provider.
 
 **Implication**: a provider is never closed in the middle of a call that
 leased it ([RSK-BR-001](gxp/03-risk-assessment.md#rsk-br-001)). A revoked
-caller fails with `LeaseRevoked` after its finalizers have run, never with a
-closed resource. A reference that escapes its lease (`Runtime.optional`,
+`use`/`useAll` callback fails with `LeaseRevoked`, and a scoped-lease or
+`acquire` holder is interrupted (BEH-BR-086, BEH-BR-174), each after its
+finalizers have run; neither meets a closed resource. A reference that escapes its lease (`Runtime.optional`,
 `ContributionRegistry.get`, a value read out of a `Generation`) is not covered
 and is never described as protected.
 
@@ -317,7 +318,9 @@ settle — before its intent, so the wait is interruptible — and is then decid
 against the state the plugin landed in (BEH-BR-073); a call that arrives on a
 parked system stop, or whose awaited system stop parks while it waits,
 resumes it, or, for `retry` and `enable`, fails with
-`Conflict { pending: "dependency-loss" }` (BEH-BR-073, BEH-BR-074). Once
+`Conflict { pending: "dependency-loss" }` (BEH-BR-073, BEH-BR-074); a child's
+parked stop that removes it is resumed by no operator call but `remove`
+(BEH-BR-125). Once
 shutdown has begun, no stop parks: shutdown takes over every stop under its
 own limits (BEH-BR-105, BEH-BR-107).
 

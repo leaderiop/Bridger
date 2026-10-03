@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-021                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -27,13 +27,13 @@ Cordis disposes child plugins with their parent. Applications also want to treat
 **Children** are installed with `Plugin.Runtime.install(child, options)`, which requires the parent's activation `Scope`. The child is an ordinary plugin with its own state, requirements, leases and failures, plus four rules:
 
 - Its ID is prefixed with the parent's (`parent/child`) and its snapshot records `parentId`. It installs into the parent's realm and inherits the parent's interceptions unless `options` say otherwise.
-- It is removed when the parent's activation scope closes, dependents first and in last-in-first-out order with the parent's other finalizers. Removing, replacing, disabling or restarting the parent therefore removes its children, and the next activation mounts them again.
+- It is removed as a dependent of the parent when the parent stops, in reverse dependency order and before the parent's activation scope begins to close (BEH-BR-121). Removing, replacing, disabling or restarting the parent therefore removes its children, and the next activation mounts them again.
 - A failing child does not fail its parent; the failure is visible in the snapshot. A parent that must not run without a child awaits `handle.awaitActive` and reports the failure itself through `Plugin.Runtime.reportFailure`.
 - A child may require services its parent provides. The parent publishes only after its `build` succeeds, so such a child waits until then, and dependents-first removal keeps the parent's services alive for the child's teardown.
 
 **Groups** are `Plugin.group(id, members)`: a plugin that mounts `members` as children and provides nothing. It is removed, disabled, enabled and restarted as one unit, and its handle's `awaitActive` waits for every member. A group is sugar over children, not a second mechanism.
 
-**Audit.** Mounting a child and removing it with its parent are consequences of the parent's activation, not operator decisions. With an `AuditSink` wired they are recorded as `system-start` and `system-stop` records whose target is the child and whose `causationId` is the record that triggered the parent's transition; they are not gated, because approval of a child is approval of the parent's definition ([23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md)).
+**Audit.** Mounting a child and removing it with its parent are consequences of the parent's activation, not operator decisions. With an `AuditSink` wired they are recorded as `system-start` and `system-stop` records whose target is the child and whose `causationId` is, for a mount, the record that began the parent's activation and, for an unmount, the cascade root's record (BEH-BR-126, BEH-BR-190); they are not gated, because approval of a child is approval of the parent's definition ([23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md)).
 
 `install` returns a `PluginHandle` (`state`, `changes`, `awaitActive`, `remove`, `restart`) for children and top-level plugins alike. `PluginHandle.restart` has the same error union as `Host.restart`, including `DrainTimeout | WouldDeadlock` and the GxP errors; this corrects SPEC.md, which listed a narrower union for the handle.
 

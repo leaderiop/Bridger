@@ -5,20 +5,20 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-037                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): Example corrected: an acknowledgement emits `audit-acknowledged` (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
 ## Context
 
-`Host.events` already carries a monotonic `seq` per host. It is a diagnostic counter: the events feed is a sliding `PubSub`, a slow subscriber loses the oldest events, and a gap in `seq` is how it learns it lost them. Most events (`build-started`, `plugin-stalled`, `listener-failed`) are never audit records, and many audit records (`requested`, `rejected`, the acknowledgement of a latch) correspond to no event.
+`Host.events` already carries a monotonic `seq` per host. It is a diagnostic counter: the events feed is a sliding `PubSub`, a slow subscriber loses the oldest events, and a gap in `seq` is how it learns it lost them. Most events (`build-started`, `plugin-stalled`, `listener-failed`) are never audit records, and many audit records (`requested`, `rejected`, `joined`) correspond to no event.
 
 The audit trail needs a sequence with the opposite meaning. A reviewer, or `verifyAuditSequence`, must be able to treat any gap as a lost record. That only works if the sequence handed to the sink is contiguous by construction, so that every gap is a defect and none is expected. Timestamps cannot serve: clocks step under NTP, and two records can share a millisecond ([ADR-BR-025](../decisions/025-deterministic-time-and-ids.md)).
 

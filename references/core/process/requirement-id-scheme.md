@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-01                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Process Specification                                        |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): Check 11 described as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -127,7 +127,7 @@ checked mechanically by `scripts/verify-traceability.sh`:
 8. Every document carries a complete Document Control table with an allowed status, and none claims `Effective` or `Accepted` while the implementation is absent.
 9. Source and test paths marked *(Planned)* report `PLANNED`; a path marked Planned that exists on disk fails, forcing the status to be updated.
 10. Every `REQ-BR` is defined once in `traceability.md` §5 and cites defined `BEH-BR` identifiers.
-11. Restricted claim words (*validated*, *qualified*, *compliant*, *tamper-evident*, *durable*) appear only on lines listed in `scripts/claims-allowlist.txt`, and every allowlisted line still exists.
+11. Restricted claim words (*validated*, *qualified*, *compliant*, *compliance-ready*, *tamper-evident* or *-proof*, *durable* or *durability*) appear only in a negated or allocating context (a negation, *consumer*, *companion*, *claim* and similar words, on the line or the two before it) or on lines listed in `scripts/claims-allowlist.txt`, and every allowlisted line still exists.
 12. Every relative link resolves, including its `#anchor`.
 13. Every `CCR-BR` cited anywhere is in the README document history.
 14. Every heading of `docs/SPEC.md` appears in `appendices/spec-md-migration-map.md`, and `docs/SPEC.md` carries its superseded banner.

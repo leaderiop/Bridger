@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-02                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Process Specification                                        |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): What `implementation: partial` changes, as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 _Previous: [Requirement Identifier Scheme](./requirement-id-scheme.md)_
 
@@ -54,9 +54,10 @@ before the code that must pass it.
 | 12 | `node scripts/check-package-install.mjs` | Packed packages install, resolve and run a smoke host | Not yet runnable |
 | 13 | `stryker run` | Mutation score ≥ 80% on `packages/core` ([NFR-BR-008](../urs.md#nfr-br-008-mutation-testing)) | Not yet runnable |
 
-When code exists, `implementation:` in the README moves to `partial`, and the
-traceability script starts requiring that every path marked *Planned* either
-still does not exist or has been re-marked *Exists*.
+When code exists, `implementation:` in the README moves to `partial`; the
+traceability script then stops refusing `Effective` documents and `Accepted`
+decisions (check 8). Check 9 already fails any path marked *Planned* that
+exists.
 
 ## Per-change checklist
 

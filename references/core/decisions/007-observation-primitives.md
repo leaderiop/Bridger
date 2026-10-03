@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-007                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-03): Stale "unconfirmed" consequence removed; confirmed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -54,7 +54,6 @@ Two feeds, each built on the existing Effect primitive for its shape (SPEC.md "A
 **Negative**:
 
 - A slow state subscriber does not see intermediate revisions; a slow event subscriber loses events. Consumers needing persistent history persist the events themselves, or wire an audit sink.
-- Per-subscriber lag behaviour is unconfirmed until a prototype runs.
 
 **Trade-off accepted**: two lossy-by-design diagnostic feeds, each explicit about its loss, in exchange for observation that never slows the host; the audit record is a separate port, with its own sequence and its own failure policy, whose losses are signalled by the audit-degraded latch rather than hidden ([ADR-BR-031](../decisions/031-audit-failure-policy.md)).
 

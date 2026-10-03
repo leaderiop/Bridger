@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-015                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): `DrainTimeout` fields and parking aligned with BEH-BR-074 and BEH-BR-085; second pass: `id` also names a dependent whose build the call waited for, every unsettled stop of a failing call parks, shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-03): Scoped-lease revocation interrupts the acquiring fiber (G12, BEH-BR-086); paths with no caller revoke without `force` (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `DrainTimeout` fields and parking aligned with BEH-BR-074 and BEH-BR-085; second pass: `id` also names a dependent whose build the call waited for, every unsettled stop of a failing call parks, shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -32,7 +32,7 @@ SPEC.md also offers three entry points: `use` (one key, one callback), `useAll` 
 4. **Force.** With `force: true`, after the drain limit the host interrupts the remaining callbacks, waits for their finalizers, then closes the scope. Interrupted callbacks fail with `LeaseRevoked`. Forcing is *reported* as a host event (`lease-revoked`); with an `AuditSink` wired it is *also* an audit record (system transition `lease-revoked`). (SPEC.md said "audited as a host event"; a host event is a diagnostic, not an audit record, so the wording is corrected.) Interruption does not undo external effects.
 5. **Supervised child edge rules.** The host never interrupts the caller's own fiber. If the caller is interrupted while the callback runs, the host interrupts the child, awaits its finalizers, and only then releases the lease. The child inherits the caller's fiber references (span, log annotations, `@bridger/core/HeldPlugins`, `@bridger/core/CurrentActor`) and `R` environment. The callback's own failures and defects propagate unchanged; `LeaseRevoked` and `LeaseTimeout` appear only when the host interrupted the child. Fibers the callback forks outside the child's scope are not leased.
 6. **Per-call timeout.** `options.timeout` bounds one callback; expiry interrupts the child and fails with `LeaseTimeout { serviceId, timeout }` (built on `Effect.timeoutOrElse` over the supervised child).
-7. **Scoped leases** follow the same drain and force rules; a forced revocation closes the lease's scope contribution, so the holder observes interruption of fibers it forked under the lease.
+7. **Scoped leases** follow the same drain and force rules; a forced revocation of a scoped lease interrupts the fiber that acquired it, and with it the fibers forked under the lease (BEH-BR-086); a holder for whom that is unacceptable uses `use` or `useAll`.
 
 ## Alternatives considered
 
@@ -45,7 +45,7 @@ SPEC.md also offers three entry points: `use` (one key, one callback), `useAll` 
 
 **Positive**:
 
-- No provider closes under an admitted call unless the drain limit is reached and `force` was chosen.
+- No provider closes under an admitted call unless the drain limit is reached and `force` was chosen, or the path has no caller (runtime failure, a cascade with no caller, the overall shutdown limit).
 - Every drain ends, either in success, `DrainTimeout`, or a forced, reported revocation.
 
 **Negative**:
@@ -54,7 +54,7 @@ SPEC.md also offers three entry points: `use` (one key, one callback), `useAll` 
 - Each `use` costs a child fiber.
 - A forced revocation can interrupt a write halfway ([RSK-BR-015](../gxp/03-risk-assessment.md#rsk-br-015)); regulated consumers choose drain limits that make forcing exceptional, and make writes idempotent or transactional.
 
-**Trade-off accepted**: an extra fiber per call and an unprotected escape hatch, in exchange for leases that are always bounded and a revocation that never reaches the caller's own fiber.
+**Trade-off accepted**: an extra fiber per call and an unprotected escape hatch, in exchange for leases that are always bounded and a revocation that never reaches the caller's own fiber under `use` or `useAll`.
 
 ## References
 
