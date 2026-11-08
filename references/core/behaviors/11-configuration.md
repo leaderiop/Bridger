@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-11                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-03): BEH-BR-103 values may leave core only to the optional `ConfigFingerprinter` port at step 4a of BEH-BR-188; `configChange: { paths, fingerprints? }`; Settled paragraph (CCR-BR-014)<br>0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -330,15 +330,18 @@ emitted; the operation completes as a no-op success (audited with
 ## BEH-BR-103: Configuration values are never observable
 
 > **Invariant:** [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable), [INV-BR-028](../invariants.md#inv-br-028-audit-records-carry-no-configuration-values)
-> **See:** [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md), [ADR-BR-033](../decisions/033-no-config-values-in-audit.md)
+> **See:** [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md), [ADR-BR-033](../decisions/033-no-config-values-in-audit.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
 > **Satisfies:** [URS-BR-007](../urs.md#urs-br-007-configure-plugins-safely-including-secrets-and-live-changes)
-> **Risk:** [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008)
+> **Risk:** [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008), [RSK-BR-024](../gxp/03-risk-assessment.md#rsk-br-024)
 
 ```
 REQUIREMENT: Configuration values — raw, decoded, override or source, secret
              or not — MUST NOT be placed in snapshots, host events, logs,
              spans, metrics, error values, `inspect` results, audit records
-             or `OperationRequest`s.
+             or `OperationRequest`s. The one place a value MAY leave core is
+             the consumer's optional `ConfigFingerprinter` port, at step 4a
+             of BEH-BR-188, and then only the values of the paths the port
+             selected (22 — Attributable Operations).
 ```
 
 ```
@@ -349,7 +352,11 @@ REQUIREMENT: `ConfigInvalid.message` MUST describe decode issues by path and
 ```
 REQUIREMENT: Where an audit record or an `OperationRequest` describes a
              configuration change, it MUST carry only
-             `configChange: { paths }`, the paths of the changed fields.
+             `configChange: { paths, fingerprints? }`: the paths of the
+             changed fields and, when a `ConfigFingerprinter` is wired, the
+             fingerprints its port returned for the selected paths
+             (23 — Audit Sink and Record, BEH-BR-197). Core MUST NOT
+             compute a fingerprint or hash of a value itself.
 ```
 
 The only consumer of a configuration value is the plugin it belongs to.
@@ -357,8 +364,10 @@ Everything else — operators, dashboards, the audit trail, the approval gate �
 needs to know *that* a value changed and *which* field, never *what* it
 became. Keeping values out of every observable surface means a secret cannot
 leak through a diagnostic channel added later, because no such channel ever
-receives one. Audit records carry changed paths only
-([ADR-BR-033](../decisions/033-no-config-values-in-audit.md)); an approver
+receives one. Audit records carry changed paths only, and at most the
+fingerprints a consumer's own port returned
+([ADR-BR-033](../decisions/033-no-config-values-in-audit.md),
+[ADR-BR-039](../decisions/039-config-fingerprint-port.md)); an approver
 who needs to see a proposed value obtains it from the consumer's own
 change-control system, not from Bridger.
 
@@ -368,6 +377,21 @@ quoted, redacted or not, because a schema that forgot to mark a secret
 `Redacted` would otherwise leak it through an error. A plugin's *own* errors
 and causes are its author's responsibility; the core never inserts a
 configuration value into them.
+
+**Settled here (CCR-BR-014).** An approver who must bind an approval to the
+value it covers, and not only to its path, can do so through fingerprints
+supplied by the consumer's own `ConfigFingerprinter` port
+([ADR-BR-039](../decisions/039-config-fingerprint-port.md)). The port is
+asked for a selection by path first and receives only the selected values;
+it receives no attribution, and a failure of it fails the call closed with a
+message core writes itself
+([22 — Attributable Operations](./22-attributable-operations.md),
+BEH-BR-188, step 4a). A fingerprint is not a configuration value: it is the
+port's string, carried unchanged, and core computes none. With no
+fingerprinter wired, `configChange` carries paths only and no value ever
+leaves core. The risk that a port passes values on is
+[RSK-BR-024](../gxp/03-risk-assessment.md#rsk-br-024); the port is the
+consumer's to review.
 
 ## BEH-BR-104: meta is opaque except where named
 

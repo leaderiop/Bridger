@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -666,6 +666,35 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  install of the final set on `Bridger.make` (BEH-BR-177,
                  BEH-BR-178; 18 — Reconciliation and Confluence,
                  BEH-BR-160).
+             55. Configuration fingerprints: with a `ConfigFingerprinter`
+                 wired, `install` with `config` and `reconfigure` with a
+                 value compute fingerprints at step 4a, after validation and
+                 before the gate; only the values of the paths `select`
+                 returned are handed to `fingerprint`; the
+                 `OperationRequest` and the call's records carry equal
+                 `configChange` values, fingerprints included; a clear and a
+                 system transition hand nothing to the port; and no actor,
+                 reason or correlation reaches the port (22 — Attributable
+                 Operations, BEH-BR-188; 23 — Audit Sink and Record,
+                 BEH-BR-197; 25 — Operation Gate, BEH-BR-219).
+             56. A fingerprinter that fails, dies, exceeds
+                 `fingerprintTimeout` or answers malformed — a selection
+                 outside the changed paths, a missing or extra path, a
+                 fingerprint outside the format — fails the call with
+                 `ConfigFingerprintUnavailable` before the gate: no record
+                 is written, nothing changes, and the error's `message` is
+                 written by core, not taken from the port (BEH-BR-188).
+             57. `Host.controls` reports the host's wiring and limits; its
+                 `auditPosition.lastWritten` follows the writer and never
+                 decreases; it stays readable after the host closes; and the
+                 `CloseReport` carries `auditLastSeq`, the highest `auditSeq`
+                 written when the report is produced (12 — Shutdown and
+                 Hosting, BEH-BR-106; 24 — Time, Identifiers and Sequence,
+                 BEH-BR-212).
+             58. The `requested` and `rejected` records of a
+                 plugin-addressed operation carry the presented definition,
+                 equal to `OperationRequest.definition`; its terminal records
+                 do not (BEH-BR-195, BEH-BR-219).
 ```
 
 Checks 31–42 exist because the GxP hooks are only worth specifying if each

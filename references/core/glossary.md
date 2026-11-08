@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -240,6 +240,14 @@ audit trail is the regulated system's role.
 The contiguous, per-host sequence number of audit records; authoritative for
 their order.
 
+### Audit position
+
+The highest `auditSeq` the host's sink has accepted (`lastWritten`), reported
+by `Host.controls` when a sink is wired; per host, it never decreases, and it
+stays readable after the host closes, so the final high-water mark can be read
+once the writer has flushed (BEH-BR-212). `CloseReport.auditLastSeq` is the
+same number at the moment the report is produced (BEH-BR-106).
+
 ### Audit-degraded latch
 
 The host condition, after a terminal, `rejected` or system record (or
@@ -247,6 +255,15 @@ The host condition, after a terminal, `rejected` or system record (or
 for writer-queue overflow, in which operator mutations are refused until
 acknowledged (BEH-BR-205). An ordinary call whose `requested` record cannot be
 written fails with `AuditUnavailable` instead and sets no latch.
+
+### Fingerprint
+
+An opaque string standing for a configuration value without revealing it,
+produced by the consumer's optional `ConfigFingerprinter` port at step 4a of
+a call, for paths the port selected, and carried in `configChange` next to
+the paths (BEH-BR-188, BEH-BR-197). A fingerprint is not a configuration value;
+core computes none, and whether one resists guessing depends on the port
+alone (ADR-BR-039, RSK-BR-024).
 
 ### Operation gate
 

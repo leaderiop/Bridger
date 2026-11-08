@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-02                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -144,6 +144,7 @@ interface BridgerOptions<EBase = never> {
   }
   readonly auditTimeout?: Duration.Input               // per audit write; default 10 seconds (23)
   readonly gateTimeout?: Duration.Input | "forever"    // per OperationGate.authorize; default 60 seconds (25)
+  readonly fingerprintTimeout?: Duration.Input         // per ConfigFingerprinter call; default 5 seconds (22)
 }
 
 type ConfigSource = ConfigProvider.ConfigProvider | ((id: string) => Effect.Effect<unknown>)
@@ -159,10 +160,11 @@ REQUIREMENT: An omitted option MUST take exactly the default shown. A host
 REQUIREMENT: Construction MUST reject an option value outside its domain —
              a `concurrency` that is not a positive integer or "unbounded";
              an `eventBuffer` that is not a positive integer; a
-             `buildTimeout`, `shutdownTimeout` or `auditTimeout` that is not
-             a positive duration; a `drainTimeout`, `gateTimeout` or
-             `stallWarning` that is neither a positive duration nor its named
-             keyword — by failing with a defect that names the option, before
+             `buildTimeout`, `shutdownTimeout`, `auditTimeout` or
+             `fingerprintTimeout` that is not a positive duration (for
+             `fingerprintTimeout`, "forever" is not accepted); a
+             `drainTimeout`, `gateTimeout` or `stallWarning` that is
+             neither a positive duration nor its named keyword — by failing with a defect that names the option, before
              any base layer is built.
 ```
 
@@ -183,11 +185,16 @@ never becomes idle.
 specification rejects them at construction with a defect rather than clamping
 them, because a clamped value is a configuration the operator did not ask
 for, and because a misconfigured host is a programming error, not a
-recoverable condition. `attribution`, `auditTimeout` and `gateTimeout` are new
-options from the GxP hooks ([22](../behaviors/22-attributable-operations.md),
+recoverable condition. `attribution`, `auditTimeout`, `gateTimeout` and
+`fingerprintTimeout` are new options from the GxP hooks
+([22](../behaviors/22-attributable-operations.md),
 [23](../behaviors/23-audit-sink-and-record.md),
 [25](./25-operation-gate.md)); a gate that times out is treated as a refusal,
 so approvals are meant to be obtained before the call, not by holding it open.
+`fingerprintTimeout` (CCR-BR-014) bounds the `ConfigFingerprinter` at step 4a
+of [22](../behaviors/22-attributable-operations.md) (BEH-BR-188); it has no
+"forever", because a fingerprint is computed by the consumer's own code and a
+port that does not answer within a bounded time fails the call closed.
 
 ## BEH-BR-012: Base services are a Context or a Layer
 
@@ -243,7 +250,7 @@ promises nothing about it beyond using it.
 interface Host {
   // — mutating operations —
   install<R extends Keys, P extends Keys, E, C>(plugin: PluginDefinition<R, P, E, C>, options?: InstallOptions):
-    Effect.Effect<PluginHandle, InstallError | HostClosed | G>                                    // 03
+    Effect.Effect<PluginHandle, InstallError | ConfigFingerprintUnavailable | HostClosed | G>     // 03
   remove(ref: PluginRef, options?: RemoveOptions):
     Effect.Effect<void, UnknownPlugin | CleanupError | DrainTimeout | WouldDeadlock | HostClosed | G>   // 06
   replace<R extends Keys, P extends Keys, E, C>(plugin: PluginDefinition<R, P, E, C>, options?: ReplaceOptions):
@@ -252,8 +259,8 @@ interface Host {
   retry(ref: PluginRef, options?: OperationOptions):
     Effect.Effect<void, UnknownPlugin | Conflict | WouldDeadlock | HostClosed | G>               // 07
   reconfigure(ref: PluginRef, config?: unknown, options?: OperationOptions):
-    Effect.Effect<void, UnknownPlugin | ConfigInvalid | Conflict | Superseded | CleanupError
-      | DrainTimeout | WouldDeadlock | HostClosed | G>                                           // 11
+    Effect.Effect<void, UnknownPlugin | ConfigInvalid | ConfigFingerprintUnavailable | Conflict
+      | Superseded | CleanupError | DrainTimeout | WouldDeadlock | HostClosed | G>               // 11
   restart(ref: PluginRef, options?: RemoveOptions):
     Effect.Effect<void, UnknownPlugin | Conflict | Superseded | CleanupError
       | DrainTimeout | WouldDeadlock | HostClosed | G>                                           // 07
@@ -279,6 +286,7 @@ interface Host {
   awaitIdle(options?: { readonly timeout?: Duration.Input }):
     Effect.Effect<HostSnapshot, IdleTimeout | WouldDeadlock | HostClosed>                        // 05
   inspect(ref: PluginRef): Effect.Effect<PluginInspection, UnknownPlugin | HostClosed>           // 13
+  controls(): Effect.Effect<HostControls>                                                        // 24
 
   // — leases (not mutating) —
   use<Service, A, E, R>(key: Context.Key<any, Service>, run: (service: Service) => Effect.Effect<A, E, R>,
@@ -338,7 +346,7 @@ and `lease` carry no `HostClosed`: after shutdown begins every provider is
 stopping or gone, and they fail with `ServiceUnavailable`
 ([09 — Leases](./09-leases.md)).
 
-**Settled here.** The error unions differ from SPEC.md in six places, each to
+**Settled here.** The error unions differ from SPEC.md in seven places, each to
 make a reachable outcome representable rather than leave it to a defect or to
 a silent success:
 
@@ -368,6 +376,20 @@ a silent success:
    for a running system stop of the plugin it names (08 — Operation
    Legality, BEH-BR-073), and a call from a fiber that holds that plugin
    would wait for itself ([09 — Leases](./09-leases.md), BEH-BR-088).
+7. `install` and `reconfigure` add `ConfigFingerprintUnavailable`
+   (CCR-BR-014): when a `ConfigFingerprinter` is wired, `install` with
+   `config` and `reconfigure` with a value ask it for fingerprints before the
+   gate, and a port that fails, times out or answers outside its contract
+   fails the call closed ([22 — Attributable
+   Operations](../behaviors/22-attributable-operations.md), BEH-BR-188, step
+   4a; [ADR-BR-039](../decisions/039-config-fingerprint-port.md)). For
+   `reconcile` it is a per-entry failure reported in the report, not an error
+   of the call ([18 — Reconciliation and
+   Confluence](./18-reconciliation-and-confluence.md)). The host also gains
+   `controls()`, a read-only observation of its wiring, its GxP limits and
+   its audit position ([24 — Time, Identifiers and
+   Sequence](./24-time-ids-and-sequence.md), BEH-BR-212); it has no error,
+   and it stays readable after the host has closed.
 
 ## BEH-BR-014: Every mutating operation takes OperationOptions and reports the GxP errors
 
@@ -406,7 +428,8 @@ REQUIREMENT: The error union of every mutating operation MUST include
 
 ```
 REQUIREMENT: `snapshot`, `changes`, `events`, `awaitIdle`, `inspect`,
-             `use`, `useAll` and `lease` are not mutating operations. They
+             `controls`, `use`, `useAll` and `lease` are not mutating
+             operations. They
              MUST NOT require attribution, consult the `OperationGate`, or
              write audit records.
 ```
@@ -426,14 +449,15 @@ hides that it can be refused for an attribution, audit or approval reason.
 ## BEH-BR-015: Optional GxP ports are resolved once, at construction
 
 > **Invariant:** [INV-BR-026](../invariants.md#inv-br-026-an-unwired-sink-or-gate-changes-nothing)
-> **See:** [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-025](../decisions/025-deterministic-time-and-ids.md)
+> **See:** [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-025](../decisions/025-deterministic-time-and-ids.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
 > **Risk:** [RSK-BR-014](../gxp/03-risk-assessment.md#rsk-br-014), [RSK-BR-006](../gxp/03-risk-assessment.md#rsk-br-006)
 
 ```
-REQUIREMENT: The host MUST read `AuditSink` and `OperationGate` with
-             `Effect.serviceOption` from the environment in which
-             `Bridger.layer` or `Bridger.make` runs, once, at construction.
-             It MUST NOT re-resolve them for the lifetime of the host.
+REQUIREMENT: The host MUST read `AuditSink`, `OperationGate` and
+             `ConfigFingerprinter` with `Effect.serviceOption` from the
+             environment in which `Bridger.layer` or `Bridger.make` runs,
+             once, at construction. It MUST NOT re-resolve them for the
+             lifetime of the host.
 ```
 
 ```
@@ -448,9 +472,12 @@ REQUIREMENT: `HostSnapshot.audit` MUST be "wired" when an `AuditSink` was
 ```
 
 ```
-REQUIREMENT: A host constructed without an `AuditSink` or without an
-             `OperationGate` MUST behave, in every lifecycle respect, exactly
-             as a host for which those ports do not exist.
+REQUIREMENT: A host constructed without an `AuditSink`, without an
+             `OperationGate` or without a `ConfigFingerprinter` MUST behave,
+             in every lifecycle respect, exactly as a host for which those
+             ports do not exist. Without a `ConfigFingerprinter`, step 4a
+             of BEH-BR-188 MUST be skipped and `configChange` MUST carry
+             paths only (22 — Attributable Operations).
 ```
 
 **Settled here.** SPEC.md predates the GxP ports and so says nothing about
@@ -460,7 +487,12 @@ not for the rest, with nothing in the record showing where the gap began
 (RSK-BR-006); and a gate that could appear or vanish between calls would make
 "cannot be bypassed through the Host it guards" untestable (RSK-BR-014). A
 host's wiring is therefore a fixed fact of that host, reported in its
-snapshot.
+snapshot. The `ConfigFingerprinter` (CCR-BR-014,
+[ADR-BR-039](../decisions/039-config-fingerprint-port.md)) is read under the
+same rule, for the same reason: fingerprints that appeared on some changes
+and not on others would leave approvals bound to some values and not to
+others with nothing showing why. Which ports are wired is also reported by
+`Host.controls` (24 — Time, Identifiers and Sequence, BEH-BR-212).
 
 ## BEH-BR-016: Each host has a distinct hostId
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-018                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-10-03): Values may leave core only to the consumer's `ConfigFingerprinter` port at step 4a of BEH-BR-188; fingerprints are carried with the paths (ADR-BR-039) (CCR-BR-014)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -31,7 +31,7 @@ Plugins need configuration, some of it secret (credentials, keys), some of it ch
 - **Read at every activation.** The source is read at every activation (first start, restart after a dependency returns, `retry`, `replace`, `reconfigure`), so the source is the single default and never stale.
 - **Override.** `reconfigure(ref, raw)` checks `raw` first (`ConfigInvalid` leaves the running plugin untouched) and stores it as an override for that ID, taking precedence over the source. `reconfigure(ref)` without a value clears the override and re-reads the source. `restart` keeps the override; `remove` and `replace` drop it (a new definition may have a new schema); on a `disabled` plugin it is stored for the next `enable`.
 - **Volatile fields.** If the decoded difference is confined to fields listed in `volatile`, `reconfigure` updates the stored value, publishes to `Plugin.Config.changes`, emits `config-updated { id, paths }` and changes no state. Any other difference restarts the plugin and its dependents through the `replace` stop/start path.
-- **Never observable.** Configuration values never appear in snapshots, events, logs, spans, `inspect` results, error fields, `OperationRequest`s or audit records. Where a change must be described, only the changed *paths* are carried (`config-updated`, `AuditRecord.configChange.paths`; [ADR-BR-033](../decisions/033-no-config-values-in-audit.md)). `ConfigInvalid.message` names the failing paths and the expected forms and omits the offending values, all of them and not only `Redacted` ones. (SPEC.md says only that `Redacted` values are omitted; a non-redacted value echoed in an error would still make configuration observable, so this ADR takes the stricter reading.)
+- **Never observable.** Configuration values never appear in snapshots, events, logs, spans, `inspect` results, error fields, `OperationRequest`s or audit records. Where a change must be described, only the changed *paths* are carried (`config-updated`, `AuditRecord.configChange.paths`; [ADR-BR-033](../decisions/033-no-config-values-in-audit.md)), with, when the consumer wires a `ConfigFingerprinter`, the fingerprints that port returned (`configChange.fingerprints`), which are not values. That port is the one place a value leaves core: at step 4a of BEH-BR-188 core hands it the selected values of a new override, and no other value and nothing else ([22 — Attributable operations](../behaviors/22-attributable-operations.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)). `ConfigInvalid.message` names the failing paths and the expected forms and omits the offending values, all of them and not only `Redacted` ones. (SPEC.md says only that `Redacted` values are omitted; a non-redacted value echoed in an error would still make configuration observable, so this ADR takes the stricter reading.)
 
 ## Alternatives considered
 
@@ -62,5 +62,5 @@ Plugins need configuration, some of it secret (credentials, keys), some of it ch
 - Invariants: [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable), [INV-BR-028](../invariants.md#inv-br-028-audit-records-carry-no-configuration-values), [INV-BR-003](../invariants.md#inv-br-003-publication-is-atomic)
 - Requirements: [URS-BR-007](../urs.md#urs-br-007-configure-plugins-safely-including-secrets-and-live-changes)
 - Risks: [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008)
-- Decisions: [ADR-BR-002](../decisions/002-plugin-build-is-a-layer.md), [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-008](../decisions/008-error-taxonomy.md), [ADR-BR-033](../decisions/033-no-config-values-in-audit.md)
+- Decisions: [ADR-BR-002](../decisions/002-plugin-build-is-a-layer.md), [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-008](../decisions/008-error-taxonomy.md), [ADR-BR-033](../decisions/033-no-config-values-in-audit.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
 - Source: `docs/SPEC.md` — "Configuration and metadata", "Volatile configuration", "Errors" (`ConfigInvalid`)

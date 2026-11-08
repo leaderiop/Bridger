@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -449,11 +449,17 @@ leaving the old plugin `active`.
 
 No configuration value — raw, decoded, override or source, secret or not —
 appears in a snapshot, host event, log, span, metric, error value, `inspect`
-result, audit record or `OperationRequest`.
+result, audit record or `OperationRequest`. The one place a value leaves core
+is the consumer's own `ConfigFingerprinter` port, at step 4a of BEH-BR-188,
+which receives only the values of the paths it selected and returns opaque
+fingerprints; a fingerprint is not a configuration value, and core computes
+no fingerprint or hash itself (CCR-BR-014,
+[ADR-BR-039](decisions/039-config-fingerprint-port.md)).
 
 **Source**: `packages/core/src/Config.ts` *(Planned)* — the decoded value is
 delivered only as the activation's `Plugin.Config` service; the only
-derivative that leaves the module is a list of changed field paths, and
+derivative that leaves the module is a list of changed field paths, the
+selected values go only to a wired `ConfigFingerprinter`, and
 `ConfigInvalid.message` is formatted from issue paths and expected forms
 alone. `packages/core/src/Snapshot.ts`, `packages/core/src/Events.ts` and
 `packages/core/src/Audit.ts` *(all Planned)* define their types with no field
@@ -468,10 +474,12 @@ is invisible until it has leaked.
 **Verification** *(Planned)*: a property test that supplies configurations
 containing sentinel strings (in plain and `Redacted` fields), drives every
 operation including decode failures, and scans every observable output for
-the sentinels; a type-level check that the snapshot, event, error,
-`AuditRecord` and `OperationRequest` types carry no configuration value.
+the sentinels, with a recording `ConfigFingerprinter` wired that asserts it
+receives only the selected paths' values; a type-level check that the
+snapshot, event, error, `AuditRecord` and `OperationRequest` types carry no
+configuration value.
 
-**Related**: [BEH-BR-028](behaviors/04-states-and-snapshots.md), [BEH-BR-103](behaviors/11-configuration.md), [BEH-BR-118](behaviors/13-observability-and-diagnostics.md), [BEH-BR-192](behaviors/22-attributable-operations.md), [BEH-BR-197](behaviors/23-audit-sink-and-record.md), [BEH-BR-219](behaviors/25-operation-gate.md), [ADR-BR-018](decisions/018-configuration-decoded-before-build.md), [ADR-BR-033](decisions/033-no-config-values-in-audit.md), [ADR-BR-008](decisions/008-error-taxonomy.md).
+**Related**: [BEH-BR-028](behaviors/04-states-and-snapshots.md), [BEH-BR-103](behaviors/11-configuration.md), [BEH-BR-118](behaviors/13-observability-and-diagnostics.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [BEH-BR-192](behaviors/22-attributable-operations.md), [BEH-BR-197](behaviors/23-audit-sink-and-record.md), [BEH-BR-219](behaviors/25-operation-gate.md), [ADR-BR-018](decisions/018-configuration-decoded-before-build.md), [ADR-BR-033](decisions/033-no-config-values-in-audit.md), [ADR-BR-039](decisions/039-config-fingerprint-port.md), [ADR-BR-008](decisions/008-error-taxonomy.md).
 
 ---
 
@@ -937,10 +945,13 @@ action.
 A host constructed with no `AuditSink`, no `OperationGate` and default
 `attribution` behaves exactly as files 02–21 specify — the same outcomes,
 errors, snapshots and events, with no added waiting — and nothing in it
-claims an audit exists.
+claims an audit exists. Likewise, a host with no `ConfigFingerprinter` wired
+skips step 4a of BEH-BR-188: its records and requests carry `configChange`
+with paths only, no call fails with `ConfigFingerprintUnavailable`, and
+`fingerprintTimeout` has no effect (CCR-BR-014).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — `AuditSink`,
-`OperationGate` and `IdGenerator` are read once, at construction, with
+`OperationGate`, `ConfigFingerprinter` and `IdGenerator` are read once, at construction, with
 `Effect.serviceOption`, and are not in the requirements of `Bridger.layer` or
 `Bridger.make`. With no sink, `packages/core/src/Audit.ts` *(Planned)* creates
 no record, `auditTimeout` has no effect and the latch is never set; with no
@@ -960,9 +971,10 @@ a host with no ports; a differential property test comparing, for generated
 operation scripts, a host with no ports against one wired with the in-memory
 sink fixture and a scripted gate that allows every request, asserting equal
 outcomes, snapshots and events apart from audit fields; a type-level check
-that `Bridger.layer`'s requirements exclude `AuditSink` and `OperationGate`.
+that `Bridger.layer`'s requirements exclude `AuditSink`, `OperationGate` and
+`ConfigFingerprinter`.
 
-**Related**: [BEH-BR-015](behaviors/02-host-construction.md), [BEH-BR-192](behaviors/22-attributable-operations.md), [BEH-BR-193](behaviors/23-audit-sink-and-record.md), [BEH-BR-194](behaviors/23-audit-sink-and-record.md), [BEH-BR-217](behaviors/25-operation-gate.md), [ADR-BR-030](decisions/030-audit-sink-port.md), [ADR-BR-032](decisions/032-operation-gate.md), [ADR-BR-028](decisions/028-gxp-scope.md).
+**Related**: [BEH-BR-015](behaviors/02-host-construction.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [BEH-BR-192](behaviors/22-attributable-operations.md), [BEH-BR-193](behaviors/23-audit-sink-and-record.md), [BEH-BR-194](behaviors/23-audit-sink-and-record.md), [BEH-BR-217](behaviors/25-operation-gate.md), [ADR-BR-030](decisions/030-audit-sink-port.md), [ADR-BR-032](decisions/032-operation-gate.md), [ADR-BR-039](decisions/039-config-fingerprint-port.md), [ADR-BR-028](decisions/028-gxp-scope.md).
 
 ---
 
@@ -1006,7 +1018,12 @@ interrupted while the gate is deciding.
 
 No `AuditRecord` and no `OperationRequest` contains a configuration value —
 raw, decoded, redacted, hashed or summarized — in any field; a configuration
-change is described only by `configChange: { paths }`.
+change is described only by `configChange: { paths, fingerprints? }`. The one
+exception is `fingerprints`: opaque strings produced by the consumer's
+`ConfigFingerprinter` port at step 4a of BEH-BR-188, for a subset of `paths`.
+A fingerprint is not a configuration value, and core computes no fingerprint
+or hash itself (CCR-BR-014,
+[ADR-BR-039](decisions/039-config-fingerprint-port.md)).
 
 **Source**: `packages/core/src/Config.ts` *(Planned)* — for `reconfigure`,
 whose value is decoded at the call, computes the paths of the decoded fields
@@ -1016,24 +1033,29 @@ is an activation failure), takes the top-level keys of the raw override
 object, never its values. It returns nothing else.
 `packages/core/src/Audit.ts` and
 `packages/core/src/OperationGate.ts` *(both Planned)* build records and
-requests from those paths only, and core-produced `error.message` text is
+requests from those paths and the port's fingerprints only, carried
+unchanged after core has checked that each selected path is answered once in
+the fingerprint format, and core-produced `error.message` text is
 drawn from errors that themselves carry no value
 ([INV-BR-013](#inv-br-013-configuration-values-are-never-observable)).
 
 **Implication**: an audit trail is kept long and read widely; a secret that
 reached it would be exposed for the trail's whole retention
-([RSK-BR-008](gxp/03-risk-assessment.md#rsk-br-008)). Hashing is excluded
-too, because a hash of a low-entropy secret can be reversed by guessing.
+([RSK-BR-008](gxp/03-risk-assessment.md#rsk-br-008)). Hashing by core is
+excluded too, because a hash of a low-entropy secret can be reversed by
+guessing; whether a consumer's fingerprint resists that is the consumer's
+port's property ([RSK-BR-024](gxp/03-risk-assessment.md#rsk-br-024)).
 
 **Verification** *(Planned)*: a property test supplying configurations
 containing sentinel strings in plain and `Redacted` fields through `install`,
 `reconfigure` and `reconcile`, asserting no record or request contains a
-sentinel or a value derived from it, and that `paths` lists exactly the
+sentinel or a value derived from it other than the wired port's fingerprints
+for selected paths, and that `paths` lists exactly the
 changed fields (for `reconfigure`) or exactly the raw override's top-level
 keys (for `install`); a type-level check that `AuditRecord` and `OperationRequest`
 have no field typed to hold a configuration value.
 
-**Related**: [BEH-BR-022](behaviors/03-installation.md), [BEH-BR-103](behaviors/11-configuration.md), [BEH-BR-197](behaviors/23-audit-sink-and-record.md), [BEH-BR-219](behaviors/25-operation-gate.md), [ADR-BR-033](decisions/033-no-config-values-in-audit.md), [ADR-BR-018](decisions/018-configuration-decoded-before-build.md).
+**Related**: [BEH-BR-022](behaviors/03-installation.md), [BEH-BR-103](behaviors/11-configuration.md), [BEH-BR-197](behaviors/23-audit-sink-and-record.md), [BEH-BR-219](behaviors/25-operation-gate.md), [ADR-BR-033](decisions/033-no-config-values-in-audit.md), [ADR-BR-039](decisions/039-config-fingerprint-port.md), [ADR-BR-018](decisions/018-configuration-decoded-before-build.md).
 
 ---
 

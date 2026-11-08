@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-22                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-02): Interruption outcome per stage of the call order; approval-to-`requested` passage uninterruptible; record-only `Interrupted` wins over a later `AuditUnavailable`; `WouldDeadlock` checked before any wait and at the linearization point; resumption of a parked stop is the call's intent; causation of system records in cascades; second review pass: `SystemTransition` "intent-ended" and its cause; a child's removal caused by the cascade root's record; pre-intent waits are a running system stop and the call's turn only; a `requested` record dropped for overflow fails the call at once (CCR-BR-008)<br>0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-10-03): BEH-BR-188 step 4a — configuration fingerprints from the optional `ConfigFingerprinter` port, after validation and before the gate: when the port is called and never called, `select` before `fingerprint`, only selected values handed over, no attribution to the port, validation of the answer, `fingerprintTimeout`, fail-closed `ConfigFingerprintUnavailable` with a core-written message, interruption outcome, stored fingerprints reused without calling the port; BEH-BR-192 attribution never reaches the fingerprinter, and an unwired fingerprinter changes nothing; BEH-BR-186 `controls` added to the read-only operations; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015)<br>0.4 (2026-10-02): Interruption outcome per stage of the call order; approval-to-`requested` passage uninterruptible; record-only `Interrupted` wins over a later `AuditUnavailable`; `WouldDeadlock` checked before any wait and at the linearization point; resumption of a parked stop is the call's intent; causation of system records in cascades; second review pass: `SystemTransition` "intent-ended" and its cause; a child's removal caused by the cascade root's record; pre-intent waits are a running system stop and the call's turn only; a `requested` record dropped for overflow fails the call at once (CCR-BR-008)<br>0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -175,9 +175,9 @@ REQUIREMENT: Every mutating operation — the twelve values of `Operation`,
 
 ```
 REQUIREMENT: Read-only operations — `snapshot`, `changes`, `events`,
-             `inspect`, `awaitIdle`, `use`, `useAll`, `lease` — MUST NOT take
-             an `OperationContext` and MUST NOT be attributed, gated or
-             audited.
+             `inspect`, `awaitIdle`, `controls`, `use`, `useAll`, `lease` —
+             MUST NOT take an `OperationContext` and MUST NOT be attributed,
+             gated or audited.
 ```
 
 The full signatures and base error unions are those of
@@ -254,9 +254,9 @@ without one.
 ## BEH-BR-188: The order of a mutating call
 
 > **Invariant:** [INV-BR-022](../invariants.md#inv-br-022-one-requested-and-one-terminal-record-per-mutating-call), [INV-BR-027](../invariants.md#inv-br-027-a-refused-or-unauditable-mutation-changes-nothing), [INV-BR-010](../invariants.md#inv-br-010-intent-survives-caller-interruption)
-> **See:** [ADR-BR-029](../decisions/029-attributable-mutations.md), [ADR-BR-031](../decisions/031-audit-failure-policy.md), [ADR-BR-032](../decisions/032-operation-gate.md)
+> **See:** [ADR-BR-029](../decisions/029-attributable-mutations.md), [ADR-BR-031](../decisions/031-audit-failure-policy.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
 > **Satisfies:** [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why), [URS-BR-023](../urs.md#urs-br-023-prevent-a-change-that-cannot-be-recorded), [URS-BR-024](../urs.md#urs-br-024-require-approval-before-a-regulated-change)
-> **Risk:** [RSK-BR-004](../gxp/03-risk-assessment.md#rsk-br-004), [RSK-BR-014](../gxp/03-risk-assessment.md#rsk-br-014)
+> **Risk:** [RSK-BR-004](../gxp/03-risk-assessment.md#rsk-br-004), [RSK-BR-014](../gxp/03-risk-assessment.md#rsk-br-014), [RSK-BR-024](../gxp/03-risk-assessment.md#rsk-br-024)
 > **Regulatory:** supports 21 CFR 11.10(e), 11.10(f), 11.10(g); EU GMP Annex 11 §9; ALCOA+ Attributable, Complete
 
 ```
@@ -270,6 +270,10 @@ step  check / action                  failure                    records written
       definition checks; for
       `reconfigure` only, decoding
       a supplied config value)
+ 4a   configuration fingerprints      ConfigFingerprintUnavailable
+      (when a ConfigFingerprinter                                none
+      is wired and the call supplies
+      a new override value)
  5    OperationGate.authorize         OperationRejected          one `rejected`
       (when wired)                    (also "caller-interrupted")
  6    `requested` record              AuditUnavailable;          `requested`, or none yet
@@ -293,12 +297,12 @@ step  check / action                  failure                    records written
 
 ```
 REQUIREMENT: Every mutating call MUST pass the steps above in this order.
-             A call that fails at step 1, 2, 3 or 4 MUST change nothing and
-             MUST write no record. A call refused at step 5 MUST change
-             nothing and MUST write exactly one `rejected` record (when a sink
-             is wired). A call whose step 6 fails because its `requested`
-             record was not written within `auditTimeout` MUST change
-             nothing and MUST fail with `AuditUnavailable`
+             A call that fails at step 1, 2, 3, 4 or 4a MUST change nothing
+             and MUST write no record. A call refused at step 5 MUST change
+             nothing and MUST write exactly one `rejected` record (when a
+             sink is wired). A call whose step 6 fails because its
+             `requested` record was not written within `auditTimeout` MUST
+             change nothing and MUST fail with `AuditUnavailable`
              (23 — Audit Sink and Record, BEH-BR-203). A call whose
              `requested` record cannot be queued because the writer's queue
              is full MUST fail at once with `AuditUnavailable`, MUST change
@@ -314,7 +318,8 @@ REQUIREMENT: Every call that passes step 6 MUST reach step 8: exactly one
 ```
 REQUIREMENT: A caller MAY be interrupted at any step, except in the passage
              below. The outcome MUST depend on where the interruption lands:
-             - during steps 1–4: the call ends with no change and no record;
+             - during steps 1–4a: the call ends with no change and no
+               record;
              - during step 5, while the gate is deciding: the call ends with
                no change and, with a sink wired, the one `rejected` record
                ("caller-interrupted") of 25 — Operation Gate, BEH-BR-221;
@@ -335,7 +340,7 @@ REQUIREMENT: A caller MAY be interrupted at any step, except in the passage
 
 ```
 REQUIREMENT: The passage from the gate's approval — or from the end of step
-             4 when no gate is wired — to the enqueue of the `requested`
+             4a when no gate is wired — to the enqueue of the `requested`
              record MUST be uninterruptible, so that an approval is never
              consumed without a record. The passage MUST NOT wait for
              anything other than the enqueue itself.
@@ -395,6 +400,160 @@ REQUIREMENT: Configuration values MUST be decoded at step 4 for
              (03 — Installation, BEH-BR-022).
 ```
 
+**Step 4a — configuration fingerprints.** A consumer whose approvals must
+name the configuration value they cover, and not only its path, wires the
+optional `ConfigFingerprinter` port
+([ADR-BR-039](../decisions/039-config-fingerprint-port.md)). Core ships no
+implementation and computes no fingerprint itself; it asks the port, after
+validation and before the gate, so that the gate's request and the call's
+records carry the same fingerprints (23 — Audit Sink and Record,
+BEH-BR-197; 25 — Operation Gate, BEH-BR-219).
+
+```ts
+// illustrative — not type-checked
+interface Fingerprint { readonly path: string; readonly fingerprint: string }
+interface FingerprintQuery {
+  readonly operation: "install" | "reconfigure"
+  readonly target: { readonly id: string; readonly realm: string }
+}
+class ConfigFingerprinter extends Context.Service<ConfigFingerprinter, {
+  readonly select: (q: FingerprintQuery & { readonly paths: ReadonlyArray<string> })
+    => Effect.Effect<ReadonlyArray<string>>
+  readonly fingerprint: (q: FingerprintQuery & {
+      readonly form: "raw" | "decoded"
+      readonly entries: ReadonlyArray<{ readonly path: string; readonly value: unknown }>
+    }) => Effect.Effect<ReadonlyArray<Fingerprint>, ConfigFingerprintFailed>
+}>()("@bridger/core/ConfigFingerprinter") {}
+
+// ConfigFingerprintFailed { message }                — the port's error; never reaches a caller
+// ConfigFingerprintUnavailable { operation, message } — the call's error (ADR-BR-008)
+```
+
+```
+REQUIREMENT: Step 4a MUST run only when a `ConfigFingerprinter` is wired
+             (02 — Host Construction, BEH-BR-015) and the call supplies a
+             new override value:
+             - `install` with `config`: form "raw", and as candidate paths
+               the top-level keys of the supplied value, which is not
+               decoded at the call (03 — Installation, BEH-BR-022);
+             - `reconfigure` with a value: form "decoded", and as candidate
+               paths the changed paths (23 — Audit Sink and Record,
+               BEH-BR-197);
+             - a `reconcile` entry whose action is one of these two
+               (18 — Reconciliation and Confluence).
+             When the call has no candidate paths, the port MUST NOT be
+             called. With no `ConfigFingerprinter` wired, step 4a MUST be
+             skipped and the call MUST behave as if step 4a did not exist.
+```
+
+```
+REQUIREMENT: Core MUST NOT call the `ConfigFingerprinter` for a
+             `reconfigure` without a value (a clear), for the revert of an
+             override when an intent ends (`intent-ended`), for a call that
+             resumes a parked operation, at activation, for values read
+             from a configuration source or a default, or for any system
+             transition.
+```
+
+```
+REQUIREMENT: Core MUST call `select` first, with the operation, the target
+             and the candidate paths, and with no value. Its answer MUST be
+             a subset of the candidate paths with no duplicates; any other
+             answer MUST fail step 4a with "selection outside the changed
+             paths". When the selection is empty, core MUST NOT call
+             `fingerprint`, and `configChange` MUST carry no
+             `fingerprints`.
+```
+
+```
+REQUIREMENT: Core MUST then call `fingerprint` once, with the operation, the
+             target, the form, and one entry `{ path, value }` for each
+             selected path, in the order of `configChange.paths` (the
+             changed paths), whatever order `select` answered in. It MUST
+             NOT hand the port the value of a path that was not selected,
+             and MUST NOT hand a value to anything other than the port
+             (INV-BR-013).
+```
+
+```
+REQUIREMENT: Core MUST NOT pass the actor, the reason, the correlationId or
+             any other part of the call's attribution to `select` or to
+             `fingerprint` (BEH-BR-192).
+```
+
+```
+REQUIREMENT: The answer of `fingerprint` MUST name exactly the selected
+             paths, each once, each with a fingerprint matching
+             `^[A-Za-z0-9._:-]{1,200}$`; any other answer MUST fail step 4a
+             with "malformed answer". Core MUST order the accepted
+             fingerprints by the order of `configChange.paths` (the changed
+             paths), whatever order the port answers in, and MUST NOT alter
+             them.
+```
+
+```
+REQUIREMENT: `select` and `fingerprint` together MUST be bounded by
+             `fingerprintTimeout` (02 — Host Construction, BEH-BR-011;
+             default 5 seconds). When it passes, the port's call MUST be
+             interrupted and step 4a MUST fail with "timeout".
+```
+
+```
+REQUIREMENT: When `select` or `fingerprint` fails or dies, when
+             `fingerprintTimeout` passes, or when an answer is refused as
+             above, the call MUST fail with
+             `ConfigFingerprintUnavailable { operation, message }`, MUST
+             change nothing and MUST write no record, and the gate MUST NOT
+             be called. The port's `ConfigFingerprintFailed` MUST NOT reach
+             the caller.
+```
+
+```
+REQUIREMENT: Core MUST write the message of `ConfigFingerprintUnavailable`
+             itself, as "configuration fingerprints unavailable: <why>",
+             where <why> is "selection outside the changed paths",
+             "malformed answer", "timeout", the `_tag` of the port's error,
+             or "defect". It MUST NOT include the port's own text, which
+             could quote a value. Core MUST log the failure at error level
+             naming the operation and the target (`<operation> <id>@<realm>`)
+             and MUST NOT log a value.
+```
+
+```
+REQUIREMENT: An interruption of the caller during step 4a MUST end the call
+             as during steps 1–4: no change and no record.
+```
+
+```
+REQUIREMENT: The fingerprints accepted at step 4a MUST be stored with the
+             override they describe, and MUST be reused without calling the
+             port: on the `intent-ended` record of a reverted override, the
+             fingerprints stored with the override put back in place, for
+             the reverted paths (23 — Audit Sink and Record, BEH-BR-199);
+             and on the terminal record of a call that resumes a parked
+             operation which stores an override (BEH-BR-200).
+```
+
+The port is asked in two steps so that values leave core only once a path
+has been chosen: `select` sees paths, never values, and `fingerprint` sees
+only the values of the paths `select` chose. A consumer that fingerprints
+only non-secret fields never receives a secret at all. Core writes the
+failure message itself because the port's own text could quote the value it
+was given, and an error message reaches callers, logs and — for a refusal
+recorded later — the trail. A port that cannot answer fails the call before
+the gate, as a sink that cannot record fails it before the intent: an
+approval that was meant to bind to a fingerprint is never asked for without
+one ([RSK-BR-024](../gxp/03-risk-assessment.md#rsk-br-024)).
+
+**Settled here.** A fingerprint stands for the override value the change
+puts in place, so a change that puts no new value in place — a clear, a
+revert, a resumption of somebody else's stored change — never calls the
+port: a revert or a resumption reuses what was stored with the override, and
+a clear has nothing to fingerprint. Fingerprinting the effective
+configuration at activation was rejected (ADR-BR-039): it would hand source
+values to the port on every activation, including values no operator
+changed.
+
 ```
 REQUIREMENT: Validation at step 4 MUST be repeated when the intent is
              recorded at step 7. A call whose validation passed at step 4 but
@@ -429,7 +588,9 @@ even a refusal for audit unavailability is decided for a known caller.
 Validation comes before the gate, so that an approver is never asked to
 authorize a change that cannot happen (an unknown plugin, an undecodable
 `reconfigure` value) and the gate sees the configuration paths the call
-changes. The gate
+changes. Fingerprints (step 4a) come after validation, so that the port is
+never handed the value of a call that cannot happen, and before the gate, so
+that an approval can bind to them. The gate
 comes before the `requested` record, so that a refused request leaves exactly
 one record, `rejected`, rather than a `requested` record followed by a
 refusal. And the `requested` record comes before the intent, so that no
@@ -661,9 +822,9 @@ because it reads as evidence.
 ## BEH-BR-192: Attribution reaches the gate and the sink only, and defaults change nothing
 
 > **Invariant:** [INV-BR-026](../invariants.md#inv-br-026-an-unwired-sink-or-gate-changes-nothing), [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable)
-> **See:** [ADR-BR-029](../decisions/029-attributable-mutations.md), [ADR-BR-030](../decisions/030-audit-sink-port.md)
+> **See:** [ADR-BR-029](../decisions/029-attributable-mutations.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
 > **Satisfies:** [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
-> **Risk:** [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008), [RSK-BR-012](../gxp/03-risk-assessment.md#rsk-br-012)
+> **Risk:** [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008), [RSK-BR-012](../gxp/03-risk-assessment.md#rsk-br-012), [RSK-BR-024](../gxp/03-risk-assessment.md#rsk-br-024)
 > **Regulatory:** supports ALCOA+ Attributable; 21 CFR 11.10(e)
 
 ```
@@ -671,14 +832,16 @@ REQUIREMENT: The actor, reason and correlation of a call MUST be passed to
              the `OperationGate` (as `OperationRequest`) and to the
              `AuditSink` (as `AuditRecord` fields), and to nothing else. They
              MUST NOT appear in snapshots, `Host.events`, logs, spans or
-             metrics.
+             metrics, and MUST NOT reach the `ConfigFingerprinter`
+             (BEH-BR-188, step 4a).
 ```
 
 ```
-REQUIREMENT: With no `AuditSink`, no `OperationGate` and default
-             `attribution`, every mutating call MUST behave exactly as
-             specified in files 02–21: the same outcomes, errors, snapshots
-             and events, and no additional waiting.
+REQUIREMENT: With no `AuditSink`, no `OperationGate`, no
+             `ConfigFingerprinter` and default `attribution`, every mutating
+             call MUST behave exactly as specified in files 02–21: the same
+             outcomes, errors, snapshots and events, and no additional
+             waiting.
 ```
 
 Keeping attribution out of the diagnostic channels has two reasons. An actor
@@ -687,6 +850,12 @@ event feed and logs are not governed like an audit trail. And an actor that
 appeared in `Host.events` would invite treating the event feed as an audit
 trail — the confusion [23 — Audit Sink and Record](./23-audit-sink-and-record.md)
 (BEH-BR-207) exists to prevent.
+
+The fingerprinter is kept apart for a third reason. It is the one port that
+sees configuration values; handing it who asked and why as well would let it
+join values to people, which is exactly the record the audit trail declines
+to keep. A fingerprint depends on the value alone, and the trail, not the
+port, joins it to the actor through the record that carries both.
 
 ---
 

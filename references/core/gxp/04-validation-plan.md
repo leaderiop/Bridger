@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-04                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.3 (2026-10-03): Known-gaps list no longer cites the Effect 4.x items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-10-03): Companion described as specified in Draft (references/gxp/, CCR-GX-001), not implemented (gap G8 closed) (CCR-BR-015)<br>0.4 (2026-10-03): §5.1 checks 5–6 executable through `Host.controls` (BEH-BR-212); check 7 "fingerprinter wired as required" added; RSK-BR-024 added to the High rigour row; `ConfigFingerprinter` out of scope like the other consumer ports; `fingerprintTimeout` added to the revalidation defaults (CCR-BR-014)<br>0.3 (2026-10-03): Known-gaps list no longer cites the Effect 4.x items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -28,7 +28,7 @@ This is the **library-side verification strategy** for `@bridger/core`: how the 
 | --------------------- | ------------------------- |
 | Verification that `@bridger/core` behaves as its behaviours (`BEH-BR`) and invariants (`INV-BR`) specify | Validation of any regulated user's system |
 | Library-side installation checks that a regulated user can run in their environment | Performance qualification (PQ) |
-| The rules evidence must follow to be offered to a regulated user | Qualification of the regulated user's `AuditSink`, `OperationGate`, store, identity provider, clock or plugins |
+| The rules evidence must follow to be offered to a regulated user | Qualification of the regulated user's `AuditSink`, `OperationGate`, `ConfigFingerprinter`, store, identity provider, clock or plugins |
 | The supplier inputs to a regulated user's periodic review and change assessment | The `@bridger/gxp` companion's own verification, which its specification will plan |
 
 Roles: the Bridger maintainers plan and execute the library's verification and publish its results; the `@bridger/gxp` companion, once specified, is to turn executed test output into IQ/OQ evidence records ([ADR-BR-034](../decisions/034-gxp-companion-scope.md)); the regulated user decides how much of that evidence to leverage, executes their own IQ and OQ in their environment, and performs PQ.
@@ -57,7 +57,7 @@ Applied to the current register:
 
 | Rigour | Risks | Behaviour files mainly exercised |
 | ------ | ----- | -------------------------------- |
-| High | RSK-BR-001 to RSK-BR-006, RSK-BR-008 to RSK-BR-010, RSK-BR-012 to RSK-BR-020, RSK-BR-022, RSK-BR-023 | [05](../behaviors/05-activation.md), [06](../behaviors/06-removal.md), [07](../behaviors/07-replacement-and-reactivation.md), [08](../behaviors/08-operation-legality.md), [09](../behaviors/09-leases.md), [10](../behaviors/10-runtime-failure-and-health.md), [11](../behaviors/11-configuration.md), [12](../behaviors/12-shutdown-and-hosting.md), [22](../behaviors/22-attributable-operations.md), [23](../behaviors/23-audit-sink-and-record.md), [24](../behaviors/24-time-ids-and-sequence.md), [25](../behaviors/25-operation-gate.md) |
+| High | RSK-BR-001 to RSK-BR-006, RSK-BR-008 to RSK-BR-010, RSK-BR-012 to RSK-BR-020, RSK-BR-022 to RSK-BR-024 | [05](../behaviors/05-activation.md), [06](../behaviors/06-removal.md), [07](../behaviors/07-replacement-and-reactivation.md), [08](../behaviors/08-operation-legality.md), [09](../behaviors/09-leases.md), [10](../behaviors/10-runtime-failure-and-health.md), [11](../behaviors/11-configuration.md), [12](../behaviors/12-shutdown-and-hosting.md), [22](../behaviors/22-attributable-operations.md), [23](../behaviors/23-audit-sink-and-record.md), [24](../behaviors/24-time-ids-and-sequence.md), [25](../behaviors/25-operation-gate.md) |
 | Medium | RSK-BR-007, RSK-BR-011, RSK-BR-021 | [21](../behaviors/21-testing-host.md), [24](../behaviors/24-time-ids-and-sequence.md), [09](../behaviors/09-leases.md) |
 | Low | None in the current register. Behaviours that control no listed risk and have no GxP impact may be verified at this level, unless they are among the required checks of BEH-BR-183 and BEH-BR-184, which are always scripted. | — |
 
@@ -75,10 +75,11 @@ Planned checks, to be packaged by the companion so that a regulated user can exe
 | 2 | Export resolution: every public entry point documented in the [overview](../overview.md) resolves from the installed package under the module conditions the user's build uses | All resolve |
 | 3 | Effect version pin: the installed `effect` version is the one the release's OQ evidence was produced with, and `effect` is the only runtime dependency (NFR-BR-006) | Exact match; a different version invalidates leveraged OQ evidence (§9) |
 | 4 | Audit port wiring: in the user's assembled host, `HostSnapshot.audit` reports `"wired"` where the user's risk assessment requires a trail | As required by the user |
-| 5 | Production time and identifier sources: the host is not running on `TestClock` or a counter `IdGenerator` ([RSK-BR-007](./03-risk-assessment.md#rsk-br-007)) | Production sources wired |
-| 6 | Attribution and gate configuration: `attribution.require`, `attribution.requireReason`, `auditTimeout` and `gateTimeout` are set as the user's risk assessment requires, and a gate is wired where approval is required | As required by the user |
+| 5 | Production time and identifier sources: the host is not running on `TestClock` or a counter `IdGenerator` ([RSK-BR-007](./03-risk-assessment.md#rsk-br-007)); `Host.controls` reports `idGenerator` as `"default"` or `"provided"` (BEH-BR-212) | Production sources wired |
+| 6 | Attribution and gate configuration: `attribution.require`, `attribution.requireReason`, `auditTimeout` and `gateTimeout` are set as the user's risk assessment requires, and a gate is wired where approval is required; read from `Host.controls` (`attribution`, `auditTimeout`, `gateTimeout`, `wired.gate`; BEH-BR-212) | As required by the user |
+| 7 | Fingerprinter wired as required: `Host.controls` reports `wired.fingerprinter` and `fingerprintTimeout` (BEH-BR-212) as the user's risk assessment requires; where a `ConfigFingerprinter` is wired, it is the implementation the user reviewed ([RSK-BR-024](./03-risk-assessment.md#rsk-br-024), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)) | As required by the user |
 
-Checks 4–6 examine the user's assembly, not the library; they are listed because they are the configuration points through which the library's controls take effect or are bypassed.
+Checks 4–7 examine the user's assembly, not the library; they are listed because they are the configuration points through which the library's controls take effect or are bypassed. Checks 6 and 7, and the identifier source of check 5, are executable through the read-only `Host.controls` (BEH-BR-212); `Host.controls` does not report the clock source, so that part of check 5 remains an inspection of the assembly.
 
 ### §5.2 Behaviour verification (feeding OQ)
 
@@ -127,7 +128,7 @@ Evidence follows [ADR-BR-035](../decisions/035-evidence-from-executed-tests.md):
    - executor: the CI job or the person who started the run, and the machine;
    - start and end times of the run;
    - the raw runner logs and the mutation report, attached unmodified.
-5. **Produced by the companion.** The generator that turns runner output into IQ/OQ evidence records belongs to the `@bridger/gxp` companion, which is not yet specified. Until it exists, test runs (once there is code) produce runner output only, and nothing is presented as qualification evidence.
+5. **Produced by the companion.** The generator that turns runner output into IQ/OQ evidence records belongs to the `@bridger/gxp` companion, which is specified only as a Draft ([references/gxp/](../../gxp/README.md), CCR-GX-001) and not implemented. Until it exists, test runs (once there is code) produce runner output only, and nothing is presented as qualification evidence.
 
 ### §6.2 Acceptance criteria
 
@@ -176,7 +177,7 @@ The following changes require the library's affected verification to be re-execu
 1. **Any change with GxP impact** to a `BEH-BR`, `INV-BR` or `ADR-BR` — as defined in [change control](../process/change-control.md) §3: attribution, the audit record, the audit sequence, the operation gate, time or identifier sources, the legality table, or any compliance-matrix row.
 2. **Any Effect version change**, including patch releases: the full suite is re-executed against the new pin ([RSK-BR-022](./03-risk-assessment.md#rsk-br-022)).
 3. **Any change to the audit record's `schemaVersion`**, or to the shape of `OperationRequest`, which also affects the regulated user's store, migration (Annex 11 §4.8) and archived records.
-4. **Any change to a default** that a control depends on: `auditTimeout`, `gateTimeout`, `drainTimeout`, `attribution`.
+4. **Any change to a default** that a control depends on: `auditTimeout`, `gateTimeout`, `fingerprintTimeout`, `drainTimeout`, `attribution`.
 5. **Finalisation of a regulatory instrument** listed in the regulatory scope, where re-assessment changes a compliance-matrix allocation.
 
 The CCR names the `REQ-BR` scenarios that cover each change. The decision to re-qualify a system is always the regulated user's.
@@ -192,7 +193,7 @@ These notes are for a regulated user's supplier assessment (GAMP 5 supplier invo
 | Agreements and support | **No service-level agreement**, no support contract, no formal supplier agreement, and no commitment to response times for defects. |
 | Quality system | The development process is the specification's process documents: [identifier scheme](../process/requirement-id-scheme.md), [Definitions of Done](../process/definitions-of-done.md) and [change control](../process/change-control.md). There is no certified quality management system. |
 | Status | Prospective: no implementation, no executed tests, no evidence ([ADR-BR-036](../decisions/036-prospective-specification.md)). |
-| Known gaps | Listed in [urs.md](../urs.md#7-known-gaps-and-open-items) §7: unverified requirements, undetectable changed service shapes, cross-fiber re-entrancy, single maintainer, unspecified companion. |
+| Known gaps | Listed in [urs.md](../urs.md#7-known-gaps-and-open-items) §7: unverified requirements, undetectable changed service shapes, cross-fiber re-entrancy, single maintainer; the companion gap G8 is closed by a Draft specification, not by an implementation. |
 | Sub-supplier | Effect 4.x is the only runtime dependency; Bridger's guarantees are no stronger than Effect's (URS assumption A5). A regulated user should include Effect in their assessment. |
 
 **Suggested actions for a regulated user** who adopts Bridger: review this specification independently, as part of supplier assessment, since the supplier has not had it reviewed; re-execute the library's suites in their own environment rather than relying only on published results; carry the consumer-owned residual risks of the [risk assessment](./03-risk-assessment.md) §4 into their own; and plan for the absence of supplier support in their business-continuity and change processes.
@@ -206,13 +207,13 @@ The chain URS → BEH → INV → ADR → REQ → RSK → test is maintained in 
 | Activity | Status |
 | -------- | ------ |
 | Documentation gate D1 (specification consistency) | Runnable; not evidence of behaviour |
-| Installation checks 1–6 (§5.1) | Planned — no package exists |
+| Installation checks 1–7 (§5.1) | Planned — no package exists |
 | `REQ-BR` acceptance scenarios | Planned — not yet runnable |
 | Property tests | Planned — not yet runnable |
 | Type-level tests | Planned — not yet runnable |
 | Mutation testing | Planned — not yet runnable |
 | `TestHost` adequacy assessment | Planned — no `TestHost` exists |
-| Evidence generation (`@bridger/gxp`) | Planned — companion not yet specified |
+| Evidence generation (`@bridger/gxp`) | Planned — companion specified as a Draft (CCR-GX-001), not implemented |
 | PQ | Regulated user's; not in this plan |
 
 Nothing has been executed. All evidence is Planned.

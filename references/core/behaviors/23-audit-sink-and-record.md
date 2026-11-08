@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-23                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -152,7 +152,7 @@ then shows "unwired" instead of quietly running without one.
 ## BEH-BR-195: The AuditRecord
 
 > **Invariant:** [INV-BR-022](../invariants.md#inv-br-022-one-requested-and-one-terminal-record-per-mutating-call), [INV-BR-024](../invariants.md#inv-br-024-time-and-identifiers-come-only-from-services)
-> **See:** [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-037](../decisions/037-audit-sequence-separate-from-event-seq.md)
+> **See:** [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-037](../decisions/037-audit-sequence-separate-from-event-seq.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
 > **Satisfies:** [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why), [URS-BR-022](../urs.md#urs-br-022-obtain-a-complete-ordered-and-gap-detectable-lifecycle-record), [URS-BR-028](../urs.md#urs-br-028-know-which-plugin-version-was-active-at-any-time)
 > **Regulatory:** supports 21 CFR 11.10(e); EU GMP Annex 11 §9, §12.4; ALCOA+ Attributable, Contemporaneous, Complete
 
@@ -175,12 +175,20 @@ interface AuditRecord {
   readonly noop?: true
   readonly before?: { readonly state: PluginState; readonly version?: string; readonly digest?: string; readonly revision: number }
   readonly after?:  { readonly state: PluginState; readonly version?: string; readonly digest?: string; readonly revision: number }
-  readonly configChange?: { readonly paths: readonly string[] }
+  readonly configChange?: ConfigChange             // BEH-BR-197
+  readonly definition?: { readonly version?: string; readonly digest?: string }
+                                                   // requested and rejected records of plugin-addressed operations only
   readonly children?: number                       // reconcile parent terminal record only
   readonly error?: { readonly _tag: string; readonly message: string }
   readonly droppedSinceAck?: number                // acknowledgeAuditDegraded records only (BEH-BR-202)
   readonly endsIntentOf?: string                   // intent-ended records only: recordId of the parked call's requested record (BEH-BR-199)
   readonly resumes?: string                        // terminal record of a call that resumed a parked operation only: recordId of the parked call's requested record (BEH-BR-200)
+}
+
+interface ConfigChange {
+  readonly paths: readonly string[]
+  readonly fingerprints?: readonly { readonly path: string; readonly fingerprint: string }[]
+                                                   // only from a wired ConfigFingerprinter (22, step 4a)
 }
 
 // SystemTransition (22 — Attributable Operations, BEH-BR-185):
@@ -206,12 +214,28 @@ REQUIREMENT: `schemaVersion` MUST change whenever a field is added, removed or
              different shapes apart.
 ```
 
+```
+REQUIREMENT: `definition` MUST be present on the `requested` and `rejected`
+             records of every plugin-addressed operation, and MUST equal the
+             `definition` of the `OperationRequest` for that call (25 —
+             Operation Gate, BEH-BR-219): the incoming definition's `meta`
+             `version` and `digest` for `install` and `replace`, the
+             installed definition's for every other plugin-addressed
+             operation, each absent when not declared. It MUST be present
+             whether or not an `OperationGate` is wired. Terminal, system
+             and parent records MUST omit it.
+```
+
 The record answers the questions a reviewer asks of a change, each from one
 field: who (`actor`), why (`reason`), when (`timestamp`), in what order
 (`auditSeq`), to what (`target`), what kind of change (`operation`, `phase`),
 from what to what (`before`, `after`, including `version` and `digest`),
-which configuration fields (`configChange.paths`), how it ended (`error`),
-and as part of what (`correlationId`, `causationId`).
+which configuration fields (`configChange.paths`) and, with a fingerprinter
+wired, which values by fingerprint (`configChange.fingerprints`), with which
+definition presented (`definition`), how it ended (`error`), and as part of
+what (`correlationId`, `causationId`). `definition` is what makes the
+incoming digest of a refused or failed `replace` or `install` visible in the
+trail at all: `before` and `after` describe only what was installed.
 
 **Settled here.** (1) `correlationId` is typed as always present. The host
 generates one when the caller supplies none (BEH-BR-187), so every record
@@ -223,7 +247,10 @@ handed to a sink, so there is nothing for a store to tell apart. The rule of
 the third requirement above applies from the first release on. (3)
 `endsIntentOf` and `resumes`, and the `SystemTransition` value
 "intent-ended", were added in revision 0.4 on the same ground, and are part
-of the version-1 shape too.
+of the version-1 shape too. (4) `configChange.fingerprints` and `definition`
+were added in revision 0.5 (CCR-BR-014) on the same pre-release ground:
+`schemaVersion` stays 1. After a release, adding such fields would require a
+new `schemaVersion` under the third requirement above.
 
 ## BEH-BR-196: What each field records
 
@@ -297,15 +324,44 @@ the trail itself states how many records core failed to hand over.
 ## BEH-BR-197: Configuration paths, never configuration values
 
 > **Invariant:** [INV-BR-028](../invariants.md#inv-br-028-audit-records-carry-no-configuration-values), [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable)
-> **See:** [ADR-BR-033](../decisions/033-no-config-values-in-audit.md), [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md)
+> **See:** [ADR-BR-033](../decisions/033-no-config-values-in-audit.md), [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
 > **Satisfies:** [URS-BR-007](../urs.md#urs-br-007-configure-plugins-safely-including-secrets-and-live-changes), [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
-> **Risk:** [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008)
+> **Risk:** [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008), [RSK-BR-024](../gxp/03-risk-assessment.md#rsk-br-024)
 > **Regulatory:** supports EU GMP Annex 11 §12.1; 21 CFR 11.10(e)
 
 ```
 REQUIREMENT: No record MAY contain a configuration value — raw, decoded,
              redacted, hashed or summarized — in any field, including
              `reason`-like free text produced by core and `error.message`.
+             Core MUST NOT compute a hash, fingerprint or summary of a
+             value. The one exception is `configChange.fingerprints`: the
+             strings returned, unchanged, by the consumer's
+             `ConfigFingerprinter` at step 4a of BEH-BR-188 (22 —
+             Attributable Operations). A fingerprint is not a configuration
+             value.
+```
+
+```
+REQUIREMENT: `configChange.fingerprints` MUST be present only when a
+             `ConfigFingerprinter` is wired and it returned at least one
+             fingerprint for the change. Each entry's `path` MUST be one of
+             `configChange.paths`, each path at most once, in the order of
+             `paths`. A fingerprint MUST stand for the override value the
+             change puts in place at that path; `fingerprints` MUST be
+             absent when the change removes the override (a `reconfigure`
+             without a value, or a revert to no override). The `requested`
+             and terminal records of a call MUST carry the same
+             `fingerprints`, equal to those of its `OperationRequest`
+             (25 — Operation Gate, BEH-BR-219).
+```
+
+```
+REQUIREMENT: The `intent-ended` record of a reverted override (BEH-BR-199)
+             and the terminal record of a call that resumes a parked
+             operation which stores an override (BEH-BR-200) MUST carry the
+             fingerprints stored with the override they put in place, for
+             their recorded paths, without calling the port; when none are
+             stored for those paths, `fingerprints` MUST be absent.
 ```
 
 ```
@@ -348,7 +404,8 @@ REQUIREMENT: For `reconfigure` with a value, which is decoded at the call
 REQUIREMENT: For `install` with `config`, which is not decoded at the call
              (03 — Installation, BEH-BR-022), `paths` MUST list the
              top-level keys of the raw override object, and nothing else:
-             no nested path, no value and nothing derived from a value. An
+             no nested path, no value and nothing core derives from a value
+             (fingerprints, when wired, come from the port). An
              override that is not an object has no keys and yields an empty
              list.
 ```
@@ -362,8 +419,9 @@ REQUIREMENT: A `Redacted` field that changed MUST be listed by path like any
 REQUIREMENT: A `reconfigure` without a value (clearing the override) MUST
              carry `configChange` only when an override was stored; its
              `paths` MUST then be the paths recorded when that override was
-             stored. It MUST NOT compare against, or record anything
-             derived from, the configuration source.
+             stored, and it MUST carry no `fingerprints`. It MUST NOT
+             compare against, or record anything derived from, the
+             configuration source.
 ```
 
 A path tells a reviewer *that* `db.password` changed and *who* changed it,
@@ -373,6 +431,18 @@ from the first, and readable by every auditor. Hashing does not help: a
 low-entropy secret is recoverable from its hash. If a consumer must evidence
 the value itself, it records it in a store governed for secrets, under its own
 controls.
+
+A consumer that must bind an approval or a record to the value, without
+putting the value in the trail, wires a `ConfigFingerprinter`
+([ADR-BR-039](../decisions/039-config-fingerprint-port.md)). The key and the
+choice of fields are then the consumer's: core still computes nothing from a
+value, checks only that each selected path is answered once in a valid
+format, and carries the string unchanged. Whether a fingerprint resists
+enumeration depends on the consumer's port alone
+([RSK-BR-024](../gxp/03-risk-assessment.md#rsk-br-024)). A fingerprint is
+taken for the override value a call supplies, never for a source value, so
+the source values that take effect after a clear are neither recorded nor
+fingerprinted.
 
 An `install` override is only stored at the call; it is decoded at
 activation, where a value that does not decode becomes an activation failure
@@ -496,8 +566,9 @@ REQUIREMENT: When a parked operator intent is ended — by a cascade that
              - `endsIntentOf` the `recordId` of the `requested` record of
                the call that parked that operation;
              - `configChange` with the paths of every override change it
-               reverts, when it reverts any (BEH-BR-197), and otherwise no
-               `configChange`;
+               reverts, and the fingerprints stored with the override put
+               back in place for those paths, when it reverts any
+               (BEH-BR-197), and otherwise no `configChange`;
              - `causationId` the cause that 22 — Attributable Operations,
                BEH-BR-190, gives for what ended the intent: the record of
                the cascade root, or the `requested` record of `shutdown`.
@@ -620,9 +691,11 @@ REQUIREMENT: The terminal record of a call that resumed a parked operation
              an override — a parked `reconfigure`, or a parked `restart`
              whose override a joining `reconfigure` set — that terminal
              record MUST also carry `configChange` with the paths recorded
-             for that override (BEH-BR-197). Its `correlationId` and
-             `causationId` MUST be those of any terminal record of the
-             resuming call. Every other record MUST omit `resumes`.
+             for that override and the fingerprints stored with it, if any,
+             without calling the `ConfigFingerprinter` (BEH-BR-197). Its
+             `correlationId` and `causationId` MUST be those of any
+             terminal record of the resuming call. Every other record MUST
+             omit `resumes`.
 ```
 
 A no-op is still a request somebody made, and a reviewer reading "retry
@@ -646,7 +719,8 @@ a correlation whose call ended long before, so it is recorded like any call
 that ran its own operation. What it carried out, though, is somebody else's
 request — possibly an override stored under the parked call — so its
 terminal record names that request in `resumes` and the stored override's
-paths in `configChange`; a reviewer reading the resumer's correlation alone
+paths, and any fingerprints stored with it (CCR-BR-014), in `configChange`;
+a reviewer reading the resumer's correlation alone
 can then see whose change it completed and which configuration it put into
 effect (URS gap G16, second review pass).
 
@@ -694,7 +768,8 @@ REQUIREMENT: A parent `completed` record with `children: 0` MUST carry
 
 The shared `correlationId` groups the batch; the `causationId` on each entry
 record points at the request that issued it. An entry rejected by validation
-writes nothing — exactly like the same call made directly — and is counted
+or by configuration fingerprinting (`ConfigFingerprintUnavailable`, step 4a
+of BEH-BR-188) writes nothing — exactly like the same call made directly — and is counted
 only in the `ReconcileReport`.
 
 ## BEH-BR-202: One writer, in order, retrying in place

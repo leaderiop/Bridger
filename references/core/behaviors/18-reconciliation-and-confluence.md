@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-18                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -63,7 +63,7 @@ interface ReconcileReport {
   readonly rejected: readonly {
     readonly id: string
     readonly reason:
-      | InstallError | ConfigInvalid | OperationRejected
+      | InstallError | ConfigInvalid | ConfigFingerprintUnavailable | OperationRejected
       // Settled here (BEH-BR-157): an entry action that passes step 6 of
       // BEH-BR-188 and then fails operationally is reported, never dropped.
       | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock
@@ -327,8 +327,10 @@ be silently dropped.
 > **Satisfies:** [URS-BR-016](../urs.md#urs-br-016-drive-the-plugin-set-from-a-declarative-list), [URS-BR-004](../urs.md#urs-br-004-know-why-a-plugin-is-not-running)
 
 ```
-REQUIREMENT: An entry whose action fails validation, is refused by the gate,
-             or passes step 6 of BEH-BR-188 and then fails MUST be reported
+REQUIREMENT: An entry whose action fails validation, fails configuration
+             fingerprinting (step 4a of BEH-BR-188, with
+             `ConfigFingerprintUnavailable`), is refused by the gate, or
+             passes step 6 of BEH-BR-188 and then fails MUST be reported
              in `rejected` with the error, MUST receive no further actions in
              this call, and MUST NOT stop the other entries — except as
              stated below for audit unavailability.
@@ -384,9 +386,17 @@ state
 exists to block. (3) An entry action that passes step 6 of BEH-BR-188 and then
 fails operationally (`Conflict`, `Superseded`, `UnknownPlugin`,
 `CleanupError`, `DrainTimeout`, `WouldDeadlock`) is reported in `rejected`
-with that error; the `InstallError | ConfigInvalid | OperationRejected` union
-is extended by those tags, because dropping such an entry from the report
-would hide a change that was requested, recorded as `failed`, and not made.
+with that error; the `InstallError | ConfigInvalid |
+ConfigFingerprintUnavailable | OperationRejected` union is extended by those
+tags, because dropping such an entry from the report would hide a change
+that was requested, recorded as `failed`, and not made. (4)
+`ConfigFingerprintUnavailable` (CCR-BR-014) is the failure of step 4a of
+BEH-BR-188 for an entry action that installs with `config` or reconfigures
+with a value while a `ConfigFingerprinter` is wired
+([ADR-BR-039](../decisions/039-config-fingerprint-port.md)). Like
+`ConfigInvalid`, it comes before the gate: the entry is placed in
+`rejected` with it, changes nothing and leaves no record of its own, and
+does not stop the other entries.
 
 ## BEH-BR-158: Each entry action is gated and audited on its own
 
@@ -432,8 +442,11 @@ REQUIREMENT: When an `AuditSink` is wired, `reconcile` MUST write a parent
 ```
 REQUIREMENT: Every entry action — each `install`, `replace`, `reconfigure`,
              `disable`, `enable` and prune `remove` — MUST run steps 4–8 of
-             BEH-BR-188 on its own: validation, the gate (consulted once for
-             that action when an `OperationGate` is wired), its own
+             BEH-BR-188 on its own: validation, configuration fingerprints
+             (step 4a, for an `install` with `config` or a `reconfigure`
+             with a value when a `ConfigFingerprinter` is wired), the gate
+             (consulted once for that action when an `OperationGate` is
+             wired), its own
              `requested` record, the transition, and its own terminal record
              — or a single `rejected` record when the gate refuses it.
 ```

@@ -1,4 +1,4 @@
-# Host-core prototype — results (phases P1–P5, G11, in-flight table, CCR-BR-008, CCR-BR-012)
+# Host-core prototype — results (phases P1–P5, G11, in-flight table, CCR-BR-008, CCR-BR-012, CCR-BR-014)
 
 Throwaway prototype of the Bridger host core — behaviours 01–09 of
 `references/core/` (definition, installation, states and snapshots,
@@ -400,295 +400,163 @@ Observations, not changes:
 
 Suite: 227 passed in each of six full runs; `tsc --noEmit` clean.
 
+## CCR-BR-014 — configuration fingerprint port, Host.controls, presented definition (prototype)
+
+The core prerequisite of P6, prototyped before the specification was amended. What was built:
+- `src/gxp.ts`: the optional `ConfigFingerprinter` port (`select`, then `fingerprint`), its error
+  `ConfigFingerprintFailed`, the call error `ConfigFingerprintUnavailable { operation, message }`,
+  the fingerprint format `/^[A-Za-z0-9._:-]{1,200}$/`, `ConfigChange { paths, fingerprints? }` on
+  `AuditRecord` and `OperationRequest`, `AuditRecord.definition?`, and the writer's `lastWritten`.
+- `src/host.ts`: step 4a (`fingerprintsOf`), after validation and before the gate. `install` with
+  `config` hands over the raw top-level keys (form "raw"), `reconfigure` with a value the changed
+  decoded paths (form "decoded"); a clear calls nothing. `select` must return a subset of the
+  changed paths without duplicates, and `fingerprint` must answer exactly the selected paths in the
+  format; anything else, a failure, a defect or `fingerprintTimeout` (default 5 s) fails the call
+  with `ConfigFingerprintUnavailable`, whose message core writes ("selection outside the changed
+  paths", "malformed answer", "timeout", or the port error's `_tag`), logged at error level by
+  operation and target. Fingerprints are stored with the override and reused, without calling the
+  port, on the `intent-ended` record of a reverted override. `host.controls` returns `HostControls`
+  (`hostId`, `wired`, `attribution`, the three timeouts, `idGenerator`, and `auditPosition` with a
+  sink), readable after close; `CloseReport.auditLastSeq` with a sink; `requested` and `rejected`
+  records of plugin-addressed operations carry `definition`, terminal records do not.
+
+Scenarios (`test/ccr14.test.ts`, 11 tests):
+
+| Scenario | Behaviours |
+| -------- | ---------- |
+| `reconfigure` with a value: only the selected changed paths are fingerprinted, before the gate; request and records carry equal `configChange`, never the value | BEH-BR-188, 197, 219 |
+| `install` with `config`: raw top-level keys; clearing the override calls nothing | BEH-BR-188, 197 |
+| A fingerprinter that fails, dies, hangs, answers an unselected path or answers a malformed fingerprint (5 tests): no gate, no record, no change, no port text | BEH-BR-188 |
+| No fingerprinter wired: paths only, nothing else changes | BEH-BR-015, INV-BR-026 |
+| An ended intent restores the earlier override's stored fingerprints without calling the port | BEH-BR-188, 197 |
+| `Host.controls` reports wiring and limits; `lastWritten` follows the writer; `CloseReport.auditLastSeq`; readable after close | BEH-BR-106, 212 |
+| `requested` and `rejected` records carry the presented definition, so a refused `replace` keeps its incoming digest | BEH-BR-195, 219 |
+
+Mutations, each applied alone and reverted (7 of 7 caught): the gate request without
+fingerprints; all changed paths handed over instead of the selected ones; malformed answers
+accepted; the port's text forwarded in the error; stored fingerprints dropped on `intent-ended`;
+`definition` missing on `rejected`; `lastWritten` not reported.
+
+Finding for the specification (CCR-BR-014):
+- **G34** The `CloseReport` is produced before the shutdown's own terminal record is written, so
+  `CloseReport.auditLastSeq` cannot include that record. The specification now defines
+  `auditLastSeq` as the highest number written when the report is produced (BEH-BR-106) and
+  requires `Host.controls` to stay readable after close, so the final position can be read once
+  the writer has flushed (BEH-BR-212).
+
+Prototype defect fixed along the way (not a specification finding): `install` with `config` did
+not record `configChange.paths`, although BEH-BR-197 required it; it now does.
+
+Not covered: fingerprints on a resumer's terminal record (BEH-BR-200); `reconcile` entries (they
+pass through the same call path, untested); the contents of `controls.attribution` beyond its
+presence.
+
+Suite: 238 passed; `tsc --noEmit` clean.
+
 ## Output of the run recorded on 2026-10-03
 
 ```
 
  RUN  v3.2.7 /Users/mohammadalmechkor/Documents/ChatGPT/Bridger/prototypes/host-core
 
-stdout | test/optional.test.ts > optional dependencies (BEH-BR-129–131) > BEH-BR-129, 130: optional is a point-in-time, unleased read; the provider leaving changes nothing; an undeclared key is None
-[02:48:52.237] WARN (#17): undeclared optional dependency example/Metrics { plugin: 'ui' }
+stdout | test/ccr14.test.ts > CCR-BR-014: the ConfigFingerprinter port (step 4a) > a fingerprinter that fails fails the call closed: no gate, no record, no change, no port text
+[15:27:46.935] ERROR (#76): config fingerprinter: reconfigure x/cfg@default: configuration fingerprints unavailable: ConfigFingerprintFailed
 
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-121, 122, 126: a child is mounted by the parent's build, prefixed, ungated, and its mount record is caused by the parent's activation 53ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-153, 159, 201: a list installs what is missing; running it again issues nothing and still leaves a noop parent pair 60ms
- ✓ test/optional.test.ts > optional dependencies (BEH-BR-129–131) > BEH-BR-129: an optional key gates nothing, is never missing, takes no part in cycles, and cannot also be required 36ms
- ✓ test/optional.test.ts > optional dependencies (BEH-BR-129–131) > BEH-BR-129, 130: optional is a point-in-time, unleased read; the provider leaving changes nothing; an undeclared key is None 27ms
- ✓ test/optional.test.ts > optional dependencies (BEH-BR-129–131) > BEH-BR-131: useOptional is None when absent and otherwise runs under a lease that delays the provider's removal 30ms
- ✓ test/leases.test.ts > leases > check 2 / BEH-BR-085, 086: removal waits for a lease, fails with DrainTimeout, succeeds with force 80ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > the table is total and matches the specification 3ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: install while remove is in flight → duplicate-plugin 46ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: remove while remove is in flight → join 51ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: replace while remove is in flight → conflict 26ms
- ✓ test/gxp.test.ts > attribution (behaviour 22) > check 31: unattributed or reason-less calls fail before any record or change; a per-call context wins 78ms
- ✓ test/gxp.test.ts > audit records (behaviours 23, 24) > check 33: exactly one requested and one terminal record per admitted call, including no-ops 46ms
- ✓ test/lifecycle.test.ts > installation and activation > check 19 / BEH-BR-017, 021, 033: install order does not matter; a missing requirement is state, not an error 35ms
- ✓ test/lifecycle.test.ts > installation and activation > check 9 / BEH-BR-018–020: duplicate ids, duplicate providers and cycles register nothing 3ms
- ✓ test/lifecycle.test.ts > installation and activation > check 11 / BEH-BR-038: two key objects with one ServiceId fail the activation with KeyMismatch 17ms
- ✓ test/lifecycle.test.ts > installation and activation > check 16 / BEH-BR-036: every activation builds its layer again (fresh memo map) 23ms
- ✓ test/lifecycle.test.ts > installation and activation > BEH-BR-034: a build still waiting for a slot when the plugin is removed is cancelled before it begins 61ms
- ✓ test/leases.test.ts > leases > check 3 / BEH-BR-088: a callback that removes its own provider fails at once with WouldDeadlock 22ms
- ✓ test/leases.test.ts > leases > check 12 / BEH-BR-084: interrupting the caller interrupts the child and runs its finalizers before the lease is released 17ms
- ✓ test/leases.test.ts > leases > BEH-BR-087: a per-call timeout interrupts the callback and fails with LeaseTimeout 24ms
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-121, 125, 126: removing the parent removes the child first, before the parent's scope begins to close 55ms
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-121: a mount edge closes a cycle only through the parent's own definition — a replace that requires its child's service 23ms
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-123: a failing child does not fail its parent; its failure shows under its own id 16ms
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-124: a child requiring its parent's service waits for publication and stops first, using it in its finalizer 40ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-154: an entry needing several actions gets them in the fixed order, so it builds at most once 56ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-155: a scope prunes only what it installed; an entry naming someone else's plugin is rejected, not adopted 42ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: retry while remove is in flight → conflict 28ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: restart while remove is in flight → conflict 33ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: disable while remove is in flight → conflict 39ms
- ✓ test/optional.test.ts > reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-132, 133: a run starts when its keys arrive, ends before the provider closes, and runs again when they return; the plugin's state never moves 52ms
- ✓ test/lifecycle.test.ts > installation and activation > BEH-BR-039: a build in flight when the plugin is removed is never published 59ms
- ✓ test/lifecycle.test.ts > removal > check 1 / BEH-BR-043, 044: dependents stop first and can use their provider in their finalizers 40ms
- ✓ test/lifecycle.test.ts > removal > BEH-BR-046, 047: a cleanup failure is reported, and removing the plugin acknowledges the leak 15ms
- ✓ test/confluence.test.ts > confluence > seed 1: a random history settles to the same states as a fresh install of the final set 286ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-153, 156: invalid and duplicate entries are rejected, their plugin untouched and unpruned; prunes run dependents first 89ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-157, 158, 201: the gate is consulted per entry action; a refusal rejects that entry only and is counted in children 36ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-158: requireReason applies to the operations a provisional diff would issue — a prune needs a reason, refused with no record 37ms
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-125: a new activation mounts again; a child removed directly stays removed until then 51ms
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-121, 125: a parent's forced removal ends a parked operation on its child and removes the child 86ms
- ✓ test/p2.test.ts > runtime failure (behaviour 10) > check 5 / BEH-BR-090, 094, 096: a failing background fiber stops dependents first and ends failed(runtime), sticky until retry 85ms
- ✓ test/p2.test.ts > runtime failure (behaviour 10) > BEH-BR-095: with no caller, a lease on a dependent is revoked at the drain limit; nothing parks 240ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: enable while remove is in flight → conflict 19ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: install while replace is in flight → duplicate-plugin 30ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: remove while replace is in flight → supersede 34ms
- ✓ test/lifecycle.test.ts > replacement and reactivation > check 9 / BEH-BR-050, 051: replace validates before stopping; dropping a provided key strands dependents 41ms
- ✓ test/lifecycle.test.ts > replacement and reactivation > check 10 / BEH-BR-031, 056, 057: failure is sticky through dependency loss; retry lands by availability 27ms
- ✓ test/lifecycle.test.ts > replacement and reactivation > check 27 / BEH-BR-060–062: disable frees the provider slot; enable re-validates 17ms
- ✓ test/lifecycle.test.ts > snapshots > BEH-BR-029, 030: revisions never regress and `changes` emits the current snapshot first 7ms
- ✓ test/lifecycle.test.ts > snapshots > check 8 / BEH-BR-105, 106: shutdown stops in reverse dependency order and reports cleanup failures 16ms
- ✓ test/confluence.test.ts > confluence > seed 7: a random history settles to the same states as a fresh install of the final set 127ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: replace while replace is in flight → supersede 38ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: retry while replace is in flight → conflict 18ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: restart while replace is in flight → conflict 19ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: disable while replace is in flight → conflict 16ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: enable while replace is in flight → conflict 17ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: install while restart is in flight → duplicate-plugin 16ms
- ✓ test/gxp.test.ts > audit records (behaviours 23, 24) > check 39: system transitions carry Actor.system and the causation of their trigger, and are never gated 54ms
- ✓ test/gxp.test.ts > audit records (behaviours 23, 24) > check 35 / 36: auditSeq is contiguous from 1; a failed write is retried in place with the same id and number 291ms
- ✓ test/optional.test.ts > reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-133: a run's finalizers drain under the provider's limit, with DrainTimeout and force; the run's plugin is never stopped 329ms
-stdout | test/leases.test.ts > leases > check 18 / BEH-BR-082, 083: useAll is all-or-nothing and goes through the same drain path
-[02:48:52.681] ERROR (#47): shutdown: example/audit drain: 1 lease(s) still held at the drain limit
+stdout | test/ccr14.test.ts > CCR-BR-014: the ConfigFingerprinter port (step 4a) > a fingerprinter that dies fails the call closed: no gate, no record, no change, no port text
+[15:27:46.990] ERROR (#99): config fingerprinter: reconfigure x/cfg@default: configuration fingerprints unavailable: defect
 
- ✓ test/leases.test.ts > leases > check 18 / BEH-BR-082, 083: useAll is all-or-nothing and goes through the same drain path 355ms
-stdout | test/optional.test.ts > reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-134: a failed run follows the background policy — fail-plugin fails the plugin; ignore leaves it active
-[02:48:52.697] ERROR (#126): whenAvailable whenAvailable#1: run failed { plugin: 'ui' }
+stdout | test/ccr14.test.ts > CCR-BR-014: the ConfigFingerprinter port (step 4a) > a fingerprinter that hangs fails the call closed: no gate, no record, no change, no port text
+[15:27:47.071] ERROR (#122): config fingerprinter: reconfigure x/cfg@default: configuration fingerprints unavailable: timeout
 
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-158, 201: a diff recomputed at the intent that newly needs a reason fails the call with a recorded ReasonRequired and no entry action 55ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-156: after its intent, an interrupted caller stops waiting; the remaining entries still run and the parent record still closes 142ms
- ✓ test/children.test.ts > children (behaviour 14) > BEH-BR-125: a child whose drain expires under the parent's removal parks with next "gone" and is removed when resumed 83ms
- ✓ test/children.test.ts > children (behaviour 14) > finding G19: a parent whose stop has begun mounts nothing, so no child outlives the activation 13ms
- ✓ test/children.test.ts > children (behaviour 14) > finding G21: a parent that awaits its child inside its build starves when the child needs the build slot it holds 109ms
- ✓ test/confluence-p4.test.ts > confluence (BEH-BR-160, P4 exit criterion) > random histories ending in the same installed set settle to equal snapshots 518ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: remove while restart is in flight → supersede 33ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: replace while restart is in flight → supersede 35ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: retry while restart is in flight → conflict 16ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: restart while restart is in flight → join 39ms
- ✓ test/confluence.test.ts > confluence > seed 42: a random history settles to the same states as a fresh install of the final set 151ms
- ✓ test/optional.test.ts > reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-134: a failed run follows the background policy — fail-plugin fails the plugin; ignore leaves it active 63ms
- ✓ test/optional.test.ts > reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-135: inspect lists optional keys and each registration by name, keys and whether it runs 17ms
- ✓ test/optional.test.ts > reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-136: a run carries only the leases it holds — removing its own provider from inside it fails with WouldDeadlock 14ms
- ✓ test/children.test.ts > groups (BEH-BR-127, 128) > BEH-BR-127: awaitActive resolves when every member is active and fails fast naming a failed member 28ms
- ✓ test/children.test.ts > groups (BEH-BR-127, 128) > BEH-BR-128: a member that fails its install checks fails the group's activation and leaves no member mounted 40ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > check 4: the table is total and matches the specification for every settled row 1ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > no-op cells succeed and change nothing (live host) 14ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: install on unknown → proceed 30ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: remove on unknown → unknown-plugin 26ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: replace on unknown → unknown-plugin 25ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: retry on unknown → unknown-plugin 25ms
- ✓ test/gxp.test.ts > audit records (behaviours 23, 24) > check 36: verifyAuditSequence reports gaps, duplicates and disorder only 0ms
- ✓ test/gxp.test.ts > fail closed and the latch (behaviour 23) > check 32: a requested record that cannot be written fails the call with AuditUnavailable and changes nothing 151ms
-stdout | test/p2.test.ts > runtime failure (behaviour 10) > BEH-BR-090: restart restarts only the fiber; ignore logs and changes nothing; inspect reports them
-[02:48:52.827] ERROR (#105): background loop failed Error: boom
-    at causePrettyError (file:///Users/mohammadalmechkor/Documents/ChatGPT/Bridger/prototypes/host-core/node_modules/effect/src/internal/effect.ts:387:13) { plugin: 'x/worker' }
-
- ✓ test/p2.test.ts > runtime failure (behaviour 10) > BEH-BR-090: restart restarts only the fiber; ignore logs and changes nothing; inspect reports them 328ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: disable while restart is in flight → supersede 36ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: enable while restart is in flight → conflict 21ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: install while disable is in flight → duplicate-plugin 16ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: remove while disable is in flight → supersede 40ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-156: reconciles are serialized — the second's entries run only after the first's parent record closes 23ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-157: a requested record that cannot be written stops the batch with AuditUnavailable; completed actions stay 154ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on unknown → unknown-plugin 25ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: restart on unknown → unknown-plugin 25ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: disable on unknown → unknown-plugin 27ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: enable on unknown → unknown-plugin 25ms
- ✓ test/confluence.test.ts > confluence > seed 99: a random history settles to the same states as a fresh install of the final set 162ms
- ✓ test/p2.test.ts > runtime failure (behaviour 10) > BEH-BR-091: a failure reported during the build fails the activation and publishes nothing 9ms
- ✓ test/p2.test.ts > runtime failure (behaviour 10) > check 14 / BEH-BR-092, 093: health degrades, then fails at the threshold; an in-flight check is not counted when the plugin leaves active 37ms
- ✓ test/p2.test.ts > configuration (behaviour 11) > check 7 / BEH-BR-097, 099: decode before build; an invalid value publishes nothing; the source is read at every activation 28ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: replace while disable is in flight → conflict 16ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: retry while disable is in flight → conflict 23ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: restart while disable is in flight → conflict 19ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: disable while disable is in flight → join 38ms
- ✓ test/inflight.test.ts > in-flight table (BEH-BR-072) > live: enable while disable is in flight → conflict 41ms
- ✓ test/reconcile.test.ts > reconcile (behaviour 18) > BEH-BR-159: two edit histories that end in one list converge on the same owned set 112ms
- ✓ test/reconcile.test.ts > Desired.overlay (BEH-BR-153) > is pure, matches by (id, realm), merges config deeply, keeps base order and appends only entries with a plugin 0ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: install on waiting → duplicate-plugin 29ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: remove on waiting → proceed 26ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: replace on waiting → proceed 40ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: retry on waiting → noop 29ms
- ✓ test/review.test.ts > CCR-BR-008: parked operations (check 47) > R2, T2: a call that joins a parked operation resumes and owns it; the parked call's record is final 114ms
- ✓ test/p2.test.ts > configuration (behaviour 11) > check 13 / BEH-BR-099, 101: an override wins over the source; reconfigure without a value clears it; ConfigInvalid leaves the plugin running 69ms
- ✓ test/p2.test.ts > configuration (behaviour 11) > check 28 / BEH-BR-102: a volatile-only change updates in place; a non-volatile change restarts with configChange paths 70ms
- ✓ test/inflight.test.ts > intent and parking (BEH-BR-067, 074) > BEH-BR-067: interrupting the caller does not cancel the transition 35ms
- ✓ test/inflight.test.ts > intent and parking (BEH-BR-067, 074) > BEH-BR-074: a call that supersedes a parked operation resumes it under its own options 71ms
- ✓ test/confluence.test.ts > confluence > seed 2026: a random history settles to the same states as a fresh install of the final set 218ms
- ✓ test/review.test.ts > CCR-BR-008: parked operations (check 47) > R8, R10: retry and enable conflict with a parked system stop; a stopping operation resumes and owns it 103ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on waiting → proceed 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: restart on waiting → noop 26ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: disable on waiting → proceed 26ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: enable on waiting → noop 28ms
- ✓ test/testhost.test.ts > TestHost (BEH-BR-177, 178) > BEH-BR-178: an operation records its intent and returns; its transition waits as a pending item until stepped 41ms
- ✓ test/testhost.test.ts > TestHost (BEH-BR-177, 178) > BEH-BR-178: builds made ready together are pending in registration order, owned by the system start 27ms
- ✓ test/testhost.test.ts > TestHost (BEH-BR-177, 178) > BEH-BR-178: a cascade that meets a dependent's restart is a pending wait; step order is arrival order among items that can progress 48ms
- ✓ test/p2.test.ts > configuration (behaviour 11) > check 37 / BEH-BR-103: no configuration value appears in any record, event, snapshot or error 38ms
- ✓ test/inflight.test.ts > intent and parking (BEH-BR-067, 074) > BEH-BR-072: a superseding replace that fails its definition checks fails alone 31ms
- ✓ test/inflight.test.ts > interruption before intent (BEH-BR-067, 188) > a caller interrupted while waiting for its turn changes nothing and ends with a failed (Interrupted) record 89ms
- ✓ test/ordering.test.ts > cross-plugin stop ordering (ADR-BR-038) > check 43 / BEH-BR-078, 088: a lease holder's calls never wait on the drain its lease blocks 77ms
- ✓ test/ordering.test.ts > cross-plugin stop ordering (ADR-BR-038) > check 44 / BEH-BR-079: a removal that meets a dependent's restart waits for its step, not its operation 45ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: install on starting → duplicate-plugin 30ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: remove on starting → proceed 47ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: replace on starting → proceed 39ms
- ✓ test/realms.test.ts > realms (BEH-BR-145–150) > BEH-BR-145, 147: "default" always exists; realms are defined once; one definition runs once per realm that isolates its keys 65ms
- ✓ test/realms.test.ts > realms (BEH-BR-145–150) > BEH-BR-146: isolated keys resolve and stay inside the realm; a non-isolated key provided from a realm takes the default slot 44ms
- ✓ test/review.test.ts > CCR-BR-008: parked operations (check 47) > R9, V, T1: a cascade that resumes a parked operation ends its intent; on re-expiry it is a parked system stop; endsIntentOf links the trail 134ms
- ✓ test/review.test.ts > CCR-BR-008: re-entrancy and the cascade's drain limit (check 48) > R11: a build and a finalizer that call back into the host fail with WouldDeadlock instead of hanging 30ms
- ✓ test/review.test.ts > CCR-BR-008: re-entrancy and the cascade's drain limit (check 48) > R12: a cascade's own drain limit runs while it waits for another call's drain: "forever" step 58ms
- ✓ test/p2.test.ts > configuration (behaviour 11) > BEH-BR-072 (reconfigure cells): joins a restart in flight; equal value joins; a different value supersedes; remove supersedes 95ms
- ✓ test/review.test.ts > CCR-BR-008: interruption at the gate (check 46) > R1: a caller interrupted while the gate decides leaves one rejected (caller-interrupted) record and no requested record 36ms
- ✓ test/inflight.test.ts > audit links of joins and supersession (BEH-BR-200) > joined and superseded calls write their own requested and a linked terminal record 98ms
- ✓ test/testhost.test.ts > TestHost (BEH-BR-177, 178) > BEH-BR-178: the concurrency limit holds while a build is suspended on the clock; a step that cannot progress returns false 36ms
- ✓ test/testhost.test.ts > TestHost (BEH-BR-177, 178) > finding G28: awaitIdle on a TestHost waits until the test steps; runUntilIdle steps 11ms
- ✓ test/testhost.test.ts > TestHost (BEH-BR-177, 178) > finding G27: a test that ends with pending items still closes: from the scope's close on, transitions run on their own 4ms
- ✓ test/testhost.test.ts > TestHost: time, identifiers and determinism (BEH-BR-179) > two runs of one script give identical snapshots, events and audit records, field for field; the host id is the first identifier 127ms
- ✓ test/gxp.test.ts > fail closed and the latch (behaviour 23) > check 34: an unwritten terminal record latches; mutations are refused; shutdown and acknowledgement are allowed 546ms
- ✓ test/realms.test.ts > realms (BEH-BR-145–150) > BEH-BR-146: a realm that isolates a base key hides the base service from its plugins 29ms
- ✓ test/realms.test.ts > realms (BEH-BR-145–150) > BEH-BR-148: a default provider serving consumers in several realms stops after all of them 59ms
- ✓ test/realms.test.ts > realms (BEH-BR-145–150) > BEH-BR-149: snapshots record each plugin's realm and every realm's isolated and available ids 11ms
- ✓ test/realms.test.ts > realms (BEH-BR-145–150) > BEH-BR-147: use, useAll and lease naming an undefined realm fail with UnknownRealm before any callback 1ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: retry on starting → noop 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on starting → proceed 43ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: restart on starting → proceed 34ms
 stdout | test/testhost.test.ts > TestHost: faults (BEH-BR-180) > stopFails: closing the activation fails — phase cleanup, CleanupError to the caller
 [01:00:00.000] ERROR (#168): shutdown: example/logger cleanup: injected fault: stopFails
 
- ✓ test/ordering.test.ts > cross-plugin stop ordering (ADR-BR-038) > check 45 / BEH-BR-080: a removal resumes a dependent's parked stop and ends the parked intent 160ms
- ✓ test/testhost.test.ts > TestHost: faults (BEH-BR-180) > buildFails: every build fails while active (phase build, an injected message); retry succeeds once it ends 14ms
- ✓ test/testhost.test.ts > TestHost: faults (BEH-BR-180) > stopFails: closing the activation fails — phase cleanup, CleanupError to the caller 16ms
- ✓ test/testhost.test.ts > TestHost: faults (BEH-BR-180) > holdLease: a held lease makes a removal time out under the clock; force revokes it 27ms
- ✓ test/testhost.test.ts > TestHost: faults (BEH-BR-180) > runtimeFailure: one runtime failure, travelling the real path — dependents stop, the plugin ends failed (runtime) 43ms
- ✓ test/testhost.test.ts > fixtures (BEH-BR-181, 182) > memoryAuditSink: idempotent on recordId; scripted outcomes; scriptedGate records every request and needs a decision 2ms
+stdout | test/ccr14.test.ts > CCR-BR-014: the ConfigFingerprinter port (step 4a) > a fingerprinter that answers an unselected path fails the call closed: no gate, no record, no change, no port text
+[15:27:47.120] ERROR (#146): config fingerprinter: reconfigure x/cfg@default: configuration fingerprints unavailable: malformed answer
+
+ ✓ test/testhost.test.ts (12 tests) 351ms
+stdout | test/ccr14.test.ts > CCR-BR-014: the ConfigFingerprinter port (step 4a) > a fingerprinter that answers a malformed fingerprint fails the call closed: no gate, no record, no change, no port text
+[15:27:47.169] ERROR (#169): config fingerprinter: reconfigure x/cfg@default: configuration fingerprints unavailable: malformed answer
+
+ ✓ test/confluence-p4.test.ts (1 test) 511ms
+   ✓ confluence (BEH-BR-160, P4 exit criterion) > random histories ending in the same installed set settle to equal snapshots  510ms
+stdout | test/leases.test.ts > leases > check 18 / BEH-BR-082, 083: useAll is all-or-nothing and goes through the same drain path
+[15:27:47.328] ERROR (#47): shutdown: example/audit drain: 1 lease(s) still held at the drain limit
+
+ ✓ test/children.test.ts (12 tests) 565ms
+ ✓ test/ccr14.test.ts (11 tests) 603ms
+stdout | test/optional.test.ts > optional dependencies (BEH-BR-129–131) > BEH-BR-129, 130: optional is a point-in-time, unleased read; the provider leaving changes nothing; an undeclared key is None
+[15:27:47.426] WARN (#17): undeclared optional dependency example/Metrics { plugin: 'ui' }
+
+stdout | test/p2.test.ts > runtime failure (behaviour 10) > BEH-BR-090: restart restarts only the fiber; ignore logs and changes nothing; inspect reports them
+[15:27:47.460] ERROR (#105): background loop failed Error: boom
+    at causePrettyError (file:///Users/mohammadalmechkor/Documents/ChatGPT/Bridger/prototypes/host-core/node_modules/effect/src/internal/effect.ts:387:13) { plugin: 'x/worker' }
+
+ ✓ test/reconcile.test.ts (12 tests) 757ms
+ ✓ test/confluence.test.ts (5 tests) 874ms
+ ✓ test/inflight.test.ts (34 tests) 1001ms
+ ✓ test/realms.test.ts (10 tests) 207ms
+stdout | test/optional.test.ts > reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-134: a failed run follows the background policy — fail-plugin fails the plugin; ignore leaves it active
+[15:27:47.876] ERROR (#126): whenAvailable whenAvailable#1: run failed { plugin: 'ui' }
+
+ ✓ test/lifecycle.test.ts (13 tests) 329ms
+ ✓ test/optional.test.ts (8 tests) 563ms
+   ✓ reactive dependencies: whenAvailable (BEH-BR-132–136) > BEH-BR-133: a run's finalizers drain under the provider's limit, with DrainTimeout and force; the run's plugin is never stopped  328ms
 stdout | test/bus.test.ts > event bus (behaviour 16) > BEH-BR-141: emit returns once listeners are started; a failure never reaches the emitter and is reported as listener-failed
-[02:48:53.439] WARN (#41): listener of billing/invoice-posted failed Error: posting failed
+[15:27:47.986] WARN (#41): listener of billing/invoice-posted failed Error: posting failed
     at causePrettyError (file:///Users/mohammadalmechkor/Documents/ChatGPT/Bridger/prototypes/host-core/node_modules/effect/src/internal/effect.ts:387:13)
 
- ✓ test/gxp.test.ts > operation gate (behaviour 25) > check 32: validation failures reach neither gate nor sink; refusals, gate defects and timeouts leave one rejected record and change nothing 76ms
- ✓ test/realms.test.ts > realms (BEH-BR-145–150) > BEH-BR-145, 196: defineRealm is gated and audited, its records naming the realm as { id: R, realm: R } 25ms
- ✓ test/realms.test.ts > interception (BEH-BR-151, 152) > BEH-BR-151: interceptions compose realm → inherited → own, per consumer; a child's own intercept replaces inheritance 39ms
- ✓ test/realms.test.ts > interception (BEH-BR-151, 152) > BEH-BR-151: optional captures are intercepted too 14ms
- ✓ test/realms.test.ts > interception (BEH-BR-151, 152) > BEH-BR-152: a wrap that throws fails only the consumer's activation, with phase activation 13ms
- ✓ test/bus.test.ts > event bus (behaviour 16) > BEH-BR-137: the bus is a base service, obtained by requiring it, which no plugin can provide 23ms
- ✓ test/bus.test.ts > event bus (behaviour 16) > BEH-BR-139, 140: listeners run by priority, then registration, `prepend` first among equals; a stopped plugin's listeners are gone 39ms
- ✓ test/bus.test.ts > event bus (behaviour 16) > BEH-BR-141: emit returns once listeners are started; a failure never reaches the emitter and is reported as listener-failed 54ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: disable on starting → proceed 32ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: enable on starting → noop 30ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: install on active → duplicate-plugin 35ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: remove on active → proceed 34ms
- ✓ test/p2.test.ts > configuration (behaviour 11) > BEH-BR-101, 080 (T1, T13): a parked reconfigure ended by a cascade reverts the override; intent-ended carries the paths 313ms
+ ✓ test/review.test.ts (6 tests) 400ms
+ ✓ test/ordering.test.ts (3 tests) 220ms
+ ✓ test/gxp.test.ts (11 tests) 1313ms
+   ✓ fail closed and the latch (behaviour 23) > check 34: an unwritten terminal record latches; mutations are refused; shutdown and acknowledgement are allowed  531ms
+ ✓ test/registry.test.ts (5 tests) 65ms
 stdout | test/generation.test.ts > Generation (behaviour 20) > BEH-BR-173–175: a retired value's drain times out repeatably, force revokes and awaits finalizers; retired values drain independently
-[02:48:53.520] WARN (#10): generation model: 1 lease(s) revoked
+[15:27:48.154] WARN (#10): generation model: 1 lease(s) revoked
 
+ ✓ test/bus.test.ts (7 tests) 238ms
 stdout | test/generation.test.ts > Generation (behaviour 20) > finding G26: a forced drain of an `acquire` lease interrupts the acquiring fiber — a caller's Scope cannot be closed from outside
-[02:48:53.527] WARN (#20): generation generation: 1 lease(s) revoked
+[15:27:48.162] WARN (#20): generation generation: 1 lease(s) revoked
 
- ✓ test/gxp.test.ts > operation gate (behaviour 25) > check 42: gate requests and records carry the definition version and digest; a gate can refuse by digest 28ms
- ✓ test/gxp.test.ts > hooks are optional (BEH-BR-194, 217) > check 38: with no sink and no gate, outcomes and snapshots equal those with a sink and an allow-all gate (except `audit`) 73ms
- ✓ test/gxp.test.ts > hooks are optional (BEH-BR-194, 217) > check 41: no core source reads ambient time or randomness outside the default IdGenerator 2ms
 stdout | test/generation.test.ts > Generation (behaviour 20) > BEH-BR-169: closing the generation's scope closes admission and drains everything, revoking at the limit
-[02:48:53.550] WARN (#24): generation generation: 1 lease(s) revoked
+[15:27:48.185] WARN (#24): generation generation: 1 lease(s) revoked
 
- ✓ test/generation.test.ts > Generation (behaviour 20) > BEH-BR-170: publish replaces the value in one step; earlier leases keep the old value; revisions count publishes 4ms
- ✓ test/generation.test.ts > Generation (behaviour 20) > BEH-BR-171, 173: admission closes and reopens without touching admitted leases; awaitDrained neither closes admission nor waits for later leases 2ms
- ✓ test/generation.test.ts > Generation (behaviour 20) > BEH-BR-173–175: a retired value's drain times out repeatably, force revokes and awaits finalizers; retired values drain independently 37ms
- ✓ test/generation.test.ts > Generation (behaviour 20) > finding G26: a forced drain of an `acquire` lease interrupts the acquiring fiber — a caller's Scope cannot be closed from outside 7ms
- ✓ test/generation.test.ts > Generation (behaviour 20) > BEH-BR-169: closing the generation's scope closes admission and drains everything, revoking at the limit 22ms
- ✓ test/generation.test.ts > Generation (behaviour 20) > BEH-BR-174: a forced drain of a generation made in an activation is a lease-revoked host event naming it 21ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: replace on active → proceed 39ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: retry on active → noop 37ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on active → proceed 31ms
- ✓ test/bus.test.ts > event bus (behaviour 16) > BEH-BR-142: parallel returns results in listener order and fails on the first typed failure; serial stops at the first defined result 46ms
- ✓ test/bus.test.ts > event bus (behaviour 16) > BEH-BR-143: waterfall composes around-listeners over the final effect; a listener that skips next short-circuits 7ms
- ✓ test/bus.test.ts > event bus (behaviour 16) > BEH-BR-144: listeners keep the dispatcher's HeldPlugins but run with CurrentActor reset to unattributed 22ms
- ✓ test/bus.test.ts > event bus (behaviour 16) > BEH-BR-140: a listener whose plugin is removed mid-dispatch is drained, then interrupted under the drain limit 57ms
- ✓ test/registry.test.ts > ContributionRegistry (behaviour 19) > BEH-BR-163: ids are unique — a duplicate, a concurrent duplicate and a non-finite priority register nothing 4ms
- ✓ test/registry.test.ts > ContributionRegistry (behaviour 19) > BEH-BR-164, 165: scope close removes last-in-first-out, leaves others intact; order is priority then id; revisions step by one 5ms
- ✓ test/registry.test.ts > ContributionRegistry (behaviour 19) > BEH-BR-166, 167: use holds a contribution; removal hides it at once, waits for the holder, and the id stays reserved until it ends 3ms
- ✓ test/registry.test.ts > ContributionRegistry (behaviour 19) > BEH-BR-167: at drainTimeout the holders are interrupted, fail with LeaseRevoked, and their finalizers run before removal completes 31ms
- ✓ test/registry.test.ts > ContributionRegistry (behaviour 19) > BEH-BR-163, 168: contributions added inside an activation are owned by that plugin in inspect — names and ids only 27ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: restart on active → proceed 32ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: disable on active → proceed 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: enable on active → noop 27ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: install on failed → duplicate-plugin 26ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: remove on failed → proceed 27ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: replace on failed → proceed 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: retry on failed → proceed 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on failed → proceed 27ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: restart on failed → proceed 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: disable on failed → proceed 26ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: enable on failed → noop 26ms
+ ✓ test/generation.test.ts (6 tests) 91ms
 stdout | test/leases.test.ts > legality (BEH-BR-071) > live: install on failed-cleanup → duplicate-plugin
-[02:48:53.931] ERROR (#827): shutdown: x/subject cleanup: injected fault: stopFails
+[15:27:48.533] ERROR (#827): shutdown: x/subject cleanup: injected fault: stopFails
 
- ✓ test/p2.test.ts > shutdown and hosting (behaviour 12) > check 8 / BEH-BR-105–107: the report lists cleanup failures, drain shortfalls and forced plugins; durationMs from the Clock 26ms
- ✓ test/p2.test.ts > shutdown and hosting (behaviour 12) > BEH-BR-109: concurrent shutdowns join; after completion the original report returns and nothing is recorded; HostClosed, changes and events end 61ms
- ✓ test/p2.test.ts > shutdown and hosting (behaviour 12) > BEH-BR-108, 110: closing the scope shuts down as Actor.system despite required attribution and a set latch; onClose gets the report once 6ms
- ✓ test/p2.test.ts > shutdown and hosting (behaviour 12) > BEH-BR-105 (T1, T7): shutdown resumes a parked stop, ends its intent with intent-ended caused by shutdown, and never parks 353ms
 stdout | test/leases.test.ts > legality (BEH-BR-071) > live: replace on failed-cleanup → conflict:cleanup-failure
-[02:48:53.987] ERROR (#877): shutdown: x/subject cleanup: injected fault: stopFails
+[15:27:48.589] ERROR (#877): shutdown: x/subject cleanup: injected fault: stopFails
 
 stdout | test/leases.test.ts > legality (BEH-BR-071) > live: retry on failed-cleanup → conflict:cleanup-failure
-[02:48:54.016] ERROR (#900): shutdown: x/subject cleanup: injected fault: stopFails
+[15:27:48.619] ERROR (#900): shutdown: x/subject cleanup: injected fault: stopFails
 
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: install on failed-cleanup → duplicate-plugin 29ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: remove on failed-cleanup → proceed 29ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: replace on failed-cleanup → conflict:cleanup-failure 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: retry on failed-cleanup → conflict:cleanup-failure 29ms
 stdout | test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on failed-cleanup → conflict:cleanup-failure
-[02:48:54.045] ERROR (#923): shutdown: x/subject cleanup: injected fault: stopFails
+[15:27:48.649] ERROR (#923): shutdown: x/subject cleanup: injected fault: stopFails
 
- ✓ test/p2.test.ts > shutdown and hosting (behaviour 12) > check 20 / BEH-BR-111: ManagedRuntime hosting forces the build, and dispose after shutdown keeps the report 1ms
 stdout | test/leases.test.ts > legality (BEH-BR-071) > live: restart on failed-cleanup → conflict:cleanup-failure
-[02:48:54.074] ERROR (#946): shutdown: x/subject cleanup: injected fault: stopFails
+[15:27:48.678] ERROR (#946): shutdown: x/subject cleanup: injected fault: stopFails
 
 stdout | test/leases.test.ts > legality (BEH-BR-071) > live: disable on failed-cleanup → conflict:cleanup-failure
-[02:48:54.102] ERROR (#969): shutdown: x/subject cleanup: injected fault: stopFails
+[15:27:48.708] ERROR (#969): shutdown: x/subject cleanup: injected fault: stopFails
 
 stdout | test/leases.test.ts > legality (BEH-BR-071) > live: enable on failed-cleanup → conflict:cleanup-failure
-[02:48:54.130] ERROR (#992): shutdown: x/subject cleanup: injected fault: stopFails
+[15:27:48.736] ERROR (#992): shutdown: x/subject cleanup: injected fault: stopFails
 
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on failed-cleanup → conflict:cleanup-failure 29ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: restart on failed-cleanup → conflict:cleanup-failure 29ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: disable on failed-cleanup → conflict:cleanup-failure 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: enable on failed-cleanup → conflict:cleanup-failure 27ms
- ✓ test/p2.test.ts > observability (behaviour 13) > check 15 / BEH-BR-114, 115: seq starts at 1 and steps by one; a slow subscriber sees loss only as a gap 233ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: install on disabled → duplicate-plugin 29ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: remove on disabled → proceed 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: replace on disabled → proceed 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: retry on disabled → conflict:disabled 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: reconfigure on disabled → proceed 29ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: restart on disabled → conflict:disabled 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: disable on disabled → noop 28ms
- ✓ test/leases.test.ts > legality (BEH-BR-071) > live: enable on disabled → proceed 33ms
+ ✓ test/leases.test.ts (63 tests) 2182ms
+   ✓ leases > check 18 / BEH-BR-082, 083: useAll is all-or-nothing and goes through the same drain path  379ms
 stdout | test/p2.test.ts > observability (behaviour 13) > BEH-BR-118: inspect shows parked and pending during a parked removal
-[02:48:54.509] ERROR (#633): shutdown: example/logger drain: 1 lease(s) still held at the drain limit
+[15:27:49.029] ERROR (#633): shutdown: example/logger drain: 1 lease(s) still held at the drain limit
 
- ✓ test/p2.test.ts > observability (behaviour 13) > BEH-BR-118: inspect shows parked and pending during a parked removal 327ms
- ✓ test/confluence-p5.test.ts > confluence through TestHost (BEH-BR-160, BEH-BR-178; P5 exit criterion) > random histories with randomly chosen step orders settle to the snapshot of a direct install 2646ms
+ ✓ test/p2.test.ts (18 tests) 2235ms
+   ✓ runtime failure (behaviour 10) > BEH-BR-090: restart restarts only the fiber; ignore logs and changes nothing; inspect reports them  326ms
+   ✓ shutdown and hosting (behaviour 12) > BEH-BR-105 (T1, T7): shutdown resumes a parked stop, ends its intent with intent-ended caused by shutdown, and never parks  348ms
+   ✓ observability (behaviour 13) > BEH-BR-118: inspect shows parked and pending during a parked removal  327ms
+ ✓ test/confluence-p5.test.ts (1 test) 2374ms
+   ✓ confluence through TestHost (BEH-BR-160, BEH-BR-178; P5 exit criterion) > random histories with randomly chosen step orders settle to the snapshot of a direct install  2373ms
 
- Test Files  18 passed (18)
-      Tests  227 passed (227)
-   Start at  02:48:51
-   Duration  3.45s (transform 733ms, setup 0ms, collect 7.16s, tests 15.30s, environment 2ms, prepare 1.20s)
+ Test Files  19 passed (19)
+      Tests  238 passed (238)
+   Start at  15:27:46
+   Duration  3.05s (transform 970ms, setup 0ms, collect 5.61s, tests 14.88s, environment 2ms, prepare 1.21s)
 ```

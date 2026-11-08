@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-12                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -158,6 +158,7 @@ interface CloseReport {
   readonly forced: readonly string[]                  // plugins whose leases were interrupted
   readonly durationMs: number                         // measured with the Clock service
   readonly auditDegraded: boolean                     // the audit latch was set when the report was produced (BEH-BR-110)
+  readonly auditLastSeq?: number                      // highest auditSeq written when the report was produced; with a sink only (24)
 }
 ```
 
@@ -191,6 +192,18 @@ REQUIREMENT: `auditDegraded` MUST be true when the host's audit latch is set
              wired.
 ```
 
+```
+REQUIREMENT: `auditLastSeq` MUST be present exactly when an `AuditSink` is
+             wired, and MUST be the highest `auditSeq` the sink had accepted
+             when the report was produced — the audit position
+             `lastWritten` at that moment (24 — Time, Identifiers and
+             Sequence, BEH-BR-212), 0 when none had been accepted. It MUST
+             NOT be presented as the last record of the host: the
+             shutdown's own terminal record is written after the report is
+             produced, and the final position MUST be read from
+             `Host.controls` once the writer has flushed.
+```
+
 SPEC.md named this field `phase`, reusing the vocabulary of
 `PluginSnapshot.failure.phase` ("build", "activation", "runtime",
 "cleanup"). The report's causes are a different and smaller set, and sharing
@@ -202,6 +215,13 @@ also in `forced`; if its scope then closed cleanly it is also in `stopped`.
 A plugin is in `stopped` or in `failed` with cause "cleanup", never both.
 Listing a drain shortfall as a failure, even when force then succeeded,
 keeps an overrun visible instead of folding it into success.
+
+`auditLastSeq` (CCR-BR-014) lets an `onClose` handler or the caller of
+`shutdown` compare the host's audit position with its store at the moment
+the host closes. The prototype showed that the report is produced before the
+shutdown's terminal record is written (finding G34), so the field is defined
+as the position when the report is produced, not as the host's last number;
+`Host.controls` stays readable after close for the final one.
 
 ## BEH-BR-107: Force after the overall limit
 

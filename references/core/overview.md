@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-OVW                                                  |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.4 (2026-10-03): The gate covers operator mutations other than `shutdown`; system transitions are recorded, never gated (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Parked stops, `DrainTimeout` fields, `Interrupted` record-only tag, TestHost members; `intent-ended` record and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-10-03): API surface: `Host.controls` and `HostControls`, the `ConfigFingerprinter` port and `ConfigChange`, `ConfigFingerprintUnavailable` and `ConfigFingerprintFailed`, the `fingerprintTimeout` option, `CloseReport.auditLastSeq` (CCR-BR-014)<br>0.4 (2026-10-03): The gate covers operator mutations other than `shutdown`; system transitions are recorded, never gated (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Parked stops, `DrainTimeout` fields, `Interrupted` record-only tag, TestHost members; `intent-ended` record and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -92,10 +92,10 @@ All signatures are illustrative until code exists.
 | `Host.install`, `remove`, `replace`, `retry`, `reconfigure`, `restart`, `disable`, `enable` | methods | Lifecycle operations, linearized per plugin, all attributable |
 | `Host.reconcile`, `defineRealm` | methods | Desired-state convergence, realm definition |
 | `Host.use`, `useAll`, `lease` | methods | Leased access to services |
-| `Host.snapshot`, `changes`, `events`, `inspect`, `awaitIdle` | members | Observation and diagnostics; a parked stop shows as `parked` in the snapshot and `inspect`, with `stop-parked` and `stop-resumed` events |
+| `Host.snapshot`, `changes`, `events`, `inspect`, `awaitIdle`, `controls` | members | Observation and diagnostics; `controls` reports the host's wiring, GxP limits (`auditTimeout`, `gateTimeout`, `fingerprintTimeout`) and audit position, and stays readable after close; a parked stop shows as `parked` in the snapshot and `inspect`, with `stop-parked` and `stop-resumed` events |
 | `Host.shutdown`, `acknowledgeAuditDegraded` | methods | Shutdown with `CloseReport`; leaving the audit latch |
-| `PluginHandle`, `PluginRef`, `PluginState`, `PluginSnapshot`, `HostSnapshot`, `CloseReport`, `HostEvent`, `PluginInspection` | types | Handles, references, snapshots, reports |
-| `BridgerOptions`, `InstallOptions`, `RemoveOptions`, `ReplaceOptions`, `OperationOptions`, `ConfigSource` | types | Options |
+| `PluginHandle`, `PluginRef`, `PluginState`, `PluginSnapshot`, `HostSnapshot`, `CloseReport`, `HostEvent`, `PluginInspection`, `HostControls` | types | Handles, references, snapshots, reports (`CloseReport.auditLastSeq` with a sink) |
+| `BridgerOptions`, `InstallOptions`, `RemoveOptions`, `ReplaceOptions`, `OperationOptions`, `ConfigSource` | types | Options (`BridgerOptions` includes `fingerprintTimeout`, default 5 seconds) |
 
 ### Composition — behaviours [14](./behaviors/14-children-and-groups.md)–[20](./behaviors/20-generation.md)
 
@@ -115,6 +115,7 @@ All signatures are illustrative until code exists.
 | `OperationContext`, `CurrentActor` | type, reference | Actor, reason and correlation for a call |
 | `AuditSink`, `AuditRecord`, `AuditPhase` | port, types | Sequenced lifecycle records handed to a sink, including the `intent-ended` system record (`endsIntentOf`) and `resumes` on a resuming call's terminal record; losses are signalled by the latch |
 | `OperationGate`, `OperationRequest` | port, type | Refuse or approve a lifecycle operation |
+| `ConfigFingerprinter`, `ConfigChange` | port, type | Optional: opaque fingerprints of selected configuration values, taken at step 4a before the gate and carried with the changed paths; core computes no fingerprint ([ADR-BR-039](./decisions/039-config-fingerprint-port.md)) |
 | `IdGenerator` | service | Identifiers for records and hosts |
 | `verifyAuditSequence` | function | Gap and duplicate detection over records — not tamper evidence |
 
@@ -139,7 +140,7 @@ configuration values, keys, fibers or raw causes
 | Leases | `ServiceUnavailable`, `LeaseRevoked`, `LeaseTimeout`, `DrainTimeout`, `WouldDeadlock`, `KeyMismatch` |
 | Handles | `ActivationFailed`, `PluginRemoved`, `WaitTimeout` |
 | Helpers | `AdmissionClosed`, `DuplicateContribution`, `ContributionUnavailable` |
-| GxP | `Unattributed`, `ReasonRequired`, `AuditUnavailable`, `AuditWriteFailed`, `OperationRejected` |
+| GxP | `Unattributed`, `ReasonRequired`, `AuditUnavailable`, `AuditWriteFailed`, `OperationRejected`, `ConfigFingerprintUnavailable` (call error), `ConfigFingerprintFailed` (port error) |
 
 `DrainTimeout { id, leases, target? }` names in `id` the plugin (or
 `Generation`) whose leases did not drain, or whose running transition step the

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-24                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -183,6 +183,71 @@ REQUIREMENT: `auditSeq` MUST be per host (scoped by `hostId`). A new host —
 REQUIREMENT: `auditSeq` MUST be independent of the event `seq` of
              `Host.events` and of `HostSnapshot.revision`.
 ```
+
+The host reports its audit position, together with its wiring and its GxP
+limits, through `Host.controls` (CCR-BR-014):
+
+```ts
+// illustrative — not type-checked
+interface HostControls {
+  readonly hostId: string                              // HostSnapshot.hostId
+  readonly wired: {
+    readonly audit: boolean                            // an AuditSink was resolved (02, BEH-BR-015)
+    readonly gate: boolean                             // an OperationGate was resolved
+    readonly fingerprinter: boolean                    // a ConfigFingerprinter was resolved
+  }
+  readonly attribution: { readonly require: boolean; readonly requireReason: readonly Operation[] }
+  readonly auditTimeout: Duration.Duration
+  readonly gateTimeout: Duration.Duration | "forever"
+  readonly fingerprintTimeout: Duration.Duration
+  readonly idGenerator: "default" | "provided"         // whether an IdGenerator was supplied (BEH-BR-210)
+  readonly auditPosition?: { readonly lastWritten: number }   // present only when an AuditSink is wired
+}
+// Host.controls(): Effect.Effect<HostControls>  (02 — Host Construction, BEH-BR-013)
+```
+
+```
+REQUIREMENT: `Host.controls` MUST return the host's `hostId`, which of
+             `AuditSink`, `OperationGate` and `ConfigFingerprinter` were
+             resolved at construction, the effective `attribution`,
+             `auditTimeout`, `gateTimeout` and `fingerprintTimeout` after
+             defaults are applied (02 — Host Construction, BEH-BR-011), and
+             whether an `IdGenerator` was supplied or the default is used.
+             None of these MUST change for the life of the host.
+```
+
+```
+REQUIREMENT: `auditPosition` MUST be present exactly when an `AuditSink` is
+             wired. `lastWritten` MUST be the highest `auditSeq` of a record
+             the sink accepted (its write succeeded) for this host, or 0
+             when none has been accepted. It MUST be per host and MUST NEVER
+             decrease.
+```
+
+```
+REQUIREMENT: `Host.controls` MUST NOT require attribution, consult the
+             `OperationGate` or write a record, and MUST NOT fail. It MUST
+             remain readable after the host has closed, and MUST then report
+             the audit position as the writer leaves it once it has flushed
+             (12 — Shutdown and Hosting, BEH-BR-106).
+```
+
+`lastWritten` lets a consumer compare what the host handed over with what its
+store holds: a store whose highest `auditSeq` for this `hostId` is below
+`lastWritten` has lost records the sink accepted, a loss at the tail that
+BEH-BR-215 cannot see, because a missing tail leaves no gap. `Host.controls`
+is also what makes the wiring and the limits of a host checkable from the
+host itself, rather than from its construction code.
+
+**Settled here.** (1) `HostControls` is not part of `HostSnapshot`: the audit
+position moves on every write, and a snapshot carrying it would take one
+revision per record. (2) `Host.controls` stays readable after close because
+the `CloseReport` is produced before the shutdown's own terminal record is
+written, so the report's `auditLastSeq` cannot include it (prototype finding
+G34); the final high-water mark is read from `Host.controls` once the writer
+has flushed. (3) Core reports the position; it does not compare it with any
+store, and claims nothing about what the store kept
+(BEH-BR-208 of 23 — Audit Sink and Record).
 
 Numbering at the writer, rather than when a record is created, is what makes
 the numbers the sink receives contiguous even when records are created

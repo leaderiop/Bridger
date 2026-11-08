@@ -22,9 +22,10 @@ import { makeEvents, type HostEvent, type HostEventBody } from "./events.js"
 import { PluginRuntime, type FailurePolicy } from "./runtime.js"
 import { inFlight, legality, type FlightOp, type Op, type Outcome, type PluginState, type Row } from "./legality.js"
 import {
-  Actor, AuditSink, AuditUnavailable, CurrentActor, IdGenerator, OperationGate, OperationRejected, ReasonRequired, Unattributed,
-  awaitWritten, defaultIdGenerator, makeWriter, type AttributionOptions, type DefinitionRef, type Draft, type Operation,
-  type OperationContext, type OperationOptions, type SystemTransition
+  Actor, AuditSink, AuditUnavailable, ConfigFingerprinter, ConfigFingerprintUnavailable, CurrentActor, FINGERPRINT_FORMAT, IdGenerator,
+  OperationGate, OperationRejected, ReasonRequired, Unattributed,
+  awaitWritten, defaultIdGenerator, makeWriter, type AttributionOptions, type ConfigChange, type DefinitionRef, type Draft, type Fingerprint,
+  type Operation, type OperationContext, type OperationOptions, type SystemTransition
 } from "./gxp.js"
 import type { AnyPlugin, InstallOptions, Interception, Keys, PluginHandle, ServicesOf } from "./plugin.js"
 import { Events, makeBus } from "./bus.js"
@@ -57,6 +58,18 @@ export interface CloseReport {
   readonly forced: ReadonlyArray<string>
   readonly durationMs: number                 // measured with the Clock service (BEH-BR-106)
   readonly auditDegraded: boolean
+  readonly auditLastSeq?: number              // highest auditSeq written when the report was made (CCR-BR-014)
+}
+/** Read-only view of the host's audit controls and wiring (CCR-BR-014), for installation checks and high-water marks. */
+export interface HostControls {
+  readonly hostId: string
+  readonly wired: { readonly audit: boolean; readonly gate: boolean; readonly fingerprinter: boolean }
+  readonly attribution: AttributionOptions
+  readonly auditTimeout: number
+  readonly gateTimeout: number
+  readonly fingerprintTimeout: number
+  readonly idGenerator: "default" | "provided"
+  readonly auditPosition?: { readonly lastWritten: number }   // present when a sink is wired
 }
 export interface PluginInspection {
   readonly id: string
@@ -95,6 +108,7 @@ export interface Options {
   readonly attribution?: AttributionOptions
   readonly auditTimeout?: number     // ms (default 10 s)
   readonly gateTimeout?: number      // ms (default 60 s)
+  readonly fingerprintTimeout?: number   // ms (default 5 s; never "forever", CCR-BR-014)
   readonly auditCapacity?: number    // writer queue bound (default 1024)
   readonly config?: (id: string) => Effect.Effect<unknown, unknown>   // the configuration source (BEH-BR-098)
   readonly shutdownTimeout?: number  // ms (default 60 s)
@@ -173,7 +187,7 @@ interface Entry {
   healthFails?: number
   failing?: boolean                           // a runtime failure transition is running (BEH-BR-094)
   pendingFailure?: string                     // a runtime failure signalled while still starting (BEH-BR-091)
-  override?: { readonly raw: unknown }        // configuration override (BEH-BR-099)
+  override?: { readonly raw: unknown; fingerprints?: ReadonlyArray<Fingerprint> }   // configuration override (BEH-BR-099); fingerprints from the port (CCR-BR-014)
   configValue?: unknown                       // decoded configuration of the current activation (latest)
   configRef?: SubscriptionRef.SubscriptionRef<unknown>
   background?: Array<{ name: string; policy: FailurePolicy; restarts: number; running: boolean }>
@@ -236,7 +250,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   // GxP ports, resolved once at construction (BEH-BR-015).
   const sinkOpt = yield* Effect.serviceOption(AuditSink)
   const gateOpt = yield* Effect.serviceOption(OperationGate)
-  const ids = Option.getOrElse(yield* Effect.serviceOption(IdGenerator), () => defaultIdGenerator)
+  const idOpt = yield* Effect.serviceOption(IdGenerator)
+  const ids = Option.getOrElse(idOpt, () => defaultIdGenerator)
+  const fpOpt = yield* Effect.serviceOption(ConfigFingerprinter)
+  const fingerprintTimeout = options.fingerprintTimeout ?? 5_000
   const hostId = yield* ids.next
   const auditTimeout = options.auditTimeout ?? 10_000
   const gateTimeout = options.gateTimeout ?? 60_000
@@ -719,14 +736,17 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     flights.delete(d.id)
     d.stopReason = by === "shutdown" ? "shutdown" : "dependency-loss"
     let paths: Array<string> = []
+    let restored: ReadonlyArray<Fingerprint> = []
     if (f.overrideBefore) {
       paths = changedPaths(d.override?.raw, f.overrideBefore.value?.raw)
       d.override = f.overrideBefore.value                    // the last completed configuration (BEH-BR-101, T13)
+      // The restored override's stored fingerprints; the port is never called again (CCR-BR-014).
+      restored = (d.override?.fingerprints ?? []).filter((x) => paths.includes(x.path))
     }
     yield* commit
     yield* emit({ type: "stop-resumed", by, endsIntent: f.op }, d.id)
     yield* systemRecord("intent-ended", d, yield* CurrentCause, undefined, {
-      ...(f.causeId ? { endsIntentOf: f.causeId } : {}), ...(paths.length ? { configChange: { paths } } : {})
+      ...(f.causeId ? { endsIntentOf: f.causeId } : {}), ...(paths.length ? { configChange: { paths, ...(restored.length ? { fingerprints: restored } : {}) } } : {})
     })
   })
 
@@ -1141,7 +1161,39 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     return done
   })
 
-  type MutationError = HostClosed | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected
+  /**
+   * Step 4a (CCR-BR-014): hand the selected values of a new override to the ConfigFingerprinter, and only those.
+   * Any failure, defect, timeout or malformed answer fails the call before the gate, with no record and no change.
+   */
+  const fingerprintsOf = (op: Operation, target: { readonly id: string; readonly realm: string } | undefined,
+    cfg: { readonly form: "raw" | "decoded"; readonly paths: ReadonlyArray<string>; readonly value: (path: string) => unknown } | undefined
+  ): Effect.Effect<ReadonlyArray<Fingerprint>, ConfigFingerprintUnavailable> => {
+    if (Option.isNone(fpOpt) || !cfg || cfg.paths.length === 0 || !target || (op !== "install" && op !== "reconfigure")) return Effect.succeed([])
+    const port = fpOpt.value
+    const q = { operation: op, target }
+    const unavailable = (why: string) => new ConfigFingerprintUnavailable({ operation: op, message: `configuration fingerprints unavailable: ${why}` })
+    return Effect.gen(function* () {
+      const selected = yield* port.select({ ...q, paths: cfg.paths })
+      if (selected.some((x) => !cfg.paths.includes(x)) || new Set(selected).size !== selected.length) return yield* Effect.fail(unavailable("selection outside the changed paths"))
+      if (selected.length === 0) return []
+      const ordered = cfg.paths.filter((x) => selected.includes(x))
+      const out = yield* port.fingerprint({ ...q, form: cfg.form, entries: ordered.map((path) => ({ path, value: cfg.value(path) })) })
+      const byPath = new Map(out.map((x) => [x.path, x.fingerprint]))
+      if (out.length !== ordered.length || byPath.size !== out.length || ordered.some((x) => !FINGERPRINT_FORMAT.test(byPath.get(x) ?? "")))
+        return yield* Effect.fail(unavailable("malformed answer"))
+      return ordered.map((path) => ({ path, fingerprint: byPath.get(path)! }))
+    }).pipe(
+      Effect.timeoutOrElse({ duration: fingerprintTimeout, orElse: () => Effect.fail(unavailable("timeout")) }),
+      // Core writes the message itself: the port's own text could quote a value (CCR-BR-014).
+      Effect.catchCause((c) => {
+        if (Cause.hasInterrupts(c) && !Cause.hasFails(c)) return Effect.failCause(c as Cause.Cause<never>)   // interruption only
+        const e = Cause.squash(c)
+        const err = e instanceof ConfigFingerprintUnavailable ? e : unavailable(e && typeof e === "object" && "_tag" in e ? String((e as { _tag: unknown })._tag) : "defect")
+        return Effect.logError(`config fingerprinter: ${op} ${target.id}@${target.realm}: ${err.message}`).pipe(Effect.andThen(Effect.fail(err)))
+      }))
+  }
+
+  type MutationError = HostClosed | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected | ConfigFingerprintUnavailable
   /**
    * The order of a mutating call (BEH-BR-188): HostClosed → attribution → latch → validation →
    * gate → requested record → WouldDeadlock → linearization point (re-validation, legality,
@@ -1162,6 +1214,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     readonly extra?: () => Partial<Draft>
     /** The scope-close shutdown: Actor.system, exempt from attribution (BEH-BR-108). */
     readonly system?: boolean
+    /** A new override value supplied by the call, read after validation (step 4a, CCR-BR-014). */
+    readonly config?: () => { readonly form: "raw" | "decoded"; readonly paths: ReadonlyArray<string>; readonly value: (path: string) => unknown } | undefined
+    /** Receives the fingerprints, to be stored with the override. */
+    readonly fingerprinted?: (fps: ReadonlyArray<Fingerprint>) => void
   }): Effect.Effect<A, MutationError | E | WouldDeadlock | Conflict | Superseded | UnknownPlugin | DuplicatePlugin | DrainTimeout | CleanupError> => Effect.gen(function* () {
     const op = spec.operation
     const tkey = spec.target ? keyOf(spec.target.id, spec.target.realm) : undefined
@@ -1187,8 +1243,15 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       // 4. validation (no record on failure)
       yield* spec.validate
       const target = spec.target ?? (spec.realmTarget !== undefined ? { id: spec.realmTarget, realm: spec.realmTarget } : undefined)
-      const base = { actor: ctx.actor, correlationId, operation: op, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.extra?.() ?? {}),
-        ...(internal.causedBy ? { causationId: internal.causedBy } : {}) }
+      // 4a. fingerprints of a new override value, before the gate so an approval can bind to them (CCR-BR-014).
+      const fps = yield* fingerprintsOf(op, target, spec.config?.())
+      if (fps.length) spec.fingerprinted?.(fps)
+      const extra = spec.extra?.() ?? {}
+      const configChange: ConfigChange | undefined = extra.configChange ? { ...extra.configChange, ...(fps.length ? { fingerprints: fps } : {}) } : undefined
+      const base = { actor: ctx.actor, correlationId, operation: op, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...extra,
+        ...(configChange ? { configChange } : {}), ...(internal.causedBy ? { causationId: internal.causedBy } : {}) }
+      // requested and rejected records carry the definition the call presents (CCR-BR-014).
+      const presented = spec.definition && tkey !== undefined ? { definition: spec.definition } : {}
       const before = tkey !== undefined ? { ...stateOfId(tkey), ...(spec.definition ?? {}) } : undefined
       let causeId: string | undefined
       const terminal: Call["terminal"] = (phase, extra) => writer
@@ -1201,7 +1264,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       internal.reached?.()                                    // counted in the reconcile parent's `children` (BEH-BR-201)
       const req = yield* Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
         if (Option.isSome(gateOpt) && op !== "shutdown") {
-          const verdict = yield* restore(gateOpt.value.authorize({ operation: op, actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.definition ? { definition: spec.definition } : {}) }).pipe(
+          const verdict = yield* restore(gateOpt.value.authorize({ operation: op, actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.definition ? { definition: spec.definition } : {}), ...(configChange ? { configChange } : {}) }).pipe(
             Effect.timeoutOrElse({ duration: gateTimeout, orElse: () => Effect.fail(new OperationRejected({ operation: op, reason: "gate-timeout" })) }),
             Effect.as(undefined), Effect.catchCause((c) => {
               if (Cause.hasInterrupts(c) && !Cause.hasFails(c)) return Effect.failCause(c)
@@ -1209,14 +1272,14 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
               return Effect.succeed(e instanceof OperationRejected ? e.reason : "gate-defect")
             }),
             // A caller interrupted while the gate decides leaves one `rejected` record (BEH-BR-221).
-            Effect.onInterrupt(() => writer ? writer.enqueue({ ...base, phase: "rejected", error: { _tag: "OperationRejected", message: "caller-interrupted" } }) : Effect.void)))
+            Effect.onInterrupt(() => writer ? writer.enqueue({ ...base, ...presented, phase: "rejected", error: { _tag: "OperationRejected", message: "caller-interrupted" } }) : Effect.void)))
           if (verdict !== undefined) {
-            if (writer) yield* writer.enqueue({ ...base, phase: "rejected", error: { _tag: "OperationRejected", message: verdict } })
+            if (writer) yield* writer.enqueue({ ...base, ...presented, phase: "rejected", error: { _tag: "OperationRejected", message: verdict } })
             return yield* Effect.fail(new OperationRejected({ operation: op, reason: verdict, ...(target ? { target } : {}) }))
           }
         }
         if (!writer) return undefined
-        const r = yield* writer.enqueue({ ...base, phase: "requested", ...(before ? { before } : {}) })
+        const r = yield* writer.enqueue({ ...base, ...presented, phase: "requested", ...(before ? { before } : {}) })
         if (r) { causeId = r.recordId; pending.owed = terminal }
         return r
       }))
@@ -1281,9 +1344,17 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
 
   const install = (def: AnyPlugin, opts: InstallOptions & { readonly owner?: string } = {}) => {
     const realm = opts.realm ?? "default"
+    let installFps: ReadonlyArray<Fingerprint> | undefined
     const ident: Ident = { key: keyOf(def.id, realm), id: def.id, realm }
     return mutating<PluginHandle, InstallError | UnknownPlugin | Conflict>({
       operation: "install", target: { id: def.id, realm }, options: opts, definition: defRef(def),
+      // install with config: the top-level keys of the raw override, never decoded at the call (BEH-BR-197).
+      ...(opts.config !== undefined ? {
+        extra: () => ({ configChange: { paths: changedPaths(undefined, opts.config) } }),
+        config: () => ({ form: "raw" as const, paths: changedPaths(undefined, opts.config),
+          value: (p: string) => p === "<root>" ? opts.config : (opts.config as Record<string, unknown>)[p] }),
+        fingerprinted: (fps: ReadonlyArray<Fingerprint>) => { installFps = fps }
+      } : {}),
       validate: knownRealm(realm).pipe(Effect.andThen(legalEarly(ident.key, "install")), Effect.andThen(validate(def, ident))),   // registers nothing on error (BEH-BR-018)
       linearize: (call) => immediate(call, Effect.gen(function* () {
         yield* legal(ident.key, "install"); yield* validate(def, ident)
@@ -1291,6 +1362,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
           entries.set(ident.key, newEntry(def, ident, {
             ...(opts.disabled ? { disabled: true } : {}), ...(opts.config !== undefined ? { config: opts.config } : {}), ...(opts.owner !== undefined ? { owner: opts.owner } : {}),
             ...(opts.intercept ? { intercept: { inherited: [], own: opts.intercept } } : {}) }))
+          const created = entries.get(ident.key)!
+          if (installFps && created.override) created.override.fingerprints = installFps
           yield* emit({ type: "plugin-installed" }, ident.key)
           yield* commit
           yield* settle
@@ -1408,6 +1481,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | ConfigInvalid>({
       operation: "reconfigure", target: toRef(ref), options: opts,
       extra: () => ({ configChange: { paths: st.paths } }),     // paths only, never values (BEH-BR-103)
+      // reconfigure with a value: the decoded values at the changed paths; a clear hands nothing over (CCR-BR-014).
+      config: () => config === undefined ? undefined : ({ form: "decoded" as const, paths: st.paths,
+        value: (p: string) => p === "<root>" ? st.decoded : (st.decoded as Record<string, unknown> | undefined)?.[p] }),
+      fingerprinted: (fps) => { if (st.next) st.next = { ...st.next, fingerprints: fps } },
       validate: legalEarly(id, "reconfigure").pipe(Effect.andThen(decode)),
       linearize: (call) => Effect.gen(function* () {
         const e = entries.get(id)
@@ -1727,7 +1804,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     closed = true
     const report: CloseReport = {
       stopped: [...stopped].sort(), failed, forced: [...forced].filter((x) => !forcedBefore.has(x)),
-      durationMs: (yield* Clock.currentTimeMillis) - start, auditDegraded: writer?.state.degraded ?? false
+      durationMs: (yield* Clock.currentTimeMillis) - start, auditDegraded: writer?.state.degraded ?? false,
+      ...(writer ? { auditLastSeq: writer.state.lastWritten } : {})
     }
     yield* emit({ type: "closed" })
     yield* Deferred.succeed(closedSignal, undefined)
@@ -1776,6 +1854,12 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     install, remove, replace, retry, reconfigure, restart, disable, enable, acknowledgeAuditDegraded, defineRealm, reconcile,
     use, useAll, lease, awaitIdle, inspect, shutdown,
     snapshot: Effect.sync(snapshotOf),
+    /** Read-only; available after close, when it reports records flushed after the CloseReport (CCR-BR-014). */
+    controls: Effect.sync((): HostControls => ({
+      hostId, wired: { audit: !!writer, gate: Option.isSome(gateOpt), fingerprinter: Option.isSome(fpOpt) },
+      attribution, auditTimeout, gateTimeout, fingerprintTimeout, idGenerator: Option.isSome(idOpt) ? "provided" : "default",
+      ...(writer ? { auditPosition: { lastWritten: writer.state.lastWritten } } : {})
+    })),
     changes: SubscriptionRef.changes(feed).pipe(Stream.interruptWhen(Deferred.await(closedSignal))),   // ends when the host closes
     events: events.stream as Stream.Stream<HostEvent>,                                                  // diagnostic feed, not an audit trail
   }

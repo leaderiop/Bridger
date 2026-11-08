@@ -154,3 +154,7 @@ entries:
     file: "038-cross-plugin-stop-ordering.md"
     title: "Cross-plugin stops wait only along dependency edges"
     status: "Proposed"
+  - id: "ADR-BR-039"
+    file: "039-config-fingerprint-port.md"
+    title: "Configuration fingerprints come from a consumer port"
+    status: "Proposed"
