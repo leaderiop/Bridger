@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-014                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-10-03): `HostSnapshot.auditDropped` listed (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` of a resumed or parked stop (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
-
+> | Change History | 0.4 (2026-11-08): The snapshot union gains `dormant` (ADR-BR-042) (CCR-BR-017); state handoff adds no snapshot field (CCR-BR-019)<br>0.3 (2026-10-03): `HostSnapshot.auditDropped` listed (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` of a resumed or parked stop (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -72,10 +71,15 @@ What each variant encodes:
 
 **Trade-off accepted**: a slightly more demanding consumer API, in exchange for snapshots that cannot describe an impossible plugin.
 
+**Amendments (2026-11-08)**:
+
+- The discriminated union gains a `dormant` variant, `starting.loading` and failure phase "load" for lazy plugins ([ADR-BR-042](../decisions/042-lazy-activation.md)).
+- A held handoff value never appears in a snapshot ([ADR-BR-049](../decisions/049-state-handoff-on-replace.md)).
+
 ## References
 
 - Behaviours: [04 — States and snapshots](../behaviors/04-states-and-snapshots.md), [08 — Operation legality](../behaviors/08-operation-legality.md), [13 — Observability and diagnostics](../behaviors/13-observability-and-diagnostics.md)
 - Invariants: [INV-BR-007](../invariants.md#inv-br-007-failure-is-sticky), [INV-BR-008](../invariants.md#inv-br-008-snapshot-revisions-never-regress), [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable), [INV-BR-019](../invariants.md#inv-br-019-optional-dependencies-never-gate-activation)
 - Requirements: [URS-BR-004](../urs.md#urs-br-004-know-why-a-plugin-is-not-running), [URS-BR-028](../urs.md#urs-br-028-know-which-plugin-version-was-active-at-any-time)
-- Decisions: [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-007](../decisions/007-observation-primitives.md), [ADR-BR-030](../decisions/030-audit-sink-port.md)
+- Decisions: [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-007](../decisions/007-observation-primitives.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-042](../decisions/042-lazy-activation.md), [ADR-BR-049](../decisions/049-state-handoff-on-replace.md)
 - Source: `docs/SPEC.md` — "Host interface" (`HostSnapshot`, `PluginState`), "State and lifecycle"

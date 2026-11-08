@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-004                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.2 (2026-11-08): In-memory state can cross a replace through a declared handoff (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -60,10 +59,14 @@ Hosts that must switch several behaviours without a gap use `Generation`, which 
 
 **Trade-off accepted**: a visible availability gap and an operator-driven rollback, in exchange for never running two providers of one key and never silently re-running a build.
 
+**Amendments (2026-11-08)**:
+
+- In-memory state can cross a replace through a declared handoff, without overlapping activations ([ADR-BR-049](../decisions/049-state-handoff-on-replace.md)).
+
 ## References
 
 - Behaviours: [06 — Removal](../behaviors/06-removal.md), [07 — Replacement and reactivation](../behaviors/07-replacement-and-reactivation.md), [08 — Operation legality](../behaviors/08-operation-legality.md), [20 — Generation](../behaviors/20-generation.md)
 - Invariants: [INV-BR-001](../invariants.md#inv-br-001-one-provider-per-service-key-per-realm), [INV-BR-004](../invariants.md#inv-br-004-no-stale-build-is-published), [INV-BR-005](../invariants.md#inv-br-005-dependents-stop-before-their-providers), [INV-BR-012](../invariants.md#inv-br-012-a-definition-error-registers-nothing)
 - Risks: [RSK-BR-003](../gxp/03-risk-assessment.md#rsk-br-003)
-- Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md)
+- Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md), [ADR-BR-049](../decisions/049-state-handoff-on-replace.md)
 - Source: `docs/SPEC.md` — "Host interface" (`replace` paragraphs), "API decisions" row 2, "Generations"

@@ -1,0 +1,28 @@
+kind: behaviors
+package: bridger-agent
+infix: AG
+entries:
+  - file: "01-agent-seams.md"
+    id: "BRIDGER-AG-BEH-01"
+    title: "Agent seams"
+    range: "BEH-AG-001..008"
+  - file: "02-tasks.md"
+    id: "BRIDGER-AG-BEH-02"
+    title: "Tasks"
+    range: "BEH-AG-009..016"
+  - file: "03-taint-and-provenance.md"
+    id: "BRIDGER-AG-BEH-03"
+    title: "Taint and provenance"
+    range: "BEH-AG-017..024"
+  - file: "04-subagents.md"
+    id: "BRIDGER-AG-BEH-04"
+    title: "Subagents"
+    range: "BEH-AG-025..032"
+  - file: "05-agent-testing.md"
+    id: "BRIDGER-AG-BEH-05"
+    title: "Agent testing"
+    range: "BEH-AG-033..040"
+  - file: "06-required-acceptance-checks.md"
+    id: "BRIDGER-AG-BEH-06"
+    title: "Required acceptance checks"
+    range: "BEH-AG-041..048"

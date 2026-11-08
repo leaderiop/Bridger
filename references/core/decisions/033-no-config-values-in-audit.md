@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-033                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-10-03): Fingerprints come only from the consumer's `ConfigFingerprinter` port (ADR-BR-039); core computes no fingerprint or hash; `configChange.fingerprints?` (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
-
+> | Change History | 0.4 (2026-11-08): Annotations: core never derives one from configuration and omits values containing a `Redacted` (CCR-BR-018)<br>0.3 (2026-10-03): Fingerprints come only from the consumer's `ConfigFingerprinter` port (ADR-BR-039); core computes no fingerprint or hash; `configChange.fingerprints?` (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -56,12 +55,16 @@ Writing values into the trail would breach the first rule in the one place where
 
 **Trade-off accepted**: an incomplete trail for configuration values, completed by the configuration source, rather than a complete trail that can permanently leak a secret.
 
+**Amendments (2026-11-08)**:
+
+- Annotations: core never derives one from configuration and omits values containing a `Redacted` ([ADR-BR-045](../decisions/045-operation-context-annotations.md)).
+
 ## References
 
 - Behaviours: [23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md), [11 — Configuration](../behaviors/11-configuration.md), [25 — Operation gate](../behaviors/25-operation-gate.md)
 - Invariants: [INV-BR-013](../invariants.md#inv-br-013-configuration-values-are-never-observable), [INV-BR-028](../invariants.md#inv-br-028-audit-records-carry-no-configuration-values)
 - Requirements: [URS-BR-007](../urs.md#urs-br-007-configure-plugins-safely-including-secrets-and-live-changes), [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
 - Risks: [RSK-BR-008](../gxp/03-risk-assessment.md#rsk-br-008)
-- Decisions: [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-034](../decisions/034-gxp-companion-scope.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md)
+- Decisions: [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-034](../decisions/034-gxp-companion-scope.md), [ADR-BR-039](../decisions/039-config-fingerprint-port.md), [ADR-BR-045](../decisions/045-operation-context-annotations.md)
 - Source: `docs/SPEC.md` — "Configuration and metadata", "Volatile configuration"
 - External: 21 CFR Part 11 §11.10(e); PIC/S PI 041 (ALCOA+, complete); EU GMP Annex 11 (2011) §9, §12.

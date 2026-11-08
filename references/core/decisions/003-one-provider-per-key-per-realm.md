@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-003                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.2 (2026-11-08): Contract versions do not change the one-provider rule (ADR-BR-040) (CCR-BR-017); several implementations per site through a registry and `Selector` (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -57,9 +56,14 @@ The legitimate need behind multiple providers is multiplexing: several implement
 
 **Trade-off accepted**: install-order sensitivity and an explicit registry for multiplexing, in exchange for an unambiguous provider for every dependency, removal and lease.
 
+**Amendments (2026-11-08)**:
+
+- The major of a contract is part of its `ServiceId`, so versions never create a second provider slot for one key ([ADR-BR-040](../decisions/040-versioned-contracts-in-core.md)).
+- Several implementations per site: a registry provider plus `Selector` ([ADR-BR-046](../decisions/046-hook-points.md)).
+
 ## References
 
 - Behaviours: [03 — Installation](../behaviors/03-installation.md), [05 — Activation](../behaviors/05-activation.md), [07 — Replacement and reactivation](../behaviors/07-replacement-and-reactivation.md), [17 — Realms and interception](../behaviors/17-realms-and-interception.md), [19 — Contribution registry](../behaviors/19-contribution-registry.md)
 - Invariants: [INV-BR-001](../invariants.md#inv-br-001-one-provider-per-service-key-per-realm), [INV-BR-002](../invariants.md#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope), [INV-BR-012](../invariants.md#inv-br-012-a-definition-error-registers-nothing)
-- Decisions: [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-006](../decisions/006-one-instance-per-id-per-realm.md), [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md)
+- Decisions: [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-006](../decisions/006-one-instance-per-id-per-realm.md), [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md), [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md), [ADR-BR-046](../decisions/046-hook-points.md)
 - Source: `docs/SPEC.md` — "Host interface" (install outcomes), "Disable, enable and restart", "Realms and interception", "API decisions" row 1

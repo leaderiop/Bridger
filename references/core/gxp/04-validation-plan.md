@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-04                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.5 (2026-10-03): Companion described as specified in Draft (references/gxp/, CCR-GX-001), not implemented (gap G8 closed) (CCR-BR-015)<br>0.4 (2026-10-03): §5.1 checks 5–6 executable through `Host.controls` (BEH-BR-212); check 7 "fingerprinter wired as required" added; RSK-BR-024 added to the High rigour row; `ConfigFingerprinter` out of scope like the other consumer ports; `fingerprintTimeout` added to the revalidation defaults (CCR-BR-014)<br>0.3 (2026-10-03): Known-gaps list no longer cites the Effect 4.x items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-08): Link into references/gxp/ turned into a plain-text citation; the companion Draft is recorded as not present in this repository (gap G35) (CCR-BR-016)<br>0.5 (2026-10-03): Companion described as specified in Draft (references/gxp/, CCR-GX-001), not implemented (gap G8 closed) (CCR-BR-015)<br>0.4 (2026-10-03): §5.1 checks 5–6 executable through `Host.controls` (BEH-BR-212); check 7 "fingerprinter wired as required" added; RSK-BR-024 added to the High rigour row; `ConfigFingerprinter` out of scope like the other consumer ports; `fingerprintTimeout` added to the revalidation defaults (CCR-BR-014)<br>0.3 (2026-10-03): Known-gaps list no longer cites the Effect 4.x items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -128,7 +128,7 @@ Evidence follows [ADR-BR-035](../decisions/035-evidence-from-executed-tests.md):
    - executor: the CI job or the person who started the run, and the machine;
    - start and end times of the run;
    - the raw runner logs and the mutation report, attached unmodified.
-5. **Produced by the companion.** The generator that turns runner output into IQ/OQ evidence records belongs to the `@bridger/gxp` companion, which is specified only as a Draft ([references/gxp/](../../gxp/README.md), CCR-GX-001) and not implemented. Until it exists, test runs (once there is code) produce runner output only, and nothing is presented as qualification evidence.
+5. **Produced by the companion.** The generator that turns runner output into IQ/OQ evidence records belongs to the `@bridger/gxp` companion, which is specified only as a Draft (`references/gxp/`, CCR-GX-001; not present in this repository, [URS](../urs.md#7-known-gaps-and-open-items) gap G35) and not implemented. Until it exists, test runs (once there is code) produce runner output only, and nothing is presented as qualification evidence.
 
 ### §6.2 Acceptance criteria
 

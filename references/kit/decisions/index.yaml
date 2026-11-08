@@ -1,0 +1,24 @@
+kind: decisions
+package: bridger-kit
+infix: KT
+entries:
+  - id: "ADR-KT-001"
+    file: "001-kit-is-sugar-and-tools-over-core.md"
+    title: "The kit is sugar and tools over core, never a second runtime"
+    status: "Proposed"
+  - id: "ADR-KT-002"
+    file: "002-plugin-any-is-the-contravariant-top.md"
+    title: "Plugin.Any is the contravariant top of plugin definitions, with a phantom brand"
+    status: "Proposed"
+  - id: "ADR-KT-003"
+    file: "003-conformance-suites-from-versioned-contracts.md"
+    title: "Conformance suites are generated from versioned contracts and run cumulatively within a major"
+    status: "Proposed"
+  - id: "ADR-KT-004"
+    file: "004-promise-sdk-for-out-of-process-partners.md"
+    title: "Partners get a generated Promise SDK that runs only out of process"
+    status: "Proposed"
+  - id: "ADR-KT-005"
+    file: "005-devtools-are-read-only.md"
+    title: "Devtools are read-only views over core observation"
+    status: "Proposed"

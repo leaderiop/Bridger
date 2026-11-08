@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-16                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -133,6 +133,10 @@ plugin and is called into a closed service. Tying registration to the scope
 removes the bookkeeping that defect comes from. Ownership is reported to
 `inspect` through `@bridger/core/ActivePlugin`
 ([13 — Observability and Diagnostics](./13-observability-and-diagnostics.md)).
+When an `AccessPolicy` is wired, registering a listener consults it first and
+a refusal registers nothing
+([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+BEH-BR-264).
 
 ## BEH-BR-140: Listener order and the dispatch snapshot
 
@@ -183,7 +187,20 @@ REQUIREMENT: Each listener failure under `emit` MUST be logged and reported
 ```
 
 An emitter that must know whether a listener failed uses `parallel` or
-`serial`; `emit` is for notifications whose sender should not care.
+`serial`; `emit` is for notifications whose sender should not care. When an
+`AccessPolicy` is wired, every dispatch consults it for the emitter before
+any listener runs (28, BEH-BR-264). A dispatch applies the `OnEvent`
+triggers of `dormant` plugins declaring the event at once, without delay and
+without redelivering the event to them
+([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+BEH-BR-245).
+
+```
+REQUIREMENT: A dispatch MUST apply `OnEvent` triggers only after the emit
+             access decision (28 — Plugin Principal and Mandatory Policy,
+             BEH-BR-264) has allowed it. A dispatch denied by a wired
+             `AccessPolicy` MUST wake no plugin.
+```
 
 **Settled here.** (1) `emit` completes once every listener fiber has been
 started, not when they finish. (2) The listener fibers are supervised by the
@@ -261,6 +278,10 @@ for one style of dispatch. (2) `next` is an ordinary `Effect` and is not
 memoised: running it twice runs the rest of the chain twice. Listeners
 should run it at most once.
 
+`waterfall` is for middleware. A dispatch that needs registration rules, a
+deadline or a record of who decided uses a hook point
+([31 — Hook Points](./31-hook-points.md)).
+
 ## BEH-BR-144: Dispatch context, and no veto over host operations
 
 > **Invariant:** [INV-BR-016](../invariants.md#inv-br-016-a-re-entrant-wait-fails-fast)
@@ -275,7 +296,10 @@ REQUIREMENT: `serial`, `parallel` and `waterfall` MUST run listeners in the
              that inherit the same. The one exception: every listener MUST
              run with `@bridger/core/CurrentActor` reset to
              `Actor.unattributed` (22 — Attributable Operations,
-             BEH-BR-187).
+             BEH-BR-187), with `CurrentPlugin` set to the listener owner's
+             principal (28 — Plugin Principal and Mandatory Policy,
+             BEH-BR-258) and `CurrentAnnotations` filtered to flow "events"
+             (30 — Operation Context Annotations, BEH-BR-292).
 ```
 
 ```

@@ -1,0 +1,20 @@
+kind: root
+package: bridger-remote
+infix: RM
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-RM-00"
+    title: "Bridger Remote — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-RM-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-RM-INV"
+    title: "Runtime Invariants"
+  - file: "risks.md"
+    id: "BRIDGER-RM-RISK"
+    title: "Risk Assessment"
+  - file: "traceability.md"
+    id: "BRIDGER-RM-TRACE"
+    title: "Traceability"

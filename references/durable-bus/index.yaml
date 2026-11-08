@@ -1,0 +1,17 @@
+kind: root
+package: bridger-durable-bus
+infix: DB
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-DB-00"
+    title: "Bridger Durable Bus — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-DB-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-DB-INV"
+    title: "Runtime Invariants"
+  - file: "traceability.md"
+    id: "BRIDGER-DB-TRACE"
+    title: "Traceability"

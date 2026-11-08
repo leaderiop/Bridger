@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-02                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-11-08): `wake` takes no `OperationContext` and is a class of its own (system transitions only); generic `install`/`replace` overloads take the branded `Plugin` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-011 options `mandatory`, `resolutionTimeout`, `callLogTimeout` (CCR-BR-018), `baseContracts` (CCR-BR-017), `handoffTimeout` (CCR-BR-019); BEH-BR-013 `Plugin.Any` overloads (CCR-BR-020), `wake` (CCR-BR-017), `plan`, `retireRealm`, `PlanStale` (CCR-BR-019), `ResolutionRefused` (CCR-BR-018); BEH-BR-014 `retireRealm` operation; BEH-BR-015 policy ports, context references (CCR-BR-018) and `EntitlementView` (CCR-BR-020)<br>0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -145,6 +145,11 @@ interface BridgerOptions<EBase = never> {
   readonly auditTimeout?: Duration.Input               // per audit write; default 10 seconds (23)
   readonly gateTimeout?: Duration.Input | "forever"    // per OperationGate.authorize; default 60 seconds (25)
   readonly fingerprintTimeout?: Duration.Input         // per ConfigFingerprinter call; default 5 seconds (22)
+  readonly baseContracts?: readonly (Contract | ContractProvision)[]  // contract versions the base implements; default [] (26)
+  readonly mandatory?: readonly MandatoryInterception<any>[]          // host-wide mandatory interceptions; default [] (28)
+  readonly resolutionTimeout?: Duration.Input          // per CapabilityPolicy decision; default 5 seconds (29)
+  readonly callLogTimeout?: Duration.Input             // per CallLog.record; default 1 second (29)
+  readonly handoffTimeout?: Duration.Input             // per handoff export, upgrade and import; default 5 seconds (34)
 }
 
 type ConfigSource = ConfigProvider.ConfigProvider | ((id: string) => Effect.Effect<unknown>)
@@ -160,9 +165,12 @@ REQUIREMENT: An omitted option MUST take exactly the default shown. A host
 REQUIREMENT: Construction MUST reject an option value outside its domain —
              a `concurrency` that is not a positive integer or "unbounded";
              an `eventBuffer` that is not a positive integer; a
-             `buildTimeout`, `shutdownTimeout`, `auditTimeout` or
-             `fingerprintTimeout` that is not a positive duration (for
-             `fingerprintTimeout`, "forever" is not accepted); a
+             `buildTimeout`, `shutdownTimeout`, `auditTimeout`,
+             `fingerprintTimeout`, `resolutionTimeout`, `callLogTimeout` or
+             `handoffTimeout` that is not a positive duration (for the last
+             four, "forever" is not accepted); a `baseContracts` entry that
+             is invalid or names a `ServiceId` the base does not provide
+             (checked once the base is built; 26 — Versioned Contracts); a
              `drainTimeout`, `gateTimeout` or `stallWarning` that is
              neither a positive duration nor its named keyword — by failing with a defect that names the option, before
              any base layer is built.
@@ -195,6 +203,12 @@ so approvals are meant to be obtained before the call, not by holding it open.
 of [22](../behaviors/22-attributable-operations.md) (BEH-BR-188); it has no
 "forever", because a fingerprint is computed by the consumer's own code and a
 port that does not answer within a bounded time fails the call closed.
+`baseContracts` (CCR-BR-017, [26](./26-versioned-contracts.md)), `mandatory`,
+`resolutionTimeout` and `callLogTimeout` (CCR-BR-018,
+[28](./28-plugin-principal-and-mandatory-policy.md),
+[29](./29-capability-grants-and-call-log.md)) and `handoffTimeout`
+(CCR-BR-019, [34](./34-state-handoff.md)) follow the same rule: none of the
+timeouts has "forever".
 
 ## BEH-BR-012: Base services are a Context or a Layer
 
@@ -249,13 +263,18 @@ promises nothing about it beyond using it.
 //   Unattributed | ReasonRequired | AuditUnavailable | OperationRejected
 interface Host {
   // — mutating operations —
-  install<R extends Keys, P extends Keys, E, C>(plugin: PluginDefinition<R, P, E, C>, options?: InstallOptions):
+  install<R extends Keys, P extends Keys, E, C>(plugin: Plugin<R, P, E, C>, options?: InstallOptions):
     Effect.Effect<PluginHandle, InstallError | ConfigFingerprintUnavailable | HostClosed | G>     // 03
+  install(plugin: Plugin.Any | LazyPluginDefinition, options?: InstallOptions):
+    Effect.Effect<PluginHandle, InstallError | ConfigFingerprintUnavailable | HostClosed | G>     // 01, 27
   remove(ref: PluginRef, options?: RemoveOptions):
     Effect.Effect<void, UnknownPlugin | CleanupError | DrainTimeout | WouldDeadlock | HostClosed | G>   // 06
-  replace<R extends Keys, P extends Keys, E, C>(plugin: PluginDefinition<R, P, E, C>, options?: ReplaceOptions):
+  replace<R extends Keys, P extends Keys, E, C>(plugin: Plugin<R, P, E, C>, options?: ReplaceOptions):
     Effect.Effect<void, ReplaceError | UnknownPlugin | Conflict | Superseded | CleanupError
       | DrainTimeout | WouldDeadlock | HostClosed | G>                                           // 07
+  replace(plugin: Plugin.Any | LazyPluginDefinition, options?: ReplaceOptions):
+    Effect.Effect<void, ReplaceError | UnknownPlugin | Conflict | Superseded | CleanupError
+      | DrainTimeout | WouldDeadlock | HostClosed | G>                                           // 01, 27
   retry(ref: PluginRef, options?: OperationOptions):
     Effect.Effect<void, UnknownPlugin | Conflict | WouldDeadlock | HostClosed | G>               // 07
   reconfigure(ref: PluginRef, config?: unknown, options?: OperationOptions):
@@ -270,9 +289,12 @@ interface Host {
   enable(ref: PluginRef, options?: OperationOptions):
     Effect.Effect<void, UnknownPlugin | Conflict | InstallError | WouldDeadlock | HostClosed | G> // 07
   reconcile(desired: readonly DesiredPlugin[], options?: ReconcileOptions & OperationOptions):
-    Effect.Effect<ReconcileReport, Unattributed | ReasonRequired | AuditUnavailable | HostClosed> // 18; gate refusals are per entry
+    Effect.Effect<ReconcileReport, Unattributed | ReasonRequired | AuditUnavailable | PlanStale
+      | HostClosed>                                                                              // 18, 32; gate refusals are per entry
   defineRealm(id: string, options: RealmOptions, operation?: OperationOptions):
     Effect.Effect<void, DuplicateRealm | HostClosed | G>                                         // 17
+  retireRealm(id: string, operation?: OperationOptions):
+    Effect.Effect<void, UnknownRealm | RealmInUse | HostClosed | G>                              // 33
   shutdown(options?: OperationOptions & { readonly timeout?: Duration.Input }):
     Effect.Effect<CloseReport, Unattributed | ReasonRequired>   // 12; never gated, never blocked by the
                                                                  // latch or by an unwritable record
@@ -287,17 +309,24 @@ interface Host {
     Effect.Effect<HostSnapshot, IdleTimeout | WouldDeadlock | HostClosed>                        // 05
   inspect(ref: PluginRef): Effect.Effect<PluginInspection, UnknownPlugin | HostClosed>           // 13
   controls(): Effect.Effect<HostControls>                                                        // 24
+  plan(desired: readonly DesiredPlugin[], options?: ReconcileOptions):
+    Effect.Effect<ReconcilePlan, HostClosed>                                                     // 32; read-only
+  wake(trigger: LazyTrigger, options?: { readonly realm?: string; readonly correlationId?: string }):
+    Effect.Effect<WakeReport, UnknownRealm | HostClosed>                                         // 27
 
   // — leases (not mutating) —
   use<Service, A, E, R>(key: Context.Key<any, Service>, run: (service: Service) => Effect.Effect<A, E, R>,
     options?: { readonly timeout?: Duration.Input; readonly realm?: string }):
-    Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout, R>     // 09
+    Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout
+      | ResolutionRefused, R>                                                                    // 09, 29
   useAll<Ks extends readonly Context.Key<any, any>[], A, E, R>(keys: Ks,
     run: (services: ServicesOf<Ks>) => Effect.Effect<A, E, R>,
     options?: { readonly timeout?: Duration.Input; readonly realm?: string }):
-    Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout, R>     // 09
+    Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout
+      | ResolutionRefused, R>                                                                    // 09, 29
   lease<Ks extends readonly Context.Key<any, any>[]>(keys: Ks, options?: { readonly realm?: string }):
-    Effect.Effect<ServicesOf<Ks>, ServiceUnavailable | UnknownRealm, Scope.Scope>                // 09
+    Effect.Effect<ServicesOf<Ks>, ServiceUnavailable | UnknownRealm | ResolutionRefused,
+      Scope.Scope>                                                                               // 09, 29
 }
 
 // A plugin is addressed by ID within a realm. A bare string means the default realm.
@@ -402,7 +431,8 @@ a silent success:
 // illustrative — not type-checked
 type Operation =
   | "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart"
-  | "disable" | "enable" | "reconcile" | "defineRealm" | "shutdown" | "acknowledgeAuditDegraded"
+  | "disable" | "enable" | "reconcile" | "defineRealm" | "retireRealm" | "shutdown"
+  | "acknowledgeAuditDegraded"
 
 interface Actor { readonly id: string; readonly kind: "user" | "service" | "system"; readonly display?: string }
 interface OperationContext { readonly actor: Actor; readonly reason?: string; readonly correlationId?: string }
@@ -428,10 +458,20 @@ REQUIREMENT: The error union of every mutating operation MUST include
 
 ```
 REQUIREMENT: `snapshot`, `changes`, `events`, `awaitIdle`, `inspect`,
-             `controls`, `use`, `useAll` and `lease` are not mutating
-             operations. They
+             `controls`, `plan`, `use`, `useAll` and `lease` are not
+             mutating operations. They
              MUST NOT require attribution, consult the `OperationGate`, or
              write audit records.
+```
+
+```
+REQUIREMENT: `wake` is neither mutating nor read-only: it MUST NOT require
+             attribution, take an `OperationContext` or consult the
+             `OperationGate`, and it writes no record of its own; the
+             transitions it causes are system transitions, recorded as
+             `lazy-triggered` roots carrying the `correlationId` of its
+             options when one is given (27 — Manifest and Lazy Activation,
+             BEH-BR-248; 22 — Attributable Operations, BEH-BR-190).
 ```
 
 The rules these hooks enforce — the order of the attribution, latch, gate and
@@ -453,11 +493,28 @@ hides that it can be refused for an attribution, audit or approval reason.
 > **Risk:** [RSK-BR-014](../gxp/03-risk-assessment.md#rsk-br-014), [RSK-BR-006](../gxp/03-risk-assessment.md#rsk-br-006)
 
 ```
-REQUIREMENT: The host MUST read `AuditSink`, `OperationGate` and
-             `ConfigFingerprinter` with `Effect.serviceOption` from the
-             environment in which `Bridger.layer` or `Bridger.make` runs,
-             once, at construction. It MUST NOT re-resolve them for the
-             lifetime of the host.
+REQUIREMENT: The host MUST read `AuditSink`, `OperationGate`,
+             `ConfigFingerprinter`, `AccessPolicy`
+             (`@bridger/core/AccessPolicy`), `CapabilityPolicy`
+             (`@bridger/core/CapabilityPolicy`), `CallLog`
+             (`@bridger/core/CallLog`) and `EntitlementView`
+             (`@bridger/core/EntitlementView`) with `Effect.serviceOption`
+             from the environment in which `Bridger.layer` or `Bridger.make`
+             runs, once, at construction. It MUST NOT re-resolve them for
+             the lifetime of the host, and none of them MAY appear in the
+             requirements of `Bridger.layer` or `Bridger.make`.
+```
+
+```
+REQUIREMENT: The context references `CurrentPlugin`
+             (`@bridger/core/CurrentPlugin`; its key is not exported for
+             providing; default none), `CurrentAnnotations`
+             (`@bridger/core/CurrentAnnotations`; default
+             `Annotations.empty`) and `CurrentCall`
+             (`@bridger/core/CurrentCall`; default none) are set only by the
+             host (28 — Plugin Principal and Mandatory Policy, BEH-BR-257;
+             29 — Capability Grants and Call Log, BEH-BR-277;
+             30 — Operation Context Annotations, BEH-BR-292).
 ```
 
 ```
@@ -492,7 +549,11 @@ snapshot. The `ConfigFingerprinter` (CCR-BR-014,
 same rule, for the same reason: fingerprints that appeared on some changes
 and not on others would leave approvals bound to some values and not to
 others with nothing showing why. Which ports are wired is also reported by
-`Host.controls` (24 — Time, Identifiers and Sequence, BEH-BR-212).
+`Host.controls` (24 — Time, Identifiers and Sequence, BEH-BR-212). The
+policy ports of [28](./28-plugin-principal-and-mandatory-policy.md) and
+[29](./29-capability-grants-and-call-log.md) (CCR-BR-018) and the
+`EntitlementView` of [10](./10-runtime-failure-and-health.md), BEH-BR-089
+(CCR-BR-020), are read under the same rule.
 
 ## BEH-BR-016: Each host has a distinct hostId
 

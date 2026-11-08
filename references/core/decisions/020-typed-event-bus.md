@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-020                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-03): Listeners run with `CurrentActor` reset (BEH-BR-144) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.3 (2026-11-08): References: hook points for policied dispatch (ADR-BR-046), the bus unchanged (CCR-BR-019); listeners run under their owner's principal and a wired access policy (CCR-BR-018); the companion `@bridger/durable-bus` is a separate contract (CCR-BR-021)<br>0.2 (2026-10-03): Listeners run with `CurrentActor` reset (BEH-BR-144) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -63,10 +62,16 @@ yield* bus.emit(InvoicePosted, "INV-1")
 
 **Trade-off accepted**: a base service that cannot veto host operations, at the cost of re-adding authorisation later as a separate port, rather than a veto hook whose failure semantics (isolated, prioritised, plural) are wrong for an accountable decision.
 
+**Amendments (2026-11-08)**:
+
+- Listeners run with `CurrentPlugin` set to their owner's principal, and registration and dispatch consult a wired `AccessPolicy` ([ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)).
+- A dispatch that needs registration rules, a deadline or a record of who decided uses a hook point; the bus itself is unchanged ([ADR-BR-046](../decisions/046-hook-points.md)).
+- Companion `@bridger/durable-bus` is a separate contract, never a mode of this bus ([ADR-DB-001](../../durable-bus/decisions/001-a-separate-contract-from-the-core-bus.md)).
+
 ## References
 
 - Behaviours: [16 — Event bus](../behaviors/16-event-bus.md), [19 — Contribution registry](../behaviors/19-contribution-registry.md), [13 — Observability and diagnostics](../behaviors/13-observability-and-diagnostics.md)
 - Requirements: [URS-BR-013](../urs.md#urs-br-013-exchange-typed-events-between-plugins)
-- Decisions: [ADR-BR-010](../decisions/010-cordis-parity.md), [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md), [ADR-BR-032](../decisions/032-operation-gate.md) (amends this ADR for host lifecycle operations only)
+- Decisions: [ADR-BR-010](../decisions/010-cordis-parity.md), [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md), [ADR-BR-032](../decisions/032-operation-gate.md) (amends this ADR for host lifecycle operations only), [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-046](../decisions/046-hook-points.md), [ADR-DB-001](../../durable-bus/decisions/001-a-separate-contract-from-the-core-bus.md) (durable-bus companion)
 - Source: `docs/SPEC.md` — "Typed events and hooks", "Comparison with Cordis"
 - External: Cordis API reference (events), DeepSeek Harness documentation.

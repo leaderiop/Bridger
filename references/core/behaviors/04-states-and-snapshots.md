@@ -5,19 +5,19 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-04                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
 This file specifies the plugin state machine and the values through which it
-is observed: the six `PluginState`s and their permitted transitions, the
+is observed: the seven `PluginState`s (`dormant` added by [27](./27-manifest-and-lazy-activation.md)) and their permitted transitions, the
 discriminated-union `PluginSnapshot`, `HostSnapshot`, its revision, the
 `changes` feed and `snapshot()`, the stickiness of `failed`, and the rule that
 `missingServiceIds` is kept current. It converts the SPEC.md section "State
@@ -27,35 +27,36 @@ and [06 — Removal](./06-removal.md) convert), and the `HostSnapshot`,
 `changes` and `ServiceId` paragraphs of "Host interface". This file owns
 BEH-BR-025–032 and uses all eight.
 
-## BEH-BR-025: A registered plugin is in exactly one of six states
+## BEH-BR-025: A registered plugin is in exactly one of seven states
 
 > **See:** [ADR-BR-005](../decisions/005-failure-is-sticky.md)
 > **Satisfies:** [URS-BR-004](../urs.md#urs-br-004-know-why-a-plugin-is-not-running)
 
 ```ts
 // illustrative — not type-checked
-type PluginState = "waiting" | "starting" | "active" | "stopping" | "failed" | "disabled"
+type PluginState = "dormant" | "waiting" | "starting" | "active" | "stopping" | "failed" | "disabled"
 ```
 
 | State | Meaning |
 | --- | --- |
+| `dormant` | Registered from its manifest; code not loaded; provider slots reserved; provides nothing; starts only when a trigger applies (27 — Manifest and Lazy Activation). |
 | `waiting` | At least one required service has no active provider in the plugin's resolution scope. |
-| `starting` | Every required service was available when it entered `starting`; the plugin is queued for a build slot or its `build` is running. A requirement gone before its build begins returns it to `waiting` (05 — Activation, BEH-BR-035). |
+| `starting` | Every required service was available when it entered `starting`; the plugin is queued for a build slot, its code is loading, or its `build` is running. A requirement gone before its build begins returns it to `waiting` (05 — Activation, BEH-BR-035). |
 | `active` | The build succeeded and every provided service is published. |
 | `stopping` | The plugin accepts no new dependents or leases; its dependents, leases and activation scope are being closed. |
 | `failed` | Activation, runtime or cleanup failed; the phase and a message are visible. It holds no live scope. |
 | `disabled` | Registered with definition and configuration retained, deliberately not activated. It provides nothing and reserves no provider slot. |
 
 ```
-REQUIREMENT: Every registered plugin MUST be in exactly one of the six
+REQUIREMENT: Every registered plugin MUST be in exactly one of the seven
              states at every snapshot revision. A plugin that has been
              removed MUST have no state and no snapshot entry.
 ```
 
 ```
 REQUIREMENT: Within this specification, "failed(cleanup)" denotes a plugin
-             in `failed` whose `failure.phase` is "cleanup". It is not a
-             seventh state; it is the one failure phase with different
+             in `failed` whose `failure.phase` is "cleanup". It is not an
+             eighth state; it is the one failure phase with different
              legality (08 — Operation Legality).
 ```
 
@@ -103,6 +104,15 @@ stateDiagram-v2
     disabled --> starting: enable, requirements available
     disabled --> waiting: enable, requirements missing
     disabled --> [*]: remove
+    [*] --> dormant: install of a lazy definition (27)
+    dormant --> starting: triggered, requirements available (27)
+    dormant --> waiting: triggered, requirements missing (27)
+    dormant --> disabled: disable (27)
+    dormant --> [*]: remove (27)
+    disabled --> dormant: enable, not yet loaded (27)
+    waiting --> dormant: replace with a lazy definition (27)
+    failed --> dormant: replace with a lazy definition (27)
+    stopping --> dormant: replace with a lazy definition completes (27)
 ```
 
 ```
@@ -138,7 +148,9 @@ cannot be a `waiting` entry (BEH-BR-025); SPEC.md's prose already said
 withheld after a cleanup failure, because settled legality allows only
 `remove` there (BEH-BR-030). `starting → waiting` was added by CCR-BR-010: a
 `starting` plugin whose requirement is gone when its build would begin returns
-to `waiting` without a stop (05 — Activation, BEH-BR-035).
+to `waiting` without a stop (05 — Activation, BEH-BR-035). The nine `dormant`
+edges were added by CCR-BR-017 ([27 — Manifest and Lazy
+Activation](./27-manifest-and-lazy-activation.md), BEH-BR-244).
 
 ## BEH-BR-027: PluginSnapshot is a discriminated union on state
 
@@ -148,11 +160,12 @@ to `waiting` without a stop (05 — Activation, BEH-BR-035).
 ```ts
 // illustrative — not type-checked
 type PluginSnapshot = PluginCommon & (
+  | { readonly state: "dormant";  readonly triggers: readonly LazyTrigger[] }                      // 27
   | { readonly state: "waiting";  readonly missingServiceIds: readonly [ServiceId, ...ServiceId[]] }
-  | { readonly state: "starting"; readonly providerIds: readonly string[] }
+  | { readonly state: "starting"; readonly providerIds: readonly string[]; readonly loading: boolean }   // loading: 27
   | { readonly state: "active";   readonly providerIds: readonly string[]; readonly health: "healthy" | "degraded" | "unknown" }
-  | { readonly state: "stopping"; readonly reason: StopReason; readonly next: "waiting" | "starting" | "disabled" | "gone" | "failed"; readonly parked: boolean }
-  | { readonly state: "failed";   readonly failure: { readonly phase: "build" | "activation" | "runtime" | "cleanup"; readonly message: string }; readonly missingServiceIds: readonly ServiceId[] }
+  | { readonly state: "stopping"; readonly reason: StopReason; readonly next: "waiting" | "starting" | "disabled" | "dormant" | "gone" | "failed"; readonly parked: boolean }
+  | { readonly state: "failed";   readonly failure: { readonly phase: "load" | "build" | "activation" | "runtime" | "cleanup"; readonly message: string }; readonly missingServiceIds: readonly ServiceId[] }
   | { readonly state: "disabled" }
 )
 interface PluginCommon {
@@ -160,6 +173,9 @@ interface PluginCommon {
   readonly realm: string
   readonly parentId?: string
   readonly meta?: { readonly version?: string; readonly digest?: string; readonly description?: string }
+  readonly lazy?: { readonly loaded: boolean }   // exactly for a registration made from a lazy definition (27, BEH-BR-244)
+  readonly allowChildren: boolean                // effective value (28, BEH-BR-263)
+  readonly mandatoryServiceIds: readonly ServiceId[]   // installation-mandatory interceptions, own and inherited (28, BEH-BR-265)
 }
 type StopReason = "dependency-loss" | "remove" | "replace" | "restart" | "reconfigure" | "disable" | "runtime-failure" | "shutdown"
 ```
@@ -286,6 +302,12 @@ while `next` still says where the stop itself will land, since the call is
 decided only once the stop settles; shutdown's takeover is shown as
 "shutdown". `reason` therefore names what the stop is now for, which is what
 began it except across a resumption.
+
+For a lazy registration, `meta` is the lazy definition's identity `meta` (the
+manifest's `version`, the digest supplied beside or in the manifest, the
+manifest's `description`), and `loading` is
+true while its `load` runs in the build step ([27 — Manifest and Lazy
+Activation](./27-manifest-and-lazy-activation.md), BEH-BR-244, BEH-BR-246).
 
 ## BEH-BR-028: HostSnapshot
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-OVW                                                  |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.5 (2026-10-03): API surface: `Host.controls` and `HostControls`, the `ConfigFingerprinter` port and `ConfigChange`, `ConfigFingerprintUnavailable` and `ConfigFingerprintFailed`, the `fingerprintTimeout` option, `CloseReport.auditLastSeq` (CCR-BR-014)<br>0.4 (2026-10-03): The gate covers operator mutations other than `shutdown`; system transitions are recorded, never gated (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Parked stops, `DrainTimeout` fields, `Interrupted` record-only tag, TestHost members; `intent-ended` record and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-08): `CurrentPlugin` row: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts and manifests API, loading errors, `baseContracts` (CCR-BR-017); principal, policy and annotations API and errors (CCR-BR-018); hook points, gates, plans, realm families and handoff API and errors (CCR-BR-019); `Plugin.Any`, `HeldPlugins`, `EntitlementView`, `Plugin.Runtime.entitled` (CCR-BR-020); companion package rows, guides pointer, core exclusions extended (CCR-BR-021)<br>0.5 (2026-10-03): API surface: `Host.controls` and `HostControls`, the `ConfigFingerprinter` port and `ConfigChange`, `ConfigFingerprintUnavailable` and `ConfigFingerprintFailed`, the `fingerprintTimeout` option, `CloseReport.auditLastSeq` (CCR-BR-014)<br>0.4 (2026-10-03): The gate covers operator mutations other than `shutdown`; system transitions are recorded, never gated (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Parked stops, `DrainTimeout` fields, `Interrupted` record-only tag, TestHost members; `intent-ended` record and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -27,6 +27,11 @@ call that is using it.
 The host knows nothing about what plugins mean. It contains no domain model,
 database, tenant, UI framework, package manager or deployment format. The
 Bridger ERP is one application of it.
+
+New readers can start with the [guides](../../docs/guides/README.md) —
+"Bridger in 5 minutes" and one guide per persona — which use the
+developer-experience companion [`@bridger/kit`](../kit/README.md). The guides are
+informative; this specification is normative.
 
 ## Design philosophy
 
@@ -66,7 +71,18 @@ assembled and tested ([ADR-BR-028](./decisions/028-gxp-scope.md)).
 | `@bridger/core` | Specified here; not implemented | Host, plugin definition, leases, events, realms, reconcile, ContributionRegistry, Generation, GxP ports |
 | `@bridger/core/testing` | Specified here; not implemented | `TestHost`, `Fault.*`, test clock and identifier fixtures, in-memory audit sink and scripted gate fixtures |
 | `@bridger/gxp` | Planned; specified later in `references/gxp/` | Durable audit-trail adapter contract, approval and e-signature through `OperationGate`, IQ/OQ evidence from executed tests |
-| `@bridger/react`, `@bridger/foldkit`, loader adapters | Out of this specification | Consumers of the core's public API (`docs/REACT-API.md`, `docs/FOLDKIT-API.md`) |
+| `@bridger/remote` | Companion; specified as a Draft in [references/remote/](../remote/README.md) (CCR-RM-001); not implemented | Remote proxy plugins (`Remote.define`), `Guest.serve`, sessions and epochs, heartbeats and withdrawal, call deadlines, per-call tokens, the `Transport` interface, `TestTransport` |
+| `@bridger/worker`, `@bridger/worker-loader`, `@bridger/workerd`, `@bridger/wasm` | Transport adapters of `@bridger/remote`; obligations specified in [references/remote/behaviors/07](../remote/behaviors/07-transports-and-adapters.md); not implemented | `worker_threads` (first), Worker Loader / service binding, self-hosted workerd behind an operator VM or container, later WebAssembly. Isolation, where any exists, is provided by the host mechanism, never by Bridger |
+| `@bridger/federation` | Companion; specified as a Draft in [references/federation/](../federation/README.md) (CCR-FD-001); not implemented | Signed per-host desired-state manifests applied through `reconcile`; offline boot, offline cap and re-bootstrap; links with an N/N−1 skew handshake; exports and imports across hosts, each peer in its own realm; fenced single-owner exports |
+| `@bridger/durable-bus` | Companion; specified as a Draft in [references/durable-bus/](../durable-bus/README.md) (CCR-DB-001); not implemented; the name is intent, not a claim (ADR-DB-007) | Versioned events (`DurableEvent.make`), transactional outbox through a storage port, at-least-once delivery, deduplicating inbox, upcasters, order per origin, stream and sequence, hybrid logical clocks; a separate contract from `Bridger.Events`; makes no persistence claim of its own — that is the storage adapter's and the consumer's |
+| `@bridger/loader` | Companion; specified as a Draft in [references/loader/](../loader/README.md) (CCR-LD-001); not implemented | Fetch, digest and signature verification before evaluation, revocation and kill switch, catalog of signed manifests; builds the `load` Effect of a lazy plugin |
+| `@bridger/audit-chain` | Companion; specified as a Draft in [references/audit-chain/](../audit-chain/README.md) (CCR-AC-001); not implemented | `HashChainSink` wrapping the `AuditSink` port, `Anchor` port publishing Merkle roots off the write path, `verifyChain` (built on `verifyAuditSequence`) and inclusion proofs; detection only, within ADR-BR-034 non-claim 5 |
+| `@bridger/entitlement` | Companion; specified as a Draft in [references/entitlement/](../entitlement/README.md) (CCR-EN-001); not implemented | `Entitlement` port, entitlement gate piece, the view behind `Plugin.Runtime.entitled`, `Entitlement.guard`, `Budget` reservations, optional `BudgetLedger` |
+| `@bridger/command` | Companion; specified as a Draft in [references/command/](../command/README.md) (CCR-CM-001); not implemented | Command catalog, dispatch through a gate and hook points, toolsets, JSON Schema projection |
+| `@bridger/mcp` | Companion; specified as a Draft in [references/mcp/](../mcp/README.md) (CCR-MC-001); not implemented | MCP server and client over toolsets; host tools with plan-first reconcile |
+| `@bridger/agent` | Companion; specified as a Draft in [references/agent/](../agent/README.md) (CCR-AG-001); not implemented | Agent keys, tasks, taint and provenance, subagents, agent testing |
+| `@bridger/kit` | Companion; specified as a Draft in [references/kit/](../kit/README.md) (CCR-KT-001); not implemented | Authoring facade, test harness, conformance kits, CLI, Promise SDK generator, devtools inspector, error catalog |
+| `@bridger/react`, `@bridger/foldkit` | Out of this specification | Consumers of the core's public API (`docs/REACT-API.md`, `docs/FOLDKIT-API.md`) |
 
 ## Public API surface
 
@@ -79,9 +95,9 @@ All signatures are illustrative until code exists.
 | `Plugin.define` | function | Declares a plugin; infers `requires`/`provides` as const tuples and checks the `build` layer against them |
 | `Plugin.fromEffect` | function | Builds the `Layer` from an Effect that returns a `Context` |
 | `Plugin.group` | function | A plugin that mounts members as one unit |
-| `Plugin.Runtime` | service | `background`, `reportFailure`, `optional`, `useOptional`, `whenAvailable`, `install` |
+| `Plugin.Runtime` | service | `background`, `reportFailure`, `optional`, `useOptional`, `whenAvailable`, `install`, `principal`, `asSelf`, `entitled` |
 | `Plugin.Config` | service | `{ value, current, changes }` for the decoded configuration |
-| `PluginDefinition`, `Keys`, `IdentifiersOf`, `ServicesOf` | types | Definition shape and type helpers |
+| `PluginDefinition`, `Plugin`, `Plugin.Any`, `Keys`, `IdentifiersOf`, `ServicesOf` | types | Definition shape, the branded result of `define`, the type every definition fits (heterogeneous lists, `install`), and type helpers |
 
 ### Host — behaviours [02](./behaviors/02-host-construction.md)–[13](./behaviors/13-observability-and-diagnostics.md)
 
@@ -90,12 +106,13 @@ All signatures are illustrative until code exists.
 | `Bridger.layer`, `Bridger.make` | functions | Construct a host (Layer first; `make` for scoped code) |
 | `Bridger.Host` | service | The host |
 | `Host.install`, `remove`, `replace`, `retry`, `reconfigure`, `restart`, `disable`, `enable` | methods | Lifecycle operations, linearized per plugin, all attributable |
-| `Host.reconcile`, `defineRealm` | methods | Desired-state convergence, realm definition |
+| `Host.reconcile`, `plan`, `defineRealm`, `retireRealm`, `wake` | methods | Desired-state convergence and its read-only plan, realm definition and retirement of empty realms, waking lazy plugins |
 | `Host.use`, `useAll`, `lease` | methods | Leased access to services |
 | `Host.snapshot`, `changes`, `events`, `inspect`, `awaitIdle`, `controls` | members | Observation and diagnostics; `controls` reports the host's wiring, GxP limits (`auditTimeout`, `gateTimeout`, `fingerprintTimeout`) and audit position, and stays readable after close; a parked stop shows as `parked` in the snapshot and `inspect`, with `stop-parked` and `stop-resumed` events |
 | `Host.shutdown`, `acknowledgeAuditDegraded` | methods | Shutdown with `CloseReport`; leaving the audit latch |
 | `PluginHandle`, `PluginRef`, `PluginState`, `PluginSnapshot`, `HostSnapshot`, `CloseReport`, `HostEvent`, `PluginInspection`, `HostControls` | types | Handles, references, snapshots, reports (`CloseReport.auditLastSeq` with a sink) |
-| `BridgerOptions`, `InstallOptions`, `RemoveOptions`, `ReplaceOptions`, `OperationOptions`, `ConfigSource` | types | Options (`BridgerOptions` includes `fingerprintTimeout`, default 5 seconds) |
+| `BridgerOptions`, `InstallOptions`, `RemoveOptions`, `ReplaceOptions`, `OperationOptions`, `ConfigSource` | types | Options (`BridgerOptions` includes `fingerprintTimeout`, default 5 seconds, `baseContracts`, `mandatory`, `resolutionTimeout`, `callLogTimeout` and `handoffTimeout`) |
+| `HeldPlugins` | reference | `@bridger/core/HeldPlugins` (BEH-BR-088), exported so that companions that run work on another fiber on behalf of a lease holder can carry it |
 
 ### Composition — behaviours [14](./behaviors/14-children-and-groups.md)–[20](./behaviors/20-generation.md)
 
@@ -118,14 +135,49 @@ All signatures are illustrative until code exists.
 | `ConfigFingerprinter`, `ConfigChange` | port, type | Optional: opaque fingerprints of selected configuration values, taken at step 4a before the gate and carried with the changed paths; core computes no fingerprint ([ADR-BR-039](./decisions/039-config-fingerprint-port.md)) |
 | `IdGenerator` | service | Identifiers for records and hosts |
 | `verifyAuditSequence` | function | Gap and duplicate detection over records — not tamper evidence |
+| `EntitlementView`, `EntitlementState` | port, type | Optional: per-activation entitlement stream behind `Plugin.Runtime.entitled`; core interprets nothing ([entitlement companion](../entitlement/README.md)) |
+
+### Contracts and manifests — behaviours [26](./behaviors/26-versioned-contracts.md)–[27](./behaviors/27-manifest-and-lazy-activation.md)
+
+| Export | Kind | Purpose |
+| ------ | ---- | ------- |
+| `Contract.make`, `Contract.method`, `Contract.at` | functions | A versioned service key with a Schema description of its methods; a provision of a lower version of one major |
+| `Contract.satisfies`, `Contract.maxSatisfying`, `Contract.parseOptions` | functions, constant | Range matching within one major; the decoding rule every companion codec uses (unknown fields ignored) |
+| `Contract`, `ContractRequirement`, `ContractProvision`, `ContractDescriptor`, `ContractVersion`, `ContractRange`, `MethodSpec` | types | Contract references and their plain-data descriptor |
+| `PluginManifest`, `Manifest.consentDiff`, `ConsentDiff` | schema, function, type | The manifest as data; a pure diff of what an upgrade asks for |
+| `Plugin.lazy`, `LazyPluginDefinition`, `LazyTrigger`, `Host.wake`, `WakeReport` | function, types, method | Register a plugin from its manifest; load it when a trigger applies |
+| `Bridger.version` | constant | The version of `@bridger/core`, checked against `engines["@bridger/core"]` |
+
+### Principal, policy and annotations — behaviours [28](./behaviors/28-plugin-principal-and-mandatory-policy.md)–[30](./behaviors/30-operation-context-annotations.md)
+
+| Export | Kind | Purpose |
+| ------ | ---- | ------- |
+| `CurrentPlugin`, `PluginPrincipal`, `PrincipalRef` | reference, types | Host-minted identity of the plugin on whose behalf a fiber runs; `onBehalfOf` on records — attribution, not isolation |
+| `MandatoryInterception`, `Consumer` | types | Interceptions no child or operation can remove, also covering `Host.use` |
+| `AccessPolicy`, `AccessRequest`, `AccessDecision` | port, types | Optional: who may listen, emit, contribute or mount children |
+| `CapabilityPolicy`, `ResolutionRequest`, `Grant` | port, types | Optional: per-capture grants narrowing a service to named members |
+| `CallLog`, `CallEntry`, `CurrentCall` | port, types, reference | Optional: one entry per intercepted call; seam for per-call tokens (remote companion) |
+| `Annotation`, `Annotations`, `AnnotationKey`, `CurrentAnnotations` | functions, types, reference | Typed labels (`Deadline`, `Taint`, `Provenance`, companion keys) carried along declared flows |
+
+### Decisions, plans, realm families and handoff — behaviours [31](./behaviors/31-hook-points.md)–[34](./behaviors/34-state-handoff.md)
+
+| Export | Kind | Purpose |
+| ------ | ---- | ------- |
+| `HookPoint.make`, `HookPoint`, `HookRole`, `HookResult`, `HookOutcome`, `HookDecisionRecord`, `AdmissionRule` | function, types | Policied multi-plugin decisions: roles, application admission rule, timeout, deadline, breaker, decision record |
+| `Selector.make`, `Selector` | function, type | Per-call choice among implementations contributed to one registry |
+| `Gate`, `Gate.run`, `Gate.all`, `GateContext`, `GateDecision`, `Draft`, `Draft.check`, `OperationGate.fromGate`, `OperationGate.asGate` | types, functions | Generic Allow/Refuse/Defer gate; drafts with expected versions; adapters to the host port |
+| `Host.plan`, `ReconcilePlan`, `ReconcileOptions.expect` | method, types | Read-only dry run of `reconcile`; apply a plan or nothing |
+| `Realm.family`, `Realm.ephemeral`, `Host.retireRealm`, `Actor.narrow`, `Actor.isWithin` | functions, method | Per-key and per-task realms created and retired through public operations; a narrowed actor label |
+| `Handoff` (definition field), `BridgerOptions.handoffTimeout` | type, option | In-memory state handoff on replace, with an audited cold start |
 
 ### Testing — [behaviour 21](./behaviors/21-testing-host.md)
 
 `TestHost` (with `step`, `stepPlugin`, `pending` and `runUntilIdle` over a
 deterministic order of pending transition steps and waits), `PendingStep`,
 `Fault.buildFails`, `Fault.stopFails`, `Fault.holdLease`,
-`Fault.runtimeFailure`, and fixtures for the clock, identifiers, audit sink and
-gate.
+`Fault.runtimeFailure`, `Fault.loadFails`, handoff faults, and fixtures for the
+clock, identifiers, audit sink, gate (`OperationGate` and `Gate<Req>`), access
+and capability policies and the call log.
 
 ## Errors
 
@@ -135,8 +187,11 @@ configuration values, keys, fibers or raw causes
 
 | Group | Errors |
 | ----- | ------ |
-| Definition (`InstallError`) | `DuplicatePlugin`, `DuplicateProvider`, `DependencyCycle`, `InvalidDefinition`, `UnknownRealm` |
+| Definition (`InstallError`) | `DuplicatePlugin`, `DuplicateProvider`, `DependencyCycle`, `InvalidDefinition`, `UnknownRealm`, `IncompatibleContract`, `IncompatibleEngine` |
+| Loading (activation causes, phase "load") | `LoadFailed`, `ManifestMismatch` |
 | Operations | `ReplaceError`, `UnknownPlugin`, `Conflict`, `Superseded`, `HostClosed`, `ConfigInvalid`, `CleanupError`, `IdleTimeout`, `DuplicateRealm` |
+| Policy | `ResolutionRefused`, `ChildNotAllowed`, `NoPluginPrincipal`; defects `PrincipalForged`, `PrincipalRetired`, `AccessDenied`, `CapabilityDenied`, `DuplicateAnnotationKey`, `MonotonicAnnotation` |
+| Decisions, plans, realms, handoff | `HookRegistrationRefused`, `NoImplementation`, `PlanStale`, `RealmInUse`, `FamilyMemberUnavailable`, `FamilyEvictionError`, `HandoffError` |
 | Leases | `ServiceUnavailable`, `LeaseRevoked`, `LeaseTimeout`, `DrainTimeout`, `WouldDeadlock`, `KeyMismatch` |
 | Handles | `ActivationFailed`, `PluginRemoved`, `WaitTimeout` |
 | Helpers | `AdmissionClosed`, `DuplicateContribution`, `ContributionUnavailable` |
@@ -152,13 +207,29 @@ and is never a member of an error union.
 
 ## Core exclusions
 
-The core does not fetch, verify, version or sandbox plugin code; does not
+The core does not fetch, verify or sandbox plugin code (it matches contract
+versions and ranges, and runs the `load` Effect a lazy plugin is given); does not
 manipulate the module cache; has no domain model, database, tenant or migration
 interface; has no HTTP, UI or CLI integration; has no file watcher or hot
 module replacement policy; does not compensate external effects; and does not
 authenticate, store, retain or protect audit records
 ([ADR-BR-027](./decisions/027-core-exclusions.md)). Realms and interceptions
-change service resolution only; they are not isolation boundaries.
+change service resolution only; they are not isolation boundaries. The
+plugin principal, mandatory interceptions, grants and the access policy are
+attribution and policy among trusted code, not enforcement against hostile
+code; realm families are not tenancy; handoff is not persistence; core
+interprets no annotation and acts on no consent diff.
+
+Companions hold what the core excludes, and none adds a host operation,
+storage dependency or sandbox claim to it: out-of-process hosting is the
+`@bridger/remote` companion
+([ADR-RM-001](../remote/decisions/001-remote-plugin-is-a-local-proxy.md)),
+which provides no isolation either; host federation and cross-host event
+delivery are `@bridger/federation` and `@bridger/durable-bus`; loading and
+signature checks are `@bridger/loader`; hash chaining is
+`@bridger/audit-chain`; the command catalog, MCP and agent seams, and the CLI,
+watcher and development reload are their companions (see the
+[README](./README.md#companion-specifications)).
 
 ## Worked example
 

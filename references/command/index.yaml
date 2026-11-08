@@ -1,0 +1,14 @@
+kind: root
+package: bridger-command
+infix: CM
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-CM-00"
+    title: "Bridger Command — Companion Specification"
+  - file: "overview.md"
+    id: "BRIDGER-CM-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-CM-INV"
+    title: "Runtime Invariants"

@@ -1,0 +1,17 @@
+kind: root
+package: bridger-federation
+infix: FD
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-FD-00"
+    title: "Bridger Federation — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-FD-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-FD-INV"
+    title: "Runtime Invariants"
+  - file: "traceability.md"
+    id: "BRIDGER-FD-TRACE"
+    title: "Traceability"

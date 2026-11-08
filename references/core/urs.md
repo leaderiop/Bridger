@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-URS                                                  |
-> | Revision       | 0.14                                                         |
+> | Revision       | 0.18                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.14 (2026-10-03): Gap G8 closed: the companion is specified as a Draft in references/gxp/ (CCR-BR-015)<br>0.13 (2026-10-03): Gap G34 recorded and closed (`CloseReport.auditLastSeq` and the audit position after close) (CCR-BR-014)<br>0.12 (2026-10-03): §6 points to the behaviours' Satisfies lines (consistency pass) (CCR-BR-013)<br>0.11 (2026-10-03): G33 recorded and closed from the P5 exit-criterion work (CCR-BR-012)<br>0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.18 (2026-11-08): Gaps G61–G63 from the open questions of the loader and entitlement companions (CCR-BR-023)<br>0.17 (2026-11-08): URS-BR-032 reads "on behalf of which plugin" (CCR-BR-022)<br>0.16 (2026-11-08): URS-BR-029–031, gaps G36–G38 and G5 narrowed (CCR-BR-017); URS-BR-032–035, gaps G39–G42 (CCR-BR-018); URS-BR-036–040, gaps G44–G47 (CCR-BR-019); companion-origin URS-BR-041–048, Partner user group, companion scope row, gaps G43 and G48–G56 (CCR-BR-021)<br>0.15 (2026-11-08): Gap G35 recorded (the companion Draft in references/gxp/, on which G8's closure rests, is not present in this repository); G8's status points to G35; links into references/gxp/ turned into plain-text citations (CCR-BR-016)<br>0.14 (2026-10-03): Gap G8 closed: the companion is specified as a Draft in references/gxp/ (CCR-BR-015)<br>0.13 (2026-10-03): Gap G34 recorded and closed (`CloseReport.auditLastSeq` and the audit position after close) (CCR-BR-014)<br>0.12 (2026-10-03): §6 points to the behaviours' Satisfies lines (consistency pass) (CCR-BR-013)<br>0.11 (2026-10-03): G33 recorded and closed from the P5 exit-criterion work (CCR-BR-012)<br>0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -40,7 +40,8 @@ records what is still undecided.
 | **Core** (`@bridger/core`) | Installing, activating, replacing and removing plugins at runtime; dependency ordering; leases; failure and health; configuration decoding; observation; attributable operations; the `AuditSink` and `OperationGate` ports; deterministic time and identifiers |
 | **Companion** (`@bridger/gxp`, specified later in `references/gxp/`) | A durable audit-trail adapter contract; approval and electronic-signature flows through `OperationGate`; IQ/OQ evidence generated from executed tests |
 | **Consumer** (the regulated user's system) | Authentication and identity binding; audit storage, retention, protection, review and archival; clock synchronisation; system validation (IQ/OQ/PQ); procedures, training, periodic review; security of the process |
-| **Out of scope** | Fetching, verifying or sandboxing plugin code; domain models; HTTP, UI or CLI integration; compensation of external effects |
+| **Companions** (specified as Drafts, CCR-BR-021) | Out-of-process plugins (`@bridger/remote`); host federation (`@bridger/federation`); cross-host event delivery (`@bridger/durable-bus`); loading and signature checks (`@bridger/loader`); hash chaining of stored records (`@bridger/audit-chain`); entitlement and budgets (`@bridger/entitlement`); command catalog, MCP and agent seams (`@bridger/command`, `@bridger/mcp`, `@bridger/agent`); developer kit (`@bridger/kit`). Isolation of out-of-process code is allocated to the consumer (host mechanism and deployment), not to Bridger |
+| **Out of scope** | Fetching, verifying or sandboxing plugin code in core; domain models; HTTP, UI or CLI integration; compensation of external effects |
 
 Bridger runs plugins; it does not authenticate, persist, or validate. A library
 cannot be validated on its own: validation is an activity a regulated user
@@ -57,6 +58,7 @@ performs on a computerized system that includes it. See
 | **Operator / administrator** | Change the running plugin set safely; diagnose stalls and failures; shut down with a report |
 | **QA / validation lead** | See who changed what, when and why; know which compliance obligations the library supports and which remain the system's; obtain evidence that was produced by executed tests |
 | **Test author** | Drive the host deterministically, including time, identifiers and injected faults |
+| **Partner** | Implements a contract consumed by a Bridger application, from its own process, without using Effect (companions, URS-BR-048) |
 
 ## 3. Functional requirements
 
@@ -227,6 +229,188 @@ identifiers, so that executed tests are reproducible.
 A QA lead must be able to establish, from the record, which definition version
 and digest of each plugin was active over any period.
 
+### URS-BR-029: Evolve a service contract without breaking its consumers
+
+An integrator must be able to publish a new version of a service contract,
+run providers and consumers built against different compatible versions
+together, and be told at the call — naming both plugins — when a change
+would leave a consumer with a provider it is not compatible with.
+
+Rationale: separately built, remote and lazily loaded plugins each carry
+their own copy of a contract; matching by object alone (ADR-BR-011) cannot
+bind them, and matching by name alone cannot refuse an incompatible one.
+
+### URS-BR-030: Know what a plugin declares before running its code
+
+An integrator, an operator or a reviewer must be able to read what a plugin
+provides, requires, contributes and asks for — and what an upgrade asks for
+that the previous version did not — without loading or running the plugin.
+
+### URS-BR-031: Start a plugin only when it is needed
+
+An integrator must be able to register a plugin so that its code is loaded
+and built only when something needs it, while its provider slots,
+dependencies and versions are decided at registration as for any plugin.
+
+### URS-BR-032: Know which plugin made a change and for whom
+
+A QA lead must be able to tell, from the record of a plugin-set change made
+by plugin code, on behalf of which plugin — by id, realm, version and digest
+— the calling code ran, alongside the actor on whose request it was made,
+without that plugin being able to name another. (A provider's method serving
+another plugin runs on behalf of that consumer unless the provider states
+otherwise; 28 — Plugin Principal and Mandatory Policy, BEH-BR-258.)
+
+### URS-BR-033: Enforce a policy wrapper that no plugin can remove
+
+A system owner must be able to attach a wrapper to a service, decide whether
+a plugin may mount children, and decide who may emit, listen and contribute,
+such that no plugin or child can remove or replace these through the
+library's API.
+
+Rationale: in-process plugins are trusted code; the requirement is about
+the library's API, not about isolation (ADR-BR-019).
+
+### URS-BR-034: Narrow and log what each plugin can call
+
+A system owner must be able to restrict each consumer to named members of a
+service it resolves, and to obtain one access-log entry per call made
+through a resolved service, without the library storing those entries.
+
+### URS-BR-035: Carry labels such as taint provenance and deadline across calls
+
+An integrator must be able to attach typed labels — taint, provenance, a
+deadline, and labels of its own — to a chain of work, and rely on the
+library to carry each label only to the places it declares: event
+listeners, the gate, the capability policy, the call log and the audit
+record.
+
+### URS-BR-036: Let several plugins take part in one decision under a stated failure policy
+
+An application developer must be able to let several plugins veto, enrich or
+advise on one decision, with a rule of their own over who may veto, a time
+budget for the whole decision, a stated outcome when a contributor fails or
+is slow, and a record of which contributor decided — without a failing
+contributor stopping the plugin or the decision.
+
+Rationale: policy hooks (approval of regulated commands by shipped code
+only; a loyalty extension that must never block a sale) need authority,
+budget and accountability that `waterfall` does not give.
+
+### URS-BR-037: Review a proposed plugin-set change before it is applied
+
+An operator or an automated agent must be able to see exactly what a change
+to the plugin set would do before doing it, have it approved, and apply it
+only if the host is still in the state it was planned against; any gate must
+be able to answer "not yet" as well as yes or no.
+
+Rationale: self-modifying systems (agents adding tools, update services) are
+reviewable only if what is applied is what was reviewed.
+
+### URS-BR-038: Create a plugin set per key on demand and reclaim it when idle
+
+An application developer must be able to run a plugin set per key learnt at
+run time (an organisation, a workspace), created on first use and removed
+when idle without cutting off any call in flight — without the library
+presenting this as separation of one key's data from another's.
+
+### URS-BR-039: Run a short-lived plugin set for delegated work
+
+An application developer must be able to run a plugin set that lives exactly
+as long as one task, leaves nothing behind, and whose changes are recorded as
+made by that task on behalf of the person or service that started it.
+
+### URS-BR-040: Keep a plugin's state across a replacement
+
+An operator replacing a plugin with a new version must be able to keep the
+plugin's in-memory state when both versions support it, and must be able to
+see from the record when the state could not be kept.
+
+### URS-BR-041: Use plugin code that runs outside the host process
+
+An application must be able to use a plugin whose code runs in another
+thread, process, isolate or host as an ordinary plugin of its host, with the
+same withdrawal guarantees, waiting rather than failing while the code is
+unreachable, every remote call bounded by a deadline, and the remote code
+limited to the services granted to it.
+
+Rationale: architecture review 2026-11-08, item 2; third-party code must run
+out of process behind a proxy plugin, since in-process code is never
+confined (A1). Allocated to the `@bridger/remote` companion; isolation of the
+other process or isolate is allocated to the consumer.
+
+### URS-BR-042: Run each host of a fleet from one authority, including offline
+
+An operator of many hosts must be able to state, in one place, what each host
+runs and which hosts talk to each other; each host must converge on that state,
+keep running its last confirmed state while the authority is out of reach for
+a bounded time, and apply a kill decision at its next contact.
+
+Rationale: architecture review 2026-11-08, item 8. Allocated to the
+`@bridger/federation` companion; core supplies `reconcile`, realms, attribution,
+gate and audit.
+
+### URS-BR-043: Deliver business events across hosts and outages without loss or duplication of effect
+
+A developer must be able to record a business event in the same storage
+transaction as the state change it describes, and have it delivered to other
+hosts after any outage, in order per stream, with repeated deliveries absorbed.
+
+Rationale: architecture review 2026-11-08, item 9. Allocated to the event
+delivery companion (package `@bridger/durable-bus`, a name kept as intent
+only, not a claim; ADR-DB-007) and to the consumer's storage adapter; core
+owns no storage.
+
+### URS-BR-044: Offer commands to callers and agents through one path
+
+An application must be able to describe its state-changing operations once,
+as typed commands, and have the UI, APIs, jobs and an AI agent reach them
+through one path that consults the same approval gate, with a deterministic,
+per-principal list of what each caller is offered.
+
+Rationale: architecture review 2026-11-08, item 11. Allocated to the
+`@bridger/command` companion.
+
+### URS-BR-045: Expose and consume tools over MCP without a second path
+
+An application must be able to serve its commands to MCP clients, and use
+tools of external MCP servers, without a second tool registry and with
+external output marked as untrusted.
+
+Rationale: architecture review 2026-11-08, item 11. Allocated to the
+`@bridger/mcp` companion.
+
+### URS-BR-046: Run an agent whose writes cannot happen without approval after untrusted input
+
+An application must be able to run an agent loop with replaceable parts,
+observe its tasks, delegate to narrower subagents, and be sure that once a
+session has read untrusted text, no write happens without a person's
+approval; and must be able to test the agent deterministically without a
+live model.
+
+Rationale: architecture review 2026-11-08, item 12. Allocated to the
+`@bridger/agent` companion; core supplies the taint and provenance
+annotations, the gate, realm families and narrowed actors.
+
+### URS-BR-047: Write and test plugins without casts or Effect boilerplate
+
+A plugin author must be able to declare a plugin, put it into a host or a
+list, and test it with doubles, without type assertions, and must get a
+one-line message naming the plugin and the key when declared and used
+services disagree.
+
+Rationale: architecture review 2026-11-08, item 17. Allocated to the
+`@bridger/kit` companion, with the core type `Plugin.Any` (BEH-BR-001).
+
+### URS-BR-048: Implement a contract without learning Effect
+
+A partner must be able to implement a published contract as plain
+asynchronous functions over JSON-shaped data, run out of process, and check
+the implementation against suites published with the contract.
+
+Rationale: architecture review 2026-11-08, item 17. Allocated to the
+`@bridger/kit` companion, over `@bridger/remote`.
+
 ## 4. Non-functional requirements
 
 ### NFR-BR-001: Determinism
@@ -312,6 +496,26 @@ it satisfies in its `**Satisfies:**` line.
 | URS-BR-026 | [compliance matrix](./gxp/02-compliance-matrix.md) | — |
 | URS-BR-027 | [24](./behaviors/24-time-ids-and-sequence.md), [21](./behaviors/21-testing-host.md) | INV-BR-024 |
 | URS-BR-028 | [23](./behaviors/23-audit-sink-and-record.md), [04](./behaviors/04-states-and-snapshots.md) | INV-BR-022 |
+| URS-BR-029 | [26](./behaviors/26-versioned-contracts.md) | INV-BR-015, INV-BR-031 |
+| URS-BR-030 | [27](./behaviors/27-manifest-and-lazy-activation.md), [26](./behaviors/26-versioned-contracts.md) | INV-BR-034 |
+| URS-BR-031 | [27](./behaviors/27-manifest-and-lazy-activation.md) | INV-BR-011, INV-BR-032, INV-BR-033 |
+| URS-BR-032 | [28](./behaviors/28-plugin-principal-and-mandatory-policy.md) | INV-BR-035 |
+| URS-BR-033 | [28](./behaviors/28-plugin-principal-and-mandatory-policy.md) | INV-BR-036, INV-BR-037 |
+| URS-BR-034 | [29](./behaviors/29-capability-grants-and-call-log.md) | INV-BR-037, INV-BR-038 |
+| URS-BR-035 | [30](./behaviors/30-operation-context-annotations.md) | INV-BR-039 |
+| URS-BR-036 | [31](./behaviors/31-hook-points.md) | INV-BR-040, INV-BR-041, INV-BR-042 |
+| URS-BR-037 | [32](./behaviors/32-generic-gate-and-plan.md) | INV-BR-043 |
+| URS-BR-038 | [33](./behaviors/33-realm-families.md) | INV-BR-044, INV-BR-020 |
+| URS-BR-039 | [33](./behaviors/33-realm-families.md) | INV-BR-044, INV-BR-025 |
+| URS-BR-040 | [34](./behaviors/34-state-handoff.md) | INV-BR-045 |
+| URS-BR-041 | [remote 01–08](../remote/README.md) (companion), [14](./behaviors/14-children-and-groups.md), [26](./behaviors/26-versioned-contracts.md) | INV-RM-001–009 (companion) |
+| URS-BR-042 | [federation 01–05](../federation/behaviors/01-host-manifest.md) (companion), [18](./behaviors/18-reconciliation-and-confluence.md) | INV-BR-021 |
+| URS-BR-043 | [event delivery 01–08](../durable-bus/behaviors/01-events-and-envelope.md) (companion) | — |
+| URS-BR-044 | [command 01–04](../command/behaviors/01-command-definition.md) (companion), [31](./behaviors/31-hook-points.md), [32](./behaviors/32-generic-gate-and-plan.md) | — |
+| URS-BR-045 | [mcp 01–04](../mcp/behaviors/01-server.md) (companion) | — |
+| URS-BR-046 | [agent 01–05](../agent/behaviors/01-agent-seams.md) (companion), [30](./behaviors/30-operation-context-annotations.md), [33](./behaviors/33-realm-families.md) | INV-BR-039 |
+| URS-BR-047 | [kit 01](../kit/behaviors/01-plugin-facade.md), [kit 02](../kit/behaviors/02-plugin-test.md) (companion), [01](./behaviors/01-plugin-definition.md) | INV-KT-001, INV-KT-002 (companion) |
+| URS-BR-048 | [kit 03](../kit/behaviors/03-conformance-kits.md), [kit 05](../kit/behaviors/05-promise-sdk.md) (companion) | INV-KT-005, INV-KT-006 (companion) |
 | NFR-BR-001 | [24](./behaviors/24-time-ids-and-sequence.md), [21](./behaviors/21-testing-host.md) | INV-BR-024 |
 | NFR-BR-002 | [01](./behaviors/01-plugin-definition.md), [16](./behaviors/16-event-bus.md) | INV-BR-015 |
 | NFR-BR-003 | [Definitions of Done](./process/definitions-of-done.md) | — |
@@ -329,10 +533,10 @@ it satisfies in its `**Satisfies:**` line.
 | G2 | Per-subscriber lag behaviour of a sliding `PubSub` in Effect 4.x. | Closed (CCR-BR-003): lag is per subscriber — a slow subscriber loses only its own oldest messages, a fast one loses nothing, and publishing never blocks. Platform fact confirmed by prototype checks E1a–E1c in `prototypes/effect-v4-api` (effect 4.0.0, Node 22; see its `RESULTS.md`) |
 | G3 | Whether `Layer.effectContext` (used by `Plugin.fromEffect`) exists in Effect 4.x. | Closed (CCR-BR-003): it exists, lifts an `Effect<Context>` into a `Layer`, and releases scoped resources with the build scope. Prototype checks E2a–E2b |
 | G4 | How to force a `ManagedRuntime` layer build without running an effect. | Closed (CCR-BR-003): `runtime.context()` forces the build without running an effect, caches it, and rejects when the layer fails. Prototype checks E3a–E3e |
-| G5 | A changed service *shape* under an unchanged `ServiceId` cannot be detected by the core. | Residual risk (RSK-BR-010); mitigated by the versioned-identifier convention |
+| G5 | A changed service *shape* under an unchanged `ServiceId` cannot be detected by the core. | Residual risk (RSK-BR-010); mitigated by the versioned-identifier convention. Narrowed (CCR-BR-017): for contract keys, the major is part of the `ServiceId`, ranges are checked and method names compared at registration (BEH-BR-225, BEH-BR-228); a schema change within a major remains undetected by core (BEH-BR-230, RSK-BR-025) |
 | G6 | A re-entrant wait that passes through another fiber cannot be detected. | Residual risk (RSK-BR-011); bounded by drain limits |
 | G7 | Independent review of this specification is not yet possible (single maintainer). | Open — see [change control](./process/change-control.md) §5 |
-| G8 | The `@bridger/gxp` companion is not yet specified. | Closed (CCR-BR-015): specified as a Draft in [references/gxp/](../gxp/README.md) (CCR-GX-001); not approved, not implemented |
+| G8 | The `@bridger/gxp` companion is not yet specified. | Closed (CCR-BR-015): specified as a Draft in `references/gxp/` (CCR-GX-001); not approved, not implemented. That Draft is not present in this repository; see G35 |
 | G10 | The `IdentifiersOf` helper as first written yields `unknown` for an empty tuple, so a plugin that provides nothing could not type-check. | Closed (CCR-BR-004): made distributive in BEH-BR-002; found by the compiler in `prototypes/host-core` |
 | G11 | A system-initiated stop of a dependent (its provider is being removed) can meet an operator operation already in flight on that dependent; the specification ordered operations per plugin but did not say how a stop that crosses plugins is ordered against them. | Closed by [ADR-BR-038](./decisions/038-cross-plugin-stop-ordering.md) and BEH-BR-078–080 (CCR-BR-006): no host-wide order; waits run only from a provider to its dependents; a cascade waits for a dependent's step, never its operation, and ends a parked intent rather than completing it; `WouldDeadlock` is decided before any wait. The host-core prototype replaced its host-wide lock with per-plugin admission, consistent with the rule in throwaway prototype scenarios modelled on checks 43–45; the prototype evidences no requirement. The rule was amended by CCR-BR-008 (G16) |
 | G12 | How a forced removal revokes a scoped `lease()` was unspecified. | Closed (CCR-BR-004): it interrupts the acquiring fiber (BEH-BR-086) |
@@ -358,6 +562,35 @@ it satisfies in its `**Satisfies:**` line.
 | G32 | BEH-BR-142 covered a listener interrupted by its plugin's removal, not one withdrawn after the dispatch began and before its turn. | Closed (CCR-BR-011): both fail the dispatch with a defect (BEH-BR-142); found by the P5 host-core prototype |
 | G33 | BEH-BR-040 defined idle as "no transition is running"; a system stop that was requested and not yet begun — held by a `TestHost`, with no operation in flight and no state change yet — did not count, so `awaitIdle` returned with a child of a failed activation still `active`. | Closed (CCR-BR-012): a step requested and not yet begun counts as a transition (BEH-BR-040, BEH-BR-178); acceptance check 6 extended (BEH-BR-183); found when the P4 suites were moved onto `TestHost` |
 | G34 | BEH-BR-106 and the audit position: the `CloseReport` is produced before the shutdown's own terminal record is written, so a last-written sequence number in the report cannot include that record. | Closed (CCR-BR-014): `CloseReport.auditLastSeq` is the highest `auditSeq` written when the report is produced (BEH-BR-106), and `Host.controls` stays readable after close, so the final audit position can be read once the writer has flushed (BEH-BR-212); found by the CCR-BR-014 prototype |
+| G35 | The `@bridger/gxp` companion Draft (`references/gxp/`, Draft 0.1, CCR-GX-001), on which the closure of G8 rests, is not present in this repository: core documents cite its compliance matrix and behaviour files, but they cannot be inspected or reviewed here. G8 is not reopened by this entry; its closure rests on a Draft that cannot be inspected. | Open (CCR-BR-016): core links into `references/gxp/` were turned into plain-text citations (ADR-BR-034, the regulatory scope, the compliance matrix, the validation plan, the roadmap's P6 row); the companion Draft must be restored to the repository or re-drafted, under its own change control, before any core document may rely on it |
+| G36 | `reconcile` executes entries in list order (BEH-BR-156); a list that upgrades a provider and installs a dependent needing the upgrade is refused with `IncompatibleContract` for the dependent unless the provider's entry comes first, and converges only on the next run. | Open (CCR-BR-017): whether `reconcile` should order provider replacements before dependent installs (BEH-BR-228) |
+| G37 | A loaded lazy plugin is never returned to `dormant`; returning it when idle would deactivate behaviour but not reclaim imported code (BEH-BR-008). | Open (CCR-BR-017): BEH-BR-244 |
+| G38 | A loaded plugin that contributes to a registry or listens to an event its manifest did not declare is not detected by core. | Open (CCR-BR-017): BEH-BR-246; the `AccessPolicy` of BEH-BR-264 can refuse such access but does not compare it with the manifest |
+| G39 | Whether `Host.wake` (BEH-BR-245), which is not a mutating operation, runs under the caller's `CurrentPlugin` and records `onBehalfOf`; file 27 records the wake as a system transition attributed to `Actor.system`. | Open (CCR-BR-017, CCR-BR-018) |
+| G40 | Whether a `Desired` entry of `reconcile` declares mandatory interceptions, and whether a change to them is a replace or a refusal. | Open (CCR-BR-018): BEH-BR-260 |
+| G41 | Whether the `OperationRequest` of `install` carries `allowChildren` and the mandatory service ids, so a gate can decide on them. | Open (CCR-BR-018): BEH-BR-263 |
+| G42 | Whether call logging may be fail-closed, and whether refused and allowed calls (including the remote companion's callbacks, BEH-RM-046) may follow different failure policies. | Open (CCR-BR-018): BEH-BR-276 |
+| G43 | The `CallLog` entry shape for records offered by companion code rather than by core's capture (command dispatch, BEH-CM-015; remote crossings with direction, link, epoch and outcome, BEH-RM-043) and for non-call entries such as a boundary revocation (BEH-RM-014); also how a `PrincipalRef` (BEH-BR-259) is encoded across hosts, which the event delivery companion's envelope carries as a plain string. | Open (CCR-BR-021): BEH-BR-276 defines core's entry only |
+| G44 | State handoff on `restart` and on volatile `reconfigure` is not specified; the same definition restarting is a persistence question. | Open (CCR-BR-019): BEH-BR-346 |
+| G45 | `registeredAt` (BEH-BR-318) is tracked by the host but not shown in `PluginSnapshot`. | Open (CCR-BR-019): whether to expose it |
+| G46 | A hook point's breaker defaults (5 errors in 1 minute, 30 s cooldown) and the `handoffTimeout` default (5 s) are design guesses. | Open (CCR-BR-019): to be measured in a prototype (BEH-BR-304, BEH-BR-347) |
+| G47 | Realm family member ids and narrowed actor ids use "/" as a separator; `defineRealm` does not restrict realm id characters (BEH-BR-145). | Open (CCR-BR-019): confirm no conflict (BEH-BR-330, BEH-BR-337) |
+| G48 | A per-method call timeout for a contract method (wanted by the remote companion, BEH-RM-022) has no place in the contract descriptor of BEH-BR-225. | Open (CCR-BR-021): whether `MethodSpec` carries an optional timeout or the companion keeps it in its own options |
+| G49 | The companion specifications in `references/remote/`, `federation/`, `durable-bus/`, `loader/`, `audit-chain/`, `entitlement/`, `command/`, `mcp/`, `agent/` and `kit/` are Drafts (CCR-RM-001, CCR-FD-001, CCR-DB-001, CCR-LD-001, CCR-AC-001, CCR-EN-001, CCR-CM-001, CCR-MC-001, CCR-AG-001, CCR-KT-001). The review's "Effect learning curve" risk is addressed only by the kit Draft and the [guides](../../docs/guides/README.md). | Open (CCR-BR-021): not approved, not implemented |
+| G50 | Selecting one provider among several federated peers exporting one contract (a contract as a registry) is not specified; federation imports land in per-peer realms. | Open (CCR-BR-021): BEH-FD-026 |
+| G51 | Whether a federation kill entry may force a removal, interrupting calls in flight. | Open (CCR-BR-021): BEH-FD-007; [RSK-BR-015](./gxp/03-risk-assessment.md#rsk-br-015) |
+| G52 | The event delivery companion's package name `@bridger/durable-bus` contains a restricted claim word; ADR-DB-007 keeps it as a name of intent only, not a claim. | Open (CCR-BR-021): whether to rename the package |
+| G53 | Offline failover of a site's single-owner service without the authority is not automatic; it is the application's policy (ADR-FD-008). | Residual by design (CCR-BR-021) |
+| G54 | An `AuditSink` does not see core's `auditDropped` count, so a chaining sink cannot put it into its anchor statements. | Open (CCR-BR-021): a possible core seam requested by the audit-chain companion |
+| G55 | Whether the bus access rules of the `AccessPolicy` (BEH-BR-264) also apply to events forwarded from the event delivery companion (BEH-DB-053). | Open (CCR-BR-021) |
+| G56 | The loader's `SignaturePolicy` verifies packages; the federation companion needs it to verify host-manifest bytes, and the kit's `publish` needs a named signing step to cite. | Open (CCR-BR-021): loader file 03 |
+| G57 | A child removed because the sub-scope it was mounted under closed is recorded as a `system-stop` caused by its own mount record (BEH-BR-126); when a companion closes that sub-scope on someone's request — a boundary revocation in the remote companion, say — the requesting actor and reason reach no audit record, and the dependents' stops that follow have no attributed cause. | Open (CCR-BR-022): whether core offers an attributed child unmount (an operation or a cause a companion may supply), or the companion records the revocation through its own trail; agent review finding R3-12 |
+| G58 | `CallerContext` (BEH-BR-292) carries the actor and annotations of the invoker into a served call but no correlation id, because core keeps none in the fiber; nested host calls from served code get a fresh `correlationId` unless the dispatcher passes one in `options.context`. | Open (CCR-BR-022): whether core keeps a correlation id in the fiber as a default for `OperationContext.correlationId` |
+| G59 | Core does not guarantee that the strings it writes into audit records — a caller's `reason`, identifiers, labels — are well-formed UTF-16 (no lone surrogates); a sink that canonicalises records (RFC 8785) must refuse such a string, and core's in-place retry then halts recording (BEH-BR-202, RSK-BR-020). | Open (CCR-BR-022): whether attribution and definition checks refuse ill-formed strings at the call, or sinks must accept them |
+| G60 | A gate can refuse every operator call that would restart a plugin of a revoked digest, but system transitions are never gated (BEH-BR-219, BEH-BR-223): an installed plugin of that digest starts again when its dependencies return, when a lazy trigger applies, or when a background fiber restarts under its policy. Only `disable` or `remove` makes the digest unusable. | Open (CCR-BR-022): whether core offers a host-level refusal list consulted at system starts, or revocation always disables or removes (loader companion, kill switch) |
+| G61 | A lazy load runs under core's `buildTimeout` (BEH-BR-246), and the loader companion must fit its own fetch and verification step bounds inside it, but `Host.controls` reports `gateTimeout` and not `buildTimeout` (BEH-BR-212); the loader can only rely on a value the application states (loader BEH-LD-046). | Open (CCR-BR-023): whether `HostControls` gains `buildTimeout`; loader companion README, open question 2 |
+| G62 | A hook point's skip policy can only skip a contribution (BEH-BR-302), and the decision record (BEH-BR-305) has no outcome such as "denied-policy": a hook point whose owner wants an unlicensed veto contribution to block the dispatch, recorded as a policy decision rather than as the contributor's veto, cannot express it; the entitlement companion skips (BEH-EN-016). | Open (CCR-BR-023): whether the skip policy gains a deny outcome recorded as "denied-policy"; entitlement companion README, open question 1 |
+| G63 | The skip policy runs before a hook call and core offers no step after it (BEH-BR-302), so a budget charged by the policy cannot be returned when the call fails or times out (entitlement BEH-EN-023). | Open (CCR-BR-023): whether a hook point offers a step after each call that receives its outcome; entitlement companion README, open question 2 |
 | G9 | A naive supervised child (`forkChild` + `join` inside the lease) releases the lease before the child's finalizers run when the caller is interrupted, which would break BEH-BR-084. | Design constraint recorded (CCR-BR-003): the implementation interrupts and awaits the child before release; prototype checks E7a–E7b show the failure and the fix |
 
 ---

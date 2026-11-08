@@ -1,0 +1,14 @@
+kind: root
+package: bridger-kit
+infix: KT
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-KT-00"
+    title: "Bridger Kit — Companion Specification"
+  - file: "overview.md"
+    id: "BRIDGER-KT-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-KT-INV"
+    title: "Runtime Invariants"

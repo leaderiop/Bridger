@@ -1,0 +1,20 @@
+kind: decisions
+package: bridger-mcp
+infix: MC
+entries:
+  - id: "ADR-MC-001"
+    file: "001-server-projects-a-toolset.md"
+    title: "The MCP server projects a command toolset; it keeps no tool registry of its own"
+    status: "Proposed"
+  - id: "ADR-MC-002"
+    file: "002-imported-tools-are-tainted-remote-proxies.md"
+    title: "Imported tools are remote proxies; their output is always tainted and their annotations untrusted"
+    status: "Proposed"
+  - id: "ADR-MC-003"
+    file: "003-host-self-service-is-plan-first.md"
+    title: "Host self-service is plan-first; applying a plan is a separate regulated command behind both gates"
+    status: "Proposed"
+  - id: "ADR-MC-004"
+    file: "004-target-mcp-2026-07-28.md"
+    title: "Target the MCP 2026-07-28 revision; tasks are bridged by @bridger/agent"
+    status: "Proposed"

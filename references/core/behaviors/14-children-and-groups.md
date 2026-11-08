@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-14                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-03): A child's parked removal is also resumed by a cascade of another of its providers, as BEH-BR-080 gives it (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): No mount once the parent's stop or shutdown has begun; a parked child removal resumes only as a removal; mount and activation records; a parent awaiting a child in its build can starve for a slot; a group member's install error fails the group with phase "build" (prototype findings G19–G22) (CCR-BR-010)<br>0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-08): BEH-BR-121: the sub-scope finalizer waits for the removal, a held lease is revoked at the limit, a removal begun by the parent's stop takes precedence (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-121 a lazy child refused with `InvalidDefinition` (CCR-BR-017); BEH-BR-121 `ChildNotAllowed` and BEH-BR-122 mandatory interceptions always inherited (CCR-BR-018); BEH-BR-121 sub-scope mount removed when the sub-scope closes, BEH-BR-126 its `system-stop` record, `Plugin.Any` in `Plugin.Runtime.install` and BEH-BR-127 group members (CCR-BR-020)<br>0.4 (2026-10-03): A child's parked removal is also resumed by a cascade of another of its providers, as BEH-BR-080 gives it (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): No mount once the parent's stop or shutdown has begun; a parked child removal resumes only as a removal; mount and activation records; a parent awaiting a child in its build can starve for a slot; a group member's install error fails the group with phase "build" (prototype findings G19–G22) (CCR-BR-010)<br>0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -34,17 +34,57 @@ uses all eight.
 
 ```ts
 // illustrative — not type-checked
-// Plugin.Runtime member (behaviour 10)
-readonly install: <R extends Keys, P extends Keys, E, C>(
-  child: PluginDefinition<R, P, E, C>,
-  options?: InstallOptions
-) => Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed, Scope.Scope>
+// Plugin.Runtime member (behaviour 10); the second overload takes any definition (Plugin.Any, 01)
+readonly install: {
+  <R extends Keys, P extends Keys, E, C>(child: Plugin<R, P, E, C>, options?: InstallOptions):
+    Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed | ChildNotAllowed, Scope.Scope>
+  (child: Plugin.Any, options?: InstallOptions):
+    Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed | ChildNotAllowed, Scope.Scope>
+}
 ```
 
 ```
 REQUIREMENT: `Plugin.Runtime.install(child, options)` MUST install `child` for
              the lifetime of the calling plugin's activation, and MUST
              require the activation `Scope`.
+```
+
+```
+REQUIREMENT: When `Plugin.Runtime.install` is run under a scope that is a
+             sub-scope of the calling plugin's activation scope (for example
+             inside `Effect.scoped` within a `background` fiber), the child
+             MUST be removed when that sub-scope closes, exactly as it is
+             removed on the parent's stop (BEH-BR-125): its dependents first,
+             drained under `BridgerOptions.drainTimeout`, revoked on expiry,
+             never parked. If the activation scope closes first, the parent's
+             stop removes the child as for any other child.
+```
+
+```
+REQUIREMENT: The sub-scope's finalizer MUST wait until the child's removal
+             has settled — bounded by `BridgerOptions.drainTimeout` for the
+             drain, then by the revocation of the leases still held — so
+             that a sub-scope never closes with its child still registered.
+             A lease on the child held by the fiber that closes the
+             sub-scope, or by a fiber it awaits, MUST NOT make the
+             finalizer fail with `WouldDeadlock`: the drain runs under
+             `drainTimeout` and revokes that lease at the limit, as a
+             removal with no caller does (BEH-BR-125; 10 — Runtime Failure
+             and Health, BEH-BR-095). When the parent's stop has already
+             begun removing the child, that removal MUST take precedence:
+             the sub-scope's finalizer waits for it, starts no second
+             removal, and the child's `system-stop` record takes its cause
+             from the parent's cascade (BEH-BR-126).
+```
+
+```
+REQUIREMENT: `Plugin.Runtime.install` MUST fail with `ChildNotAllowed` when
+             the parent's `allowChildren` or a wired `AccessPolicy` refuses
+             the mount
+             ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+             BEH-BR-263, BEH-BR-264), and with `InvalidDefinition` for a lazy
+             definition ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+             BEH-BR-244); in both cases it MUST register nothing.
 ```
 
 ```
@@ -121,6 +161,15 @@ under way, and the parent's next activation does not know it. The mount is
 therefore refused once the stop has begun, with the `Conflict` an operation
 on a stopping plugin gets (URS gap G19, CCR-BR-010).
 
+**Settled here (CCR-BR-020).** A sub-scope mount lets a parent bind a child
+to less than its whole activation — a session, a lease, a period of
+reachability — without an operator operation. It adds no state and no
+operation: the child leaves exactly as it leaves on its parent's stop, so the
+legality table is unchanged. It was requested for the remote companion's
+withdrawal of a session child
+([references/remote/](../../remote/README.md), ADR-RM-002); acceptance check
+89 of BEH-BR-184 covers it.
+
 ## BEH-BR-122: A child is an ordinary plugin with a prefixed identity
 
 > **Invariant:** [INV-BR-001](../invariants.md#inv-br-001-one-provider-per-service-key-per-realm)
@@ -136,7 +185,10 @@ REQUIREMENT: A child's ID MUST be the parent's ID, a "/", and the child
 ```
 REQUIREMENT: A child MUST install into the parent's realm and inherit the
              parent's interceptions unless `options` set `realm` or
-             `intercept` explicitly.
+             `intercept` explicitly. Mandatory interceptions are always
+             inherited ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+             BEH-BR-260), and `allowChildren` may refuse the mount
+             (BEH-BR-263).
 ```
 
 ```
@@ -306,6 +358,15 @@ REQUIREMENT: When an `AuditSink` is wired, each such mount and unmount MUST
 ```
 
 ```
+REQUIREMENT: A child removed because a sub-scope it was mounted under closed
+             (BEH-BR-121) MUST be treated as unmounted by its parent's
+             activation lifecycle: no attribution, no `OperationGate`, and,
+             with an `AuditSink`, a `system-stop` record attributed to
+             `Actor.system` whose `target` is the child and whose
+             `causationId` is the record id of the child's mount record.
+```
+
+```
 REQUIREMENT: The mount record's `after.state` MUST be the state in which the
              child is registered (`waiting` or `disabled`). When the child
              becomes `starting` in the revision of its mount, the
@@ -336,8 +397,8 @@ CCR-BR-010).
 ```ts
 Plugin.group(
   id: string,
-  members: readonly PluginDefinition<any, any, any, any>[]
-): PluginDefinition<readonly [], readonly [], never, void>
+  members: readonly Plugin.Any[]            // any definition fits, no cast (01, BEH-BR-001)
+): Plugin<readonly [], readonly [], never, void>
 ```
 
 ```

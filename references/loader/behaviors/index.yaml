@@ -1,0 +1,28 @@
+kind: behaviors
+package: bridger-loader
+infix: LD
+entries:
+  - file: "01-package-and-digest.md"
+    id: "BRIDGER-LD-BEH-01"
+    title: "Package and digest"
+    range: "BEH-LD-001..008"
+  - file: "02-load-pipeline.md"
+    id: "BRIDGER-LD-BEH-02"
+    title: "Load pipeline"
+    range: "BEH-LD-009..016"
+  - file: "03-signature-policy.md"
+    id: "BRIDGER-LD-BEH-03"
+    title: "Signature policy"
+    range: "BEH-LD-017..024"
+  - file: "04-revocation-and-kill-switch.md"
+    id: "BRIDGER-LD-BEH-04"
+    title: "Revocation and kill switch"
+    range: "BEH-LD-025..032"
+  - file: "05-catalog-and-lazy-loading.md"
+    id: "BRIDGER-LD-BEH-05"
+    title: "Catalog and lazy loading"
+    range: "BEH-LD-033..040"
+  - file: "06-limits-and-acceptance.md"
+    id: "BRIDGER-LD-BEH-06"
+    title: "Limits and acceptance"
+    range: "BEH-LD-041..048"

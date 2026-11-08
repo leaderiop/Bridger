@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-18                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-08): BEH-BR-154: lazy identity `meta` (digest supplied beside the manifest); BEH-BR-153/155: `pruneDrain` and `pruneForce` (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-153 `DesiredPlugin.plugin` accepts lazy definitions, BEH-BR-154 lazy definitions compared by manifest `version` and `digest` without loading (CCR-BR-017); BEH-BR-153 `expect` and `PlanStale`, BEH-BR-156 diff shared with `Host.plan`, BEH-BR-158 a stale plan applies nothing (CCR-BR-019); BEH-BR-153 `plugin: Plugin.Any` (CCR-BR-020)<br>0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -41,7 +41,7 @@ Planned source: `packages/core/src/Reconcile.ts` and
 // illustrative — not type-checked
 interface DesiredPlugin {
   readonly id: string                    // must equal plugin.id; repeated so diffs and overlays can address an entry
-  readonly plugin: PluginDefinition<any, any, any, any>
+  readonly plugin: Plugin.Any | LazyPluginDefinition   // any definition, no cast (01, BEH-BR-001); lazy (27, BEH-BR-244)
   readonly config?: unknown              // the override the plugin should hold; absent = no override
   readonly disabled?: boolean            // default false
   readonly realm?: string                // default "default"
@@ -50,6 +50,9 @@ interface DesiredPlugin {
 interface ReconcileOptions {
   readonly scope?: string                // ownership scope, default "default"
   readonly prune?: boolean               // default true
+  readonly pruneDrain?: Duration.Input | "forever"   // drain of each prune remove; default BridgerOptions.drainTimeout
+  readonly pruneForce?: boolean          // force of each prune remove; default false
+  readonly expect?: ReconcilePlan        // apply this plan or nothing (32, BEH-BR-319)
 }
 
 interface ReconcileReport {
@@ -72,7 +75,7 @@ interface ReconcileReport {
 
 interface Host {
   reconcile(desired: readonly DesiredPlugin[], options?: ReconcileOptions & OperationOptions):
-    Effect.Effect<ReconcileReport, Unattributed | ReasonRequired | AuditUnavailable | HostClosed>
+    Effect.Effect<ReconcileReport, Unattributed | ReasonRequired | AuditUnavailable | HostClosed | PlanStale>
 }
 
 declare const Desired: {
@@ -131,6 +134,14 @@ without `config` therefore asks for *no* override, so that the source
 (`BridgerOptions.config`) applies — which is what makes the result depend only
 on the list (BEH-BR-159).
 
+`IncompatibleContract` and `IncompatibleEngine` reach `rejected` as members
+of `InstallError` ([26 — Versioned Contracts](./26-versioned-contracts.md),
+[27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md)).
+With `expect`, a diff that differs from the plan fails the call with
+`PlanStale` ([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
+BEH-BR-319); a dry run is the read-only `Host.plan` (BEH-BR-317), never an
+option of `reconcile`.
+
 `reconcile` is the one mutating operation whose error union does not include
 `OperationRejected`: the gate is consulted per entry action (BEH-BR-158), never
 for the call as a whole, so a refusal is always an entry's outcome and lands
@@ -170,7 +181,13 @@ REQUIREMENT: For each valid entry, `reconcile` MUST compare the entry with
 REQUIREMENT: Two definitions MUST be "the same definition" only when they are
              the same object, or when both carry `meta.version` and
              `meta.digest` and both pairs are equal. In every other case they
-             MUST be treated as different.
+             MUST be treated as different. For a lazy definition, `version`
+             and `digest` MUST be read from its identity `meta` — the
+             manifest's `version` and the digest supplied to `Plugin.lazy`
+             beside the manifest or, failing that, in it — and `reconcile`
+             MUST NOT call its `load`
+             ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+             BEH-BR-248).
 ```
 
 ```
@@ -233,6 +250,17 @@ REQUIREMENT: With `prune` (default true), every plugin owned by the scope
 ```
 
 ```
+REQUIREMENT: Each prune `remove` MUST use `options.pruneDrain` as its
+             `RemoveOptions.drain` and `options.pruneForce` as its `force`
+             (06 — Removal), with the defaults of a direct `remove` when
+             they are absent; it is gated and recorded exactly as a direct
+             `remove` with those options. `pruneDrain` and `pruneForce`
+             MUST be ignored when `prune` is false. A prune `remove` that
+             fails with `DrainTimeout` is reported in `rejected` like any
+             other operational failure (BEH-BR-157).
+```
+
+```
 REQUIREMENT: `reconcile` MUST NOT issue any action against a plugin that it
              does not own under `options.scope`: neither prune it, nor
              replace, reconfigure, disable or enable it. An entry that names
@@ -260,7 +288,10 @@ prevent.
 REQUIREMENT: `reconcile` MUST compute its diff against the host state at the
              moment its intent is recorded (below), and then act in this
              fixed order: first the prune removals, in reverse dependency
-             order; then the entries, in list order.
+             order; then the entries, in list order. The diff computation
+             MUST be the one `Host.plan` uses
+             ([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
+             BEH-BR-317).
 ```
 
 ```
@@ -421,6 +452,14 @@ REQUIREMENT: The attribution check of the call (step 2 of BEH-BR-188) MUST
              call. When any of them requires a reason and the context has
              none, the call MUST fail with `ReasonRequired` and MUST write no
              record.
+```
+
+```
+REQUIREMENT: With `expect`, the diff computed at the call and the diff
+             recomputed at the intent MUST also be compared with the plan;
+             on a difference the call MUST fail with `PlanStale` as
+             [32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
+             BEH-BR-319, specifies, and no entry action MUST be issued.
 ```
 
 ```

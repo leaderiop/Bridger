@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -79,6 +79,18 @@ REQUIREMENT: A plugin MUST run at most one transition step at any time,
 REQUIREMENT: For `install`, the plugin is the pair (`options.realm`,
              `plugin.id`); for `replace`, (`options.realm`, `plugin.id`);
              for every other operation, the plugin named by its `PluginRef`.
+```
+
+```
+REQUIREMENT: An operation that registers a plugin into a realm other than
+             "default" MUST also take that realm's turn at its
+             linearization point and re-validate there that the realm is
+             defined, failing with `UnknownRealm` and registering nothing
+             when it was retired after validation; `retireRealm` takes the
+             same turn ([33 — Realm Families](./33-realm-families.md),
+             BEH-BR-335). The realm turn orders only registrations and
+             retirement of one realm; it does not serialise other
+             operations.
 ```
 
 Linearization gives every pair of concurrent operations on one plugin a single
@@ -412,14 +424,15 @@ requirement availability (07 — Replacement and Reactivation, BEH-BR-057);
 
 | State | install | remove | replace | retry | reconfigure | restart | disable | enable |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **unknown** | registers → `waiting`, `starting` or `disabled` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` |
+| **unknown** | registers → `dormant`, `waiting`, `starting` or `disabled` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` |
+| **dormant** | `DuplicatePlugin` | unregisters at once; nothing was loaded | swap → `dormant` (lazy) or starting/waiting (eager); triggers re-applied | no-op | stores or clears the raw override; not decoded until load | no-op | → `disabled` | no-op |
 | **waiting** | `DuplicatePlugin` | unregisters at once | swap → starting/waiting | no-op | stores or clears the override; nothing to restart | no-op | → `disabled` | no-op |
 | **starting** | `DuplicatePlugin` | build settles, result discarded → gone | supersedes the target: build settles, discarded; swap → starting/waiting | no-op | override stored; build settles, discarded; builds again | supersedes the build: it settles, discarded; builds again | build settles, discarded → `disabled` | no-op |
 | **active** | `DuplicatePlugin` | stop → gone | stop, swap → starting/waiting | no-op | stop → starting/waiting; volatile-only: in place, no state change | stop → starting/waiting | stop → `disabled` | no-op |
 | **stopping** | `DuplicatePlugin` | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 |
-| **failed** (build, activation, runtime) | `DuplicatePlugin` | unregisters | swap → starting/waiting | → starting/waiting | → starting/waiting | as `retry` → starting/waiting | → `disabled` | no-op |
+| **failed** (load, build, activation, runtime) | `DuplicatePlugin` | unregisters | swap → starting/waiting | → starting/waiting | → starting/waiting | as `retry` → starting/waiting | → `disabled` | no-op |
 | **failed(cleanup)** | `DuplicatePlugin` | unregisters; leak acknowledged; cleanup not re-run | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) |
-| **disabled** | `DuplicatePlugin` | unregisters | swap; stays `disabled` | Conflict (disabled) | stores or clears the override for the next `enable` | Conflict (disabled) | no-op (joins the state) | re-check → starting/waiting, or `InstallError` |
+| **disabled** | `DuplicatePlugin` | unregisters | swap; stays `disabled` | Conflict (disabled) | stores or clears the override for the next `enable` | Conflict (disabled) | no-op (joins the state) | re-check → starting/waiting (or `dormant`, lazy and not loaded), or `InstallError` |
 | **host closing** | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` |
 
 ```
@@ -427,6 +440,12 @@ REQUIREMENT: When no operation is in flight on the plugin, every operation
              MUST have exactly the outcome given by this table for the
              plugin's state.
 ```
+
+A `replace` with a lazy definition lands in `dormant` where a cell says
+starting/waiting, and the `dormant` row is specified with its rules in
+[27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md)
+(BEH-BR-247, CCR-BR-017); the settled rows are now eight states by eight
+operations.
 
 ```
 REQUIREMENT: Every cell of this table and of BEH-BR-072 MUST be an

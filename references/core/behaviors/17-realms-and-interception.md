@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-17                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-08): BEH-BR-145 `RealmOptions.mandatory`, BEH-BR-151 mandatory interceptions never replaced, composed outside, and applied to `Host.use` (CCR-BR-018); BEH-BR-145 a realm may be retired while empty by `retireRealm` (CCR-BR-019)<br>0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -35,7 +35,7 @@ Planned source: `packages/core/src/Realm.ts` and `packages/core/src/Resolver.ts`
 ## BEH-BR-145: A realm is a named resolution namespace, and "default" always exists
 
 > **Invariant:** [INV-BR-020](../invariants.md#inv-br-020-a-realm-changes-resolution-only)
-> **See:** [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md)
+> **See:** [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-048](../decisions/048-realm-families-and-retirement.md)
 > **Satisfies:** [URS-BR-011](../urs.md#urs-br-011-run-the-same-plugin-once-per-tenant-or-database)
 
 ```ts
@@ -43,6 +43,7 @@ Planned source: `packages/core/src/Realm.ts` and `packages/core/src/Resolver.ts`
 interface RealmOptions {
   readonly isolate: readonly Context.Key<any, any>[]     // keys that resolve inside this realm
   readonly interceptors?: readonly Interception<any>[]   // applied to every plugin installed in the realm
+  readonly mandatory?: readonly MandatoryInterception<any>[]   // cannot be replaced or removed (28, BEH-BR-260)
 }
 
 interface Host {
@@ -72,9 +73,11 @@ REQUIREMENT: `defineRealm(id, options)` MUST register a realm with the given
 ```
 
 ```
-REQUIREMENT: A realm's `isolate` and `interceptors` MUST be fixed when it is
-             defined. No operation changes or deletes a realm; a realm lives
-             as long as its host.
+REQUIREMENT: A realm's `isolate`, `interceptors` and `mandatory` MUST be
+             fixed when it is defined. No operation changes a realm. A realm
+             lives until its host closes or until `retireRealm` retires it
+             while empty
+             ([33 — Realm Families](./33-realm-families.md), BEH-BR-335).
 ```
 
 ```
@@ -88,7 +91,8 @@ A realm only decides *which provider a key resolves to*. It has no
 lifecycle of its own beyond its definition, which is why there is no
 `removeRealm`: removing a realm would mean deciding what happens to plugins
 still installed in it, and the plugins are already removed individually by
-the operations that own them. A realm that is no longer used costs one
+the operations that own them. `retireRealm` retires only an empty realm and
+decides nothing about plugins (33, BEH-BR-335). A realm that is no longer used costs one
 entry in `HostSnapshot.realms`.
 
 `defineRealm` takes its attribution as a third parameter rather than inside
@@ -300,7 +304,7 @@ word `isolate` in `RealmOptions` names the resolution rule, nothing more.
 
 ## BEH-BR-151: An interception wraps a service per consumer at capture
 
-> **See:** [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-010](../decisions/010-cordis-parity.md)
+> **See:** [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-010](../decisions/010-cordis-parity.md), [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)
 
 ```ts
 interface Interception<S> {
@@ -326,7 +330,8 @@ REQUIREMENT: A consumer is in scope of an interception set by its realm's
              own `InstallOptions.intercept` — never the parent's realm
              interceptors, which reach a child only through the child's own
              realm — unless the child's install options set `intercept`,
-             which then replaces the inherited interceptions.
+             which then replaces the inherited interceptions. A child's own
+             `intercept` never replaces a mandatory interception (BEH-BR-260).
 ```
 
 ```
@@ -335,7 +340,9 @@ REQUIREMENT: When several interceptions apply to one key, they MUST compose
              realm interceptors (in list order), then the consumer's
              inherited interceptions or, when it has them, those of its own
              `InstallOptions.intercept` (in list order). The realm's
-             interceptors are therefore always the innermost.
+             interceptors are therefore always the innermost. Mandatory
+             interceptions and the capability layers compose outside these,
+             in the order of BEH-BR-261.
 ```
 
 ```
@@ -346,7 +353,10 @@ REQUIREMENT: `wrap` MUST be applied once per capture per activation. A
 ```
 REQUIREMENT: Interception MUST NOT apply to `Host.use`, `useAll` or `lease`
              called by application code that is not a plugin activation;
-             those callers receive the provider's service unwrapped.
+             those callers receive the provider's service unwrapped — except
+             mandatory interceptions, which apply to these calls as
+             [28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+             BEH-BR-262, specifies.
 ```
 
 Typical uses are a per-plugin logger with annotations, a rate-limiting

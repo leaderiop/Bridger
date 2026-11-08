@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-11                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-03): BEH-BR-103 values may leave core only to the optional `ConfigFingerprinter` port at step 4a of BEH-BR-188; `configChange: { paths, fingerprints? }`; Settled paragraph (CCR-BR-014)<br>0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-11-08): `reconfigure` on any registration not yet loaded recorded as `install` with `config` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-097 decode after load and BEH-BR-101 raw value stored for an unloaded lazy registration; BEH-BR-104 manifest agrees with `version` and `digest` (CCR-BR-017); BEH-BR-104 points to the loader companion (CCR-BR-021)<br>0.3 (2026-10-03): BEH-BR-103 values may leave core only to the optional `ConfigFingerprinter` port at step 4a of BEH-BR-188; `configChange: { paths, fingerprints? }`; Settled paragraph (CCR-BR-014)<br>0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -63,6 +63,12 @@ REQUIREMENT: A decode failure MUST fail the activation with phase
              MUST NOT run, and the activation MUST NOT publish anything. A
              `config-rejected` host event MUST be emitted.
 ```
+
+For a lazy registration whose code is not yet loaded, the raw value is read
+and decoded after the load and before `build`, since the schema is part of
+the loaded definition
+([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+BEH-BR-246).
 
 Decoding first means a plugin's `build` never sees an invalid value, so no
 plugin has to defend against one, and a configuration error can never leave
@@ -261,7 +267,12 @@ On a plugin that is not `active`, `reconfigure` stores and validates the
 value and then follows the state table: a `failed` plugin starts or waits, a
 `waiting` plugin simply carries the new value into its next activation, and a
 `disabled` plugin keeps it for the next `enable`
-([08 — Operation Legality](./08-operation-legality.md)).
+([08 — Operation Legality](./08-operation-legality.md)). On a lazy
+registration not yet loaded (`dormant`, or `disabled`, `waiting` or `failed`
+with phase "load" before any load succeeded), the value is stored raw and
+decoded only after the load, and the call is recorded as an `install` with
+`config` would be: top-level keys as paths, form "raw" for a fingerprinter
+(27, BEH-BR-247).
 
 **Settled here.** SPEC.md's `reconfigure` signature omitted `DrainTimeout`
 and `WouldDeadlock`, although a non-volatile `reconfigure` drains leases like
@@ -410,7 +421,10 @@ readonly meta?: {
 
 ```
 REQUIREMENT: The core MUST treat `meta` as opaque, except that `reconcile`
-             compares `version` and `digest` (behaviour 18).
+             compares `version` and `digest` (behaviour 18), and that a
+             definition's `manifest` MUST agree with them
+             ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+             BEH-BR-242).
 ```
 
 ```
@@ -429,8 +443,9 @@ REQUIREMENT: The core MUST NOT verify `meta.digest` against the loaded code
 `version` and `digest` in audit records are what let a reader answer "which
 version of this plugin was active at that time". They are only as truthful
 as whoever set them: verifying that a digest matches the code actually
-loaded belongs to the loader adapter
-([RSK-BR-017](../gxp/03-risk-assessment.md#rsk-br-017)).
+loaded belongs to the loader companion
+([references/loader/](../../loader/README.md), BEH-LD-007;
+[RSK-BR-017](../gxp/03-risk-assessment.md#rsk-br-017)).
 
 ---
 

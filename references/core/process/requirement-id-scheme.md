@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-01                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Process Specification                                        |
-> | Change History | 0.2 (2026-10-03): Check 11 described as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-08): Block rule for a block that is too small (file 33 re-blocked to 329..344, file 34 to 345..360) (CCR-BR-019); companion infixes RM, FD, DB, LD, AC, EN, CM, MC, AG, KT registered with their block and citation rules and the companion checker (CCR-BR-021)<br>0.2 (2026-10-03): Check 11 described as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -42,6 +42,41 @@ regulatory clause itself (for example `21 CFR 11.10(e)` or `Annex 11 §9`), not
 by a Bridger series. A clause is not a requirement of this library; it is a
 requirement on a regulated user's system, and the matrix records how this
 library's identifiers support it.
+
+### Companion infixes
+
+Companion packages are specified in their own trees under `references/`, each
+with its own infix, identifier series, Document IDs (`BRIDGER-<PFX>-00`,
+`-OVW`, `-INV`, `-BEH-NN`, `-ADR-NNN`, and as the tree needs `-TRACE`,
+`-RISK`, `-APP-X`) and change control register (`CCR-<PFX>-001` onwards in
+its README). The infixes below are registered here so that no two trees, and
+no tree and core, share one (CCR-BR-021).
+
+| Infix | Package | Tree | Series |
+| ----- | ------- | ---- | ------ |
+| `RM` | `@bridger/remote` | `references/remote/` | `BEH`, `INV`, `ADR`, `REQ`, `RSK`, `CCR` |
+| `FD` | `@bridger/federation` | `references/federation/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `DB` | `@bridger/durable-bus` (event delivery; the name is intent, not a claim, ADR-DB-007) | `references/durable-bus/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `LD` | `@bridger/loader` | `references/loader/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `AC` | `@bridger/audit-chain` | `references/audit-chain/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `EN` | `@bridger/entitlement` | `references/entitlement/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `CM` | `@bridger/command` | `references/command/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `MC` | `@bridger/mcp` | `references/mcp/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `AG` | `@bridger/agent` | `references/agent/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `KT` | `@bridger/kit` | `references/kit/` | `BEH`, `INV`, `ADR`, `REQ`, `CCR` |
+| `GX` | `@bridger/gxp` | `references/gxp/` (not present; URS gap G35) | as its Draft defines |
+
+Companion trees follow §3 with their own infix: `BEH-<PFX>` blocks of eight
+(or sixteen) per behaviour file, recorded in the tree's `behaviors/index.yaml`
+and used contiguously from the first number, the remainder reserved; all
+other companion series contiguous from 001. A companion cites core
+identifiers by relative link and defines none; core cites companion
+identifiers only as text or by link into the tree, never as its own. Core
+risks may name companion behaviours as controls, but each core `RSK-BR` must
+still cite at least one core `BEH-BR` or `INV-BR` (check 4). The companion
+trees are checked by `scripts/verify-companions.sh` (links and anchors, claims
+lint with its own allowlist, identifiers defined in their tree and core
+identifiers defined in core, Document Control and `index.yaml`).
 
 ### Document IDs
 
@@ -74,7 +109,10 @@ REQUIREMENT: BEH-BR identifiers are allocated in blocks per behaviour file
              (eight, or sixteen for large files). A file uses its block
              contiguously from the first number; the unused remainder of the
              block is reserved for later insertion and is not a gap.
-             `behaviors/index.yaml` records each file's block.
+             `behaviors/index.yaml` records each file's block. A block
+             that turns out too small is not widened past eight or sixteen;
+             the next file's block moves instead, before its identifiers are
+             registered (as files 33 and 34 were, CCR-BR-019).
 ```
 
 ```

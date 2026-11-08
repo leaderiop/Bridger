@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-002                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Layer.effectContext and the memo-map behaviour confirmed (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.3 (2026-11-08): Heterogeneous lists use `Plugin.Any`; reference to ADR-KT-002 (CCR-BR-020)<br>0.2 (2026-10-02): Layer.effectContext and the memo-map behaviour confirmed (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -60,9 +59,13 @@ A plugin's `build` is an ordinary Effect `Layer`:
 
 **Trade-off accepted**: reusing `Layer` costs a duplicated runtime key list and an untracked class of hidden requirements, in exchange for no second construction model and a compile-time check on the part that can be checked.
 
+**Amendments (2026-11-08)**:
+
+- Heterogeneous lists use `Plugin.Any`, whose `build` is `Layer<never, unknown, any>` because `Layer` is contravariant in its output ([ADR-KT-002](../../kit/decisions/002-plugin-any-is-the-contravariant-top.md)).
+
 ## References
 
 - Behaviours: [01 — Plugin definition](../behaviors/01-plugin-definition.md), [05 — Activation](../behaviors/05-activation.md)
 - Invariants: [INV-BR-003](../invariants.md#inv-br-003-publication-is-atomic), [INV-BR-014](../invariants.md#inv-br-014-every-activation-gets-a-fresh-scope-and-memo-map)
-- Decisions: [ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md), [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md), [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md)
+- Decisions: [ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md), [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md), [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md), [ADR-KT-002](../../kit/decisions/002-plugin-any-is-the-contravariant-top.md) (kit companion)
 - Source: `docs/SPEC.md` — "Plugin definition" (Activation paragraph), "The small public interface", "API decisions" row 5

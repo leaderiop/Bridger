@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-013                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-10-03): A child's parked removal is resumed by no operator call but `remove` (BEH-BR-125) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): A running system stop is waited for before the intent; a parked system stop is resumed by five operations and refuses `retry` and `enable` with `Conflict` "dependency-loss"; joining or superseding a parked operation resumes it; second pass: a call that resumes a parked system stop is in flight from then on and is decided once the stop settles (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
-
+> | Change History | 0.5 (2026-11-08): Reference to ADR-BR-042: the legality table gains the `dormant` row (CCR-BR-017)<br>0.4 (2026-10-03): A child's parked removal is resumed by no operator call but `remove` (BEH-BR-125) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): A running system stop is waited for before the intent; a parked system stop is resumed by five operations and refuses `retry` and `enable` with `Conflict` "dependency-loss"; joining or superseding a parked operation resumes it; second pass: a call that resumes a parked system stop is in flight from then on and is decided once the stop settles (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -90,10 +89,14 @@ Table 2 is the in-flight table of [08 — Operation legality](../behaviors/08-op
 
 **Trade-off accepted**: a large, explicit table that callers must learn, in exchange for no undefined behaviour and no claimed recovery that cannot happen.
 
+**Amendments (2026-11-08)**:
+
+- The legality table gains a `dormant` row for lazy plugins and a failure phase "load"; every cell stays defined ([ADR-BR-042](../decisions/042-lazy-activation.md)).
+
 ## References
 
 - Behaviours: [08 — Operation legality](../behaviors/08-operation-legality.md), [07 — Replacement and reactivation](../behaviors/07-replacement-and-reactivation.md), [06 — Removal](../behaviors/06-removal.md)
 - Invariants: [INV-BR-004](../invariants.md#inv-br-004-no-stale-build-is-published), [INV-BR-007](../invariants.md#inv-br-007-failure-is-sticky), [INV-BR-009](../invariants.md#inv-br-009-at-most-one-transition-in-flight-per-plugin), [INV-BR-011](../invariants.md#inv-br-011-every-state-and-operation-pair-has-a-defined-outcome)
 - Risks: [RSK-BR-009](../gxp/03-risk-assessment.md#rsk-br-009), [RSK-BR-019](../gxp/03-risk-assessment.md#rsk-br-019)
-- Decisions: [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-006](../decisions/006-one-instance-per-id-per-realm.md), [ADR-BR-012](../decisions/012-intent-and-linearization.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)
+- Decisions: [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-006](../decisions/006-one-instance-per-id-per-realm.md), [ADR-BR-012](../decisions/012-intent-and-linearization.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md), [ADR-BR-042](../decisions/042-lazy-activation.md)
 - Source: `docs/SPEC.md` — "State and lifecycle", "Operation semantics and races", "Disable, enable and restart"

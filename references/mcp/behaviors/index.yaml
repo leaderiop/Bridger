@@ -1,0 +1,24 @@
+kind: behaviors
+package: bridger-mcp
+infix: MC
+entries:
+  - file: "01-server.md"
+    id: "BRIDGER-MC-BEH-01"
+    title: "Server"
+    range: "BEH-MC-001..008"
+  - file: "02-list-changed.md"
+    id: "BRIDGER-MC-BEH-02"
+    title: "List-changed notifications"
+    range: "BEH-MC-009..016"
+  - file: "03-client-import.md"
+    id: "BRIDGER-MC-BEH-03"
+    title: "Client import"
+    range: "BEH-MC-017..024"
+  - file: "04-host-tools.md"
+    id: "BRIDGER-MC-BEH-04"
+    title: "Host tools"
+    range: "BEH-MC-025..032"
+  - file: "05-required-acceptance-checks.md"
+    id: "BRIDGER-MC-BEH-05"
+    title: "Required acceptance checks"
+    range: "BEH-MC-033..040"

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-09                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-10-02): Builds and finalizers carry HeldPlugins (forks they await too, not fibers forked into the activation scope); WouldDeadlock rechecked at linearization and raised by `retry`/`enable`; DrainTimeout `id`/`target`, `leases` 0 while waiting on a build; one parking rule; no-caller cascades revoke (CCR-BR-008)<br>0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.8 (2026-11-08): BEH-BR-087: a deadline shortens only a given per-call timeout, never `lease`; BEH-BR-088: `HeldPlugins` provided only with a holder's set (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-087 lease wait shortened by `Annotation.Deadline` (CCR-BR-018); BEH-BR-088 `HeldPlugins` exported for companions (CCR-BR-020)<br>0.6 (2026-10-02): Builds and finalizers carry HeldPlugins (forks they await too, not fibers forked into the activation scope); WouldDeadlock rechecked at linearization and raised by `retry`/`enable`; DrainTimeout `id`/`target`, `leases` 0 while waiting on a build; one parking rule; no-caller cascades revoke (CCR-BR-008)<br>0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -472,6 +472,18 @@ remover's; they are independent. A short `timeout` protects a request
 handler from a slow provider; a `drainTimeout` protects a removal from a slow
 callback. For `useAll`, `serviceId` names the first key in canonical order.
 
+```
+REQUIREMENT: When `options.timeout` is given to `use` or `useAll` and the
+             calling fiber carries `Annotation.Deadline`, the effective
+             per-call timeout MUST be the earlier of `options.timeout` and
+             the deadline, with the same outcome (`LeaseTimeout`); a
+             deadline already past fails at once
+             ([30 — Operation Context Annotations](./30-operation-context-annotations.md),
+             BEH-BR-291). A deadline alone, with no `options.timeout`, MUST
+             NOT bound the call; it MUST NOT affect `lease`, whose
+             admission does not wait; and it MUST NOT shorten a drain.
+```
+
 ## BEH-BR-088: A re-entrant wait fails fast, within a stated limit
 
 > **Invariant:** [INV-BR-016](../invariants.md#inv-br-016-a-re-entrant-wait-fails-fast)
@@ -481,7 +493,7 @@ callback. For `useAll`, `serviceId` names the first key in canonical order.
 
 ```ts
 // Context.Reference<ReadonlySet<string>>, identifier "@bridger/core/HeldPlugins",
-// default: the empty set. Inherited by forked fibers.
+// default: the empty set. Inherited by forked fibers. Exported (CCR-BR-020).
 ```
 
 ```
@@ -568,6 +580,24 @@ pass to the fibers forked into the activation scope (`background`,
 `whenAvailable`), which outlive the build and do not hold up its step — they
 carry only the leases they hold. `retry` and `enable` are on the list because
 they wait for a running system stop of their plugin.
+
+```
+REQUIREMENT: Core MUST export the `@bridger/core/HeldPlugins` reference so
+             that a companion that runs work on another fiber on behalf of
+             a lease holder (for example a remote callback,
+             [BEH-RM-022](../../remote/behaviors/03-remote-calls.md)) can
+             carry the holder's set. Core MUST NOT read the reference from
+             any source other than the calling fiber. A companion MAY
+             provide the reference only with a set it read from a holder's
+             fiber (a copy or a union of such sets), and MUST NOT provide an
+             empty or reduced set to a fiber that carries one.
+```
+
+**Settled here (CCR-BR-020).** Exporting the reference does not widen what
+it detects: a companion that hands work to another fiber without carrying the
+set leaves that wait undetected, the residual of
+[RSK-BR-011](../gxp/03-risk-assessment.md#rsk-br-011). Exporting it lets a
+companion close that gap for its own hand-offs.
 
 ---
 

@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-021                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.3 (2026-11-08): A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` (CCR-BR-018)<br>0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -60,10 +59,14 @@ Cordis disposes child plugins with their parent. Applications also want to treat
 
 **Trade-off accepted**: children restart with their parent, at the cost of unnecessary restarts of unaffected children, in exchange for a single ownership rule with no orphans and no re-entrant drains.
 
+**Amendments (2026-11-08)**:
+
+- A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` ([ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)).
+
 ## References
 
 - Behaviours: [14 — Children and groups](../behaviors/14-children-and-groups.md), [03 — Installation](../behaviors/03-installation.md), [06 — Removal](../behaviors/06-removal.md)
 - Invariants: [INV-BR-005](../invariants.md#inv-br-005-dependents-stop-before-their-providers), [INV-BR-014](../invariants.md#inv-br-014-every-activation-gets-a-fresh-scope-and-memo-map)
 - Requirements: [URS-BR-017](../urs.md#urs-br-017-bind-sub-plugins-to-the-lifetime-of-a-parent)
-- Decisions: [ADR-BR-010](../decisions/010-cordis-parity.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md)
+- Decisions: [ADR-BR-010](../decisions/010-cordis-parity.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)
 - Source: `docs/SPEC.md` — "Plugin handles, children and groups"

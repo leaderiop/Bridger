@@ -1,0 +1,16 @@
+kind: behaviors
+package: bridger-audit-chain
+infix: AC
+entries:
+  - file: "01-hash-chain-sink.md"
+    id: "BRIDGER-AC-BEH-01"
+    title: "Hash-chain sink"
+    range: "BEH-AC-001..008"
+  - file: "02-anchoring.md"
+    id: "BRIDGER-AC-BEH-02"
+    title: "Anchoring"
+    range: "BEH-AC-009..016"
+  - file: "03-verification.md"
+    id: "BRIDGER-AC-BEH-03"
+    title: "Verification"
+    range: "BEH-AC-017..024"

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-10                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-08): BEH-BR-089: `EntitlementView` failure modes (one `watch` per activation, shared latest-wins, unbounded first element, ended port yields a stale state once); unwired mode `unmetered`, core-only mode `unknown` (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-089 `Plugin.Runtime` gains `principal` and `asSelf` and `install` may fail with `ChildNotAllowed` (CCR-BR-018); `install` takes `Plugin.Any`, and the optional `EntitlementView` port with `Plugin.Runtime.entitled` (CCR-BR-020)<br>0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -58,10 +58,37 @@ interface PluginRuntime {
     run: (services: ServicesOf<Keys>) => Effect.Effect<A, E, R | Scope.Scope>,
     options?: { readonly name?: string; readonly onFailure?: "fail-plugin" | "restart" | "ignore" }
   ) => Effect.Effect<void, never, Scope.Scope>
-  // Children: behaviour 14.
-  readonly install: <R extends Keys, P extends Keys, E, C>(child: PluginDefinition<R, P, E, C>, options?: InstallOptions) =>
-    Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed, Scope.Scope>
+  // Children: behaviour 14. The non-generic overload takes any definition (Plugin.Any, 01).
+  readonly install: {
+    <R extends Keys, P extends Keys, E, C>(child: Plugin<R, P, E, C>, options?: InstallOptions):
+      Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed | ChildNotAllowed, Scope.Scope>
+    (child: Plugin.Any, options?: InstallOptions):
+      Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed | ChildNotAllowed, Scope.Scope>
+  }
+  // Plugin principal: behaviour 28 (BEH-BR-258).
+  readonly principal: PluginPrincipal
+  readonly asSelf: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  // Entitlement of this activation, from the optional EntitlementView port (below).
+  // Latest wins: each subscriber receives the latest state first (once one exists), then changes.
+  readonly entitled: Stream.Stream<EntitlementState>
 }
+
+// Optional port, read with Effect.serviceOption (CCR-BR-020)
+interface EntitlementState {
+  readonly mode: "full" | "grace" | "read-only" | "none"   // from the port
+    | "unmetered"                    // core only: no EntitlementView is wired
+    | "unknown"                      // core only: the port ended before giving any state
+  readonly validUntil?: string
+  readonly graceUntil?: string
+  readonly reason?: string
+  readonly asOf: string
+  readonly stale?: true
+}
+interface EntitlementViewShape {
+  readonly watch: (target: { readonly id: string; readonly realm: string; readonly version?: string }) =>
+    Stream.Stream<EntitlementState>
+}
+class EntitlementView extends Context.Service<EntitlementView, EntitlementViewShape>()("@bridger/core/EntitlementView") {}
 ```
 
 ```
@@ -77,10 +104,63 @@ REQUIREMENT: A `Plugin.Runtime` instance MUST NOT outlive its activation:
              when the scope closes.
 ```
 
+```
+REQUIREMENT: `principal` and `asSelf` MUST behave as
+             [28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+             BEH-BR-258, specifies; `install` MUST fail with
+             `ChildNotAllowed` as BEH-BR-263 specifies.
+```
+
+```
+REQUIREMENT: The host MUST read `EntitlementView` with `Effect.serviceOption`
+             at construction; it MUST NOT appear in the requirements of
+             `Bridger.layer` or `Bridger.make`. `Plugin.Runtime.entitled`
+             MUST be fed by `watch` called with the activation's own id,
+             realm and installed `meta.version`, ending when the activation's
+             scope closes. With no `EntitlementView` wired it MUST emit one
+             state `{ mode: "unmetered", asOf }` read from `Clock` and stay
+             open. Core MUST NOT interpret `mode`, MUST NOT change plugin
+             state, call any operation or write any record because of it, and
+             MUST NOT describe the unwired state as an entitlement.
+```
+
+```
+REQUIREMENT: Core MUST call `watch` at most once per activation, when
+             `entitled` is first subscribed, and MUST share its elements
+             among every subscriber of that activation, latest wins: a
+             subscriber MUST receive the latest state received so far, if
+             any, and then each later one. Core MUST NOT bound the wait for
+             the port's first element; until it arrives a subscriber
+             receives nothing, and a plugin that needs a bound applies its
+             own.
+```
+
+```
+REQUIREMENT: When `watch` fails, dies or ends before the activation's scope
+             closes, core MUST log it at warning level, MUST emit the last
+             state received with `stale: true` and `reason:
+             "entitlement-view-ended"` — or, when none was received,
+             `{ mode: "unknown", stale: true, reason:
+             "entitlement-view-ended", asOf }` read from `Clock` — and then
+             keep `entitled` open with no further element, and MUST NOT call
+             `watch` again for that activation. It MUST NOT fail the plugin
+             or change any state.
+```
+
 One instance per activation is what lets every member close over the right
 scope without the author passing it around, and what makes a restarted
 plugin start from a clean runtime rather than inheriting fibers from a
 closed scope.
+
+**Settled here (CCR-BR-020).** `entitled` is a domain-free seam requested by
+the entitlement companion ([references/entitlement/](../../entitlement/README.md),
+BEH-EN-013): core passes a stream from an optional port to the plugin and
+reads nothing in it, so a lapse can never become a lifecycle state
+([INV-BR-026](../invariants.md#inv-br-026-an-unwired-sink-or-gate-changes-nothing)).
+The unwired constant has its own mode, `unmetered`, outside the port's
+vocabulary, so that a plugin testing `mode === "full"` does not mistake "no
+port" for "entitled"; `unknown` is likewise core's own, for a port that went
+away before saying anything. Acceptance check 91 of BEH-BR-184 covers it.
 
 ## BEH-BR-090: Supervised background work and its failure policy
 

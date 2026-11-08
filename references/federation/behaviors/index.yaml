@@ -1,0 +1,24 @@
+kind: behaviors
+package: bridger-federation
+infix: FD
+entries:
+  - file: "01-host-manifest.md"
+    id: "BRIDGER-FD-BEH-01"
+    title: "Host manifest"
+    range: "BEH-FD-001..008"
+  - file: "02-sync-offline-and-rebootstrap.md"
+    id: "BRIDGER-FD-BEH-02"
+    title: "Sync, offline and re-bootstrap"
+    range: "BEH-FD-009..016"
+  - file: "03-links-and-skew-handshake.md"
+    id: "BRIDGER-FD-BEH-03"
+    title: "Links and the skew handshake"
+    range: "BEH-FD-017..024"
+  - file: "04-exports-and-imports.md"
+    id: "BRIDGER-FD-BEH-04"
+    title: "Exports and imports"
+    range: "BEH-FD-025..032"
+  - file: "05-testing-and-acceptance.md"
+    id: "BRIDGER-FD-BEH-05"
+    title: "Testing and acceptance"
+    range: "BEH-FD-033..040"

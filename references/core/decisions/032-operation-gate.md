@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-032                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amends ADR-BR-020                                 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-10-03): Step 7 of the call order in full (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
-
+> | Change History | 0.4 (2026-11-08): `OperationGate` is the `Gate<OperationRequest>` instance of ADR-BR-047; port and records unchanged (CCR-BR-019)<br>0.3 (2026-10-03): Step 7 of the call order in full (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -70,13 +69,17 @@ type OperationRequest = {
 
 **Trade-off accepted**: a port in core with no default, at the cost of a GxP-shaped hook in a general library, because a companion-only control would be bypassable and a default would be a control in name only.
 
+**Amendments (2026-11-08)**:
+
+- `OperationGate` is the `Gate<OperationRequest>` instance of [ADR-BR-047](../decisions/047-generic-gate-and-plan.md); port and records unchanged. A deferral at the host is a refusal; the approved change is re-issued and gated again.
+
 ## References
 
 - Behaviours: [25 — Operation gate](../behaviors/25-operation-gate.md), [22 — Attributable operations](../behaviors/22-attributable-operations.md), [23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md), [18 — Reconciliation and confluence](../behaviors/18-reconciliation-and-confluence.md)
 - Invariants: [INV-BR-026](../invariants.md#inv-br-026-an-unwired-sink-or-gate-changes-nothing), [INV-BR-027](../invariants.md#inv-br-027-a-refused-or-unauditable-mutation-changes-nothing)
 - Requirements: [URS-BR-024](../urs.md#urs-br-024-require-approval-before-a-regulated-change)
 - Risks: [RSK-BR-014](../gxp/03-risk-assessment.md#rsk-br-014), [RSK-BR-019](../gxp/03-risk-assessment.md#rsk-br-019)
-- Decisions: [ADR-BR-020](../decisions/020-typed-event-bus.md) (amended by this ADR for host lifecycle operations only), [ADR-BR-023](../decisions/023-desired-state-reconcile.md), [ADR-BR-027](../decisions/027-core-exclusions.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-033](../decisions/033-no-config-values-in-audit.md), [ADR-BR-034](../decisions/034-gxp-companion-scope.md)
+- Decisions: [ADR-BR-020](../decisions/020-typed-event-bus.md) (amended by this ADR for host lifecycle operations only), [ADR-BR-023](../decisions/023-desired-state-reconcile.md), [ADR-BR-027](../decisions/027-core-exclusions.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-033](../decisions/033-no-config-values-in-audit.md), [ADR-BR-034](../decisions/034-gxp-companion-scope.md), [ADR-BR-047](../decisions/047-generic-gate-and-plan.md)
 - GxP documents: [../gxp/02-compliance-matrix.md](../gxp/02-compliance-matrix.md)
 - Source: `docs/SPEC.md` — "Typed events and hooks" (veto hooks not provided)
 - Precedent: Qadi ADR-QD-056 (no shipped no-op signature service; cited by name).

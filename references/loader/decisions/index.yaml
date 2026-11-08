@@ -1,0 +1,24 @@
+kind: decisions
+package: bridger-loader
+infix: LD
+entries:
+  - id: "ADR-LD-001"
+    file: "001-verify-before-evaluate.md"
+    title: "Verify before evaluate, and evaluate the verified bytes"
+    status: "Proposed"
+  - id: "ADR-LD-002"
+    file: "002-package-digest-commits-to-manifest-sbom-and-files.md"
+    title: "The package digest commits to the manifest, the SBOM and the files"
+    status: "Proposed"
+  - id: "ADR-LD-003"
+    file: "003-n-of-m-signature-policy-with-no-default.md"
+    title: "An N-of-M signature policy over verifier adapters, with no default"
+    status: "Proposed"
+  - id: "ADR-LD-004"
+    file: "004-revocation-acts-through-desired-state.md"
+    title: "Revocation acts through desired state and reconcile"
+    status: "Proposed"
+  - id: "ADR-LD-005"
+    file: "005-in-process-loading-is-for-first-party-code.md"
+    title: "In-process loading is for first-party code; other code is fetched for out-of-process guests"
+    status: "Proposed"

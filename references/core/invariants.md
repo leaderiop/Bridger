@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -48,6 +48,8 @@ realm R's own when R isolates K, the default realm's otherwise. A slot is
 reserved from the revision in which its plugin is registered until the
 revision in which it is unregistered or disabled, whether or not the plugin
 is `active`; the base services hold their slots for the host's lifetime.
+A lazy plugin's slots are reserved from its manifest's `provides` at
+registration, `dormant` included (BEH-BR-244; CCR-BR-017).
 
 **Implication**: a consumer never resolves a key to one of two providers
 chosen by start order. Reserving the slot of a `waiting` or `failed` provider
@@ -241,7 +243,8 @@ generation values.
 A `failed` plugin holds no live activation scope, publishes nothing, and
 leaves `failed` only through an explicit `retry`, `restart`, `replace`,
 `reconfigure`, `disable` or `remove` — with phase "cleanup", only `remove` —
-and the host never retries it on its own.
+and the host never retries it on its own. This holds for every failure
+phase, including "load" for a lazy plugin (BEH-BR-246; CCR-BR-017).
 
 **Source**: `packages/core/src/Lifecycle.ts` *(Planned)* — the transition
 function has no edge out of `failed` other than those operations, and
@@ -385,8 +388,8 @@ record is still being retried and asserts that no `failed`
 
 ## INV-BR-011: Every state and operation pair has a defined outcome
 
-For every plugin state (including unknown, `failed` with phase "cleanup", and
-a closing host), every operation, and every operation in flight, the call has
+For every plugin state — the seven states, `dormant` included (BEH-BR-247;
+CCR-BR-017), unknown, `failed` with phase "cleanup", and a closing host —, every operation, and every operation in flight, the call has
 exactly one outcome — proceed, no-op, join, supersede, conflict or a named
 error — and every route to an operation uses the same tables.
 
@@ -514,7 +517,11 @@ closing one activation runs exactly that activation's finalizers.
 
 Service keys are matched by `ServiceId`, and when a required key and the key
 its provider supplies share a `ServiceId` but are different objects, the
-activation fails with `KeyMismatch` before `build` runs.
+activation fails with `KeyMismatch` before `build` runs. Between two
+contract references with one `ServiceId`, the object check is replaced by
+the version and method-name check of
+[INV-BR-031](#inv-br-031-a-registered-contract-requirement-is-satisfied-by-its-registered-provider)
+(BEH-BR-229; CCR-BR-017).
 
 **Source**: `packages/core/src/Resolver.ts` *(Planned)* — the provider table
 is keyed by `ServiceId` and stores the key object each provider declared;
@@ -534,7 +541,7 @@ call on the wrong shape at some later time.
 `build` never ran; a property test asserting that activation succeeds
 whenever every required key is the very object its provider declared.
 
-**Related**: [BEH-BR-006](behaviors/01-plugin-definition.md), [BEH-BR-038](behaviors/05-activation.md), [ADR-BR-011](decisions/011-serviceid-is-key-identity.md).
+**Related**: [BEH-BR-006](behaviors/01-plugin-definition.md), [BEH-BR-038](behaviors/05-activation.md), [BEH-BR-229](behaviors/26-versioned-contracts.md), [ADR-BR-011](decisions/011-serviceid-is-key-identity.md), [ADR-BR-040](decisions/040-versioned-contracts-in-core.md).
 
 ---
 
@@ -948,10 +955,13 @@ errors, snapshots and events, with no added waiting — and nothing in it
 claims an audit exists. Likewise, a host with no `ConfigFingerprinter` wired
 skips step 4a of BEH-BR-188: its records and requests carry `configChange`
 with paths only, no call fails with `ConfigFingerprintUnavailable`, and
-`fingerprintTimeout` has no effect (CCR-BR-014).
+`fingerprintTimeout` has no effect (CCR-BR-014). A host with no
+`EntitlementView` wired gives every activation's `Plugin.Runtime.entitled`
+one constant state of mode `unmetered` and nothing else (BEH-BR-089;
+CCR-BR-020, CCR-BR-022).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — `AuditSink`,
-`OperationGate`, `ConfigFingerprinter` and `IdGenerator` are read once, at construction, with
+`OperationGate`, `ConfigFingerprinter`, `EntitlementView` and `IdGenerator` are read once, at construction, with
 `Effect.serviceOption`, and are not in the requirements of `Bridger.layer` or
 `Bridger.make`. With no sink, `packages/core/src/Audit.ts` *(Planned)* creates
 no record, `auditTimeout` has no effect and the latch is never set; with no
@@ -1147,3 +1157,375 @@ finalizers that return. Scenarios for acceptance checks 43–45 and 48 of
 BEH-BR-184.
 
 **Related**: [BEH-BR-040](behaviors/05-activation.md), [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-088](behaviors/09-leases.md), [BEH-BR-107](behaviors/12-shutdown-and-hosting.md), [BEH-BR-121](behaviors/14-children-and-groups.md), [ADR-BR-016](decisions/016-reentrancy-detection.md), [ADR-BR-038](decisions/038-cross-plugin-stop-ordering.md).
+
+---
+
+## INV-BR-031: A registered contract requirement is satisfied by its registered provider
+
+At every revision, for every registered, non-`disabled` plugin whose
+`requires` holds a contract reference, the provider of that `ServiceId` in
+its resolution scope — a registered, non-`disabled` plugin or the base —
+declares a provision whose version satisfies the dependent's range and, when
+that version is not below the dependent's copy of the contract, lists every
+method name the dependent's copy declares.
+
+**Source**: `packages/core/src/Resolver.ts` *(Planned)* — `install`,
+`replace` and `enable` evaluate every registered pair the named plugin takes
+part in, as dependent and as provider, from declarations only (contract
+references, `baseContracts`, manifests), against the definitions registered
+at the linearization point, and fail with `IncompatibleContract` before
+anything is registered. `packages/core/src/Contract.ts` *(Planned)* —
+`satisfies` over the restricted range grammar.
+
+**Implication**: no change to the plugin set leaves a consumer bound, or able
+to bind, to a provider whose declared version it did not accept or which
+lacks a method its contract knows; a `replace` cannot take a method away from
+a registered consumer within a major. What the provider actually does is not
+covered ([RSK-BR-025](gxp/03-risk-assessment.md#rsk-br-025)).
+
+**Verification** *(Planned)*: a property test over generated sequences of
+`install`, `replace`, `disable`, `enable` and `remove` of contract providers
+and dependents with random versions and ranges, asserting the property in
+every published snapshot; table tests of `Contract.satisfies`; scenarios for
+each direction of `IncompatibleContract`, for `baseContracts`, and for an
+incompatible optional provider treated as absent.
+
+**Related**: [BEH-BR-225](behaviors/26-versioned-contracts.md), [BEH-BR-226](behaviors/26-versioned-contracts.md), [BEH-BR-227](behaviors/26-versioned-contracts.md), [BEH-BR-228](behaviors/26-versioned-contracts.md), [BEH-BR-229](behaviors/26-versioned-contracts.md), [BEH-BR-242](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-040](decisions/040-versioned-contracts-in-core.md), [ADR-BR-003](decisions/003-one-provider-per-key-per-realm.md).
+
+---
+
+## INV-BR-032: A dormant plugin has run none of its code
+
+While a plugin is `dormant`, its `load` has not been called for its current
+registration, it provides nothing, holds no scope and no lease, and its
+provider slots are reserved from its manifest's `provides`.
+
+**Source**: `packages/core/src/Lazy.ts` *(Planned)* — `load` is called only
+from the build step of an activation (BEH-BR-246), which begins only after a
+trigger has moved the plugin out of `dormant`; no read, inspection,
+comparison or operator operation calls it. `packages/core/src/Host.ts`
+*(Planned)* — the provider-slot table is filled from the manifest at
+registration.
+
+**Implication**: registering, inspecting, reconciling, disabling or removing
+a lazy plugin never evaluates its code, so the decision to run code is
+always a trigger the record names (`lazy-triggered`); a key held by a dormant
+plugin cannot be taken by another provider meanwhile.
+
+**Verification** *(Planned)*: scenarios with a `load` that counts its calls,
+across every operation of the dormant legality row, `inspect`, `snapshot`,
+`reconcile`, `use` and `awaitActive`, asserting zero calls; a property test
+asserting that every `load` call is preceded by a `lazy-triggered` record for
+the plugin.
+
+**Related**: [BEH-BR-244](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-245](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-247](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-042](decisions/042-lazy-activation.md).
+
+---
+
+## INV-BR-033: A loaded definition is published only if it matches its manifest
+
+A service of a lazily registered plugin is published only from a loaded
+definition whose `id`, `version`, `digest`, `provides`, `requires`,
+`optional` and contract references equal those of the manifest it was
+registered with.
+
+**Source**: `packages/core/src/Lazy.ts` *(Planned)* — after `load` succeeds
+and before configuration is decoded, the loaded definition is compared with
+the manifest; any difference fails the activation with phase "load" and
+`ManifestMismatch`, and the loaded definition is discarded.
+
+**Implication**: what was registered, resolved, gated and recorded — the
+manifest — is what runs, as far as declarations go; code that declares other
+keys, versions or labels never publishes a service. Whether the code is the
+code its digest names is the loader's to check
+([RSK-BR-026](gxp/03-risk-assessment.md#rsk-br-026),
+[RSK-BR-017](gxp/03-risk-assessment.md#rsk-br-017)).
+
+**Verification** *(Planned)*: one scenario per compared field with a `load`
+returning a definition that differs only in that field, asserting `failed`
+with phase "load", `ManifestMismatch` naming the field, and nothing
+published; mutation testing of the comparison.
+
+**Related**: [BEH-BR-242](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-246](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-042](decisions/042-lazy-activation.md).
+
+---
+
+## INV-BR-034: Comparing and checking manifests evaluates no plugin code
+
+Decoding a manifest, the definition checks made from it, `reconcile`'s
+comparison of lazy definitions, `Manifest.consentDiff` and `inspect` call no
+`load`, build no layer and resolve no service; `consentDiff` is a pure
+function of its two arguments.
+
+**Source**: `packages/core/src/Manifest.ts` *(Planned)* — decode and
+`consentDiff` take data and return data; `packages/core/src/Reconcile.ts`
+*(Planned)* — the "same definition" rule reads `manifest.version` and
+`manifest.digest` for lazy definitions.
+
+**Implication**: a consent screen, a gate, a marketplace and a reconcile run
+can decide about a plugin from its declaration alone, and the same two
+manifests always give the same diff.
+
+**Verification** *(Planned)*: property tests that `consentDiff` is
+deterministic, does not mutate its inputs and reports every differing
+property in exactly one list; scenarios asserting zero `load` calls during
+`reconcile` of lazy entries and during definition checks.
+
+**Related**: [BEH-BR-241](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-243](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-248](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-249](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-041](decisions/041-manifest-as-data.md).
+
+---
+
+## INV-BR-035: Only the host mints a plugin principal
+
+A `PluginPrincipal` is created only by the host's activation path, one per
+activation; every principal core reads is checked against the registry of
+minted principals, and a value not in it is never treated as absent.
+
+**Source**: `packages/core/src/Principal.ts` *(Planned)* — a module-private
+registry of frozen principals; the fiber reference's key is not exported for
+providing; `CurrentPlugin.get`, mutating calls, access decisions, captures
+and `CurrentCall` check membership and die with `PrincipalForged` otherwise;
+a retired principal used to act dies with `PrincipalRetired`.
+
+**Implication**: `onBehalfOf` in a record names the principal of the calling
+fiber — the plugin on whose behalf the calling code ran under BEH-BR-258
+(the consumer, for a provider's method serving it outside `asSelf`) — and no
+plugin can claim another's name through Bridger's API. It
+is attribution between cooperating trusted code, not authentication
+([RSK-BR-028](gxp/03-risk-assessment.md#rsk-br-028)).
+
+**Verification** *(Planned)*: scenarios providing a forged value through a
+reference with the same identifier, using a principal after its activation,
+and checking listener, provider-method and `asSelf` principals (check 67).
+
+**Related**: [BEH-BR-257](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-258](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-259](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-277](behaviors/29-capability-grants-and-call-log.md), [ADR-BR-043](decisions/043-plugin-principal-and-mandatory-policy.md).
+
+---
+
+## INV-BR-036: A mandatory interception reaches every capture in its scope
+
+Every capture of a key — at activation, through optional and reactive reads,
+and through `Host.use`, `useAll` and `lease` unless the interception is
+restricted to plugins — delivers the service wrapped by every mandatory
+interception that applies to the consumer, outside every ordinary one; no
+child option, operation or route removes it.
+
+**Source**: `packages/core/src/Resolver.ts` *(Planned)* — one composition
+function for all routes, in the order of BEH-BR-261; installation-mandatory
+lists are stored with the registration and inherited by every descendant; a
+failing wrap fails the activation or kills the call and never delivers the
+bare service.
+
+**Implication**: a policy wrapper attached by an operator is shed only by
+removing the plugin, an attributed and gated call
+([RSK-BR-029](gxp/03-risk-assessment.md#rsk-br-029)).
+
+**Verification** *(Planned)*: a property test over generated plugin trees,
+realms and child options asserting the delivered wrapper chain on every
+route equals the specified order (check 69).
+
+**Related**: [BEH-BR-260](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-261](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-262](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-275](behaviors/29-capability-grants-and-call-log.md), [BEH-BR-151](behaviors/17-realms-and-interception.md), [ADR-BR-043](decisions/043-plugin-principal-and-mandatory-policy.md).
+
+---
+
+## INV-BR-037: An unwired policy port changes nothing
+
+With no mandatory interception, no `AccessPolicy`, no `CapabilityPolicy`,
+no `CallLog`, default `allowChildren` and no annotation set, every operation
+behaves exactly as files 02–25 specify; the only difference a wired sink
+sees is `onBehalfOf` on records of calls made from plugin code.
+
+**Source**: `packages/core/src/Host.ts` *(Planned)* — the three ports are
+read once with `Effect.serviceOption` and are not in the requirements of
+`Bridger.layer`; with none wired no narrowing layer, recorder or
+`CurrentCall` exists; core exports no implementation of any of them.
+
+**Implication**: the policy seams cost an unwired deployment nothing, and an
+unwired policy is reported as unwired by `Host.controls`, so it cannot be
+mistaken for a wired one.
+
+**Verification** *(Planned)*: the suites of files 02–25 on a host with none
+wired; a type-level check of `Bridger.layer`'s requirements (checks 70, 73,
+76).
+
+**Related**: [BEH-BR-264](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-265](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-266](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-273](behaviors/29-capability-grants-and-call-log.md), [BEH-BR-276](behaviors/29-capability-grants-and-call-log.md), [BEH-BR-278](behaviors/29-capability-grants-and-call-log.md), [BEH-BR-295](behaviors/30-operation-context-annotations.md), [ADR-BR-043](decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-044](decisions/044-capability-policy-and-call-log-ports.md).
+
+---
+
+## INV-BR-038: A grant never widens what a consumer receives
+
+The object delivered under a grant exposes no member the object it wraps
+does not expose; a refused or malformed grant delivers nothing; a policy
+that fails, dies or times out refuses.
+
+**Source**: `packages/core/src/Capability.ts` *(Planned)* — the narrowing
+wrapper is built from the wrapped object's own members; ungranted function
+members are replaced by stubs that die with `CapabilityDenied`; grant
+validation precedes delivery.
+
+**Implication**: a policy decision can only reduce access through the
+captured object ([RSK-BR-029](gxp/03-risk-assessment.md#rsk-br-029)); what
+a granted member returns is outside it (shallow narrowing, documented).
+
+**Verification** *(Planned)*: a property test over generated service shapes
+and grants (check 72); fault scenarios for the policy (check 71).
+
+**Related**: [BEH-BR-261](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-273](behaviors/29-capability-grants-and-call-log.md), [BEH-BR-274](behaviors/29-capability-grants-and-call-log.md), [BEH-BR-275](behaviors/29-capability-grants-and-call-log.md), [ADR-BR-044](decisions/044-capability-policy-and-call-log-ports.md).
+
+---
+
+## INV-BR-039: Annotations reach records only through declared flows
+
+An annotation reaches a listener, a gate request, a resolution request, a
+call-log entry or an audit record only when its key declares that flow; no
+annotation appears in snapshots, events, logs, spans or metrics; no audit or
+call-log entry carries an annotation value containing a `Redacted`, and
+core never derives an annotation from configuration.
+
+**Source**: `packages/core/src/Annotations.ts` *(Planned)* — `filter` per
+flow at each boundary; `encode` with omission by key id; empty bags at plugin
+entry points.
+
+**Implication**: what may enter the trail is decided once, where a key is
+defined, and is reviewable there ([RSK-BR-031](gxp/03-risk-assessment.md#rsk-br-031)).
+
+**Verification** *(Planned)*: scenarios per flow and per dispatch mode, and
+a differential test with no annotations set (checks 74–76).
+
+**Related**: [BEH-BR-289](behaviors/30-operation-context-annotations.md), [BEH-BR-290](behaviors/30-operation-context-annotations.md), [BEH-BR-292](behaviors/30-operation-context-annotations.md), [BEH-BR-293](behaviors/30-operation-context-annotations.md), [BEH-BR-197](behaviors/23-audit-sink-and-record.md), [ADR-BR-045](decisions/045-operation-context-annotations.md), [ADR-BR-033](decisions/033-no-config-values-in-audit.md).
+
+---
+
+## INV-BR-040: Only an admitted veto contribution decides a hook dispatch
+
+A hook dispatch ends `Denied` only because of a contribution registered with
+role "veto" and admitted by the hook point's rule; no enrich or advisory
+contribution, and no contribution the rule refused, changes the verdict.
+
+**Source**: `packages/core/src/HookPoint.ts` *(Planned)* — `register` reads
+the owner from the plugin principal, evaluates `who` once and adds nothing on
+refusal; the role is fixed per contribution; the dispatch derives `Denied`
+only in the veto phase, from a `Veto` with a declared code or from
+`onError: "deny"`; results outside a role are errors.
+
+**Implication**: an application's rule "only shipped code may veto" holds for
+every dispatch; a partner's advisory hook cannot block, and a plugin cannot
+register as another plugin.
+
+**Verification** *(Planned)*: property test over generated registrations
+(roles, owners, labels, rules) and hook results, asserting that `decidedBy`
+always names an admitted veto contribution; check 77 and 78.
+
+**Related**: [BEH-BR-298](behaviors/31-hook-points.md), [BEH-BR-299](behaviors/31-hook-points.md), [BEH-BR-300](behaviors/31-hook-points.md), [BEH-BR-302](behaviors/31-hook-points.md), [ADR-BR-046](decisions/046-hook-points.md).
+
+---
+
+## INV-BR-041: A hook dispatch returns within its deadline
+
+`dispatch` returns no later than its effective deadline — the least of the
+hook point's, the call's and the context's `Deadline` annotation — plus the
+time to build the outcome, whatever the contributions do.
+
+**Source**: `packages/core/src/HookPoint.ts` *(Planned)* — the deadline is
+measured with `Clock`; hooks run in supervised child fibers, are interrupted
+at expiry, and their finalizers complete in hook-point-supervised fibers that
+keep the contribution held; the dispatcher never awaits them.
+
+**Implication**: a caller with a fixed budget (a counter, a request handler)
+gets an answer in that budget, and no contribution's cleanup is skipped.
+
+**Verification** *(Planned)*: `TestClock` scenarios with hooks that hang, run
+long finalizers or ignore interruption at their own level, asserting return
+time; check 79.
+
+**Related**: [BEH-BR-302](behaviors/31-hook-points.md), [BEH-BR-303](behaviors/31-hook-points.md), [BEH-BR-291](behaviors/30-operation-context-annotations.md), [ADR-BR-046](decisions/046-hook-points.md).
+
+---
+
+## INV-BR-042: Hook-level failure never changes plugin state
+
+No hook error, breaker transition or decision record changes the state of
+any plugin, calls `reportFailure`, causes a host operation or writes an
+`AuditSink` record.
+
+**Source**: `packages/core/src/HookPoint.ts` *(Planned)* — the hook point has
+no reference to the host's lifecycle; breakers are per contribution and are
+discarded with it; records go to the outcome and the `decisions` feed only.
+
+**Implication**: sticky failure ([INV-BR-007](#inv-br-007-failure-is-sticky))
+keeps one meaning — an operator-cleared state of a plugin — and a failing
+hook costs only its timeout, then nothing while its breaker is open.
+
+**Verification** *(Planned)*: scenario tests asserting unchanged snapshots,
+no host events (breaker transitions only on the hook point's own `decisions`
+stream), and no sink records across failing,
+timing-out and breaker-open hooks; check 79.
+
+**Related**: [BEH-BR-302](behaviors/31-hook-points.md), [BEH-BR-304](behaviors/31-hook-points.md), [BEH-BR-305](behaviors/31-hook-points.md), [ADR-BR-005](decisions/005-failure-is-sticky.md), [ADR-BR-046](decisions/046-hook-points.md).
+
+---
+
+## INV-BR-043: A plan changes nothing, and a stale plan applies nothing
+
+`Host.plan` performs no action, record, event, gate or fingerprinter call;
+`reconcile` with `expect` issues no entry action unless its diff, at the call
+and again at its intent, equals the plan.
+
+**Source**: `packages/core/src/Plan.ts` and `packages/core/src/Reconcile.ts`
+*(Planned)* — `plan` shares the diff computation with `reconcile` and stops
+before the intent; `expect` is compared at step 4 and after the diff is
+recomputed at the intent, using per-plugin `registeredAt`.
+
+**Implication**: what an approver reviewed is what runs, or nothing runs; a
+dry run can never apply by mistake.
+
+**Verification** *(Planned)*: differential property test (plan vs. the
+actions reconcile then takes) over random host states; scenarios changing
+the host between plan and apply, before and after the intent; check 83.
+
+**Related**: [BEH-BR-316](behaviors/32-generic-gate-and-plan.md), [BEH-BR-317](behaviors/32-generic-gate-and-plan.md), [BEH-BR-318](behaviors/32-generic-gate-and-plan.md), [BEH-BR-319](behaviors/32-generic-gate-and-plan.md), [ADR-BR-047](decisions/047-generic-gate-and-plan.md).
+
+---
+
+## INV-BR-044: A realm is retired only when empty, and eviction never forces
+
+`retireRealm` succeeds only for a non-default realm with no plugin installed
+in any state, and stops, removes or revokes nothing; a family's idle eviction
+never passes `force` and never revokes a lease.
+
+**Source**: `packages/core/src/Host.ts` *(Planned)* — the emptiness check at
+validation and again at the linearization point;
+`packages/core/src/RealmFamily.ts` *(Planned)* — eviction through
+`reconcile([], { scope })` with a bounded drain and no `force`, abandoned on
+`DrainTimeout`.
+
+**Implication**: reclaiming idle members cannot cut off a call, and no realm
+disappears under a plugin.
+
+**Verification** *(Planned)*: scenarios with held leases during eviction and
+concurrent installs during retirement; property test over random family
+use/evict histories; check 85.
+
+**Related**: [BEH-BR-332](behaviors/33-realm-families.md), [BEH-BR-333](behaviors/33-realm-families.md), [BEH-BR-335](behaviors/33-realm-families.md), [BEH-BR-336](behaviors/33-realm-families.md), [ADR-BR-048](decisions/048-realm-families-and-retirement.md).
+
+---
+
+## INV-BR-045: Handed-off state is never observable, and its loss is recorded
+
+State exported during a `replace` is held only in memory between export and
+import, appears in no record, event, log, snapshot, inspection or error, is
+dropped once imported or abandoned, and every attempt yields exactly one
+`handoff` record (with a sink wired) saying whether it was imported.
+
+**Source**: `packages/core/src/Handoff.ts` *(Planned)* — the held value is
+private to the replace's transition; the record writer receives only the
+outcome tag and a core-written message.
+
+**Implication**: an upgrade that silently forgot its state is impossible to
+miss in the trail, and state never leaks through the observation surfaces.
+
+**Verification** *(Planned)*: scenarios with every loss path asserting one
+record before `system-start`; a scan of records, events, logs and snapshots
+for a sentinel value placed in the state; check 87 and 88.
+
+**Related**: [BEH-BR-348](behaviors/34-state-handoff.md), [BEH-BR-350](behaviors/34-state-handoff.md), [BEH-BR-351](behaviors/34-state-handoff.md), [ADR-BR-049](decisions/049-state-handoff-on-replace.md).

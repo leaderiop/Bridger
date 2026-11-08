@@ -1,0 +1,17 @@
+kind: root
+package: bridger-entitlement
+infix: EN
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-EN-00"
+    title: "Bridger Entitlement — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-EN-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-EN-INV"
+    title: "Runtime Invariants"
+  - file: "traceability.md"
+    id: "BRIDGER-EN-TRACE"
+    title: "Traceability"

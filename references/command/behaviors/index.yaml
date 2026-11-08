@@ -1,0 +1,24 @@
+kind: behaviors
+package: bridger-command
+infix: CM
+entries:
+  - file: "01-command-definition.md"
+    id: "BRIDGER-CM-BEH-01"
+    title: "Command definition"
+    range: "BEH-CM-001..008"
+  - file: "02-dispatch.md"
+    id: "BRIDGER-CM-BEH-02"
+    title: "Dispatch"
+    range: "BEH-CM-009..016"
+  - file: "03-toolsets.md"
+    id: "BRIDGER-CM-BEH-03"
+    title: "Toolsets"
+    range: "BEH-CM-017..024"
+  - file: "04-json-schema-projection.md"
+    id: "BRIDGER-CM-BEH-04"
+    title: "JSON Schema projection"
+    range: "BEH-CM-025..032"
+  - file: "05-required-acceptance-checks.md"
+    id: "BRIDGER-CM-BEH-05"
+    title: "Required acceptance checks"
+    range: "BEH-CM-033..040"

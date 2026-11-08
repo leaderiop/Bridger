@@ -1,0 +1,14 @@
+kind: root
+package: bridger-mcp
+infix: MC
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-MC-00"
+    title: "Bridger MCP — Companion Specification"
+  - file: "overview.md"
+    id: "BRIDGER-MC-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-MC-INV"
+    title: "Runtime Invariants"

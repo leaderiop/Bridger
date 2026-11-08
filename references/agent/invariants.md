@@ -1,0 +1,138 @@
+# Runtime Invariants
+
+> **Document Control**
+>
+> | Property       | Value                                                        |
+> | -------------- | ------------------------------------------------------------ |
+> | Document ID    | BRIDGER-AG-INV                                               |
+> | Revision       | 0.3                                                          |
+> | Effective Date | — (pending approval)                                         |
+> | Status         | Draft                                                        |
+> | Author         | Bridger Engineering                                          |
+> | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
+> | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
+> | Classification | Functional Specification                                     |
+> | Change History | 0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+
+---
+
+Properties of `@bridger/agent` that hold for every execution. The shape is
+that of the [core invariants](../core/invariants.md): statement, **Source**,
+**Implication**, **Verification**, **Related**. Nothing below is implemented;
+every Source and Verification is *(Planned)*, and no invariant here may be
+cited as evidence until a test that checks it has run
+([ADR-BR-035](../core/decisions/035-evidence-from-executed-tests.md)).
+
+## INV-AG-001: A tainted session is never auto-allowed
+
+A command the agent dispatches while its session is tainted runs its handler
+only if an application gate is wired, the request re-dispatches an approved
+draft (an `ApprovalRef` bound by dispatch to the same descriptor digest and
+the same input digest), and that gate allows it; every other outcome is a
+deferral (with `TaintGuard.drafts` wired) or a refusal. This holds because
+the session's taint is on every agent dispatch before the model reads the
+tainted text (BEH-AG-017 to BEH-AG-019) and the command catalog's taint floor
+applies to every dispatch, nested or not
+([INV-CM-006](../command/invariants.md#inv-cm-006-a-tainted-dispatch-never-runs-on-an-automatic-allow)).
+
+**Source**: `packages/agent/src/Taint.ts`, `packages/agent/src/ToolRunner.ts`
+*(Planned)* — labels added before the model call, carried on every dispatch;
+`packages/command/src/Commands.ts` *(Planned)* — the taint floor of command
+BEH-CM-016; `packages/agent/src/TaintGuard.ts` *(Planned)* — the draft
+source.
+
+**Implication**: text from an imported tool, a tagged untrusted output or a
+tainted memory can steer what an agent proposes, but cannot make a change
+happen through dispatch on an automatic decision. Whether the approval is
+genuine, and was not given by the agent itself, is the application gate's
+check; a source of untrusted text nobody declared is not covered.
+
+**Verification** *(Planned)*: scenario and property tests over gate answers,
+taint states, nested dispatch and draft-store failures (acceptance check 7,
+and command acceptance check 13).
+
+**Related**: BEH-AG-005, BEH-AG-012, BEH-AG-020, BEH-AG-029; ADR-AG-003.
+
+## INV-AG-002: A turn sees one toolset
+
+Every model request and every tool call of one turn uses the toolset pinned at
+the start of that turn; a re-plan is a new turn with a new pin.
+
+**Source**: `packages/agent/src/AgentLoop.ts` *(Planned)* — `Toolsets.pin`
+in the turn's scope; `packages/agent/src/ToolRunner.ts` *(Planned)* — every
+dispatch passes the pin.
+
+**Implication**: the model is never offered one list and executed against
+another; a changed or removed tool fails with a typed error.
+
+**Verification** *(Planned)*: scenario tests that publish a new toolset
+mid-turn on `TestHost` (acceptance check 3).
+
+**Related**: BEH-AG-003, BEH-AG-005, BEH-AG-027; ADR-AG-001.
+
+## INV-AG-003: A subagent is never wider than its parent
+
+A subagent's toolset is a subset of its parent's pinned toolset, its budget is
+carved from the parent's reservation, and its actor is a narrowing of the
+parent's actor.
+
+**Source**: `packages/agent/src/Subagent.ts` *(Planned)* — intersection of
+requested tools with the parent pin; budget sub-reservation through the
+entitlement companion; `Actor.narrow` and `Realm.ephemeral` of [core file 33](../core/behaviors/33-realm-families.md).
+
+**Implication**: delegation cannot be used to escape a principal's toolset,
+budget or attribution.
+
+**Verification** *(Planned)*: property test over generated subagent requests
+(acceptance check 9); the static reachability check of BEH-AG-037.
+
+**Related**: BEH-AG-025, BEH-AG-026, BEH-AG-027, BEH-AG-028, BEH-AG-037; ADR-AG-004.
+
+## INV-AG-004: Task terminal states are sticky and revisions never regress
+
+A task in `done`, `failed` or `cancelled` never changes state again, and each
+task's snapshot revision increases by one on every transition.
+
+**Source**: `packages/agent/src/Tasks.ts` *(Planned)* — the transition table
+of BEH-AG-010 as the only writer of task state.
+
+**Implication**: an observer — an activity panel, herdr, an MCP client — never
+sees a finished task resume, and can detect missed transitions.
+
+**Verification** *(Planned)*: property test over generated event sequences
+against the transition table (acceptance checks 4 and 5).
+
+**Related**: BEH-AG-009, BEH-AG-010, BEH-AG-011, BEH-AG-013, BEH-AG-014, BEH-AG-030; ADR-AG-002.
+
+## INV-AG-005: Taint is monotone per session
+
+Once a session is tainted it stays tainted for its lifetime, and taint flows
+into its subagents and back from them.
+
+**Source**: `packages/agent/src/Taint.ts` *(Planned)* — labels are only ever
+added to core's `Annotation.Taint`, which core combines by union and declares
+monotonic ([core file 30](../core/behaviors/30-operation-context-annotations.md)).
+
+**Implication**: untrusted text read early in a session cannot be "forgotten"
+before a write later in the session.
+
+**Verification** *(Planned)*: property test over generated session histories
+(acceptance check 6).
+
+**Related**: BEH-AG-004, BEH-AG-017, BEH-AG-018, BEH-AG-019, BEH-AG-022, BEH-AG-029; ADR-AG-003.
+
+## INV-AG-006: A replayed run is identical to its recording
+
+Replaying a transcript on `TestHost` with the same plugin set, `TestClock` and
+counter identifiers yields the same task snapshots and dispatch requests, or
+fails with `ReplayDiverged`.
+
+**Source**: `packages/agent/src/testing/ReplayModel.ts` *(Planned)*; time and
+ids from the host's `Clock` and `IdGenerator` only.
+
+**Implication**: agent behaviour can be regression-tested without a live
+model, and a gate or tool change shows as a divergence at the call it affects.
+
+**Verification** *(Planned)*: record-and-replay tests (acceptance check 10).
+
+**Related**: BEH-AG-033, BEH-AG-034, BEH-AG-035, BEH-AG-038; ADR-AG-005.

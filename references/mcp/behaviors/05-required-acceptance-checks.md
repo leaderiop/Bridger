@@ -1,0 +1,126 @@
+# 05 — Required Acceptance Checks
+
+> **Document Control**
+>
+> | Property       | Value                                                        |
+> | -------------- | ------------------------------------------------------------ |
+> | Document ID    | BRIDGER-MC-BEH-05                                            |
+> | Revision       | 0.2                                                          |
+> | Effective Date | — (pending approval)                                         |
+> | Status         | Draft                                                        |
+> | Author         | Bridger Engineering                                          |
+> | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
+> | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
+> | Classification | Functional Specification                                     |
+> | Change History | 0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+
+---
+
+The checks every implementation of `@bridger/mcp` must pass before any
+behaviour of this companion may be cited as evidence
+([ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)).
+They run on core's `TestHost` with the testing fixtures of the command
+companion and an in-memory MCP transport pair, so that every check is
+deterministic. This file owns BEH-MC-033–040 and uses 033; 034–040 are
+reserved.
+
+Planned tests: `packages/mcp/test/*.test.ts` *(Planned)*.
+
+## BEH-MC-033: Required acceptance checks
+
+> **See:** [ADR-MC-001](../decisions/001-server-projects-a-toolset.md), [ADR-MC-002](../decisions/002-imported-tools-are-tainted-remote-proxies.md), [ADR-MC-003](../decisions/003-host-self-service-is-plan-first.md), [ADR-MC-004](../decisions/004-target-mcp-2026-07-28.md), [ADR-BR-026](../../core/decisions/026-deterministic-test-host.md)
+> **Core seam:** [21 — Testing host](../../core/behaviors/21-testing-host.md)
+> **Risk:** [RSK-BR-018](../../core/gxp/03-risk-assessment.md#rsk-br-018)
+
+```
+REQUIREMENT: The package test suite MUST contain at least one test for each
+             of the following:
+             1. The server is a plugin: removal ends sessions after in-flight
+                calls drain; no tool table outside the toolset.
+             2. A session with no principal, or a refused or failing
+                resolver, lists and calls nothing; every call carries the
+                session actor and an MCP-session provenance entry.
+             3. `tools/list` order equals the toolset order for random
+                contribution and activation orders (property test); pages
+                never mix revisions; a stale cursor fails with -32602
+                "toolset-changed"; annotations absent without a mapping.
+             4. `tools/call` pins the current toolset for the call and
+                dispatches exactly once with it; a name outside the toolset
+                fails at dispatch step 1 and never reaches the gate; a
+                republication during the call does not change what runs;
+                client cancellation interrupts the handler and awaits its
+                finalizers.
+             5. Every dispatch outcome maps as the table of BEH-MC-005,
+                including a deferral (an `isError` result with the draft id,
+                with and without the tasks extension, and no task created);
+                no cause or configuration value appears on the wire.
+             6. No resources or prompts capability; a listed tool refused by
+                the gate is refused.
+             7. Notifications go only to subscribers, are derived from the
+                toolset view's `changes` feed, follow the publication
+                they announce, carry its revision, strictly increase,
+                coalesce for a slow session without delaying others, and are
+                not sent for an unchanged fingerprint.
+             8. An imported server's list change adds, removes and replaces
+                contributions serially, a replace waiting for the removal's
+                drain; subscriptions end with the session and the shared
+                toolset is released after the last session; the server
+                holds a view and cannot publish.
+             9. Import: id normalization and collision exclusion; build
+                failure on a failed initialize; calls bounded by dispatch's
+                timeout with cancellation sent; a lost session fails calls
+                with a declared `RemoteUnavailable`, without retry;
+                a stale-epoch response is discarded.
+             10. Import: input refused by the external schema never leaves;
+                 an uncompilable schema, another dialect or a non-object
+                 root excludes the tool; the descriptor's schemas are the
+                 external ones; output checked against `outputSchema`;
+                 every imported descriptor tagged "external"; annotations
+                 carried as `externalAnnotations` change no tag, flag or
+                 gate input; title and descriptions bounded and digested;
+                 identity not forwarded.
+             11. Host tools: `snapshot` and `inspect` return no
+                 configuration value (secret-canary test); `inspect` of an
+                 unknown plugin is `UnknownPlugin` and without `id` iterates
+                 one snapshot in realm-then-id order; `reconcile-plan`
+                 changes nothing and accepts no configuration value;
+                 `reconcile-apply` is absent without `apply: true` and
+                 always regulated.
+             12. `reconcile-apply` passes the command gate, fails with
+                 `PlanUnknown` for an unknown, expired, evicted or
+                 pre-restart `planId`, fails with
+                 `PlanStale` after a host change that alters the plan's diff, and then
+                 consults the `OperationGate` once per entry action; a
+                 refused entry appears in `rejected`; host tools write no
+                 `AuditSink` record of their own.
+```
+
+| REQ | Check | Behaviours | Status |
+| --- | ----- | ---------- | ------ |
+| REQ-MC-001 | 1. Server is a plugin; no own tool table | [BEH-MC-001](./01-server.md#beh-mc-001-the-mcp-server-is-an-ordinary-plugin) | Not run |
+| REQ-MC-002 | 2. Session principal from the application only | [BEH-MC-002](./01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application) | Not run |
+| REQ-MC-003 | 3. Deterministic `tools/list`, revision-bound cursors | [BEH-MC-003](./01-server.md#beh-mc-003-toolslist-follows-the-toolset-order-and-binds-cursors-to-its-revision) | Not run |
+| REQ-MC-004 | 4. `tools/call` is one dispatch; membership first; cancellation | [BEH-MC-004](./01-server.md#beh-mc-004-toolscall-is-a-command-dispatch) | Not run |
+| REQ-MC-005 | 5. Outcome mapping; nothing internal on the wire | [BEH-MC-005](./01-server.md#beh-mc-005-outcomes-map-to-results-and-errors-one-way) | Not run |
+| REQ-MC-006 | 6. No wider surface than the catalog | [BEH-MC-006](./01-server.md#beh-mc-006-the-server-never-widens-what-the-command-companion-allows) | Not run |
+| REQ-MC-007 | 7. List-changed notifications | [BEH-MC-009](./02-list-changed.md#beh-mc-009-the-server-advertises-listchanged-and-serves-subscriptionslisten), [BEH-MC-010](./02-list-changed.md#beh-mc-010-a-notification-follows-a-toolset-publication-whose-content-changed), [BEH-MC-011](./02-list-changed.md#beh-mc-011-notifications-coalesce-and-never-regress) | Not run |
+| REQ-MC-008 | 8. Import re-sync; subscription lifetime | [BEH-MC-012](./02-list-changed.md#beh-mc-012-an-imported-servers-list-change-re-synchronizes-its-contributions), [BEH-MC-013](./02-list-changed.md#beh-mc-013-a-session-subscription-ends-with-its-session) | Not run |
+| REQ-MC-009 | 9. Import as a proxy; timeouts; no retry; epochs | [BEH-MC-017](./03-client-import.md#beh-mc-017-an-import-is-a-remote-proxy-plugin), [BEH-MC-018](./03-client-import.md#beh-mc-018-an-imported-call-is-a-lease-on-the-proxy-and-always-has-a-timeout) | Not run |
+| REQ-MC-010 | 10. Import: schemas, taint, untrusted annotations, no identity | [BEH-MC-019](./03-client-import.md#beh-mc-019-input-is-checked-against-the-external-json-schema-before-it-leaves), [BEH-MC-020](./03-client-import.md#beh-mc-020-imported-commands-are-always-marked-external-and-consumers-taint-by-descriptor), [BEH-MC-021](./03-client-import.md#beh-mc-021-external-annotations-and-descriptions-are-data-never-policy), [BEH-MC-022](./03-client-import.md#beh-mc-022-the-proxy-never-forwards-the-hosts-identity-or-annotations) | Not run |
+| REQ-MC-011 | 11. Host reads and plan change nothing and expose no values | [BEH-MC-025](./04-host-tools.md#beh-mc-025-host-tools-are-commands-contributed-by-one-plugin), [BEH-MC-026](./04-host-tools.md#beh-mc-026-snapshot-returns-the-host-snapshot-which-carries-no-configuration-values), [BEH-MC-027](./04-host-tools.md#beh-mc-027-inspect-returns-names-and-counts-only), [BEH-MC-028](./04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing) | Not run |
+| REQ-MC-012 | 12. Apply through both gates; stale plans refused | [BEH-MC-029](./04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates), [BEH-MC-030](./04-host-tools.md#beh-mc-030-host-tools-write-nothing-core-does-not-already-write) | Not run |
+
+Every `BEH-MC` identifier of this companion appears in at least one row;
+BEH-MC-033 is this list itself.
+
+**Settled here.** The checks run against an in-memory transport pair, not a
+network socket, so that ordering and cancellation are under `TestHost`
+control. A separate, non-required suite runs the server against an external
+MCP conformance client; its results are recorded but are not cited as
+evidence for any behaviour here until that suite is itself specified.
+
+**Open.** Which external MCP conformance suite, if any, to adopt.
+
+---
+
+_Previous: [04 — Host tools](./04-host-tools.md)_

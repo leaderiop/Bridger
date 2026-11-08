@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-15                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -58,6 +58,17 @@ the other's service as optional without forming a cycle, and either may
 start first. The price is that an optional consumer has no guarantee the
 service is present at any moment; that is what `useOptional` and
 `whenAvailable` address.
+
+```
+REQUIREMENT: For an optional contract key, a provider whose declared version
+             does not satisfy the consumer's range MUST be treated as
+             absent by `optional`, `useOptional` and `whenAvailable`, and
+             MUST fail no operation
+             ([26 — Versioned Contracts](./26-versioned-contracts.md),
+             BEH-BR-229). An optional key MUST NOT trigger a `dormant`
+             provider ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+             BEH-BR-245).
+```
 
 ## BEH-BR-130: Runtime.optional is a point-in-time read
 

@@ -1,0 +1,24 @@
+kind: decisions
+package: bridger-agent
+infix: AG
+entries:
+  - id: "ADR-AG-001"
+    file: "001-agent-is-swappable-keys.md"
+    title: "The agent is a set of replaceable keys, not a framework"
+    status: "Proposed"
+  - id: "ADR-AG-002"
+    file: "002-task-snapshot-is-a-state-feed.md"
+    title: "TaskSnapshot is a state feed; bridges map, never extend"
+    status: "Proposed"
+  - id: "ADR-AG-003"
+    file: "003-taint-is-monotone-and-forbids-auto-allow.md"
+    title: "Taint is monotone per session and forbids automatic allow"
+    status: "Proposed"
+  - id: "ADR-AG-004"
+    file: "004-subagent-is-ephemeral-realm-and-narrowed-actor.md"
+    title: "A subagent is an ephemeral realm and a narrowed actor, never wider"
+    status: "Proposed"
+  - id: "ADR-AG-005"
+    file: "005-agent-tests-replay-deterministically.md"
+    title: "Agent tests replay deterministically; no live model in the required suite"
+    status: "Proposed"

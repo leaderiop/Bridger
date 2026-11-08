@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-07                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -36,13 +36,18 @@ rules are not repeated here.
 
 ## BEH-BR-049: replace is stop-then-start under the same ID, with no rollback
 
-> **See:** [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md)
+> **See:** [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-049](../decisions/049-state-handoff-on-replace.md)
 > **Satisfies:** [URS-BR-002](../urs.md#urs-br-002-remove-or-replace-a-plugin-safely-while-it-is-in-use)
 > **Risk:** [RSK-BR-004](../gxp/03-risk-assessment.md#rsk-br-004)
 
 ```ts
 // illustrative — not type-checked
-replace<R extends Keys, P extends Keys, E, C>(plugin: PluginDefinition<R, P, E, C>, options?: ReplaceOptions):
+replace<R extends Keys, P extends Keys, E, C>(plugin: Plugin<R, P, E, C>, options?: ReplaceOptions):
+  Effect.Effect<void,
+    | ReplaceError | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock | HostClosed
+    | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
+// and, as in 02 — Host Construction (BEH-BR-013), the non-generic overload:
+replace(plugin: Plugin.Any | LazyPluginDefinition, options?: ReplaceOptions):
   Effect.Effect<void,
     | ReplaceError | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock | HostClosed
     | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
@@ -85,6 +90,9 @@ Rollback across external effects is an application concern; layers that need
 to switch behaviour without a gap use `Generation`
 ([20 — Generation](./20-generation.md)), which publishes the new value before
 draining the old. `replace` is not a transaction over external effects.
+A plugin that must keep in-memory state across `replace` declares a handoff
+([34 — State Handoff](./34-state-handoff.md), BEH-BR-345); stop-then-start is
+unchanged.
 
 ## BEH-BR-050: replace checks the new definition before anything stops
 
