@@ -1,0 +1,14 @@
+kind: root
+package: bridger-agent
+infix: AG
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-AG-00"
+    title: "Bridger Agent — Companion Specification"
+  - file: "overview.md"
+    id: "BRIDGER-AG-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-AG-INV"
+    title: "Runtime Invariants"

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-05                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -116,6 +116,13 @@ REQUIREMENT: Plugins that become ready in the same revision MUST be ordered
 REQUIREMENT: At most `BridgerOptions.concurrency` builds (default 4) MUST run
              at once. "unbounded" MUST impose no limit. A plugin that is not
              ready MUST NOT occupy a build slot.
+```
+
+```
+REQUIREMENT: For a lazy registration whose code is not yet loaded, the build
+             step MUST begin with its `load`, within the same slot and under
+             the same `buildTimeout` (27 — Manifest and Lazy Activation,
+             BEH-BR-246).
 ```
 
 ```
@@ -311,13 +318,15 @@ reporting phase "build" would let a retry run over a leaked resource.
 ## BEH-BR-038: Same ServiceId, different key object: the activation fails with KeyMismatch
 
 > **Invariant:** [INV-BR-015](../invariants.md#inv-br-015-key-identity-is-checked-by-identifier-and-by-object)
-> **See:** [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md)
+> **See:** [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md), [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md)
 > **Risk:** [RSK-BR-010](../gxp/03-risk-assessment.md#rsk-br-010)
 
 ```
-REQUIREMENT: When a key in a plugin's `requires` and the key under which its
-             provider (a plugin's `provides`, or the base) supplies that
-             `ServiceId` are different objects, the activation MUST fail
+REQUIREMENT: Except between two contract references (26 — Versioned
+             Contracts, BEH-BR-229), when a key in a plugin's `requires` and
+             the key under which its provider (a plugin's `provides`, or the
+             base) supplies that `ServiceId` are different objects, the
+             activation MUST fail
              before `build` runs, with phase "activation" and a
              `KeyMismatch { serviceId }` cause.
 ```

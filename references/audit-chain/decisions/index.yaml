@@ -1,0 +1,20 @@
+kind: decisions
+package: bridger-audit-chain
+infix: AC
+entries:
+  - id: "ADR-AC-001"
+    file: "001-chain-in-a-wrapping-sink.md"
+    title: "The chain lives in a sink that wraps the store, not in the core record"
+    status: "Proposed"
+  - id: "ADR-AC-002"
+    file: "002-anchor-defends-against-insider.md"
+    title: "Only an external anchor defends against an insider"
+    status: "Proposed"
+  - id: "ADR-AC-003"
+    file: "003-anchoring-off-the-write-path.md"
+    title: "Anchoring runs off the write path; fail-closed only when declared"
+    status: "Proposed"
+  - id: "ADR-AC-004"
+    file: "004-separate-from-gxp-companion.md"
+    title: "A package separate from @bridger/gxp"
+    status: "Proposed"

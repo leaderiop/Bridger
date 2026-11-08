@@ -1,0 +1,7 @@
+kind: appendices
+package: bridger-kit
+infix: KT
+entries:
+  - file: "a-cast-inventory.md"
+    id: "BRIDGER-KT-APP-A"
+    title: "Cast inventory of the host-core prototype"

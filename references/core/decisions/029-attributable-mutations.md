@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-029                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-10-03): `reconcile` options merged, reserved actors and blank ids refused, step 7 in full (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `intent-ended` added to the system transitions (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
-
+> | Change History | 0.5 (2026-11-08): The actor also reaches the `CallLog`; `onBehalfOf` is recorded beside the actor, never an actor (CCR-BR-018); `Actor.narrow` is a caller-invoked derivation (CCR-BR-019)<br>0.4 (2026-10-03): `reconcile` options merged, reserved actors and blank ids refused, step 7 in full (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `intent-ended` added to the system transitions (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -61,13 +60,18 @@ interface OperationOptions { readonly context?: OperationContext }
 
 **Trade-off accepted**: attribution as recorded, unverified input with an opt-in requirement, at the cost of trusting the consumer's identity binding, rather than inferred or authenticated identity that the core cannot make correct.
 
+**Amendments (2026-11-08)**:
+
+- The actor of the calling fiber also reaches the `CallLog` ([ADR-BR-044](../decisions/044-capability-policy-and-call-log-ports.md)). `onBehalfOf` ([ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)) is a host-established fact recorded beside the actor, never an actor.
+- `Actor.narrow` is a caller-invoked derivation; core still derives no actor itself ([ADR-BR-048](../decisions/048-realm-families-and-retirement.md)).
+
 ## References
 
 - Behaviours: [22 — Attributable operations](../behaviors/22-attributable-operations.md), [23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md)
 - Invariants: [INV-BR-025](../invariants.md#inv-br-025-no-mutation-proceeds-without-required-attribution), [INV-BR-027](../invariants.md#inv-br-027-a-refused-or-unauditable-mutation-changes-nothing)
 - Requirements: [URS-BR-021](../urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
 - Risks: [RSK-BR-005](../gxp/03-risk-assessment.md#rsk-br-005), [RSK-BR-004](../gxp/03-risk-assessment.md#rsk-br-004)
-- Decisions: [ADR-BR-028](../decisions/028-gxp-scope.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-031](../decisions/031-audit-failure-policy.md), [ADR-BR-032](../decisions/032-operation-gate.md)
+- Decisions: [ADR-BR-028](../decisions/028-gxp-scope.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-031](../decisions/031-audit-failure-policy.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-044](../decisions/044-capability-policy-and-call-log-ports.md), [ADR-BR-048](../decisions/048-realm-families-and-retirement.md)
 - GxP documents: [../gxp/02-compliance-matrix.md](../gxp/02-compliance-matrix.md)
 - Source: `docs/SPEC.md` — "Host interface" (SPEC.md has no attribution; this ADR extends it)
 - External: 21 CFR Part 11 §11.10(d), §11.10(e), §11.300; EU GMP Annex 11 (2011) §12.4; PIC/S PI 041 (ALCOA+, attributable).

@@ -1,0 +1,24 @@
+kind: decisions
+package: bridger-command
+infix: CM
+entries:
+  - id: "ADR-CM-001"
+    file: "001-commands-are-contributions.md"
+    title: "Commands are registry contributions, not a core primitive"
+    status: "Proposed"
+  - id: "ADR-CM-002"
+    file: "002-catalog-not-rules.md"
+    title: "The catalog carries labels; the application owns the rules"
+    status: "Proposed"
+  - id: "ADR-CM-003"
+    file: "003-toolset-is-a-generation.md"
+    title: "A toolset is a generation per principal, pinned per turn"
+    status: "Proposed"
+  - id: "ADR-CM-004"
+    file: "004-json-schema-from-encoded-side.md"
+    title: "JSON Schema 2020-12 is projected from the encoded side"
+    status: "Proposed"
+  - id: "ADR-CM-005"
+    file: "005-taint-floor-in-dispatch.md"
+    title: "The taint floor is part of dispatch, not an interception"
+    status: "Proposed"

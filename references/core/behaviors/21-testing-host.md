@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.11 (2026-11-08): check 22 (generation `changes` and `view`); checks 63, 65, 66 (lazy digest, not-yet-loaded `reconfigure`, `methods`); copies of checks 67, 68, 70, 75 and 76 aligned with files 28 and 30; checks 77, 79, 81, 83 and 85 aligned with files 31–33; check 91 (entitlement failure modes, mode `unmetered`) (CCR-BR-022)<br>0.10 (2026-11-08): Acceptance checks 59–66 (CCR-BR-017), 67–76 (CCR-BR-018), 77–88 (CCR-BR-019) and 89–91 (CCR-BR-020); `Fault.loadFails` and `Fault.handoffFails`; scripted `AccessPolicy`, `CapabilityPolicy` and `Gate<Req>` fixtures, in-memory `CallLog` fixture and `heldHandoff` (CCR-BR-017, CCR-BR-018, CCR-BR-019)<br>0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -264,6 +264,9 @@ Fault.buildFails(ref: PluginRef): Fault
 Fault.stopFails(ref: PluginRef): Fault
 Fault.holdLease(ref: PluginRef): Fault
 Fault.runtimeFailure(ref: PluginRef): Fault
+Fault.loadFails(ref: PluginRef): Fault            // lazy registrations (27)
+Fault.handoffFails(ref: PluginRef, step: "export" | "upgrade" | "import",
+                   how: "fail" | "delay" | "hang"): Fault   // state handoff (34)
 ```
 
 ```
@@ -283,7 +286,16 @@ REQUIREMENT: While active:
                only by revocation or by the fault's scope closing;
              - `runtimeFailure(ref)`: the plugin MUST receive one runtime
                failure — at injection if it is `active`, otherwise at its
-               next activation.
+               next activation;
+             - `loadFails(ref)`: the next `load` of that lazy registration
+               MUST fail, and the plugin MUST end `failed` with phase
+               `load` (`LoadFailed`) and publish nothing
+               (27 — Manifest and Lazy Activation, BEH-BR-246);
+             - `handoffFails(ref, step, how)`: that step of the plugin's
+               state handoff MUST fail, be delayed past `handoffTimeout`,
+               or hang, and the outcome MUST be the cold start or failed
+               activation 34 — State Handoff specifies for it, with its
+               record (BEH-BR-349, BEH-BR-350, BEH-BR-351).
 ```
 
 ```
@@ -400,6 +412,38 @@ offered `scriptedGate.allowAll` would be that same object one import away.
 Making the test write its decision — even `() => "allow"` — keeps the
 permissiveness visible in the test that relies on it.
 
+### Policy, call-log and gate fixtures (files 28, 29, 32)
+
+```ts
+TestHost.scriptedAccessPolicy(
+  decide: (request: AccessRequest, index: number) => AccessDecision
+): Effect.Effect<{ readonly layer: Layer.Layer<AccessPolicy>; readonly requests: Effect.Effect<readonly AccessRequest[]> }>
+TestHost.scriptedCapabilityPolicy(
+  resolve: (request: ResolutionRequest, index: number) => Grant | { readonly refuse: string } | "die" | "hang"
+): Effect.Effect<{ readonly layer: Layer.Layer<CapabilityPolicy>; readonly requests: Effect.Effect<readonly ResolutionRequest[]> }>
+TestHost.memoryCallLog(options?: { readonly behave?: (attempt: number, entry: CallEntry) => "store" | "fail" | "die" | "hang" }):
+  Effect.Effect<{ readonly layer: Layer.Layer<CallLog>; readonly entries: Effect.Effect<readonly CallEntry[]> }, never, Scope.Scope>
+TestHost.scriptedGateOf<Req>(
+  decide: (request: Req, index: number) => GateDecision<Req> | "die" | "hang"
+): Effect.Effect<{ readonly gate: Gate<Req>; readonly requests: Effect.Effect<readonly Req[]> }>
+TestHost.heldHandoff(ref: PluginRef): Effect.Effect<Option.Option<unknown>>   // the held value of a replace in progress (34)
+```
+
+```
+REQUIREMENT: The policy and gate fixtures MUST require their decision
+             function, with no overload, default or constant that allows
+             every request, as BEH-BR-182 requires of `scriptedGate`; they
+             are the only helpers core offers for `AccessPolicy`
+             (28 — Plugin Principal and Mandatory Policy, BEH-BR-264),
+             `CapabilityPolicy` (29 — Capability Grants and Call Log,
+             BEH-BR-273) and `Gate<Req>` (32 — Generic Gate and Plan,
+             BEH-BR-313). `memoryCallLog` MUST be documented, like
+             `memoryAuditSink`, as a test fixture that keeps entries in
+             process memory for the test scope and is not a record store
+             (BEH-BR-276). `heldHandoff` MUST be exported only from
+             `@bridger/core/testing` (34 — State Handoff, BEH-BR-348).
+```
+
 ## BEH-BR-183: Required acceptance checks — the lifecycle core
 
 > **See:** [ADR-BR-026](../decisions/026-deterministic-test-host.md), [ADR-BR-035](../decisions/035-evidence-from-executed-tests.md)
@@ -486,7 +530,11 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  `drainTimeout`.
              22. `Generation`: `drain` fails with `DrainTimeout` and succeeds
                  with `force`, revoking `acquire` and `use` holders; several
-                 retired values drain independently.
+                 retired values drain independently; `changes` delivers the
+                 current revision first, then each publication after its
+                 step and each admission change, latest-wins without
+                 regression; `view` offers no publish, admission or drain
+                 (20 — Generation, BEH-BR-169, BEH-BR-170).
              23. Child plugins are removed with their parent, as its
                  dependents, in reverse dependency order and before the
                  parent's scope begins to close; a failing child leaves the
@@ -695,6 +743,298 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  plugin-addressed operation carry the presented definition,
                  equal to `OperationRequest.definition`; its terminal records
                  do not (BEH-BR-195, BEH-BR-219).
+             59. Contracts: a `ServiceId` without `@<major>`, with a major
+                 other than `version`'s, a `version` outside the grammar or
+                 empty `methods` makes `install`, `replace` and `enable`
+                 fail with `InvalidDefinition`; `Contract.satisfies` and
+                 `maxSatisfying` follow the table of BEH-BR-226 and return
+                 `false`/`None` for input outside the grammar; a range
+                 leaving the major fails with `InvalidDefinition`
+                 (26 — Versioned Contracts, BEH-BR-225–227).
+             60. `IncompatibleContract`: a dependent installed against a
+                 registered provider whose version does not satisfy its
+                 range; a provider installed, replaced or enabled under a
+                 registered dependent it does not satisfy; a provider
+                 missing a method of a dependent's older copy; a base
+                 service with and without a `baseContracts` entry; the
+                 first incompatible pair named; the check order of
+                 BEH-BR-228; nothing registered (BEH-BR-228).
+             61. Two separately built copies of one contract at compatible
+                 versions bind without `KeyMismatch`; a plain key against a
+                 contract of another object fails with `KeyMismatch`; an
+                 incompatible provider of an `optional` contract key is
+                 absent to `useOptional` and `whenAvailable` and fails no
+                 operation (BEH-BR-229).
+             62. Manifests: a manifest that fails to decode, or disagrees
+                 with its eager definition, fails with `InvalidDefinition`;
+                 properties the schema does not name are kept and passed on
+                 unchanged; `engines["@bridger/core"]` unsatisfied fails with
+                 `IncompatibleEngine`; `consentDiff` classifies each field of
+                 its table, reports other differences as unclassified, sets
+                 `requiresConsent`, and is deterministic and non-mutating
+                 (27 — Manifest and Lazy Activation, BEH-BR-241–243).
+             63. A lazy definition installs as `dormant` with `load` never
+                 called: its manifest's keys reserve slots
+                 (`DuplicateProvider`), take part in cycle detection and in
+                 contract checks; the `dormant` snapshot lists its triggers
+                 and `lazy.loaded` false; every cell of the dormant row of
+                 BEH-BR-247; `reconfigure` with a value on a registration
+                 not yet loaded (`dormant`, `disabled` unloaded, `failed`
+                 with phase "load") is not decoded at the call, records the
+                 raw value's top-level keys as paths and hands a wired
+                 fingerprinter form "raw"; a reference with `version` and no
+                 `methods` fails with `InvalidDefinition` (BEH-BR-241,
+                 BEH-BR-244, BEH-BR-247).
+             64. Triggers: an eager dependent registered while its provider
+                 is dormant wakes it; a lazy dependent wakes its providers
+                 only once woken; `wake` with `OnService`, `OnContribution`
+                 and `OnEvent` reports the plugins it woke; an event
+                 dispatch wakes plugins declaring it and is not delivered to
+                 them; `use`, `lease`, `useOptional`, `awaitActive`,
+                 `restart`, `retry` and optional keys wake nothing
+                 (BEH-BR-245).
+             65. Loading: `load` runs in the build slot under
+                 `buildTimeout`, with `loading` true; a failing, dying or
+                 timed-out `load`, and a loaded definition differing from
+                 its manifest in any compared field or whose `meta.digest`
+                 differs from the digest supplied to `Plugin.lazy`, leave the plugin
+                 `failed` with phase "load" (`LoadFailed`,
+                 `ManifestMismatch` naming the field) and nothing published;
+                 the failure is sticky and `retry` reloads, while `retry`
+                 after a build failure of a loaded plugin does not; an
+                 operation arriving during the load follows the `starting`
+                 rows; a `lazy-triggered` record with its trigger and cause
+                 precedes the `system-start` record (BEH-BR-246,
+                 BEH-BR-248).
+             66. `reconcile` of lazy entries calls no `load` and compares
+                 lazy definitions by their identity `meta` (manifest
+                 `version`, digest supplied beside or in the manifest), so
+                 that a lazy definition built from a signed manifest without
+                 `digest` loads and matches, and two digests at one version
+                 are different definitions; the
+                 gate request carries `definition.manifest` and, on
+                 `replace`, `previousManifest`; no record carries a
+                 manifest; `inspect` returns the manifest without loading;
+                 shutdown unregisters dormant plugins without a stop step
+                 and lists them in no `CloseReport` list (BEH-BR-247–249).
+             67. A principal is minted per activation and read by plugin
+                 code; a reference provided with the same identifier makes
+                 the reader die with `PrincipalForged`; a principal used
+                 after its activation ends dies with `PrincipalRetired`; a
+                 finalizer that emits under a wired `AccessPolicy`, or
+                 removes a child, does not die (retirement follows the
+                 finalizers); a
+                 listener runs under its owner's principal and a provider's
+                 method under its caller's; `asSelf` switches to the
+                 activation's own (BEH-BR-257, BEH-BR-258).
+             68. A mutating call from plugin code carries `onBehalfOf` on
+                 the `OperationRequest` and on its `requested`, `rejected`
+                 or terminal record, and on each `reconcile` entry's
+                 records; a call from application code carries none; no
+                 option sets it; under `attribution.require` a plugin call
+                 with no actor still fails with `Unattributed`; system
+                 records carry none; a provider method serving consumer A
+                 that mutates the host records `onBehalfOf` A, and records
+                 the provider only inside `asSelf` (BEH-BR-258,
+                 BEH-BR-259).
+             69. Mandatory interceptions: a child mounted with
+                 `intercept: []` still receives every inherited mandatory
+                 wrapper; a child in another realm receives its own realm's;
+                 the composition order of BEH-BR-261 holds; `Host.use`,
+                 `useAll` and `lease` from application code and from plugin
+                 code are wrapped by "all" interceptions and not by ordinary
+                 ones; a throwing mandatory wrap fails the activation or
+                 kills the call with the lease released (BEH-BR-260 to
+                 BEH-BR-262).
+             70. `allowChildren: false` refuses `Plugin.Runtime.install`
+                 with `ChildNotAllowed`, registers nothing, writes no record
+                 and publishes `child-refused`; a child cannot widen it; an
+                 `AccessPolicy` denies listen, emit, contribute and child
+                 requests as specified, a `child` request from a provider
+                 method serving another plugin carries the parent
+                 activation's principal, a throwing `decide` denies with
+                 "policy-defect", and `Host.controls` reports the wiring;
+                 with nothing wired, the suites of files 02–25 pass with
+                 only the additive fields of BEH-BR-266 added to the values
+                 they compare (BEH-BR-263 to BEH-BR-266).
+             71. A wired `CapabilityPolicy` is consulted once per capture on
+                 every route, never cached; a refusal fails a required
+                 activation with phase `activation`, returns none for an
+                 optional read, holds back a `whenAvailable` run, and fails
+                 `use`, `useAll` and `lease` with `ResolutionRefused` with
+                 the lease released; a dying, failing or slow policy is a
+                 refusal; refusals on optional routes publish
+                 `resolution-refused` (BEH-BR-273, BEH-BR-274).
+             72. A grant naming members delivers an object whose ungranted
+                 members die with `CapabilityDenied`; `Grant.all` adds no
+                 layer; the narrowed object exposes nothing the wrapped one
+                 does not; leases are unaffected; a grant on `Bridger.Host`
+                 withholds its mutating members (BEH-BR-275).
+             73. A selected capture yields exactly one `CallEntry` per call,
+                 including denied ones, with `Clock` timing, the caller's
+                 actor and principal and no argument, result or message;
+                 a failing or slow `record` changes no outcome and is
+                 counted; `CurrentCall` is set only around intercepted
+                 calls and a provided one dies with `PrincipalForged`; with
+                 nothing wired, the suites of files 02–25 pass unchanged
+                 (BEH-BR-276 to BEH-BR-278).
+             74. Keys combine as declared; a monotonic key cannot be
+                 replaced through the API nor removed by a supplied
+                 `options.context`; a bag not made by core is treated as
+                 empty; the three core keys have the shapes of BEH-BR-290
+                 (BEH-BR-289, BEH-BR-290, BEH-BR-292).
+             75. Propagation: a provider's method sees its caller's
+                 annotations; builds, finalizers, background fibers, health
+                 checks and `whenAvailable` runs start empty; listeners of
+                 every dispatch mode see only "events" keys; the gate sees
+                 only "gate" keys and the policy only "policy" keys; a
+                 `Deadline` shortens the per-call timeout of `use` and
+                 `useAll`, the gate and the policy with their own outcomes,
+                 bounds no `use` without a timeout and no `lease`, and leaves
+                 audit, drain, build and shutdown bounds unchanged; a served
+                 call run inside `CallerContext.serve` sees the invoker's
+                 actor and annotations and keeps the contributor's principal,
+                 and a nested host call from it records both; `encode` of
+                 the "wire" filter carries taint and provenance and never
+                 the deadline, and `decode` rejects unknown keys and combines
+                 into the receiver's bag (BEH-BR-291, BEH-BR-292,
+                 BEH-BR-296).
+             76. Records of a mutating call carry the "audit" keys,
+                 encoded, sorted and equal on every record of the call;
+                 system records carry none; an unencodable value, a
+                 `Redacted` value or one beyond the limits is omitted and
+                 named in `annotationsOmitted`; the entry records of a
+                 `reconcile` carry the `reconcile` call's "audit" keys; call-log entries carry
+                 "callLog" keys; no annotation appears in snapshots,
+                 events or logs; with none set, the suites of files 02–29
+                 pass unchanged (BEH-BR-293, BEH-BR-295).
+             77. A hook point admits registrations only through the
+                 application's rule over the principal's owner and labels; a
+                 refused role registers nothing; results outside the role are
+                 errors; order is priority then id whatever the activation
+                 order; `who` runs before the registry's access check; a veto
+                 registration on a hook point with empty `codes` is refused
+                 (31 — Hook Points, BEH-BR-297, BEH-BR-298, BEH-BR-299).
+             78. The first admitted veto decides and later veto hooks are not
+                 run; codes outside the closed set and non-primitive params
+                 are errors; enrich and advisory results are namespaced,
+                 schema-checked, in view order, and never change the verdict
+                 (BEH-BR-300, BEH-BR-301).
+             79. Per-hook timeout and `onError` "deny" and "skip"; a `skip`
+                 policy's skips are recorded as "skipped-policy", never deny
+                 and never count toward the breaker; the dispatch returns
+                 within its effective deadline (least of hook point, call and
+                 context annotation) without waiting for finalizers; a hook
+                 interrupted by that deadline is recorded "deadline" and does
+                 not count toward its breaker; a breaker opens, half-opens
+                 once, closes or reopens, is discarded with its contribution,
+                 is published on `decisions` as a breaker record and not on
+                 `Host.events`, and never changes plugin state or writes an
+                 audit record; a contribution with no owner runs with no
+                 principal (BEH-BR-302, BEH-BR-303, BEH-BR-304,
+                 BEH-BR-306).
+             80. Every dispatch yields one decision record naming the deciding
+                 contribution, with no input, value, message or params; a
+                 selector holds the chosen implementation for the call, fails
+                 with `NoImplementation` when none is chosen, never fails
+                 over, and never restarts a plugin (BEH-BR-305, BEH-BR-307,
+                 BEH-BR-308).
+             81. `Gate.run` calls `decide` once with only "gate"-flow
+                 annotations, maps defects, timeouts and malformed drafts to
+                 `Refuse`, returns the draft and its `draftId` unchanged, and
+                 ends without a decision on caller interruption; `Gate.all`
+                 consults in order, each piece bounded by its own `timeout`,
+                 the first refusal wins, a deferral yields to a later
+                 refusal; `Draft.check` reports every mismatch and
+                 nothing else (32 — Generic Gate and Plan, BEH-BR-313,
+                 BEH-BR-314, BEH-BR-316, BEH-BR-321).
+             82. `OperationGate.fromGate`: `Defer` reaches the host as
+                 `OperationRejected` with the defer reason and one `rejected`
+                 record; with and without the adapter, every host scenario of
+                 25 — Operation Gate produces identical records (BEH-BR-315).
+             83. `Host.plan` equals the diff `reconcile` then applies,
+                 including the recorded `configChange.paths` of a
+                 `reconfigure` entry, writes no record, consults no gate or
+                 fingerprinter, emits no event and carries no value (its
+                 rejections are `{ _tag, message }`); `reconcile` with
+                 `expect` fails `PlanStale` with no record when stale at the
+                 call — also when `configChange.paths` or the prune options
+                 differ — with a
+                 parent `failed` record when stale at the intent, and
+                 otherwise gates every entry (BEH-BR-317, BEH-BR-318,
+                 BEH-BR-319, BEH-BR-320).
+             84. A family creates a member once per key on first use through
+                 attributed, gated, audited `defineRealm` and `reconcile`;
+                 concurrent uses share one creation; invalid keys and changed
+                 options are refused; a failed member is not recreated until
+                 reset (33 — Realm Families, BEH-BR-329, BEH-BR-330,
+                 BEH-BR-331, BEH-BR-334).
+             85. Idle eviction prunes through `reconcile` with `pruneDrain`
+                 and `pruneForce: false`: a held host lease makes it time out
+                 and leaves the member parked, retried at the next check; a
+                 use during eviction waits and recreates; outcomes appear on
+                 the family's `events` stream and not on `Host.events`;
+                 `retireRealm` refuses a non-empty realm and "default",
+                 retires an empty one in one revision, and allows
+                 redefinition; an `install` into a realm retired between its
+                 validation and its linearization point fails with
+                 `UnknownRealm` and registers nothing (18 — Reconciliation
+                 and Confluence, BEH-BR-155; BEH-BR-332, BEH-BR-333,
+                 BEH-BR-335, BEH-BR-338).
+             86. `Realm.ephemeral` defines, installs and activates under the
+                 owner's context, undoes on failure, tears down at scope close
+                 (forcing only at the limit, reported) and retires its realm;
+                 `Actor.narrow` returns the documented value at every depth,
+                 refuses invalid input and reserved actors, and is recorded as
+                 any actor; `Actor.isWithin` recognises the actor itself and
+                 every narrowing of it, and nothing else (BEH-BR-336,
+                 BEH-BR-337).
+             87. A replace of an active plugin with handoff on both sides
+                 exports after the drain and before scope close, upgrades
+                 through `accepts`/`upgrade`, imports before publication, and
+                 writes one `handoff` record before `system-start`; no other
+                 operation or state hands off; keys are never provided twice;
+                 the held value appears in no record, event, log, snapshot or
+                 error (34 — State Handoff, BEH-BR-345, BEH-BR-346,
+                 BEH-BR-347, BEH-BR-348, BEH-BR-349).
+             88. Export failure, unaccepted version, upgrade or decode failure
+                 each give a cold start with the matching loss record and
+                 event; import failure fails the activation with no retry;
+                 new-build failure, `waiting`, removal and shutdown abandon
+                 the handoff with a record; a cascade-ended parked replace,
+                 and a replace into `dormant`, export nothing and write no
+                 record (BEH-BR-347, BEH-BR-349, BEH-BR-350, BEH-BR-351,
+                 BEH-BR-352).
+             89. A child mounted by `Plugin.Runtime.install` under a sub-scope
+                 of its parent's activation scope is removed when that
+                 sub-scope closes, its dependents first, drained under
+                 `drainTimeout` and revoked on expiry, never parked; the
+                 removal passes no `OperationGate` and, with a sink, writes a
+                 `system-stop` record attributed to `Actor.system` whose
+                 `target` is the child and whose `causationId` is the child's
+                 mount record (14 — Children and Groups, BEH-BR-121,
+                 BEH-BR-126).
+             90. `Plugin.Any`: every value returned by `Plugin.define`,
+                 including one with `provides: []`, is assignable to
+                 `Plugin.Any` and accepted by `install`, `replace`, group
+                 members, `Plugin.Runtime.install` and `DesiredPlugin.plugin`
+                 without a cast; an object literal not produced by
+                 `Plugin.define` is not assignable; `Plugin.define` adds no
+                 property at run time (a compile-time test plus one run-time
+                 check) (01 — Plugin Definition, BEH-BR-001; 03 —
+                 Installation, BEH-BR-017).
+             91. `Plugin.Runtime.entitled`: with no `EntitlementView` wired it
+                 emits exactly one state `{ mode: "unmetered", asOf }` read
+                 from `Clock` and stays open; with one wired, `watch` is
+                 called once per activation with the activation's id, realm
+                 and installed version, its elements are shared latest-wins
+                 among subscribers, and the stream ends when the activation's
+                 scope closes; a `watch` that fails, dies or ends early
+                 yields the last state marked stale (or mode "unknown") with
+                 reason "entitlement-view-ended", once, and no further call; no mode changes a plugin's state, calls an
+                 operation or writes a record; `EntitlementView` is not in the
+                 requirements of `Bridger.layer` (10 — Runtime Failure and
+                 Health, BEH-BR-089).
 ```
 
 Checks 31–42 exist because the GxP hooks are only worth specifying if each

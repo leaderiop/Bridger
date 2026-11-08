@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-006                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.2 (2026-11-08): Reference to ADR-BR-040: versions never create a second instance (CCR-BR-017)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -58,5 +57,5 @@ The identity of a plugin also matters outside resolution. Operations address it 
 - Behaviours: [01 — Plugin definition](../behaviors/01-plugin-definition.md), [03 — Installation](../behaviors/03-installation.md), [17 — Realms and interception](../behaviors/17-realms-and-interception.md), [18 — Reconciliation and confluence](../behaviors/18-reconciliation-and-confluence.md)
 - Invariants: [INV-BR-001](../invariants.md#inv-br-001-one-provider-per-service-key-per-realm), [INV-BR-012](../invariants.md#inv-br-012-a-definition-error-registers-nothing), [INV-BR-020](../invariants.md#inv-br-020-a-realm-changes-resolution-only)
 - Requirements: [URS-BR-011](../urs.md#urs-br-011-run-the-same-plugin-once-per-tenant-or-database)
-- Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-021](../decisions/021-children-and-groups.md)
+- Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-019](../decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-021](../decisions/021-children-and-groups.md), [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md)
 - Source: `docs/SPEC.md` — "Plugin definition" (`id`), "Realms and interception", "API decisions" row 4

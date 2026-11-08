@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-005                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-03): Dependency loss of a `starting` plugin whose build has not begun (BEH-BR-035) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.3 (2026-11-08): Failure phase "load" of a lazy plugin is sticky (CCR-BR-017); a capability policy fails closed (CCR-BR-018); a hook point's breaker is hook-level state, not plugin failure (CCR-BR-019)<br>0.2 (2026-10-03): Dependency loss of a `starting` plugin whose build has not begun (BEH-BR-035) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -56,11 +55,17 @@ A plugin that merely *lost a dependency* is a different case. It did not fail; i
 
 **Trade-off accepted**: manual recovery of transient faults, in exchange for never repeating a side effect silently.
 
+**Amendments (2026-11-08)**:
+
+- A lazy plugin whose `load` fails, or whose loaded definition does not match its manifest, fails with phase "load"; that failure is sticky like any other ([ADR-BR-042](../decisions/042-lazy-activation.md)).
+- A capability policy that fails, dies or times out refuses the capture; it never fails a plugin by itself ([ADR-BR-044](../decisions/044-capability-policy-and-call-log-ports.md)).
+- A hook point's per-contribution breaker is hook-level state, not plugin failure ([ADR-BR-046](../decisions/046-hook-points.md)).
+
 ## References
 
 - Behaviours: [04 — States and snapshots](../behaviors/04-states-and-snapshots.md), [07 — Replacement and reactivation](../behaviors/07-replacement-and-reactivation.md), [10 — Runtime failure and health](../behaviors/10-runtime-failure-and-health.md)
 - Invariants: [INV-BR-007](../invariants.md#inv-br-007-failure-is-sticky), [INV-BR-011](../invariants.md#inv-br-011-every-state-and-operation-pair-has-a-defined-outcome)
 - Requirements: [URS-BR-006](../urs.md#urs-br-006-recover-from-failure-explicitly-and-never-silently)
 - Risks: [RSK-BR-003](../gxp/03-risk-assessment.md#rsk-br-003), [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016)
-- Decisions: [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md)
+- Decisions: [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-017](../decisions/017-runtime-failure-one-transition.md), [ADR-BR-042](../decisions/042-lazy-activation.md), [ADR-BR-044](../decisions/044-capability-policy-and-call-log-ports.md), [ADR-BR-046](../decisions/046-hook-points.md)
 - Source: `docs/SPEC.md` — "State and lifecycle", "Runtime failure and health", "Confluence", "API decisions" row 3

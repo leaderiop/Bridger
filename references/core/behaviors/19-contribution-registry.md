@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-19                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -147,6 +147,14 @@ REQUIREMENT: When `add` is called inside a plugin's activation (the
              `@bridger/core/ActivePlugin` reference is set), the registry
              MUST report the contribution's owner to the host for
              `inspect`. It MUST NOT use the reference for anything else.
+```
+
+```
+REQUIREMENT: When an `AccessPolicy` was in the environment of `make`, `add`
+             MUST consult it before reserving the id, and a refusal MUST
+             register nothing
+             ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+             BEH-BR-264).
 ```
 
 A collision fails rather than replaces because two plugins contributing the
@@ -317,7 +325,9 @@ One provider per key ([ADR-BR-003](../decisions/003-one-provider-per-key-per-rea
 and a registry for everything that needs many are two halves of one design:
 the provider is the unambiguous owner that removal ordering and leases need,
 and the registry is where many plugins meet without any of them owning the
-others.
+others. Selection among contributions per call site is `Selector`, and a
+policied decision over contributions is a hook point
+([31 — Hook Points](./31-hook-points.md), BEH-BR-307).
 
 ---
 

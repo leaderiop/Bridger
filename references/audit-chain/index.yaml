@@ -1,0 +1,17 @@
+kind: root
+package: bridger-audit-chain
+infix: AC
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-AC-00"
+    title: "Bridger Audit Chain — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-AC-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-AC-INV"
+    title: "Runtime Invariants"
+  - file: "traceability.md"
+    id: "BRIDGER-AC-TRACE"
+    title: "Traceability"

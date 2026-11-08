@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-20                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): A forced drain revokes an `acquire` lease by interrupting the acquiring fiber, as host leases are revoked (prototype finding G26) (CCR-BR-011)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-08): `changes` feed of published revisions and the read-only `GenerationView` for non-owners (CCR-BR-022)<br>0.2 (2026-10-02): A forced drain revokes an `acquire` lease by interrupting the acquiring fiber, as host leases are revoked (prototype finding G26) (CCR-BR-011)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -44,6 +44,18 @@ interface Generation<A> {
   readonly use: <B, E, R>(run: (value: A) => Effect.Effect<B, E, R>) =>
     Effect.Effect<B, E | AdmissionClosed | LeaseRevoked, R>
   readonly current: Effect.Effect<{ readonly revision: number; readonly open: boolean }>
+  // gap-free, latest-wins feed of published revisions (BEH-BR-170); first element: the current one
+  readonly changes: Stream.Stream<GenerationChange<A>>
+  // what a non-owner may hold: no publish, no admission control, no drain
+  readonly view: GenerationView<A>
+}
+
+interface GenerationChange<A> { readonly revision: number; readonly value: A; readonly open: boolean }
+interface GenerationView<A> {
+  readonly acquire: Generation<A>["acquire"]
+  readonly use: Generation<A>["use"]
+  readonly current: Generation<A>["current"]
+  readonly changes: Generation<A>["changes"]
 }
 
 interface Lease<A> { readonly value: A; readonly revision: number }
@@ -84,6 +96,13 @@ REQUIREMENT: A generation MUST assume one owner — a coordinator plugin or
 ```
 
 ```
+REQUIREMENT: `view` MUST expose exactly `acquire`, `use`, `current` and
+             `changes` of the same generation, and nothing through which a
+             holder could publish, change admission or drain. An owner that
+             hands a generation to other code SHOULD hand its `view`.
+```
+
+```
 REQUIREMENT: When the scope given to `make` closes, the generation MUST close
              admission, and MUST drain every value still held — current and
              retired — under `drainTimeout`, revoking at the limit as in
@@ -112,6 +131,22 @@ REQUIREMENT: `publish(next)` MUST replace the current value in one step. A
 REQUIREMENT: `current.revision` MUST start at 0 for the initial value and
              MUST increase by exactly one on every `publish`.
              `Lease.revision` MUST be the revision of the value it holds.
+```
+
+```
+REQUIREMENT: `changes` MUST be a state feed with the rules of
+             04 — States and Snapshots, BEH-BR-030: each subscriber MUST
+             first receive the current revision, value and admission state,
+             then every later change in revision order, never a revision
+             lower than one already delivered; a slow subscriber MAY skip
+             intermediate revisions and MUST then receive the latest. An
+             element for revision n MUST be delivered only after the
+             `publish` that made n has completed its step, so that a
+             subscriber that sees n and then calls `acquire` (with admission
+             open) receives n or a later revision. A change of admission
+             (`closeAdmission`, `reopenAdmission`) MUST also be delivered,
+             with the unchanged revision. The feed MUST end when the
+             generation's scope closes.
 ```
 
 ```

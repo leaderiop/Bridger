@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-01                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -35,7 +35,8 @@ Nothing here describes an implementation. The planned source location is
 
 ```ts
 // illustrative — not type-checked
-type Keys = readonly Context.Key<any, any>[]
+type Keys = readonly (Context.Key<any, any> | ContractReference)[]
+type ContractReference = Contract | ContractRequirement | ContractProvision   // 26 — Versioned Contracts, BEH-BR-227
 
 type PluginDefinition<Requires extends Keys, Provides extends Keys, E, C = void> = {
   readonly id: string
@@ -56,6 +57,8 @@ type PluginDefinition<Requires extends Keys, Provides extends Keys, E, C = void>
     readonly timeout: Duration.Input
     readonly failureThreshold: number
   }
+  readonly manifest?: PluginManifest                   // 27 — Manifest and Lazy Activation, BEH-BR-242
+  readonly handoff?: Handoff<any, any, any>            // 34 — State Handoff, BEH-BR-345
   readonly build: Layer.Layer<
     IdentifiersOf<Provides>,
     E,
@@ -66,10 +69,33 @@ type PluginDefinition<Requires extends Keys, Provides extends Keys, E, C = void>
 type IdentifiersOf<K extends Keys> =                       // union of key identifiers
   K[number] extends infer X ? (X extends Context.Key<infer I, any> ? I : never) : never
 
+declare const PluginTypeId: unique symbol
+type Plugin<Requires extends Keys, Provides extends Keys, E, C> =
+  PluginDefinition<Requires, Provides, E, C> & { readonly [PluginTypeId]: typeof PluginTypeId }   // phantom brand
+
 Plugin.define<const Requires extends Keys, const Provides extends Keys, E, C = void>(
   definition: PluginDefinition<Requires, Provides, E, C>
-): PluginDefinition<Requires, Provides, E, C>
+): Plugin<Requires, Provides, E, C>
+
+interface PluginAny {                       // exported as Plugin.Any
+  readonly [PluginTypeId]: typeof PluginTypeId
+  readonly id: string
+  readonly requires: Keys
+  readonly provides: Keys
+  readonly optional?: Keys
+  readonly config?: Schema.Codec<any, unknown>
+  readonly volatile?: readonly string[]
+  readonly meta?: PluginDefinition<any, any, any, any>["meta"]
+  readonly manifest?: PluginManifest
+  readonly handoff?: Handoff<any, any, any>
+  readonly health?: unknown
+  readonly build: Layer.Layer<never, unknown, any>   // Layer is contravariant in ROut: never is the top
+}
 ```
+
+`install` also accepts a `LazyPluginDefinition`, registered from its manifest
+before its code is loaded ([27 — Manifest and Lazy
+Activation](./27-manifest-and-lazy-activation.md), BEH-BR-244).
 
 ```
 REQUIREMENT: A plugin MUST be described by a `PluginDefinition` carrying
@@ -90,6 +116,16 @@ REQUIREMENT: A definition MUST be inert data. Holding, passing or comparing a
              a host activation builds it (05 — Activation).
 ```
 
+```
+REQUIREMENT: Core MUST export `Plugin.Any`, to which every value returned by
+             `Plugin.define` is assignable without a cast, whatever its type
+             arguments, including a definition that provides nothing. The
+             brand MUST be phantom: `Plugin.define` MUST NOT add any property
+             to the definition at run time. An object literal not produced by
+             `Plugin.define` (or a companion helper documented as returning
+             `Plugin`) MUST NOT be assignable to `Plugin.Any`.
+```
+
 A definition is a value a loader can produce, a reconcile list can hold and a
 test can construct, so it must be safe to create and discard freely. Because
 `build` is an Effect `Layer` — a description of construction, not the
@@ -102,6 +138,22 @@ statically.
 `Plugin.Runtime` and `Plugin.Config` are `Context.Service`s the host supplies
 to `build` as part of its input; their identifiers are fixed in
 [02 — Host Construction](./02-host-construction.md).
+
+**Settled here (`Plugin.Any`, CCR-BR-020).** Effect v4 declares
+`Layer<in ROut, …>`; `PluginDefinition<any, any, any, any>` gives `build` a
+type a provides-nothing layer cannot be assigned to (prototype evidence:
+[kit appendix A](../../kit/README.md), §3). `Plugin.Any` uses the
+contravariant top `never`, and the phantom brand prevents literals that
+bypass `define`'s coverage check from being accepted
+([ADR-KT-002](../../kit/decisions/002-plugin-any-is-the-contravariant-top.md)).
+Heterogeneous lists — `install`, `replace`, group members, child installs and
+`DesiredPlugin.plugin` — accept `Plugin.Any` (03, 14, 18), and every generic
+overload — `Host.install`, `Host.replace` and `Plugin.Runtime.install` — takes
+the branded `Plugin<R, P, E, C>`, so that no install surface accepts a literal
+that bypassed `define` (CCR-BR-022). This is a compatibility change: an
+unbranded `PluginDefinition` literal is refused in every install position,
+including group members and the generic overloads that accepted one before
+CCR-BR-020.
 
 ## BEH-BR-002: The build Layer is bounded by the declared keys at compile time
 
@@ -178,7 +230,9 @@ REQUIREMENT: `install` (and `replace`, and `enable` where it re-checks) MUST
                  something that is not a top-level field of the `config`
                  schema (11 — Configuration);
              (h) `health` is declared with a `failureThreshold` below 1
-                 (10 — Runtime Failure and Health).
+                 (10 — Runtime Failure and Health);
+             (i) `handoff` breaks a rule of BEH-BR-345 (34 — State
+                 Handoff).
 ```
 
 The type erasure is the reason the lists exist at all: the resolver wires
@@ -268,14 +322,18 @@ type ServiceId = string // the key's identifier: `key.key` of a Context.Service
 
 ```
 REQUIREMENT: The host MUST match a required key to a provider by its
-             `ServiceId`, the key's own string identifier (`key.key`).
+             `ServiceId`, the key's own string identifier (`key.key`). For
+             a contract key the `ServiceId` ends in `@<major>`
+             (26 — Versioned Contracts, BEH-BR-225).
 ```
 
 ```
 REQUIREMENT: When a required key and the active provider's key share a
              `ServiceId` but are different key objects, the host MUST NOT
              assume their shapes agree; the activation MUST fail with
-             `KeyMismatch` as specified in 05 — Activation.
+             `KeyMismatch` as specified in 05 — Activation — except between
+             two contract references, which are compared by version and
+             method names instead (26 — Versioned Contracts, BEH-BR-229).
 ```
 
 ```
@@ -294,8 +352,8 @@ invariant.
 
 ## BEH-BR-007: A changed service shape needs a new ServiceId
 
-> **See:** [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md)
-> **Risk:** [RSK-BR-010](../gxp/03-risk-assessment.md#rsk-br-010)
+> **See:** [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md), [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md)
+> **Risk:** [RSK-BR-010](../gxp/03-risk-assessment.md#rsk-br-010), [RSK-BR-025](../gxp/03-risk-assessment.md#rsk-br-025)
 
 ```
 REQUIREMENT: Documentation MUST state that the core cannot detect a changed
@@ -305,12 +363,18 @@ REQUIREMENT: Documentation MUST state that the core cannot detect a changed
 ```
 REQUIREMENT: An author who makes a breaking change to a service SHOULD give
              it a new identifier carrying the major version (for example
-             `example/Audit@2`).
+             `example/Audit@2`). For a contract, the major in the
+             identifier is a rule, not a convention (26 — Versioned
+             Contracts, BEH-BR-225).
 ```
 
 ```
-REQUIREMENT: The core MUST NOT perform API-version checks on services. Such
-             checks belong to a distribution or loader layer outside core.
+REQUIREMENT: The core MUST NOT perform API-version checks on plain service
+             keys. For contract keys, the core matches declared versions
+             against declared ranges and compares method names
+             (26 — Versioned Contracts, BEH-BR-228); it MUST NOT compare
+             schemas or verify that an implementation follows its declared
+             version.
 ```
 
 The `KeyMismatch` check catches two *objects* with one identifier; it cannot
@@ -340,9 +404,9 @@ REQUIREMENT: A host that is not closed MUST accept a `PluginDefinition` at
 ```
 
 ```
-REQUIREMENT: The core MUST NOT fetch, verify, version or sandbox plugin
-             packages, and MUST NOT read or modify any module cache. These
-             belong to an optional loader adapter.
+REQUIREMENT: The core MUST NOT fetch, verify or sandbox plugin packages,
+             and MUST NOT read or modify any module cache. These belong to
+             an optional loader companion, `@bridger/loader`.
 ```
 
 ```
@@ -362,11 +426,18 @@ Work done at import time happens before any host exists to scope it: it runs
 once per import, is never finalised, and survives every `remove`. Keeping all
 runtime work in `build` is what makes a definition removable at all.
 
+A lazy definition's code is obtained by the `load` Effect its creator
+supplies ([27 — Manifest and Lazy
+Activation](./27-manifest-and-lazy-activation.md), BEH-BR-246); the core runs
+it and does not know where it gets its code. The loader companion
+([references/loader/](../../loader/README.md)) is specified to fetch and
+verify packages before evaluation.
+
 The core performs no integrity check on loaded code. `meta.digest` is opaque
 to it except for `reconcile`'s comparison ([18 — Reconciliation and
 Confluence](./18-reconciliation-and-confluence.md)); the core neither computes
 nor verifies it. Verifying what was loaded — signature, digest, provenance —
-is the loader adapter's and the consumer's responsibility (RSK-BR-017), and
+is the loader companion's and the consumer's responsibility (RSK-BR-017), and
 nothing in this specification should be read as Bridger performing it.
 
 ---

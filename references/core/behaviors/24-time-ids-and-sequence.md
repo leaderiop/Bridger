@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-24                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -202,6 +202,8 @@ interface HostControls {
   readonly fingerprintTimeout: Duration.Duration
   readonly idGenerator: "default" | "provided"         // whether an IdGenerator was supplied (BEH-BR-210)
   readonly auditPosition?: { readonly lastWritten: number }   // present only when an AuditSink is wired
+  readonly policy: { /* access, capability, callLog wiring and mandatory service ids — 28, BEH-BR-265 */ }
+  readonly callLog: { readonly failed: number }        // CallLog record failures (29, BEH-BR-276)
 }
 // Host.controls(): Effect.Effect<HostControls>  (02 — Host Construction, BEH-BR-013)
 ```
@@ -378,8 +380,10 @@ side of the sequence is gap-free (BEH-BR-213), so any gap it finds is the
 store's. It is not more than that: there is no hash, no signature and no link
 from one record to the next, so anyone able to edit the store can produce a
 trail that passes. Tamper evidence, where a consumer needs it, belongs to the
-store or to the companion — never to a function whose name could be read as
-promising it.
+store or to a companion — never to a function whose name could be read as
+promising it. `@bridger/audit-chain`'s `verifyChain` runs this function first
+and then checks hash links and external anchors, within the limits its own
+specification states ([references/audit-chain/](../../audit-chain/README.md)).
 
 **Settled here.** (1) A trail whose lowest number is above 1 is reported as a
 gap `{ after: 0, before: first }`; a caller verifying a window of a longer

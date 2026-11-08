@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-03                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-08): generic `install` overload takes the branded `Plugin`; `UnknownRealm` at the linearization point after a retirement (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-017 non-generic `Plugin.Any` overload (CCR-BR-020); BEH-BR-018 `IncompatibleContract`, `IncompatibleEngine` and precedence, BEH-BR-019/020 lazy definitions read from the manifest (CCR-BR-017); BEH-BR-022 `mandatory`, `allowChildren` (CCR-BR-018)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -42,12 +42,24 @@ rules are not repeated here.
 ```ts
 // illustrative — not type-checked
 install<R extends Keys, P extends Keys, E, C>(
-  plugin: PluginDefinition<R, P, E, C>,
+  plugin: Plugin<R, P, E, C>,                  // the branded value Plugin.define returns (01)
+  options?: InstallOptions
+): Effect.Effect<PluginHandle,
+  | InstallError | HostClosed
+  | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
+install(                                   // non-generic overload (01, BEH-BR-001; 27, BEH-BR-244)
+  plugin: Plugin.Any | LazyPluginDefinition,
   options?: InstallOptions
 ): Effect.Effect<PluginHandle,
   | InstallError | HostClosed
   | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
 ```
+
+The non-generic overload accepts every value of `Plugin.define` without a
+cast, for heterogeneous lists; `replace` has the same overload (BEH-BR-013).
+A `LazyPluginDefinition` is registered as `dormant` from its manifest
+([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+BEH-BR-244, BEH-BR-247).
 
 ```
 REQUIREMENT: `install` MUST record the definition when it is called and MUST
@@ -93,6 +105,9 @@ missing.
 ```ts
 // illustrative — not type-checked
 type InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | InvalidDefinition | UnknownRealm
+  | IncompatibleContract | IncompatibleEngine                         // 26, 27
+// UnknownRealm is also raised at the linearization point when the realm was retired after
+// validation (08 — Operation Legality, BEH-BR-065; 33 — Realm Families, BEH-BR-335).
 
 class DuplicatePlugin   extends Schema.TaggedError<DuplicatePlugin>()("DuplicatePlugin", { id: Schema.String }) {}
 class DuplicateProvider extends Schema.TaggedError<DuplicateProvider>()("DuplicateProvider",
@@ -109,11 +124,19 @@ REQUIREMENT: `install` MUST fail with:
              - `UnknownRealm` when `options.realm` names a realm that was
                never defined;
              - `InvalidDefinition` when the definition breaks a rule of
-               BEH-BR-003 (01 — Plugin Definition);
+               BEH-BR-003 (01 — Plugin Definition), or its manifest fails
+               to decode or disagrees with it (27 — Manifest and Lazy
+               Activation, BEH-BR-241, BEH-BR-242); manifest decoding runs
+               first within this check;
+             - `IncompatibleEngine` when the manifest's
+               `engines["@bridger/core"]` is not satisfied (BEH-BR-241);
              - `DuplicatePlugin` when the ID is already known in the realm,
                in any state (BEH-BR-005);
              - `DuplicateProvider` per BEH-BR-019;
              - `DependencyCycle` per BEH-BR-020;
+             - `IncompatibleContract` when a registered contract pair it
+               takes part in is incompatible (26 — Versioned Contracts,
+               BEH-BR-228);
              - `HostClosed` once shutdown has started.
 ```
 
@@ -128,8 +151,8 @@ REQUIREMENT: When `install` fails, the host MUST NOT register anything: no
 REQUIREMENT: When more than one check would fail, `install` MUST report the
              first in this order: `HostClosed`; the attribution and latch
              checks (22, 23); `UnknownRealm`, `InvalidDefinition`,
-             `DuplicatePlugin`, `DuplicateProvider`, `DependencyCycle`; then
-             the gate (25). The definition checks run before the gate is
+             `IncompatibleEngine`, `DuplicatePlugin`, `DuplicateProvider`,
+             `DependencyCycle`, `IncompatibleContract`; then the gate (25). The definition checks run before the gate is
              consulted and before any `requested` record is written.
 ```
 
@@ -175,7 +198,9 @@ REQUIREMENT: `install` MUST fail with `DuplicateProvider { serviceId,
              providerId }` when a key in `provides` is already provided in
              the plugin's resolution scope by the base services
              (`providerId` "base") or by an installed plugin in any state
-             other than `disabled` (`providerId` that plugin's ID).
+             other than `disabled` (`providerId` that plugin's ID). For a
+             lazy definition the keys are read from its manifest
+             (27 — Manifest and Lazy Activation, BEH-BR-242).
 ```
 
 ```
@@ -215,7 +240,9 @@ REQUIREMENT: `install` MUST fail with `DependencyCycle { path }` when adding
              the definition's `requires` and `provides` edges to the graph
              of installed, non-disabled plugins in its resolution scope
              would close a cycle. `path` MUST list the plugin IDs along the
-             cycle, beginning with the plugin being installed.
+             cycle, beginning with the plugin being installed. For a lazy
+             definition the edges are read from its manifest
+             (27 — Manifest and Lazy Activation, BEH-BR-242).
 ```
 
 ```
@@ -267,6 +294,8 @@ interface InstallOptions extends OperationOptions {
   readonly config?: unknown                           // initial override, as reconfigure would set (11)
   readonly disabled?: boolean                         // register without activating (BEH-BR-023)
   readonly intercept?: readonly Interception<any>[]   // (17)
+  readonly mandatory?: readonly MandatoryInterception<any>[]  // inherited by every descendant (28, BEH-BR-260)
+  readonly allowChildren?: boolean                    // default true; may it mount children (28, BEH-BR-263)
 }
 ```
 

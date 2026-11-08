@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-019                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-043 and ADR-BR-048 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
-
+> | Change History | 0.3 (2026-11-08): Mandatory interceptions also apply to `Host.use`, `useAll` and `lease` and compose outside ordinary ones (CCR-BR-018); an empty realm may be retired (CCR-BR-019)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -26,7 +25,7 @@ The same mechanism invites a dangerous reading. A word like "realm" or "isolate"
 
 **A realm is a named service-resolution namespace and nothing more.**
 
-- `defineRealm(id, { isolate, interceptors })` creates a realm; `DuplicateRealm` if it exists. The `"default"` realm always exists. Installing into an undefined realm fails with `UnknownRealm`. Realms live as long as the host; their plugins are removed individually.
+- `defineRealm(id, { isolate, interceptors })` creates a realm; `DuplicateRealm` if it exists. The `"default"` realm always exists. Installing into an undefined realm fails with `UnknownRealm`. Realms live as long as the host unless retired while empty ([ADR-BR-048](../decisions/048-realm-families-and-retirement.md)); their plugins are removed individually.
 - **Resolution rule.** A plugin installed in realm *R* resolves each required or optional key as follows: if the key is in *R*'s `isolate` list, only providers installed in *R* count; otherwise providers in the default realm count. Isolated keys never leak out of *R*. Base services belong to the default realm.
 - **Per-realm uniqueness.** Plugin IDs are unique per realm, and so are provider slots for isolated keys; dependency-cycle and `DuplicateProvider` checks run per resolution scope. The same definition can therefore be installed in two realms that isolate its provided keys.
 - **Addressing.** Plugin-addressed operations take a `PluginRef` (`string` for the default realm, or `{ id, realm }`); `use`, `useAll` and `lease` take a `realm` option. Snapshots record each plugin's `realm`; `HostSnapshot.realms` lists each realm's isolated keys and available service IDs.
@@ -55,11 +54,16 @@ The same mechanism invites a dangerous reading. A word like "realm" or "isolate"
 
 **Trade-off accepted**: a resolution feature that must be explained carefully, in exchange for multi-instance plugins without instance keys and without pretending to isolate anything.
 
+**Amendments (2026-11-08)**:
+
+- Mandatory interceptions ([ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)) also apply to `Host.use`, `useAll` and `lease`, and compose outside ordinary interceptions.
+- Realm families and ephemeral realms are realms; an empty realm can be retired, which decides nothing about plugins ([ADR-BR-048](../decisions/048-realm-families-and-retirement.md)).
+
 ## References
 
 - Behaviours: [17 — Realms and interception](../behaviors/17-realms-and-interception.md), [03 — Installation](../behaviors/03-installation.md), [09 — Leases](../behaviors/09-leases.md)
 - Invariants: [INV-BR-020](../invariants.md#inv-br-020-a-realm-changes-resolution-only), [INV-BR-001](../invariants.md#inv-br-001-one-provider-per-service-key-per-realm), [INV-BR-002](../invariants.md#inv-br-002-the-dependency-graph-is-acyclic-per-resolution-scope)
 - Requirements: [URS-BR-011](../urs.md#urs-br-011-run-the-same-plugin-once-per-tenant-or-database)
 - Risks: [RSK-BR-013](../gxp/03-risk-assessment.md#rsk-br-013)
-- Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-006](../decisions/006-one-instance-per-id-per-realm.md), [ADR-BR-010](../decisions/010-cordis-parity.md), [ADR-BR-027](../decisions/027-core-exclusions.md)
+- Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-006](../decisions/006-one-instance-per-id-per-realm.md), [ADR-BR-010](../decisions/010-cordis-parity.md), [ADR-BR-027](../decisions/027-core-exclusions.md), [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-048](../decisions/048-realm-families-and-retirement.md)
 - Source: `docs/SPEC.md` — "Realms and interception", "Core exclusions", "API decisions" rows 1 and 4

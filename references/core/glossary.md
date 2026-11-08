@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -147,7 +147,8 @@ records `resumes`, naming that same record, on its own terminal record.
 
 ### Legality table
 
-The table of outcomes for every pair of plugin state and operation
+The table of outcomes for every pair of plugin state — seven states,
+`dormant` included — and operation
 ([behaviour 08](./behaviors/08-operation-legality.md)).
 
 ### Sticky failure
@@ -187,6 +188,130 @@ state**). **Confluence** is the property that, once the host is idle, the
 state depends on what is installed, not on the history of operations that
 reached it — except that a past failure may differ until that plugin is acted
 on explicitly (BEH-BR-160).
+
+### Contract, contract reference
+
+A **contract** is a service key with a version (`MAJOR.MINOR.PATCH`) and a
+description of its methods in Effect Schema, made by `Contract.make`; its
+`ServiceId` ends in `@<major>`. A **contract reference** is a contract, a
+range requirement on it (`contract.range("^2.1")`) or a provision of a lower
+version of it (`Contract.at`), used in `requires`, `provides` or `optional`
+([26](./behaviors/26-versioned-contracts.md)).
+
+### Contract range, compatible pair
+
+A **range** is a set of contract versions within one major (`^`, `~` or an
+exact version). A registered dependent and its provider form a **compatible
+pair** when the provider's declared version satisfies the dependent's range
+and lists the methods the dependent's copy knows (BEH-BR-228).
+
+### Manifest
+
+A data record describing a plugin — id, version, digest, provided and
+required contracts, engines, triggers, contributions, and labels such as
+publisher, tier, requested capabilities, egress and residency. Core reads only
+the fields it needs to resolve and carries the rest unchanged
+([27](./behaviors/27-manifest-and-lazy-activation.md)).
+
+### Consent diff
+
+The pure classification, by `Manifest.consentDiff`, of how a manifest differs
+from a previous one: widened, narrowed, relabelled or unclassified. Core
+computes it and acts on none of it (BEH-BR-243).
+
+### Lazy plugin, dormant, trigger
+
+A **lazy plugin** is registered from its manifest by `Plugin.lazy` and stays
+**dormant** — slots reserved, code not loaded, nothing provided — until a
+**trigger** applies: `OnService`, `OnContribution` or `OnEvent`. Its code is
+then loaded in its first build step (BEH-BR-244–246).
+
+### `Plugin.Any`
+
+The type every plugin definition fits: the definition fields with
+`build: Layer<never, unknown, any>` and a phantom brand set only by
+`Plugin.define` (BEH-BR-001; ADR-KT-002 in the [kit companion](../kit/README.md)).
+
+## Principal, policy and annotations
+
+### Plugin principal (`CurrentPlugin`), `onBehalfOf`
+
+The identity (id, realm, version, digest, revision) of the plugin on whose
+behalf a fiber runs — the plugin itself for code the host starts for it, the
+consumer for a provider's method serving that consumer — minted by the host
+per activation and checked on every read; attribution among trusted code,
+not authentication. `onBehalfOf` is that principal recorded on the gate request and audit records of a mutating call
+made from plugin code; it is never an actor
+([28](./behaviors/28-plugin-principal-and-mandatory-policy.md)).
+
+### Mandatory interception, `allowChildren`, access policy
+
+A **mandatory interception** comes from host, realm or installation options;
+no child or operation can replace or remove it, it applies outside ordinary
+interceptions and, by default, to `Host.use`. **`allowChildren`** decides
+whether a plugin may mount children; children can narrow it, never widen it.
+The optional **`AccessPolicy`** port decides listen, emit, contribute and
+child requests (BEH-BR-260–264).
+
+### Capability policy, grant, call log, `CurrentCall`
+
+The optional **`CapabilityPolicy`** port is consulted at each capture; its
+**grant** (`Grant.all`, `Grant.of`) names the members a consumer may call,
+applied as a shallow narrowing — not a security boundary in-process. The
+optional **`CallLog`** port receives one payload-free entry per call through a
+recorded capture; core keeps nothing. **`CurrentCall`** describes the
+intercepted call in progress and is the seam for per-call tokens
+([29](./behaviors/29-capability-grants-and-call-log.md)).
+
+### Annotation, annotation key, flow
+
+A typed label in the `OperationContext` / `CurrentAnnotations` bag; its key
+declares how it combines, whether it is monotonic, and which flows (events,
+gate, policy, callLog, audit) may carry it. Core keys: `Annotation.Deadline`
+(`bridger:deadline`), `Annotation.Taint`, `Annotation.Provenance`. Labels are
+carried, never enforced by core
+([30](./behaviors/30-operation-context-annotations.md)).
+
+## Hook points, gates, realm families and handoff
+
+### Hook point, admission rule, breaker, decision record
+
+A **hook point** is a named extension point over a contribution registry
+whose contributions declare a role (veto, enrich, advisory), are admitted by
+the application's **admission rule** (`who`) over owner and labels, run in
+priority-then-id order under a per-hook timeout and a per-dispatch deadline,
+and yield a **decision record** naming the deciding contribution — returned
+and fed, never audited by core. A **breaker** is per contribution and is
+hook-level state, never plugin failure ([31](./behaviors/31-hook-points.md)).
+
+### Selector
+
+The per-call choice among the implementations contributed to one registry; no
+failover (BEH-BR-307).
+
+### Gate (`Gate<Req>`), draft, plan
+
+A **gate** answers Allow, Refuse or Defer with a **draft** carrying the
+versions it was planned against; `OperationGate` is its host instance and
+`Gate.all` composes pieces. A **plan** (`ReconcilePlan`) is the read-only
+result of `Host.plan`: what `reconcile` would do, without values;
+`reconcile(desired, { expect: plan })` applies it or nothing (`PlanStale`)
+([32](./behaviors/32-generic-gate-and-plan.md)).
+
+### Realm family, ephemeral realm, narrowed actor, realm retirement
+
+A **realm family** creates realms per key on first use and retires them when
+idle, through public operations; an **ephemeral realm** is bound to a scope.
+Neither is tenancy or separation. A **narrowed actor** (`Actor.narrow`,
+`parent/segment`) is a label conferring nothing; `Actor.isWithin` recognises
+it. **Retirement** (`Host.retireRealm`) removes only an empty realm
+([33](./behaviors/33-realm-families.md)).
+
+### State handoff
+
+Transfer of an active plugin's in-memory state from the old to the new
+definition during `replace`; a cold start is recorded when it fails
+([34](./behaviors/34-state-handoff.md)).
 
 ## Observation
 
@@ -247,6 +372,17 @@ by `Host.controls` when a sink is wired; per host, it never decreases, and it
 stays readable after the host closes, so the final high-water mark can be read
 once the writer has flushed (BEH-BR-212). `CloseReport.auditLastSeq` is the
 same number at the moment the report is produced (BEH-BR-106).
+
+### Hash chain, anchor, inclusion proof
+
+A **hash chain** is a sequence of records in which each record's link hash
+covers the record and the previous link; it uses no secret, so anyone who can
+write its store can recompute it. An **anchor** is a party outside the trail's
+store to which the chain's roots are published, which makes a recomputed chain
+detectable only against a party who cannot also rewrite the anchor store. An
+**inclusion proof** shows that a record belongs to an anchored window. Core
+computes none of these; the [`@bridger/audit-chain`](../audit-chain/README.md)
+companion specifies them, as detection only.
 
 ### Audit-degraded latch
 
@@ -316,6 +452,62 @@ In the GAMP 5 FMEA used here, **risk class** combines severity and probability;
 The verb this specification uses for the relationship between a library
 behaviour and a regulatory clause. A library supports a regulated user's
 compliance; it does not satisfy a regulation.
+
+## Companions
+
+Terms defined in the companion specifications (Drafts, CCR-BR-021); each tree
+is normative for its own terms.
+
+### Remote plugin, link, session, epoch, guest
+
+A **remote plugin** runs outside the host's process, reached through a local
+proxy plugin, the **link** (`Remote.define`), which mounts one session child
+per **session**; every frame and call token carries the session's **epoch**.
+The **guest** serves a contract with `Guest.serve`. Out of process is not
+isolated by Bridger ([remote](../remote/README.md)).
+
+### Authority, host manifest, kill entry, offline cap
+
+The **authority** issues and signs **host manifests**, the complete desired
+state of one host; a **kill entry** removes plugins at the next apply; the
+**offline cap** bounds how long a manifest counts as fresh
+([federation](../federation/README.md)).
+
+### Outbox, inbox, origin, upcaster
+
+Rows written in the caller's storage transaction for later delivery, rows the
+receiver stores once per origin, stream and sequence, the publishing node and
+its incarnation, and a pure function from one event version to the next, in the
+event delivery companion (its package name is intent, not a claim)
+([event delivery](../durable-bus/README.md)).
+
+### Package digest, signature policy, revocation set, kill switch
+
+The loader's digest over manifest, SBOM and files; the rule of pinned digests
+or N-of-M signers by role; a signed, monotonically numbered list of revoked
+digests and signers; and revocation applied as a filter on the desired list
+followed by `reconcile` ([loader](../loader/README.md)).
+
+### Entitlement, essential label, budget
+
+A mode (`full`, `grace`, `read-only`, `none`) an application states for a
+plugin, never a lifecycle state; a label no entitlement or budget helper
+refuses; a quota drawn down by reservations ([entitlement](../entitlement/README.md)).
+
+### Command, toolset, taint (agent)
+
+A named, typed request a plugin contributes a handler for; an id-ordered list
+of command descriptors offered to one principal, which grants nothing; and a
+session marked through `Annotation.Taint` once untrusted text may have reached
+the model ([command](../command/README.md), [mcp](../mcp/README.md),
+[agent](../agent/README.md)).
+
+### Facade, conformance suite, Promise SDK, inspector
+
+The kit's authoring function `definePlugin`; cases bound to one contract
+version and run with `Conformance.verify`; generated plain-TypeScript handlers
+run behind `Guest.serve`, not an isolation mechanism; a read-only devtools
+service ([kit](../kit/README.md)).
 
 ---
 

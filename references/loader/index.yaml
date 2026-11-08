@@ -1,0 +1,17 @@
+kind: root
+package: bridger-loader
+infix: LD
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-LD-00"
+    title: "Bridger Loader — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-LD-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-LD-INV"
+    title: "Runtime Invariants"
+  - file: "traceability.md"
+    id: "BRIDGER-LD-TRACE"
+    title: "Traceability"

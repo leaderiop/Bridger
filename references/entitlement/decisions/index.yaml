@@ -1,0 +1,16 @@
+kind: decisions
+package: bridger-entitlement
+infix: EN
+entries:
+  - id: "ADR-EN-001"
+    file: "001-entitlement-changes-modes-not-state.md"
+    title: "Entitlement changes a plugin's mode, never its lifecycle state"
+    status: "Proposed"
+  - id: "ADR-EN-002"
+    file: "002-runtime-stream-and-gate-only.md"
+    title: "Entitlement reaches plugins through Plugin.Runtime.entitled and host operations only through the gate"
+    status: "Proposed"
+  - id: "ADR-EN-003"
+    file: "003-budgets-are-scoped-reservations.md"
+    title: "Budgets are scoped reservations over opaque labels; exhaustion is a policy outcome"
+    status: "Proposed"

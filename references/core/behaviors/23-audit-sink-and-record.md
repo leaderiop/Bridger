@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-23                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-08): BEH-BR-197: paths of a `reconfigure` on a registration not yet loaded; BEH-BR-199: sub-scope child removal named (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-195 `trigger`, "lazy-triggered", state "dormant", failure phase "load" in BEH-BR-199 (CCR-BR-017); `onBehalfOf`, `annotations`, `annotationsOmitted`, none on system records (CCR-BR-018); "handoff" and "retireRealm", `target` of `retireRealm`, handoff records in BEH-BR-199 (CCR-BR-019); `schemaVersion` stays 1 on pre-release ground (Settled 5)<br>0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -183,6 +183,10 @@ interface AuditRecord {
   readonly droppedSinceAck?: number                // acknowledgeAuditDegraded records only (BEH-BR-202)
   readonly endsIntentOf?: string                   // intent-ended records only: recordId of the parked call's requested record (BEH-BR-199)
   readonly resumes?: string                        // terminal record of a call that resumed a parked operation only: recordId of the parked call's requested record (BEH-BR-200)
+  readonly trigger?: LazyTrigger                   // lazy-triggered records only (27, BEH-BR-248)
+  readonly onBehalfOf?: PrincipalRef               // records of calls made from plugin code only (28, BEH-BR-259)
+  readonly annotations?: readonly AnnotationEntry[] // flow "audit", encoded, sorted by key (30, BEH-BR-293)
+  readonly annotationsOmitted?: readonly string[]  // key ids only (30, BEH-BR-293)
 }
 
 interface ConfigChange {
@@ -193,7 +197,8 @@ interface ConfigChange {
 
 // SystemTransition (22 — Attributable Operations, BEH-BR-185):
 //   "system-start" | "system-stop" | "runtime-failure" | "lease-revoked"
-//   | "health-degraded" | "intent-ended"
+//   | "health-degraded" | "intent-ended" | "lazy-triggered" | "handoff"
+// PluginState in `before`/`after` may be "dormant" (27 — Manifest and Lazy Activation).
 ```
 
 ```
@@ -250,7 +255,12 @@ the third requirement above applies from the first release on. (3)
 of the version-1 shape too. (4) `configChange.fingerprints` and `definition`
 were added in revision 0.5 (CCR-BR-014) on the same pre-release ground:
 `schemaVersion` stays 1. After a release, adding such fields would require a
-new `schemaVersion` under the third requirement above.
+new `schemaVersion` under the third requirement above. (5) `trigger`, the
+`SystemTransition` value "lazy-triggered" and the state value "dormant"
+(CCR-BR-017); `onBehalfOf`, `annotations` and `annotationsOmitted`
+(CCR-BR-018); and the values "handoff" (`SystemTransition`) and
+"retireRealm" (`Operation`) (CCR-BR-019) were added in revision 0.6 on the
+same pre-release ground: `schemaVersion` stays 1.
 
 ## BEH-BR-196: What each field records
 
@@ -268,7 +278,7 @@ REQUIREMENT: `timestamp` MUST be the time, read from `Clock` when the record
 ```
 REQUIREMENT: `target` MUST be the plugin's (id, realm) for plugin-addressed
              operations and system transitions; `{ id: R, realm: R }` for
-             `defineRealm(R)`; and absent for `shutdown`,
+             `defineRealm(R)` and `retireRealm(R)`; and absent for `shutdown`,
              `acknowledgeAuditDegraded` and the parent records of
              `reconcile`.
 ```
@@ -397,7 +407,10 @@ REQUIREMENT: `configChange` MUST also be present on the `intent-ended` record
 REQUIREMENT: For `reconfigure` with a value, which is decoded at the call
              (22 — Attributable Operations, BEH-BR-188 step 4), `paths` MUST
              list the fields whose decoded value differs from the
-             configuration in effect.
+             configuration in effect. On a registration not yet loaded (27
+             — Manifest and Lazy Activation, BEH-BR-247), whose value is not
+             decoded at the call, `paths` MUST follow the rule for `install`
+             with `config` below.
 ```
 
 ```
@@ -529,12 +542,15 @@ host as well as in the trail.
 REQUIREMENT: With a sink wired, the host MUST write one record with phase
              `system`, actor `Actor.system` and no `reason`:
              - `system-start` each time an activation attempt settles — the
-               plugin became `active`, or `failed` with phase `build` or
-               `activation` — and each time a child is mounted through
-               `Plugin.Runtime.install`;
+               plugin became `active`, or `failed` with phase `load`,
+               `build` or `activation` — and each time a child is mounted
+               through `Plugin.Runtime.install`;
              - `system-stop` each time a stop settles — the plugin left
                `stopping` for `waiting`, `starting`, `disabled`, `failed` or
-               removal — including a child removed with its parent;
+               removal — including a child removed with its parent, and a
+               child removed because the sub-scope it was mounted under
+               closed (caused by its mount record, 14 — Children and
+               Groups, BEH-BR-126);
              - `runtime-failure` when a runtime failure is confirmed, before
                the dependents are stopped;
              - `lease-revoked` for each plugin whose leases the host revoked
@@ -544,7 +560,14 @@ REQUIREMENT: With a sink wired, the host MUST write one record with phase
              - `health-degraded` each time a plugin's health enters
                `degraded`; leaving `degraded` is not recorded;
              - `intent-ended` each time a parked operator intent is ended
-               (below).
+               (below);
+             - `lazy-triggered` each time a plugin leaves `dormant`
+               (27 — Manifest and Lazy Activation, BEH-BR-248);
+             - `handoff` once per attempted state handoff, with `error`
+               exactly when the state was lost (34 — State Handoff,
+               BEH-BR-350).
+             System records MUST carry neither `onBehalfOf` nor
+             `annotations` (28, BEH-BR-259; 30, BEH-BR-293).
 ```
 
 ```
@@ -835,7 +858,17 @@ operator calls wait for their own records, and a record left unwritten for
 `auditTimeout` sets the latch (BEH-BR-205), after which operator mutations
 are refused and only system transitions add records.
 
-**Settled here.** (1) A failed write is retried in place, never skipped, so
+**Settled here.** (0) Retrying in place has a cost that is stated, not
+hidden: while a write keeps failing, every later record — system records
+included — waits behind it, and once the queue is full later records are
+dropped (counted, unnumbered). The latch stops operator changes, not system
+transitions, so "system transitions are still recorded" holds only once the
+sink accepts the record it is refusing. A sink that refuses a record for a
+reason that can never clear stops recording until the host is restarted
+([RSK-BR-020](../gxp/03-risk-assessment.md#rsk-br-020)); a sink or companion
+that wants to refuse operator changes on a condition of its own should use a
+gate piece reading its status (32 — Generic Gate and Plan) and keep
+accepting records. (1) A failed write is retried in place, never skipped, so
 that a number is never reused by a different record. (2) The retry spacing
 and the queue capacity (1024) are fixed here. (3) A record dropped for
 overflow is never numbered, so its loss is **not** visible as a gap in

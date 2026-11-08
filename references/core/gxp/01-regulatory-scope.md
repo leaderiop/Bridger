@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-01                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.3 (2026-10-03): Companion entries point to the Draft companion specification in references/gxp/ (gap G8 closed) (CCR-BR-015)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-08): Links into references/gxp/ turned into plain-text citations; the companion Draft is recorded as not present in this repository (gap G35) (CCR-BR-016)<br>0.3 (2026-10-03): Companion entries point to the Draft companion specification in references/gxp/ (gap G8 closed) (CCR-BR-015)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -74,7 +74,7 @@ GAMP 5 distinguishes the **supplier**, who develops and maintains a product unde
 | Role | Who | Responsible for |
 | ---- | --- | --------------- |
 | Supplier — core | Bridger maintainers (`@bridger/core`) | The specification, its change control ([PROC-03](../process/change-control.md)), the behaviours and invariants, the planned automated test suite, honest documentation of limits |
-| Supplier — companion | Bridger maintainers (`@bridger/gxp`, specified as a Draft in [references/gxp/](../../gxp/README.md)) | A trail adapter contract with conformance tests, approval and e-signature capture through the gate seam, IQ/OQ evidence generated from executed tests ([ADR-BR-034](../decisions/034-gxp-companion-scope.md)) |
+| Supplier — companion | Bridger maintainers (`@bridger/gxp`, specified as a Draft in `references/gxp/`, not present in this repository; [URS](../urs.md#7-known-gaps-and-open-items) gap G35) | A trail adapter contract with conformance tests, approval and e-signature capture through the gate seam, IQ/OQ evidence generated from executed tests ([ADR-BR-034](../decisions/034-gxp-companion-scope.md)) |
 | Regulated user | The organisation operating the computerized system | Intended use, system categorization, risk assessment of the system, supplier assessment, authentication and identity binding, audit storage, retention, review and archiving, clock synchronisation, IQ/OQ/PQ of the system, procedures, training, periodic review, security of the process |
 
 Supplier documentation and testing may reduce the regulated user's effort; GAMP 5 and the FDA's CSA guidance both encourage leveraging them where they are adequate for the risk. They never transfer the regulated user's accountability. The supplier side currently has one maintainer and no independent reviewer ([change control](../process/change-control.md) §5); a regulated user must weigh that in supplier assessment ([validation plan](./04-validation-plan.md) §10).
@@ -116,7 +116,7 @@ The compliance matrix allocates each clause to one or more of:
 | Allocation | Meaning |
 | ---------- | ------- |
 | Core | `@bridger/core` has a specified behaviour that supports the clause. The behaviour is unverified until its tests have run. |
-| Companion | `@bridger/gxp` is intended to support the clause. The companion is specified only as a Draft in [references/gxp/](../../gxp/README.md) (CCR-GX-001; [URS](../urs.md#7-known-gaps-and-open-items) gap G8 closed by CCR-BR-015), not approved and not implemented; nothing allocated to it may be relied on yet. |
+| Companion | `@bridger/gxp` is intended to support the clause. The companion is specified only as a Draft in `references/gxp/` (CCR-GX-001; [URS](../urs.md#7-known-gaps-and-open-items) gap G8 closed by CCR-BR-015), not approved and not implemented, and that Draft is not present in this repository (gap G35); nothing allocated to it may be relied on yet. |
 | Consumer | The regulated user's system, infrastructure or procedures must meet the clause. |
 | N/A | The clause does not apply to anything Bridger or its companion does. |
 
@@ -128,7 +128,7 @@ A combination (for example `Core + Consumer`) means each named party carries par
 | - | ---- | ------ |
 | 1 | No implementation; no evidence | Open by design of this phase ([ADR-BR-036](../decisions/036-prospective-specification.md)) |
 | 2 | Annex 11 2025 draft revision | Tracked; re-assessment under a CCR when the final text is published |
-| 3 | `@bridger/gxp` companion | Specified as a Draft in [references/gxp/](../../gxp/README.md) (CCR-GX-001), not approved, not implemented; every Companion allocation is a plan, not a capability |
+| 3 | `@bridger/gxp` companion | Specified as a Draft in `references/gxp/` (CCR-GX-001), not approved, not implemented, and not present in this repository ([URS](../urs.md#7-known-gaps-and-open-items) gap G35); every Companion allocation is a plan, not a capability |
 | 4 | Independent review of this specification | Not available (single maintainer); see [change control](../process/change-control.md) §5 and [URS](../urs.md#7-known-gaps-and-open-items) gap G7 |
 
 ---

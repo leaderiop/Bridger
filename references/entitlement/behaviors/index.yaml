@@ -1,0 +1,16 @@
+kind: behaviors
+package: bridger-entitlement
+infix: EN
+entries:
+  - file: "01-entitlement-port.md"
+    id: "BRIDGER-EN-BEH-01"
+    title: "Entitlement port"
+    range: "BEH-EN-001..008"
+  - file: "02-gate-and-runtime.md"
+    id: "BRIDGER-EN-BEH-02"
+    title: "Gate and runtime"
+    range: "BEH-EN-009..016"
+  - file: "03-budgets.md"
+    id: "BRIDGER-EN-BEH-03"
+    title: "Budgets"
+    range: "BEH-EN-017..024"

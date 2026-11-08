@@ -5,15 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-011                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-040 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
-
+> | Change History | 0.2 (2026-11-08): Object check replaced by version and method-name checks between contract keys; the no-runtime-description premise holds for plain keys only (CCR-BR-017)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -29,6 +28,7 @@ Shapes cannot be compared at runtime: types are erased and a `Context.Service` c
 - **Resolution is by `ServiceId`.** The host matches requirements to providers by `ServiceId`, the key's own string identifier (`key.key`). Snapshots, events, errors and audit records hold `ServiceId`s, never keys.
 - **Identity is then checked by object.** If a plugin's `requires` key and the active provider's key share a `ServiceId` but are different key objects, the dependent's activation fails with phase `activation` and the cause `KeyMismatch { serviceId }`. Bridger does not guess that the shapes agree.
 - **Shape changes are a naming convention, not a check.** The core cannot detect a changed service shape under an unchanged `ServiceId`. By convention a breaking change gets a new identifier carrying the major version (`example/Audit@2`). API-version checks at the manifest level belong to the distribution layer (SPEC.md refers to ERP-DISTRIBUTION.md), not to the core.
+- **Contracts (amended by [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md)).** For contract keys — keys that carry a version and a Schema description of their methods — the major is part of the `ServiceId` by rule, and two contract references with one `ServiceId` are compared by declared version range and method names instead of by object. The "no runtime description" premise above holds for plain keys only; plain keys keep every rule of this decision.
 
 ## Alternatives considered
 
@@ -57,5 +57,5 @@ Shapes cannot be compared at runtime: types are erased and a `Context.Service` c
 - Invariants: [INV-BR-015](../invariants.md#inv-br-015-key-identity-is-checked-by-identifier-and-by-object)
 - Requirements: [URS-BR-020](../urs.md#urs-br-020-load-plugin-definitions-dynamically-while-running)
 - Risks: [RSK-BR-010](../gxp/03-risk-assessment.md#rsk-br-010), [RSK-BR-017](../gxp/03-risk-assessment.md#rsk-br-017)
-- Decisions: [ADR-BR-002](../decisions/002-plugin-build-is-a-layer.md), [ADR-BR-008](../decisions/008-error-taxonomy.md)
+- Decisions: [ADR-BR-002](../decisions/002-plugin-build-is-a-layer.md), [ADR-BR-008](../decisions/008-error-taxonomy.md), [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md)
 - Source: `docs/SPEC.md` — "Plugin definition" (Key identity and versioning), "Dynamic code loading", "Host interface" (`ServiceId` paragraph)
