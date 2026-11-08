@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): Handler run as a served call with `CallerContext.serve`; `title`, `jsonSchema`, `externalAnnotations` on spec, descriptor and digest; `Annotations` type (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.5 (2026-11-08): BEH-CM-006: the taint floor reads `readOnly` (exemption of declared reads, BEH-CM-016), and a batch reads `readOnly` and `long` (round-2 agent review A-05, A-09) (CCR-CM-003)<br>0.4 (2026-11-08): Id grammar admits mixed case and `_`, tag grammar `.` and `:`; typed metadata `permission`, `compensatedBy`, `costClass`, `readOnly`, `long` and `untrusted` output paths, all digested (BEH-CM-006); `HandlerContext` gains `idempotencyKey`, `enrichments` and `progress` (CCR-CM-003, round 2: recheck items 1, 2, 3, 7, 8)<br>0.3 (2026-11-08): Handler run as a served call with `CallerContext.serve`; `title`, `jsonSchema`, `externalAnnotations` on spec, descriptor and digest; `Annotations` type (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -20,7 +20,7 @@ A command is the unit of the catalog: a named, typed request that some plugin
 knows how to carry out. This file specifies the command value, the labels it
 carries, how a plugin contributes a handler for it, what the catalog exposes
 and how a definition is identified. This file owns BEH-CM-001–008 and uses
-BEH-CM-001–005; 006–008 are reserved.
+BEH-CM-001–006; 007–008 are reserved.
 
 Planned source: `packages/command/src/Command.ts`,
 `packages/command/src/CommandCatalog.ts` *(Planned)*.
@@ -45,13 +45,21 @@ interface CommandSpec<I, IE, O, OE, E, EE> {
   readonly contract?: { readonly name: string; readonly version: string }  // when the command belongs to a Contract (core file 26)
   // A ready-made JSON Schema used instead of projection (04, BEH-CM-029); for commands whose codec
   // cannot describe itself, such as a tool imported from another protocol.
-  readonly jsonSchema?: { readonly input: JsonSchema; readonly output: JsonSchema; readonly error?: JsonSchema }
+  readonly jsonSchema?: { readonly input: JsonSchema; readonly output: JsonSchema; readonly error?: JsonSchema
+                                readonly untrusted?: boolean }   // true: the whole output is untrusted (BEH-CM-030)
   // Data some other party said about the command (for example an imported MCP tool's annotations).
   // Carried on the descriptor and digested; never read by the package (BEH-CM-002).
   readonly externalAnnotations?: Json
+  // Typed metadata (BEH-CM-006): carried and digested, read by the application's gate,
+  // selectors and wrappers, never by dispatch except `long`.
+  readonly permission?: string                  // e.g. "stock:write"; the application's vocabulary
+  readonly compensatedBy?: string               // the id of the command that undoes this one (07, BEH-CM-050)
+  readonly costClass?: string                   // e.g. "free", "metered"; the application's vocabulary
+  readonly readOnly?: boolean                   // default false; the author's declaration, not enforced
+  readonly long?: boolean                       // default false; true: run as a task (07, BEH-CM-052)
 }
 
-interface Command<I, O, E> {
+interface Command<I, O, E, Long extends boolean = false> {   // Long: spec.long (07, BEH-CM-052)
   readonly _tag: "Command"
   readonly id: string
   readonly spec: CommandSpec<I, unknown, O, unknown, E, unknown>
@@ -69,15 +77,21 @@ REQUIREMENT: `Command.make` MUST be pure: it MUST NOT register anything,
 ```
 
 ```
-REQUIREMENT: The id MUST match /^[a-z][a-z0-9-]*(\.[a-z0-9-]+)*$/ and be at
-             most 64 characters long. Any other id MUST be rejected by
-             `Command.make` as a defect.
+REQUIREMENT: The id MUST match /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*$/
+             and be at most 64 characters long (for example
+             `catalog.rename-item` or `smart-buy.generateBasket`). Any other
+             id MUST be rejected by `Command.make` as a defect. Ids are
+             compared by code unit; `contribute` MUST refuse, with
+             `DuplicateContribution`, an id that equals a registered id
+             when ASCII case is ignored.
 ```
 
 ```
 REQUIREMENT: `tags` MUST be stored deduplicated and sorted by code unit;
-             each tag MUST match /^[a-z][a-z0-9-]{0,31}$/, and an invalid tag
-             MUST be rejected as a defect. `regulated` MUST default to false.
+             each tag MUST match /^[a-z][a-z0-9-]*([.:][a-z0-9-]+)*$/ and be
+             at most 64 characters long (for example `write` or
+             `stock:write`), and an invalid tag MUST be rejected as a
+             defect. `regulated` MUST default to false.
 ```
 
 ```
@@ -90,8 +104,13 @@ REQUIREMENT: When `contract` is present, it MUST name a contract and version
 
 The id grammar is chosen so that the id can be used unchanged as a tool name
 by every protocol in view: MCP tool names allow letters, digits, `_`, `-` and
-`.`, and a dotted lower-case id stays readable in logs and in an approval
-screen. Tags are normalised so that a descriptor's digest does not depend on
+`.`, and nothing else, which is why `:` is admitted in tags but not in ids.
+Mixed case is admitted because existing command vocabularies use it
+(`smart-buy.generateBasket`); refusing two ids that differ only in case keeps
+an approval screen and a log from showing two commands a reader cannot tell
+apart. Tags take `.` and `:` so that a vocabulary of the form
+`resource:action` (`stock:write`) is a tag, and hook contributions can target
+a tag prefix (02, BEH-CM-012). Tags are normalised so that a descriptor's digest does not depend on
 the order a developer happened to write them in.
 
 **Settled here.** (1) The default timeout is 30 seconds, as for core leases'
@@ -99,8 +118,9 @@ drains, because a dispatch with no bound would hold a contribution lease
 without end. (2) `error` is optional; a handler with no `error` schema may
 fail only with dispatch errors, and any other failure is reported as a defect.
 
-**Open.** Whether a command may declare a stream output (progress events) is
-open; the first version allows a single output only.
+**Open.** Whether a command may declare a stream output is open; the first
+version allows a single output only. Progress of a long command is reported
+on its task, not as output (07, BEH-CM-053).
 
 ## BEH-CM-002: Tags and the regulated label are carried, not interpreted
 
@@ -149,8 +169,14 @@ type Handler<I, O, E, R> = (input: I, context: HandlerContext) => Effect.Effect<
 interface HandlerContext {
   readonly actor: Actor                         // the dispatch's resolved actor (core file 22)
   readonly onBehalfOf?: PrincipalRef            // the dispatching fiber's plugin principal (core file 28, BEH-BR-258), when it has one
-  readonly correlationId: string
+  readonly correlationId: string                // also the fiber's CurrentCorrelation (core BEH-BR-187)
   readonly annotations: Annotations             // core file 30 (BEH-BR-289), read-only here
+  readonly idempotencyKey?: string              // DispatchOptions.idempotencyKey (06, BEH-CM-041)
+  // Values of the before-hooks' enrich phase, under each contributor's id, in view order
+  // (02, BEH-CM-012; core BEH-BR-301); never merged into `input`.
+  readonly enrichments: ReadonlyArray<{ readonly id: string; readonly value: unknown }>
+  // Long commands only (07, BEH-CM-053); a no-op for other commands.
+  readonly progress: (report: { readonly done?: number; readonly total?: number; readonly note?: string }) => Effect.Effect<void>
 }
 
 declare const Command: {
@@ -185,7 +211,9 @@ REQUIREMENT: The handler's requirements `R` MUST be captured from the
              run the handler with that captured context, not the
              dispatcher's, and MUST run it as a *served call* of core
              BEH-BR-292: inside `CallerContext.serve(ctx)`, where `ctx` is
-             the dispatch's resolved actor and annotations (BEH-CM-010) —
+             the dispatch's resolved actor, annotations and `correlationId`
+             (BEH-CM-010), so that the handler's fiber carries that
+             correlation as core's `CurrentCorrelation` (BEH-BR-187) —
              `CallerContext.current` read in the dispatching fiber, with
              the actor and annotations of `options.context` applied as
              BEH-CM-010 resolves them. The plugin principal MUST stay the
@@ -220,7 +248,11 @@ cannot be projected: a command that cannot be described cannot be offered,
 and discovering that only when a toolset is built would make the failure
 appear far from its cause. (2) Access rules — which plugins may contribute
 commands at all, or under which id prefixes — are [core file 28](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md)'s registry
-rules, configured by the application; this package defines none.
+rules, configured by the application; this package defines none. (3) The
+catalog's private registry is made without a contract (core BEH-BR-233): a
+command handler is not an implementation of a versioned contract, so no
+`implements` is stated and no `IncompatibleContract` can arise from it;
+`spec.contract` is a label carried for the gate (BEH-CM-001).
 
 ## BEH-CM-004: The catalog exposes descriptors, never handlers
 
@@ -243,6 +275,12 @@ interface CommandDescriptor {
   readonly contract?: { readonly name: string; readonly version: string }
   readonly owner?: { readonly pluginId: string; readonly realm: string }
   readonly externalAnnotations?: Json                 // carried as data, never interpreted
+  readonly permission?: string                        // BEH-CM-006
+  readonly compensatedBy?: string                     // BEH-CM-006
+  readonly costClass?: string                         // BEH-CM-006
+  readonly readOnly: boolean                          // BEH-CM-006
+  readonly long: boolean                              // BEH-CM-006
+  readonly untrustedOutput: ReadonlyArray<string>     // output paths marked untrusted (04, BEH-CM-030); sorted
   readonly digest: string                             // BEH-CM-005
 }
 
@@ -302,8 +340,11 @@ only on ids is the order a toolset and an MCP listing need (BEH-CM-020).
 REQUIREMENT: `CommandDescriptor.digest` MUST be "sha256:" followed by the
              lower-case hexadecimal SHA-256 of the RFC 8785 (JCS) canonical
              JSON of { id, title, description, tags, regulated, inputSchema,
-             outputSchema, errorSchema, contract, externalAnnotations },
-             absent members omitted. `owner` MUST NOT enter the digest.
+             outputSchema, errorSchema, contract, externalAnnotations,
+             permission, compensatedBy, costClass, readOnly, long,
+             untrustedOutput }, absent members omitted (`readOnly` and
+             `long` present only when true, `untrustedOutput` only when
+             non-empty). `owner` MUST NOT enter the digest.
 ```
 
 ```
@@ -332,6 +373,84 @@ TypeScript package and, later, a generated SDK — compute the same digest.
 well as to the description is open; the first version binds to the
 description only, and a gate that needs the plugin version reads
 `CommandRequest.owner`.
+
+## BEH-CM-006: Typed metadata is carried, digested and read by the application
+
+> **Invariant:** [INV-CM-004](../invariants.md#inv-cm-004-projection-and-digest-are-deterministic)
+> **See:** [ADR-CM-002](../decisions/002-catalog-not-rules.md), [ADR-CM-007](../decisions/007-batches-are-admitted-whole-and-undone-by-compensation.md)
+> **Core seam:** [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md), [31 — Hook points](../../core/behaviors/31-hook-points.md)
+
+```ts
+// illustrative — not type-checked
+const AdjustStock = Command.make("stock.adjust", {
+  input: AdjustInput, output: AdjustOutput,
+  tags: ["stock", "stock:write"],
+  permission: "stock:write",          // read by the application's gate
+  compensatedBy: "stock.adjust-undo", // run by a batch rollback (07, BEH-CM-050)
+  costClass: "free"
+})
+const SearchItems = Command.make("catalog.search", { input: SearchInput, output: SearchOutput, readOnly: true })
+```
+
+```
+REQUIREMENT: `permission` and `costClass`, when present, MUST match the tag
+             grammar of BEH-CM-001; `compensatedBy`, when present, MUST
+             match the id grammar and MUST differ from the command's own
+             id. Any other value MUST be rejected by `Command.make` as a
+             defect. `readOnly` and `long` MUST default to false.
+```
+
+```
+REQUIREMENT: The package MUST carry `permission`, `compensatedBy`,
+             `costClass`, `readOnly` and `long` verbatim on the descriptor
+             (BEH-CM-004), in the digest (BEH-CM-005), on every
+             `CommandRequest` (02, BEH-CM-011) and in the target descriptor
+             of the command hook points (02, BEH-CM-012).
+```
+
+```
+REQUIREMENT: The package MUST NOT read `permission` or `costClass` to
+             decide anything. It MUST read `readOnly` only for the taint
+             floor's exemption (02, BEH-CM-016) and to skip the undo of a
+             batch item that changed nothing (07, BEH-CM-050); it MUST read
+             `compensatedBy` only to plan and run a batch's undo (07,
+             BEH-CM-050), and `long` only to choose the task path (07,
+             BEH-CM-052) and to refuse a long item in a batch (07,
+             BEH-CM-049). `contribute`
+             MUST NOT check that the command named by `compensatedBy`
+             exists: it may be contributed later or by another plugin.
+```
+
+```
+REQUIREMENT: The package MUST NOT describe `readOnly` as enforced. It is the
+             command author's declaration that the handler changes no state;
+             consumers that rely on it (the taint floor's exemption, an
+             MCP `readOnlyHint`, an MCP resource, BEH-MC-007) MUST state
+             that it is a declaration.
+```
+
+These five fields are the metadata every product with a command bus ends up
+inventing as free tags, and then parsing: who may run the command, how it is
+undone, what it costs, whether it reads only, whether it runs long. Typing
+them makes them part of the definition — digested, so an approval given for
+"stock:write" is stale for a definition that now says "stock:admin" — while
+the rules that read them stay the application's
+([ADR-CM-002](../decisions/002-catalog-not-rules.md)).
+
+**Settled here.** (1) `permission` is one string, not a list: a command that
+needs several permissions names a composite one, which the gate expands.
+(2) `compensatedBy` names a command, not a function, so that it can be
+digested, shown to an approver and dispatched through the same path as any
+command. (3) `long` changes how dispatch delivers the outcome, never the
+gate, hooks or taint floor (07, BEH-CM-052); it is the second built-in
+consequence of a field, after `regulated` in the default selector.
+(4) `readOnly` has one built-in consequence for safety: the taint floor
+lets a declared read through on the gate's decision (02, BEH-CM-016).
+Because that consequence rests on the declaration, a wrong declaration is a
+defect of the command with a safety effect, and is reviewed as such.
+
+**Open.** Whether `costClass` should be a structured value (a unit and an
+amount) for the entitlement companion's budgets; v0.1 carries a label.
 
 ---
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-05                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-08): BEH-BR-033 a wired `RefusalList` is consulted before a plugin enters `starting`, and a refused start lands in `disabled` (CCR-BR-026)<br>0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -84,6 +84,16 @@ REQUIREMENT: Keys in `optional` MUST NOT gate activation
              (15 — Optional and Reactive Dependencies).
 ```
 
+```
+REQUIREMENT: When a `RefusalList` is wired, every move of a plugin into
+             `starting` — the move above included — MUST first consult it
+             for a definition that declares a digest. A refused plugin MUST
+             NOT enter `starting`, MUST NOT take a build slot and MUST NOT
+             have its code loaded or built; it MUST move to `disabled` with
+             reason "refused-digest" in the same revision (28 — Plugin
+             Principal and Mandatory Policy, BEH-BR-267).
+```
+
 A provider that is `starting` does not count: its services are not published
 until its build succeeds (BEH-BR-037), and a dependent that built against it
 earlier would capture nothing. This is what lets an application install
@@ -91,7 +101,9 @@ plugins in any order — the host, not the caller, orders provider before
 dependent.
 
 A dependent that lost its provider waits and starts again by itself when the
-provider returns, because nothing went wrong with the dependent. A plugin that
+provider returns, because nothing went wrong with the dependent — unless its
+digest has been refused meanwhile, in which case it is held in `disabled`
+rather than started (CCR-BR-026). A plugin that
 *failed* does not: failure is sticky
 ([INV-BR-007](../invariants.md#inv-br-007-failure-is-sticky)).
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `remaining` in the `call` frame, the deadline never sent as an annotation; wire annotations and claims of a call (BEH-RM-024); `Refused` exits mapped to errors, `MethodNotServed`; `welcome.maxInFlight` (R3-10, R3-15, R3-01) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F20) — `InProgress` exits keep the call in flight; a deadline reached after one is `RemoteTimeout` with outcome "unknown" (CCR-RM-003)<br>0.4 (2026-11-08): round 2: alignment with CORE-DECISIONS-2 — method timeouts read from `ContractDescriptor.timeouts` (`MethodSpec.timeout`, core G48 closed); the per-method option may only shorten them; both serving ends enforce the descriptor value; claims carry `onBehalfOf` as `PrincipalRef.encode`, `org` and `correlationId` (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `remaining` in the `call` frame, the deadline never sent as an annotation; wire annotations and claims of a call (BEH-RM-024); `Refused` exits mapped to errors, `MethodNotServed`; `welcome.maxInFlight` (R3-10, R3-15, R3-01) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -35,18 +35,33 @@ Planned source: `packages/remote/src/Call.ts`, `packages/remote/src/Face.ts`
 
 ```ts
 // illustrative — not type-checked
-// per method, in RemoteOptions (a timeout in the contract descriptor is core URS gap G48)
+// the method's timeout comes from the contract: MethodSpec.timeout, published as
+// ContractDescriptor.timeouts: { method, millis }[] (core BEH-BR-225, BEH-BR-234; core gap G48 closed)
 type CallTimeout = Duration.Input           // "forever" is not assignable
-// effective deadline = now + min(method timeout, options.callTimeout ?? 30 seconds)
+// RemoteOptions.methodTimeouts?: Record<method, CallTimeout> — may only shorten the contract's value
+// effective deadline = now + min(descriptor timeout, methodTimeouts[method], options.callTimeout ?? 30 seconds)
 //                     bounded further by the OperationContext deadline annotation (core behaviour 30, BEH-BR-291)
 ```
 
 ```
 REQUIREMENT: Every host-to-guest call MUST have a deadline equal to the
-             current `Clock` time plus the smallest of the method's timeout,
-             the link's `callTimeout` (default 30 seconds) and the remaining
-             time of the deadline annotation on the caller's
-             `OperationContext`, when one is present.
+             current `Clock` time plus the smallest of: the method's entry in
+             the contract's `ContractDescriptor.timeouts`, when the contract
+             declares one (core BEH-BR-234); the link's
+             `methodTimeouts[method]`, when given; the link's `callTimeout`
+             (default 30 seconds); and the remaining time of the deadline
+             annotation on the caller's `OperationContext`, when one is
+             present. A `methodTimeouts` value longer than the descriptor's
+             MUST be treated as the descriptor's (it can shorten, never
+             lengthen) and logged once at warning level.
+```
+
+```
+REQUIREMENT: The guest end (`Guest.serve`) and the host serving end
+             (`Remote.serve`) MUST read the same `descriptor.timeouts` and
+             MUST interrupt a handler at the smaller of the received
+             `remaining` and the descriptor's value for that method. Core
+             never enforces a contract timeout; this package does.
 ```
 
 ```
@@ -184,6 +199,17 @@ REQUIREMENT: A `Refused` exit MUST fail the call, with `outcome:
              the session (04 — Heartbeat and Partition, BEH-RM-025).
 ```
 
+```
+REQUIREMENT: An `InProgress` exit is not an answer: it says that this copy
+             of the call did not run because another copy with the same
+             `callId` is running (09, BEH-RM-067). The link MUST keep the
+             call in flight and wait for a `result` until the call's
+             deadline; a call that reaches its deadline after an
+             `InProgress` MUST fail with `RemoteTimeout` and `outcome:
+             "unknown"`, never "not-executed". An `InProgress` MUST NOT be
+             offered to the `CallLog` as a refusal.
+```
+
 `outcome` is the one field a caller needs to decide what to do next: a
 "not-executed" call is safe to try again, an "unknown" call is not without an
 idempotency key, and an "executed" failure is the guest's answer.
@@ -285,9 +311,12 @@ REQUIREMENT: Every `call` frame MUST carry, in `annotations`, the caller's
 
 ```
 REQUIREMENT: Every `call` frame MUST carry, in `claims`, a copy of the
-             token's public claims (actor, `onBehalfOf` as a string,
+             token's public claims (actor, `onBehalfOf` encoded with core
+             `PrincipalRef.encode` (BEH-BR-280), `org`, `correlationId`,
              link `pluginId`, realm, link `meta.version`, agreed contract
-             version). The copy MUST NOT carry the `TokenRef`, the grant
+             version). A receiver MUST read `onBehalfOf` with
+             `PrincipalRef.decode` and treat a string it cannot decode as
+             absent, logging it. The copy MUST NOT carry the `TokenRef`, the grant
              digest or the token's `tokenId`, and MUST be documented as a
              description that grants nothing: what a guest presents to call
              back is the `TokenRef` alone (06).

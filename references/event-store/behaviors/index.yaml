@@ -1,0 +1,24 @@
+kind: behaviors
+package: bridger-event-store
+infix: ES
+entries:
+  - file: "01-streams-and-append.md"
+    id: "BRIDGER-ES-BEH-01"
+    title: "Streams and append"
+    range: "BEH-ES-001..008"
+  - file: "02-decide-and-evolve.md"
+    id: "BRIDGER-ES-BEH-02"
+    title: "Decide and evolve"
+    range: "BEH-ES-009..016"
+  - file: "03-projections-and-snapshots.md"
+    id: "BRIDGER-ES-BEH-03"
+    title: "Projections and snapshots"
+    range: "BEH-ES-017..024"
+  - file: "04-versions-publication-and-chaining.md"
+    id: "BRIDGER-ES-BEH-04"
+    title: "Versions, publication and chaining"
+    range: "BEH-ES-025..032"
+  - file: "05-storage-port-and-acceptance.md"
+    id: "BRIDGER-ES-BEH-05"
+    title: "Storage port and acceptance"
+    range: "BEH-ES-033..040"

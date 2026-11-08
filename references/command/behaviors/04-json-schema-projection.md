@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-04                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-CM-029 supplied JSON Schema replaces the projection (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.4 (2026-11-08): BEH-CM-030 untrusted output fields, the model-facing envelope and its size cap; the typed metadata stays out of the schema (BEH-CM-028) (CCR-CM-003, round 2: recheck items 3, 8)<br>0.3 (2026-11-08): BEH-CM-029 supplied JSON Schema replaces the projection (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -20,7 +20,7 @@ A command described with Effect Schema is typed for TypeScript callers. A
 model, an MCP client or a form generator needs the same description as JSON
 Schema. This file fixes the projection: which side of a codec is projected,
 which dialect, what is refused and how the output is made byte-stable. This
-file owns BEH-CM-025–032 and uses BEH-CM-025–029; 030–032 are reserved.
+file owns BEH-CM-025–032 and uses BEH-CM-025–030; 031–032 are reserved.
 
 Planned source: `packages/command/src/JsonSchema.ts` *(Planned)*. The
 generator is Effect Schema's own JSON Schema output (Effect v4 knowledge base,
@@ -151,8 +151,9 @@ REQUIREMENT: The Schema annotations `title`, `description`, `examples` and
 ```
 
 ```
-REQUIREMENT: `tags`, `regulated`, `owner` and `contract` MUST appear on the
-             descriptor only. They MUST NOT be written into the JSON Schema
+REQUIREMENT: `tags`, `regulated`, `owner`, `contract`, the typed metadata of
+             BEH-CM-006 and the untrusted output paths of BEH-CM-030 MUST
+             appear on the descriptor only. They MUST NOT be written into the JSON Schema
              documents, not even as "x-" extension keywords.
 ```
 
@@ -221,6 +222,99 @@ wrote. A consumer that imports such schemas converts them itself or excludes
 the command (`@bridger/mcp`, [client import](../../mcp/behaviors/03-client-import.md)).
 (2) The supplied documents enter the digest exactly as projected ones do, so
 a change to them is a new definition (BEH-CM-019).
+
+## BEH-CM-030: Untrusted output fields, and the envelope a model reads them in
+
+> **Invariant:** [INV-CM-004](../invariants.md#inv-cm-004-projection-and-digest-are-deterministic)
+> **See:** [ADR-CM-002](../decisions/002-catalog-not-rules.md), [ADR-CM-004](../decisions/004-json-schema-from-encoded-side.md)
+> **Core seam:** [30 — Operation context annotations](../../core/behaviors/30-operation-context-annotations.md)
+
+```ts
+// illustrative — not type-checked
+// A Schema annotation: this field's value came from a party the command's author does not vouch for
+// (a supplier's product text, an e-mail body, a remote tool's answer).
+const ItemView = Schema.Struct({
+  itemId: Schema.String,
+  supplierNote: Schema.String.annotations({ [Command.Untrusted]: true }),
+  reviews: Schema.Array(Schema.Struct({ text: Schema.String.annotations({ [Command.Untrusted]: true }) }))
+})
+// descriptor.untrustedOutput = ["/reviews/*/text", "/supplierNote"]
+
+interface ModelEnvelope {
+  readonly command: string
+  readonly data: Json                                  // the encoded output; each untrusted value replaced by { "$untrusted": n }
+  readonly untrusted: ReadonlyArray<{ readonly n: number; readonly path: string; readonly text: string; readonly truncated: boolean }>
+  readonly truncated: boolean                          // true when any value or the whole envelope was cut to `maxBytes`
+}
+declare const Command: {
+  readonly Untrusted: symbol                           // the annotation key
+  envelope(descriptor: CommandDescriptor, encodedOutput: Json, options?: { readonly maxBytes?: number }): ModelEnvelope   // pure
+}
+```
+
+```
+REQUIREMENT: At `contribute`, the package MUST compute
+             `descriptor.untrustedOutput`: the JSON Pointer (RFC 6901) of
+             every location of the encoded output whose schema carries the
+             `Command.Untrusted` annotation, with the segment "*" standing
+             for every element of an array or every value of a record,
+             sorted by code unit and deduplicated. For a command with a
+             supplied output document (BEH-CM-029) it MUST be the root
+             pointer "" when the spec says so (`jsonSchema.untrusted: true`)
+             and empty otherwise. The paths MUST enter the digest
+             (BEH-CM-005) and MUST NOT be written into the JSON Schema
+             documents (BEH-CM-028).
+```
+
+```
+REQUIREMENT: `Command.envelope` MUST be pure and deterministic. It MUST
+             replace each value found at an untrusted path, in document
+             order, by `{ "$untrusted": n }` with `n` counting from 1, and
+             list the value in `untrusted` with its concrete pointer and its
+             text: a string as is, any other value as its RFC 8785 canonical
+             JSON. Values outside the untrusted paths MUST be left as they
+             are.
+```
+
+```
+REQUIREMENT: `maxBytes` (default 32768, an integer ≥ 1024) MUST bound the
+             UTF-8 length of the canonical JSON of the whole envelope.
+             When the bound would be exceeded, the package MUST shorten
+             untrusted texts first, longest first, then truncate `data` by
+             replacing array tails and record values with
+             `{ "$truncated": true }` in reverse document order, and MUST
+             set `truncated` and each affected entry's `truncated` flag. It
+             MUST NOT cut inside a UTF-16 surrogate pair.
+```
+
+```
+REQUIREMENT: The package MUST NOT describe the envelope as detecting,
+             neutralising or removing instructions in the untrusted text.
+             It marks where text came from and bounds its size; what a
+             consumer does with that is the consumer's.
+```
+
+An agent that hands a whole tool result to a model cannot tell the model —
+or the next dispatch — which strings were written by the command's author
+and which were copied from an untrusted party. A taint on the whole session
+(core `Annotation.Taint`) is the control; the envelope is the presentation:
+it keeps untrusted text out of the structure the model reads as data, under
+numbered references, and bounds how much of it a single tool result can
+contribute to a prompt. `@bridger/agent` renders every tool result through
+it and taints the session when an untrusted value is present
+([taint and provenance](../../agent/behaviors/03-taint-and-provenance.md),
+BEH-AG-019, BEH-AG-023).
+
+**Settled here.** (1) The mark is on the output schema, so it is part of the
+definition, digested and the same for every consumer; a value cannot carry
+it (core annotations belong to fibers, not values). (2) The envelope is a
+pure function of the descriptor and the encoded output, so two consumers
+render a result identically and a transcript can be replayed (agent
+BEH-AG-035). (3) The default cap of 32 KiB is a bound, not a recommendation.
+
+**Open.** Whether input fields should be markable too (an argument the model
+copied from untrusted text); v0.1 marks output only, and the session's taint
+covers inputs.
 
 ---
 

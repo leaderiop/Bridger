@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Runtime Invariants                                           |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F14, F19, F20) — INV-RM-009 holds within the `DedupeStore` retention, duplicates of a running call answered `InProgress`; INV-RM-011 includes the calling fiber's label, checked before sending (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — INV-RM-009 holds across per-call invocations with a `DedupeStore`; INV-RM-011 (residency placement) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -249,16 +249,23 @@ A guest built with `Guest.serve`, or a host serving end built with
 `Remote.serve`, executes the handler for a given (epoch, `callId`) at most
 once, whatever duplicates the transport delivers, on every transport whose
 profile has `liveness: "heartbeat"`. On a `liveness: "per-call"` transport
-the guarantee covers one invocation only: the guest keeps no table between
-invocations, and a handler reached through such a transport must be
-idempotent ([BEH-RM-034](behaviors/05-guest-serve.md),
+it holds across invocations when the guest is given a `DedupeStore` whose
+`claim` is atomic for every invocation that reaches it, and only for copies
+that reach the store within the key's retention
+([BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md)): a copy the
+runtime delivers after the retention expired runs again
+([RSK-RM-001](risks.md#rsk-rm-001)); a guest
+started with "idempotent-handlers" instead keeps the guarantee for one
+invocation only, and its handlers must be idempotent
+([BEH-RM-034](behaviors/05-guest-serve.md),
 [RSK-RM-001](risks.md#rsk-rm-001)).
 
 **Source**: `packages/remote/src/Guest.ts` *(Planned)* — a per-session table
 of seen call identifiers and their results, each kept until the call's
 remaining duration has passed (BEH-RM-035); its size is bounded by the call
 rate times the longest deadline (core NFR-BR-007), not by the in-flight
-limit; a duplicate is answered with the stored result or dropped.
+limit; a duplicate is answered with the stored result, or with
+`InProgress` while the first copy runs.
 
 **Implication**: transports that duplicate frames (`reliable: false`) do not
 duplicate side effects inside a session. Across sessions, a call is never
@@ -268,7 +275,7 @@ so the guest never sees it under a second epoch.
 **Verification** *(Planned)*: `TestTransport.duplicate` scenarios asserting
 the handler's execution count; a property test over random duplication.
 
-**Related**: [BEH-RM-034](behaviors/05-guest-serve.md), [BEH-RM-035](behaviors/05-guest-serve.md), [BEH-RM-039](behaviors/05-guest-serve.md), [BEH-RM-051](behaviors/07-transports-and-adapters.md), [ADR-RM-003](decisions/003-sessions-carry-epochs.md).
+**Related**: [BEH-RM-034](behaviors/05-guest-serve.md), [BEH-RM-035](behaviors/05-guest-serve.md), [BEH-RM-039](behaviors/05-guest-serve.md), [BEH-RM-051](behaviors/07-transports-and-adapters.md), [BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md), [ADR-RM-003](decisions/003-sessions-carry-epochs.md).
 
 ---
 
@@ -289,6 +296,33 @@ frames, asserting the host service's execution count and one `CallLog`
 entry (check 28 of BEH-RM-061).
 
 **Related**: [BEH-RM-043](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-048](behaviors/06-capability-tokens-and-call-log.md), [ADR-RM-005](decisions/005-per-call-capability-tokens.md).
+
+---
+
+## INV-RM-011: No call crosses a transport that does not offer its residency label
+
+A host-to-guest call, a served call or a callback that carries a residency
+label — the link's required label, the calling fiber's own
+`placement/residency`, or `placement/residency` received in its
+annotations — is sent or run only over a transport whose declared labels
+the `PlacementPolicy` accepts for that label; the sending host checks
+before the payload leaves it. A call without a label is
+never refused on placement.
+
+**Source**: `packages/remote/src/Placement.ts` *(Planned)* — the policy is
+evaluated at `Remote.define`, before each session, before each call is
+sent for the calling fiber's label, and by each serving end before decoding
+a call (BEH-RM-068, BEH-RM-069).
+
+**Implication**: a deployment that labels a plugin and its transports
+consistently gets a refusal, recorded in the `CallLog`, instead of a call to
+a place it did not declare. It is a comparison of the consumer's strings:
+it says nothing about where the far end really runs
+([RSK-RM-014](risks.md#rsk-rm-014)).
+
+**Verification** *(Planned)*: checks 37 and 38 of BEH-RM-061.
+
+**Related**: [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md), [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md), [ADR-RM-010](decisions/010-placement-labels-compared-at-the-boundary.md).
 
 ---
 

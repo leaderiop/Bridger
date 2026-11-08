@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-RISK                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Risk Assessment                                              |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — RSK-RM-001 residual raised for per-call transports and controls extended to callbacks; RSK-RM-012 (dependents' finalizers after a session loss) and RSK-RM-013 (revocation not linked in the core audit trail) added (R3-05, R3-06, R3-09, R3-12) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F17, F18, F19) — RSK-RM-001 residual for copies past the `DedupeStore` retention; RSK-RM-015 controls and residual for the "opaque" frame mode and host-realm scripts (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — RSK-RM-001 controls and residual with the `DedupeStore`; RSK-RM-013 controlled by attributed unmount (core G57 closed); RSK-RM-014 (residency labels) and RSK-RM-015 (browser frames) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — RSK-RM-001 residual raised for per-call transports and controls extended to callbacks; RSK-RM-012 (dependents' finalizers after a session loss) and RSK-RM-013 (revocation not linked in the core audit trail) added (R3-05, R3-06, R3-09, R3-12) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -32,9 +32,9 @@ integration of these risks into the core register is proposed in CCR-RM-001.
 | ------ | ---------- |
 | Failure mode | A call whose reply is lost is retried, or its failure read as "did not happen", and the guest's side effect runs twice or is assumed absent. |
 | Initial scoring | S 3 · P 3 · D 3 → class **High** (9) · priority **High** (9) |
-| Controls | Outcome on every error (BEH-RM-020); session loss fails calls as `unknown` (BEH-RM-021); no re-send (INV-RM-008); per-session deduplication (BEH-RM-035, INV-RM-009); callback deduplication per parent call (BEH-RM-048, INV-RM-010); matching by call ID (BEH-RM-051); idempotency stated as the handler's obligation on per-call transports (BEH-RM-034). |
-| Residual scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) on `liveness: "per-call"` transports; S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) elsewhere |
-| Residual risk and acceptability | A caller that ignores `outcome: "unknown"` and retries without an idempotency key — contrary to the documented contract. On per-call transports a duplicated invocation runs a handler again (no guest table survives an invocation); acceptable only with idempotent handlers, which is the consumer's obligation. |
+| Controls | Outcome on every error (BEH-RM-020); session loss fails calls as `unknown` (BEH-RM-021); no re-send (INV-RM-008); per-session deduplication (BEH-RM-035, INV-RM-009); callback deduplication per parent call (BEH-RM-048, INV-RM-010); matching by call ID (BEH-RM-051); a `DedupeStore` required on per-call transports, or idempotent handlers stated explicitly (BEH-RM-034, BEH-RM-067). |
+| Residual scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) on `liveness: "per-call"` transports started with "idempotent-handlers"; S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) on per-call transports with a `DedupeStore`; S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) elsewhere |
+| Residual risk and acceptability | A caller that ignores `outcome: "unknown"` and retries without an idempotency key — contrary to the documented contract. On per-call transports a duplicated invocation runs a handler again (no guest table survives an invocation); acceptable only with idempotent handlers, which is the consumer's obligation. With a `DedupeStore`, a copy the runtime delivers after the key's retention expired runs again (BEH-RM-067); the consumer sets `dedupeRetention` above the runtime's redelivery window or keeps handlers idempotent. |
 | Owner | Companion + Consumer |
 
 <a id="rsk-rm-002"></a>
@@ -174,12 +174,36 @@ integration of these risks into the core register is proposed in CCR-RM-001.
 
 | Aspect | Assessment |
 | ------ | ---------- |
-| Failure mode | A boundary revocation unmounts the session child; the child's and every dependent's stops are audited as `system-stop` by `Actor.system`, caused by the mount record, and an auditor cannot see who pulled the switch or why (core gap G57). |
+| Failure mode | A boundary revocation unmounts the session child; the child's and every dependent's stops are audited as `system-stop` by `Actor.system`, and an auditor cannot see who pulled the switch or why. |
 | Initial scoring | S 2 · P 3 · D 2 → class **High** (6) · priority **High** (6) |
-| Controls | The revoking actor, reason and time kept in `RemoteBoundary.revoked` and `LinkStatus.revoked`, logged at warning level with the withdrawn links, and offered to the `CallLog` (BEH-RM-014); removal of the revoked link is a separate attributed operation. |
-| Residual scoring | S 2 · P 2 · D 2 → class Medium (4) · priority Medium (4) |
-| Residual risk and acceptability | The link between the revocation and the stops lives outside the core audit trail until core decides G57. Acceptable for a Draft; to be revisited with G57. |
-| Owner | Companion + Core (G57) |
+| Controls | The session child is removed with core `Plugin.Runtime.unmount(child, { context })`, which records `unmount-requested` with `requestedBy` and causes the stops (BEH-RM-014, core BEH-BR-126, gap G57 closed by CCR-BR-026); the revoking actor, reason and time kept in `RemoteBoundary.revoked` and `LinkStatus.revoked`, logged, and offered to the `CallLog` as a "revocation" entry; removal of the revoked link is a separate attributed operation. |
+| Residual scoring | S 2 · P 1 · D 2 → class Low (2) · priority Low (2) |
+| Residual risk and acceptability | A child whose removal had already begun for another reason (a session loss in the same instant) carries no `requestedBy`; the companion's trail still names the revocation. Acceptable. |
+| Owner | Companion |
+
+<a id="rsk-rm-014"></a>
+### RSK-RM-014: Residency labels mistaken for a residency guarantee
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A consumer labels a plugin and its transports and reads "no `PlacementRefused`" as evidence that data stayed where the label says; or a transport's declared labels are wrong, so calls go to an unlabelled place unrefused. |
+| Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
+| Controls | Labels compared as the consumer's strings, at define, per session and at each serving end (BEH-RM-068, BEH-RM-069, INV-RM-011); a required label with no declared labels is refused; documentation that Bridger verifies neither the label nor the declaration; the label recorded in `CallLog` entries and audit records by core flows. |
+| Residual scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Residual risk and acceptability | Where a provider or region really runs code is outside any software check here. Acceptable only with the consumer's own evidence for each declared label. |
+| Owner | Consumer |
+
+<a id="rsk-rm-015"></a>
+### RSK-RM-015: A browser frame reached by, or reaching, the wrong party
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A `postMessage` channel is opened to, or accepted from, a document of another origin; or a partner frame is configured so that it can script the host page directly, and the transport is taken for a separation. |
+| Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Controls | Exact `targetOrigin` and `allowedOrigins`, "*" refused as an option, source checked as the parent; in the "opaque" mode a `sandbox` without `allow-same-origin` required, the `ready` message checked by `event.source` and a one-time nonce, the port posted once to that window; one transferred port per connection, no further `window.postMessage` frames (BEH-RM-070); one session and epoch per frame; documentation of the `sandbox` configuration the separation depends on. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | The frame's `sandbox`, origin and content security policy are the consumer's. In the "opaque" mode, a document that replaced the frame's document between `ready` and the handshake would receive the port; the peer on the port is untrusted in every mode. Scripts in the host page's own realm are inside the trust boundary. Acceptable with the documented configuration. |
+| Owner | Companion + Consumer |
 
 ---
 

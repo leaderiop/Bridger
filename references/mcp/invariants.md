@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): INV-MC-003 narrowed to the external mark; INV-MC-002 and INV-MC-005 sources aligned (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.4 (2026-11-08): INV-MC-006 implication states the read-only exemption; INV-MC-007 covers keyed calls answered from a receipt (round-2 agent review A-04, A-05) (CCR-MC-003)<br>0.3 (2026-11-08): INV-MC-005 covers resource reads; INV-MC-006 (inbound sessions tainted unless trusted) and INV-MC-007 (a call runs the listed definition) added (CCR-MC-003, round 2: recheck items 6, 9; X7, X8)<br>0.2 (2026-11-08): INV-MC-003 narrowed to the external mark; INV-MC-002 and INV-MC-005 sources aligned (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -102,9 +102,9 @@ by way of the host tools.
 
 ## INV-MC-005: Every tools/call is a command dispatch
 
-Every `tools/call` the server admits for a name in the session's toolset
-results in exactly one `Commands.dispatch`, with a toolset pinned for that
-call, and no other call of a handler;
+Every `tools/call` and `resources/read` the server admits for a name in the
+session's toolset results in exactly one `Commands.dispatch`, with a toolset
+pinned for that call, and no other call of a handler;
 every host lifecycle change made through host tools passes the command gate
 and, per entry, the `OperationGate`.
 
@@ -120,3 +120,46 @@ call log.
 `tools/call` and per reconcile entry.
 
 **Related**: [BEH-MC-004](behaviors/01-server.md#beh-mc-004-toolscall-is-a-command-dispatch), [BEH-MC-029](behaviors/04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates), [ADR-MC-003](decisions/003-host-self-service-is-plan-first.md)
+
+## INV-MC-006: An inbound session is tainted unless the application trusts it
+
+Every dispatch made for an MCP session carries core's `Annotation.Taint` with
+the label "mcp-inbound:<server id>", unless the application's
+`McpSessionPrincipal.resolve` answered `trusted: true` for that session.
+
+**Source**: `packages/mcp/src/Session.ts` *(Planned)* — the label is added to
+the session's annotations at `initialize`; the key is monotonic.
+
+**Implication**: requests from a model client reach the command catalog's
+taint floor and are never allowed on an automatic decision unless their
+command is declared `readOnly` (command INV-CM-006), so a default session
+can read, as the gate decides, and cannot change anything without an
+approval; only the application, after its own authentication, can exempt a
+client. The guarantee is about the label; what the gate does with a trusted
+session is the gate's.
+
+**Verification** *(Planned)*: session scenarios with and without `trusted`,
+including attempts to set it from client fields (acceptance checks 2 and 14).
+
+**Related**: [BEH-MC-002](behaviors/01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application), [ADR-MC-005](decisions/005-inbound-sessions-are-tainted-and-calls-pinned-to-the-listed-digest.md)
+
+## INV-MC-007: A tools/call runs the definition the session listed
+
+A `tools/call` or `resources/read` runs a handler only when the command's
+current descriptor digest equals the digest the session's listing record holds
+for that name; a name the session never listed is refused without a dispatch.
+
+**Source**: `packages/mcp/src/Session.ts`, `packages/mcp/src/McpServer.ts`
+*(Planned)* — the listing record and `expectDigest`; the command companion
+compares it at dispatch step 1 and inside the contribution hold.
+
+**Implication**: a client that listed tools hours ago cannot run a definition
+that changed since; it receives `ToolChanged` and lists again (command
+INV-CM-003). A keyed call answered from a receipt is answered only when the
+receipt was made for the same digest (command BEH-CM-041,
+"definition-differs").
+
+**Verification** *(Planned)*: a remove-and-re-contribute scenario between
+`tools/list` and `tools/call` (acceptance check 4).
+
+**Related**: [BEH-MC-003](behaviors/01-server.md#beh-mc-003-toolslist-follows-the-toolset-order-and-binds-cursors-to-its-revision), [BEH-MC-004](behaviors/01-server.md#beh-mc-004-toolscall-is-a-command-dispatch), [ADR-MC-005](decisions/005-inbound-sessions-are-tainted-and-calls-pinned-to-the-listed-digest.md)

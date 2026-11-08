@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-13                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-08): `plugin-idled` and `held-event-dropped` events (27, BEH-BR-251, BEH-BR-252) (CCR-BR-024); `reconcile-partial` event (32, BEH-BR-324) (CCR-BR-025)<br>0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -107,10 +107,14 @@ type HostEvent = HostEventCommon & (
   | { readonly type: "audit-degraded"; readonly message: string }
   | { readonly type: "audit-acknowledged" }
   | { readonly type: "plugin-triggered"; readonly trigger: LazyTrigger }                        // 27, BEH-BR-245
+  | { readonly type: "plugin-idled" }                                                          // 27, BEH-BR-252
+  | { readonly type: "held-event-dropped"; readonly event: string; readonly reason: "no-listener" | "activation-failed" | "ended" | "timeout" } // 27, BEH-BR-251
   | { readonly type: "child-refused"; readonly childId: string }                                // 28, BEH-BR-263; pluginId = parent
   | { readonly type: "resolution-refused"; readonly serviceId: ServiceId; readonly route: string } // 29, BEH-BR-274
   | { readonly type: "handoff-imported" }                                                      // 34, BEH-BR-350
   | { readonly type: "handoff-lost"; readonly tag: string }                                    // 34, BEH-BR-350
+  | { readonly type: "reconcile-partial"; readonly scope: string; readonly correlationId: string
+      readonly notUndone: readonly { readonly id: string; readonly realm: string; readonly action: string }[] }   // 32, BEH-BR-324
 )
 ```
 
@@ -125,12 +129,16 @@ REQUIREMENT: `Host.events` MUST emit, without coalescing: `plugin-installed`,
              `audit-acknowledged`; and, as the files that introduce them
              specify, `plugin-triggered`
              ([27](./27-manifest-and-lazy-activation.md), BEH-BR-245),
-             `child-refused`
+             `plugin-idled` and `held-event-dropped`
+             ([27](./27-manifest-and-lazy-activation.md), BEH-BR-251,
+             BEH-BR-252), `child-refused`
              ([28](./28-plugin-principal-and-mandatory-policy.md),
              BEH-BR-263), `resolution-refused`
              ([29](./29-capability-grants-and-call-log.md), BEH-BR-274),
              `handoff-imported` and `handoff-lost`
-             ([34](./34-state-handoff.md), BEH-BR-350).
+             ([34](./34-state-handoff.md), BEH-BR-350), and
+             `reconcile-partial`
+             ([32](./32-generic-gate-and-plan.md), BEH-BR-324).
 ```
 
 ```

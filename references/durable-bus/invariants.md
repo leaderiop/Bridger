@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — INV-DB-002 origin uniqueness restated as an operator obligation; INV-DB-005 unpark exception; INV-DB-006 receiver regression; INV-DB-007 saved receipt clock (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F9, F13, F16, F26; R5-04/05) — INV-DB-006 covers `Withheld` markers and undecoded delivery through `subscribeEnvelopes`; INV-DB-009 covers both install paths; INV-DB-010 narrowed to copies the bus stores or sends; INV-DB-011 covers out-of-host readers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19, 21 and 24 — INV-DB-009 (outbox survives a restore), INV-DB-010 (payload codec), INV-DB-011 (access policy at delivery) added (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — INV-DB-002 origin uniqueness restated as an operator obligation; INV-DB-005 unpark exception; INV-DB-006 receiver regression; INV-DB-007 saved receipt clock (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -86,13 +86,13 @@ A subscription processes the envelopes of one (origin, stream) in increasing seq
 
 ## INV-DB-006: No envelope is dropped silently
 
-An envelope that cannot be processed halts its stream, is parked with a reason, or stops its stream at the inbox, and each is listed; upstream envelopes are never truncated before acknowledgement; a receiver whose watermark regressed is resent to or, when the sender no longer retains the range, reported on both sides; an inbox watermark passes unstored sequences only through an attributed `acceptGap`; a gap in downstream history is answered with `SnapshotRequired`, never skipped.
+An envelope that cannot be processed halts its stream, is parked with a reason, stops its stream at the inbox, or — for a subscriber reading through `subscribeEnvelopes` — reaches its handler undecoded, as received, and each is listed; a sequence withheld from a destination or reader arrives as a counted `Withheld` marker, never as a gap; upstream envelopes are never truncated before acknowledgement; a receiver whose watermark regressed is resent to or, when the sender no longer retains the range, reported on both sides; an inbox watermark passes unstored sequences only through an attributed `acceptGap`; a gap in downstream history is answered with `SnapshotRequired`, never skipped.
 
 **Source**: `packages/durable-bus/src/Inbox.ts`, `Relay.ts`, `Snapshot.ts` *(Planned)*.
 
 **Implication**: no fact disappears without a visible trace.
 
-**Verification** *(Planned)*: checks 13, 14, 24, 25, 28 and 29 of BEH-DB-058.
+**Verification** *(Planned)*: checks 13, 14, 24, 25, 28, 29, 31, 38 and 40 of BEH-DB-058.
 
 **Related**: [BEH-DB-014](behaviors/02-transactional-outbox.md#beh-db-014-the-outbox-is-never-truncated-before-acknowledgement), [BEH-DB-019](behaviors/03-delivery-and-inbox.md#beh-db-019-acknowledgement-follows-the-receivers-commit), [BEH-DB-022](behaviors/03-delivery-and-inbox.md#beh-db-022-parked-envelopes-are-visible-and-can-be-released), [BEH-DB-026](behaviors/04-versions-and-upcasters.md#beh-db-026-unknown-versions-are-parked-not-dropped), [BEH-DB-044](behaviors/06-replay-and-snapshots.md#beh-db-044-a-subscriber-behind-the-retained-history-needs-a-snapshot), [BEH-DB-045](behaviors/06-replay-and-snapshots.md#beh-db-045-upstream-facts-are-slowed-never-truncated).
 
@@ -119,3 +119,39 @@ A relay never has more unacknowledged batches, or larger batches, to a destinati
 **Verification** *(Planned)*: checks 21–23 and 30 of BEH-DB-058.
 
 **Related**: [BEH-DB-047](behaviors/06-replay-and-snapshots.md#beh-db-047-historysource--the-pull-port-for-downstream-history), [BEH-DB-041](behaviors/06-replay-and-snapshots.md#beh-db-041-the-receiver-grants-credit), [BEH-DB-042](behaviors/06-replay-and-snapshots.md#beh-db-042-reconnection-is-spread-out), [ADR-DB-006](decisions/006-bounded-replay-and-snapshots.md).
+
+## INV-DB-009: No snapshot restore removes an unacknowledged outbox envelope
+
+The pending set of every destination and the highest outbox sequence of every (origin, stream) are the same after a snapshot restore, or an in-store re-bootstrap install, as before it; a restore that would change them rolls back. A whole-store re-bootstrap runs only after every pending envelope was pushed, with the outbox frozen until the install ends, and starts a new incarnation.
+
+**Source**: `packages/durable-bus/src/Snapshot.ts` *(Planned)* — the before-and-after comparison inside the restore transaction (BEH-DB-044); `rebootstrapOutbox` reports what is kept (BEH-DB-048).
+
+**Implication**: facts recorded offline survive a re-bootstrap on either install path, because the federation companion calls the application's install only through `OutboxSettlement.install` (BEH-DB-048); what the bus cannot check — an install that bypasses that call — is outside this invariant.
+
+**Verification** *(Planned)*: checks 33, 34 and 39 of BEH-DB-058.
+
+**Related**: [BEH-DB-044](behaviors/06-replay-and-snapshots.md#beh-db-044-a-subscriber-behind-the-retained-history-needs-a-snapshot), [BEH-DB-048](behaviors/06-replay-and-snapshots.md#beh-db-048-before-a-snapshot-the-outbox-is-pushed-or-kept), [ADR-DB-006](decisions/006-bounded-replay-and-snapshots.md).
+
+## INV-DB-010: A payload reaches storage and the wire only through the payload codec
+
+Every committed envelope's `payload` is the output of the wired `PayloadCodec` (the identity when none is wired), and no other envelope field is changed by it.
+
+**Source**: `packages/durable-bus/src/Envelope.ts` *(Planned)* (BEH-DB-008).
+
+**Implication**: a codec that encrypts payloads covers every copy the bus stores or sends — outbox, inbox, history, resends — while order, deduplication and access checks keep working on payloads nobody can read. The decoded value a handler receives, and what `forward` emits on the core bus (BEH-DB-050), are outside the codec's reach.
+
+**Verification** *(Planned)*: check 31 of BEH-DB-058.
+
+**Related**: [BEH-DB-008](behaviors/01-events-and-envelope.md#beh-db-008-a-payloadcodec-encodes-payloads-and-records-carry-no-personal-data), [ADR-DB-008](decisions/008-actor-and-annotations-are-claims.md).
+
+## INV-DB-011: No envelope is delivered to a subscriber the access policy denied
+
+With a wired core `AccessPolicy`, a subscription handler runs for an envelope only after `AccessPolicy.ask` allowed its delivery, for local, received and pulled envelopes alike; a `HistorySource` returns an envelope to an out-of-host reader only after its `HistoryAccess` allowed it, or when the operator wrote `access: "open"`.
+
+**Source**: `packages/durable-bus/src/Subscription.ts` *(Planned)* (BEH-DB-053).
+
+**Implication**: withdrawing a plugin's access to an event type stops deliveries to its existing subscriptions, including events from other hosts.
+
+**Verification** *(Planned)*: checks 35 and 40 of BEH-DB-058.
+
+**Related**: [BEH-DB-053](behaviors/07-core-bus-and-adapters.md#beh-db-053-who-may-publish-and-subscribe-the-hosts-accesspolicy), [ADR-DB-001](decisions/001-a-separate-contract-from-the-core-bus.md).

@@ -34,3 +34,7 @@ entries:
     id: "BRIDGER-RM-BEH-08"
     title: "Test transport and acceptance"
     range: "BEH-RM-057..064"
+  - file: "09-placement-budgets-and-adapters.md"
+    id: "BRIDGER-RM-BEH-09"
+    title: "Placement, budgets and adapters"
+    range: "BEH-RM-065..072"

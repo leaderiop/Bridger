@@ -1,0 +1,20 @@
+kind: decisions
+package: bridger-sequence
+infix: SQ
+entries:
+  - id: "ADR-SQ-001"
+    file: "001-numbers-are-issued-by-the-owning-host.md"
+    title: "Numbers are issued by the owning host, never by the authority"
+    status: "Proposed"
+  - id: "ADR-SQ-002"
+    file: "002-a-series-is-an-event-store-stream.md"
+    title: "A series is an event-store stream; contiguity comes from stream versions"
+    status: "Proposed"
+  - id: "ADR-SQ-003"
+    file: "003-a-restore-closes-the-old-series.md"
+    title: "A restore starts a new incarnation and closes the old series; numbers are never reused"
+    status: "Proposed"
+  - id: "ADR-SQ-004"
+    file: "004-formats-and-meaning-stay-in-the-application.md"
+    title: "Formats and meaning stay in the application"
+    status: "Proposed"

@@ -1,3 +1,4 @@
+import { isLazy, type LazyPluginDefinition } from "./manifest.js"
 // `@bridger/core/testing` (references/core behaviour 21, BEH-BR-177–182). Phase-P5 prototype — not product code.
 //
 // TestHost is the production host (`Host.makeWith`) with a scheduler that holds every transition step and
@@ -182,10 +183,10 @@ export const make = (options: Host.Options = {}): Effect.Effect<TestHost, never,
 
   const testHost: TestHost = {
     ...host,
-    install: (def: AnyPlugin, o: InstallOptions & { readonly owner?: string } = {}) => host.install(wrap(def, o.realm ?? "default"), o),
+    install: (def: AnyPlugin | import("./plugin.js").PluginAny | LazyPluginDefinition, o: InstallOptions & { readonly owner?: string } = {}) => host.install(isLazy(def) ? def : wrap(def as AnyPlugin, o.realm ?? "default"), o),
     replace: (def: AnyPlugin, o: Host.RemoveOptions & { readonly realm?: string } = {}) => host.replace(wrap(def, o.realm ?? "default"), o),
     reconcile: (desired: ReadonlyArray<DesiredPlugin>, o?: Host.ReconcileOptions & import("./gxp.js").OperationOptions) =>
-      host.reconcile(desired.map((d) => ({ ...d, plugin: wrap(d.plugin, d.realm ?? "default") })), o),
+      host.reconcile(desired.map((d) => ({ ...d, plugin: isLazy(d.plugin) ? d.plugin : wrap(d.plugin, d.realm ?? "default") })), o),
     step, stepPlugin: (ref) => {
       const { id, realm } = typeof ref === "string" ? { id: ref, realm: "default" } : ref
       return advance((h) => h.item.pluginId === id && h.item.realm === realm)

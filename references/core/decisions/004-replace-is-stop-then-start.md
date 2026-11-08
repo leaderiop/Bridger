@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-004                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): In-memory state can cross a replace through a declared handoff (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-11-08): References cite ADR-BR-051 (CCR-BR-025)<br>0.2 (2026-11-08): In-memory state can cross a replace through a declared handoff (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -70,3 +70,4 @@ Hosts that must switch several behaviours without a gap use `Generation`, which 
 - Risks: [RSK-BR-003](../gxp/03-risk-assessment.md#rsk-br-003)
 - Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md), [ADR-BR-049](../decisions/049-state-handoff-on-replace.md)
 - Source: `docs/SPEC.md` — "Host interface" (`replace` paragraphs), "API decisions" row 2, "Generations"
+- Related: [ADR-BR-051](./051-atomic-bundle-apply.md) (an atomic apply's undo is a new replace, not a rollback).

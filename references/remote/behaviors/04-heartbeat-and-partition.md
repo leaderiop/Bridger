@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-04                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — one session model for per-call transports, a far end's `StaleEpoch` or contract refusal ends the session; scoped mount cited as specified; dependents' finalizers after a session loss stated as a deviation (R3-05, R3-09, R3-14) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.3 (2026-11-08): round 2: recheck item 25 — the revocation path through `Plugin.Runtime.unmount` named as the one exception to sub-scope withdrawal (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — one session model for per-call transports, a far end's `StaleEpoch` or contract refusal ends the session; scoped mount cited as specified; dependents' finalizers after a session loss stated as a deviation (R3-05, R3-09, R3-14) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -115,6 +115,11 @@ REQUIREMENT: The unmount MUST use the core's scoped-mount seam: the session
 ```
 REQUIREMENT: The remote package MUST NOT unmount the session child through an
              operator operation (`PluginHandle.remove` or `Host.remove`).
+             The one other path is a boundary revocation, which removes the
+             child with `Plugin.Runtime.unmount(child, { context })` before
+             the sub-scope closes, so that core records who asked
+             (BEH-RM-014, core BEH-BR-126); that call is not an operator
+             operation and consults no gate.
 ```
 
 The scoped-mount seam is specified by core BEH-BR-121 and BEH-BR-126

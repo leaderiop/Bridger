@@ -7,6 +7,8 @@ export interface DesiredPlugin {
   readonly config?: unknown              // the override the plugin should hold; absent = no override
   readonly disabled?: boolean
   readonly realm?: string
+  readonly mandatoryInterceptions?: ReadonlyArray<string>   // catalog ids (BEH-BR-153)
+  readonly allowChildren?: boolean
 }
 
 const isPlain = (x: unknown): x is Record<string, unknown> =>

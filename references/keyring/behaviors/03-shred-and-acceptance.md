@@ -1,0 +1,259 @@
+# 03 — Shred and Acceptance
+
+> **Document Control**
+>
+> | Property       | Value                                                        |
+> | -------------- | ------------------------------------------------------------ |
+> | Document ID    | BRIDGER-KR-BEH-03                                            |
+> | Revision       | 0.3                                                          |
+> | Effective Date | — (pending approval)                                         |
+> | Status         | Draft                                                        |
+> | Author         | Bridger Engineering                                          |
+> | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
+> | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
+> | Classification | Functional Specification                                     |
+> | Change History | 0.3 (2026-11-08): BEH-KR-017 persists step state, resumes incomplete shreds at start and on a repeated `shred`, opens its own transactions and commits the notice with the tombstone when the `KeyStore` shares the outbox; BEH-KR-020 and 021 report acknowledging and `KeyStore`-declared hosts only; BEH-KR-022 `notStated` names undeclared hosts; BEH-KR-024 checks 7, 10 and 12 extended (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-017 cites URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+
+---
+
+This file specifies `shred(subject)` — its steps, the tombstone, redaction
+callbacks, notices across hosts, the receipt — the limits of a shred, test
+fixtures and the acceptance checks. This file owns BEH-KR-017–024 and uses
+all eight.
+
+Planned source: `packages/keyring/src/Shred.ts` *(Planned)*.
+
+## BEH-KR-017: shred(subject) runs in a fixed order
+
+> **Invariant:** [INV-KR-002](../invariants.md#inv-kr-002-after-a-shred-begins-the-keyring-neither-encrypts-nor-decrypts-for-the-subject), [INV-KR-004](../invariants.md#inv-kr-004-a-shred-changes-no-stored-byte)
+> **See:** [ADR-KR-001](../decisions/001-shred-keys-never-rewrite-events.md)
+> **Satisfies:** [URS-BR-058](../../core/urs.md#urs-br-058-make-a-subjects-personal-fields-unreadable-without-rewriting-history)
+> **Core seam:** [22 — Attributable Operations](../../core/behaviors/22-attributable-operations.md) (BEH-BR-187)
+
+```ts
+// illustrative — not type-checked
+declare const Keyring: {
+  // the keyring opens its own transactions; the caller passes none (see below)
+  readonly shred: (subject: string, options: { reason: string; context?: OperationContext }) =>
+    Effect.Effect<ShredReceipt, SubjectInvalid | KeyStoreUnavailable>
+}
+interface ShredReceipt {
+  readonly subject: string
+  readonly shredId: string                   // IdGenerator
+  readonly shreddedAt: string                // Clock
+  readonly keyIds: readonly string[]
+  readonly steps: { readonly tombstone: "done"; readonly destroy: "pending" | "done"; readonly notice: "pending" | "done" }
+  readonly status: "redaction-pending" | "shredded"
+  readonly callbacks: readonly { name: string; state: "pending" | "acknowledged"; attempts: number }[]
+  readonly hosts: readonly { host: string; state: "pending" | "acknowledged"; declared: boolean }[]   // BEH-KR-020, BEH-KR-021
+  readonly notStated: readonly string[]      // BEH-KR-022, always present
+}
+```
+
+```
+REQUIREMENT: `shred` MUST (1) write the tombstone, after which `key`,
+             `encrypt`, `decrypt` and the codec treat the subject as shredded
+             (BEH-KR-018); (2) call `KeyStore.destroy`; (3) publish a shred
+             notice (BEH-KR-020); (4) run the redaction callbacks
+             (BEH-KR-019). It MUST NOT change a stored event, an outbox
+             entry or a chain link. `shred` MUST return once step 1 has
+             committed, with the receipt's `steps` as they stand; it fails
+             only when step 1 fails (`KeyStoreUnavailable`), and then nothing
+             was written.
+```
+
+```
+REQUIREMENT: The state of steps 2 and 3 MUST be persisted with the tombstone
+             (`KeyStore.markStep`, after each step succeeds), so that a shred
+             interrupted by a failure or a crash is resumable. The keyring
+             MUST resume every incomplete shred (`KeyStore.incompleteShreds`)
+             from its first pending step when its plugin starts, MUST retry a
+             failed step with bounded backoff while it runs, and MUST resume
+             it on a repeated `shred` of the same subject before returning
+             the receipt. Steps 2 and 3 MUST be idempotent: destroying
+             destroyed keys succeeds, and a notice published twice carries
+             the same `shredId`, which receivers apply once (BEH-KR-020).
+```
+
+```
+REQUIREMENT: The keyring MUST open its own transactions. When the `KeyStore`
+             offers `transaction` (its database is the durable-bus outbox's),
+             the keyring MUST write the tombstone and publish the notice in
+             that one transaction, so that step 3 commits with step 1 and
+             `notice` is "done" from the start. Otherwise it MUST publish the
+             notice in a transaction of the durable-bus storage adapter that
+             the keyring plugin is configured with, as a resumable step after
+             step 1; an `EncodeFailed`, `PayloadEncodeFailed` or
+             `OutboxWriteFailed` there leaves `notice` "pending" for the retry
+             and is reported, never returned by `shred`.
+```
+
+```
+REQUIREMENT: The shred's actor and correlation MUST be resolved as core
+             resolves a call's (BEH-BR-187); `reason` MUST be non-empty and
+             documentation MUST state that it carries no personal data.
+             Shredding a shredded subject MUST resume its pending steps as
+             above and return its receipt; it MUST NOT write a second
+             tombstone or change `shredId`.
+```
+
+## BEH-KR-018: The tombstone closes the subject
+
+> **Invariant:** [INV-KR-003](../invariants.md#inv-kr-003-a-shredded-subject-never-gets-a-new-key)
+> **See:** [ADR-KR-003](../decisions/003-a-shredded-subject-is-closed.md)
+
+```
+REQUIREMENT: A tombstone `{ subject, shredId, shreddedAt, keyIds }` MUST be
+             kept for the life of the `KeyStore`. While it exists, no key
+             MUST be created for the subject; new data about the same person
+             requires a new subject id chosen by the application.
+```
+
+## BEH-KR-019: Redaction callbacks drop plaintext
+
+> **Invariant:** [INV-KR-005](../invariants.md#inv-kr-005-a-shred-is-reported-complete-only-after-every-callback-acknowledged)
+> **Depends on:** [BEH-ES-019](../../event-store/behaviors/03-projections-and-snapshots.md#beh-es-019-async-projections-follow-positions-with-a-checkpoint-in-the-same-transaction)
+> **Risk:** [RSK-KR-001](../risks.md#rsk-kr-001)
+
+```ts
+// illustrative — not type-checked
+declare const Keyring: {
+  readonly onShred: (name: string, redact: (subject: string, receipt: ShredReceipt) => Effect.Effect<void, RedactionFailed>) =>
+    Effect.Effect<void, DuplicateCallback, Scope.Scope>
+}
+```
+
+```
+REQUIREMENT: Every registered callback MUST be called at least once per
+             shred, with retries under bounded backoff until it succeeds;
+             each acknowledgement MUST be recorded. Callbacks MUST be
+             documented as idempotent. A callback registered after a shred
+             MUST be called for every shred recorded since its last
+             acknowledgement (its own cursor), so that a projection rebuilt
+             or added later also drops plaintext.
+```
+
+## BEH-KR-020: Shred notices reach other hosts
+
+> **Depends on:** [BEH-DB-017](../../durable-bus/behaviors/03-delivery-and-inbox.md#beh-db-017-the-relay-delivers-at-least-once-in-order)
+> **Risk:** [RSK-KR-001](../risks.md#rsk-kr-001)
+
+```
+REQUIREMENT: `shred` MUST publish `SubjectShredded { subject, shredId,
+             keyIds }` through durable-bus (BEH-KR-017 step 3). A keyring
+             receiving it MUST apply steps 1, 2 and 4 of BEH-KR-017 locally,
+             once per `shredId`, and publish an acknowledgement
+             `SubjectShredAcknowledged { subject, shredId, host }`. The
+             originating receipt's `hosts` MUST list every host that
+             acknowledged, and every host the `KeyStore` declares through
+             `holders(subject)` with `declared: true` and its state. The
+             keyring keeps no record of key copies of its own: without
+             `holders`, the receipt lists acknowledging hosts only.
+```
+
+```
+REQUIREMENT: A host restored from a backup MUST re-apply every received
+             tombstone before it serves `decrypt` (BEH-KR-007).
+```
+
+## BEH-KR-021: Status and receipt
+
+> **Invariant:** [INV-KR-005](../invariants.md#inv-kr-005-a-shred-is-reported-complete-only-after-every-callback-acknowledged)
+
+```
+REQUIREMENT: `shredStatus(subject)` MUST return the receipt with status
+             "redaction-pending" until steps 2 and 3 are "done", every
+             callback registered at the shred has acknowledged, and every
+             host the `KeyStore` declares as a holder has acknowledged; and
+             "shredded" afterwards. "shredded" MUST NOT be read as covering
+             hosts the `KeyStore` did not declare; `notStated` says so
+             (BEH-KR-022).
+```
+
+## BEH-KR-022: The limits of a shred are stated in every receipt
+
+> **See:** [ADR-KR-004](../decisions/004-key-custody-is-an-obligation.md)
+> **Risk:** [RSK-KR-003](../risks.md#rsk-kr-003)
+
+```
+REQUIREMENT: Every receipt MUST carry `notStated`, listing what the shred
+             did not reach: key copies outside the `KeyStore`; backups not
+             yet expired; plaintext outside registered callbacks; hosts that
+             hold the key but were not declared by the `KeyStore`'s
+             `holders` (all hosts other than acknowledging ones, when
+             `holders` is absent); unencrypted metadata. Documentation,
+             type comments and logs MUST NOT describe a shred as erasure,
+             irreversible or permanent, and MUST NOT claim that it satisfies
+             a data-protection law.
+```
+
+## BEH-KR-023: Test fixtures
+
+```
+REQUIREMENT: The testing entry point MUST export `memoryKeyStore`,
+             `fixedNonces`, a `scriptedCallback` (fails n times, hangs) and
+             `assertNoPlaintext(bytes, values)`, which fails when any of the
+             given plaintext values appears in stored rows, outbox entries,
+             chain entries, call-log entries or captured logs.
+```
+
+## BEH-KR-024: Required acceptance checks
+
+> **See:** [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)
+> **Satisfies:** [URS-BR-025](../../core/urs.md#urs-br-025-generate-qualification-evidence-from-executed-tests)
+> **Risk:** [RSK-BR-018](../../core/gxp/03-risk-assessment.md#rsk-br-018)
+
+```
+REQUIREMENT: The package's test suite MUST contain at least one test for
+             each of the following (planned acceptance scenarios
+             REQ-KR-001–012, traceability §2):
+             1. Subjects and handles: grammar; no public key material
+                (BEH-KR-001, BEH-KR-002).
+             2. Cipher: authentication failures for changed ciphertext,
+                nonce, key id or `aad` (BEH-KR-003, BEH-KR-011).
+             3. KeyStore: wrapped keys only; create refused after a
+                tombstone; destroy leaves no live copy (BEH-KR-004,
+                BEH-KR-005).
+             4. Rotation and rewrap: old versions decrypt; new writes use the
+                newest (BEH-KR-006).
+             5. Grants and call log: `decrypt` refused without a grant;
+                no plaintext or ciphertext in call-log entries (BEH-KR-008).
+             6. Codec: selected fields encrypted, others unchanged, unlisted
+                types untouched; `assertNoPlaintext` over store, outbox and
+                logs (BEH-KR-009, BEH-KR-010, BEH-KR-013, BEH-KR-016).
+             7. After shred: reads yield `Shredded`; encoding plaintext fails
+                with `KeyShredded`; encoding an existing marker stores it
+                without a key, so a late fact about the subject is recorded
+                (event-store BEH-ES-030); replays and projections continue;
+                an upcaster passes a marker through (BEH-KR-009,
+                BEH-KR-012).
+             8. Chains: a chain over stored events verifies before and after
+                a shred, byte-identical stored rows (BEH-KR-014).
+             9. Determinism with `fixedNonces` (BEH-KR-015).
+             10. Shred order; a crash after the tombstone and before
+                 `destroy`, and one before the notice, are resumed at plugin
+                 start and by a repeated `shred`; with an outbox-sharing
+                 `KeyStore` the tombstone and the notice commit together;
+                 a second shred keeps `shredId` (BEH-KR-017, BEH-KR-018).
+             11. Callbacks: at least once, retried, late-registered callback
+                 catches up; status "redaction-pending" until all
+                 acknowledge (BEH-KR-019, BEH-KR-021).
+             12. Notices and limits: a second host applies a notice once even
+                 when it arrives twice; the receipt lists acknowledging and
+                 declared hosts; a restored host re-applies tombstones; every
+                 receipt lists `notStated`; wording lint (BEH-KR-020,
+                 BEH-KR-021, BEH-KR-022, BEH-KR-023).
+```
+
+**Settled here.** (1) Tombstone first, then destroy, notify, redact; the
+steps are persisted and resumed, and the notice commits with the tombstone
+when the `KeyStore` shares the outbox's database (BEH-KR-017). (2) A shredded subject is closed (BEH-KR-018). (3) Callbacks are
+at least once with their own cursor (BEH-KR-019). (4) Every receipt states
+what the shred did not reach (BEH-KR-022).
+
+**Open.** (1) A deadline after which a shred with unacknowledged callbacks
+raises an alert. (2) A signed receipt for an external requester.
+
+---
+
+_Previous: [02 — Field encryption](./02-field-encryption.md)_ · _Next: [Invariants](../invariants.md)_

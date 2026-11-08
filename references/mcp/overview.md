@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): Branded `Plugin` return types; per-call pin; external mark; plan store options (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.5 (2026-11-08): Server options `maxResultBytes` and `maxStructuredBytes` (round-2 agent review A-07) (CCR-MC-003)<br>0.4 (2026-11-08): Resources, trusted sessions, listing record and `resources` option in the API surface; worked example shows the inbound taint (CCR-MC-003, round 2: recheck items 6, 9)<br>0.3 (2026-11-08): Branded `Plugin` return types; per-call pin; external mark; plan store options (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -29,7 +29,7 @@ path, the same command gate and the same hook points as any other command.
 | Concern | Where it lives |
 | ------- | -------------- |
 | Command definition, catalog, dispatch, toolsets, JSON Schema projection | `@bridger/command` ([behaviours](../command/behaviors/01-command-definition.md)) |
-| MCP wire protocol: JSON-RPC framing, `initialize`, `tools/list`, `tools/call`, `subscriptions/listen` | **`@bridger/mcp`** (this package) |
+| MCP wire protocol: JSON-RPC framing, `initialize`, `tools/list`, `tools/call`, `resources/templates/list`, `resources/read`, `subscriptions/listen` | **`@bridger/mcp`** (this package) |
 | Transports (stdio, Streamable HTTP, MessagePort) | adapter layers of this package, over the `Transport` of [`@bridger/remote`](../remote/README.md) where a session crosses a process |
 | Authentication of a client or of an external server, OAuth flows | the transport adapter and the application; Bridger never authenticates |
 | Which principal a session acts as | the application's `McpSessionPrincipal` port |
@@ -50,8 +50,9 @@ regulated command is, approval rules, and every product meaning of a tool.
 | API | Kind | Behaviour |
 | --- | ---- | --------- |
 | `McpServer.plugin(options)` | plugin definition | [BEH-MC-001](./behaviors/01-server.md#beh-mc-001-the-mcp-server-is-an-ordinary-plugin) |
-| `McpSessionPrincipal` | port (`Context.Service`) | [BEH-MC-002](./behaviors/01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application) |
-| `tools/list` projection, cursors | protocol | [BEH-MC-003](./behaviors/01-server.md#beh-mc-003-toolslist-follows-the-toolset-order-and-binds-cursors-to-its-revision) |
+| `McpSessionPrincipal` (answer `{ actor, annotations?, trusted? }`) | port (`Context.Service`) | [BEH-MC-002](./behaviors/01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application) |
+| `tools/list` projection, cursors, listing record | protocol | [BEH-MC-003](./behaviors/01-server.md#beh-mc-003-toolslist-follows-the-toolset-order-and-binds-cursors-to-its-revision) |
+| `resources/templates/list`, `resources/read` → `Commands.dispatch` | protocol | [BEH-MC-007](./behaviors/01-server.md#beh-mc-007-read-models-are-served-as-resources-each-read-a-dispatch) |
 | `tools/call` → `Commands.dispatch` | protocol | [BEH-MC-004](./behaviors/01-server.md#beh-mc-004-toolscall-is-a-command-dispatch), [BEH-MC-005](./behaviors/01-server.md#beh-mc-005-outcomes-map-to-results-and-errors-one-way) |
 | list-changed notifications | protocol | [BEH-MC-009](./behaviors/02-list-changed.md#beh-mc-009-the-server-advertises-listchanged-and-serves-subscriptionslisten)–[BEH-MC-013](./behaviors/02-list-changed.md#beh-mc-013-a-session-subscription-ends-with-its-session) |
 | `McpClient.import(options)` | plugin definition (remote proxy) | [BEH-MC-017](./behaviors/03-client-import.md#beh-mc-017-an-import-is-a-remote-proxy-plugin) |
@@ -70,6 +71,9 @@ declare const McpServer: {
     readonly selector?: ToolsetSelector                   // command companion; default excludes regulated
     readonly pageSize?: number                            // tools/list page size, default 100
     readonly instructions?: string
+    readonly resources?: { readonly scheme: string }     // read-only commands tagged "mcp-resource" as resources
+    readonly maxResultBytes?: number                      // envelope cap of a result's model-facing text, default 32768
+    readonly maxStructuredBytes?: number                  // cap of structuredContent, default 1048576
   }): Plugin<[CommandCatalog, McpSessionPrincipal], [], never>
 }
 
@@ -81,7 +85,7 @@ declare const McpClient: {
     readonly realm?: string
     readonly timeout?: Duration.Input                     // per call, default 30 seconds; never "forever"
     readonly map?: (tool: ExternalTool) => ImportMapping  // tags, regulated, include/exclude; default: include, tags ["external"]
-  }): Plugin<[CommandCatalog, JsonSchemaValidator], [], never>
+  }): Plugin<[CommandCatalog, JsonSchemaValidator, Bridger.Host], [], never>
 }
 
 declare const HostTools: {
@@ -110,8 +114,12 @@ yield* host.install(HostTools.plugin())
 // 3. A client lists tools. The order is the toolset order: by command id.
 //    → bridger.host.inspect, bridger.host.reconcile-plan, bridger.host.snapshot, docs.search, sales.quote
 // 4. The client calls docs.search. The call pins the session's toolset for that
-//    call and is one Commands.dispatch. docs.search is tagged "external", so an
-//    agent session that reads its result is tainted (BEH-MC-020, BEH-AG-019).
+//    call and is one Commands.dispatch with the digest the client listed. The
+//    session is tainted ("mcp-inbound:mcp-server") because the resolver did not
+//    answer `trusted: true`, so any write it asks for is deferred or refused by
+//    the taint floor (BEH-MC-002). docs.search is tagged "external" and its whole
+//    output is untrusted, so an agent session that reads its result is tainted
+//    too (BEH-MC-020, BEH-AG-019).
 // 5. The client calls bridger.host.reconcile-plan with a desired list. It receives a
 //    plan; nothing changes. reconcile-apply is regulated, so the default selector
 //    never lists it; an application that opts in still faces the command gate and,

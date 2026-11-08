@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.4 (2026-11-08): `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped` for every series, version 1 still read; the windows of a series resumed by another writer (04, BEH-AC-026) (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore` (round 2: recheck item 13) (CCR-AC-003)<br>0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -53,16 +53,24 @@ Planned source: `packages/audit-chain/src/Anchor.ts`,
 
 ```ts
 // illustrative — not type-checked
+// Written by every series from revision 0.4 (04, BEH-AC-026); version 1 statements are still read.
 interface AnchorStatement {
-  readonly v: 1
+  readonly v: 2
   readonly alg: "sha-256" | "sha-512"
-  readonly hostId: string
-  readonly fromSeq: number                 // first auditSeq of the window
-  readonly toSeq: number                   // last auditSeq of the window
+  readonly seriesId: string                // the audit instance: the host id
+  readonly canon: string                   // canonicaliser id (04, BEH-AC-027); "jcs-v1" for the audit instance
+  readonly fromSeq: number                 // first seq (auditSeq) of the window
+  readonly toSeq: number                   // last seq (auditSeq) of the window
   readonly merkleRoot: string              // BEH-AC-010, lower-case hex
-  readonly headHash: string                // link hash of the record with auditSeq = toSeq
-  readonly previous?: string               // hash of the previous statement of this host (BEH-AC-010)
+  readonly headHash: string                // link hash of the record with seq = toSeq
+  readonly previous?: string               // hash of the previous statement of this series (BEH-AC-010)
+  readonly dropped?: number                // the loss counter of the window's last record, when the series has one (04, BEH-AC-030)
   readonly createdAt: string               // from Clock, ISO-8601 UTC with ms
+}
+interface AnchorStatementV1 {              // revisions 0.1–0.3; read, never written
+  readonly v: 1; readonly alg: "sha-256" | "sha-512"; readonly hostId: string
+  readonly fromSeq: number; readonly toSeq: number; readonly merkleRoot: string; readonly headHash: string
+  readonly previous?: string; readonly createdAt: string
 }
 
 interface AnchorReceipt {
@@ -103,7 +111,7 @@ REQUIREMENT: A window MUST count as anchored only after `publish` has
 
 ```
 REQUIREMENT: `ReceiptStore` and `Anchor` MUST be separate ports from
-             `ChainSink`. Documentation MUST state that keeping receipts in
+             `ChainStore`. Documentation MUST state that keeping receipts in
              the same store, under the same credentials, as the chained
              records gives no protection against a party who can write that
              store.
@@ -134,7 +142,21 @@ the package keeps it opaque and leaves its checking to an `AnchorVerifier`
 REQUIREMENT: Windows of one host MUST be contiguous and MUST NOT overlap:
              the first window starts at `auditSeq` 1, and each later window
              starts at the previous window's `toSeq` plus one. A window MUST
-             contain at least one record.
+             contain at least one record. For a series resumed by another
+             writer (04, BEH-AC-026), that writer's first window starts at
+             the resumed head's `seq` plus one, and records between the
+             previous writer's last anchored window and that head are
+             reported as unanchored.
+```
+
+```
+REQUIREMENT: Every statement written MUST be version 2, with `seriesId`,
+             `canon` and, when the series has a loss counter, `dropped`
+             (04, BEH-AC-026, BEH-AC-030). The statement hash covers these
+             fields because it covers the whole canonical statement. A
+             verifier MUST accept a version 1 statement, reading `hostId` as
+             its series id and "jcs-v1" as its canonicaliser, and MUST report
+             that it anchors no loss counter.
 ```
 
 ```

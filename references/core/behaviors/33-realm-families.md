@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-33                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): eviction and teardown prune through `reconcile` with `pruneDrain`/`pruneForce`; a per-realm turn serialises `retireRealm` with registrations into the realm; eviction outcomes on the family's own `events` stream, not the host feed; `family.use` aligned with `Host.useAll`; duplicate family ids a documented precondition (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.3 (2026-11-08): BEH-BR-337 "/" reserved as the narrowing delimiter, `isWithin` specified for ids that keep it, a Settled paragraph (host-core prototype finding G-P8; actor half of gap G47) (CCR-BR-028)<br>0.2 (2026-11-08): eviction and teardown prune through `reconcile` with `pruneDrain`/`pruneForce`; a per-realm turn serialises `retireRealm` with registrations into the realm; eviction outcomes on the family's own `events` stream, not the host feed; `family.use` aligned with `Host.useAll`; duplicate family ids a documented precondition (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -541,6 +541,19 @@ REQUIREMENT: A narrowed actor's id MUST begin with its parent's id followed
 ```
 
 ```
+REQUIREMENT: "/" is the narrowing delimiter. An application MUST NOT give
+             an actor an id containing "/" unless `Actor.narrow` produced
+             it; an application whose own actor ids contain "/" MUST map
+             them to ids without "/" before it narrows or compares them.
+             `isWithin` is specified only for ids that keep this rule.
+             Core MUST NOT check the rule, since it does not interpret
+             actor ids (22 — Attributable Operations, BEH-BR-185).
+             Documentation MUST state the rule and its consequence:
+             `isWithin({ id: "acme/alice" }, { id: "acme" })` is true
+             (CCR-BR-028).
+```
+
+```
 REQUIREMENT: Core MUST NOT confer or restrict anything on the basis of a
              narrowed actor, MUST NOT itself call `isWithin` or otherwise
              parse an actor id to find its parent,
@@ -561,6 +574,15 @@ argument BEH-BR-185 makes for `Actor.unattributed`).
 an actor it already holds; core still never derives an actor on its own or
 interprets one. The rule of BEH-BR-185 is amended to name this exception
 (CCR-BR-019 integration note).
+
+**Settled (CCR-BR-028).** The host-core prototype found that `isWithin`
+reads an application id such as `acme/alice` as a narrowing of `acme`
+(finding G-P8). A prefix test cannot tell the two apart, and a different
+delimiter only moves the collision, so the rule is put on the ids: "/" is
+reserved for narrowings, by the application, because core does not inspect
+actor ids. This settles the actor half of URS gap G47; realm ids are a
+separate namespace that `isWithin` never reads, and whether `defineRealm`
+should reserve "/" for family members stays open there.
 
 ## BEH-BR-338: Families and ephemeral realms are observable as realms
 
@@ -597,7 +619,7 @@ scenario once code exists; none has run.
 | --- | --- | --- |
 | REQ-BR-084 | A family creates a member once per key on first use through attributed, gated, audited `defineRealm` and `reconcile`; concurrent uses share one creation; invalid keys and changed options are refused; a failed member is not recreated until reset | BEH-BR-329, BEH-BR-330, BEH-BR-331, BEH-BR-334 |
 | REQ-BR-085 | Idle eviction prunes with drain and never forces: a held host lease makes it time out and leaves the member parked, retried at the next check; a use during eviction waits and recreates; `retireRealm` refuses a non-empty realm and "default", retires an empty one in one revision, and allows redefinition | BEH-BR-332, BEH-BR-333, BEH-BR-335, BEH-BR-338 |
-| REQ-BR-086 | `Realm.ephemeral` defines, installs and activates under the owner's context, undoes on failure, tears down at scope close (forcing only at the limit, reported) and retires its realm; `Actor.narrow` returns the documented value at every depth, refuses invalid input and reserved actors, and is recorded as any actor; `Actor.isWithin` recognises the actor itself and every narrowing of it, and nothing else | BEH-BR-336, BEH-BR-337 |
+| REQ-BR-086 | `Realm.ephemeral` defines, installs and activates under the owner's context, undoes on failure, tears down at scope close (forcing only at the limit, reported) and retires its realm; `Actor.narrow` returns the documented value at every depth, refuses invalid input and reserved actors, and is recorded as any actor; `Actor.isWithin` recognises the actor itself and every narrowing of it, and nothing else, among ids that keep the delimiter rule | BEH-BR-336, BEH-BR-337 |
 
 ---
 

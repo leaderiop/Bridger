@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-06                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.4 (2026-11-08): Check 10 covers first boot, the separate revocation trust root, self-revocation and envelope mismatch (round-2 agent review R3-02) (CCR-LD-003)<br>0.3 (2026-11-08): The loader plugin reads `buildTimeout` from `Host.controls` (G61 closed) and provides `StatementVerifier`; open question 2 answered (core alignment) (CCR-LD-003)<br>0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -92,9 +92,10 @@ declare const LoaderPlugin: (options: LoaderOptions & {
   readonly verifiers: readonly SignatureVerifierShape[]
   readonly acceptance: AcceptanceRule
   readonly externals: ExternalModules
-  readonly buildTimeout: Duration.Input        // the host's buildTimeout, stated by the application (BEH-LD-046)
+  readonly statementRules?: StatementRules     // rules for statement types other than "package" (07, BEH-LD-051)
 }) => PluginDefinition</* requires */ [typeof RevocationSource, typeof AcceptedDigests],   // base services (02, BEH-LD-015)
-                       /* provides */ [typeof Loader], never, never>
+                       /* provides */ [typeof Loader, typeof StatementVerifier], never, never>
+// Loader.layer, used before a host exists, takes `buildTimeout` explicitly (BEH-LD-046).
 ```
 
 ```
@@ -196,7 +197,10 @@ REQUIREMENT: A direct `Loader.load` call MUST NOT hold a host lease or a
 REQUIREMENT: The `load` of a `Loader.lazy` definition runs inside the
              plugin's build step, in its build slot and under core's
              `buildTimeout` (core BEH-BR-246). Documentation MUST state
-             this. The loader MUST refuse construction when the sum of its
+             this. Running as a plugin, the loader MUST read `buildTimeout`
+             from `Host.controls` (core BEH-BR-212) when it builds; used as
+             `Loader.layer` without a host, it takes the value the
+             application states. The loader MUST refuse construction when the sum of its
              `fetch`, `verify` and `evaluate` timeouts (02, BEH-LD-013) is
              not shorter than the stated `buildTimeout`, so that a loader
              step error, not core's build timeout, reports a slow step.
@@ -297,7 +301,15 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                 (BEH-LD-019, BEH-LD-022).
              10. Revocation lists: an unsigned or rolled-back list is
                  ignored; an unsaved list is not published; a restart keeps
-                 the last saved list (BEH-LD-026).
+                 the last saved list; at first boot, with no set held, a
+                 list signed under the revocation trust root is accepted
+                 through `offer`; a list whose digest a held set lists is
+                 still accepted (no revocation step); a list that revokes
+                 one of its own signers is accepted and that signer counts
+                 for no later list; a decoded issuer or revision that
+                 differs from the envelope is refused; the source builds
+                 with no `StatementVerifier` in context (BEH-LD-025,
+                 BEH-LD-026).
              11. Stale and unavailable revocation refuse a load; "unbounded"
                  is accepted only when written (BEH-LD-027).
              12. Kill switch: a revoked digest owned by the scope is removed
@@ -352,11 +364,9 @@ host transitions.
 
 **Open.** (1) Whether the acceptance checks should also run through
 `@bridger/kit`'s conformance harness once that is specified (references/kit/).
-(2) Core's `Host.controls` reports `gateTimeout` but not `buildTimeout`, so
-the loader cannot read the bound it must fit inside and relies on the value
-the application states; recorded as an open question for core in the
-[README](../README.md#open-questions).
+(2) Answered (round 2): core's `Host.controls` now reports `buildTimeout`
+(core BEH-BR-212, gap G61 closed), and the loader plugin reads it.
 
 ---
 
-_Previous: [05 — Catalog and Lazy Loading](./05-catalog-and-lazy-loading.md)_ · _Next: [Invariants](../invariants.md)_
+_Previous: [05 — Catalog and Lazy Loading](./05-catalog-and-lazy-loading.md)_ · _Next: [07 — Signed Statements](./07-signed-statements.md)_

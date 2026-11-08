@@ -18,3 +18,7 @@ entries:
     file: "004-separate-from-gxp-companion.md"
     title: "A package separate from @bridger/gxp"
     status: "Proposed"
+  - id: "ADR-AC-005"
+    file: "005-one-chain-over-any-stream-hashing-the-stored-form.md"
+    title: "One chain over any append-only stream, hashing the stored form"
+    status: "Proposed"

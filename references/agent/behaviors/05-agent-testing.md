@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-05                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.3 (2026-11-08): `EvalHook` written with core 31's options (no veto codes, an application `who`, advisory registrations, dormant advisers skipped) (CCR-AG-003, round 2: core round 2 alignment)<br>0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -148,7 +148,13 @@ as a divergence at that call.
 
 ```ts
 // illustrative — not type-checked
-const EvalHook = HookPoint.make<TurnRecord, void>("@bridger/agent/eval", { mode: "advisory", onError: "skip" })
+// core 31: HookPoint.make<In, Enrich, Advice, Code>; no codes, so only "advisory" (and "enrich") roles can register
+const EvalHook = HookPoint.make<TurnRecord, never, unknown, never>("@bridger/agent/eval", {
+  codes: [], who: options.evalWho,                     // the application's admission rule (BEH-BR-298); no default
+  timeout: "2 seconds", deadline: "10 seconds", onError: "skip",
+  dormant: { advisory: "skip" }                        // core's default for advisers (BEH-BR-309), stated
+})
+// contributions: EvalHook.register(id, score, { role: "advisory" })
 interface TurnRecord {
   readonly taskId: string
   readonly turn: number
@@ -162,8 +168,12 @@ interface TurnRecord {
 ```
 REQUIREMENT: The reference loop MUST dispatch `EvalHook` once at the end of
              each turn with that turn's `TurnRecord`. The hook point MUST be
-             advisory: no contribution can change the task's state, and a
-             failing contribution is skipped.
+             made with an empty `codes` list, so that core refuses every
+             veto registration (BEH-BR-297) and its verdict is always
+             `Allowed`; its advice MUST NOT change the task's state, and a
+             failing contribution is skipped. The admission rule is the
+             application's (`AgentLoop.plugin({ evalWho })`); without one
+             the loop MUST NOT make the hook point.
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-23                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-08): BEH-BR-197: paths of a `reconfigure` on a registration not yet loaded; BEH-BR-199: sub-scope child removal named (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-195 `trigger`, "lazy-triggered", state "dormant", failure phase "load" in BEH-BR-199 (CCR-BR-017); `onBehalfOf`, `annotations`, `annotationsOmitted`, none on system records (CCR-BR-018); "handoff" and "retireRealm", `target` of `retireRealm`, handoff records in BEH-BR-199 (CCR-BR-019); `schemaVersion` stays 1 on pre-release ground (Settled 5)<br>0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-08): BEH-BR-196 which records carry `sanitized: true`: the call's own records, and a system record only for a string replaced as it is written (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): BEH-BR-195 `auditDropped` on every record (G54), `sanitized` (G59), `requestedBy`, transitions "start-refused" and "unmount-requested", Settled (6); BEH-BR-196 their rules and the lone-surrogate replacement; BEH-BR-199 the two new system records and the correlation of a root record from the fiber (G58); BEH-BR-202 `auditDropped` stamped at numbering (CCR-BR-026); `lazy-idle`, `onBehalfOf` on root `lazy-triggered` records (CCR-BR-024); BEH-BR-195 `undoes`; BEH-BR-201 records of an atomic apply's undo (CCR-BR-025)<br>0.7 (2026-11-08): BEH-BR-197: paths of a `reconfigure` on a registration not yet loaded; BEH-BR-199: sub-scope child removal named (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-195 `trigger`, "lazy-triggered", state "dormant", failure phase "load" in BEH-BR-199 (CCR-BR-017); `onBehalfOf`, `annotations`, `annotationsOmitted`, none on system records (CCR-BR-018); "handoff" and "retireRealm", `target` of `retireRealm`, handoff records in BEH-BR-199 (CCR-BR-019); `schemaVersion` stays 1 on pre-release ground (Settled 5)<br>0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -182,11 +182,17 @@ interface AuditRecord {
   readonly error?: { readonly _tag: string; readonly message: string }
   readonly droppedSinceAck?: number                // acknowledgeAuditDegraded records only (BEH-BR-202)
   readonly endsIntentOf?: string                   // intent-ended records only: recordId of the parked call's requested record (BEH-BR-199)
+  readonly undoes?: string                         // undo actions of an atomic reconcile only: recordId of the undone action's requested record (32, BEH-BR-325)
   readonly resumes?: string                        // terminal record of a call that resumed a parked operation only: recordId of the parked call's requested record (BEH-BR-200)
   readonly trigger?: LazyTrigger                   // lazy-triggered records only (27, BEH-BR-248)
-  readonly onBehalfOf?: PrincipalRef               // records of calls made from plugin code only (28, BEH-BR-259)
+  readonly onBehalfOf?: PrincipalRef               // records of calls made from plugin code (28, BEH-BR-259); absent on
+                                                   // system records except root lazy-triggered (27, BEH-BR-253)
   readonly annotations?: readonly AnnotationEntry[] // flow "audit", encoded, sorted by key (30, BEH-BR-293)
   readonly annotationsOmitted?: readonly string[]  // key ids only (30, BEH-BR-293)
+  readonly auditDropped: number                    // records dropped for overflow before this one was numbered (BEH-BR-202)
+  readonly sanitized?: true                        // a string of the record was made well-formed (BEH-BR-196)
+  readonly requestedBy?: { readonly actor: Actor; readonly reason?: string }
+                                                   // unmount-requested records only (22, BEH-BR-190)
 }
 
 interface ConfigChange {
@@ -197,7 +203,8 @@ interface ConfigChange {
 
 // SystemTransition (22 — Attributable Operations, BEH-BR-185):
 //   "system-start" | "system-stop" | "runtime-failure" | "lease-revoked"
-//   | "health-degraded" | "intent-ended" | "lazy-triggered" | "handoff"
+//   | "health-degraded" | "intent-ended" | "lazy-triggered" | "lazy-idle" | "handoff"
+//   | "start-refused" | "unmount-requested"
 // PluginState in `before`/`after` may be "dormant" (27 — Manifest and Lazy Activation).
 ```
 
@@ -260,7 +267,13 @@ new `schemaVersion` under the third requirement above. (5) `trigger`, the
 (CCR-BR-017); `onBehalfOf`, `annotations` and `annotationsOmitted`
 (CCR-BR-018); and the values "handoff" (`SystemTransition`) and
 "retireRealm" (`Operation`) (CCR-BR-019) were added in revision 0.6 on the
-same pre-release ground: `schemaVersion` stays 1.
+same pre-release ground: `schemaVersion` stays 1. (6) `auditDropped`,
+`sanitized` and `requestedBy`, and the `SystemTransition` values
+"start-refused" and "unmount-requested" (CCR-BR-026), were added in revision
+0.8 on the same pre-release ground: `schemaVersion` stays 1. `auditDropped`
+is on every record so that a sink that chains records — the audit-chain
+companion's, say — can state in its own anchors how many records core
+failed to hand over, which it could not see before (URS gap G54).
 
 ## BEH-BR-196: What each field records
 
@@ -317,10 +330,53 @@ REQUIREMENT: `droppedSinceAck` MUST be present on the `requested` and
 ```
 
 ```
+REQUIREMENT: `auditDropped` MUST be present on every record. Its value MUST
+             be `HostSnapshot.auditDropped` — the number of records dropped
+             for writer-queue overflow since the host started — at the
+             moment the writer assigns the record's `auditSeq` (BEH-BR-202;
+             24 — Time, Identifiers and Sequence, BEH-BR-212). It is 0 when
+             none were dropped, and it MUST NOT decrease from one `auditSeq`
+             to the next.
+```
+
+```
+REQUIREMENT: Before a record is handed to the sink, every string it
+             contains, at any depth — identifiers, labels, `reason`,
+             `correlationId`, `error.message`, paths, fingerprints, encoded
+             annotation values, the fields of `onBehalfOf`, `trigger` and
+             `requestedBy` — MUST be well-formed UTF-16: each lone surrogate
+             (a code unit in U+D800–U+DFFF that is not part of a valid
+             pair) MUST be replaced with U+FFFD, and nothing else changed.
+             When any string of the record was changed here, or the record
+             is a `requested`, `rejected` or terminal record of a call whose
+             strings were changed at resolution (22 — Attributable
+             Operations, BEH-BR-185), the record MUST carry
+             `sanitized: true`; otherwise the field MUST be absent. A system
+             record that carries a correlation already replaced at
+             resolution is not flagged for that reason (CCR-BR-028). Every record of one call MUST carry the same
+             replaced attribution strings.
+```
+
+```
+REQUIREMENT: `requestedBy` MUST be present on `unmount-requested` records
+             and absent on every other record.
+```
+
+```
 REQUIREMENT: Core MUST NOT rewrite a record once it is created. A later
              change is recorded by a later record; nothing is corrected in
-             place.
+             place. The replacement above is made when the record is
+             created, before any write, and is not a rewrite.
 ```
+
+A sink that canonicalises records before hashing or signing them (RFC 8785,
+for instance) must refuse a string that is not well-formed, and core retries
+a refused write in place (BEH-BR-202): one lone surrogate in a caller's
+`reason` would stop recording until the host restarts. Replacing it with
+U+FFFD, and saying so in the record, keeps the trail moving and keeps the
+change visible (URS gap G59). `auditDropped` on every record lets a reader
+see where overflow losses happened between two records, not only how many
+there were at the next acknowledgement.
 
 `before` and `after` together with `version` and `digest` make URS-BR-028
 answerable from the trail alone: the `system-start` record that took a plugin
@@ -563,18 +619,37 @@ REQUIREMENT: With a sink wired, the host MUST write one record with phase
                (below);
              - `lazy-triggered` each time a plugin leaves `dormant`
                (27 — Manifest and Lazy Activation, BEH-BR-248);
+             - `lazy-idle` each time an idle loaded plugin returns to
+               `dormant` (27 — Manifest and Lazy Activation, BEH-BR-252);
              - `handoff` once per attempted state handoff, with `error`
                exactly when the state was lost (34 — State Handoff,
-               BEH-BR-350).
+               BEH-BR-350);
+             - `start-refused` each time a wired `RefusalList` refuses a
+               start outside step 4b of BEH-BR-188, with `error`
+               `{ _tag: "DigestRefused", message }` (28 — Plugin Principal
+               and Mandatory Policy, BEH-BR-267);
+             - `unmount-requested` each time `Plugin.Runtime.unmount` is
+               called for a child, before its removal's records, with
+               `requestedBy` (14 — Children and Groups, BEH-BR-126;
+               22 — Attributable Operations, BEH-BR-190).
              System records MUST carry neither `onBehalfOf` nor
-             `annotations` (28, BEH-BR-259; 30, BEH-BR-293).
+             `annotations` (28, BEH-BR-259; 30, BEH-BR-293), except the
+             `onBehalfOf` of a root `lazy-triggered` record (27,
+             BEH-BR-253).
 ```
 
 ```
 REQUIREMENT: A system record's `causationId` MUST follow BEH-BR-190, and its
              `correlationId` MUST be that of the operator call or root system
-             record at the start of its causation chain; a root system record
-             MUST receive a newly generated `correlationId`.
+             record at the start of its causation chain, except that an
+             `unmount-requested` record and the records it causes carry the
+             correlation of the unmount's context (22 — Attributable
+             Operations, BEH-BR-190). A root system record MUST carry the
+             `correlationId` given to `Host.wake` when it is one of
+             `wake`'s, otherwise the `CurrentCorrelation` of the fiber whose
+             action made it — a `wake`, an event dispatch, a
+             `reportFailure` — when that fiber carries one (BEH-BR-187), and
+             otherwise a newly generated one.
 ```
 
 ```
@@ -789,6 +864,16 @@ REQUIREMENT: A parent `completed` record with `children: 0` MUST carry
              BEH-BR-158).
 ```
 
+```
+REQUIREMENT: The undo actions of an atomic `reconcile` MUST write their
+             records as entry actions do, with the parent's
+             `correlationId` and `causationId`, and MUST carry `undoes`,
+             the `recordId` of the `requested` record of the action each
+             undoes. The parent terminal record's `children` MUST count
+             forward and undo actions that reached the gate
+             (32 — Generic Gate and Plan, BEH-BR-325).
+```
+
 The shared `correlationId` groups the batch; the `causationId` on each entry
 record points at the request that issued it. An entry rejected by validation
 or by configuration fingerprinting (`ConfigFingerprintUnavailable`, step 4a
@@ -838,10 +923,13 @@ REQUIREMENT: When the dropped record is a call's `requested` record, the
 
 ```
 REQUIREMENT: The host MUST count records dropped for overflow, expose the
-             count as `HostSnapshot.auditDropped`, and carry the count since
+             count as `HostSnapshot.auditDropped`, carry the count since
              the previous acknowledgement as `droppedSinceAck` on the
-             `acknowledgeAuditDegraded` records (BEH-BR-196), so that a loss
-             is countable even though it leaves no gap in `auditSeq`.
+             `acknowledgeAuditDegraded` records (BEH-BR-196), and stamp the
+             count as `auditDropped` on each record when the writer assigns
+             its `auditSeq`, so that a loss is countable, and placed between
+             two numbered records, even though it leaves no gap in
+             `auditSeq`.
 ```
 
 Writing one record at a time is what makes `auditSeq` order, sink order and
@@ -873,8 +961,9 @@ that a number is never reused by a different record. (2) The retry spacing
 and the queue capacity (1024) are fixed here. (3) A record dropped for
 overflow is never numbered, so its loss is **not** visible as a gap in
 `auditSeq`; it is visible through the error log, the latch, the
-`HostSnapshot.auditDropped` counter and the `droppedSinceAck` count carried
-by the `acknowledgeAuditDegraded` records that must follow. This is the one
+`HostSnapshot.auditDropped` counter, the `auditDropped` value of the next
+record numbered (CCR-BR-026), and the `droppedSinceAck` count carried by the
+`acknowledgeAuditDegraded` records that must follow. This is the one
 path on which core loses a record while the host runs, and it is stated
 rather than hidden. (4) A call whose `requested` record is dropped fails at
 once rather than after `auditTimeout`: the record will never be written, so

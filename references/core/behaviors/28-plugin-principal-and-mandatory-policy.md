@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-28                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): `onBehalfOf` defined as the principal of the calling fiber, with the provider case stated; principal retired after the activation's finalizers; `child` access requests carry the parent activation's principal; principal `revision` defined; realms of `Host.use` from plugin code; mandatory interceptions are application-wired and cover host captures only (not base-service reads); `who` before the access check; unwired-sameness reworded (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook calls under the owner's principal and the hook registry's access check (CCR-BR-019) |
+> | Change History | 0.4 (2026-11-08): BEH-BR-262 Settled: the call's realm adds to, never replaces, a plugin's own mandatory sets (G-P16 not adopted); BEH-BR-267 only the definition's own digest is submitted, other revocation identifiers are the list's mapping (agent review R3-03), the reconcile diff, `registeredAt` and `plan` with a refused digest (R1-07); BEH-BR-269 `origin` form is the companion's to document (agent review F27); check 104 amended (CCR-BR-029)<br>0.3 (2026-11-08): BEH-BR-267 `RefusalList` port consulted on every start, system transitions included; BEH-BR-268 `AccessPolicy.declaredOnly`; BEH-BR-269 `AccessPolicy.ask` for companion buses and delivery; `AccessRequest` gains `declared`, `origin` and the styles "subscribe", "delivery" and mode "publish"; BEH-BR-263 Open closed (the install request carries `allowChildren` and `mandatoryInterceptions`, 25); BEH-BR-265 reports `refusal`; checks 104, 105 and 109 (CCR-BR-026); BEH-BR-259: root lazy-triggered records carry onBehalfOf (CCR-BR-024); BEH-BR-260 Open settled by the mandatory catalog (CCR-BR-025)<br>0.2 (2026-11-08): `onBehalfOf` defined as the principal of the calling fiber, with the provider case stated; principal retired after the activation's finalizers; `child` access requests carry the parent activation's principal; principal `revision` defined; realms of `Host.use` from plugin code; mandatory interceptions are application-wired and cover host captures only (not base-service reads); `who` before the access check; unwired-sameness reworded (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook calls under the owner's principal and the hook registry's access check (CCR-BR-019) |
 
 ---
 
@@ -33,12 +33,17 @@ listen on the event bus and who may contribute to a registry.
 This file adds a **plugin principal** (`CurrentPlugin`) that only the host
 can create, records it as `onBehalfOf` beside the `Actor` when plugin code
 calls a mutating host operation, and adds **mandatory interceptions**, an
-**`allowChildren`** install option and an optional **`AccessPolicy`** port.
+**`allowChildren`** install option and an optional **`AccessPolicy`** port,
+with a helper that compares access with the manifest (BEH-BR-268). It also
+adds the optional **`RefusalList`** port, the one policy that is consulted on
+system transitions: a definition whose digest it refuses does not start,
+whoever or whatever starts it (BEH-BR-267,
+[ADR-BR-053](../decisions/053-refusal-list.md)).
 It has no SPEC.md source section; it extends the interception rules of
 [17 — Realms and Interception](./17-realms-and-interception.md) and resolves
 the conflict "a child's interception replaces the ones it inherited"
 ([ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)).
-This file owns BEH-BR-257–272 and uses BEH-BR-257–266; numbers 267–272 of the block are
+This file owns BEH-BR-257–272 and uses BEH-BR-257–269; numbers 270–272 of the block are
 reserved.
 
 > **What this is not**
@@ -309,10 +314,15 @@ REQUIREMENT: `onBehalfOf` MUST NOT count as an actor. A call from plugin
 ```
 
 ```
-REQUIREMENT: System records (BEH-BR-199) MUST NOT carry `onBehalfOf`. A
-             child's mount and removal are system transitions whose target
-             already names the parent by its prefixed id (14 — Children and
-             Groups, BEH-BR-122, BEH-BR-126).
+REQUIREMENT: System records (BEH-BR-199) MUST NOT carry `onBehalfOf`, with
+             one exception: a root `lazy-triggered` record — of a plugin
+             moved out of `dormant` by `Host.wake` or by an event dispatch —
+             carries the caller's principal (27 — Manifest and Lazy
+             Activation, BEH-BR-253). A child's mount and removal are system
+             transitions whose target already names the parent by its
+             prefixed id (14 — Children and Groups, BEH-BR-122, BEH-BR-126).
+             `start-refused` and `unmount-requested` records carry none
+             (BEH-BR-267; 14, BEH-BR-126).
 ```
 
 ```
@@ -458,9 +468,12 @@ option of its own layer, which the application wires
 ([`references/command/`](../../command/README.md),
 [`references/agent/`](../../agent/README.md)).
 
-**Open.** How a `Desired` entry of `reconcile` declares `mandatory`, and
-whether a change to that list is a `replace` or a refusal, is left to the
-revision of 18 — Reconciliation and Confluence that adopts this file.
+**Settled (CCR-BR-025).** A `Desired` entry names its mandatory interceptions
+by id from `BridgerOptions.mandatoryCatalog`, never as values, and a
+difference from the registration's list (or its `allowChildren`) is a
+refusal of the entry, `PolicyMismatch`, not a `replace`
+([18 — Reconciliation and Confluence](./18-reconciliation-and-confluence.md),
+BEH-BR-153, BEH-BR-154). This closes the desired-state half of URS gap G40.
 
 ## BEH-BR-261: The composition order of policy layers
 
@@ -565,7 +578,12 @@ callers of `Host.use` from interception. That exemption is right for
 decorations and wrong for policy: a data-access wrapper that application
 code can step around by calling `host.use(Database, ...)` is not a policy.
 
-**Settled here.** `useAll` wraps each service it delivers separately, once
+**Settled here.** (1) For a plugin consumer the call's realm adds its
+`RealmOptions.mandatory`; it never replaces the plugin's own installation
+interceptions or its registration realm's, so a plugin cannot step around a
+policy meant for it by calling `Host.use` with another `realm` (CCR-BR-029;
+the host-core prototype applied the call's realm only, finding G-P16, which
+deviates from this requirement and is not adopted). (2) `useAll` wraps each service it delivers separately, once
 per call. The per-call cost is the price of covering this route; a consumer
 that finds it too high can capture the service once in a plugin, where the
 wrap happens once per activation.
@@ -634,10 +652,14 @@ That is correct for code the operator approved with its parent, and it is
 exactly why an operator approving a plugin must be able to say "and nothing
 else".
 
-**Open.** Whether `OperationRequest` for `install` should carry the
-registration's `allowChildren` and the service ids of its `mandatory`
-interceptions, so a gate can require them, is open; it would add fields to
-the request of 25 — Operation Gate.
+**Settled here (CCR-BR-026).** The `OperationRequest` of `install`, and of
+every other plugin-addressed operation, carries the registration's effective
+`allowChildren` and its installation-mandatory interceptions as
+`mandatoryInterceptions` (service id, and the catalog id when the
+interception has one), so a gate can require them
+([25 — Operation Gate](./25-operation-gate.md), BEH-BR-219). This closes URS
+gap G41. The same fields on a `reconcile` entry come from the desired entry
+([18 — Reconciliation and Confluence](./18-reconciliation-and-confluence.md)).
 
 ## BEH-BR-264: The AccessPolicy port — bus, registries and children
 
@@ -649,10 +671,15 @@ the request of 25 — Operation Gate.
 ```ts
 // illustrative — not type-checked
 type AccessRequest =
-  | { readonly kind: "listen";     readonly principal?: PrincipalRef; readonly event: string; readonly style: "on" | "around" }
+  | { readonly kind: "listen";     readonly principal?: PrincipalRef; readonly event: string;
+      readonly style: "on" | "around" | "subscribe" | "delivery";      // the last two: companion buses (BEH-BR-269)
+      readonly origin?: string;                                         // companion buses only: opaque id of the
+                                                                        // event's source, as the companion defines it (BEH-BR-269)
+      readonly declared?: DeclaredAccess }                              // BEH-BR-268
   | { readonly kind: "emit";       readonly principal?: PrincipalRef; readonly event: string;
-      readonly mode: "emit" | "parallel" | "serial" | "waterfall" }
-  | { readonly kind: "contribute"; readonly principal?: PrincipalRef; readonly registry: string; readonly id: string }
+      readonly mode: "emit" | "parallel" | "serial" | "waterfall" | "publish" }   // "publish": companion buses
+  | { readonly kind: "contribute"; readonly principal?: PrincipalRef; readonly registry: string; readonly id: string;
+      readonly declared?: DeclaredAccess }                              // BEH-BR-268
   | { readonly kind: "child";      readonly principal: PrincipalRef;  readonly childId: string;   // principal: the parent activation's
       readonly definition: { readonly version?: string; readonly digest?: string } }
 
@@ -670,8 +697,12 @@ REQUIREMENT: The host MUST read `AccessPolicy` with `Effect.serviceOption`
              at construction; it MUST NOT appear in the requirements of
              `Bridger.layer` or `Bridger.make`. `ContributionRegistry.make`
              MUST read it the same way from its own environment. Core MUST
-             NOT export an implementation, permissive or otherwise; the only
-             helper is a scripted fixture in `@bridger/core/testing`.
+             NOT export an implementation, permissive or otherwise. The
+             only helpers are a scripted fixture in `@bridger/core/testing`,
+             the combinator `AccessPolicy.declaredOnly` (BEH-BR-268), which
+             requires a policy written by the consumer, and
+             `AccessPolicy.ask` (BEH-BR-269), which consults the wired
+             policy and decides nothing itself.
 ```
 
 ```
@@ -732,7 +763,12 @@ point ([31 — Hook Points](./31-hook-points.md), BEH-BR-298) calls its own
 `who` rule first and then `add`s the contribution to its registry, whose
 `add` consults a wired `AccessPolicy` (`contribute`); both must allow, the
 hook point adds nothing when either refuses, and `who` therefore also sees
-contributors that the policy would deny.
+contributors that the policy would deny. (5) Events that reach a host
+through a companion bus rather than `Bridger.Events` — the event delivery
+companion's forwarded events, say — are decided by the same policy through
+`AccessPolicy.ask` (BEH-BR-269); core consults the policy only on its own
+bus, and a companion bus that does not ask is unpoliced, which its own
+documentation must say.
 
 ## BEH-BR-265: Host.controls reports the policy wiring
 
@@ -744,6 +780,7 @@ contributors that the policy would deny.
 // HostControls (24, BEH-BR-212), added — illustrative
 readonly policy: {
   readonly access: "wired" | "unwired"
+  readonly refusal: "wired" | "unwired"             // RefusalList (BEH-BR-267)
   readonly capability: "wired" | "unwired"          // 29
   readonly callLog: "wired" | "unwired"             // 29
   readonly mandatory: readonly { readonly scope: "host" | `realm:${string}`; readonly serviceIds: readonly ServiceId[] }[]
@@ -753,7 +790,8 @@ readonly policy: {
 
 ```
 REQUIREMENT: `Host.controls` MUST report whether `AccessPolicy`,
-             `CapabilityPolicy` and `CallLog` are wired and the service ids
+             `RefusalList`, `CapabilityPolicy` and `CallLog` are wired and
+             the service ids
              covered by host and realm mandatory interceptions, and
              `PluginCommon.mandatoryServiceIds` (04 — States and
              Snapshots, BEH-BR-027) MUST list the service ids of each
@@ -778,8 +816,9 @@ the one in which a reviewer believes a control exists.
 > **Risk:** [RSK-BR-028](../gxp/03-risk-assessment.md#rsk-br-028), [RSK-BR-013](../gxp/03-risk-assessment.md#rsk-br-013)
 
 ```
-REQUIREMENT: With no mandatory interception, no `AccessPolicy` and every
-             `allowChildren` at its default, every operation MUST behave
+REQUIREMENT: With no mandatory interception, no `AccessPolicy`, no
+             `RefusalList` and every `allowChildren` at its default, every
+             operation MUST behave
              exactly as files 02–25 specify: the same outcomes, errors,
              states and events. Snapshots, requests and records gain only
              additive fields: `allowChildren` and `mandatoryServiceIds` on
@@ -787,7 +826,10 @@ REQUIREMENT: With no mandatory interception, no `AccessPolicy` and every
              `OperationRequest` and records (30 — Operation-Context
              Annotations, BEH-BR-293, BEH-BR-295), and `onBehalfOf` on the
              `OperationRequest` a wired gate sees and on the records a wired
-             sink sees, for calls made under a principal (BEH-BR-259).
+             sink sees, for calls made under a principal (BEH-BR-259), and
+             `allowChildren` and `mandatoryInterceptions` on the
+             `OperationRequest` of plugin-addressed operations (25,
+             BEH-BR-219).
 ```
 
 ```
@@ -810,6 +852,363 @@ through Bridger's API", not "no code can get around it". That narrower
 promise is testable — every route through the host can be exercised and
 shown to carry the wrapper — and it is the promise a reviewer needs to know
 the exact edges of.
+
+## BEH-BR-267: The RefusalList port — a refused digest does not start, system starts included
+
+> **Invariant:** [INV-BR-050](../invariants.md#inv-br-050-a-refused-digest-never-enters-starting), [INV-BR-037](../invariants.md#inv-br-037-an-unwired-policy-port-changes-nothing)
+> **See:** [ADR-BR-053](../decisions/053-refusal-list.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-005](../decisions/005-failure-is-sticky.md)
+> **Satisfies:** [URS-BR-053](../urs.md#urs-br-053-keep-a-revoked-plugin-version-from-running-again-whatever-starts-it)
+> **Risk:** [RSK-BR-061](../gxp/03-risk-assessment.md#rsk-br-061), [RSK-BR-017](../gxp/03-risk-assessment.md#rsk-br-017)
+> **Regulatory:** supports 21 CFR 11.10(e), 11.10(f)
+
+```ts
+// illustrative — not type-checked
+interface RefusalSubject {
+  readonly id: string                  // the plugin's id ("parent/child" for a child)
+  readonly realm: string
+  readonly version?: string            // meta.version, when declared
+  readonly digest: string              // meta.digest; for a lazy definition, the digest supplied with it (27, BEH-BR-244)
+}
+
+class RefusalList extends Context.Service<RefusalList, {
+  // synchronous and pure; Some(reason) refuses the definition
+  readonly refused: (subject: RefusalSubject) => Option.Option<string>
+}>()("@bridger/core/RefusalList") {}
+
+// PluginSnapshot of a plugin whose start the list refused (04 — States and Snapshots):
+//   { state: "disabled"; reason: "refused-digest" }
+// SystemTransition gains "start-refused" (22 — Attributable Operations, BEH-BR-185)
+```
+
+```
+REQUIREMENT: The host MUST read `RefusalList` with `Effect.serviceOption`
+             at construction; it MUST NOT appear in the requirements of
+             `Bridger.layer` or `Bridger.make`. Core MUST NOT export an
+             implementation; the only helper is a scripted fixture in
+             `@bridger/core/testing`.
+```
+
+```
+REQUIREMENT: When wired, the host MUST call `refused` for a definition that
+             declares a digest, and only for such a definition, at each of
+             these points, and MUST NOT cache or reuse an answer:
+             - each time a registration would enter `starting`, for any
+               cause — the last requirement of a `waiting` plugin becoming
+               available, a trigger applying to a `dormant` plugin, a stop
+               that ends in `starting`, an operator call — before any of
+               its code is loaded or built;
+             - before each restart of a `background` fiber under "restart"
+               (10 — Runtime Failure and Health, BEH-BR-090);
+             - at each child mount through `Plugin.Runtime.install`
+               (14 — Children and Groups, BEH-BR-121), for the child's
+               definition;
+             - at step 4b of BEH-BR-188 (22 — Attributable Operations),
+               for every operator call below.
+             A definition without a digest MUST NOT be submitted and is
+             never refused.
+```
+
+```
+REQUIREMENT: The host MUST submit only the definition's own digest
+             (`meta.digest`, or the digest supplied with a lazy definition)
+             as `RefusalSubject.digest`, and no other identifier. A list
+             that refuses by another identifier tied to that digest — the
+             digest of a signed statement over the package, a signer, a
+             publisher — MUST map the submitted digest to it itself and
+             answer from that mapping; core documentation MUST state that
+             such a list is the companion's to complete, and that core
+             refuses exactly what `refused` answers for the subject it is
+             given (CCR-BR-029; the loader companion's `Revocation.refusalList`
+             maps a package digest to its accepted statements and signers,
+             [`references/loader/`](../../loader/README.md)).
+```
+
+```
+REQUIREMENT: At step 4b, for each plugin-addressed operator call whose
+             outcome in BEH-BR-071 (08 — Operation Legality) leaves the
+             registration in `dormant`, `waiting` or `starting`, or
+             rebuilds it — `install` without `disabled`, `replace` of a
+             registration that is not disabled by an operator, `enable`,
+             `retry`, `restart` and a `reconfigure` that restarts — the host
+             MUST submit the incoming definition (`install`, `replace`) or
+             the installed one (every other operation). A refusal MUST
+             fail the call with `OperationRejected` whose `reason` is
+             "refused-digest: <reason>", MUST change nothing, MUST NOT call
+             the `OperationGate`, and with a sink wired MUST write exactly
+             one `rejected` record, as a gate refusal does (25 — Operation
+             Gate, BEH-BR-220). A `reconcile` entry is refused alone and
+             reported among the entry refusals of its report (18 —
+             Reconciliation and Confluence); `Host.plan` lists it in
+             `rejected`, and with `atomic` the refusal is found at
+             validation and applies nothing (32 — Generic Gate and Plan,
+             BEH-BR-317, BEH-BR-322). A registration `disabled` with reason
+             "refused-digest" counts as not disabled for the diff of
+             `reconcile` and does not change `registeredAt` (18, BEH-BR-154;
+             32, BEH-BR-318).
+```
+
+```
+REQUIREMENT: When the list refuses a start that is not an operator call at
+             step 4b — including the start of a call whose step 4b passed
+             and whose definition the list refused by the time the start
+             came — the registration MUST NOT enter `starting`; nothing of
+             its code MUST be loaded or built; and in the same revision it
+             MUST move to `disabled` with reason "refused-digest", keeping
+             its definition, its configuration override, its
+             `allowChildren` and its installation-mandatory interceptions.
+             Its dependents MUST see its services as absent. A refused
+             start reached from `stopping` MUST end the stop in that
+             `disabled` state.
+```
+
+```
+REQUIREMENT: Before restarting a `background` fiber, a refusal MUST leave
+             the fiber stopped and MUST stop the plugin as `disable` stops
+             it — dependents first, drained under
+             `BridgerOptions.drainTimeout`, revoked at the limit as on a
+             path with no caller (10 — Runtime Failure and Health,
+             BEH-BR-095) — ending in `disabled` with reason
+             "refused-digest".
+```
+
+```
+REQUIREMENT: A refused child mount MUST fail `Plugin.Runtime.install` with
+             `ChildNotAllowed` whose `reason` is "refused-digest: <reason>",
+             MUST register nothing, and MUST publish `child-refused` as
+             BEH-BR-263 states.
+```
+
+```
+REQUIREMENT: With a sink wired, each refusal outside step 4b MUST write one
+             record with phase `system`, operation "start-refused", actor
+             `Actor.system`, no `reason`, `target` the plugin (the child's
+             prefixed id for a refused mount), `before` and `after` as
+             BEH-BR-196 of 23 — Audit Sink and Record requires (`after.state`
+             "disabled"; neither for a refused mount, whose target never
+             existed), and `error` `{ _tag: "DigestRefused", message:
+             "digest refused: <reason>" }`. Its `causationId` MUST be the
+             cause the refused start would have had under BEH-BR-190 of
+             22 — the record of the call, of the system transition or of
+             the parent's triggering transition — and it MUST be a root
+             when that start had none (a `Host.wake`, an event dispatch,
+             a background restart). The records of a stop that follows MUST
+             take the `start-refused` record as their cause. Every refusal
+             MUST be logged at warning level with the id, realm, digest and
+             reason.
+```
+
+```
+REQUIREMENT: `refused` MUST be total. A call that throws, or returns a value
+             that is neither `Option.none()` nor `Option.some` of a
+             non-empty string, MUST be treated as a refusal with reason
+             "policy-defect".
+```
+
+```
+REQUIREMENT: The list MUST NOT stop a plugin that is `active` on its own: an
+             entry added to the list takes effect at that plugin's next
+             start, background restart or mount. Core documentation MUST
+             state that making a running digest unusable takes a `disable`
+             or `remove` (the loader companion's kill switch,
+             [`references/loader/`](../../loader/README.md)), and that the
+             list keeps such a plugin from starting again.
+```
+
+```
+REQUIREMENT: The reason "refused-digest" MUST be cleared by an operator
+             `disable` (the plugin stays `disabled`, now by the operator),
+             by an `enable` the list no longer refuses, and by a `replace`
+             with a definition the list does not refuse, as row
+             "disabled (refused-digest)" of BEH-BR-071 states. While it is
+             set, `PluginCommon` MUST report it in the snapshot (04 —
+             States and Snapshots).
+```
+
+A gate can refuse every operator call that would start a revoked digest
+([25 — Operation Gate](./25-operation-gate.md), BEH-BR-219), but the starts
+that matter most after a revocation are the ones nobody calls: a dependency
+returning, a lazy trigger, a background fiber restarting at three in the
+morning, a parent mounting the same child again. Those are system
+transitions and stay ungated (BEH-BR-223); the list is not a gate, it is a
+lookup that the host makes at the one point every start passes through.
+
+**Settled here.** (1) The port is synchronous and pure, like
+`AccessPolicy`, because it is consulted inside the revision in which the
+host decides to start a plugin; a list fed by a revocation service keeps a
+table that the service updates and `refused` reads. (2) A refused start
+lands in `disabled`, not `failed`: failure is sticky and says that code ran
+and failed (ADR-BR-005), while refused code never ran; `disabled` already
+means "registered, provides nothing, deliberately not run", and the reason
+says that the host, not an operator, decided it. (3) An operator call is
+refused before the gate as `OperationRejected`, so no error union changes
+and the `rejected` record states who asked and why it was refused; the gate
+is not asked to approve a start that cannot happen. (4) Running activations
+are not stopped by the list: a pure lookup that stopped plugins would be a
+mutating operation with no caller, no reason and no drain decision. A
+revocation companion stops them with an attributed `disable` or `remove`,
+and the list keeps them stopped. This closes URS gap G60.
+
+## BEH-BR-268: AccessPolicy.declaredOnly — refuse what the manifest did not declare
+
+> **Invariant:** [INV-BR-037](../invariants.md#inv-br-037-an-unwired-policy-port-changes-nothing)
+> **See:** [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-041](../decisions/041-manifest-as-data.md)
+> **Satisfies:** [URS-BR-030](../urs.md#urs-br-030-know-what-a-plugin-declares-before-running-its-code), [URS-BR-033](../urs.md#urs-br-033-enforce-a-policy-wrapper-that-no-plugin-can-remove)
+> **Risk:** [RSK-BR-029](../gxp/03-risk-assessment.md#rsk-br-029)
+
+```ts
+// illustrative — not type-checked
+interface DeclaredAccess {
+  readonly contributions: readonly { readonly registry: string; readonly id: string }[]  // manifest `contributions`
+  readonly events: readonly string[]          // the `eventId` of each `OnEvent` trigger in `activation`,
+                                              // and each entry of `listens` (27 — Manifest and Lazy Activation)
+}
+
+declare const AccessPolicy: {
+  readonly declaredOnly: (
+    inner: AccessPolicyShape,                                   // the consumer's policy; required
+    options: { readonly withoutManifest: "allow" | "deny" }    // no default
+  ) => AccessPolicyShape
+  // ask: BEH-BR-269
+}
+```
+
+```
+REQUIREMENT: When an `AccessPolicy` is wired, core MUST set `declared` on
+             every `listen` and `contribute` request whose principal's
+             registration carries a manifest — the registered manifest, for
+             an eager or a lazy definition (27, BEH-BR-241, BEH-BR-246) —
+             with the manifest's `contributions` and the events it declares;
+             and MUST leave it absent when the request has no principal or
+             the registration has no manifest. The value MUST be fixed when
+             the principal is minted and MUST be the same for every request
+             of that activation.
+```
+
+```
+REQUIREMENT: `AccessPolicy.declaredOnly(inner, options)` MUST return a
+             policy whose `decide`:
+             - for a `contribute` request that carries `declared`, denies
+               with "undeclared contribution: <registry>/<id>" when the
+               pair is not in `declared.contributions`;
+             - for a `listen` request of any style that carries `declared`,
+               denies with "undeclared listener: <event>" when the event is
+               not in `declared.events`;
+             - for a `listen` or `contribute` request with a principal and
+               no `declared`, denies with "no manifest" when
+               `withoutManifest` is "deny";
+             - otherwise returns `inner.decide(request)`.
+             Comparison MUST be exact string equality. The combinator MUST
+             NOT turn a denial of `inner` into "allow", and MUST NOT be
+             exported in a form that takes no `inner`.
+```
+
+A manifest is a plugin's declaration of what it will do, read by consent
+screens and agents before its code runs (BEH-BR-241). A loaded plugin that
+listens to events or contributes to registries it did not declare makes that
+declaration untrue, and core could not tell (URS gap G38). The combinator
+makes the comparison for a deployment that asks for it, at the point the
+access is decided, without core deciding anything else.
+
+**Settled here.** (1) It is a combinator over the consumer's policy, not a
+policy core ships: a deployment that wires it still writes the rest of its
+policy, and `declaredOnly` without `inner` does not exist (BEH-BR-264).
+(2) `withoutManifest` has no default because both answers are reasonable — a
+host of eager plugins without manifests would refuse every listener under
+"deny" — and a silent default would be a policy chosen by core. (3) Emits
+and child mounts are not compared: the manifest declares no emits, and a
+child is approved with its parent's definition (BEH-BR-126). (4) Declared
+events come from the `OnEvent` triggers and from the manifest field
+`listens` of 27 — Manifest and Lazy Activation; a manifest that declares
+neither declares no events, and every listener of its plugin is denied.
+This closes URS gap G38 for deployments that wire the combinator.
+
+## BEH-BR-269: AccessPolicy.ask — companion buses consult the same policy
+
+> **Invariant:** [INV-BR-035](../invariants.md#inv-br-035-only-the-host-mints-a-plugin-principal), [INV-BR-037](../invariants.md#inv-br-037-an-unwired-policy-port-changes-nothing)
+> **See:** [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-020](../decisions/020-typed-event-bus.md)
+> **Satisfies:** [URS-BR-033](../urs.md#urs-br-033-enforce-a-policy-wrapper-that-no-plugin-can-remove), [URS-BR-013](../urs.md#urs-br-013-exchange-typed-events-between-plugins)
+> **Risk:** [RSK-BR-029](../gxp/03-risk-assessment.md#rsk-br-029)
+
+```ts
+// illustrative — not type-checked
+type CompanionAccessRequest =
+  | { readonly kind: "listen"; readonly event: string; readonly style: "subscribe" | "delivery"; readonly origin?: string }
+  | { readonly kind: "emit";   readonly event: string; readonly mode: "publish" }
+
+declare const AccessPolicy: {
+  readonly ask: (request: CompanionAccessRequest, options?: { readonly principal?: PluginPrincipal })
+    => Effect.Effect<AccessDecision>
+  // declaredOnly: BEH-BR-268
+}
+
+// the typed refusal a companion returns to its own caller
+class AccessRefused extends Schema.TaggedError<AccessRefused>()("AccessRefused", {
+  kind: Schema.String, subject: Schema.String, reason: Schema.String
+}) {}
+```
+
+```
+REQUIREMENT: `AccessPolicy.ask` MUST read `AccessPolicy` with
+             `Effect.serviceOption` from the environment in which it runs,
+             as `ContributionRegistry.make` does (BEH-BR-264), and MUST
+             return "allow" when none is provided. It MUST complete the
+             request with `principal` — `options.principal` when given,
+             otherwise the calling fiber's principal, absent for code with
+             none — and with `declared` as BEH-BR-268 states, call `decide`
+             once, apply the totality rule of BEH-BR-264 ("policy-defect"),
+             log a denial as BEH-BR-264 states, and return the decision. It
+             MUST NOT die on a denial.
+```
+
+```
+REQUIREMENT: A principal given in `options.principal`, or read from the
+             fiber, MUST be checked against the registry of minted
+             principals (BEH-BR-257): one that was not minted MUST make
+             `ask` die with `PrincipalForged`. A retired principal MUST
+             yield `{ deny: "principal-retired" }` and MUST NOT die: a
+             delivery that arrives after its subscriber's activation ended
+             is an ordinary race, not a defect.
+```
+
+```
+REQUIREMENT: A companion that delivers events to plugin subscribers outside
+             `Bridger.Events` — the event delivery companion's bus, events
+             forwarded from another host — and that claims to apply the
+             host's access policy MUST call `ask` with `listen` and style
+             "subscribe" in the subscriber's fiber when the subscription is
+             made, and with `emit` and mode "publish" before each publish.
+             It MAY also call `ask` with style "delivery" before each
+             delivery, passing the principal it read with
+             `CurrentPlugin.get` at subscription and an `origin` naming the
+             event's source; it MUST do
+             so when it claims that a change to the policy reaches existing
+             subscriptions. It MUST report a denial to its caller as
+             `AccessRefused`, and MUST deliver nothing to a subscriber whose
+             delivery was denied.
+```
+
+The policy of BEH-BR-264 decides on the core bus because core dispatches
+those events; a companion bus dispatches its own, so core cannot consult the
+policy for it. What core can do is make the same decision available to the
+companion, under the same principal checks and the same failure rule, so
+that one table answers "may `billing/export` read events of type X" whether
+the event came through `Bridger.Events` or from another host
+(URS gap G55).
+
+**Settled here.** (1) Core does not run a companion's subscriber under the
+subscriber's principal; the companion's delivery fiber carries whatever it
+carries. A subscriber that wants its handler to run under its own principal
+wraps it with `Plugin.Runtime.asSelf` when subscribing (BEH-BR-258).
+(2) `origin` is an opaque string that the policy may use; core does not
+interpret it. Its form is the companion's, which MUST document it: it MAY
+name the local host for a locally published event, and it MAY carry a
+suffix that changes over time (an incarnation, for example), in which case
+the companion MUST say so, because a policy keyed on a host identifier then
+has to match the stable part (CCR-BR-029, agent review F27; the event
+delivery companion passes the envelope's `node#incarnation` origin). (3) `ask` returns a decision instead of dying because the
+companion's own API has a typed error for refusals; `AccessRefused` is
+exported so that every companion uses one tag. This closes URS gap G55 on
+the core side.
 
 ## Acceptance checks
 
@@ -861,6 +1260,45 @@ REQUIREMENT: The following checks MUST pass before this file's behaviours
                  with nothing wired, the suites of files 02–25 pass with
                  only the additive fields of BEH-BR-266 added to the values
                  they compare (BEH-BR-263 to BEH-BR-266).
+             104. A wired `RefusalList`: an operator `install`, `replace`,
+                 `enable`, `retry`, `restart` or restarting `reconfigure` of
+                 a refused digest fails with `OperationRejected`
+                 ("refused-digest: ..."), writes one `rejected` record and
+                 never calls the gate; a dependency returning, a lazy
+                 trigger, a cascade restart and a call whose step 4b passed
+                 before the list changed each leave the plugin `disabled`
+                 with reason "refused-digest", with no code loaded or built
+                 and one `start-refused` record caused as BEH-BR-190 gives;
+                 a background restart of a refused digest stops the plugin
+                 into that state, with the stop's records caused by a root
+                 `start-refused`; a refused child mount fails with
+                 `ChildNotAllowed`, registers nothing and writes one
+                 `start-refused` record; a definition without a digest is
+                 never submitted; a throwing list refuses with
+                 "policy-defect"; an `active` plugin is not stopped by a
+                 list change; row "disabled (refused-digest)" of BEH-BR-071
+                 holds cell by cell; such a registration counts as not
+                 disabled for the `reconcile` diff and `registeredAt`, so a
+                 second run issues nothing for it, and `Host.plan` lists a
+                 refused entry in `rejected` (BEH-BR-267; 18, BEH-BR-154;
+                 32, BEH-BR-317).
+             105. The `OperationRequest` of a plugin-addressed operation
+                 carries `allowChildren` and `mandatoryInterceptions`
+                 (service ids, catalog ids where present, in composition
+                 order) equal to the registration's effective values, the
+                 incoming ones for `install`; a gate can refuse an `install`
+                 with `allowChildren: true` (BEH-BR-219, BEH-BR-263).
+             109. `AccessPolicy.declaredOnly`: an undeclared contribution or
+                 listener of a plugin with a manifest is denied with the
+                 stated reasons, a declared one is decided by `inner`, a
+                 plugin without a manifest follows `withoutManifest`, and
+                 application code goes to `inner`; `AccessPolicy.ask`
+                 returns "allow" with no policy provided, decides
+                 "subscribe", "delivery" and "publish" requests with the
+                 subscriber's principal, dies with `PrincipalForged` on a
+                 principal that was not minted and denies with
+                 "principal-retired" for a retired one (BEH-BR-268,
+                 BEH-BR-269).
 ```
 
 ---

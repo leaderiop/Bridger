@@ -5,3 +5,6 @@ entries:
   - file: "a-cast-inventory.md"
     id: "BRIDGER-KT-APP-A"
     title: "Cast inventory of the host-core prototype"
+  - file: "b-partner-publishing.md"
+    id: "BRIDGER-KT-APP-B"
+    title: "Partner publishing guide"

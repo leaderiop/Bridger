@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-042                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-050                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): the lazy definition's digest is supplied beside the manifest (`Plugin.lazy({ manifest, load, digest })`) and is its identity for loading, reconcile and the gate (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
+> | Change History | 0.3 (2026-11-08): Amended by ADR-BR-050 (CCR-BR-024)<br>0.2 (2026-11-08): the lazy definition's digest is supplied beside the manifest (`Plugin.lazy({ manifest, load, digest })`) and is its identity for loading, reconcile and the gate (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
 
 ---
 
@@ -66,3 +66,4 @@ Deferral can be done outside core: a companion holds manifests, watches snapshot
 - Decisions: [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-013](../decisions/013-total-operation-legality.md), [ADR-BR-014](../decisions/014-discriminated-plugin-snapshot.md), [ADR-BR-020](../decisions/020-typed-event-bus.md), [ADR-BR-027](../decisions/027-core-exclusions.md), [ADR-BR-032](../decisions/032-operation-gate.md), [ADR-BR-041](../decisions/041-manifest-as-data.md)
 - Source: none in `docs/SPEC.md`; architecture review of 2026-11-08, gap item 4
 - Precedent: VS Code activation events; OSGi lazy activation policy
+- Amended by: [ADR-BR-050](./050-dormant-veto-and-hook-phases.md) — the triggering event of an `OnEvent` wake is held; idle return to `dormant`; root wake records carry `onBehalfOf` (CCR-BR-024).

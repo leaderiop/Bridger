@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-14                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): BEH-BR-121: the sub-scope finalizer waits for the removal, a held lease is revoked at the limit, a removal begun by the parent's stop takes precedence (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-121 a lazy child refused with `InvalidDefinition` (CCR-BR-017); BEH-BR-121 `ChildNotAllowed` and BEH-BR-122 mandatory interceptions always inherited (CCR-BR-018); BEH-BR-121 sub-scope mount removed when the sub-scope closes, BEH-BR-126 its `system-stop` record, `Plugin.Any` in `Plugin.Runtime.install` and BEH-BR-127 group members (CCR-BR-020)<br>0.4 (2026-10-03): A child's parked removal is also resumed by a cascade of another of its providers, as BEH-BR-080 gives it (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): No mount once the parent's stop or shutdown has begun; a parked child removal resumes only as a removal; mount and activation records; a parent awaiting a child in its build can starve for a slot; a group member's install error fails the group with phase "build" (prototype findings G19–G22) (CCR-BR-010)<br>0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-08): BEH-BR-121 a refused digest refuses the mount (`ChildNotAllowed`); BEH-BR-126 `Plugin.Runtime.unmount`, an attributed child removal recorded by `unmount-requested` with `requestedBy` (G57) (CCR-BR-026)<br>0.6 (2026-11-08): BEH-BR-121: the sub-scope finalizer waits for the removal, a held lease is revoked at the limit, a removal begun by the parent's stop takes precedence (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-121 a lazy child refused with `InvalidDefinition` (CCR-BR-017); BEH-BR-121 `ChildNotAllowed` and BEH-BR-122 mandatory interceptions always inherited (CCR-BR-018); BEH-BR-121 sub-scope mount removed when the sub-scope closes, BEH-BR-126 its `system-stop` record, `Plugin.Any` in `Plugin.Runtime.install` and BEH-BR-127 group members (CCR-BR-020)<br>0.4 (2026-10-03): A child's parked removal is also resumed by a cascade of another of its providers, as BEH-BR-080 gives it (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): No mount once the parent's stop or shutdown has begun; a parked child removal resumes only as a removal; mount and activation records; a parent awaiting a child in its build can starve for a slot; a group member's install error fails the group with phase "build" (prototype findings G19–G22) (CCR-BR-010)<br>0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -79,8 +79,8 @@ REQUIREMENT: The sub-scope's finalizer MUST wait until the child's removal
 
 ```
 REQUIREMENT: `Plugin.Runtime.install` MUST fail with `ChildNotAllowed` when
-             the parent's `allowChildren` or a wired `AccessPolicy` refuses
-             the mount
+             the parent's `allowChildren`, a wired `AccessPolicy` or a wired
+             `RefusalList` (BEH-BR-267) refuses the mount
              ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
              BEH-BR-263, BEH-BR-264), and with `InvalidDefinition` for a lazy
              definition ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
@@ -373,6 +373,47 @@ REQUIREMENT: The mount record's `after.state` MUST be the state in which the
              `system-start` record of that activation, or of its failure,
              MUST carry the mount record's `recordId` as `causationId`.
 ```
+
+```ts
+// illustrative — not type-checked
+// Plugin.Runtime member (10 — Runtime Failure and Health, BEH-BR-089)
+readonly unmount: (child: PluginRef, options: { readonly context: OperationContext }) =>
+  Effect.Effect<void, UnknownPlugin | HostClosed>
+```
+
+```
+REQUIREMENT: `Plugin.Runtime.unmount(child, { context })` MUST remove a
+             child mounted by the calling activation exactly as the close of
+             a sub-scope removes it (BEH-BR-121): its dependents first,
+             drained under `BridgerOptions.drainTimeout`, revoked at the
+             limit, never parked, and MUST complete when the removal has
+             settled. A `child` that is not a child of this activation MUST
+             fail with `UnknownPlugin`. A child whose removal has already
+             begun — by its parent's stop or its sub-scope — MUST NOT be
+             removed twice: the call waits for that removal, and writes no
+             record of its own.
+```
+
+```
+REQUIREMENT: With an `AuditSink` wired, the unmount MUST be recorded as
+             22 — Attributable Operations, BEH-BR-190, states: one
+             `unmount-requested` record carrying `requestedBy` (the
+             context's actor and reason), then the `system-stop` records of
+             the removal, caused by it. It MUST NOT consult the
+             `OperationGate`, and MUST NOT fail for missing attribution.
+             A sub-scope closed after its child was unmounted finds the
+             child gone and removes nothing.
+```
+
+**Settled here (CCR-BR-026).** A companion that removes a child on
+someone's request — the remote companion revoking a boundary for an
+operator, say — needs that person and reason in the trail, and the stops of
+the child's dependents need a cause that leads back to them (URS gap G57).
+Closing the sub-scope cannot carry either. `unmount` carries them without
+making the removal an operator call: it is not gated, because removing code
+is the safe direction, and its records stay system records attributed to
+`Actor.system`, with the requester in `requestedBy` beside the actor, so
+that "the host did this" and "on whose request" are never confused.
 
 **Settled here.** SPEC.md is silent on attribution and approval of
 children. Mounting a child is a consequence of a decision already taken —

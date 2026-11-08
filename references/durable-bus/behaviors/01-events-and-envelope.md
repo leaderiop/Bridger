@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — annotations carried as core `AnnotationEntry[]` under flow "wire" (BEH-BR-296), the deadline never carried; envelope-level stops for unknown formats and conflicts; check 6 and the incarnation rule restated as an operator obligation (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.6 (2026-11-08): Round-2 agent review (R4 F12, F26; R5-04/05, R5-06, R5-08) — `IncarnationSource`, raised by a whole-store re-bootstrap; downstream signature of an unraised restore stated; codec rotation through `decodes`; write order schema → downcast → codec; `PayloadUnreadable` under the subscription's `onUnreadable` ("park" or "halt") or read undecoded through `subscribeEnvelopes`, never dropped; codec markers pass through upcasters; erasure sentence narrowed to holders without another copy of the key (CCR-DB-003)<br>0.5 (2026-11-08): BEH-DB-008 cites URS-BR-059 (registered by core CCR-BR-027) instead of a proposal (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 21 and 25, CORE-DECISIONS-2 — BEH-DB-008 `PayloadCodec` and the no-personal-data guidance for annotations, actors, the call log and audit `reason`; `onBehalfOf` as `PrincipalRef.encode`; correlation from `CurrentCorrelation` and set for handlers through `CallerContext.serve` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — annotations carried as core `AnnotationEntry[]` under flow "wire" (BEH-BR-296), the deadline never carried; envelope-level stops for unknown formats and conflicts; check 6 and the incarnation rule restated as an operator obligation (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -20,7 +20,7 @@ An event that outlives a process needs a declared shape, a version, and an
 envelope that says where it came from, in which stream and position, when
 (in a clock that orders causally), and on whose behalf. This file fixes the
 declaration, the envelope and the identities in it. This file owns
-BEH-DB-001–008 and uses BEH-DB-001–007; BEH-DB-008 is reserved.
+BEH-DB-001–008 and uses all eight.
 
 Planned source: `packages/durable-bus/src/DurableEvent.ts` and
 `packages/durable-bus/src/Envelope.ts` *(Planned)*.
@@ -101,12 +101,13 @@ interface Envelope {
   readonly hlc: Hlc                          // 05
   readonly occurredAt: string                // Clock, ISO 8601; informational
   readonly actor: Actor                      // claim of the origin (BEH-DB-006)
-  readonly onBehalfOf?: string               // plugin principal (core 28), when present
+  readonly onBehalfOf?: string               // PrincipalRef.encode of the publishing plugin's principal (core BEH-BR-280)
   readonly annotations: readonly AnnotationEntry[]          // core 30 encoding of the carried subset (BEH-DB-007)
   readonly annotationsOmitted: readonly string[]             // `omitted` of Annotations.encode (BEH-BR-289)
   readonly correlationId: string
   readonly causationId?: string              // eventId of the envelope that caused this one
-  readonly payload: unknown                  // encoded with the event schema at `version`
+  readonly codec?: string                    // id of the PayloadCodec that encoded `payload`, absent for the identity codec (BEH-DB-008)
+  readonly payload: unknown                  // encoded with the event schema at `version`, then by the codec
 }
 ```
 
@@ -129,8 +130,17 @@ REQUIREMENT: `eventId` MUST come from core's `IdGenerator`, `occurredAt` and
 
 ```
 REQUIREMENT: `payload` MUST be the encoded output of the event's schema at
-             `version`. Configuration values of plugins MUST NOT be placed in
-             an envelope by this package.
+             `version`, passed through the bus's `PayloadCodec` (BEH-DB-008).
+             Configuration values of plugins MUST NOT be placed in an
+             envelope by this package.
+```
+
+```
+REQUIREMENT: `onBehalfOf` MUST be `PrincipalRef.encode` of the publishing
+             fiber's plugin principal (core BEH-BR-280), and a receiver MUST
+             read it with `PrincipalRef.decode`, treating a string that does
+             not decode as absent and reporting it. It is a claim of the
+             origin, like the actor (BEH-DB-006).
 ```
 
 ## BEH-DB-003: Streams
@@ -174,6 +184,40 @@ REQUIREMENT: A node whose store was restored from a backup, replaced or wiped
              store's backups do not cover, and raising it on every restore.
 ```
 
+```ts
+// illustrative — not type-checked
+// Context.Service "@bridger/durable-bus/IncarnationSource" — optional; kept outside the store it numbers
+interface IncarnationSource {
+  readonly current: Effect.Effect<number, IncarnationUnavailable>
+  readonly raise: Effect.Effect<number, IncarnationUnavailable>   // persists current + 1 and returns it
+}
+// DurableBus.plugin options: incarnation: number | Context.Key<any, IncarnationSource>
+```
+
+```
+REQUIREMENT: When the bus is given an `IncarnationSource`, it MUST read the
+             incarnation from `current` at start, under the same refusal
+             rule. A re-bootstrap that replaces the whole store (06,
+             BEH-DB-048) MUST raise it through `raise` before the bus
+             publishes again, and the bus MUST then record the new
+             incarnation in the replaced store and use the new origin for
+             every later envelope. Without an `IncarnationSource`, a
+             whole-store re-bootstrap MUST be refused (BEH-DB-048).
+```
+
+```
+REQUIREMENT: Documentation MUST state what a restore without a raised
+             incarnation looks like downstream: a receiver that still holds
+             the first `eventId` at a reissued (origin, stream, sequence)
+             stops that stream with `EnvelopeConflict` and records nothing
+             more from it; a receiver that has purged it absorbs the
+             reissued envelope as a repeat (BEH-DB-018). In neither case is
+             the reissued envelope stored, so a consumer that reads stored
+             envelopes (for example a series check of the sequence
+             companion) never sees the duplicate: it sees a stopped stream,
+             or nothing.
+```
+
 ```
 REQUIREMENT: When a receiver sees one (origin, stream, sequence) with two
              different `eventId`s, it MUST keep the envelope already stored,
@@ -200,9 +244,9 @@ provides ([INV-DB-002](../invariants.md#inv-db-002-sequence-is-contiguous-per-or
 > **Satisfies:** [URS-BR-021](../../core/urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
 
 ```
-REQUIREMENT: `correlationId` MUST be the `correlationId` of the publishing
-             fiber's `OperationContext` when one is set, and a new identifier
-             otherwise. When `publish` runs inside a subscription handler,
+REQUIREMENT: `correlationId` MUST be the publishing fiber's
+             `CurrentCorrelation` (core BEH-BR-187) when one is set, and a
+             new identifier from the `IdGenerator` otherwise. When `publish` runs inside a subscription handler,
              `causationId` MUST be the handled envelope's `eventId` and
              `correlationId` MUST be the handled envelope's.
 ```
@@ -268,9 +312,11 @@ REQUIREMENT: On receipt, the stored entries MUST be decoded with
              entries MUST stay in the stored envelope, unapplied, and be
              listed in the handler's receipt (`rejectedAnnotations`). The
              handler MUST run inside `CallerContext.serve({ actor:
-             envelope.actor, annotations })` (BEH-BR-292), `annotations`
-             being the decoded bag with the provenance entry of BEH-DB-006
-             added, so that the decoded values are combined into the
+             envelope.actor, annotations, correlationId:
+             envelope.correlationId })` (BEH-BR-292), `annotations` being
+             the decoded bag with the provenance entry of BEH-DB-006 added,
+             so that `CurrentCorrelation` is the envelope's for the
+             handler's work, so that the decoded values are combined into the
              handler fiber's annotations and a monotonic key received
              cannot be removed by the handler.
 ```
@@ -282,6 +328,105 @@ from untrusted input stays marked as such wherever it goes. The deadline
 never travels: it is an instant on the publisher's clock, usually long past
 when the event is handled, and being monotonic it could not be removed once
 applied.
+
+## BEH-DB-008: A PayloadCodec encodes payloads, and records carry no personal data
+
+> **Invariant:** [INV-DB-010](../invariants.md#inv-db-010-a-payload-reaches-storage-and-the-wire-only-through-the-payload-codec)
+> **See:** [ADR-DB-008](../decisions/008-actor-and-annotations-are-claims.md)
+> **Satisfies:** [URS-BR-013](../../core/urs.md#urs-br-013-exchange-typed-events-between-plugins), [URS-BR-059](../../core/urs.md#urs-br-059-make-a-persons-event-payloads-unreadable-without-breaking-their-order)
+> **Risk:** [RSK-BR-031](../../core/gxp/03-risk-assessment.md#rsk-br-031)
+
+```ts
+// illustrative — not type-checked
+// Context.Service "@bridger/durable-bus/PayloadCodec" — optional; default PayloadCodec.identity
+interface PayloadCodec {
+  readonly id: string                                   // written to Envelope.codec; "identity" is never written
+  readonly decodes?: readonly string[]                  // codec ids it can read, `id` included; default [id] (rotation)
+  readonly encode: (event: { readonly type: string; readonly version: number; readonly stream: string },
+                    encoded: unknown) => Effect.Effect<unknown, PayloadEncodeFailed>
+  readonly decode: (envelope: Pick<Envelope, "type" | "version" | "stream" | "codec">, payload: unknown) =>
+    Effect.Effect<unknown, PayloadDecodeFailed | PayloadUnreadable>
+}
+declare const PayloadCodec: { readonly identity: PayloadCodec }
+// PayloadUnreadable: the codec can no longer read the payload (for example its key was destroyed)
+```
+
+```
+REQUIREMENT: `publish` MUST pass the schema-encoded payload through
+             `PayloadCodec.encode` inside the caller's transaction, before
+             the outbox append, and MUST write the codec's `id` in
+             `Envelope.codec` unless the codec is the identity. A failure
+             MUST fail `publish` with `PayloadEncodeFailed` and write
+             nothing.
+```
+
+```
+REQUIREMENT: Writing MUST run the schema encoding at the event's
+             `version`, then the downcast when `publishVersion` is N−1
+             (BEH-DB-031), then `PayloadCodec.encode`. Reading MUST run
+             `PayloadCodec.decode`, then the upcasters (BEH-DB-025), then
+             the schema. An envelope whose `codec` is neither absent nor in
+             the codec's `decodes` MUST be handled as unreadable under the
+             subscription's `onPoison` with `PayloadDecodeFailed`, so that a
+             codec rotated to a new `id` keeps reading history as long as
+             it lists the old one.
+```
+
+```
+REQUIREMENT: A `PayloadUnreadable` MUST be handled under the
+             subscription's `onUnreadable` (03, BEH-DB-020): by default
+             ("park") it parks the envelope for that subscription with that
+             tag and does not halt the stream, since a payload made
+             unreadable on purpose is an expected outcome, not a poison;
+             with "halt" it halts that (origin, stream) for the
+             subscription, as a poison under `onPoison: "halt"` would. A
+             recorder that must keep every fact — the event-store
+             companion's `receive` — either halts, or reads through
+             `subscribeEnvelopes` (03, BEH-DB-020), which never decodes and
+             so never meets `PayloadUnreadable`, and stores the payload and
+             `codec` exactly as received. No mode drops the envelope.
+```
+
+```
+REQUIREMENT: Values a codec returns in place of fields it cannot reveal
+             (for example the keyring companion's `Shredded` markers) MUST
+             be passed to the upcasters and the schema unchanged; a codec
+             that returns such markers MUST document them, and upcasters
+             MUST pass a marker they do not know through unchanged.
+```
+
+```
+REQUIREMENT: The codec MUST NOT change any envelope field other than
+             `payload` and `codec`; origin, stream, sequence, HLC, actor,
+             `onBehalfOf`, correlation and annotations stay readable without
+             it, so that ordering, deduplication and access checks work on
+             payloads nobody can read.
+```
+
+```
+REQUIREMENT: Documentation MUST state, for application authors, that
+             personal data belongs only in payloads, where a codec can
+             encrypt it, and MUST NOT be placed in: an annotation value, the
+             actor's id or display fields, an event id, a stream name or an
+             origin; a core `CallLog` entry (its member names, reasons and
+             error tags); or the `reason` of an `OperationContext`, which
+             core writes to the audit trail. Those fields are copied to
+             logs, the call log and audit records that a codec never sees
+             and that cannot be erased selectively.
+```
+
+**Settled here.** (1) The codec is a port so that field encryption with
+per-subject keys — the planned keyring companion's job — can be added
+without this package holding keys or choosing ciphers; destroying a key
+then makes that subject's payloads unreadable to any holder that has no
+other copy of the key (see the keyring companion's BEH-KR-022), while the
+stream's order and identities stay intact. This package does not erase
+anything. (2) The codec runs after schema encoding and the downcast on
+write and before upcasting on read, so upcasters work on plaintext and stay
+pure; the plaintext a subscription handler or `forward` (07, BEH-DB-050)
+receives is outside the codec's reach (INV-DB-010). (3) The rule about where personal data may go is
+guidance this package states, not a check it performs: the fields named are
+strings it cannot classify.
 
 ---
 

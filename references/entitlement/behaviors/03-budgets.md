@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -25,7 +25,8 @@ the rest — automatically when the reservation's scope closes. Keys are
 opaque labels the application chooses, and exhaustion is a typed outcome the
 caller handles, not a failure of the plugin
 ([ADR-EN-003](../decisions/003-budgets-are-scoped-reservations.md)). The file
-ends with the package's required acceptance checks. This file owns
+ends with the package's required acceptance checks for files 01–03; file 04
+adds its own (BEH-EN-032). This file owns
 BEH-EN-017–024 and uses all eight.
 
 > **What this package does not do — and who does**
@@ -275,48 +276,48 @@ retry-safety hold across processes as within one.
 ## BEH-EN-023: Budgets, hook points and per-command budgets
 
 > **See:** [ADR-EN-003](../decisions/003-budgets-are-scoped-reservations.md)
-> **Core seam:** [31 — Hook points](../../core/behaviors/31-hook-points.md) (BEH-BR-297–308; `HookPointOptions.skip`, BEH-BR-302), [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md) (BEH-BR-313–321)
+> **Core seam:** [31 — Hook points](../../core/behaviors/31-hook-points.md) (BEH-BR-297–312; `HookPointOptions.policy` and `settle`, BEH-BR-302), [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md) (BEH-BR-313–321)
 > **Satisfies:** [URS-BR-014](../../core/urs.md#urs-br-014-contribute-to-a-shared-extension-point-safely)
 
 ```ts
 // illustrative — not type-checked
 declare const Budget: {
-  // A SkipPolicy for HookPointOptions.skip (core 31, BEH-BR-302), given by the hook point's owner.
-  readonly skipPolicy: <In>(options: {
-    readonly key: (owner: HookOwner) => BudgetKey
-    readonly perCall: number
-  }) => Effect.Effect<SkipPolicy<In>, never, Budget>
+  // A ContributionPolicyBundle (02, BEH-EN-016) for HookPointOptions.policy and settle (core 31, BEH-BR-302),
+  // given by the hook point's owner. `reserves` is true.
+  readonly contributionPolicy: <In>(options: BudgetContributionOptions) =>   // 04, BEH-EN-030
+    Effect.Effect<ContributionPolicyBundle<In>, never, Budget>
 }
 ```
 
 ```
 REQUIREMENT: Before each hook call, the policy MUST reserve `perCall`
-             against `key(step.owner)` and commit it at once, and MUST return
-             `None` when the reservation succeeds and
-             `Some("budget-exhausted")` when it fails with
-             `BudgetExhausted`. Core then skips the contribution without
-             calling it and records it as "skipped-policy" with that
-             `skipReason` (core BEH-BR-302, BEH-BR-305). A contribution
-             whose `step.labels` hold an essential label MUST be charged as
-             an essential reservation (BEH-EN-020) and never skipped.
+             against `key(step.owner)` and MUST answer `Run` when the
+             reservation succeeds and `Skip { reason: "budget-exhausted" }`
+             when it fails with `BudgetExhausted`. Core then skips the
+             contribution without calling it and records it as
+             "skipped-policy" with that `skipReason` (core BEH-BR-302,
+             BEH-BR-305). The bundle's `settle` step commits or releases the
+             reservation after the call (04, BEH-EN-030). A contribution
+             whose `step.labels` hold an essential label MUST be reserved
+             as an essential reservation (BEH-EN-020) and never skipped.
 ```
 
 ```
 REQUIREMENT: The policy MUST NOT fail or die: an unavailable ledger is
              handled by `onLedgerUnavailable` (BEH-EN-022), and with
-             "refuse" the policy MUST return `Some("budget-unavailable")`.
-             Exhaustion MUST NOT be a hook error, so it is never counted by
-             the contribution's circuit breaker (core BEH-BR-304).
+             "refuse" the policy MUST answer
+             `Skip { reason: "budget-unavailable" }`. It MUST NOT answer
+             `Deny`. Exhaustion MUST NOT be a hook error, so it is never
+             counted by the contribution's circuit breaker (core
+             BEH-BR-304).
 ```
 
 ```
-REQUIREMENT: Documentation MUST state that the charge is made when the call
-             is admitted, and is not returned when the hook then fails,
-             times out or is cut off by the dispatch deadline: the skip
-             policy runs before the hook call and core offers no hook after
-             it. The package MUST NOT offer a wrapper around a contributor's
-             hook to reserve across the call, which would return results core
-             records as the contributor's own (02, BEH-EN-016).
+REQUIREMENT: The package MUST NOT offer a wrapper around a contributor's
+             hook to reserve across the call, which would return results
+             core records as the contributor's own (02, BEH-EN-016); the
+             reservation spans the call through core's `policy` and
+             `settle` steps instead.
 ```
 
 ```
@@ -329,14 +330,15 @@ The three mechanisms answer different questions and stay apart: the
 deadline asks "how long may this decision take?", the breaker "is this
 contribution faulty?", the quota "has this contribution used its share?". When
 a hook point uses both entitlement and a budget, the owner lists the
-entitlement policy first in `Skip.first` (02, BEH-EN-016), so that a
-contribution that is not entitled spends nothing. Charging at admission
-over-counts calls that fail; refunding them would need a core seam that runs
-after a hook call and before the dispatch ends, which core does not have
-(README, Open questions). A per-command budget — a time or cost quota per
-command invocation — is the same `reserve`/`commit` pair called by the
-command layer (`@bridger/command`) around the command, with exhaustion
-surfaced as a typed refusal of the command, never as a host gate decision.
+entitlement bundle first in `Policies.first` (02, BEH-EN-016), so that a
+contribution that is not entitled holds no budget; `Policies.first` refuses a
+reserving bundle that is not last. Reserving at admission and settling after
+the call (04, BEH-EN-030) charges only calls that did their work, through the
+`settle` step with which core closed URS gap G63. A per-command budget — a
+time or cost quota per command invocation — is the same `reserve`/`commit`
+pair called by the command layer (`@bridger/command`) around the command,
+with exhaustion surfaced as a typed refusal of the command, never as a host
+gate decision.
 
 ## BEH-EN-024: Required acceptance checks
 
@@ -391,14 +393,20 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
              13. A lapse to `none` while calls hold leases changes no
                  plugin state, interrupts nothing, and calls no host
                  operation (BEH-EN-015).
-             14. `Entitlement.skipPolicy` and `Budget.skipPolicy` as a hook
-                 point's `skip`: a not-entitled or exhausted contribution is
-                 not called and is recorded "skipped-policy" with its
-                 `skipReason`, distinct from a pass; no breaker count; no
-                 denial under `onError: "deny"`; essential labels never
-                 skipped; `Skip.first` consults in order and an entitled
-                 check that skips spends no budget; neither policy fails
-                 when its port is unavailable (BEH-EN-016, BEH-EN-023).
+             14. `Entitlement.contributionPolicy` and
+                 `Budget.contributionPolicy` as a hook point's `policy`: a
+                 not-entitled contribution under `onNotEntitled: "skip"` or
+                 an exhausted one is not called and is recorded
+                 "skipped-policy" with its `skipReason`, distinct from a
+                 pass; a not-entitled veto contribution under "deny" ends
+                 the dispatch with `Denied { cause: "denied-policy" }` and
+                 an enrich or advisory one is recorded "skipped-policy";
+                 a not-entitled declaration is not woken; no breaker count;
+                 no denial from `onError: "deny"`; essential labels never
+                 skipped or denied; `Policies.first` consults in order and
+                 an entitlement answer other than `Run` holds no budget;
+                 neither policy fails when its port is unavailable
+                 (BEH-EN-016, BEH-EN-023).
              15. `reserve` debits every matching limit or none, under
                  concurrent reservations never exceeding a limit;
                  `BudgetExhausted` names the limit (BEH-EN-017, BEH-EN-018,
@@ -424,9 +432,8 @@ periods.
 **Open.** (1) Whether a reservation may be extended (`reserveMore`) for
 streaming work whose cost is not known up front. (2) Whether a gate piece
 for host operations should ever consult budgets (for example, a cap on
-installs per period); this file says no. (3) Refunding a hook call's charge
-when the call fails needs a core seam after the hook call (README, Open
-questions).
+installs per period); this file says no. (3) Refunding a hook call's charge,
+open in revision 0.3, is settled by core's `settle` step (04, BEH-EN-030).
 
 ---
 

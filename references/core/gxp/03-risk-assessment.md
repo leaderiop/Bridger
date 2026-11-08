@@ -5,18 +5,18 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-03                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.9 (2026-11-08): RSK-BR-052–056 added for residuals proposed by the federation and event delivery companions; §4 summary rows and the consumer residual list extended (CCR-BR-023)<br>0.8 (2026-11-08): RSK-BR-028 residual: provider-method attribution; RSK-BR-027 residual cites `CapabilityPolicy` (BEH-BR-273–275) (CCR-BR-022)<br>0.7 (2026-11-08): RSK-BR-025–027 added, RSK-BR-004, 010, 017 and 019 controls extended, scores unchanged (CCR-BR-017); RSK-BR-028–031 added, RSK-BR-013 reviewed (CCR-BR-018); RSK-BR-032–035 added, RSK-BR-013 and 014 reviewed (CCR-BR-019); `EntitlementView` added to the ports walked (CCR-BR-020); companion-origin RSK-BR-036–051 added, RSK-BR-006, 013 and 017 residual notes and the remote companion's risk pointer added, scores unchanged (CCR-BR-021)<br>0.6 (2026-10-03): RSK-BR-024 added (value port used to exfiltrate configuration values; controls from BEH-BR-188, BEH-BR-192, BEH-BR-197, ADR-BR-039); RSK-BR-008 reviewed — the `ConfigFingerprinter` port added as a path and its controls, scores unchanged; RSK-BR-014 owner in the §4 summary corrected to Core + Companion; `ConfigFingerprinter` added to the ports walked in §1; §4 residual list extended (CCR-BR-014)<br>0.5 (2026-10-03): RSK-BR-006 residual names three loss paths; RSK-BR-005 control notes the `reconcile` exception (BEH-BR-158) (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): RSK-BR-023 controls justifying the residual named, cross-fiber residual allocated to RSK-BR-011 (whose controls now cover builds and finalizers, scores unchanged), owner and §4 residual list extended (re-issuing an ended intent); RSK-BR-004 and RSK-BR-006 reviewed for CCR-BR-007 and CCR-BR-008 (interruption before intent, record-only `Interrupted`, first terminal cause wins, `endsIntentOf`) — controls extended, scores unchanged; second review pass: `intent-ended` record and `resumes` (RSK-BR-004, RSK-BR-023), a dropped `requested` record fails its call at once (RSK-BR-006), mount edges child→parent, stops parking with a failing call, shutdown never parks and the cascade bound per build step (RSK-BR-023), forks of builds and finalizers (RSK-BR-011) — scores unchanged (CCR-BR-008)<br>0.3 (2026-10-02): RSK-BR-023 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.13 (2026-11-08): RSK-BR-048 controls cite the command taint floor (replacing the withdrawn `TaintGuard` interception) and residual gains a command wrongly declared `readOnly`; RSK-BR-065 residual names a failed receipt `void`; scores unchanged (CCR-BR-029)<br>0.12 (2026-11-08): RSK-BR-057 controls and residual (idling and refused declarations, owner matching, `HostLink.none`, forged links); RSK-BR-059 undo controls; RSK-BR-061 controls and residual (plan and atomic validation, statement digests, confluence modulo the list); RSK-BR-062 residual for non-Effect members; scores unchanged (CCR-BR-029)<br>0.11 (2026-11-08): RSK-BR-064–070 added (command batches and receipts, stale data packs, a revocation without a `RefusalList`, event-store, sequence, keyring); RSK-BR-043–048 controls and residual notes extended, scores unchanged; remote round-2 risks summarised (CCR-BR-027)<br>0.10 (2026-11-08): RSK-BR-057–058 added; RSK-BR-032 controls extended, RSK-BR-026 and RSK-BR-028 gain controls, scores unchanged (CCR-BR-024); RSK-BR-059–060 added; RSK-BR-025, 033 and 035 controls extended, scores unchanged (CCR-BR-025); RSK-BR-061–063 added; RSK-BR-030 controls and residual, RSK-BR-017 and RSK-BR-044 gain the refusal list, scores unchanged (CCR-BR-026); identifier range to RSK-BR-063; §4 summary rows and consumer residual list extended<br>0.9 (2026-11-08): RSK-BR-052–056 added for residuals proposed by the federation and event delivery companions; §4 summary rows and the consumer residual list extended (CCR-BR-023)<br>0.8 (2026-11-08): RSK-BR-028 residual: provider-method attribution; RSK-BR-027 residual cites `CapabilityPolicy` (BEH-BR-273–275) (CCR-BR-022)<br>0.7 (2026-11-08): RSK-BR-025–027 added, RSK-BR-004, 010, 017 and 019 controls extended, scores unchanged (CCR-BR-017); RSK-BR-028–031 added, RSK-BR-013 reviewed (CCR-BR-018); RSK-BR-032–035 added, RSK-BR-013 and 014 reviewed (CCR-BR-019); `EntitlementView` added to the ports walked (CCR-BR-020); companion-origin RSK-BR-036–051 added, RSK-BR-006, 013 and 017 residual notes and the remote companion's risk pointer added, scores unchanged (CCR-BR-021)<br>0.6 (2026-10-03): RSK-BR-024 added (value port used to exfiltrate configuration values; controls from BEH-BR-188, BEH-BR-192, BEH-BR-197, ADR-BR-039); RSK-BR-008 reviewed — the `ConfigFingerprinter` port added as a path and its controls, scores unchanged; RSK-BR-014 owner in the §4 summary corrected to Core + Companion; `ConfigFingerprinter` added to the ports walked in §1; §4 residual list extended (CCR-BR-014)<br>0.5 (2026-10-03): RSK-BR-006 residual names three loss paths; RSK-BR-005 control notes the `reconcile` exception (BEH-BR-158) (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): RSK-BR-023 controls justifying the residual named, cross-fiber residual allocated to RSK-BR-011 (whose controls now cover builds and finalizers, scores unchanged), owner and §4 residual list extended (re-issuing an ended intent); RSK-BR-004 and RSK-BR-006 reviewed for CCR-BR-007 and CCR-BR-008 (interruption before intent, record-only `Interrupted`, first terminal cause wins, `endsIntentOf`) — controls extended, scores unchanged; second review pass: `intent-ended` record and `resumes` (RSK-BR-004, RSK-BR-023), a dropped `requested` record fails its call at once (RSK-BR-006), mount edges child→parent, stops parking with a failing call, shutdown never parks and the cascade bound per build step (RSK-BR-023), forks of builds and finalizers (RSK-BR-011) — scores unchanged (CCR-BR-008)<br>0.3 (2026-10-02): RSK-BR-023 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
-This document assesses the hazards that `@bridger/core` itself could introduce into a regulated user's computerized system, scores them with the GAMP 5 FMEA method under the ICH Q9(R1) process, names the specified behaviours and invariants that control each one, and states the residual risk and who owns it. It defines the risk identifiers `RSK-BR-001` to `RSK-BR-051` that behaviours cite on their `**Risk:**` lines.
+This document assesses the hazards that `@bridger/core` itself could introduce into a regulated user's computerized system, scores them with the GAMP 5 FMEA method under the ICH Q9(R1) process, names the specified behaviours and invariants that control each one, and states the residual risk and who owns it. It defines the risk identifiers `RSK-BR-001` to `RSK-BR-063` that behaviours cite on their `**Risk:**` lines.
 
 It is a **supplier-side** assessment of a component. It does not replace the regulated user's risk assessment of their system, which decides the extent of their validation (EU GMP Annex 11 §1). Every control named here is *specified*, not implemented, and every verification is *Planned*: nothing has been executed, so no residual score below is yet supported by evidence ([ADR-BR-036](../decisions/036-prospective-specification.md)).
 
@@ -333,7 +333,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | A plugin definition produced by a dynamic import comes from the wrong source, an unapproved version, or has been altered; the host installs it. `meta.digest` is a label the host compares, not a verification it performs. Trigger: any dynamic installation. |
 | Effect on GMP data / processes | Unapproved or altered code runs inside a GMP system. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Entries have no import-time side effects, so importing alone changes nothing (BEH-BR-008); a definition is an inert record (BEH-BR-001); `meta` is opaque except where named (BEH-BR-104); the gate request carries the definition's `version` and `digest`, so a consumer gate can refuse anything not on an approved list (BEH-BR-219); records carry `version` and `digest` before and after (BEH-BR-196); removal releases behaviour, not imported code (BEH-BR-048). |
+| Controls | Entries have no import-time side effects, so importing alone changes nothing (BEH-BR-008); a definition is an inert record (BEH-BR-001); `meta` is opaque except where named (BEH-BR-104); the gate request carries the definition's `version` and `digest`, so a consumer gate can refuse anything not on an approved list (BEH-BR-219); records carry `version` and `digest` before and after (BEH-BR-196); removal releases behaviour, not imported code (BEH-BR-048); a wired `RefusalList` refuses every start of a revoked digest, system starts included (BEH-BR-267, RSK-BR-061). |
 | Risks introduced by controls | A digest-checking gate adds an approval step and its latency to every install and replace. |
 | Verification | Planned — REQ-BR scenarios showing the gate receives `definition.version` and `definition.digest` and that the records carry them; scripted unit test that installing does not import or execute anything beyond the definition. |
 | Residual scoring | Core controls alone: S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6). With consumer provenance checks gated on `digest`: S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4). |
@@ -453,7 +453,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | A provider declares a contract version that satisfies its consumers' ranges, but its schemas or behaviour broke the add-only rules within the major: a field became required, a unit changed, an error member was added, a value's meaning changed. Or a dependent declares a range below the version it was compiled against and calls a method or field the range's lowest version lacks. Core's checks pass. Trigger: a contract release within a major that does not follow BEH-BR-230. |
 | Effect on GMP data / processes | As for [RSK-BR-010](#rsk-br-010): runtime errors at best; at worst a consumer misreads a result and a GMP calculation is wrong — now under a version label that suggests compatibility was checked. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | The major is part of the `ServiceId`, so a declared breaking change cannot bind to old consumers (BEH-BR-225); ranges stay within one major (BEH-BR-226); registration-time range and method-name checks in both directions, with `IncompatibleContract` naming both plugins (BEH-BR-228); a plain key never binds to a contract by name alone (BEH-BR-229); documentation states the add-only rules and that core checks only method names and the major (BEH-BR-230); unknown fields ignored by every companion codec through one constant (BEH-BR-231); versions fixed at registration, never at build (BEH-BR-232). Invariants INV-BR-015, INV-BR-031. |
+| Controls | The major is part of the `ServiceId`, so a declared breaking change cannot bind to old consumers (BEH-BR-225); ranges stay within one major (BEH-BR-226); registration-time range and method-name checks in both directions, with `IncompatibleContract` naming both plugins (BEH-BR-228); a plain key never binds to a contract by name alone (BEH-BR-229); documentation states the add-only rules and that core checks only method names and the major (BEH-BR-230); unknown fields ignored by every companion codec through one constant (BEH-BR-231); versions fixed at registration, never at build (BEH-BR-232); registry contributions checked against the registry's range (BEH-BR-233). Invariants INV-BR-015, INV-BR-031. |
 | Risks introduced by controls | Registration checks add install-order sensitivity (a dependent needing an upgrade is refused until the provider is upgraded); a version label may be read as evidence of compatibility it does not carry. |
 | Verification | Planned — REQ-BR scenarios for acceptance checks 59–61 of BEH-BR-184; property test of INV-BR-031; mutation testing of the range and method checks. |
 | Residual scoring | Core controls alone: S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6). With the consumer and companion controls below: S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4). |
@@ -468,7 +468,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | A lazy plugin is registered and approved from its manifest; when a trigger fires, `load` returns different code — another version, an altered package, a definition declaring other keys — or loads at a moment nobody can reconstruct. Trigger: any lazy activation, in particular after the package source changed between registration and first use. |
 | Effect on GMP data / processes | Unapproved or altered code runs inside a GMP system; or which code ran when cannot be established from the record. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Nothing is loaded while `dormant` (BEH-BR-244, INV-BR-032); leaving `dormant` happens only on a trigger and is recorded as `lazy-triggered` with the trigger and its cause, then a `system-start` with the outcome (BEH-BR-245, BEH-BR-248); the loaded definition must match the manifest in `id`, `version`, `digest`, keys and contract references or fails with phase "load" and publishes nothing (BEH-BR-246, INV-BR-033); the gate sees the manifest at install and replace (BEH-BR-248); load failures are sticky and their messages written by core (BEH-BR-246). |
+| Controls | Nothing is loaded while `dormant` (BEH-BR-244, INV-BR-032); leaving `dormant` happens only on a trigger and is recorded as `lazy-triggered` with the trigger and its cause, then a `system-start` with the outcome (BEH-BR-245, BEH-BR-248); the loaded definition must match the manifest in `id`, `version`, `digest`, keys and contract references or fails with phase "load" and publishes nothing (BEH-BR-246, INV-BR-033); the gate sees the manifest at install and replace (BEH-BR-248); load failures are sticky and their messages written by core (BEH-BR-246); an idle return releases the loaded definition, so the next wake loads and checks again (BEH-BR-252). |
 | Risks introduced by controls | A first use pays load latency and can fail on availability of the code source; the manifest check refuses code that differs only in a label. |
 | Verification | Planned — REQ-BR scenarios for acceptance checks 63–65 of BEH-BR-184; mutation testing of the manifest comparison. |
 | Residual scoring | Core controls alone: S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6). With loader checks of digest and signatures before evaluation: S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4). |
@@ -498,7 +498,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | A consumer reads `onBehalfOf`, mandatory interceptions, grants or the access policy as a guarantee that in-process plugin code cannot reach a service, name another plugin or act outside its grant, and runs untrusted code in-process on that basis. Trigger: third-party or partner plugins. |
 | Effect on GMP data / processes | GMP data read or changed by code believed to be confined; misattributed plugin actions in the trail. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Principal minted only by the host and checked on every read (BEH-BR-257, BEH-BR-258); stated as attribution and policy, not isolation, in every file and type (BEH-BR-266, BEH-BR-278, BEH-BR-294); grants stated as shallow (BEH-BR-275); `CurrentCall` minted (BEH-BR-277). Invariant INV-BR-035. ADR-BR-043, ADR-BR-019. |
+| Controls | Principal minted only by the host and checked on every read (BEH-BR-257, BEH-BR-258); stated as attribution and policy, not isolation, in every file and type (BEH-BR-266, BEH-BR-278, BEH-BR-294); grants stated as shallow (BEH-BR-275); `CurrentCall` minted (BEH-BR-277); a root `lazy-triggered` record names the caller's principal as `onBehalfOf` (BEH-BR-253). Invariant INV-BR-035. ADR-BR-043, ADR-BR-019. |
 | Risks introduced by controls | None. |
 | Verification | Planned — check 67; a scenario demonstrating the documented non-guarantee (a plugin reaching a service through a leaked reference); documentation review. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
@@ -528,11 +528,11 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | Calls not made through a captured service are absent from the call log, or entries are lost when `record` fails or times out, and the log is relied on as a complete record of data access. Trigger: sink outage, plugins keeping references. |
 | Effect on GMP data / processes | A data-access review misses accesses. |
 | Initial scoring | S 2 · P 2 · D 3 → class **Medium** (4) · priority **High** (6) |
-| Controls | One entry per call including denied ones (BEH-BR-276); failures counted in `Host.controls.callLog.failed` and logged (BEH-BR-276); documentation states the log's coverage (BEH-BR-278). Invariant INV-BR-037. |
-| Risks introduced by controls | `record` on the caller's fiber adds latency, bounded by `callLogTimeout`. |
-| Verification | Planned — check 73. |
+| Controls | One entry per call including denied ones (BEH-BR-276); failures counted in `Host.controls.callLog.failed` and logged (BEH-BR-276); documentation states the log's coverage (BEH-BR-278); optional fail-closed policy "refuse" with a bounded queue and `CallLogUnavailable`, counters `dropped` and `refused` (BEH-BR-279); companion-offered entries (BEH-BR-280). Invariant INV-BR-037. |
+| Risks introduced by controls | The hand-off queue holds entries in memory until `record` returns; under "refuse", RSK-BR-062. |
+| Verification | Planned — checks 73, 107. |
 | Residual scoring | S 2 · P 1 · D 2 → class Low (2) · priority Low (2) |
-| Residual risk and acceptability | Completeness of the data-access record is the consumer's (fail-closed logging is an open item, BEH-BR-276). Acceptable. |
+| Residual risk and acceptability | Completeness of the data-access record is the consumer's (fail-closed logging is available per capture, BEH-BR-279). Acceptable. |
 | Owner | Consumer (core documents the limit) |
 
 <a id="rsk-br-031"></a>
@@ -558,9 +558,9 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | A contribution the application did not intend to give authority vetoes a decision (a regulated command), or a failing, slow or flapping contribution blocks or silently permits it; or a reviewer cannot tell which contribution decided. Trigger: any hook point used for a policy decision. |
 | Effect on GMP data / processes | A GMP action wrongly refused or wrongly allowed; an operator blocked; a refusal with no accountable author. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Admission by the application's rule over the host-minted owner and application labels, no default rule (BEH-BR-298); only veto-role contributions decide (BEH-BR-300); closed veto vocabulary (BEH-BR-300); explicit failure policy and per-hook timeout (BEH-BR-302); per-dispatch deadline (BEH-BR-303); breaker per contribution (BEH-BR-304); decision record naming the decider (BEH-BR-305); no veto over host operations (BEH-BR-308). Invariants INV-BR-040, INV-BR-041, INV-BR-042. ADR-BR-046. |
+| Controls | Admission by the application's rule over the host-minted owner and application labels, no default rule (BEH-BR-298); only veto-role contributions decide (BEH-BR-300); closed veto vocabulary (BEH-BR-300); explicit failure policy and per-hook timeout (BEH-BR-302); per-dispatch deadline (BEH-BR-303); breaker per contribution (BEH-BR-304); decision record naming the decider (BEH-BR-305); no veto over host operations (BEH-BR-308); contributions' own `onError` within what the point allows and a breaker per plugin (BEH-BR-310); enrichment before veto so vetoes judge enriched values (BEH-BR-311); targets seen by admission and a policy deny recorded as "denied-policy" (BEH-BR-312); declarations of plugins not yet loaded woken or denied (BEH-BR-309, RSK-BR-057). Invariants INV-BR-040, INV-BR-041, INV-BR-042. ADR-BR-046, ADR-BR-050. |
 | Risks introduced by controls | `onError: "deny"` turns a contributor outage into refusals (availability); `"skip"` lets a decision proceed without a failed contributor's say. The choice is the application's, per hook point. Decision records are on a lossy feed until the dispatcher stores them. |
-| Verification | Planned — checks 77–80; property test of INV-BR-040; mutation testing. |
+| Verification | Planned — checks 77–80 and 92–95; property test of INV-BR-040; mutation testing. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
 | Residual risk and acceptability | Core cannot judge whether the application's rule and labels are right, and an admitted in-process hook is not confined. Acceptable with consumer controls: the rule and labels under change control; the dispatcher storing decision records in its own trail; untrusted code out of process. |
 | Owner | Core + Consumer |
@@ -573,7 +573,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | A plan or draft approved against one state of the host (or of an application aggregate) is applied after another change, so the change made is not the change approved; or a dry run applies by mistake. Trigger: approval workflows, agents proposing plugin sets. |
 | Effect on GMP data / processes | An unapproved combination of plugin versions or configuration becomes active. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Read-only `Host.plan` as a separate method (BEH-BR-317); plan carries `registeredAt` per plugin and no values (BEH-BR-318); `reconcile` with `expect` re-checks at validation and at the intent and applies nothing when stale (BEH-BR-319); every entry still gated (BEH-BR-319, BEH-BR-320); drafts carry expected versions and `Draft.check` (BEH-BR-316); a deferred host operation is a refusal and must be re-issued and re-gated (BEH-BR-315). Invariant INV-BR-043. ADR-BR-047. |
+| Controls | Read-only `Host.plan` as a separate method (BEH-BR-317); plan carries `registeredAt` per plugin and no values (BEH-BR-318); `reconcile` with `expect` re-checks at validation and at the intent and applies nothing when stale (BEH-BR-319); every entry still gated (BEH-BR-319, BEH-BR-320); drafts carry expected versions and `Draft.check` (BEH-BR-316); a deferred host operation is a refusal and must be re-issued and re-gated (BEH-BR-315); an atomic apply undoes a refused plan (BEH-BR-322–326). Invariant INV-BR-043. ADR-BR-047. |
 | Risks introduced by controls | A busy host may make plans stale often (availability of the change process). |
 | Verification | Planned — checks 81–83; differential property test of INV-BR-043. |
 | Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) |
@@ -600,10 +600,10 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 
 | Aspect | Assessment |
 | ------ | ---------- |
-| Failure mode | On `replace`, a plugin's state is lost without trace (it then behaves differently while looking healthy), appears in a record or log, or is imported into a version that misreads it. Trigger: every replace of a plugin that declares a handoff. |
+| Failure mode | On `replace` (or on `restart` or a restarting `reconfigure` declared in `handoff.alsoOn`), a plugin's state is lost without trace (it then behaves differently while looking healthy), appears in a record or log, or is imported into a version that misreads it. Trigger: every replace of a plugin that declares a handoff. |
 | Effect on GMP data / processes | Wrong in-memory GMP state after an upgrade; sensitive state in a retained trail. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Handoff only on replace of an active plugin, stop-then-start unchanged (BEH-BR-346); export after drain (BEH-BR-347); held state never observable (BEH-BR-348); versioned decode with `accepts`/`upgrade`, import failure fails the activation (BEH-BR-349); one `handoff` record per attempt with a loss tag (BEH-BR-350); abandonment rules (BEH-BR-351). Invariant INV-BR-045. ADR-BR-049. |
+| Controls | Handoff only on replace of an active plugin, stop-then-start unchanged (BEH-BR-346); export after drain (BEH-BR-347); held state never observable (BEH-BR-348); versioned decode with `accepts`/`upgrade`, import failure fails the activation (BEH-BR-349); one `handoff` record per attempt with a loss tag (BEH-BR-350); abandonment rules (BEH-BR-351); the same rules on `restart` and a restarting `reconfigure` when declared, never on a volatile-only change (BEH-BR-353). Invariant INV-BR-045. ADR-BR-049. |
 | Risks introduced by controls | `handoffTimeout` lengthens a replace; an import failure leaves the plugin `failed` until an operator acts. |
 | Verification | Planned — checks 87–88; sentinel-value scan. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
@@ -727,7 +727,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Risks introduced by controls | Double signing slows releases. |
 | Verification | Planned — the companion's REQ-LD scenarios. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
-| Residual risk and acceptability | Key custody and policy review are the consumer's. Acceptable on that allocation. |
+| Residual risk and acceptability | Key custody and policy review are the consumer's. Acceptable on that allocation. Round 2 (CCR-LD-003): one acceptance rule per statement type, with the type signed, so no key counts across purposes; the manifest `publisher` is bound to a configured signer (`PublisherMismatch`, loader BEH-LD-053); countersigning tooling in the kit (BEH-KT-032). |
 | Owner | Consumer + Companion |
 
 <a id="rsk-br-044"></a>
@@ -738,11 +738,11 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | The revocation channel is stale or suppressed, or a removal requested by the kill switch is refused by the gate, parked by a drain timeout or blocked by the audit latch; a revoked release keeps loading or running. Trigger: offline device, gate policy, long-running lease. |
 | Effect on GMP data / processes | Code known to be faulty or compromised keeps running in a GMP system. |
 | Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
-| Controls | Companion `@bridger/loader`: signed monotonic lists persisted across restarts, explicit `maxAge` refusing new loads (BEH-LD-026, BEH-LD-027); kill switch status reports `pending` and `residentRevoked` (BEH-LD-029, BEH-LD-031). Core: removal through the ordinary path (BEH-BR-154, INV-BR-021). |
+| Controls | Companion `@bridger/loader`: signed monotonic lists persisted across restarts, explicit `maxAge` refusing new loads (BEH-LD-026, BEH-LD-027); kill switch status reports `pending` and `residentRevoked` (BEH-LD-029, BEH-LD-031). Core: removal through the ordinary path (BEH-BR-154, INV-BR-021); the `RefusalList` port consulted on every start, which the kill switch feeds (BEH-BR-267, INV-BR-050). |
 | Risks introduced by controls | `maxAge` refuses new loads while the channel is unreachable. |
 | Verification | Planned — the companion's REQ-LD scenarios. |
 | Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) |
-| Residual risk and acceptability | The channel, the gate rule for revocations and restarts to reclaim resident code are the consumer's. Acceptable on that allocation. |
+| Residual risk and acceptability | The channel, the gate rule for revocations and restarts to reclaim resident code are the consumer's. Acceptable on that allocation. Round 2 (CCR-LD-003): the loader's revocation set backs core's `RefusalList`, so system starts of a revoked digest are refused (loader BEH-LD-056; G60 closed). Residual: an `active` plugin is stopped only by the kill switch's removal; a deployment that wires no `RefusalList` is RSK-BR-067. |
 | Owner | Consumer + Companion |
 
 <a id="rsk-br-045"></a>
@@ -757,7 +757,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Risks introduced by controls | Fail-closed anchoring implemented by failing writes would add a cause of the audit-degraded latch and, because core's writer retries a refused record in place (BEH-BR-202), would hold every later record — system records included — behind it and drop records past the 1024-record queue; a refusal that never clears would stop recording altogether ([RSK-BR-020](#rsk-br-020)). The core-side recommendation is to refuse operator changes through a gate piece reading the companion's status instead, while the sink keeps accepting records. |
 | Verification | Planned — the companion's acceptance checks 11 and 12 (REQ-AC-011, REQ-AC-012); documentation gate check 11 (claims lint). |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
-| Residual risk and acceptability | Truncation of the unanchored tail, and a party able to rewrite both the trail store and the anchor store, are not detected by design. The independence of the anchor and the review procedure are the consumer's. Acceptable on that allocation. |
+| Residual risk and acceptability | Truncation of the unanchored tail, and a party able to rewrite both the trail store and the anchor store, are not detected by design. The independence of the anchor and the review procedure are the consumer's. Acceptable on that allocation. Round 2 (CCR-AC-003): stored ciphertext is hashed so shredding keeps the chain recomputable (audit-chain BEH-AC-028); offline bundles report receipts needing an online check as "not-checked", never confirmed (BEH-AC-034). |
 | Owner | Companion + Consumer |
 
 <a id="rsk-br-046"></a>
@@ -772,7 +772,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Risks introduced by controls | Essential labels can be over-applied, letting unpaid work run; counted in `Entitlement.inspect`. |
 | Verification | Planned — REQ-EN-006, REQ-EN-010, REQ-EN-013 of the companion; core acceptance check 91 (REQ-BR-091). |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
-| Residual risk and acceptability | Depends on the consumer labelling every essential use; a missing label leaves that use refusable. Acceptable with the consumer's identification of essential operations in its own assessment. |
+| Residual risk and acceptability | Depends on the consumer labelling every essential use; a missing label leaves that use refusable. Acceptable with the consumer's identification of essential operations in its own assessment. Round 2 (CCR-EN-003): grant narrowing of a lapsed plugin's captures through `CapabilityPolicy.changes` (entitlement BEH-EN-025–029, INV-EN-006; core BEH-BR-281); control-introduced hazard: a wrong read-only classification leaves a writing member callable (entitlement traceability §3 item 4). Scores unchanged. |
 | Owner | Companion + Consumer |
 
 <a id="rsk-br-047"></a>
@@ -783,7 +783,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | A deployment treats membership of a toolset as permission and wires no command gate, or a selector offers a command the application meant to require approval for. Trigger: agent or MCP deployment with a custom selector. |
 | Effect on GMP data / processes | A GMP-relevant command runs on an agent's or external client's request without approval. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Companion `@bridger/command` (Draft, [references/command/](../../command/README.md)): membership grants nothing; every dispatch passes the gate (BEH-CM-011, BEH-CM-022, INV-CM-005); the default selector excludes regulated commands (BEH-CM-021); no gate implementation is shipped, so an unwired gate is visible (BEH-CM-011). Core: the gate port ships no implementation (BEH-BR-217); the generic gate fails closed (BEH-BR-313). |
+| Controls | Companion `@bridger/command` (Draft, [references/command/](../../command/README.md)): membership grants nothing; every dispatch passes the gate (BEH-CM-011, BEH-CM-022, INV-CM-005); the default selector excludes regulated commands (BEH-CM-021); no gate implementation is shipped, so an unwired gate is visible (BEH-CM-011); MCP calls pinned to the listed digest (mcp BEH-MC-004, INV-MC-007; CCR-MC-003). Core: the gate port ships no implementation (BEH-BR-217); the generic gate fails closed (BEH-BR-313). |
 | Risks introduced by controls | None beyond approval latency. |
 | Verification | Planned — REQ-CM-007 and REQ-CM-011 of the companion. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
@@ -798,11 +798,11 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Failure mode | An agent session reads untrusted text (imported tool output, external documents) and an application gate's automatic-allow rule lets a resulting write through. Trigger: any agent with auto-allow rules and external inputs. |
 | Effect on GMP data / processes | A GMP record changed as steered by third-party text, without a person. |
 | Initial scoring | S 3 · P 3 · D 3 → class **High** (9) · priority **High** (9) |
-| Controls | Core: `Annotation.Taint` is monotonic and cannot be removed by a supplied context (BEH-BR-290, BEH-BR-292, INV-BR-039); labels are carried, not enforced (BEH-BR-294). Companions (Drafts): taint is monotone per session (BEH-AG-017, BEH-AG-018 in [references/agent/](../../agent/README.md)); imported output is always tainted (BEH-MC-020, INV-MC-003); `TaintGuard`, a mandatory interception, turns Allow into Defer for tainted requests without an approved-draft reference (BEH-AG-020, INV-AG-001). |
+| Controls | Core: `Annotation.Taint` is monotonic and cannot be removed by a supplied context (BEH-BR-290, BEH-BR-292, INV-BR-039); labels are carried, not enforced (BEH-BR-294). Companions (Drafts): taint is monotone per session (BEH-AG-017, BEH-AG-018 in [references/agent/](../../agent/README.md)); imported output is always tainted (BEH-MC-020, INV-MC-003); the command catalog's taint floor withholds every automatic allow of a tainted request of a command not declared `readOnly` (command BEH-CM-016, INV-CM-006; `TaintGuard.drafts` supplies the draft, BEH-AG-020, INV-AG-001); inbound MCP sessions tainted unless trusted (mcp BEH-MC-002, INV-MC-006); field-level untrusted output and its envelope (command BEH-CM-030, agent BEH-AG-019, BEH-AG-023, INV-AG-007) (CCR-CM-003, CCR-MC-003, CCR-AG-003). |
 | Risks introduced by controls | Approval friction for long sessions; approval fatigue is the application's to watch. |
 | Verification | Planned — REQ-AG-006, REQ-AG-007, REQ-MC-010 of the companions. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
-| Residual risk and acceptability | Untrusted text that enters by a route the application did not mark (a user pasting it) is not tainted unless the application's `TaintPolicy` marks it; an application gate that accepts an agent's own approval defeats the control (`Actor.isWithin`, BEH-BR-337, helps a gate refuse it). Acceptable with the consumer's policy. |
+| Residual risk and acceptability | Untrusted text that enters by a route the application did not mark (a user pasting it) is not tainted unless the application's `TaintPolicy` marks it; an application gate that accepts an agent's own approval defeats the control (`Actor.isWithin`, BEH-BR-337, helps a gate refuse it). A command wrongly declared `readOnly` reaches its effect from a tainted session on the gate's decision: the declaration is the author's and is not enforced (command BEH-CM-006); imported commands cannot carry it (mcp BEH-MC-020); a deployment can remove the exemption with `taintFloor.readOnly: "floor"` (command ADR-CM-005). No re-score: in-process authors are trusted code (ADR-BR-019). Acceptable with the consumer's policy. |
 | Owner | Companion + Consumer |
 
 <a id="rsk-br-049"></a>
@@ -925,6 +925,216 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Residual risk and acceptability | Not detectable by design past retention. Acceptable only together with the operator's incarnation procedure of RSK-BR-054, which removes the cause, and inbox retention sized at least to the senders' resend window. This residual is transferred to the regulated user's assessment. |
 | Owner | Consumer (the companion documents the limit) |
 
+<a id="rsk-br-057"></a>
+### RSK-BR-057: A lazy veto contributor passed over, so a policy decision fails open
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A plugin that contributes a veto to a hook point is registered lazily; a dispatch runs before it is loaded, sees no registered veto and returns `Allowed`; or the wake is slow or fails and the point proceeds without the veto. Trigger: any lazy plugin whose manifest declares a veto contribution, in particular right after a host start. |
+| Effect on GMP data / processes | A GMP action allowed that a control was meant to refuse, with no record that the control was absent. |
+| Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
+| Controls | Declared contributions readable without loading (BEH-BR-250), also while an idle return is under way ("idling") and while the `RefusalList` holds the owner disabled ("refused", resolved by `onError`) (BEH-BR-250, CCR-BR-029); wake step that admits each declaration with the point's rule, wakes it and waits within the deadline, and resolves a failed or late wake by `onError` (BEH-BR-309); declarations matched to contributions by id, owner and role, so a contribution of another plugin under the same id hides nothing (BEH-BR-309); `dormant: "deny"` for points that cannot wait; deny when there is no `HostLink`, when the link is `HostLink.none` without `allowNoLink`, and when the read fails or is late, with the answering link recorded (BEH-BR-309, BEH-BR-305); decision record listing every declaration and its outcome (BEH-BR-305); the wake recorded as `lazy-triggered` with the dispatcher as `onBehalfOf` (BEH-BR-253). Invariants INV-BR-046, INV-BR-040. ADR-BR-050. |
+| Risks introduced by controls | Under "deny", the first dispatch after a cold start is refused while the plugin loads (availability); a dispatch outside the host's fibers without a link is refused; `onError: "skip"` deliberately lets a late wake pass. |
+| Verification | Planned — check 92; property test of INV-BR-046. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | A loaded plugin that is not active, other than during an idle return, has no hook and its veto is absent, as for an eager plugin (gap G64); in-process code can provide a forged `HostLink` that reports no declarations, which the hook point cannot tell from the host's (the record names the `hostId` the link claims); a wake window does not guarantee the woken veto is called before the deadline ("deadline" then applies); the choice of `onError` and `dormant` is the application's. Acceptable with consumer controls: veto owners kept active or monitored, the point's policies under change control, dispatchers reviewed as trusted in-process code (CCR-BR-029). |
+| Owner | Core + Consumer |
+
+<a id="rsk-br-058"></a>
+### RSK-BR-058: A woken or idled lazy plugin misses, repeats or leaks an event
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | The event that woke a lazy plugin is lost (no listener registered, activation fails, hold times out) without anyone noticing; or it is delivered twice, or to another plugin; or its arguments leak into a record or log; or an idle return deactivates a plugin someone still relied on through `Host.use`. Trigger: `OnEvent` triggers and `Plugin.lazy({ idle })`. |
+| Effect on GMP data / processes | A GMP-relevant notification not processed or processed twice; data exposed in the trail; a function unavailable until woken. |
+| Initial scoring | S 2 · P 2 · D 2 → class **Medium** (4) · priority **Medium** (4) |
+| Controls | One held event per wake, delivered once with `emit` semantics to the woken plugin's own listeners only, never re-running the triggering dispatch (BEH-BR-251, BEH-BR-141); every drop logged and emitted as `held-event-dropped` with its reason (BEH-BR-251); held values in no record, event, log or snapshot (BEH-BR-251); idle return only when no lease, holder, listener run, child or active dependent exists, through a normal stop, recorded as `lazy-idle` (BEH-BR-252). Invariant INV-BR-047. ADR-BR-050. |
+| Risks introduced by controls | A held value lives in memory and is lost with the process; events dispatched while the plugin loads are not held. |
+| Verification | Planned — checks 96 and 97. |
+| Residual scoring | S 2 · P 1 · D 2 → class Low (2) · priority Low (2) |
+| Residual risk and acceptability | Core holds one event, in memory, for a bounded time. Acceptable with consumer controls: consumers that must see every event use the event delivery companion; `idle` set only for plugins reached through dependents, contributions or events, and callers of `Host.use` on a lazy provider wake it first. |
+| Owner | Consumer + Core |
+
+<a id="rsk-br-059"></a>
+### RSK-BR-059: An atomic apply mistaken for a transaction, or a partial apply left unnoticed
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | An operator treats `reconcile` with `atomic: true` as a transaction: expects external effects of builds, finalizers or served calls to be reversed, or expects no intermediate state to be visible; or an undo fails (gate refusal, concurrent change, parked drain, latch, shutdown) and the remaining mix of old and new plugins runs unnoticed. Trigger: bundle switches at a safe point, federated desired state. |
+| Effect on GMP data / processes | A combination of plugin versions nobody approved runs in a GMP process; effects of a briefly active new version persist after the undo. |
+| Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
+| Controls | Dependency order (BEH-BR-156); stop at the first failure and undo in reverse by ordinary operations (BEH-BR-322, BEH-BR-323); three distinct outcomes with `PartialApply` naming every action left applied, logged at error level and published as `reconcile-partial` (BEH-BR-324); every undo attributed, gated and recorded with `undoes`, the plan listing undo actions for approval (BEH-BR-318, BEH-BR-325); no undo over a concurrent change (`ChangedSinceApply`, checked against the revision this call last produced, so multi-action entries undo in full) and no undo when the trail cannot record (BEH-BR-323, BEH-BR-326); the undo of a `replace` restores the override it dropped (BEH-BR-323, CCR-BR-029); documentation that it is not a transaction (BEH-BR-322). Invariant INV-BR-048. ADR-BR-051. |
+| Risks introduced by controls | A gate that refuses undo actions makes failed applies partial; undo actions restart dependents and may lose in-memory state without handoff. |
+| Verification | Planned — checks 99 and 100; property test of INV-BR-048. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | External effects and their compensation are the consumer's; `PartialApply` must be monitored and resolved under the consumer's procedure. Acceptable with those consumer controls. |
+| Owner | Core + Consumer |
+
+<a id="rsk-br-060"></a>
+### RSK-BR-060: An implementation of an incompatible contract version is chosen from a registry
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A registry collecting several implementations of one contract holds one compiled against another version (a removed method, an older minor) and a selector chooses it; or a contribution declares a version its code does not honour. Trigger: third-party connectors contributed to one extension point. |
+| Effect on GMP data / processes | A call fails at run time or returns data of the wrong shape in a GMP process. |
+| Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Controls | Contract-checked registries: `implements` required, compared with the registry's range and method names at `add`, refusal with `IncompatibleContract` (BEH-BR-233, BEH-BR-163); `within(range)` and selector ranges (BEH-BR-233); declarations only, never described as evidence of behaviour (BEH-BR-233). Invariant INV-BR-049. ADR-BR-052. |
+| Risks introduced by controls | A correct declaration can still hide a non-conforming implementation (RSK-BR-025). |
+| Verification | Planned — check 102. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | Conformance of each implementation to its declared version is the consumer's (or a companion conformance suite's, RSK-BR-051). Acceptable with that control. |
+| Owner | Core + Consumer |
+
+<a id="rsk-br-061"></a>
+### RSK-BR-061: A revoked digest keeps running, or a list defect stops valid plugins
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A plugin of a digest added to the `RefusalList` keeps running, because the list is consulted only on starts; or a list that throws refuses every start ("policy-defect"); or a definition without a digest is never submitted. Trigger: a revocation without an accompanying `disable`/`remove`; a defective list; unsigned definitions. |
+| Effect on GMP data / processes | Revoked code keeps processing GMP data until stopped; or needed plugins are held `disabled` (availability only). |
+| Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Controls | List consulted on every start, operator or system, and every background restart and mount (BEH-BR-267, BEH-BR-033, BEH-BR-090); consulted by `Host.plan` and at atomic validation, so an atomic bundle that lists a refused digest applies nothing (BEH-BR-317, BEH-BR-322); a refused veto owner's declarations still reported and resolved by `onError` (BEH-BR-250, BEH-BR-309); only the definition's own digest submitted, any other revocation identifier mapped by the list (BEH-BR-267) (CCR-BR-029); refused plugins visible as `disabled` with reason and recorded `start-refused` (BEH-BR-267, BEH-BR-199); documentation states that running plugins need `disable`/`remove` (BEH-BR-267); `Host.controls` reports the wiring (BEH-BR-265). Invariant INV-BR-050. Companion: the loader's kill switch disables or removes running plugins. |
+| Risks introduced by controls | A defective list holds valid plugins `disabled` (fail-closed). |
+| Verification | Planned — check 104. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | Acceptable when revocation also disables or removes running plugins and every definition carries a digest — the consumer's procedure. A list that revokes by statement digest or signer refuses only what its own mapping from the package digest finds (loader companion). Confluence and reconcile idempotence hold modulo the list: a plugin active when its digest is listed and the same set built afterwards differ until an operator call (BEH-BR-159, BEH-BR-160); an atomic undo cannot restore the "refused-digest" reason (BEH-BR-323). |
+| Owner | Consumer + Core |
+
+<a id="rsk-br-062"></a>
+### RSK-BR-062: Fail-closed call logging reports a performed write as failed, or stops a service
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | Under "refuse", a member whose effect already happened dies with `CallLogUnavailable` because its entry was not accepted, and the consumer retries or reports a write that did happen; or a log outage refuses every call of a service; synchronous members are refused only at admission. Trigger: log outage or slowness. |
+| Effect on GMP data / processes | A duplicated or misreported GMP write; availability loss of a service. |
+| Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Controls | Policy chosen per capture (`select`) so writes can keep "drop" (BEH-BR-279); counters `failed`, `dropped`, `refused` (BEH-BR-279, BEH-BR-212); the refusal named in the defect; documentation of the residual (BEH-BR-279 Settled 1). Invariant INV-BR-052. |
+| Risks introduced by controls | The bounded queue holds entries in memory; a process that ends abruptly loses queued entries. |
+| Verification | Planned — check 107. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | Acceptable with idempotent writes or "drop" for write services, and log availability sized by the consumer. A member that does not return an Effect — a synchronous function or one returning a Stream — is refused only at admission and delivers its outcome before `record` returns, so INV-BR-052 covers Effect members only; such a capture's entries can still be lost after delivery and are counted in `failed` (BEH-BR-279; CCR-BR-029). Capacity is judged before the member runs, so a member that ran never dies "queue-full". |
+| Owner | Consumer |
+
+<a id="rsk-br-063"></a>
+### RSK-BR-063: An inherited correlation joins unrelated work in the trail
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A fiber forked during a request (outside `background`) keeps the request's `CurrentCorrelation` and its later host calls are recorded under that correlation; or application code sets a misleading correlation. Trigger: long-lived fibers forked from request handlers or builds. |
+| Effect on GMP data / processes | A reviewer attributes a later change to the wrong request (the actor and cause remain correct). |
+| Initial scoring | S 2 · P 2 · D 2 → class **Medium** (4) · priority **Medium** (4) |
+| Controls | Reset at `background`, health check and `whenAvailable` entry points (BEH-BR-187); `causationId` and actor unaffected (BEH-BR-190); supplied `options.context.correlationId` wins (BEH-BR-187). Invariant INV-BR-051. |
+| Risks introduced by controls | None. |
+| Verification | Planned — check 106. |
+| Residual scoring | S 2 · P 1 · D 2 → class Low (2) · priority Low (2) |
+| Residual risk and acceptability | Acceptable; correlation is a grouping aid, not evidence of cause. |
+| Owner | Consumer (core documents the reset rule) |
+
+<a id="rsk-br-064"></a>
+### RSK-BR-064: A batch of commands ends partly applied
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | An item of a `Commands.batch` fails after earlier items ran; no atomic batch wrapper encloses the batch and an earlier item has no `compensatedBy`, or its compensation fails or is refused. Trigger: batches over handlers that write to external stores. |
+| Effect on GMP data / processes | Part of an approved plan is in effect; a reviewer may believe the plan was all-or-nothing. |
+| Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Controls | Companion `@bridger/command` (Draft, [references/command/](../../command/README.md)): admission of every item before any handler (BEH-CM-049, INV-CM-008); ordered run, undo in reverse by an atomic wrapper or compensating commands, never retried (BEH-CM-050); `CommandBatchPartial` lists `notUndone` and is logged at error level; batch approval bound per item with expected versions checked (BEH-CM-051). Core: the same all-or-report pattern for plugin-set changes, `ApplyRolledBack` / `PartialApply` (BEH-BR-324), and undo requests a gate can match (BEH-BR-219). |
+| Risks introduced by controls | A compensation is itself a gated dispatch and can be refused. |
+| Verification | Planned — command acceptance check 16. |
+| Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) |
+| Residual risk and acceptability | Acceptable when the consumer encloses regulated batches in a transaction wrapper or declares compensations, and resolves every partial batch. |
+| Owner | Consumer (wrappers, compensations, resolution); Companion (command) for the report |
+
+<a id="rsk-br-065"></a>
+### RSK-BR-065: A replayed command outcome is wrong or a retry runs twice
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | The application's `CommandReceipts` store loses, mixes or fails to record receipts, or records them outside the transaction of the domain write; a retried dispatch then runs again, or returns another call's outcome. |
+| Effect on GMP data / processes | A duplicated business effect, or a caller acting on an outcome that is not its own. |
+| Initial scoring | S 2 · P 2 · D 2 → class **Medium** (4) · priority **Medium** (4) |
+| Controls | Companion `@bridger/command`: claim after the gate and hooks, bound to input digest and actor (BEH-CM-041); completion innermost in the handler wrappers so a transaction wrapper covers it (BEH-CM-042); a key without a port refused; exactly-once not claimed (INV-CM-007). Core: the key reaches call-log entries as a "callLog" annotation (BEH-BR-293), and an executed or replayed dispatch can be offered as a "dispatch" entry carrying it (BEH-BR-280). |
+| Risks introduced by controls | None. |
+| Verification | Planned — command acceptance check 14; core check 112 (REQ-BR-112). |
+| Residual scoring | S 2 · P 1 · D 1 → class Low (2) · priority Low (1) |
+| Residual risk and acceptability | Replayed outcomes depend on the application's receipt store; a receipt `void` that fails after a batch undo leaves the receipt, so a retry replays an undone item (reported `receiptVoided: false`, command BEH-CM-050). Acceptable; the receipt store and its transaction are the consumer's. |
+| Owner | Consumer |
+
+<a id="rsk-br-066"></a>
+### RSK-BR-066: Stale reference data used as current
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A signed data pack past its `maxAge` or `effectiveUntil` drives a decision because the reader ignores its status. Trigger: a host offline for longer than the pack's validity, or a publisher that stopped issuing. |
+| Effect on GMP data / processes | A GMP decision taken on outdated reference data. |
+| Initial scoring | S 3 · P 2 · D 1 → class **High** (6) · priority **Medium** (3) |
+| Controls | Companion `@bridger/loader` (Draft, [references/loader/](../../loader/README.md)): `DataPackStale` reported on every read and `requireFresh` failing (BEH-LD-060); packs verified as signed statements and never evaluated (BEH-LD-057). Core: the age is measured against the injected `Clock` (BEH-BR-209, INV-BR-024). Consumer: the rule per data set and use. |
+| Risks introduced by controls | `requireFresh` refuses work while no newer pack is reachable. |
+| Verification | Planned — the companion's REQ-LD scenarios. |
+| Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) |
+| Residual risk and acceptability | Whether stale data may be used, and for what, is the application's decision. Acceptable on that allocation. |
+| Owner | Consumer + Companion |
+
+<a id="rsk-br-067"></a>
+### RSK-BR-067: A revocation reaches a host that wires no RefusalList
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A revocation list arrives (through the loader's channel or a federation kill frame) but the deployment wires no `RefusalList`; the kill path disables the plugin, and a later operator call, cascade restart or lazy trigger starts it again until the next apply removes it. |
+| Effect on GMP data / processes | Code known to be faulty or compromised runs again in a GMP system. |
+| Initial scoring | S 3 · P 2 · D 2 → class **High** (6) · priority **High** (6) |
+| Controls | Core: the `RefusalList` port consulted on every start, background restart and mount (BEH-BR-267, INV-BR-050). Companions (Drafts): the loader's revocation set backs a `RefusalList` (loader BEH-LD-056); the federation kill path documents the wiring and applies kill entries in any state (federation BEH-FD-042). |
+| Risks introduced by controls | None beyond those of RSK-BR-061. |
+| Verification | Planned — core check 104 (REQ-BR-104); the companions' scenarios. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | A deployment that wires no `RefusalList` keeps only the disable; wiring it is the consumer's. Acceptable on that allocation. |
+| Owner | Consumer + Companion |
+
+<a id="rsk-br-068"></a>
+### RSK-BR-068: Stored business events and their publication diverge, or a read model skips events
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | An event is stored without being published or published without being stored (dual write), or a read model follows positions that a later commit fills below its checkpoint and silently omits events. Trigger: publication outside the append's transaction; engines that assign sequence values out of commit order. |
+| Effect on GMP data / processes | A business record missing at the receiving host or in a read model used for decisions, without an error. |
+| Initial scoring | S 3 · P 3 · D 3 → class **High** (9) · priority **High** (9) |
+| Controls | Companion `@bridger/event-store` (Draft, [references/event-store/](../../event-store/README.md)): append only in `StoreTransaction` with the outbox written in it (BEH-ES-005, BEH-ES-028, BEH-ES-034); position rule and Postgres obligation (BEH-ES-008, BEH-ES-036); checkpoint in the batch's transaction, halt never skip (BEH-ES-019, BEH-ES-020); conformance suite (BEH-ES-037). Core owns no storage; it supplies the identifiers and times the store records (BEH-BR-209, BEH-BR-210, INV-BR-024). |
+| Risks introduced by controls | Every append depends on the outbox write and inline projections; a failing projection halts its read model. |
+| Verification | Planned — REQ-ES-004, REQ-ES-009, REQ-ES-013, REQ-ES-016. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | A non-conforming adapter used without its conformance run. Acceptable when the consumer runs the suite on its engine. |
+| Owner | Companion + Consumer |
+
+<a id="rsk-br-069"></a>
+### RSK-BR-069: A record number issued twice, or handed out and then rolled back
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | Two hosts draw from one series, a host restored from backup reissues numbers, or the application prints a number before its transaction commits and the next record takes it. |
+| Effect on GMP data / processes | Two records with one number; a printed number with no record. |
+| Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
+| Controls | Companion `@bridger/sequence` (Draft, [references/sequence/](../../sequence/README.md)): one owning origin (BEH-SQ-002); `next()` in the caller's transaction with an expected version (BEH-SQ-004); incarnation in the identity and "superseded" closure (BEH-SQ-001, BEH-SQ-009); duplicates reported by `verifySeries` (BEH-SQ-013); hand-out obligation and fixture (BEH-SQ-006, BEH-SQ-019). Core: identifiers from the `IdGenerator` port only (BEH-BR-210, INV-BR-024). |
+| Risks introduced by controls | Numbers issued after the last backup and lost with the host are not detectable from the series (BEH-SQ-010). |
+| Verification | Planned — REQ-SQ-003, REQ-SQ-005, REQ-SQ-007. |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
+| Residual risk and acceptability | A restore without a raised incarnation, and application code that prints before commit. Operator and consumer obligations. |
+| Owner | Consumer + Companion |
+
+<a id="rsk-br-070"></a>
+### RSK-BR-070: Personal data remains readable after a shred, or a shred is presented as erasure
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | Plaintext survives in a read model without a redaction callback, a log, a backup, another host or unencrypted metadata; or a key copy decrypts later; or a shred receipt is reported as irreversible erasure. Conversely, a shred makes fields of a record that must be retained unreadable. |
+| Effect on GMP data / processes | Personal data disclosed after a removal decision; or a GMP record whose encrypted fields can no longer be read. |
+| Initial scoring | S 3 · P 3 · D 3 → class **High** (9) · priority **High** (9) |
+| Controls | Companion `@bridger/keyring` (Draft, [references/keyring/](../../keyring/README.md)): tombstone before destruction (BEH-KR-017, BEH-KR-018); redaction callbacks with their own cursor and pending status (BEH-KR-019, BEH-KR-021); notices to other hosts (BEH-KR-020); backup and wrapper obligations (BEH-KR-005, BEH-KR-007); `notStated` in every receipt and wording rule (BEH-KR-022); no plaintext in call-log entries (BEH-KR-008); payloads undecodable after a shred are parked by the event delivery companion's `PayloadCodec`, never halting (durable-bus BEH-DB-008). Core: call-log entries carry no arguments or results (BEH-BR-276, BEH-BR-280); the audit `reason` and annotations carry no personal data by the consumer's discipline. |
+| Risks introduced by controls | Loss of the key store makes encrypted fields unreadable as a shred would (RSK-KR-002). |
+| Verification | Planned — REQ-KR-006, REQ-KR-008, REQ-KR-011, REQ-KR-012. |
+| Residual scoring | S 3 · P 2 · D 2 → class High (6) · priority High (6) |
+| Residual risk and acceptability | Plaintext copies outside registered callbacks, unexpired backups, copied keys and personal metadata. Owned by the consumer; stated on every receipt. The consumer weighs any shred against record-retention duties. |
+| Owner | Consumer |
+
 ## §4 Summary
 
 | ID | Title | Class before | Priority | Residual (class / priority) | Owner |
@@ -985,10 +1195,24 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | [RSK-BR-054](#rsk-br-054) | Origin reused after a restore that was not announced | High | High | High / High (companion alone); Medium / Medium with the incarnation procedure | Consumer |
 | [RSK-BR-055](#rsk-br-055) | Envelopes lost when a receiver falls back past the sender's retention | High | Medium | Medium / Low | Consumer + Companion |
 | [RSK-BR-056](#rsk-br-056) | Duplicate check stops past the inbox's retention | Medium | High | Medium / High | Consumer |
+| [RSK-BR-057](#rsk-br-057) | A lazy veto contributor passed over, so a policy decision fails open | High | High | Medium / Medium | Core + Consumer |
+| [RSK-BR-058](#rsk-br-058) | A woken or idled lazy plugin misses, repeats or leaks an event | Medium | Medium | Low / Low | Consumer + Core |
+| [RSK-BR-059](#rsk-br-059) | An atomic apply mistaken for a transaction, or a partial apply left unnoticed | High | High | Medium / Medium | Core + Consumer |
+| [RSK-BR-060](#rsk-br-060) | An implementation of an incompatible contract version is chosen from a registry | High | High | Medium / Medium | Core + Consumer |
+| [RSK-BR-061](#rsk-br-061) | A revoked digest keeps running, or a list defect stops valid plugins | High | High | Medium / Medium | Consumer + Core |
+| [RSK-BR-062](#rsk-br-062) | Fail-closed call logging reports a performed write as failed, or stops a service | High | High | Medium / Medium | Consumer |
+| [RSK-BR-063](#rsk-br-063) | An inherited correlation joins unrelated work in the trail | Medium | Medium | Low / Low | Consumer |
+| [RSK-BR-064](#rsk-br-064) | A batch of commands ends partly applied | High | High | Medium / Low | Consumer + Companion |
+| [RSK-BR-065](#rsk-br-065) | A replayed command outcome is wrong or a retry runs twice | Medium | Medium | Low / Low | Consumer |
+| [RSK-BR-066](#rsk-br-066) | Stale reference data used as current | High | Medium | Medium / Low | Consumer + Companion |
+| [RSK-BR-067](#rsk-br-067) | A revocation reaches a host that wires no RefusalList | High | High | Medium / Medium | Consumer + Companion |
+| [RSK-BR-068](#rsk-br-068) | Stored business events and their publication diverge, or a read model skips events | High | High | Medium / Medium | Companion + Consumer |
+| [RSK-BR-069](#rsk-br-069) | A record number issued twice, or handed out and then rolled back | High | High | Medium / Medium | Consumer + Companion |
+| [RSK-BR-070](#rsk-br-070) | Personal data remains readable after a shred, or a shred is presented as erasure | High | High | High / High | Consumer |
 
-Companion risks of the remote companion, RSK-RM-001–011, are assessed in its own [risk file](../../remote/risks.md); the highest residuals are RSK-RM-006 (escape from the guest runtime; Consumer; High / High, not reducible by Bridger) and RSK-RM-005 (out-of-process code mistaken for isolated; Consumer; Medium / High).
+Companion risks of the remote companion, RSK-RM-001–015, are assessed in its own [risk file](../../remote/risks.md); the highest residuals are RSK-RM-006 (escape from the guest runtime; Consumer; High / High, not reducible by Bridger), RSK-RM-014 (residency labels mistaken for a residency guarantee; Consumer; High (6) / High (6)) and RSK-RM-005 (out-of-process code mistaken for isolated; Consumer; Medium / High). Round 2 (CCR-RM-003): RSK-RM-015 (a browser frame reached by, or reaching, the wrong party; Companion + Consumer; residual Medium (3) / Medium (4)); RSK-RM-013 residual lowered to Low (2) / Low (2) now that a revocation-caused unmount is attributed; RSK-RM-001 residual Medium (3) / Medium (4) on per-call transports with a `DedupeStore`. The event-store, sequence and keyring companions keep their own series (RSK-ES-001–006, RSK-SQ-001–004, RSK-KR-001–005) in their trees' risk files; RSK-BR-068–070 summarise them here.
 
-**Residuals the regulated user must carry into their own assessment:** identity binding and enabling required attribution (RSK-BR-005); wiring a sink and the store's completeness and continuity (RSK-BR-004, RSK-BR-006); clock synchronisation (RSK-BR-007, RSK-BR-021); plugin version control and regression testing (RSK-BR-010); deployment-level isolation (RSK-BR-013); wiring a gate and its availability (RSK-BR-014); atomic external writes and drain sizing (RSK-BR-015); health checks and state monitoring (RSK-BR-016); code provenance (RSK-BR-017); supplier assessment and independent review (RSK-BR-018); business continuity during sink outages (RSK-BR-020); re-qualification on upgrade (RSK-BR-022); re-issuing an ended intent — an operation parked after `DrainTimeout` whose intent a provider's stop later ended (RSK-BR-023); the `ConfigFingerprinter` implementation — which paths it selects, that it keeps, logs and transmits no value, and that its fingerprints do not reveal one (RSK-BR-024); manifest review, schema diffs and conformance tests of contract releases, loader checks and consent gates (RSK-BR-025–027); running untrusted code out of process (RSK-BR-028); the completeness of a data-access record (RSK-BR-030); review of annotation keys (RSK-BR-031); the hook admission rule, labels and storage of decision records (RSK-BR-032); atomic re-check of application drafts (RSK-BR-033); data separation between family members (RSK-BR-034); correctness of a plugin's handoff schema, upgrade and import (RSK-BR-035); and, where the consumer adopts a companion, the residuals of RSK-BR-036–056 (storage, key custody, anchor independence, essential labels, gate wiring, development tooling, a fence check where a single-owner effect lands, the resolver's local cache, the incarnation procedure on every restore, and sender and inbox retention).
+**Residuals the regulated user must carry into their own assessment:** identity binding and enabling required attribution (RSK-BR-005); wiring a sink and the store's completeness and continuity (RSK-BR-004, RSK-BR-006); clock synchronisation (RSK-BR-007, RSK-BR-021); plugin version control and regression testing (RSK-BR-010); deployment-level isolation (RSK-BR-013); wiring a gate and its availability (RSK-BR-014); atomic external writes and drain sizing (RSK-BR-015); health checks and state monitoring (RSK-BR-016); code provenance (RSK-BR-017); supplier assessment and independent review (RSK-BR-018); business continuity during sink outages (RSK-BR-020); re-qualification on upgrade (RSK-BR-022); re-issuing an ended intent — an operation parked after `DrainTimeout` whose intent a provider's stop later ended (RSK-BR-023); the `ConfigFingerprinter` implementation — which paths it selects, that it keeps, logs and transmits no value, and that its fingerprints do not reveal one (RSK-BR-024); manifest review, schema diffs and conformance tests of contract releases, loader checks and consent gates (RSK-BR-025–027); running untrusted code out of process (RSK-BR-028); the completeness of a data-access record (RSK-BR-030); review of annotation keys (RSK-BR-031); the hook admission rule, labels and storage of decision records (RSK-BR-032); atomic re-check of application drafts (RSK-BR-033); data separation between family members (RSK-BR-034); correctness of a plugin's handoff schema, upgrade and import (RSK-BR-035); the choice of `onError`, `dormant` and the hook policy, and keeping veto owners active (RSK-BR-057); event retention beyond the one held triggering event, and the use of `idle` (RSK-BR-058); compensation of external effects and resolution of a `PartialApply` (RSK-BR-059); conformance of registry implementations to their declared versions (RSK-BR-060); stopping running plugins of a revoked digest and giving every definition a digest (RSK-BR-061); write idempotence or the "drop" policy for write services under fail-closed logging (RSK-BR-062); and, where the consumer adopts a companion, the residuals of RSK-BR-036–056 (storage, key custody, anchor independence, essential labels, gate wiring, development tooling, a fence check where a single-owner effect lands, the resolver's local cache, the incarnation procedure on every restore, and sender and inbox retention); the command receipt store and batch compensations (RSK-BR-064, RSK-BR-065); the rule for stale reference data (RSK-BR-066); wiring a `RefusalList` where revocations arrive (RSK-BR-067); the event-store adapter's conformance run, the incarnation procedure for number series, and every plaintext copy, backup and key outside the keyring's reach (RSK-BR-068–070).
 
 No residual score is yet supported by evidence; each becomes supportable only when the verification named in its entry has been executed and passed ([validation plan](./04-validation-plan.md)).
 

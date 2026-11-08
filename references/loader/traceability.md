@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-TRACE                                             |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-043 and RSK-BR-044 notes (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-08): REQ-LD-010, 017–019, 022–024 summaries follow the round-2 agent review resolutions (CCR-LD-003)<br>0.4 (2026-11-08): Rows BEH-LD-049–064, REQ-LD-017–024; RSK-BR-043 and RSK-BR-044 notes (G60 closed); hazard (d) stale data (round 2: recheck items 11, 12, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-043 and RSK-BR-044 notes (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 
 ---
@@ -73,10 +73,26 @@ Core seams are core behaviour file numbers; files 26, 27 (CCR-BR-017) and 32 (CC
 | BEH-LD-046 | [06](behaviors/06-limits-and-acceptance.md) | INV-LD-005 | ADR-LD-004 | 06, 09, 23, 27 |
 | BEH-LD-047 | [06](behaviors/06-limits-and-acceptance.md) | — | ADR-BR-034 | — |
 | BEH-LD-048 | [06](behaviors/06-limits-and-acceptance.md) | — | ADR-BR-035 | — |
+| BEH-LD-049 | [07](behaviors/07-signed-statements.md) | — | ADR-LD-006, ADR-LD-003 | — |
+| BEH-LD-050 | [07](behaviors/07-signed-statements.md) | INV-LD-008 | ADR-LD-006 | — |
+| BEH-LD-051 | [07](behaviors/07-signed-statements.md) | INV-LD-006 | ADR-LD-006, ADR-LD-003 | — |
+| BEH-LD-052 | [07](behaviors/07-signed-statements.md) | INV-LD-004 | ADR-LD-004, ADR-LD-006 | — |
+| BEH-LD-053 | [07](behaviors/07-signed-statements.md) | — | ADR-LD-006 | 27 |
+| BEH-LD-054 | [07](behaviors/07-signed-statements.md) | INV-LD-003 | ADR-LD-006, ADR-LD-003 | — |
+| BEH-LD-055 | [07](behaviors/07-signed-statements.md) | — | ADR-LD-001, ADR-BR-030 | 23 |
+| BEH-LD-056 | [07](behaviors/07-signed-statements.md) | INV-LD-004 | ADR-LD-004, ADR-BR-053 | 02, 28 |
+| BEH-LD-057 | [08](behaviors/08-data-packs.md) | — | ADR-LD-007, ADR-LD-002 | 27 |
+| BEH-LD-058 | [08](behaviors/08-data-packs.md) | INV-LD-007 | ADR-LD-007, ADR-LD-002 | — |
+| BEH-LD-059 | [08](behaviors/08-data-packs.md) | INV-LD-007, INV-LD-008 | ADR-LD-007, ADR-LD-001 | — |
+| BEH-LD-060 | [08](behaviors/08-data-packs.md) | — | ADR-LD-007 | — |
+| BEH-LD-061 | [08](behaviors/08-data-packs.md) | — | ADR-LD-007 | — |
+| BEH-LD-062 | [08](behaviors/08-data-packs.md) | — | ADR-LD-007, ADR-LD-004 | 26 |
+| BEH-LD-063 | [08](behaviors/08-data-packs.md) | INV-LD-004 | ADR-LD-004, ADR-LD-006 | — |
+| BEH-LD-064 | [08](behaviors/08-data-packs.md) | — | ADR-BR-035 | — |
 
 ## §2 Acceptance scenario traceability
 
-Each scenario is one numbered acceptance check of [BEH-LD-048](behaviors/06-limits-and-acceptance.md#beh-ld-048-required-acceptance-checks). Planned test file: `packages/loader/test/acceptance.test.ts` *(Planned)*.
+Each scenario is one numbered acceptance check of [BEH-LD-048](behaviors/06-limits-and-acceptance.md#beh-ld-048-required-acceptance-checks) (checks 1–16) or [BEH-LD-064](behaviors/08-data-packs.md#beh-ld-064-required-acceptance-checks-for-statements-and-data-packs) (checks 17–24). Planned test file: `packages/loader/test/acceptance.test.ts` *(Planned)*.
 
 | Scenario | Check | Summary | Behaviours |
 | -------- | ----- | ------- | ---------- |
@@ -89,13 +105,21 @@ Each scenario is one numbered acceptance check of [BEH-LD-048](behaviors/06-limi
 | <a id="req-ld-007"></a>REQ-LD-007 | 7 | LoadLog fail-closed before evaluation; refusal-record failures; fields per step | BEH-LD-016 |
 | <a id="req-ld-008"></a>REQ-LD-008 | 8 | Signature policy: thresholds, roles, distinct signers, windows, statement binding | BEH-LD-017, BEH-LD-018, BEH-LD-019, BEH-LD-020, BEH-LD-021 |
 | <a id="req-ld-009"></a>REQ-LD-009 | 9 | No permissive acceptance rule | BEH-LD-019, BEH-LD-022 |
-| <a id="req-ld-010"></a>REQ-LD-010 | 10 | Revocation lists: verification, monotonic revision, persistence | BEH-LD-026 |
+| <a id="req-ld-010"></a>REQ-LD-010 | 10 | Revocation lists: verification under the revocation trust root with no revocation step, first boot, self-revocation, `offer`, monotonic revision, persistence | BEH-LD-025, BEH-LD-026 |
 | <a id="req-ld-011"></a>REQ-LD-011 | 11 | Stale and unavailable revocation; explicit maxAge | BEH-LD-027 |
 | <a id="req-ld-012"></a>REQ-LD-012 | 12 | Kill switch as the scope's one reconciler; two actors; pending and retry; outside scope; blast-radius guard; un-revocation; unknown verification | BEH-LD-026, BEH-LD-028, BEH-LD-029, BEH-LD-031, BEH-LD-032 |
 | <a id="req-ld-013"></a>REQ-LD-013 | 13 | Signer revocation by identity, at acceptance time, withdraws exactly dependent digests | BEH-LD-030 |
 | <a id="req-ld-014"></a>REQ-LD-014 | 14 | Catalog verification, ambiguity, resolution | BEH-LD-033, BEH-LD-034, BEH-LD-035, BEH-LD-036 |
 | <a id="req-ld-015"></a>REQ-LD-015 | 15 | Lazy plugins through `Plugin.lazy({ manifest, load, digest })`: a load succeeds; two digests at one version differ; unchanged reconcile evaluates nothing; timeouts inside `buildTimeout` | BEH-LD-037, BEH-LD-038, BEH-LD-046 |
 | <a id="req-ld-016"></a>REQ-LD-016 | 16 | fetchVerified evaluates nothing; `stampRemote` | BEH-LD-039 |
+| <a id="req-ld-017"></a>REQ-LD-017 | 17 | Statement types are signed; `{ bytes }` subjects digested by the loader; one `id`/`version` convention per reserved type; envelope mismatch refused | BEH-LD-049 |
+| <a id="req-ld-018"></a>REQ-LD-018 | 18 | One verification step for loads, catalog and other types; no rule, no fallback; no caching; "revocation-list" refused by `verify`; `reverify` | BEH-LD-050, BEH-LD-051 |
+| <a id="req-ld-019"></a>REQ-LD-019 | 19 | Revocation by subject digest, statement digest and signer for every type, statement digests reaching `filterDesired` and the kill switch; `Revocation.check` pure; publisher binding under `anyOf` | BEH-LD-052, BEH-LD-053 |
+| <a id="req-ld-020"></a>REQ-LD-020 | 20 | Publisher bound to a verified signer; `PublisherMismatch`; pinned acceptance unbound | BEH-LD-053 |
+| <a id="req-ld-021"></a>REQ-LD-021 | 21 | Signing input, countersignatures outside the digest, `SigningFailed`; statement fields in records | BEH-LD-054, BEH-LD-055 |
+| <a id="req-ld-022"></a>REQ-LD-022 | 22 | `Revocation.refusalList` backs core's `RefusalList`, statement digests included; system starts refused, active plugins untouched | BEH-LD-056 |
+| <a id="req-ld-023"></a>REQ-LD-023 | 23 | Data-pack shape, digest, no evaluation, schema id, rollback, equivocation | BEH-LD-057, BEH-LD-058, BEH-LD-059, BEH-LD-061, BEH-LD-062 |
+| <a id="req-ld-024"></a>REQ-LD-024 | 24 | Window and freshness reported (`DataPackStale`), `requireFresh`, withdrawal on revocation, restore at restart from stored bytes and signatures | BEH-LD-060, BEH-LD-062, BEH-LD-063 |
 
 ## §3 Risk notes
 
@@ -107,10 +131,12 @@ The loader cites core risks; it defines no risk series of its own. New hazards i
 | [RSK-BR-013](../core/gxp/03-risk-assessment.md#rsk-br-013) Realm mistaken for security boundary | Third-party code takes `fetchVerified` to an out-of-process guest (BEH-LD-039, ADR-LD-005); the loader is documented as no isolation (BEH-LD-041). |
 | [RSK-BR-014](../core/gxp/03-risk-assessment.md#rsk-br-014) Approval bypass through the raw Host | The kill switch goes through the gate (BEH-LD-032); `LoaderGate` is a gate piece, not a gate (BEH-LD-015). |
 | [RSK-BR-018](../core/gxp/03-risk-assessment.md#rsk-br-018) Over-claiming qualification evidence | Claims rules (BEH-LD-008, BEH-LD-047); double signing described as two signer entries, not two people (BEH-LD-020). |
-| [RSK-BR-043](../core/gxp/03-risk-assessment.md#rsk-br-043) Trust root or signature policy accepts unapproved code | Distinct signer entries (BEH-LD-020) — not distinct people, which is the application's key custody; Sigstore log evidence checked against a pinned log key (BEH-LD-018); exemptions of `LoaderGate` are explicit configuration (BEH-LD-015). |
-| [RSK-BR-044](../core/gxp/03-risk-assessment.md#rsk-br-044) Revocation does not take effect | `LoaderGate` refuses operator restarts of revoked digests (BEH-LD-015); signers revoked by identity, re-evaluated at acceptance time, unknown verification dropped (BEH-LD-025, BEH-LD-028, BEH-LD-030). Residual: system transitions are never gated, so only removal or disabling makes a digest unusable (core G60); store rollback is the consumer's control (BEH-LD-026). Introduced by the control: a compromised revocation key can remove plugins — bounded by a threshold policy on lists and `maxDroppedPerRevision` (BEH-LD-032). |
+| [RSK-BR-043](../core/gxp/03-risk-assessment.md#rsk-br-043) Trust root or signature policy accepts unapproved code | One rule per statement type, with the type signed, so no key counts across purposes (BEH-LD-049–051); manifest `publisher` bound to a configured signer (BEH-LD-053); distinct signer entries (BEH-LD-020) — not distinct people, which is the application's key custody; Sigstore log evidence checked against a pinned log key (BEH-LD-018); exemptions of `LoaderGate` are explicit configuration (BEH-LD-015). |
+| [RSK-BR-044](../core/gxp/03-risk-assessment.md#rsk-br-044) Revocation does not take effect | `LoaderGate` refuses operator restarts of revoked digests (BEH-LD-015); signers revoked by identity, re-evaluated at acceptance time, unknown verification dropped (BEH-LD-025, BEH-LD-028, BEH-LD-030). System starts of a revoked digest are refused by core's `RefusalList` backed by the revocation set (BEH-LD-056; core G60 closed); residual: an `active` plugin is stopped only by the kill switch's removal; store rollback is the consumer's control (BEH-LD-026). Introduced by the control: a compromised revocation key can remove plugins — bounded by a threshold policy on lists and `maxDroppedPerRevision` (BEH-LD-032). |
 
 Hazards proposed for core's register (descriptions only; numbers assigned by the integrator): (a) a compromised or mis-configured trust root or signature policy accepts unapproved code; (b) a stale or suppressed revocation channel keeps a revoked release loadable or running — bounded by `maxAge` for new loads and reported by the kill switch's status; (c) the kill switch is blocked by a gate or drain limit and a revoked plugin keeps running — reported as `pending`.
+
+Hazard proposed by CCR-LD-003 (description only): (d) stale reference data used as current — a data pack past its `maxAge` is reported (`DataPackStale`, BEH-LD-060) and never refused by the loader; whether it is used is the consumer's decision.
 
 ---
 

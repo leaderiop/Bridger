@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-26                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
+> | Change History | 0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
 
 ---
 
@@ -31,7 +31,7 @@ The decision is [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md),
 which amends [ADR-BR-027](../decisions/027-core-exclusions.md) ("the core
 does not version") and [ADR-BR-011](../decisions/011-serviceid-is-key-identity.md)
 (object identity between two copies of one key). It has no SPEC.md source
-section. This file owns BEH-BR-225–240 and uses BEH-BR-225–232; 233–240 are
+section. This file owns BEH-BR-225–240 and uses BEH-BR-225–234; 235–240 are
 reserved.
 
 > **What core does and does not do with versions**
@@ -51,7 +51,7 @@ reserved.
 
 Planned source: `packages/core/src/Contract.ts` *(Planned)*; the checks run
 in `packages/core/src/Resolver.ts` *(Planned)*. The required acceptance checks
-are 59–61 of BEH-BR-184 ([21 — Testing Host](./21-testing-host.md)).
+are 59–61 and 102 of BEH-BR-184 ([21 — Testing Host](./21-testing-host.md)).
 
 ## BEH-BR-225: A contract is a service key with a version and a method description
 
@@ -78,10 +78,12 @@ interface MethodSpec {
   readonly success: Schema.Codec<any, any>
   readonly error?: Schema.Codec<any, any>              // absent = never
   readonly stream?: boolean                            // true: the method returns a Stream of `success`
+  readonly timeout?: Duration.Input                    // default bound of one remote call (BEH-BR-234); never enforced by core
 }
 
 interface Contract<Self, Shape, M extends Record<string, MethodSpec>> extends Context.Key<Self, Shape> {
-  readonly key: Context.Key<Self, Shape>               // the Key passed to Contract.make
+  // key: string — inherited from Context.Key: the ServiceId, "example/Audit@2" (CCR-BR-028)
+  readonly serviceKey: Context.Key<Self, Shape>        // the Key passed to Contract.make
   readonly name: string                                // "example/Audit"
   readonly version: ContractVersion                    // "2.3.0"
   readonly methods: M
@@ -94,6 +96,8 @@ interface ContractDescriptor {                         // plain data; JSON-seria
   readonly name: string
   readonly version: ContractVersion
   readonly methods: readonly string[]                  // method names, sorted by code unit
+  readonly timeouts: readonly { readonly method: string; readonly millis: number }[]
+                                                       // declared method timeouts, sorted by method (BEH-BR-234)
 }
 ```
 
@@ -103,6 +107,18 @@ REQUIREMENT: `Contract.make(Key, { version, methods })` MUST return a
              `ServiceId` of a contract MUST have the form `<name>@<major>`,
              where `<major>` is the decimal major of `version`; `name` is the
              part before the last "@".
+```
+
+```
+REQUIREMENT: As a `Context.Key`, a contract's `key` MUST be its `ServiceId`
+             string, as for every key (01 — Plugin Definition, BEH-BR-006),
+             and the key passed to `Contract.make` MUST be exposed as
+             `serviceKey`. Every member of the interface above MUST read as
+             stated even when the contract is built on a class key, whose
+             own `name` is the class's. `ContractRequirement` and
+             `ContractProvision` (BEH-BR-227) MUST follow the same rule:
+             their `key` is the `ServiceId`, and the wrapped key is
+             `contract.serviceKey`.
 ```
 
 ```
@@ -128,9 +144,10 @@ REQUIREMENT: `Contract.make` and `Contract.method` MUST be pure: they MUST
 
 ```
 REQUIREMENT: `descriptor` MUST be derived from the contract alone and MUST
-             be plain data: the `ServiceId`, the name, the version and the
-             sorted method names. It MUST NOT contain a schema, a key object
-             or a function.
+             be plain data: the `ServiceId`, the name, the version, the
+             sorted method names and the declared method timeouts
+             (BEH-BR-234). It MUST NOT contain a schema, a key object or a
+             function.
 ```
 
 A contract changes nothing about how the host resolves services: resolution
@@ -152,7 +169,11 @@ does not throw at import — a plugin entry has no import-time side effects
 (BEH-BR-008) — and is refused at the first operation that would register it,
 as any other definition error is (BEH-BR-018). (3) A contract describes
 request/response and streaming methods only. A service with other members
-(synchronous getters, `SubscriptionRef`s) stays a plain key.
+(synchronous getters, `SubscriptionRef`s) stays a plain key. (4) The key
+passed to `Contract.make` is `serviceKey`, not `key` (CCR-BR-028). Revision
+0.3 declared `key: Context.Key` on a type that extends `Context.Key`, whose
+`key` is the `ServiceId` string that `Context.add` and `Context.get` read;
+the two cannot both hold (host-core prototype finding G-P1).
 
 ## BEH-BR-226: Versions and ranges
 
@@ -342,7 +363,10 @@ REQUIREMENT: `install`, `replace` and `enable` MUST fail with
              is the dependent or the provider. The check MUST run against
              the definitions registered when the call is linearized — for
              `replace`, excluding the definition being replaced — and MUST
-             register nothing when it fails.
+             register nothing when it fails. An `install` with
+             `disabled: true` (03 — Installation, BEH-BR-023) forms no
+             registered pair, so it MUST NOT fail with
+             `IncompatibleContract`; its pairs are checked at `enable`.
 ```
 
 ```
@@ -392,12 +416,15 @@ allowed not to have. (3) A plain-key provider of a `ServiceId` a dependent
 requires through a contract is incompatible (`provided` absent): an
 unversioned provision cannot satisfy a range.
 
-**Open.** `reconcile` executes entries in list order
-([18 — Reconciliation and Confluence](./18-reconciliation-and-confluence.md),
-BEH-BR-156). A list that upgrades a provider and installs a dependent needing
-the upgrade converges only if the provider's entry runs first, or on the next
-run (BEH-BR-159). Whether `reconcile` should order provider replacements
-before dependent installs is open.
+**Settled (CCR-BR-025).** Earlier revisions left open that `reconcile`
+acted on entries in list order, so a list that upgrades a provider and
+installs a dependent needing the upgrade converged only if the provider's
+entry came first (gap G36). `reconcile` now orders its changes providers
+first ([18 — Reconciliation and Confluence](./18-reconciliation-and-confluence.md),
+BEH-BR-156), and an atomic apply undoes the whole list when a check still
+refuses an entry ([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
+BEH-BR-322). A provider *narrowed* under a listed dependent's current
+definition still needs two runs, as BEH-BR-156 states.
 
 ## BEH-BR-229: Between two contract references, version checks replace the object check
 
@@ -417,7 +444,7 @@ REQUIREMENT: When a dependent's requirement and its provider's provision for
 ```
 REQUIREMENT: When either side is a plain key, BEH-BR-038 MUST apply
              unchanged, comparing the plain key with the other side's
-             `Contract.key`: the same object binds, a different object fails
+             `Contract.serviceKey`: the same object binds, a different object fails
              with `KeyMismatch`.
 ```
 
@@ -462,6 +489,7 @@ minor):
 | Add a required payload field, or make an optional one required | No — new major |
 | Change a field's type, a unit, or the meaning of a value | No — new major |
 | Add a member to an error union, or turn a non-stream method into a stream | No — new major |
+| Change a method's declared `timeout` (BEH-BR-234) | Yes (patch); core does not compare it |
 
 ```
 REQUIREMENT: Documentation MUST state these rules, and MUST state that core
@@ -553,8 +581,9 @@ REQUIREMENT: The core's negotiation seams MUST be exactly these: the
              `ContractDescriptor` of BEH-BR-225; `Contract.satisfies` and
              `Contract.maxSatisfying` of BEH-BR-226; `Contract.at` of
              BEH-BR-227; `IncompatibleContract` of BEH-BR-228, which a
-             companion MAY use as the cause of an activation it fails; and
-             `PluginInspection.contracts`. The core MUST NOT contain a
+             companion MAY use as the cause of an activation it fails;
+             `PluginInspection.contracts`; and the declared method timeouts
+             of BEH-BR-234. The core MUST NOT contain a
              negotiation protocol, a handshake, or a policy choosing among
              offered versions.
 ```
@@ -619,6 +648,178 @@ compared: a dependent requiring `^2.1` must never be served by a peer at
 2.0.0 through a provision registered at 2.1.0. A proxy that cannot honour what
 it declared provides nothing, visibly, instead.
 
+## BEH-BR-233: A registry may declare a contract, and every contribution is checked against it
+
+> **Invariant:** [INV-BR-049](../invariants.md#inv-br-049-a-contract-checked-registry-holds-only-compatible-contributions)
+> **See:** [ADR-BR-052](../decisions/052-typed-registries.md), [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md), [ADR-BR-024](../decisions/024-shared-state-helpers.md)
+> **Satisfies:** [URS-BR-052](../urs.md#urs-br-052-rely-on-the-contract-version-of-every-implementation-in-an-extension-point), [URS-BR-029](../urs.md#urs-br-029-evolve-a-service-contract-without-breaking-its-consumers), [URS-BR-014](../urs.md#urs-br-014-contribute-to-a-shared-extension-point-safely)
+> **Risk:** [RSK-BR-060](../gxp/03-risk-assessment.md#rsk-br-060), [RSK-BR-025](../gxp/03-risk-assessment.md#rsk-br-025)
+
+```ts
+// illustrative — not type-checked
+const Ordering = Contract.make(OrderingKey, { version: "2.3.0", methods: { placeOrder, status, cancel } })
+
+// The registry is the one provider of its key (31, BEH-BR-307); it now states what it accepts.
+const wholesalers = yield* ContributionRegistry.make({ name: "wholesalers", contract: Ordering, range: "^2.1" })
+
+yield* wholesalers.add("acme", acmeApi, { implements: "2.3.0" })                     // all methods of 2.3.0
+yield* wholesalers.add("beta", betaApi, { implements: { version: "2.1.4", methods: ["placeOrder", "status"] } })
+yield* wholesalers.add("gamma", gammaApi)                       // fails: IncompatibleContract, `provided` absent
+
+const pick = Selector.make(wholesalers, choosePerBranch, { range: "^2.3" })   // only "acme" can be chosen
+```
+
+```
+REQUIREMENT: `ContributionRegistry.make` MUST accept an optional `contract`
+             (a `Contract`, BEH-BR-225) and an optional `range` (default
+             `"^" + contract.version`). With a `contract`, the registry's
+             value type MUST be the contract's service shape, and `make` MUST
+             die with a defect naming the registry when the contract is
+             invalid (BEH-BR-225) or `range` breaks BEH-BR-226 or leaves the
+             contract's major. A `range` without a `contract` MUST be such a
+             defect too.
+```
+
+```
+REQUIREMENT: On a registry made with a `contract`, every `add` MUST declare
+             what its value implements: `implements: v` (a version, read as a
+             provision of `v` with all the method names of the registry's
+             contract) or `implements: { version, methods }`. The pair formed
+             by the registry — as the dependent, with its `range` and its
+             contract object — and the contribution — as the provision — MUST
+             be compatible by the three conditions of BEH-BR-228. A
+             contribution without `implements` MUST be incompatible, as a
+             plain-key provider is (BEH-BR-228, Settled 3).
+```
+
+```
+REQUIREMENT: An incompatible `add` MUST fail with `IncompatibleContract`,
+             with `serviceId` the contract's `ServiceId`, `dependentId`
+             `"registry:" + name`, `providerId` the contributing plugin's ID
+             (from `@bridger/core/ActivePlugin`) or `"application"` when no
+             plugin is active, `required` the registry's `range`, `provided`
+             the declared version (absent without `implements`) and
+             `missingMethods` as BEH-BR-228 defines it, and MUST register
+             nothing. The check MUST run after a wired `AccessPolicy` allows
+             the contribution and before the id is reserved
+             (19 — Contribution Registry, BEH-BR-163).
+```
+
+```
+REQUIREMENT: `implements` on a registry made without a `contract`, or with
+             an empty `methods` list, MUST be rejected at `add` as a defect
+             and MUST register nothing.
+```
+
+```
+REQUIREMENT: The check MUST read declarations only: the registry's contract
+             and range and the contribution's `implements`. It MUST NOT
+             inspect, call or decode the contributed value, and core MUST NOT
+             describe a passing check as evidence that the value behaves as
+             the declared version says.
+```
+
+```
+REQUIREMENT: On a contract registry, `within(range)` MUST return a reader
+             whose `get`, `view`, `changes`, `use` and `useAll` treat every
+             entry whose declared version does not satisfy `range` as
+             absent: `get` returns `None`, views omit it, `use` fails with
+             `ContributionUnavailable`; the reader holds and drains exactly
+             as the registry does (19 — Contribution Registry, BEH-BR-166,
+             BEH-BR-167). `Selector.make(registry, choose, { range })`
+             (31 — Hook Points, BEH-BR-307) MUST pass `choose` the view of
+             `within(range)` and MUST accept only ids in it. A `range` that
+             breaks BEH-BR-226 or leaves the registry contract's major, or
+             `within` on a registry without a contract, MUST be a defect at
+             the call.
+```
+
+Before this behaviour, the one place where several implementations of one
+contract meet — a registry, as BEH-BR-307 requires — was also the one place
+where nothing compared versions: a connector compiled against 2.0 could
+contribute to a registry whose consumers call methods added in 2.3, and the
+first sign would be a missing method at call time. The registry now plays
+the part a dependent plays in BEH-BR-228: it states the range it accepts,
+and each contribution states the version it implements, so the refusal lands
+on the `add` that would create the mismatch, naming both sides.
+
+**Settled here.** (1) The check reuses `IncompatibleContract` and the three
+conditions of BEH-BR-228 rather than a registry-specific error, so that a
+tool that explains one explains both. `dependentId` carries a
+`"registry:"` prefix because a registry is not a plugin. (2) Range filters
+are per call: one registry can serve a consumer that needs 2.3 and another
+that is content with 2.1, without two registries. (3) A hook point is not
+a contract registry: it makes its own registry, named after its id, and its
+contributions are hook functions, not contract implementations (31 — Hook
+Points, BEH-BR-297), so this check does not apply to it. A `Selector` over a
+contract registry (BEH-BR-307) is where several implementations of one
+contract meet and are checked (CCR-BR-029, agent review R1-14).
+
+## BEH-BR-234: A contract method may declare a call timeout, which core does not enforce
+
+> **See:** [ADR-BR-040](../decisions/040-versioned-contracts-in-core.md), [ADR-BR-027](../decisions/027-core-exclusions.md)
+> **Satisfies:** [URS-BR-029](../urs.md#urs-br-029-evolve-a-service-contract-without-breaking-its-consumers), [URS-BR-010](../urs.md#urs-br-010-detect-a-plugin-that-waits-forever)
+> **Risk:** [RSK-BR-025](../gxp/03-risk-assessment.md#rsk-br-025)
+
+```ts
+// illustrative — not type-checked
+const Payments = Contract.make(PaymentsKey, {
+  version: "1.2.0",
+  methods: {
+    authorize: Contract.method({ payload: AuthRequest, success: AuthResult, error: Declined, timeout: "20 seconds" }),
+    status:    Contract.method({ payload: StatusRequest, success: Status, timeout: "2 seconds" })
+  }
+})
+// Payments.descriptor.timeouts = [{ method: "authorize", millis: 20000 }, { method: "status", millis: 2000 }]
+```
+
+```
+REQUIREMENT: `MethodSpec.timeout` MUST be optional. When present it MUST be
+             a finite, positive duration; any other value MUST make the
+             contract invalid (BEH-BR-225). `descriptor.timeouts` MUST list
+             every declared timeout in milliseconds, sorted by method name in
+             code-unit order, and MUST be empty when none is declared.
+```
+
+```
+REQUIREMENT: Core MUST NOT enforce a method timeout: it MUST NOT bound,
+             interrupt or fail a call between two plugins in one host because
+             of it, and it MUST NOT compare timeouts in any compatibility
+             check (BEH-BR-228, BEH-BR-233).
+```
+
+```
+REQUIREMENT: Core documentation MUST state that a companion proxy serving a
+             contract across a boundary (the remote and federation
+             companions) reads `descriptor.timeouts` as the method's
+             default call bound, that the bound it applies is the smallest of
+             that value, its own per-link option and the remaining time of the
+             caller's `Annotation.Deadline`
+             ([30 — Operation Context Annotations](./30-operation-context-annotations.md),
+             BEH-BR-291), and that a method without a declared timeout falls
+             back to the companion's own default.
+```
+
+A method's expected duration is part of what the contract's author knows —
+an authorisation that may wait on a card network is not a status lookup —
+and every proxy of the contract needs it, so it belongs beside the method,
+not in each proxy's options (gap G48). In one host a call is a function
+call: core puts no clock on it and adds none here.
+
+**Settled here.** (1) The timeout is a declaration carried as data, like the
+method names; core reads it nowhere. (2) Changing it is allowed within a
+major (BEH-BR-230): it changes no shape a dependent compiled against.
+
 ---
+
+## Acceptance checks
+
+These checks extend BEH-BR-184 (21 — Testing Host); their scenarios are
+allocated in [traceability.md](../traceability.md) §5. Each will be a tagged
+scenario once code exists; none has run.
+
+| Scenario | Check | Behaviours |
+| --- | --- | --- |
+| REQ-BR-102 | A contract registry refuses an `add` without `implements`, below its range, or missing a method of its contract copy with `IncompatibleContract` naming `registry:<name>` and registers nothing; a compatible `add` registers with its version in the view; `within(range)` and `Selector.make` with a range hide out-of-range entries; `implements` on a plain registry is a defect; a method `timeout` appears in `descriptor.timeouts`, is never enforced in-process and never fails a check, and an invalid one makes the contract invalid | BEH-BR-163, BEH-BR-165, BEH-BR-225, BEH-BR-233, BEH-BR-234 |
 
 _Previous: [25 — Operation Gate](./25-operation-gate.md)_ · _Next: [27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md)_

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): `meta` stamping points to the loader's `Loader.stampRemote` (BEH-LD-039) (CCR-RM-002); resolutions of the agent review of 2026-11-08 — default `accepts` per core BEH-BR-232; missing options; `hello` carries the epoch; `call` carries `remaining`, `version`, wire annotations and claims; `welcome` carries `maxInFlight`; per-call refusals in `WireExit` (R3-04, R3-07, R3-10, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-08): Round-2 agent review (R4 F20, F23) — `hello.wire` lists the versions an end speaks and `welcome.wire` names the agreed one; `WireExit.InProgress` for a duplicate copy of a running call (CCR-RM-003)<br>0.5 (2026-11-08): BEH-RM-002 the session child provides the contract itself instead of `contract.key`, which core now defines as the `ServiceId` string (core BEH-BR-225, CCR-BR-028) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 20 and CORE-DECISIONS-2 — `RemoteOptions.methodTimeouts` (shortens the contract descriptor timeouts) and `RemoteOptions.residency`; `WireClaims` gains `org` and `correlationId`, `onBehalfOf` is `PrincipalRef.encode`; refusal reasons "placement-refused" and "budget-exceeded" (CCR-RM-003)<br>0.3 (2026-11-08): `meta` stamping points to the loader's `Loader.stampRemote` (BEH-LD-039) (CCR-RM-002); resolutions of the agent review of 2026-11-08 — default `accepts` per core BEH-BR-232; missing options; `hello` carries the epoch; `call` carries `remaining`, `version`, wire annotations and claims; `welcome` carries `maxInFlight`; per-call refusals in `WireExit` (R3-04, R3-07, R3-10, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -51,7 +51,10 @@ interface RemoteOptions<R extends Keys> {
   readonly grants?: readonly Grant[]        // core behaviour 29 (BEH-BR-273): Grant.of(Key, { methods }); 06
   readonly accepts?: Contract.Range         // MAY narrow, never widen, `>= contract.version < (major+1).0.0` (core BEH-BR-232); 02
   readonly callTimeout?: Duration.Input     // default for every method; 03 (never "forever")
+  readonly methodTimeouts?: Readonly<Record<string, Duration.Input>>   // 03; may only shorten ContractDescriptor.timeouts (core BEH-BR-234)
+  readonly residency?: string               // 09; the opaque label the link's calls carry, default the link's manifest `residency`
   readonly handshakeTimeout?: Duration.Input   // 02; default 10 seconds
+  readonly wireVersions?: readonly number[] // 02; MAY narrow the wire versions listed in `hello` (default N and N−1)
   readonly heartbeat?: { readonly every?: Duration.Input; readonly missed?: number }   // 04
   readonly unavailableAfter?: number        // 04; per-call transports only, default 3
   readonly partition?: "withdraw" | "hold"  // 04; default "withdraw"
@@ -122,8 +125,8 @@ mounts and unmounts lets a partition use the dependency-loss path instead
 const sessionChild = Plugin.define({
   id: "session",                            // core prefixes it: `${linkId}/session` (BEH-BR-122)
   requires: [],
-  provides: [contract.key],
-  build: Layer.effect(contract.key, Face.make(session))   // Face: one method per contract method
+  provides: [contract],                     // the contract itself: a provision of its version, all methods (core BEH-BR-227)
+  build: Layer.effect(contract, Face.make(session))       // Face: one method per contract method
 })
 ```
 
@@ -212,8 +215,8 @@ slow network, turning an availability condition into a sticky failure.
 // remote derives an RpcGroup from them (BEH-BR-232)
 // remote envelope, versioned separately from every contract
 type Frame =
-  | { readonly t: "hello";   readonly wire: 1; readonly epoch: string; readonly contract: { readonly id: string; readonly accepts: string }; readonly grants: readonly GrantDescriptor[] }
-  | { readonly t: "welcome"; readonly wire: 1; readonly epoch: string; readonly version: string; readonly maxInFlight: number }
+  | { readonly t: "hello";   readonly wire: readonly number[]; readonly epoch: string; readonly contract: { readonly id: string; readonly accepts: string }; readonly grants: readonly GrantDescriptor[] }   // wire: the versions this end speaks (BEH-RM-009)
+  | { readonly t: "welcome"; readonly wire: number; readonly epoch: string; readonly version: string; readonly maxInFlight: number }   // wire: the version agreed for the session
   | { readonly t: "refuse";  readonly epoch?: string; readonly reason: "wire" | "incompatible-contract" | "revoked" | "busy" | "not-a-peer" }
   | { readonly t: "call";    readonly epoch: string; readonly callId: string; readonly method: string; readonly payload: unknown
                              readonly version: string                 // the agreed contract version (checked per invocation on per-call transports, 04)
@@ -234,13 +237,19 @@ type WireExit =
   | { readonly _tag: "Failure"; readonly error: unknown }                 // a typed failure of the contract; outcome "executed"
   | { readonly _tag: "Defect";  readonly message: string }                // RemoteDefect; outcome "executed" (BEH-RM-037)
   | { readonly _tag: "Refused"; readonly reason: WireRefusal; readonly tag?: string }   // the handler did not run; outcome "not-executed"; `tag`: the refusing error's tag
+  | { readonly _tag: "InProgress" }                                       // this copy did not run; another copy of the same callId is running (09, BEH-RM-067); not an answer
 type WireRefusal =
   | "stale-epoch" | "busy" | "deadline-passed" | "payload-undecodable" | "incompatible-contract"
   | "method-not-served" | "unavailable"                                   // the last two: host-side serving end only (BEH-RM-039)
   | "denied"                                                              // callback-result only (BEH-RM-043)
+  | "placement-refused" | "budget-exceeded"                               // 09 (BEH-RM-069, BEH-RM-066)
 interface WireAnnotations { readonly entries: readonly AnnotationEntry[]; readonly omitted: readonly string[] }   // core BEH-BR-289, BEH-BR-296
 interface WireClaims {                                                    // a copy of public claims of the token (06); never authority
-  readonly actor: Actor; readonly onBehalfOf?: string; readonly pluginId: string; readonly realm: string
+  readonly actor: Actor
+  readonly onBehalfOf?: string                // PrincipalRef.encode of the caller's principal (core BEH-BR-280)
+  readonly org?: string                       // opaque organisation claim (09, BEH-RM-065)
+  readonly correlationId?: string             // the caller's CurrentCorrelation (core BEH-BR-187)
+  readonly pluginId: string; readonly realm: string
   readonly version?: string; readonly contractVersion: string
 }
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-FD-003 limited to desired lists with pending kills reported; INV-FD-005 one realm per import; INV-FD-006 single-major imports and symmetric agreement; INV-FD-007 fences checked per link, deposed owners not stopped (R3-02, R3-18, R3-19, R3-21, R3-26) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F1, F3, F5, F9, F10) — INV-FD-003 covers pending kills and every apply path; INV-FD-010 conditional on a wired revocation source and the topology, guard holds stated; INV-FD-011 covers the guarded install and resumption (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 — INV-FD-010 (kill path), INV-FD-011 (outbox before snapshot), INV-FD-012 (residency) added (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-FD-003 limited to desired lists with pending kills reported; INV-FD-005 one realm per import; INV-FD-006 single-major imports and symmetric agreement; INV-FD-007 fences checked per link, deposed owners not stopped (R3-02, R3-18, R3-19, R3-21, R3-26) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -59,8 +59,10 @@ that `Manifest.toDesired` accepts only the verified type.
 ## INV-FD-003: A killed plugin is never in a desired list
 
 No desired list handed to `reconcile` contains an entry matching a kill entry
-of the applied manifest or a digest revoked by a wired `RevocationSource`,
-whatever the local patches.
+of the applied manifest, a pending kill of a newer verified manifest not yet
+applied in full, or a digest revoked by the newest released revocation set,
+whatever the local patches and whichever apply — full, kill-only, freshness
+re-apply, retry or boot — builds it.
 
 **Source**: `packages/federation/src/Manifest.ts` *(Planned)* — kill filter
 applied after the overlay, not overridable.
@@ -71,8 +73,8 @@ was refused for a transient reason keeps running until a later sync removes
 it, and is reported `kill-pending` in `Federation.Status` until it is no
 longer installed ([BEH-FD-008](behaviors/01-host-manifest.md#beh-fd-008-a-manifest-is-applied-through-one-attributed-reconcile)).
 
-**Verification** *(Planned)*: checks 8, 9 and 28 of BEH-FD-034; a property
-test over generated manifests and patches.
+**Verification** *(Planned)*: checks 8, 9, 28, 34 and 40 of BEH-FD-034; a
+property test over generated manifests and patches.
 
 **Related**: [BEH-FD-007](behaviors/01-host-manifest.md#beh-fd-007-a-kill-entry-removes-matching-plugins-at-the-next-apply), [BEH-FD-027](behaviors/04-exports-and-imports.md#beh-fd-027-killed-digests-are-neither-imported-nor-exported).
 
@@ -90,7 +92,7 @@ leave the host running a known state.
 
 **Verification** *(Planned)*: checks 2, 12 and 16 of BEH-FD-034.
 
-**Related**: [BEH-FD-010](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-010-boot-applies-the-highest-verified-manifest-else-the-boot-bundle), [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot), [ADR-FD-007](decisions/007-offline-cap-and-rebootstrap.md).
+**Related**: [BEH-FD-010](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-010-boot-applies-the-highest-verified-manifest-else-the-boot-bundle), [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first), [ADR-FD-007](decisions/007-offline-cap-and-rebootstrap.md).
 
 ## INV-FD-005: A peer's imports resolve only in the realm named for them
 
@@ -182,3 +184,60 @@ one that is current.
 **Verification** *(Planned)*: checks 14, 15 and 17 of BEH-FD-034.
 
 **Related**: [BEH-FD-012](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-012-freshness-and-plugins-that-require-a-fresh-manifest), [BEH-FD-013](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-013-the-offline-cap), [BEH-FD-015](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-015-federationstatus-reports-what-the-host-follows), [BEH-FD-016](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-016-time-comes-from-clock-and-a-clock-that-went-backwards-is-stale).
+
+## INV-FD-010: A kill never waits on a manifest apply, the offline cap or a re-bootstrap
+
+Given a wired `RevocationSource` with a trust root (not the loader's
+constant source), a revocation list with a greater revision that the source
+accepts — from the application's feed or from a `kill` frame on any link,
+in any state that has links — leads to a `disable` of every owned plugin it
+revokes without waiting for a sync, a manifest or a re-bootstrap, unless the
+blast-radius guard holds the revision, which is then reported `kill-held`;
+the kill entries of a newer verified manifest are applied by a kill-only
+apply while a re-bootstrap is pending, and stay applied until a full apply
+of that revision.
+
+**Source**: `packages/federation/src/Revocation.ts` *(Planned)*.
+
+**Implication**: contradiction X10 of the recheck of 2026-11-08 is closed: a
+host past its offline cap, or stuck before a snapshot, still loses a revoked
+plugin, provided a list reaches it — through its `RevocationSource` feed, or
+over a link of the applied manifest's topology. An `unprovisioned` host has
+no links. A gate refusal or drain timeout still delays it, reported as
+`kill-pending`.
+
+**Verification** *(Planned)*: checks 32–35, 40 and 41 of BEH-FD-034.
+
+**Related**: [BEH-FD-041](behaviors/06-kill-path-placement-and-skew.md#beh-fd-041-revocation-lists-travel-on-their-own-channel-and-are-verified-as-signed-statements), [BEH-FD-042](behaviors/06-kill-path-placement-and-skew.md#beh-fd-042-a-revocation-list-is-applied-at-once-before-re-bootstrap-and-before-any-manifest), [BEH-FD-043](behaviors/06-kill-path-placement-and-skew.md#beh-fd-043-revocation-lists-are-relayed-on-links), [ADR-FD-009](decisions/009-revocation-travels-apart-from-desired-state.md).
+
+## INV-FD-011: A re-bootstrap never replaces state while local facts are neither pushed nor kept
+
+No `Rebootstrap.fetch` or `install` runs unless `RebootstrapOutbox.settle`
+succeeded in the same re-bootstrap, or the application wired
+`RebootstrapOutbox.none` explicitly; `install` runs only through the
+settlement's guarded `install`, and a re-bootstrap interrupted after its
+install began resumes from the persisted marker with links suspended.
+
+**Source**: `packages/federation/src/Sync.ts` *(Planned)*.
+
+**Implication**: facts recorded offline survive a re-bootstrap; a host that
+cannot push or keep them stays on its last state, reported
+`rebootstrap-blocked`.
+
+**Verification** *(Planned)*: checks 16, 36 and 42 of BEH-FD-034.
+
+**Related**: [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first), [BEH-FD-044](behaviors/06-kill-path-placement-and-skew.md#beh-fd-044-re-bootstrap-pushes-or-keeps-the-outbox-before-it-touches-the-snapshot), [ADR-FD-007](decisions/007-offline-cap-and-rebootstrap.md).
+
+## INV-FD-012: No import or export runs over a route that does not offer its residency label
+
+An import or export with a `residency` label is opened or served only over a
+route whose offered labels the `PlacementPolicy` accepts for it.
+
+**Source**: `packages/federation/src/Placement.ts` *(Planned)*.
+
+**Implication**: a comparison of the authority's and operator's strings, not
+evidence of where a peer runs ([RSK-RM-014](../remote/risks.md#rsk-rm-014)).
+
+**Verification** *(Planned)*: check 37 of BEH-FD-034.
+
+**Related**: [BEH-FD-045](behaviors/06-kill-path-placement-and-skew.md#beh-fd-045-imports-and-exports-are-refused-on-a-route-that-does-not-offer-their-residency-label), [ADR-RM-010](../remote/decisions/010-placement-labels-compared-at-the-boundary.md).

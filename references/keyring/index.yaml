@@ -1,0 +1,20 @@
+kind: root
+package: bridger-keyring
+infix: KR
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-KR-00"
+    title: "Bridger Keyring — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-KR-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-KR-INV"
+    title: "Runtime Invariants"
+  - file: "risks.md"
+    id: "BRIDGER-KR-RISK"
+    title: "Risk Assessment — Keyring Companion"
+  - file: "traceability.md"
+    id: "BRIDGER-KR-TRACE"
+    title: "Traceability"

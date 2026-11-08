@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-02                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-016 uses core `HookPointOptions.policy` (`ContributionPolicy`, `Run`/`Skip`/`Deny`) with `Entitlement.contributionPolicy` (`onNotEntitled: "skip" \| "deny"`) and `Policies.first`, replacing `Entitlement.skipPolicy`, `SkipPolicy` and `Skip.first` (G62 closed in core); G64 limit stated; BEH-EN-009 allows `undo` requests and ignores `allowChildren` and `mandatoryInterceptions`; BEH-EN-015 points to grant narrowing (CCR-EN-003)<br>0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -32,7 +32,9 @@ file owns BEH-EN-009–016 and uses all eight.
 >
 > It does not enforce read-only mode inside plugin code: in-process code is
 > trusted and not isolated, and a plugin that ignores its mode is a defect of
-> that plugin. Code that must be prevented from writing runs out of process
+> that plugin. What it can do without the plugin's cooperation is narrow the
+> services the plugin captured (04 — Grant narrowing and usage), which is not
+> isolation either. Code that must be prevented from writing runs out of process
 > behind a proxy plugin ([references/remote/](../../remote/README.md)). It
 > does not remove, disable or restart plugins; an application that wants a
 > lapsed plugin removed does so through its own `reconcile`, gated and
@@ -82,6 +84,16 @@ REQUIREMENT: The gate MUST consult the `Entitlement` port for `install`
 ```
 REQUIREMENT: For every other request the gate MUST answer Allow at once,
              without calling the port.
+```
+
+```
+REQUIREMENT: A request with `undo: true` — an undo action of an atomic
+             `reconcile` (core BEH-BR-219, BEH-BR-325) — MUST be allowed
+             without calling the port, even when it is an `install` or a
+             `replace`: it restores the registration the apply changed,
+             and refusing it would turn a rollback into a `PartialApply`.
+             The gate MUST ignore `allowChildren` and
+             `mandatoryInterceptions`; they are not entitlement questions.
 ```
 
 ```
@@ -326,6 +338,13 @@ REQUIREMENT: No change of entitlement MAY cause any component of this
 ```
 
 ```
+REQUIREMENT: When the application wires `Entitlement.capabilityPolicy`
+             (04, BEH-EN-025), a lapse MUST reach the plugin's captures only
+             through core's re-resolution (core BEH-BR-281), which narrows
+             later calls and changes no plugin state (04, BEH-EN-028).
+```
+
+```
 REQUIREMENT: A plugin's own reaction to `entitled` MUST be documented as the
              plugin's responsibility: a plugin that chooses to fail itself
              on a lapse calls `reportFailure`, and the core's runtime-failure
@@ -344,49 +363,65 @@ arbitrary moment — a payment half-recorded, a document half-written — and
 would do so with no operator decision in the trail. Keeping state changes on
 the operator's path keeps both the lease guarantees and the record intact.
 
-## BEH-EN-016: Entitlement of hook-point contributions is a skip policy of the hook point
+## BEH-EN-016: Entitlement of hook-point contributions is a contribution policy of the hook point
 
 > **Invariant:** [INV-EN-005](../invariants.md#inv-en-005-essential-uses-are-never-refused-by-entitlement-or-budget-helpers)
 > **See:** [ADR-EN-001](../decisions/001-entitlement-changes-modes-not-state.md)
-> **Core seam:** [31 — Hook points](../../core/behaviors/31-hook-points.md) (BEH-BR-297–308; `HookPointOptions.skip`, BEH-BR-302; decision record, BEH-BR-305)
+> **Core seam:** [31 — Hook points](../../core/behaviors/31-hook-points.md) (BEH-BR-297–312; `HookPointOptions.policy` and `settle`, BEH-BR-302; `Deny` and "denied-policy", BEH-BR-312; decision record, BEH-BR-305)
 > **Satisfies:** [URS-BR-014](../../core/urs.md#urs-br-014-contribute-to-a-shared-extension-point-safely)
 
 ```ts
 // illustrative — not type-checked
-declare const Entitlement: {
-  // A SkipPolicy for HookPointOptions.skip (core 31, BEH-BR-302), given by the hook point's owner.
-  readonly skipPolicy: <In>(options: {
-    readonly requires?: "full" | "read-only"                  // default "full"
-  }) => Effect.Effect<SkipPolicy<In>, never, Entitlement>
+// What a policy contributes to HookPointOptions: core's ContributionPolicy and, optionally, a SettleStep (BEH-BR-302).
+interface ContributionPolicyBundle<In, Target = unknown, Sel = unknown> {
+  readonly policy: ContributionPolicy<In, Target, Sel>
+  readonly settle?: SettleStep<In, Target>
+  readonly reserves: boolean                       // true when the policy holds a budget reservation (04, BEH-EN-030)
 }
-declare const Skip: {
-  // Consults policies in order; the first Some(reason) wins and later policies are not consulted.
-  readonly first: <In>(...policies: readonly SkipPolicy<In>[]) => SkipPolicy<In>
+declare const Entitlement: {
+  readonly contributionPolicy: <In>(options: {
+    readonly requires?: "full" | "read-only"       // default "full"
+    readonly onNotEntitled: "skip" | "deny"        // required, no default
+  }) => Effect.Effect<ContributionPolicyBundle<In>, never, Entitlement>
+}
+declare const Policies: {
+  // Consults the bundles in order; the first Skip or Deny decides and later bundles are not consulted.
+  // Settle steps run for every bundle (each settles only what it reserved). Fails when a reserving bundle is not last.
+  readonly first: <In, Target, Sel>(...bundles: readonly ContributionPolicyBundle<In, Target, Sel>[]) =>
+    Effect.Effect<{ readonly policy: ContributionPolicy<In, Target, Sel>; readonly settle?: SettleStep<In, Target> }, EntitlementConfigError>
 }
 
-// The hook point owner wires entitlement (and budgets, 03, BEH-EN-023) as its skip policy:
+// The hook point owner wires entitlement (and budgets, 03, BEH-EN-023) as its policy:
 const checkout = Effect.gen(function* () {
-  const entitled = yield* Entitlement.skipPolicy<Sale>({ requires: "full" })
-  const quota = yield* Budget.skipPolicy<Sale>({ key: perOwner, perCall: 1 })
+  const entitled = yield* Entitlement.contributionPolicy<Sale>({ requires: "full", onNotEntitled: "skip" })
+  const quota = yield* Budget.contributionPolicy<Sale>({ key: perOwner, perCall: 1 })
+  const { policy, settle } = yield* Policies.first(entitled, quota)   // entitlement first: no budget held when not entitled
   return yield* HookPoint.make<Sale, never, never, "blocked">("checkout", {
     codes: ["blocked"], who: admission, timeout: "200 millis", deadline: "1 second", onError: "deny",
-    skip: Skip.first(entitled, quota)                          // entitlement first: no budget spent when not entitled
+    policy, settle
   })
 })
 ```
 
 ```
-REQUIREMENT: The policy MUST return `Some("not-entitled")` when the
-             effective mode (01, BEH-EN-004) of the contribution's owning
-             plugin — `step.owner.pluginId` and `step.owner.realm` — does
-             not allow `requires`, and `None` otherwise. Core then skips the
-             contribution without calling it and records the step as
-             "skipped-policy" with that `skipReason`, distinguishable from a
-             hook that passed (core BEH-BR-302, BEH-BR-305).
+REQUIREMENT: The policy MUST answer `Run` when the effective mode (01,
+             BEH-EN-004) of the contribution's owning plugin —
+             `step.owner.pluginId` and `step.owner.realm` — allows
+             `requires`. Otherwise it MUST answer
+             `Skip { reason: "not-entitled" }` under `onNotEntitled: "skip"`,
+             and `Deny { reason: "not-entitled" }` under "deny". Core then
+             records a skip as "skipped-policy" and, for a veto-role
+             contribution, a deny as "denied-policy", ending the dispatch
+             with `Denied { cause: "denied-policy", reason }`; a `Deny` for
+             an enrich-role or advisory-role contribution is recorded as
+             "skipped-policy" (core BEH-BR-302, BEH-BR-305, BEH-BR-312).
+             The same answer MUST be given for a declaration of a plugin not
+             yet loaded (`step.declared`), so that a not-entitled
+             declaration is not woken (core BEH-BR-309).
 ```
 
 ```
-REQUIREMENT: The policy MUST return `None` when `step.labels` holds an
+REQUIREMENT: The policy MUST answer `Run` when `step.labels` holds an
              essential label (01, BEH-EN-007), counting it as an essential
              pass, and when `step.owner` has no `pluginId` (a contribution
              registered by application code, not a plugin).
@@ -396,29 +431,38 @@ REQUIREMENT: The policy MUST return `None` when `step.labels` holds an
 REQUIREMENT: The policy MUST NOT fail or die: an unavailable port is
              answered from the state 01, BEH-EN-005, serves. A policy that
              failed would be treated by core as an error of the
-             contribution under `onError` (core BEH-BR-302), turning an
-             entitlement outage into a denial under "deny".
+             contribution under `onError` (core BEH-BR-302).
 ```
 
 ```
-REQUIREMENT: The package MUST NOT offer a way to make a not-entitled
-             contribution deny the dispatch, or to wrap a contributor's hook
-             so that it returns `Pass` or `Veto` on the contributor's behalf.
+REQUIREMENT: The package MUST NOT wrap a contributor's hook so that it
+             returns `Pass` or `Veto` on the contributor's behalf.
              Documentation MUST state that a not-entitled contribution is
-             skipped, never counted as a pass and never as a veto.
+             skipped or, under "deny", denied by the hook point's policy —
+             recorded as the point's decision with the policy's reason,
+             never as a pass and never as the contributor's veto.
 ```
 
-A skip is a decision about the contributor — "do not ask this one now" — not
-a failure of it and not an answer from it, and core records it as such only
-when the hook point itself makes it through its `skip` option. A wrapper
-inside the contributor's hook could only return a result core would record as
-the contributor's own: a `Pass` indistinguishable from a real pass, or a
-`Veto` whose `decidedBy` names a contributor that decided nothing. The policy
-belongs to the hook point's owner because whether entitlement applies at a
-hook point is a property of what that hook point decides, as is its failure
-policy. Whether an unlicensed veto contribution should block rather than step
-aside would need an outcome of its own in core's decision record, which core
-does not have; that question is recorded as open (README, Open questions).
+```
+REQUIREMENT: Documentation MUST state the limit of core gap G64: a veto
+             plugin that is loaded but not active (`waiting`, `failed`,
+             `disabled`) has no hook and no declaration, so the policy is
+             never consulted for it and a dispatch can be `Allowed` without
+             its veto. An owner that relies on an entitled veto
+             contributor MUST keep it active or monitored; the policy cannot
+             detect its absence.
+```
+
+`onNotEntitled` is the owner's choice because it depends on what the point
+decides. For a feature — a loyalty discount — a contributor whose licence
+lapsed steps aside ("skip"). For a control whose owner sells the veto as a
+licensed check, a lapsed licence must not silently remove the check, so the
+point denies ("deny"), and the record names the policy, not the contributor,
+as the reason (core closed URS gap G62 with this outcome). A wrapper inside
+the contributor's hook could only return a result core records as the
+contributor's own. The policy belongs to the hook point's owner because
+whether entitlement applies at a hook point is a property of what that hook
+point decides, as is its failure policy.
 
 **Settled here.** (1) The gate consults the port for `install`, and for
 `replace` when the application says so; `enable` and the recovery operations
@@ -427,9 +471,10 @@ must be shorter than the piece's own `timeout`, checked when the piece is
 built; the composite bound is the host's `gateTimeout`, documented. (4) The
 runtime stream is the core seam on `Plugin.Runtime` (BEH-BR-089), with core's
 own `unmetered` mode when unwired. (5) A not-entitled hook contribution is
-skipped by the hook point's `skip` policy, recorded by core as
-"skipped-policy", never an error and never a result attributed to the
-contributor.
+skipped or denied by the hook point's `policy`, as its owner states, recorded
+by core as "skipped-policy" or "denied-policy", never an error and never a
+result attributed to the contributor. (6) An `undo` request of an atomic
+`reconcile` is allowed without consulting the port (BEH-EN-009).
 
 **Settled at integration.** The core seam of BEH-EN-013 is specified in
 core BEH-BR-089 (CCR-BR-020, CCR-BR-022), so the alternative of a package

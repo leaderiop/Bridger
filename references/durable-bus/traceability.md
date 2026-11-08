@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-TRACE                                             |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — BEH-DB-047; REQ-DB-028–030; check texts aligned with BEH-DB-058 (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review — REQ-DB-039–041; REQ-DB-031, 033, 034, 037, 038 restated; INV-DB-006, 009, 011 rows extended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — BEH-DB-008, 016, 031, 032, 048, INV-DB-009–011, ADR-DB-009, REQ-DB-031–038 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — BEH-DB-047; REQ-DB-028–030; check texts aligned with BEH-DB-058 (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -24,12 +24,12 @@ requirements and risks are registered in the core `urs.md` and
 
 | Behaviours | Planned source | Planned tests |
 | --- | --- | --- |
-| BEH-DB-001–007 ([01](behaviors/01-events-and-envelope.md)) | `packages/durable-bus/src/DurableEvent.ts`, `Envelope.ts` *(Planned)* | `packages/durable-bus/test/acceptance/envelope.test.ts` *(Planned)* |
-| BEH-DB-009–015 ([02](behaviors/02-transactional-outbox.md)) | `packages/durable-bus/src/Outbox.ts` *(Planned)* | `packages/durable-bus/test/acceptance/outbox.test.ts` *(Planned)* |
+| BEH-DB-001–008 ([01](behaviors/01-events-and-envelope.md)) | `packages/durable-bus/src/DurableEvent.ts`, `Envelope.ts`, `Codec.ts` *(Planned)* | `packages/durable-bus/test/acceptance/envelope.test.ts` *(Planned)* |
+| BEH-DB-009–016 ([02](behaviors/02-transactional-outbox.md)) | `packages/durable-bus/src/Outbox.ts` *(Planned)* | `packages/durable-bus/test/acceptance/outbox.test.ts` *(Planned)* |
 | BEH-DB-017–024 ([03](behaviors/03-delivery-and-inbox.md)) | `packages/durable-bus/src/Relay.ts`, `Inbox.ts`, `Subscription.ts` *(Planned)* | `packages/durable-bus/test/acceptance/delivery.test.ts` *(Planned)* |
-| BEH-DB-025–030 ([04](behaviors/04-versions-and-upcasters.md)) | `packages/durable-bus/src/Upcast.ts` *(Planned)* | `packages/durable-bus/test/acceptance/upcast.test.ts` *(Planned)* |
+| BEH-DB-025–032 ([04](behaviors/04-versions-and-upcasters.md)) | `packages/durable-bus/src/Upcast.ts` *(Planned)* | `packages/durable-bus/test/acceptance/upcast.test.ts` *(Planned)* |
 | BEH-DB-033–038 ([05](behaviors/05-order-and-clocks.md)) | `packages/durable-bus/src/Hlc.ts` *(Planned)* | `packages/durable-bus/test/acceptance/hlc.test.ts` *(Planned)* |
-| BEH-DB-041–047 ([06](behaviors/06-replay-and-snapshots.md)) | `packages/durable-bus/src/Relay.ts`, `Snapshot.ts`, `History.ts` *(Planned)* | `packages/durable-bus/test/acceptance/replay.test.ts` *(Planned)* |
+| BEH-DB-041–048 ([06](behaviors/06-replay-and-snapshots.md)) | `packages/durable-bus/src/Relay.ts`, `Snapshot.ts`, `History.ts` *(Planned)* | `packages/durable-bus/test/acceptance/replay.test.ts` *(Planned)* |
 | BEH-DB-049–056 ([07](behaviors/07-core-bus-and-adapters.md)) | `packages/durable-bus/src/Plugin.ts`, `Forward.ts`, `testing/AdapterSuite.ts` *(Planned)* | `packages/durable-bus/test/acceptance/plugin.test.ts` *(Planned)* |
 | BEH-DB-057–058 ([08](behaviors/08-testing-and-acceptance.md)) | `packages/durable-bus/src/testing/TestStore.ts`, `TestDelivery.ts` *(Planned)* | all of the above |
 
@@ -42,9 +42,12 @@ requirements and risks are registered in the core `urs.md` and
 | [INV-DB-003](invariants.md#inv-db-003-an-envelope-is-acknowledged-only-after-the-receiver-committed-it) | BEH-DB-017, 019, 052 | ADR-DB-003 | REQ-DB-009, 010, 027 |
 | [INV-DB-004](invariants.md#inv-db-004-an-inbox-records-each-envelope-processed-at-most-once-per-subscription) | BEH-DB-015, 018, 020 | ADR-DB-003 | REQ-DB-009, 011 |
 | [INV-DB-005](invariants.md#inv-db-005-handlers-see-each-stream-in-sequence-without-skipping) | BEH-DB-018, 020, 022, 033 | ADR-DB-004 | REQ-DB-009, 015, 029 |
-| [INV-DB-006](invariants.md#inv-db-006-no-envelope-is-dropped-silently) | BEH-DB-014, 019, 022, 026, 044, 045 | ADR-DB-005, ADR-DB-006 | REQ-DB-013, 014, 024, 025, 028, 029 |
+| [INV-DB-006](invariants.md#inv-db-006-no-envelope-is-dropped-silently) | BEH-DB-008, 014, 016, 018, 019, 022, 026, 044, 045, 047 | ADR-DB-005, ADR-DB-006 | REQ-DB-013, 014, 024, 025, 028, 029, 031, 038, 040 |
 | [INV-DB-007](invariants.md#inv-db-007-hlc-timestamps-issued-by-a-node-strictly-increase) | BEH-DB-034, 035 | ADR-DB-004 | REQ-DB-017, 018 |
 | [INV-DB-008](invariants.md#inv-db-008-in-flight-delivery-is-bounded-by-the-receivers-credit) | BEH-DB-041, 042, 047 | ADR-DB-006 | REQ-DB-021, 022, 023, 030 |
+| [INV-DB-009](invariants.md#inv-db-009-no-snapshot-restore-removes-an-unacknowledged-outbox-envelope) | BEH-DB-004, 044, 048 | ADR-DB-006 | REQ-DB-033, 034, 039 |
+| [INV-DB-010](invariants.md#inv-db-010-a-payload-reaches-storage-and-the-wire-only-through-the-payload-codec) | BEH-DB-008 | ADR-DB-008 | REQ-DB-031 |
+| [INV-DB-011](invariants.md#inv-db-011-no-envelope-is-delivered-to-a-subscriber-the-access-policy-denied) | BEH-DB-047, 053 | ADR-DB-001 | REQ-DB-035, 040 |
 
 ## §3 Decision traceability
 
@@ -58,6 +61,7 @@ requirements and risks are registered in the core `urs.md` and
 | [ADR-DB-006](decisions/006-bounded-replay-and-snapshots.md) | Proposed | 02, 04, 06 |
 | [ADR-DB-007](decisions/007-the-name-is-not-a-claim.md) | Proposed | 07 |
 | [ADR-DB-008](decisions/008-actor-and-annotations-are-claims.md) | Proposed | 01 |
+| [ADR-DB-009](decisions/009-writers-last-for-offline-readers.md) | Proposed | 04 |
 
 ## §4 Acceptance scenario traceability
 
@@ -95,3 +99,14 @@ One scenario per required acceptance check of [BEH-DB-058](behaviors/08-testing-
 | REQ-DB-028 | 28. A regressed receiver is resent to from its lower watermark, or `envelopes-lost` is reported and the stream proceeds only after an attributed `acceptGap` | [BEH-DB-017](behaviors/03-delivery-and-inbox.md), [BEH-DB-019](behaviors/03-delivery-and-inbox.md) | Not run |
 | REQ-DB-029 | 29. Unknown envelope formats and conflicts stop the stream at the inbox until `releaseStream`; a batch with an unidentifiable element is refused whole; parks are per subscription and an unparked envelope is processed out of order | [BEH-DB-002](behaviors/01-events-and-envelope.md), [BEH-DB-018](behaviors/03-delivery-and-inbox.md), [BEH-DB-022](behaviors/03-delivery-and-inbox.md) | Not run |
 | REQ-DB-030 | 30. `follow` pulls bounded pages with one read in flight per source, backs off with seeded jitter, and feeds pages through the inbox rules | [BEH-DB-047](behaviors/06-replay-and-snapshots.md) | Not run |
+| REQ-DB-031 | 31. Payloads pass through the `PayloadCodec`; nothing else changes; `PayloadUnreadable` handled under `onUnreadable`, never dropped; rotation through `decodes` | [BEH-DB-008](behaviors/01-events-and-envelope.md) | Not run |
+| REQ-DB-032 | 32. `onBehalfOf` is `PrincipalRef.encode`; correlation from `CurrentCorrelation` reaches a handler's mutating calls | [BEH-DB-002](behaviors/01-events-and-envelope.md), [BEH-DB-005](behaviors/01-events-and-envelope.md), [BEH-DB-007](behaviors/01-events-and-envelope.md) | Not run |
+| REQ-DB-033 | 33. `rebootstrapOutbox().settle` pushes or keeps, blocks under "pushed" (the default), refuses "kept" for a whole-store install, acknowledges nothing itself | [BEH-DB-048](behaviors/06-replay-and-snapshots.md) | Not run |
+| REQ-DB-034 | 34. A restore or in-store install that touches the outbox is rolled back with "outbox-touched" | [BEH-DB-044](behaviors/06-replay-and-snapshots.md) | Not run |
+| REQ-DB-035 | 35. `AccessPolicy.ask` on publish, subscribe and every delivery; denied deliveries park, never run | [BEH-DB-053](behaviors/07-core-bus-and-adapters.md) | Not run |
+| REQ-DB-036 | 36. `publishVersion` N−1 with a round-trip-checked downcast; `DowncastRefused`; switch by configuration | [BEH-DB-030](behaviors/04-versions-and-upcasters.md), [BEH-DB-031](behaviors/04-versions-and-upcasters.md) | Not run |
+| REQ-DB-037 | 37. Oldest and newest version stored per (type, origin) and reader versions per type, offered as version reports | [BEH-DB-032](behaviors/04-versions-and-upcasters.md) | Not run |
+| REQ-DB-038 | 38. Routes and inboxes refuse envelopes whose residency label they do not offer; a skipped destination gets a `Withheld` marker and no gap | [BEH-DB-016](behaviors/02-transactional-outbox.md), [BEH-DB-018](behaviors/03-delivery-and-inbox.md) | Not run |
+| REQ-DB-039 | 39. A whole-store re-bootstrap freezes the outbox and raises the incarnation | [BEH-DB-004](behaviors/01-events-and-envelope.md), [BEH-DB-048](behaviors/06-replay-and-snapshots.md) | Not run |
+| REQ-DB-040 | 40. A `HistorySource` checks placement and access per reader and withholds what it refuses | [BEH-DB-047](behaviors/06-replay-and-snapshots.md) | Not run |
+| REQ-DB-041 | 41. Every `publish` error writes nothing and rolls back the caller's write if unhandled | [BEH-DB-009](behaviors/02-transactional-outbox.md), [BEH-DB-031](behaviors/04-versions-and-upcasters.md) | Not run |

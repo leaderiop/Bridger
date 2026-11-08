@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-00                                                |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Master Index (companion)          |
-> | Change History | 0.3 (2026-11-08): Register row CCR-LD-002 (resolutions of the agent review of 2026-11-08); Open questions section; dependencies on core updated (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-08): CCR-LD-003 extended with revision 2, resolutions of the round-2 agent review (R3-01–R3-05, R3-14–R3-16; offline review F3, F4, F29) (CCR-LD-003)<br>0.4 (2026-11-08): Register row CCR-LD-003; contents 07 and 08, ADR-LD-006–007; core dependencies 24 and 28; open questions answered (G60, G61) and G56 answered (round 2: recheck items 11, 12, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): Register row CCR-LD-002 (resolutions of the agent review of 2026-11-08); Open questions section; dependencies on core updated (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -85,6 +85,8 @@ and [25 — Operation gate](../core/behaviors/25-operation-gate.md).
 | 04 | [Revocation and kill switch](./behaviors/04-revocation-and-kill-switch.md) | BEH-LD-025–032 |
 | 05 | [Catalog and lazy loading](./behaviors/05-catalog-and-lazy-loading.md) | BEH-LD-033–040 |
 | 06 | [Limits and acceptance](./behaviors/06-limits-and-acceptance.md) | BEH-LD-041–048 |
+| 07 | [Signed statements](./behaviors/07-signed-statements.md) | BEH-LD-049–056 |
+| 08 | [Data packs](./behaviors/08-data-packs.md) | BEH-LD-057–064 |
 
 ### Decisions
 
@@ -95,6 +97,8 @@ and [25 — Operation gate](../core/behaviors/25-operation-gate.md).
 | [ADR-LD-003](./decisions/003-n-of-m-signature-policy-with-no-default.md) | An N-of-M signature policy over verifier adapters, with no default |
 | [ADR-LD-004](./decisions/004-revocation-acts-through-desired-state.md) | Revocation acts through desired state and reconcile |
 | [ADR-LD-005](./decisions/005-in-process-loading-is-for-first-party-code.md) | In-process loading is for first-party code; other code is fetched for out-of-process guests |
+| [ADR-LD-006](./decisions/006-one-verification-step-for-every-signed-statement.md) | One verification step for every signed statement |
+| [ADR-LD-007](./decisions/007-data-packs-are-verified-never-evaluated.md) | Data packs are verified and served as bytes, never evaluated |
 
 ## Dependencies on core
 
@@ -107,28 +111,30 @@ and [25 — Operation gate](../core/behaviors/25-operation-gate.md).
 | [22 — Attributable operations](../core/behaviors/22-attributable-operations.md), [23 — Audit sink and record](../core/behaviors/23-audit-sink-and-record.md), [25 — Operation gate](../core/behaviors/25-operation-gate.md) | Kill-switch actors; `definition.digest` on records and on gate requests, installed digest for plugin-addressed operations (BEH-BR-219); system transitions never gated (BEH-BR-223) | Core (existing) |
 | [26 — Versioned contracts](../core/behaviors/26-versioned-contracts.md) | Version range syntax for catalog resolution | CCR-BR-017 |
 | [27 — Manifest and lazy activation](../core/behaviors/27-manifest-and-lazy-activation.md) | Manifest schema, `Plugin.lazy({ manifest, load, digest })` with the digest beside the manifest, loading in the build step, triggers, reconcile without evaluating code | CCR-BR-017, CCR-BR-022 |
+| [28 — Plugin principal and mandatory policy](../core/behaviors/28-plugin-principal-and-mandatory-policy.md) | `RefusalList` backed by the revocation set (BEH-BR-267); `AccessPolicy.declaredOnly` compares registrations with signed manifest declarations (BEH-BR-268) | CCR-BR-026 |
+| [24 — Time, ids and sequence](../core/behaviors/24-time-ids-and-sequence.md) | `Host.controls.buildTimeout` read by the loader plugin (BEH-BR-212) | CCR-BR-026 |
 | [32 — Generic gate and plan](../core/behaviors/32-generic-gate-and-plan.md) | `Gate<OperationRequest>`, `Gate.all` with a timeout per piece, `OperationGate.fromGate` for `LoaderGate` | CCR-BR-019, CCR-BR-022 |
 | [references/remote/](../remote/README.md) | Running verified guest bundles out of process | CCR-RM-001 (Draft) |
 
-No new core seam is needed for the behaviours specified here. Two questions
-for core remain open (below).
+No new core seam is needed for the behaviours specified here.
 
 ## Open questions
 
-Residual questions this package cannot settle within the current core; each is
-for core's change control, not decided here.
+The two questions this package recorded for core are answered:
 
-1. **System starts of a revoked digest.** A gate piece can refuse every
-   operator call that restarts a revoked digest, but core never gates a system
-   transition (BEH-BR-223): a dependency's return, a lazy trigger of an
-   installed registration or a background restart starts the code again.
-   Only `disable` or `remove` makes the digest unusable. Already registered
-   in core as gap G60 ([urs.md](../core/urs.md) §7).
-2. **`buildTimeout` is not observable.** A lazy load runs under core's
-   `buildTimeout` (BEH-BR-246), and the loader must fit its own step bounds
-   inside it, but `Host.controls` reports `gateTimeout` and not
-   `buildTimeout` (BEH-BR-212). The loader relies on a value the application
-   states ([06](./behaviors/06-limits-and-acceptance.md), BEH-LD-046).
+1. **System starts of a revoked digest** (core gap G60, closed by CCR-BR-026).
+   Core's `RefusalList` is consulted before every start, system starts
+   included (core BEH-BR-267); the loader backs it with its revocation set
+   ([07](./behaviors/07-signed-statements.md), BEH-LD-056). An `active`
+   plugin is still stopped only by `disable` or `remove` (the kill switch).
+2. **`buildTimeout` is observable** (core gap G61, closed by CCR-BR-026).
+   `Host.controls` reports it (core BEH-BR-212), and the loader plugin reads
+   it ([06](./behaviors/06-limits-and-acceptance.md), BEH-LD-046).
+
+Core gap G56 (a named signing and verification step for the kit and the
+federation companion) is answered by `SignaturePolicy.verify`, `Statement` and
+`StatementSigner` ([07](./behaviors/07-signed-statements.md), BEH-LD-050,
+BEH-LD-054); closing it is for core's change control.
 
 ## Identifier scheme
 
@@ -150,6 +156,7 @@ package introduces or reduces are carried in the core register
 
 | CCR | Date | Change |
 | --- | ---- | ------ |
+| CCR-LD-003 | 2026-11-08 | Round 2: recheck items 11, 12 and 15, contradiction X9 (G56), and alignment with core CCR-BR-024–026. Item 11: typed signed statements (`package`, `host-manifest`, `data-pack`, `licence`, `revocation-list`, or an application's own type) with the type inside the signed bytes; `SignaturePolicy.verify({ statementType, subject: digest \| bytes })` as the one verification step used by the load pipeline, the catalog, data packs, the kit and the federation companion; one acceptance rule per statement type with no fallback; revocation of any statement by subject digest, statement digest or signer, with the pure `Revocation.check`; `Statement.signingInput` and the `StatementSigner` port as the signing step, countersigning as an added signer entry outside every digest (closes X9; G56 answered). Item 12: data packs — a package kind with a manifest (`schemaId`, `issuedAt`, `effectiveFrom`, `effectiveUntil`, `maxAge`) and a payload, its own digest domain, verified as a "data-pack" statement, served as held bytes and never evaluated, window and freshness reported with `DataPackStale`, no rollback, withdrawal on revocation. Item 15: the manifest `publisher` must match a verified signer's configured `publishers` or `identity`, otherwise `PublisherMismatch`. Core alignment: `Revocation.refusalList` backs core's `RefusalList` (K4; G60 closed); the loader plugin reads `Host.controls.buildTimeout` (G61 closed); undo requests judged by `LoaderGate` as the operations they issue; catalog carries manifest `role`, `target` and `listens`; lazy `idle`/`holdTimeout` passed through with a fresh check on each reload; refused lazy starts; open questions answered.<br>**Impact (PROC-03 §3).** (1) Identifiers: BEH-LD-049–064, INV-LD-007–008, ADR-LD-006–007, REQ-LD-017–024 added; BEH-LD-009, 014, 015, 016, 017, 019, 021, 025, 026, 034, 037, 040, 043, 046 amended; nothing withdrawn. (2) Risk: bears on RSK-BR-043 (per-type rules, publisher binding), RSK-BR-044 (system starts refused through core's `RefusalList`), RSK-BR-017; one hazard proposed (stale reference data used as current, [traceability](./traceability.md) §3); no score changed by this record. (3) GxP impact: yes — the loader's record now covers every signed statement, and revocation reaches system starts through core; activating a data pack is not a host operation and is recorded by the loader only. (4) Revalidation: nothing released (implementation absent); REQ-LD-017–024 added, REQ-LD-006 and 015 still apply. (5) Compatibility: draft API changes (`PackageStatement` becomes the generic `Statement` with `statementType: "package"`; signed payload type `application/vnd.bridger.statement+json`; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule"; `VerificationRecord` gains statement fields; `LoaderPlugin` loses the `buildTimeout` option and provides `StatementVerifier`); no core type changed.<br>**Revision 2 (2026-11-08): resolutions of the round-2 agent review** (review R3, findings R3-01–R3-05, R3-14, R3-15, R3-16; review R4, findings F3, F4 and F29 on the loader side). R3-01: `SignedStatement` envelope; one fixed subject, `id` and `version` convention per reserved type (host-manifest id = JCS of [authority, host], revision in decimal; revocation-list id = issuer); the exact `verify` call shape every caller, the federation companion included, MUST use; readers compare decoded id and version with the envelope's. R3-02: revocation lists verified only by the revocation source, under a separate revocation trust root, with steps 1–4 and 6 and no revocation step; `StatementRules` may hold no "revocation-list" rule; a list may revoke its own signers, effective from the next list; recorded as the one exception in ADR-LD-006. R3-03: revocation by statement digest reaches `filterDesired`, the kill switch and `Revocation.refusalList` through the `AcceptedDigests` record, since core submits only the definition's own digest to `RefusalList` (core BEH-BR-267, CCR-BR-029) and the mapping is the loader's; `Revoked.by` gains "statement-digest". R3-04: the data-pack store keeps manifest bytes, payload and signatures; restart re-verification uses `reverify` (held revocations apply, `maxAge` does not) and withheld packs are listed in `DataPacks.restored`. R3-05: an equal data-pack version with a different digest is refused ("equivocation"). R3-14: publisher binding on the first satisfied branch of `anyOf`, no fallback after `PublisherMismatch`. R3-15: statement-digest revocation scope stated. R3-16: "chain-bundle" reserved. F3/F29: `SignedRevocationList`, `RevocationSet.encode`/`decode`, `RawRevocationFeed` and `RevocationSource.offer` defined here, breaking the wiring cycle with federation. F4: the kill switch's scope excludes other revocation actuators.<br>**Impact of revision 2 (PROC-03 §3).** (1) Identifiers: none added or withdrawn; BEH-LD-025–029, 049, 050, 052, 053, 055, 056, 059, 062, 064 (checks 17–19, 22–24), BEH-LD-048 (check 10), ADR-LD-006 and REQ-LD-010, 017–019, 022–024 amended. (2) Risk: strengthens the controls for RSK-BR-043 and RSK-BR-044 (one statement shape for every signer and verifier, statement-digest revocation on system starts, no circular trust in revocation lists); no score changed by this record. (3) GxP impact: yes — which revocations stop which starts, and which data packs survive a restart, change. (4) Revalidation: nothing released (implementation absent); REQ-LD-010, 017–019, 022–024 updated. (5) Compatibility: draft API changes (`RevocationSource.verified` options, `RevocationSourceShape.offer`, `RevocationSource.constant`, `RevocationSet.issuer`, `VerifyRequest.reverify`, `VerificationRecord.reverified`, `VerifiedDataPack` and `DataPackStore` shapes, `Revoked.by`, new tag `RevocationListMalformed`); the federation companion's calls must change to the stated shape (requested of its owner); no core type changed. |
 | CCR-LD-002 | 2026-11-08 | Resolutions of the agent review of 2026-11-08 (review R4, findings LD-B1, LD-M1–LD-M6, LD-m1–LD-m8): `Loader.lazy` builds with core's `Plugin.lazy({ manifest, load, digest })` and package manifests carry no `digest` (LD-B1); `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` base service, with explicit exemptions for bootstrap and bundled plugins and a stated effect of replacing the loader (LD-M1); verified catalog entries count as accepted for lazy installs (LD-M2); `enable`, `retry`, `restart` and `reconfigure` of a revoked installed digest are refused, with the limit of ungated system transitions stated (LD-M3); direct loads stay outside transitions, lazy loads run in the build slot with the loader's timeouts inside `buildTimeout` (LD-M4); missing verification records fail closed and re-evaluation uses the acceptance time (LD-M5); the kill switch is the one reconciler of its scope, with the application's actor for desired-list changes and the revocation actor for removals only (LD-M6); double signing means two signer entries (LD-m1); Sigstore log evidence checked against a pinned log key (LD-m2); signers revoked by identity (LD-m3); blast-radius guard and threshold recommendation (LD-m4); evaluator option narrowed (LD-m5); `Loader.stampRemote` (LD-m6); `VerificationRecord` fields per step and refusal-record failures (LD-m7); un-revocation and store rollback stated (LD-m8). Open questions for core recorded above.<br>**Impact (PROC-03 §3).** (1) Identifiers: no identifier added or withdrawn; BEH-LD-001, 015, 016, 018–020, 025, 026, 028–032, 037–039, 043, 046, 048, INV-LD-003, INV-LD-005, ADR-LD-001, 003, 004 amended; the heading of BEH-LD-029 changed. (2) Risk: bears on RSK-BR-043 and RSK-BR-044 (controls strengthened; one control-introduced hazard, the revocation channel's blast radius, stated with its mitigation); no score changed by this record. (3) GxP impact: yes — attribution of kill-switch changes (21 CFR 11.10(e)) and the gate piece's decisions change. (4) Revalidation: nothing released (implementation absent); REQ-LD-005–007, 012, 013, 015, 016 updated. (5) Compatibility: draft API changes (`LoaderGate.check` replaced by `make`/`piece`; `KillSwitch.run` options; `filterDesired` signature; `VerificationRecord` fields); no core type changed. |
 | CCR-LD-001 | 2026-11-08 | Initial draft: package of manifest, SBOM and files with a digest committing to three sub-digests; fixed pipeline fetch → digest → acceptance rule → revocation → predicates → evaluate from held bytes, with no bypass; `meta.version` and `meta.digest` stamped; `LoaderGate` gate piece; `LoadLog` port; N-of-M signature policy with roles (double signing), Ed25519 and Sigstore verifier adapters, no default rule; signed, monotonic revocation sets with explicit `maxAge`; kill switch as desired-state filter plus `reconcile`; catalog of signed manifests verified without code on a core `ContributionRegistry`; `Loader.lazy` over `Plugin.lazy`; `fetchVerified` for out-of-process guests; limits (no containment, no reclamation). BEH-LD-001–048, INV-LD-001–006, ADR-LD-001–005, REQ-LD-001–016.<br>**Impact (PROC-03 §3).** (1) Identifiers: all listed are new; no core identifier changed by this record (core edits are proposed separately to the core change control). (2) Risk: bears on RSK-BR-017 (primary control once adopted), RSK-BR-013, RSK-BR-014, RSK-BR-018; three new hazards proposed for the core register ([traceability](./traceability.md) §3); no score changed by this record. (3) GxP impact: yes — the package decides which code may run in a host whose changes are audited, and adds its own verification record. (4) Revalidation: nothing released or qualified (implementation absent); REQ-LD-001–016 are to cover it. (5) Compatibility: new package; no core public type, record field or `schemaVersion` changes. |
 

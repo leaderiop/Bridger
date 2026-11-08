@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-ADR-001                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): Order and host violations are marked, not failed; the cost of a failing inner store stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.3 (2026-11-08): Store port renamed `ChainStore`; the wrapping sink is the audit instance of `ChainSink<R>` (ADR-AC-005) (CCR-AC-003)<br>0.2 (2026-11-08): Order and host violations are marked, not failed; the cost of a failing inner store stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -22,8 +22,8 @@ Core hands each `AuditRecord` to one `AuditSink`, one at a time, in `auditSeq` o
 
 ## Decision
 
-- **A wrapping sink.** `HashChainSink` implements the core `AuditSink` port and wraps an inner `ChainSink` port that stores a `ChainEntry { record, link }`. Core does not know the chain exists.
-- **The link beside the record.** The record reaches the store unchanged; the link is a separate value with its own version (`v: 1`). `ChainSink.split` lets an existing `AuditSink` adapter keep storing records while links go to a `LinkStore`.
+- **A wrapping sink.** `HashChainSink` implements the core `AuditSink` port and wraps an inner `ChainStore` port that stores a `ChainEntry { record, link }`. Core does not know the chain exists.
+- **The link beside the record.** The record reaches the store unchanged; the link is a separate value with its own version (`v: 1`). `ChainStore.split` lets an existing `AuditSink` adapter keep storing records while links go to a `LinkStore`.
 - **One link per record.** The head advances only after a successful append; a retried record is re-sent with its pending link unchanged; order and host are checked, and a violation is appended with a break marker — never a failed write, because core's writer retries a refused record in place and a violation never clears (BEH-AC-005, BEH-AC-008).
 - **Canonical form.** RFC 8785 over the record, with a domain string, the algorithm name and a type tag in every hash input.
 

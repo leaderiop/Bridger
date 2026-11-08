@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-OVW                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Companion Specification — Overview                           |
-> | Change History | 0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.3 (2026-11-08): `countersign` and `verify-chain`; loader statement and audit-chain bundle seams; core testing fixtures (round 2: recheck items 11, 14, 17) (CCR-KT-003)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -41,7 +41,7 @@ on core's `TestHost`; every reload is a core operation, attributed and audited.
 | `@bridger/kit/conformance` | `Conformance.suite`, `Conformance.verify`, `Conformance.http` | `@bridger/core` (contracts), `@bridger/remote` (HTTP subject only) |
 | `@bridger/kit/devtools` | `Devtools.plugin`, `Inspector`, `InspectorReport` | `@bridger/core` |
 | `@bridger/kit/catalog` | `ErrorCatalog` (data) | none |
-| `bridger` (bin) | `create`, `dev`, `test`, `check`, `pack`, `publish`, `inspect`, `sdk generate` | all of the above; `@bridger/loader` for `pack` and `publish` |
+| `bridger` (bin) | `create`, `dev`, `test`, `check`, `pack`, `publish`, `countersign`, `verify-chain`, `inspect`, `sdk generate` | all of the above; `@bridger/loader` for `pack`, `publish` and `countersign`; `@bridger/audit-chain` for `verify-chain` |
 | generated `<contract>/sdk` | `serve`, typed handler and client types | the remote companion's guest runtime only — no `effect` in the partner's API |
 
 The core's runtime dependency stays `effect` only
@@ -62,7 +62,8 @@ All signatures are illustrative until code exists.
 | `PluginTest.actor`, `PluginTest.record` | functions | Typed test actors and audit-record fixtures | [02](./behaviors/02-plugin-test.md) |
 | `it.plugin` | function | A scoped test case around `mount` with leak and failure checks | [02](./behaviors/02-plugin-test.md) |
 | `Conformance.suite`, `Conformance.verify`, `Conformance.http` | functions | Contract conformance suites and their subjects | [03](./behaviors/03-conformance-kits.md) |
-| `bridger <command>` | CLI | Scaffold, develop, test, check, pack, publish, inspect | [04](./behaviors/04-cli.md) |
+| `bridger <command>` | CLI | Scaffold, develop, test, check, pack, publish, countersign, inspect | [04](./behaviors/04-cli.md) |
+| `bridger verify-chain` | CLI | Offline check of an audit-chain verification bundle | [06](./behaviors/06-devtools-inspector.md) |
 | `<contract>/sdk` `serve` | generated | Promise handlers for a contract, run behind `Guest.serve` | [05](./behaviors/05-promise-sdk.md) |
 | `Devtools.plugin`, `Inspector` | plugin, service | Graph, why-waiting, leases, timeline, JSON report | [06](./behaviors/06-devtools-inspector.md) |
 | `ErrorCatalog` | data | One entry per error tag: cause, example, fix | [07](./behaviors/07-error-catalog.md) |
@@ -82,7 +83,9 @@ All signatures are illustrative until code exists.
 | Reconcile plan (dry run) | [core 32 — Generic gate and plan](../core/behaviors/32-generic-gate-and-plan.md) (BEH-BR-313–321) | `dev --plan` |
 | State handoff on replace | [core 34 — State handoff](../core/behaviors/34-state-handoff.md) (BEH-BR-345–352) | `dev` |
 | Remote link, `Guest.serve`, transports | [references/remote/](../remote/invariants.md) (RM) | SDK, `Conformance.http` |
-| Package, digest, signing | [references/loader/](../loader/behaviors/01-package-and-digest.md) (LD) | `pack`, `publish` |
+| Package, digest, signing | [references/loader/](../loader/behaviors/01-package-and-digest.md) (LD); `Statement`, `StatementSigner`, `SignaturePolicy.verify` ([07](../loader/behaviors/07-signed-statements.md)) | `pack`, `publish`, `countersign` |
+| Verification bundle | [references/audit-chain/](../audit-chain/behaviors/05-verification-bundle.md) (AC; `verifyBundle`) | `verify-chain` |
+| Refusal list, call log fixtures | [21 — Testing host](../core/behaviors/21-testing-host.md) (`scriptedRefusalList`, `memoryCallLog`) | `PluginTest` |
 
 Files 27, 32 and 34 are being drafted in parallel; they are named by file and
 owner and linked once they exist.

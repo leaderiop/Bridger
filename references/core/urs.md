@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-URS                                                  |
-> | Revision       | 0.18                                                         |
+> | Revision       | 0.23                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.18 (2026-11-08): Gaps G61–G63 from the open questions of the loader and entitlement companions (CCR-BR-023)<br>0.17 (2026-11-08): URS-BR-032 reads "on behalf of which plugin" (CCR-BR-022)<br>0.16 (2026-11-08): URS-BR-029–031, gaps G36–G38 and G5 narrowed (CCR-BR-017); URS-BR-032–035, gaps G39–G42 (CCR-BR-018); URS-BR-036–040, gaps G44–G47 (CCR-BR-019); companion-origin URS-BR-041–048, Partner user group, companion scope row, gaps G43 and G48–G56 (CCR-BR-021)<br>0.15 (2026-11-08): Gap G35 recorded (the companion Draft in references/gxp/, on which G8's closure rests, is not present in this repository); G8's status points to G35; links into references/gxp/ turned into plain-text citations (CCR-BR-016)<br>0.14 (2026-10-03): Gap G8 closed: the companion is specified as a Draft in references/gxp/ (CCR-BR-015)<br>0.13 (2026-10-03): Gap G34 recorded and closed (`CloseReport.auditLastSeq` and the audit position after close) (CCR-BR-014)<br>0.12 (2026-10-03): §6 points to the behaviours' Satisfies lines (consistency pass) (CCR-BR-013)<br>0.11 (2026-10-03): G33 recorded and closed from the P5 exit-criterion work (CCR-BR-012)<br>0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.23 (2026-11-08): Gap G70 opened (no `settle` for a declaration answered `Run` whose wake failed) (CCR-BR-029)<br>0.22 (2026-11-08): URS-BR-059 retitled and narrowed to holders without another key copy, no erasure claim (agent review R5-08); gap G64 row narrowed (CCR-BR-029)<br>0.21 (2026-11-08): Gap G47 row: actor half settled with the narrowing delimiter rule, realm half still open (CCR-BR-028)<br>0.20 (2026-11-08): URS-BR-056–059 (event-sourced streams, per-host number series, subject key removal, erasable event payloads); gap G56 closed; gaps G66–G68 opened and closed with core seams (call-log kind "dispatch", registry entry owner, `HoldRevoked` feed); gap G69 (no read-only marker on contract methods); G43 and G49 rows updated (CCR-BR-027)<br>0.19 (2026-11-08): URS-BR-049–050; gaps G37, G39 and G62 closed; gap G64 (a loaded but inactive veto plugin still fails open) (CCR-BR-024); URS-BR-051–052; gaps G36, G40, G44 and G48 closed; gap G65 (a narrowing provider replace needs two runs) (CCR-BR-025); URS-BR-053–055; gaps G38, G41–G43, G54, G55 (core side), G57–G61 and G63 closed (CCR-BR-026)<br>0.18 (2026-11-08): Gaps G61–G63 from the open questions of the loader and entitlement companions (CCR-BR-023)<br>0.17 (2026-11-08): URS-BR-032 reads "on behalf of which plugin" (CCR-BR-022)<br>0.16 (2026-11-08): URS-BR-029–031, gaps G36–G38 and G5 narrowed (CCR-BR-017); URS-BR-032–035, gaps G39–G42 (CCR-BR-018); URS-BR-036–040, gaps G44–G47 (CCR-BR-019); companion-origin URS-BR-041–048, Partner user group, companion scope row, gaps G43 and G48–G56 (CCR-BR-021)<br>0.15 (2026-11-08): Gap G35 recorded (the companion Draft in references/gxp/, on which G8's closure rests, is not present in this repository); G8's status points to G35; links into references/gxp/ turned into plain-text citations (CCR-BR-016)<br>0.14 (2026-10-03): Gap G8 closed: the companion is specified as a Draft in references/gxp/ (CCR-BR-015)<br>0.13 (2026-10-03): Gap G34 recorded and closed (`CloseReport.auditLastSeq` and the audit position after close) (CCR-BR-014)<br>0.12 (2026-10-03): §6 points to the behaviours' Satisfies lines (consistency pass) (CCR-BR-013)<br>0.11 (2026-10-03): G33 recorded and closed from the P5 exit-criterion work (CCR-BR-012)<br>0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -411,6 +411,130 @@ the implementation against suites published with the contract.
 Rationale: architecture review 2026-11-08, item 17. Allocated to the
 `@bridger/kit` companion, over `@bridger/remote`.
 
+### URS-BR-049: Keep a policy decision closed while a contributor to it is not yet loaded
+
+An application developer must be able to rely on a contributor that may veto
+a decision being asked, or the decision being refused, even when the plugin
+that contributes it is registered lazily and has not been loaded yet — never
+on the decision being allowed because the contributor's code has not run.
+
+Rationale: Bridger recheck 2026-11-08, item K1 (contradiction X1 between
+lazy activation and hook points). Allocated to core.
+
+### URS-BR-050: Let a plugin started by an event receive that event
+
+An application developer must be able to register a plugin that is loaded
+when an event is first dispatched and that then receives the event that
+caused it to load, within a stated bound, with a diagnostic when it does
+not.
+
+Rationale: Bridger recheck 2026-11-08, item K9. Allocated to core; consumers
+that must see every event use the event delivery companion.
+
+### URS-BR-051: Apply a reviewed plugin set change as a whole or not at all
+
+An operator applying a reviewed change to a host's plugin set — a bundle
+switched at a safe point — must be able to have every change of it made, or
+the previous plugin set registered again, or be told exactly which changes
+remain applied; and must not have to order the list by hand for providers
+to come before the plugins that need them.
+
+Rationale: Bridger recheck 2026-11-08, item K2 (gap G36). "As a whole"
+covers the host's plugin set, not external effects of plugin code.
+
+### URS-BR-052: Rely on the contract version of every implementation in an extension point
+
+An application developer collecting several implementations of one contract
+in one extension point must be able to state the contract version range it
+accepts, have an implementation of another version refused when it is added,
+and choose among implementations by version range.
+
+Rationale: Bridger recheck 2026-11-08, item K3.
+
+### URS-BR-053: Keep a revoked plugin version from running again, whatever starts it
+
+An operator who revokes a plugin version must be sure that, from then on, no
+route through the host starts code of that version again — an operator call,
+a dependency returning, a lazy trigger, a background restart or a parent
+mounting it — and that each refused start is in the audit trail.
+
+Rationale: Bridger recheck 2026-11-08, item K4 (gap G60). Core supplies the
+`RefusalList` port (BEH-BR-267); the revocation feed is the loader
+companion's.
+
+### URS-BR-054: Follow one request through everything it causes
+
+A reviewer must be able to follow one request — a command, a host call, an
+agent step — through the host records, gate requests, hook decisions, nested
+host calls and call-log entries it caused, by one correlation id, without
+every dispatcher passing that id by hand.
+
+Rationale: Bridger recheck 2026-11-08, item K6 (gap G58).
+
+### URS-BR-055: Refuse a call whose access cannot be logged
+
+A deployment that keeps a data-access log must be able to require, per
+service, that a call whose log entry cannot be delivered does not deliver its
+result, rather than proceed unlogged.
+
+Rationale: Bridger recheck 2026-11-08, item K7 (gap G42).
+
+### URS-BR-056: Keep event-sourced business streams with the outbox in one transaction
+
+A developer must be able to append business events to a stream with an
+expected version, fold them into state, feed read models that never skip an
+event, and publish selected events in the same storage transaction as the
+append — and record a fact that happened offline without the receiving host
+being able to reject it.
+
+Rationale: Bridger recheck 2026-11-08, item 26. Allocated to the
+`@bridger/event-store` companion and the consumer's storage adapter; core
+owns no storage.
+
+### URS-BR-057: Number records per host without gaps, reuse or renumbering
+
+An operator must be able to give each host its own number series whose
+committed numbers are contiguous, which can be closed, which never renumbers
+or reuses a number even after a restore from backup, and which an authority
+can check for gaps, duplicates and numbers after closure.
+
+Rationale: Bridger recheck 2026-11-08, item 27. Allocated to the
+`@bridger/sequence` companion; formats stay in the application.
+
+### URS-BR-058: Make a subject's personal fields unreadable without rewriting history
+
+A QA or data-protection lead must be able to have the personal fields of
+stored and published events encrypted under a per-subject key, later have
+that key destroyed and registered read models drop their plaintext, while
+streams and hash chains stay intact and verifiable — with the limits of that
+removal stated.
+
+Rationale: Bridger recheck 2026-11-08, item 28. Allocated to the
+`@bridger/keyring` companion; which fields are personal data, key custody and
+backups are the consumer's.
+
+<a id="urs-br-059-erase-a-persons-data-from-events-without-breaking-their-order"></a>
+
+### URS-BR-059: Make a person's event payloads unreadable without breaking their order
+
+A developer must be able to make the payloads of events that carry personal
+data unreadable on request (for example by destroying a per-subject key) to
+every holder that has no other copy of the destroyed key, while the order,
+identities and access checks of the stream keep working, and must have
+written guidance on which fields must never carry personal data because they
+cannot be made unreadable selectively. The requirement does not ask for
+erasure: copies of the key outside the key store, unexpired backups and
+hosts that held the key and were not told of its destruction can still read
+the payloads, and the result must not be described as erasure
+(keyring BEH-KR-022).
+
+Rationale: Bridger recheck 2026-11-08, item 21. Allocated to the event
+delivery companion's `PayloadCodec` (durable-bus BEH-DB-008) and to the
+keyring companion (URS-BR-058); core supplies no payload handling. Retitled
+and narrowed by CCR-BR-029 (agent review R5-08): the earlier text, "wherever
+the event was copied", claimed more than a key destruction gives. The
+earlier anchor is kept for existing links.
+
 ## 4. Non-functional requirements
 
 ### NFR-BR-001: Determinism
@@ -516,6 +640,17 @@ it satisfies in its `**Satisfies:**` line.
 | URS-BR-046 | [agent 01–05](../agent/behaviors/01-agent-seams.md) (companion), [30](./behaviors/30-operation-context-annotations.md), [33](./behaviors/33-realm-families.md) | INV-BR-039 |
 | URS-BR-047 | [kit 01](../kit/behaviors/01-plugin-facade.md), [kit 02](../kit/behaviors/02-plugin-test.md) (companion), [01](./behaviors/01-plugin-definition.md) | INV-KT-001, INV-KT-002 (companion) |
 | URS-BR-048 | [kit 03](../kit/behaviors/03-conformance-kits.md), [kit 05](../kit/behaviors/05-promise-sdk.md) (companion) | INV-KT-005, INV-KT-006 (companion) |
+| URS-BR-049 | [31](./behaviors/31-hook-points.md), [27](./behaviors/27-manifest-and-lazy-activation.md) | INV-BR-040, INV-BR-046 |
+| URS-BR-050 | [27](./behaviors/27-manifest-and-lazy-activation.md), [16](./behaviors/16-event-bus.md) | INV-BR-047 |
+| URS-BR-051 | [32](./behaviors/32-generic-gate-and-plan.md), [18](./behaviors/18-reconciliation-and-confluence.md), [34](./behaviors/34-state-handoff.md) | INV-BR-048, INV-BR-021 |
+| URS-BR-052 | [26](./behaviors/26-versioned-contracts.md), [19](./behaviors/19-contribution-registry.md) | INV-BR-049, INV-BR-031 |
+| URS-BR-053 | [28](./behaviors/28-plugin-principal-and-mandatory-policy.md), [05](./behaviors/05-activation.md), [10](./behaviors/10-runtime-failure-and-health.md), [14](./behaviors/14-children-and-groups.md) | INV-BR-050 |
+| URS-BR-054 | [22](./behaviors/22-attributable-operations.md), [23](./behaviors/23-audit-sink-and-record.md), [30](./behaviors/30-operation-context-annotations.md), [31](./behaviors/31-hook-points.md) | INV-BR-051 |
+| URS-BR-055 | [29](./behaviors/29-capability-grants-and-call-log.md) | INV-BR-052 |
+| URS-BR-056 | [event-store 01–05](../event-store/README.md) (companion), [24](./behaviors/24-time-ids-and-sequence.md) | INV-ES-001–006 (companion) |
+| URS-BR-057 | [sequence 01–03](../sequence/README.md) (companion), [24](./behaviors/24-time-ids-and-sequence.md) | INV-SQ-001–005 (companion) |
+| URS-BR-058 | [keyring 01–03](../keyring/README.md) (companion), [29](./behaviors/29-capability-grants-and-call-log.md) | INV-KR-001–005 (companion) |
+| URS-BR-059 | [event delivery 01](../durable-bus/behaviors/01-events-and-envelope.md) (companion), [keyring](../keyring/README.md) (companion) | INV-DB-010 (companion) |
 | NFR-BR-001 | [24](./behaviors/24-time-ids-and-sequence.md), [21](./behaviors/21-testing-host.md) | INV-BR-024 |
 | NFR-BR-002 | [01](./behaviors/01-plugin-definition.md), [16](./behaviors/16-event-bus.md) | INV-BR-015 |
 | NFR-BR-003 | [Definitions of Done](./process/definitions-of-done.md) | — |
@@ -563,34 +698,41 @@ it satisfies in its `**Satisfies:**` line.
 | G33 | BEH-BR-040 defined idle as "no transition is running"; a system stop that was requested and not yet begun — held by a `TestHost`, with no operation in flight and no state change yet — did not count, so `awaitIdle` returned with a child of a failed activation still `active`. | Closed (CCR-BR-012): a step requested and not yet begun counts as a transition (BEH-BR-040, BEH-BR-178); acceptance check 6 extended (BEH-BR-183); found when the P4 suites were moved onto `TestHost` |
 | G34 | BEH-BR-106 and the audit position: the `CloseReport` is produced before the shutdown's own terminal record is written, so a last-written sequence number in the report cannot include that record. | Closed (CCR-BR-014): `CloseReport.auditLastSeq` is the highest `auditSeq` written when the report is produced (BEH-BR-106), and `Host.controls` stays readable after close, so the final audit position can be read once the writer has flushed (BEH-BR-212); found by the CCR-BR-014 prototype |
 | G35 | The `@bridger/gxp` companion Draft (`references/gxp/`, Draft 0.1, CCR-GX-001), on which the closure of G8 rests, is not present in this repository: core documents cite its compliance matrix and behaviour files, but they cannot be inspected or reviewed here. G8 is not reopened by this entry; its closure rests on a Draft that cannot be inspected. | Open (CCR-BR-016): core links into `references/gxp/` were turned into plain-text citations (ADR-BR-034, the regulatory scope, the compliance matrix, the validation plan, the roadmap's P6 row); the companion Draft must be restored to the repository or re-drafted, under its own change control, before any core document may rely on it |
-| G36 | `reconcile` executes entries in list order (BEH-BR-156); a list that upgrades a provider and installs a dependent needing the upgrade is refused with `IncompatibleContract` for the dependent unless the provider's entry comes first, and converges only on the next run. | Open (CCR-BR-017): whether `reconcile` should order provider replacements before dependent installs (BEH-BR-228) |
-| G37 | A loaded lazy plugin is never returned to `dormant`; returning it when idle would deactivate behaviour but not reclaim imported code (BEH-BR-008). | Open (CCR-BR-017): BEH-BR-244 |
-| G38 | A loaded plugin that contributes to a registry or listens to an event its manifest did not declare is not detected by core. | Open (CCR-BR-017): BEH-BR-246; the `AccessPolicy` of BEH-BR-264 can refuse such access but does not compare it with the manifest |
-| G39 | Whether `Host.wake` (BEH-BR-245), which is not a mutating operation, runs under the caller's `CurrentPlugin` and records `onBehalfOf`; file 27 records the wake as a system transition attributed to `Actor.system`. | Open (CCR-BR-017, CCR-BR-018) |
-| G40 | Whether a `Desired` entry of `reconcile` declares mandatory interceptions, and whether a change to them is a replace or a refusal. | Open (CCR-BR-018): BEH-BR-260 |
-| G41 | Whether the `OperationRequest` of `install` carries `allowChildren` and the mandatory service ids, so a gate can decide on them. | Open (CCR-BR-018): BEH-BR-263 |
-| G42 | Whether call logging may be fail-closed, and whether refused and allowed calls (including the remote companion's callbacks, BEH-RM-046) may follow different failure policies. | Open (CCR-BR-018): BEH-BR-276 |
-| G43 | The `CallLog` entry shape for records offered by companion code rather than by core's capture (command dispatch, BEH-CM-015; remote crossings with direction, link, epoch and outcome, BEH-RM-043) and for non-call entries such as a boundary revocation (BEH-RM-014); also how a `PrincipalRef` (BEH-BR-259) is encoded across hosts, which the event delivery companion's envelope carries as a plain string. | Open (CCR-BR-021): BEH-BR-276 defines core's entry only |
-| G44 | State handoff on `restart` and on volatile `reconfigure` is not specified; the same definition restarting is a persistence question. | Open (CCR-BR-019): BEH-BR-346 |
+| G36 | `reconcile` executes entries in list order (BEH-BR-156); a list that upgrades a provider and installs a dependent needing the upgrade is refused with `IncompatibleContract` for the dependent unless the provider's entry comes first, and converges only on the next run. | Closed (CCR-BR-025): `reconcile` orders removals dependents first and other changes providers first (BEH-BR-156); `atomic` undoes a list that is still refused (BEH-BR-322–326, ADR-BR-051). A provider narrowed under a listed dependent's current definition still needs two runs (BEH-BR-156; gap G65) |
+| G37 | A loaded lazy plugin is never returned to `dormant`; returning it when idle would deactivate behaviour but not reclaim imported code (BEH-BR-008). | Closed (CCR-BR-024): `Plugin.lazy({ idle })` returns an idle loaded plugin to `dormant` through a normal, ungated system stop recorded as `lazy-idle`; the loaded definition is released and the next wake loads again (BEH-BR-252) |
+| G38 | A loaded plugin that contributes to a registry or listens to an event its manifest did not declare is not detected by core. | Closed (CCR-BR-026): `AccessPolicy.declaredOnly` compares listen and contribute requests with the manifest, including its `listens` field (BEH-BR-268, BEH-BR-241); a deployment that does not wire it is not checked |
+| G39 | Whether `Host.wake` (BEH-BR-245), which is not a mutating operation, runs under the caller's `CurrentPlugin` and records `onBehalfOf`; file 27 records the wake as a system transition attributed to `Actor.system`. | Closed (CCR-BR-024): `wake` reads the caller's principal as a mutating call does; the root `lazy-triggered` record of a `wake` or of an event dispatch carries it as `onBehalfOf`, attributed still to `Actor.system` — the one exception to BEH-BR-259's rule that system records carry none (BEH-BR-253) |
+| G40 | Whether a `Desired` entry of `reconcile` declares mandatory interceptions, and whether a change to them is a replace or a refusal. | Closed (CCR-BR-025, with CCR-BR-026 for the gate request side G41): a `Desired` entry carries `mandatoryInterceptions` (catalog ids from `BridgerOptions.mandatoryCatalog`, never functions) and `allowChildren`; a difference from the registration is refused with `PolicyMismatch`, never a replace (BEH-BR-153, BEH-BR-154) |
+| G41 | Whether the `OperationRequest` of `install` carries `allowChildren` and the mandatory service ids, so a gate can decide on them. | Closed (CCR-BR-026): the `OperationRequest` of plugin-addressed operations carries `allowChildren` and `mandatoryInterceptions` (BEH-BR-219, BEH-BR-263) |
+| G42 | Whether call logging may be fail-closed, and whether refused and allowed calls (including the remote companion's callbacks, BEH-RM-046) may follow different failure policies. | Closed (CCR-BR-026): `CallLog` `onFailure` "drop" \| "refuse" with a bounded hand-off queue and `CallLogUnavailable`; per-capture choice through `select`, per-entry choice for offered entries (BEH-BR-279, BEH-BR-280) |
+| G43 | The `CallLog` entry shape for records offered by companion code rather than by core's capture (command dispatch, BEH-CM-015; remote crossings with direction, link, epoch and outcome, BEH-RM-043) and for non-call entries such as a boundary revocation (BEH-RM-014); also how a `PrincipalRef` (BEH-BR-259) is encoded across hosts, which the event delivery companion's envelope carries as a plain string. | Closed (CCR-BR-026): `CallEntry` kinds "call", "crossing", "refusal", "revocation", `Host.offerCallEntry`, `PrincipalRef.encode`/`decode` (BEH-BR-280); a kind for an executed command dispatch was not added then (G66, closed by CCR-BR-027) |
+| G44 | State handoff on `restart` and on volatile `reconfigure` is not specified; the same definition restarting is a persistence question. | Closed (CCR-BR-025): handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `handoff.alsoOn`, skipped with `cold: true`; a volatile-only `reconfigure` keeps the activation and hands off nothing (BEH-BR-353). Persistence across a process restart stays the plugin's store |
 | G45 | `registeredAt` (BEH-BR-318) is tracked by the host but not shown in `PluginSnapshot`. | Open (CCR-BR-019): whether to expose it |
 | G46 | A hook point's breaker defaults (5 errors in 1 minute, 30 s cooldown) and the `handoffTimeout` default (5 s) are design guesses. | Open (CCR-BR-019): to be measured in a prototype (BEH-BR-304, BEH-BR-347) |
-| G47 | Realm family member ids and narrowed actor ids use "/" as a separator; `defineRealm` does not restrict realm id characters (BEH-BR-145). | Open (CCR-BR-019): confirm no conflict (BEH-BR-330, BEH-BR-337) |
-| G48 | A per-method call timeout for a contract method (wanted by the remote companion, BEH-RM-022) has no place in the contract descriptor of BEH-BR-225. | Open (CCR-BR-021): whether `MethodSpec` carries an optional timeout or the companion keeps it in its own options |
-| G49 | The companion specifications in `references/remote/`, `federation/`, `durable-bus/`, `loader/`, `audit-chain/`, `entitlement/`, `command/`, `mcp/`, `agent/` and `kit/` are Drafts (CCR-RM-001, CCR-FD-001, CCR-DB-001, CCR-LD-001, CCR-AC-001, CCR-EN-001, CCR-CM-001, CCR-MC-001, CCR-AG-001, CCR-KT-001). The review's "Effect learning curve" risk is addressed only by the kit Draft and the [guides](../../docs/guides/README.md). | Open (CCR-BR-021): not approved, not implemented |
+| G47 | Realm family member ids and narrowed actor ids use "/" as a separator; `defineRealm` does not restrict realm id characters (BEH-BR-145). | Open (CCR-BR-019). Actor half settled by CCR-BR-028: "/" is the narrowing delimiter and an application's own actor ids must not contain it (BEH-BR-337, host-core prototype finding G-P8). Realm half open: `defineRealm` still accepts "/" in a realm id, so an application realm can take the id of a family member or an ephemeral realm (BEH-BR-145, BEH-BR-330, BEH-BR-336) |
+| G48 | A per-method call timeout for a contract method (wanted by the remote companion, BEH-RM-022) has no place in the contract descriptor of BEH-BR-225. | Closed (CCR-BR-025): `MethodSpec.timeout` and `ContractDescriptor.timeouts`, read by companion proxies as the method's default call bound, never enforced by core (BEH-BR-234) |
+| G49 | The companion specifications in `references/remote/`, `federation/`, `durable-bus/`, `loader/`, `audit-chain/`, `entitlement/`, `command/`, `mcp/`, `agent/`, `kit/`, `event-store/`, `sequence/` and `keyring/` are Drafts (CCR-RM-001, CCR-FD-001, CCR-DB-001, CCR-LD-001, CCR-AC-001, CCR-EN-001, CCR-CM-001, CCR-MC-001, CCR-AG-001, CCR-KT-001, revised by their CCR-…-002 and CCR-…-003; CCR-ES-001, CCR-SQ-001, CCR-KR-001). The review's "Effect learning curve" risk is addressed only by the kit Draft and the [guides](../../docs/guides/README.md). | Open (CCR-BR-021): not approved, not implemented |
 | G50 | Selecting one provider among several federated peers exporting one contract (a contract as a registry) is not specified; federation imports land in per-peer realms. | Open (CCR-BR-021): BEH-FD-026 |
 | G51 | Whether a federation kill entry may force a removal, interrupting calls in flight. | Open (CCR-BR-021): BEH-FD-007; [RSK-BR-015](./gxp/03-risk-assessment.md#rsk-br-015) |
 | G52 | The event delivery companion's package name `@bridger/durable-bus` contains a restricted claim word; ADR-DB-007 keeps it as a name of intent only, not a claim. | Open (CCR-BR-021): whether to rename the package |
 | G53 | Offline failover of a site's single-owner service without the authority is not automatic; it is the application's policy (ADR-FD-008). | Residual by design (CCR-BR-021) |
-| G54 | An `AuditSink` does not see core's `auditDropped` count, so a chaining sink cannot put it into its anchor statements. | Open (CCR-BR-021): a possible core seam requested by the audit-chain companion |
-| G55 | Whether the bus access rules of the `AccessPolicy` (BEH-BR-264) also apply to events forwarded from the event delivery companion (BEH-DB-053). | Open (CCR-BR-021) |
-| G56 | The loader's `SignaturePolicy` verifies packages; the federation companion needs it to verify host-manifest bytes, and the kit's `publish` needs a named signing step to cite. | Open (CCR-BR-021): loader file 03 |
-| G57 | A child removed because the sub-scope it was mounted under closed is recorded as a `system-stop` caused by its own mount record (BEH-BR-126); when a companion closes that sub-scope on someone's request — a boundary revocation in the remote companion, say — the requesting actor and reason reach no audit record, and the dependents' stops that follow have no attributed cause. | Open (CCR-BR-022): whether core offers an attributed child unmount (an operation or a cause a companion may supply), or the companion records the revocation through its own trail; agent review finding R3-12 |
-| G58 | `CallerContext` (BEH-BR-292) carries the actor and annotations of the invoker into a served call but no correlation id, because core keeps none in the fiber; nested host calls from served code get a fresh `correlationId` unless the dispatcher passes one in `options.context`. | Open (CCR-BR-022): whether core keeps a correlation id in the fiber as a default for `OperationContext.correlationId` |
-| G59 | Core does not guarantee that the strings it writes into audit records — a caller's `reason`, identifiers, labels — are well-formed UTF-16 (no lone surrogates); a sink that canonicalises records (RFC 8785) must refuse such a string, and core's in-place retry then halts recording (BEH-BR-202, RSK-BR-020). | Open (CCR-BR-022): whether attribution and definition checks refuse ill-formed strings at the call, or sinks must accept them |
-| G60 | A gate can refuse every operator call that would restart a plugin of a revoked digest, but system transitions are never gated (BEH-BR-219, BEH-BR-223): an installed plugin of that digest starts again when its dependencies return, when a lazy trigger applies, or when a background fiber restarts under its policy. Only `disable` or `remove` makes the digest unusable. | Open (CCR-BR-022): whether core offers a host-level refusal list consulted at system starts, or revocation always disables or removes (loader companion, kill switch) |
-| G61 | A lazy load runs under core's `buildTimeout` (BEH-BR-246), and the loader companion must fit its own fetch and verification step bounds inside it, but `Host.controls` reports `gateTimeout` and not `buildTimeout` (BEH-BR-212); the loader can only rely on a value the application states (loader BEH-LD-046). | Open (CCR-BR-023): whether `HostControls` gains `buildTimeout`; loader companion README, open question 2 |
-| G62 | A hook point's skip policy can only skip a contribution (BEH-BR-302), and the decision record (BEH-BR-305) has no outcome such as "denied-policy": a hook point whose owner wants an unlicensed veto contribution to block the dispatch, recorded as a policy decision rather than as the contributor's veto, cannot express it; the entitlement companion skips (BEH-EN-016). | Open (CCR-BR-023): whether the skip policy gains a deny outcome recorded as "denied-policy"; entitlement companion README, open question 1 |
-| G63 | The skip policy runs before a hook call and core offers no step after it (BEH-BR-302), so a budget charged by the policy cannot be returned when the call fails or times out (entitlement BEH-EN-023). | Open (CCR-BR-023): whether a hook point offers a step after each call that receives its outcome; entitlement companion README, open question 2 |
+| G54 | An `AuditSink` does not see core's `auditDropped` count, so a chaining sink cannot put it into its anchor statements. | Closed (CCR-BR-026): every `AuditRecord` carries `auditDropped`, stamped when numbered (BEH-BR-195, BEH-BR-196, BEH-BR-202) |
+| G55 | Whether the bus access rules of the `AccessPolicy` (BEH-BR-264) also apply to events forwarded from the event delivery companion (BEH-DB-053). | Closed on the core side (CCR-BR-026): `AccessPolicy.ask` with styles "subscribe"/"delivery", mode "publish", `origin` and `AccessRefused` (BEH-BR-269); the event delivery companion must adopt it (BEH-DB-053) |
+| G56 | The loader's `SignaturePolicy` verifies packages; the federation companion needs it to verify host-manifest bytes, and the kit's `publish` needs a named signing step to cite. | Closed (CCR-BR-027): the loader companion's `SignaturePolicy.verify` verifies typed signed statements (package, host-manifest, data-pack, licence, or an application type), and `Statement.signingInput` with the `StatementSigner` port is the signing step the kit's publish and countersign call (`references/loader/behaviors/07-signed-statements.md`, BEH-LD-049–056; CCR-LD-003); federation cites BEH-LD-050 |
+| G57 | A child removed because the sub-scope it was mounted under closed is recorded as a `system-stop` caused by its own mount record (BEH-BR-126); when a companion closes that sub-scope on someone's request — a boundary revocation in the remote companion, say — the requesting actor and reason reach no audit record, and the dependents' stops that follow have no attributed cause. | Closed (CCR-BR-026): `Plugin.Runtime.unmount` records `unmount-requested` with `requestedBy`, causing the removal's records (BEH-BR-126, BEH-BR-190) |
+| G58 | `CallerContext` (BEH-BR-292) carries the actor and annotations of the invoker into a served call but no correlation id, because core keeps none in the fiber; nested host calls from served code get a fresh `correlationId` unless the dispatcher passes one in `options.context`. | Closed (CCR-BR-026): `CurrentCorrelation` in the fiber, carried by `CallerContext` (BEH-BR-187, BEH-BR-292, ADR-BR-054) |
+| G59 | Core does not guarantee that the strings it writes into audit records — a caller's `reason`, identifiers, labels — are well-formed UTF-16 (no lone surrogates); a sink that canonicalises records (RFC 8785) must refuse such a string, and core's in-place retry then halts recording (BEH-BR-202, RSK-BR-020). | Closed (CCR-BR-026): core replaces lone surrogates with U+FFFD and flags the record `sanitized` (BEH-BR-185, BEH-BR-196) |
+| G60 | A gate can refuse every operator call that would restart a plugin of a revoked digest, but system transitions are never gated (BEH-BR-219, BEH-BR-223): an installed plugin of that digest starts again when its dependencies return, when a lazy trigger applies, or when a background fiber restarts under its policy. Only `disable` or `remove` makes the digest unusable. | Closed (CCR-BR-026): `RefusalList` consulted on every start, system transitions included (BEH-BR-267, ADR-BR-053) |
+| G61 | A lazy load runs under core's `buildTimeout` (BEH-BR-246), and the loader companion must fit its own fetch and verification step bounds inside it, but `Host.controls` reports `gateTimeout` and not `buildTimeout` (BEH-BR-212); the loader can only rely on a value the application states (loader BEH-LD-046). | Closed (CCR-BR-026): `HostControls.buildTimeout` (BEH-BR-212) |
+| G62 | A hook point's skip policy can only skip a contribution (BEH-BR-302), and the decision record (BEH-BR-305) has no outcome such as "denied-policy": a hook point whose owner wants an unlicensed veto contribution to block the dispatch, recorded as a policy decision rather than as the contributor's veto, cannot express it; the entitlement companion skips (BEH-EN-016). | Closed (CCR-BR-024): the hook point's `policy` (renamed from `skip`) may return `Deny { reason }`; on a veto contribution it ends the dispatch `Denied { cause: "denied-policy", reason }` and is recorded as "denied-policy", never as the contributor's veto (BEH-BR-312) |
+| G63 | The skip policy runs before a hook call and core offers no step after it (BEH-BR-302), so a budget charged by the policy cannot be returned when the call fails or times out (entitlement BEH-EN-023). | Closed (CCR-BR-026): `HookPointOptions.settle`, called once after each call the policy let run, with its outcome (BEH-BR-302) |
+| G64 | A hook dispatch asks declared contributions only of registrations not yet loaded (BEH-BR-309); a loaded plugin that is `waiting`, `failed` or `disabled` has no hook at the point and its veto is absent, as for an eager plugin, so the dispatch may be `Allowed` without it: a loaded but inactive veto plugin still fails open. | Open (CCR-BR-024): whether an absent veto of a registered, loaded plugin should deny (BEH-BR-309, Settled (5); RSK-BR-057 residual). Narrowed by CCR-BR-029: a lazy registration idling toward `dormant` ("idling") or disabled by the `RefusalList` ("refused") is reported and decided by the wake step (BEH-BR-250, BEH-BR-309); still open for `waiting`, `failed`, operator-`disabled` and a `stopping` for any other cause, including a `replace` |
+| G65 | A `replace` that narrows a provider — a lower minor, fewer methods — while a listed dependent's current definition still needs what it takes away is refused under providers-first order; the dependent's replacement must be registered first, so the list converges only on a second `reconcile` run (or, with `atomic`, the whole apply is undone). | Open (CCR-BR-025): whether a plan that detects narrowing from declarations should order such a replace consumers first (BEH-BR-156, ADR-BR-051) |
+| G66 | `Host.offerCallEntry` accepted only the kinds "crossing", "refusal" and "revocation" (BEH-BR-280), although the closure of G43 names command dispatch (command BEH-CM-015) among the records companions offer: a command dispatch that ran a handler — or returned a stored outcome for an idempotency key — had no entry kind, so the command companion offered only its refusals. | Closed (CCR-BR-027): kind "dispatch" with `DispatchInfo { command, digest?, inputDigest?, idempotencyKey?, replayed? }`, offered under the same queue and failure policy, never produced by core (BEH-BR-276, BEH-BR-280) |
+| G67 | A `RegistryView` entry did not carry the plugin that contributed it: the registry reported owners to the host for `inspect` only (BEH-BR-163, BEH-BR-168), so a renderer that mounts contributed UI could not learn the owner's id or realm from the view (docs/REACT-UI-PLUGINS.md §7 row 2). | Closed (CCR-BR-027): view entries carry `owner { pluginId, realm }` from `ActivePlugin` at `add`, diagnostic attribution only (BEH-BR-163, BEH-BR-165) |
+| G68 | When a registry revoked a hold at its `drainTimeout` (BEH-BR-167) it failed the holder with `LeaseRevoked` but emitted no event, unlike a forced revocation of a host lease (`lease-revoked`, BEH-BR-086); a forced unmount of contributed UI was visible only to the adapter (docs/REACT-UI-PLUGINS.md §7 row 5). | Closed (CCR-BR-027): `Registry.revocations` publishes one `HoldRevoked { registry, id, owner?, holders, at }` per removal that revoked holders; no audit record, as a revocation changes no plugin state (BEH-BR-167) |
+| G69 | A contract cannot state which of its methods are read-only (BEH-BR-225), so the entitlement companion's grant narrowing on lapse needs a separate `ReadOnlyClassifier` per deployment, and a wrong classification leaves a writing member callable (entitlement BEH-EN-025–028, Open (1)). | Open (CCR-BR-027): whether `MethodSpec` gains an optional read-only marker carried in `ContractDescriptor` and read by companions, never enforced by core |
+| G70 | `settle` is called only after a hook call that `policy` answered with `Run` (BEH-BR-302). A declaration answered `Run` before its wake whose wake then fails or times out (BEH-BR-309) is never called, so it gets no `settle`, and a budget the policy charged for it is returned only when the charge expires (entitlement BEH-EN-023; open item (0) of entitlement behaviour file 04). | Open (CCR-BR-029): whether `settle` gains an outcome "wake-failed" for a declaration answered `Run` and never called; until then the entitlement companion documents expiry at `ttl` (BEH-BR-302, BEH-BR-309) |
 | G9 | A naive supervised child (`forkChild` + `join` inside the lease) releases the lease before the child's finalizers run when the caller is interrupted, which would break BEH-BR-084. | Design constraint recorded (CCR-BR-003): the implementation interrupts and awaits the child before release; prototype checks E7a–E7b show the failure and the fix |
 
 ---

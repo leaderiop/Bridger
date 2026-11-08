@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -21,7 +21,7 @@ the event is sent and the state change rolls back — is avoided by writing
 the event into an outbox in the same storage transaction as the state
 change. The bus owns no storage, so the transaction is the caller's and the
 outbox is written through a port. This file owns BEH-DB-009–016 and uses
-BEH-DB-009–015; BEH-DB-016 is reserved.
+all eight.
 
 Planned source: `packages/durable-bus/src/Outbox.ts` *(Planned)*.
 
@@ -39,9 +39,17 @@ class StoreTransaction extends Context.Service<StoreTransaction, { readonly hand
 
 interface DurableBus {
   readonly publish: <A, I>(event: DurableEvent<A, I>, payload: A) =>
-    Effect.Effect<Envelope, EncodeFailed | OutboxWriteFailed | Unattributed, StoreTransaction>
+    Effect.Effect<Envelope, PublishError, StoreTransaction>
   // subscribe, receive, status: 03, 06
 }
+type PublishError =
+  | EncodeFailed            // schema encoding (this behaviour)
+  | DowncastRefused         // 04, BEH-DB-031
+  | PayloadEncodeFailed     // 01, BEH-DB-008
+  | AccessRefused           // 07, BEH-DB-053 (core)
+  | OutboxFrozen            // 06, BEH-DB-048 — a whole-store re-bootstrap holds the outbox
+  | OutboxWriteFailed       // BEH-DB-012, BEH-DB-014
+  | Unattributed            // 01, BEH-DB-006
 ```
 
 ```
@@ -58,9 +66,13 @@ REQUIREMENT: `publish` MUST encode the payload with the event schema at its
 
 ```
 REQUIREMENT: `publish` MUST write the envelope through `OutboxStore.append`
-             with the transaction handle. An `OutboxWriteFailed` MUST be
-             returned to the caller, whose transaction then fails or rolls
-             back by the caller's own handling.
+             with the transaction handle. Every `PublishError` MUST write
+             nothing and MUST be returned to the caller, whose transaction
+             then fails or rolls back by the caller's own handling.
+             Documentation MUST state that, because `publish` runs inside
+             the caller's transaction, any of these errors left unhandled
+             aborts the caller's own write — a sale, a stock movement — and
+             not only the event.
 ```
 
 **Settled here.** The type requirement is the cheapest enforcement there is:
@@ -132,7 +144,7 @@ interface OutboxStore {
                     stamp: Effect.Effect<Hlc>) =>
     Effect.Effect<readonly Envelope[], OutboxWriteFailed>                 // allocates sequences, stamps HLCs (BEH-DB-011)
   readonly pending: (destination: string, limit: number) =>
-    Effect.Effect<readonly Envelope[], StoreUnavailable>                  // committed, unacknowledged, in (origin, stream, sequence) order
+    Effect.Effect<readonly (Envelope | Withheld)[], StoreUnavailable>     // committed, unacknowledged, in (origin, stream, sequence) order; Withheld: BEH-DB-016
   readonly acknowledge: (destination: string, upTo: readonly { origin: string; stream: string; sequence: number }[]) =>
     Effect.Effect<void, StoreUnavailable>
   readonly incarnation: Effect.Effect<number, StoreUnavailable>
@@ -219,6 +231,70 @@ REQUIREMENT: A subscription handler (03) MUST run inside a `StoreTransaction`
 This is what makes a chain of processing steps safe to retry: a step either
 happened entirely — cursor moved, writes made, follow-on events queued — or
 not at all.
+
+## BEH-DB-016: Routes declare residency labels, and an event is not routed where its label is not offered
+
+> **See:** [ADR-RM-010](../../remote/decisions/010-placement-labels-compared-at-the-boundary.md)
+> **Depends on:** remote companion `PlacementPolicy`, `Placement.Residency` ([BEH-RM-068](../../remote/behaviors/09-placement-budgets-and-adapters.md#beh-rm-068-transports-and-routes-declare-the-residency-labels-they-offer), [BEH-RM-069](../../remote/behaviors/09-placement-budgets-and-adapters.md#beh-rm-069-the-residency-label-travels-as-a-wire-annotation-and-is-checked-by-the-serving-end))
+
+```ts
+// illustrative — not type-checked
+interface Route { readonly destination: string; readonly streams: readonly string[] | "*"
+                  readonly residency?: readonly string[] }        // labels this destination offers
+// DurableBus.plugin options gain: placement?: PlacementPolicy (default PlacementPolicy.exact)
+
+// What a skipped destination receives at the envelope's sequence: position and identity only.
+interface Withheld {
+  readonly envelope: 1
+  readonly withheld: "placement-refused" | "access-refused"   // the latter: HistorySource only (06, BEH-DB-047)
+  readonly eventId: string; readonly origin: string; readonly stream: string; readonly sequence: number
+}
+```
+
+```
+REQUIREMENT: When the publishing fiber carries `placement/residency`, the
+             envelope carries it among its "wire" annotations (BEH-DB-007),
+             and `publish` MUST evaluate the `PlacementPolicy` with
+             `subject.kind` "route" for each destination whose route
+             matches the stream. A destination the policy refuses MUST NOT
+             receive the envelope; it MUST be recorded as skipped for that
+             destination with reason "placement-refused" and reported as
+             `placement-refused`, and the other destinations MUST still
+             receive it.
+```
+
+```
+REQUIREMENT: Sequences are per (origin, stream), not per destination, so a
+             skipped destination MUST still receive that sequence: for it,
+             `OutboxStore.pending` MUST return a `Withheld` element in the
+             envelope's place, carrying only the position and the
+             `eventId` — no type, version, payload, actor, annotations or
+             HLC — and the relay MUST send and resend it like an envelope.
+             A receiver stores it as a marker and advances its watermark
+             (03, BEH-DB-018), so a stream that mixes labels never leaves a
+             gap that halts the receiver. `HistorySource.read` MUST serve
+             the same marker to a reader the label refuses (06, BEH-DB-047).
+```
+
+```
+REQUIREMENT: A receiver MUST evaluate the policy again for a received
+             envelope's label against the residency of its own inbox
+             configuration (`inboxResidency`); a refusal MUST stop that
+             (origin, stream) at the inbox with `PlacementRefused`
+             (BEH-DB-022, inbox level), so that no subscription sees it and
+             nothing is silently dropped.
+```
+
+**Settled here.** The label is the remote companion's annotation key, so an
+event and a call labelled alike are refused by the same rule. A refused
+destination is skipped, not failed, because the fact is still committed for
+the destinations that may hold it; refusing at the receiver as a stop keeps
+INV-DB-006 — nothing is dropped silently. The `Withheld` marker is the
+alternative to two worse choices: refusing the whole `publish` (which would
+abort the caller's business write for one destination's label) or forcing
+one label per stream (which the application cannot always arrange). The
+marker tells the skipped destination that a sequence exists and was not
+sent to it, which is less than the event and is stated as such.
 
 ---
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -335,7 +335,7 @@ REQUIREMENT: The main entry point of `@bridger/audit-chain` MUST NOT export
              no default, no no-op, no "log only", no local-file anchor. The
              only implementations are the fixtures of
              `@bridger/audit-chain/testing` (`scriptedAnchor`,
-             `memoryReceiptStore`, `memoryChainSink`).
+             `memoryReceiptStore`, `memoryChainStore`).
 ```
 
 ```
@@ -363,7 +363,7 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
              each of the following (planned acceptance scenarios
              REQ-AC-001–012, traceability §2):
              1. Wrapping: records written through core reach the inner
-                `ChainSink` unchanged, each with one link; an inner failure
+                `ChainStore` unchanged, each with one link; an inner failure
                 surfaces as `AuditWriteFailed` and sets core's latch after
                 `auditTimeout`; no other condition fails a write; an
                 unsupported `schemaVersion` is appended with its marker
@@ -382,7 +382,7 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 repeated `auditSeq`, is appended with a "chain-order" marker,
                 never refused; core's writer is not held; `verifyChain`
                 reports the break (BEH-AC-005).
-             5. `ChainSink.split`: record before link; a crash between the
+             5. `ChainStore.split`: record before link; a crash between the
                 two leaves a "missing-link" break, never a link without a
                 record (BEH-AC-006).
              6. Keyed hasher and `continuesFrom`: links carry `keyId`;
@@ -433,6 +433,14 @@ overall pass/fail value; whether the trail ends where it should is a separate
 (BEH-AC-019, BEH-AC-022). (3) Receipt confirmation is
 an effect run before the pure check, through verifier adapters (BEH-AC-020).
 (4) No production anchor is shipped (BEH-AC-023).
+
+**Round 2.** An inspector who checks a trail away from the producer's systems
+uses the portable verification bundle of [05 — Verification Bundle](./05-verification-bundle.md):
+`exportBundle` copies segments, anchors, receipts and trust roots as stored,
+and the pure, offline `verifyBundle` runs `verifyChain` over them with only
+offline-confirmed statements (BEH-AC-033, BEH-AC-034). A generic series of
+[04 — Generic Chain](./04-generic-chain.md) is verified by the same function
+under its own profile (BEH-AC-031).
 
 **Open.** (1) A streaming form of `verifyChain` for exports too large to hold
 in memory, with the same result. (2) A portable export format (entries,

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-16                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.8 (2026-11-08): BEH-BR-144: listeners run with the dispatcher's `CurrentCorrelation` (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-141: the event that applies an `OnEvent` trigger is held for the plugin it wakes and delivered once, with `emit` semantics, to that plugin's `on` listeners when it becomes `active` (27, BEH-BR-251); the dispatch reads the emitter's principal for the `lazy-triggered` record (27, BEH-BR-253) (CCR-BR-024)<br>0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -171,9 +171,9 @@ mid-flight would make its results depend on timing.
 
 ## BEH-BR-141: emit is fire and forget
 
-> **See:** [ADR-BR-020](../decisions/020-typed-event-bus.md)
-> **Satisfies:** [URS-BR-013](../urs.md#urs-br-013-exchange-typed-events-between-plugins)
-> **Risk:** [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016)
+> **See:** [ADR-BR-020](../decisions/020-typed-event-bus.md), [ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md)
+> **Satisfies:** [URS-BR-013](../urs.md#urs-br-013-exchange-typed-events-between-plugins), [URS-BR-050](../urs.md#urs-br-050-let-a-plugin-started-by-an-event-receive-that-event)
+> **Risk:** [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016), [RSK-BR-058](../gxp/03-risk-assessment.md#rsk-br-058)
 
 ```
 REQUIREMENT: `emit` MUST run each `on` listener in its own supervised fiber
@@ -190,16 +190,31 @@ An emitter that must know whether a listener failed uses `parallel` or
 `serial`; `emit` is for notifications whose sender should not care. When an
 `AccessPolicy` is wired, every dispatch consults it for the emitter before
 any listener runs (28, BEH-BR-264). A dispatch applies the `OnEvent`
-triggers of `dormant` plugins declaring the event at once, without delay and
-without redelivering the event to them
+triggers of `dormant` plugins declaring the event at once, without delay;
+the event is held for each plugin it wakes and delivered to that plugin once
+it is `active`, and to no one else
 ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
-BEH-BR-245).
+BEH-BR-245, BEH-BR-251).
 
 ```
 REQUIREMENT: A dispatch MUST apply `OnEvent` triggers only after the emit
              access decision (28 — Plugin Principal and Mandatory Policy,
              BEH-BR-264) has allowed it. A dispatch denied by a wired
-             `AccessPolicy` MUST wake no plugin.
+             `AccessPolicy` MUST wake no plugin and hold no event.
+```
+
+```
+REQUIREMENT: A dispatch that applies an `OnEvent` trigger MUST hand the
+             event to the host to hold for the plugin it wakes (27 —
+             Manifest and Lazy Activation, BEH-BR-251), and MUST read the
+             emitter's principal for that plugin's `lazy-triggered` record
+             (27, BEH-BR-253). When the woken plugin becomes `active`, the
+             bus MUST deliver the held event once, with the semantics of
+             `emit`, to the `on` listeners that plugin registered for the
+             event during that activation, and to no other listener. The
+             delivery MUST NOT be a second run of the triggering dispatch:
+             listeners that received the event from the triggering dispatch
+             MUST NOT receive it again.
 ```
 
 **Settled here.** (1) `emit` completes once every listener fiber has been
@@ -299,7 +314,9 @@ REQUIREMENT: `serial`, `parallel` and `waterfall` MUST run listeners in the
              BEH-BR-187), with `CurrentPlugin` set to the listener owner's
              principal (28 — Plugin Principal and Mandatory Policy,
              BEH-BR-258) and `CurrentAnnotations` filtered to flow "events"
-             (30 — Operation Context Annotations, BEH-BR-292).
+             (30 — Operation Context Annotations, BEH-BR-292). Each listener
+             MUST run with the dispatcher's `CurrentCorrelation`, taken when
+             the dispatch starts (22 — Attributable Operations, BEH-BR-187).
 ```
 
 ```

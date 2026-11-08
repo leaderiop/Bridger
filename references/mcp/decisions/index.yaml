@@ -18,3 +18,7 @@ entries:
     file: "004-target-mcp-2026-07-28.md"
     title: "Target the MCP 2026-07-28 revision; tasks are bridged by @bridger/agent"
     status: "Proposed"
+  - id: "ADR-MC-005"
+    file: "005-inbound-sessions-are-tainted-and-calls-pinned-to-the-listed-digest.md"
+    title: "Inbound sessions are tainted by default, and calls are pinned to the listed digest"
+    status: "Proposed"

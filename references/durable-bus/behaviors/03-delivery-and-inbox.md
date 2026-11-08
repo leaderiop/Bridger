@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `send` returns `Ack` only, `Ack.retryAfter`; receiver regression detected and repaired or reported; attributed `acceptGap`; inbox-level stops separated from subscription-level parks and halts; duplicate check bounded by the inbox's retention; handler receipt (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F13; R5-04/05) — the inbox stores a `Withheld` marker at its sequence and advances the watermark and every cursor without a handler call; subscriptions gain `onUnreadable` ("park", "halt") and `subscribeEnvelopes` delivers stored envelopes undecoded, so an unreadable fact is halted on or recorded as received, never parked away (FX-NEW N1) (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — `PlacementRefused` added as an inbox-level stop (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `send` returns `Ack` only, `Ack.retryAfter`; receiver regression detected and repaired or reported; attributed `acceptGap`; inbox-level stops separated from subscription-level parks and halts; duplicate check bounded by the inbox's retention; handler receipt (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -34,7 +34,7 @@ Planned source: `packages/durable-bus/src/Relay.ts`,
 ```ts
 // illustrative — not type-checked
 interface DeliveryTransport {               // the push path; downstream history is pulled (HistorySource, 06)
-  readonly send: (destination: string, batch: readonly Envelope[]) =>
+  readonly send: (destination: string, batch: readonly (Envelope | Withheld)[]) =>   // Withheld: 02, BEH-DB-016
     Effect.Effect<Ack, DeliveryFailed>
 }
 interface Ack {
@@ -78,7 +78,7 @@ the receiver's commit will do.
 // illustrative — not type-checked
 interface InboxStore {
   readonly watermark: (tx: StoreTransaction["Service"], origin: string, stream: string) => Effect.Effect<number, StoreUnavailable>
-  readonly store: (tx: StoreTransaction["Service"], envelope: Envelope) => Effect.Effect<void, StoreUnavailable>
+  readonly store: (tx: StoreTransaction["Service"], envelope: Envelope | Withheld) => Effect.Effect<void, StoreUnavailable>
   readonly eventIdAt: (tx: StoreTransaction["Service"], origin: string, stream: string, sequence: number) =>
     Effect.Effect<string | undefined, StoreUnavailable>                 // undefined once purged by retention
   // inbox level (BEH-DB-022): the (origin, stream) stops; the watermark does not move
@@ -101,7 +101,7 @@ interface InboxStore {
 
 interface GapRecord { readonly origin: string; readonly stream: string; readonly from: number; readonly through: number;
                      readonly actor: Actor; readonly reason: string; readonly at: string }
-type StopReason = "UnknownEnvelopeFormat" | "EnvelopeConflict"
+type StopReason = "UnknownEnvelopeFormat" | "EnvelopeConflict" | "PlacementRefused"   // the last: BEH-DB-016
 
 // DurableBus.receive(batch): Effect<Ack, StoreUnavailable | MalformedBatch>  — called by the transport's serving side
 ```
@@ -125,6 +125,10 @@ REQUIREMENT: `receive` MUST first decode every element's `origin`, `stream`
              - sequence = W + 1    → MUST be stored and W advanced, unless
                                      its `envelope` format is unknown
                                      (BEH-DB-002), which stops the stream;
+                                     a `Withheld` element (BEH-DB-016) is
+                                     stored as a marker, advances W like an
+                                     envelope and is counted in status as
+                                     `withheld` per (origin, stream);
              - sequence > W + 1    → gap: this envelope and the rest of the
                                      batch for that (origin, stream) MUST be
                                      ignored (the sender resends in order),
@@ -207,6 +211,15 @@ interface DurableBus {
     name: string,
     events: Events,
     handler: (event: EventOf<Events>, envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction>,
+    options?: { readonly maxAttempts?: number; readonly onPoison?: "halt" | "park-and-continue"
+                readonly onUnreadable?: "park" | "halt"   // PayloadUnreadable (01, BEH-DB-008); default "park"
+                readonly origins?: readonly string[] }
+  ) => Effect.Effect<void, never, Scope.Scope>
+  // the same, without decoding: the handler receives the stored envelope, payload and codec as received
+  readonly subscribeEnvelopes: (
+    name: string,
+    types: readonly DurableEvent<any, any>[],
+    handler: (envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction>,
     options?: { readonly maxAttempts?: number; readonly onPoison?: "halt" | "park-and-continue"; readonly origins?: readonly string[] }
   ) => Effect.Effect<void, never, Scope.Scope>
   readonly resume: (subscription: string, origin: string, stream: string) => Effect.Effect<void>   // BEH-DB-021
@@ -223,7 +236,10 @@ REQUIREMENT: For each subscription name and each (origin, stream) that holds
              envelopes in sequence order, each inside one `InboxStore`
              transaction that also advances the subscription's cursor past
              it. Envelopes of other types MUST advance the cursor without a
-             call.
+             call. A stored `Withheld` marker MUST advance the cursor of
+             every subscription without a call and MUST be counted in that
+             subscription's status, so that a skipped sequence is visible
+             to the subscriber without being a gap or a poison.
 ```
 
 ```
@@ -232,6 +248,32 @@ REQUIREMENT: Before the call, the envelope MUST be upcast and decoded (04);
              that cannot be read (`UnknownEventVersion`, `UpcastFailed`,
              `DecodeFailed`) MUST be handled as a poison envelope under the
              subscription's `onPoison` without retry (BEH-DB-021).
+```
+
+```
+REQUIREMENT: `onUnreadable` (default "park") decides what a
+             `PayloadUnreadable` from the `PayloadCodec` does for this
+             subscription: "park" parks the envelope as BEH-DB-008 states;
+             "halt" stops processing that (origin, stream) for the
+             subscription with its cursor before the envelope, as
+             `onPoison: "halt"` does, and reports `subscription-halted`
+             with reason `PayloadUnreadable`; `resume` retries it. A
+             subscription that records facts (event-store BEH-ES-030) uses
+             "halt", because a parked fact is a lost fact.
+```
+
+```
+REQUIREMENT: `subscribeEnvelopes` MUST call the handler with the stored
+             envelope, `payload` and `codec` as received, without the
+             `PayloadCodec` decode, the upcasters or the schema decode;
+             every other rule of BEH-DB-020 and BEH-DB-021 applies,
+             `Withheld` markers and the delivery access check (07,
+             BEH-DB-053) included. A subscription name is unique across
+             `subscribe` and `subscribeEnvelopes`. Documentation MUST state
+             that a subscriber which records facts that must never be lost
+             may use it to store the payload byte for byte, and that "park"
+             is for subscribers that can do nothing useful with a payload
+             they cannot read.
 ```
 
 ```
@@ -290,8 +332,9 @@ There are two levels, and each problem belongs to exactly one.
 
 ```
 REQUIREMENT: Inbox level. An element with an unknown envelope format
-             (`UnknownEnvelopeFormat`, BEH-DB-002) or a conflicting event id
-             (`EnvelopeConflict`, BEH-DB-004) MUST stop its (origin, stream)
+             (`UnknownEnvelopeFormat`, BEH-DB-002), a conflicting event id
+             (`EnvelopeConflict`, BEH-DB-004) or a residency label this
+             inbox does not offer (`PlacementRefused`, BEH-DB-016) MUST stop its (origin, stream)
              at the inbox through `InboxStore.stopStream`, keeping the
              element as received: the watermark MUST NOT move, the element
              MUST NOT be stored as an envelope, later envelopes of that
@@ -308,7 +351,8 @@ REQUIREMENT: Inbox level. An element with an unknown envelope format
 REQUIREMENT: Subscription level. An envelope that one subscription cannot
              process — `UnknownEventVersion`, `UpcastFailed`, `DecodeFailed`,
              or a poison handler failure — MUST be handled under that
-             subscription's `onPoison` (BEH-DB-021). Under
+             subscription's `onPoison` (BEH-DB-021), and a
+             `PayloadUnreadable` under its `onUnreadable` (BEH-DB-008). Under
              "park-and-continue" it MUST be parked through
              `InboxStore.park(tx, subscription, …)` with its reason, listed
              by `DurableBus.status`, and reported as a `parked` event. The

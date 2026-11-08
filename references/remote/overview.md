@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.4 (2026-11-08): round 2: recheck items 20, 23 and 25 — API rows for file 09, errors `PlacementRefused` and `RemoteBudgetExceeded`, core seams G43, G57, G58 and G60 cited as closed (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -54,7 +54,7 @@ and from the consumer's deployment of it
 | Annotation bag, flow "wire", `Annotations.encode`/`decode`, `CallerContext` | Core — [core 30 — Operation context annotations](../core/behaviors/30-operation-context-annotations.md) (BEH-BR-289–296) |
 | Scoped mount of a child (unmount when a sub-scope closes) | Core [14 — Children and groups](../core/behaviors/14-children-and-groups.md), BEH-BR-121 and BEH-BR-126 (specified under CCR-BR-020) |
 | **Link and session child, sessions, epochs, heartbeat, withdrawal, call deadlines and outcomes, per-call tokens, `Guest.serve`, the host-side serving end `Remote.serve`, `Transport` interface and endpoint multiplexer, `TestTransport`** | **This package** |
-| Adapters: `worker_threads`, Worker Loader / service binding, self-hosted workerd, later Wasm | Sub-packages `@bridger/worker`, `@bridger/worker-loader`, `@bridger/workerd`, `@bridger/wasm` |
+| Adapters: `worker_threads`, Worker Loader / service binding, Workers for Platforms, self-hosted workerd, later Wasm | Sub-packages `@bridger/worker`, `@bridger/worker-loader`, `@bridger/workers-for-platforms`, `@bridger/workerd`, `@bridger/wasm` |
 | Digest check, signatures, revocation source | `@bridger/loader` — [references/loader/](../loader/README.md) |
 | Cross-host manifests and imports (which use remote proxies) | `@bridger/federation` — [references/federation](../federation/README.md) |
 | Promise SDK for guests, generated from contracts | `@bridger/kit` — [references/kit/](../kit/README.md) (agent KIT) |
@@ -80,6 +80,12 @@ All signatures are illustrative until code exists.
 | `Transport`, `GuestTransport`, `Connection`, `TransportProfile` | types | Adapter interface | [07](./behaviors/07-transports-and-adapters.md) |
 | `Transport.multiplex`, `GuestTransport.multiplex` | functions | Several named endpoints over one physical connection | [07](./behaviors/07-transports-and-adapters.md) |
 | `Transport.messagePort`, `Transport.webSocket`, `Remote.websocketDialer` | functions | Web-standard transports in this package | [07](./behaviors/07-transports-and-adapters.md) |
+| `Transport.postMessage`, `GuestTransport.postMessage` | functions | A transport to a document in a sandboxed browser frame, one `MessageChannel` per connection | [09](./behaviors/09-placement-budgets-and-adapters.md) |
+| `PlacementPolicy`, `PlacementPolicy.exact`, `Placement.Residency`, `PlacementRefused` | port, value, annotation key, error | Residency labels compared with a transport's declared labels | [09](./behaviors/09-placement-budgets-and-adapters.md) |
+| `PrincipalBudget`, `TransportUsage`, `RemoteBudgetExceeded` | port, type, error | Per-principal call-rate, CPU-time and egress budgets from adapter-reported usage | [09](./behaviors/09-placement-budgets-and-adapters.md) |
+| `DedupeStore` | port | At-most-once across invocations on per-call transports | [09](./behaviors/09-placement-budgets-and-adapters.md) |
+| `OrgOf` | port | Opaque organisation claim in tokens and wire claims | [09](./behaviors/09-placement-budgets-and-adapters.md) |
+| `WorkersForPlatforms.transport` | function | Adapter `@bridger/workers-for-platforms` | [09](./behaviors/09-placement-budgets-and-adapters.md) |
 | `TestTransport`, `TransportFault`, `RemoteTest.settle` | testing | Deterministic transport with scripted faults (entry `@bridger/remote/testing`) | [08](./behaviors/08-test-transport-and-acceptance.md) |
 
 ### Errors
@@ -96,6 +102,8 @@ All signatures are illustrative until code exists.
 | `RemoteDefect` | The guest handler died or failed outside the contract | executed |
 | `MethodNotServed` | The serving end does not serve this method | not-executed |
 | `CallbackDenied`, `TokenInvalid`, `TokenExpired` | A guest callback is refused (`CallbackDenied` is this package's error, distinct from core's `CapabilityDenied` defect) | — (callback) |
+| `PlacementRefused` | The required residency label is not offered by the transport or route | not-executed (build fails at define) |
+| `RemoteBudgetExceeded` | The `PrincipalBudget` refused the call | not-executed |
 | `TransportError`, `TransportClosed` | Adapter failures | — |
 
 ## Worked example
@@ -141,13 +149,17 @@ again. Nothing entered `failed`, and no operator acted.
 - **Core** keeps one plugin model. The remote package needed one
   clarification — what closing a sub-scope does to a child mounted under it —
   now specified in core BEH-BR-121 and BEH-BR-126 (CCR-BR-020), with the
-  export of `HeldPlugins` (BEH-BR-088); otherwise it uses the public API. It
-  leaves open in core: an attributed cause for a sub-scope unmount (G57) and
-  a correlation id in the fiber (G58).
+  export of `HeldPlugins` (BEH-BR-088); otherwise it uses the public API,
+  including the seams CCR-BR-026 added for it: `Plugin.Runtime.unmount` with
+  `requestedBy` (G57), `CurrentCorrelation` (G58), `RefusalList` (G60) and
+  the call-log entry kinds with `Host.offerCallEntry` and
+  `PrincipalRef.encode` (G43). Residency placement needs no core seam: core
+  only carries the label and the annotation.
 - **The application** chooses adapters and supplies the isolation around the
   guest (VM, container, provider configuration), the `CapabilityPolicy`, the
-  egress provider and its policy, any cross-process `TokenAuthority`, and
-  what to do with an `unknown` outcome.
+  egress provider and its policy, any cross-process `TokenAuthority`, the
+  residency labels and their truth, budget arithmetic, the `DedupeStore`'s
+  storage, and what to do with an `unknown` outcome.
 
 ---
 

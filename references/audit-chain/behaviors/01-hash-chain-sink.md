@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-01                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.4 (2026-11-08): The store port's shape renamed `ChainStoreShape` (it was still named `ChainSinkShape`, which 04 uses for the chaining sink); the link type of this file is `ChainLinkV1`, and `ChainLink` is the union with the generic series' `ChainLinkV2` (04, BEH-AC-026); audit links stay version 1 (round-2 agent review R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; `HashChainSink` is the audit instance of `ChainSink<R>`; core's `sanitized`, `auditDropped`, `requestedBy`, `undoes` and new system transitions chained as fields (G54, G59 closed) (round 2: recheck item 13; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -22,7 +22,7 @@ Core hands each `AuditRecord` to one `AuditSink`, one at a time, in
 ordering is what makes a hash chain cheap: the sink sees the records of a host
 in exactly the order they must be linked. This file specifies
 `HashChainSink`, an `AuditSink` that computes a link for each record and hands
-the record with its link to an inner store port, `ChainSink`. It changes
+the record with its link to an inner store port, `ChainStore`. It changes
 nothing in core and adds no field to the core record
 ([ADR-AC-001](../decisions/001-chain-in-a-wrapping-sink.md)). This file owns
 BEH-AC-001–008 and uses all eight.
@@ -31,16 +31,16 @@ BEH-AC-001–008 and uses all eight.
 >
 > `HashChainSink` does not **store** records, make them **durable**,
 > **retain** or **back them up**, control **access** to them or **review**
-> them; those are the consumer's, behind `ChainSink`. A chain without an
+> them; those are the consumer's, behind `ChainStore`. A chain without an
 > anchor does not defend against anyone who can write the store
 > ([02 — Anchoring](./02-anchoring.md)). Nothing in this file makes a trail
 > tamper-proof.
 
 Planned source: `packages/audit-chain/src/HashChainSink.ts`,
-`packages/audit-chain/src/ChainSink.ts` and
+`packages/audit-chain/src/ChainStore.ts` and
 `packages/audit-chain/src/Canonical.ts` *(Planned)*.
 
-## BEH-AC-001: HashChainSink provides the core AuditSink by wrapping an inner ChainSink
+## BEH-AC-001: HashChainSink provides the core AuditSink by wrapping an inner ChainStore
 
 > **Invariant:** [INV-AC-002](../invariants.md#inv-ac-002-the-head-advances-only-on-a-successful-append-and-an-unexpected-record-is-marked)
 > **See:** [ADR-AC-001](../decisions/001-chain-in-a-wrapping-sink.md), [ADR-BR-030](../../core/decisions/030-audit-sink-port.md)
@@ -51,7 +51,7 @@ Planned source: `packages/audit-chain/src/HashChainSink.ts`,
 
 ```ts
 // illustrative — not type-checked
-interface ChainLink {
+interface ChainLinkV1 {                  // the audit instance's link; unchanged since 0.1
   readonly v: 1
   readonly alg: "sha-256" | "sha-512"
   readonly keyId?: string                 // present only when a KeyedHasher produced `hash` (BEH-AC-007)
@@ -69,15 +69,18 @@ interface ChainLink {
   readonly canonical?: "jcs-escaped"      // the record is not I-JSON; escaped encoding used (BEH-AC-003)
 }
 
+// A generic series (04) writes version 2 links; the audit instance always writes version 1.
+type ChainLink = ChainLinkV1 | ChainLinkV2   // ChainLinkV2: 04, BEH-AC-026
+
 interface ChainEntry {
   readonly record: AuditRecord            // exactly as core handed it (BEH-AC-002)
-  readonly link: ChainLink
+  readonly link: ChainLinkV1
 }
 
-interface ChainSinkShape {
+interface ChainStoreShape {               // = ChainStoreShape<AuditRecord, AuditWriteFailed> of 04
   readonly append: (entry: ChainEntry) => Effect.Effect<void, AuditWriteFailed>
 }
-class ChainSink extends Context.Service<ChainSink, ChainSinkShape>()("@bridger/audit-chain/ChainSink") {}
+class ChainStore extends Context.Service<ChainStore, ChainStoreShape>()("@bridger/audit-chain/ChainStore") {}
 
 interface HashChainOptions {
   readonly alg?: "sha-256" | "sha-512"                           // default "sha-256"
@@ -89,10 +92,10 @@ interface HashChainOptions {
 
 declare const HashChainSink: {
   readonly layer: (options?: HashChainOptions) =>
-    Layer.Layer<AuditSink, never, ChainSink | ReceiptStore | Anchor>
+    Layer.Layer<AuditSink, never, ChainStore | ReceiptStore | Anchor>
   readonly layerUnanchored: (options?: Omit<HashChainOptions, "anchorEvery" | "maxPendingWindows">) =>
-    Layer.Layer<AuditSink, never, ChainSink>                    // chain only: corruption detection (02, BEH-AC-016)
-  readonly make: (inner: ChainSinkShape, options?: HashChainOptions) =>
+    Layer.Layer<AuditSink, never, ChainStore>                    // chain only: corruption detection (02, BEH-AC-016)
+  readonly make: (inner: ChainStoreShape, options?: HashChainOptions) =>
     Effect.Effect<AuditSinkShape & { readonly status: ChainStatusView }, never, Scope.Scope | ReceiptStore | Anchor>
 }
 ```
@@ -101,7 +104,7 @@ declare const HashChainSink: {
 REQUIREMENT: `HashChainSink.layer` MUST provide the core `AuditSink` service
              (identifier `@bridger/core/AuditSink`) and nothing else that
              core reads. Its `record` MUST compute the link of the record it
-             is given (BEH-AC-003) and call the inner `ChainSink.append`
+             is given (BEH-AC-003) and call the inner `ChainStore.append`
              exactly once per attempt with the record and its link.
 ```
 
@@ -122,7 +125,7 @@ REQUIREMENT: One `HashChainSink` instance MUST serve exactly one host. The
 
 The wrapper is the whole integration: a consumer that already writes records
 to a store replaces `Layer.succeed(AuditSink, store)` with
-`HashChainSink.layer().pipe(Layer.provide(ChainSink-of-store))`. Because the
+`HashChainSink.layer().pipe(Layer.provide(ChainStore-of-store))`. Because the
 sink's failure is core's `AuditWriteFailed`, every rule core already has for
 a failing sink — retry in place, latch, refusal of operator changes — applies
 when the inner store cannot be written, without any new core rule. That
@@ -231,11 +234,26 @@ REQUIREMENT: `alg` MUST be "sha-256" unless the options name "sha-512". The
              be recorded in every link.
 ```
 
-Core does not guarantee that the strings it writes — a caller's `reason`, say
-— are well-formed UTF-16 (core gap G59, open). A sink that refused such a
+Core now replaces lone surrogates with U+FFFD before a record reaches the sink
+and marks such a record `sanitized: true` (core BEH-BR-196; gap G59 closed by
+CCR-BR-026), so a record from a conforming core is always well-formed. The
+escaped encoding and its marker stay as a defence for records from another
+source, or from a core that does not conform: a sink that refused such a
 record would halt recording for good under core's retry in place; the escaped
 encoding is deterministic, so a verifier recomputes the same link, and the
-marker tells a reviewer that the record was not I-JSON.
+marker tells a reviewer that the record was not I-JSON. Core's
+`sanitized: true` is part of the record and is chained like any field
+([04 — Generic Chain](./04-generic-chain.md), BEH-AC-027).
+
+From revision 0.3 the inner store port of this file is named `ChainStore`
+(`ChainStore.split`, `memoryChainStore`), and `HashChainSink` is the audit
+instance of the generic `ChainSink<R>` of 04 (BEH-AC-025); every rule of this
+file is unchanged by the rename. Each record also carries core's
+`auditDropped` counter, `requestedBy`, `undoes` and the new system transitions
+("start-refused", "unmount-requested", "lazy-idle"; a root `lazy-triggered`
+record carrying `onBehalfOf`) as ordinary fields: the sink chains them without
+interpreting them, and 04 (BEH-AC-030) states how `auditDropped` is carried
+into statements and reports.
 
 JCS is chosen because the record is JSON-shaped already and because several
 independent implementations exist: a reviewer can recompute a link with a
@@ -330,7 +348,7 @@ application that wants operator changes to stop on a broken chain say so
 through the gate piece, which the host consults before a change instead of
 after its record.
 
-## BEH-AC-006: The ChainSink obligations, and ChainSink.split
+## BEH-AC-006: The ChainStore obligations, and ChainStore.split
 
 > **Invariant:** [INV-AC-003](../invariants.md#inv-ac-003-the-stored-record-is-the-record-core-handed-over)
 > **See:** [ADR-AC-001](../decisions/001-chain-in-a-wrapping-sink.md), [ADR-BR-030](../../core/decisions/030-audit-sink-port.md)
@@ -345,13 +363,13 @@ interface LinkStoreShape {
 }
 class LinkStore extends Context.Service<LinkStore, LinkStoreShape>()("@bridger/audit-chain/LinkStore") {}
 
-declare const ChainSink: {
-  readonly split: (records: AuditSinkShape, links: LinkStoreShape) => ChainSinkShape
+declare const ChainStore: {
+  readonly split: (records: AuditSinkShape, links: LinkStoreShape) => ChainStoreShape
 }
 ```
 
 ```
-REQUIREMENT: A `ChainSink` MUST treat an `append` whose `record.recordId` it
+REQUIREMENT: A `ChainStore` MUST treat an `append` whose `record.recordId` it
              has already stored as idempotent: it MUST succeed and MUST NOT
              store a second copy. It SHOULD fail only when it did not store
              the entry. These are the obligations of BEH-BR-193, applied to
@@ -359,13 +377,13 @@ REQUIREMENT: A `ChainSink` MUST treat an `append` whose `record.recordId` it
 ```
 
 ```
-REQUIREMENT: A `ChainSink` MUST store the record and its link together or
+REQUIREMENT: A `ChainStore` MUST store the record and its link together or
              not at all, or — when it cannot — MUST behave as
-             `ChainSink.split` specifies.
+             `ChainStore.split` specifies.
 ```
 
 ```
-REQUIREMENT: `ChainSink.split(records, links)` MUST call `records.record`
+REQUIREMENT: `ChainStore.split(records, links)` MUST call `records.record`
              with the unchanged record, then, only after it succeeds,
              `links.put` with the link, and MUST fail with
              `AuditWriteFailed` if either fails. Both stores MUST be
@@ -374,7 +392,7 @@ REQUIREMENT: `ChainSink.split(records, links)` MUST call `records.record`
 ```
 
 ```
-REQUIREMENT: A `ChainSink` MUST NOT call mutating operations of the host it
+REQUIREMENT: A `ChainStore` MUST NOT call mutating operations of the host it
              records for (as BEH-BR-193 requires of any sink).
 ```
 
@@ -501,7 +519,7 @@ that changes `alg` mid-chain), which would let a long-lived deployment move
 away from a weakened hash without starting a new chain; this revision fixes
 the algorithm per sink instance. (2) Whether `continuesFrom` should also be
 carried in a dedicated first link field, so that a verifier need not be told
-it out of band. (3) Whether `ChainSink` should be offered a batched `append`
+it out of band. (3) Whether `ChainStore` should be offered a batched `append`
 for stores that are slow per write; core's writer hands one record at a time,
 so batching would sit behind the port.
 

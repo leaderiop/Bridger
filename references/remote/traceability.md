@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-TRACE                                             |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review — REQ-RM-043, 044; REQ-RM-036, 038, 039 restated; INV-RM-011 row extended (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — BEH-RM-065–071, INV-RM-011, ADR-RM-010, REQ-RM-034–042, RSK-RM-014 and 015 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -31,6 +31,7 @@ Every source and test path is *(Planned)*; no scenario has run.
 | [06](behaviors/06-capability-tokens-and-call-log.md) | BEH-RM-041–048 | INV-RM-003, 004, 007, 010 | ADR-RM-003, 004, 005 | `packages/remote/src/Token.ts`, `Callback.ts` *(Planned)* |
 | [07](behaviors/07-transports-and-adapters.md) | BEH-RM-049–056 | INV-RM-002, 004, 009 | ADR-RM-003, 006, 007, 009 | `packages/remote/src/Transport.ts`; `packages/worker/`, `packages/worker-loader/`, `packages/workerd/` *(Planned)* |
 | [08](behaviors/08-test-transport-and-acceptance.md) | BEH-RM-057–061 | INV-RM-001, 006 | ADR-RM-001, 009 | `packages/remote/src/testing/TestTransport.ts` *(Planned)* |
+| [09](behaviors/09-placement-budgets-and-adapters.md) | BEH-RM-065–071 | INV-RM-007, 009, 011 | ADR-RM-005, 006, 007, 010 | `packages/remote/src/Placement.ts`, `Budget.ts`, `Dedupe.ts`, `PostMessage.ts`; `packages/workers-for-platforms/` *(Planned)* |
 
 ## §2 Invariants
 
@@ -44,8 +45,9 @@ Every source and test path is *(Planned)*; no scenario has run.
 | [INV-RM-006](invariants.md#inv-rm-006-remote-adds-no-second-admission-path) | BEH-RM-019, 022 | REQ-RM-011, 025 |
 | [INV-RM-007](invariants.md#inv-rm-007-a-guest-reaches-only-granted-contracts-under-a-live-token) | BEH-RM-024, 036, 041, 043, 044, 046 | REQ-RM-020, 021, 033 |
 | [INV-RM-008](invariants.md#inv-rm-008-an-unknown-outcome-is-reported-as-unknown-and-never-retried) | BEH-RM-020, 021 | REQ-RM-012 |
-| [INV-RM-009](invariants.md#inv-rm-009-within-one-session-a-call-executes-at-most-once-on-a-conforming-guest) | BEH-RM-034, 035, 039, 051 | REQ-RM-019, 026, 029, 030 |
+| [INV-RM-009](invariants.md#inv-rm-009-within-one-session-a-call-executes-at-most-once-on-a-conforming-guest) | BEH-RM-034, 035, 039, 051, 067 | REQ-RM-019, 026, 029, 030, 036 |
 | [INV-RM-010](invariants.md#inv-rm-010-within-one-parent-call-a-callback-executes-at-most-once) | BEH-RM-043, 048 | REQ-RM-028 |
+| [INV-RM-011](invariants.md#inv-rm-011-no-call-crosses-a-transport-that-does-not-offer-its-residency-label) | BEH-RM-056, 068, 069 | REQ-RM-037, 038, 044 |
 
 ## §3 Decisions
 
@@ -60,6 +62,7 @@ Every source and test path is *(Planned)*; no scenario has run.
 | [ADR-RM-007](decisions/007-stateless-guests.md) — Guests are stateless per invocation | Proposed |
 | [ADR-RM-008](decisions/008-unknown-outcomes-are-surfaced-never-retried.md) — Unknown outcomes are surfaced, never retried | Proposed |
 | [ADR-RM-009](decisions/009-deterministic-test-transport.md) — A deterministic test transport, and the core suites re-run through proxies | Proposed |
+| [ADR-RM-010](decisions/010-placement-labels-compared-at-the-boundary.md) — Placement labels are compared at the process boundary, as strings | Proposed |
 
 ## §4 Acceptance scenarios
 
@@ -102,12 +105,23 @@ order. Planned location `packages/remote/test/` *(Planned)*. None has run.
 | REQ-RM-031 | 31. Multiplexed endpoints keep separate sessions; physical close ends all | [BEH-RM-056](behaviors/07-transports-and-adapters.md) | Not run |
 | REQ-RM-032 | 32. Revocation survives restart, retry and replace; source read at start | [BEH-RM-014](behaviors/02-sessions-and-epochs.md) | Not run |
 | REQ-RM-033 | 33. Wire annotations cross without the deadline and combine on receipt | [BEH-RM-024](behaviors/03-remote-calls.md), [BEH-RM-041](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-045](behaviors/06-capability-tokens-and-call-log.md) | Not run |
+| REQ-RM-034 | 34. With `OrgOf`, tokens and claims carry `org`; never in status | [BEH-RM-065](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-035 | 35. A budget refusal fails the call before any frame; `charge` uses reported measures only | [BEH-RM-066](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-036 | 36. A duplicated per-call `call` runs once with a shared `DedupeStore`, the copy answered with the result or `InProgress`; refused copies hold no claim; retention residual; no store and no statement refuses to start | [BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-037 | 37. A residency label not offered by the transport fails the link's build with `PlacementRefused` | [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-038 | 38. The residency label crosses as a wire annotation and a serving end refuses a mismatch before any lease; the host refuses a fiber's own label before sending | [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-039 | 39. `Transport.postMessage` origin checks, "opaque" mode source and nonce checks, one port per connection, new epoch per frame load | [BEH-RM-070](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-040 | 40. Workers for Platforms adapter limits, outbound route and conformance with a `DedupeStore` | [BEH-RM-071](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-041 | 41. Revocation records `unmount-requested` with `requestedBy`; `RefusalList` keeps the link disabled; one revocation entry | [BEH-RM-014](behaviors/02-sessions-and-epochs.md) | Not run |
+| REQ-RM-042 | 42. Core entry kinds offered; callbacks refused when unlogged; correlation and host link in served calls; descriptor timeouts | [BEH-RM-017](behaviors/03-remote-calls.md), [BEH-RM-039](behaviors/05-guest-serve.md), [BEH-RM-045](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md) | Not run |
+| REQ-RM-043 | 43. The wire version is negotiated per session; revocation entries carry the epoch | [BEH-RM-009](behaviors/02-sessions-and-epochs.md), [BEH-RM-014](behaviors/02-sessions-and-epochs.md) | Not run |
+| REQ-RM-044 | 44. A multiplexed endpoint carries the route's residency labels | [BEH-RM-056](behaviors/07-transports-and-adapters.md), [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 
 ## §5 Risks
 
 | Risk | Hazard | Controls | Verified by |
 | --- | --- | --- | --- |
-| [RSK-RM-001](risks.md#rsk-rm-001) | Remote side effect repeated or misread | BEH-RM-020, 021, 034, 035, 048, 051, INV-RM-008, INV-RM-009, INV-RM-010 | REQ-RM-012, 019, 028, 029 |
+| [RSK-RM-001](risks.md#rsk-rm-001) | Remote side effect repeated or misread | BEH-RM-020, 021, 034, 035, 048, 051, 067, INV-RM-008, INV-RM-009, INV-RM-010 | REQ-RM-012, 019, 028, 029, 036 |
 | [RSK-RM-002](risks.md#rsk-rm-002) | Stale session acts after a partition heals | BEH-RM-010, 011, 035, 044, INV-RM-004 | REQ-RM-005, 006, 007 |
 | [RSK-RM-003](risks.md#rsk-rm-003) | Peer holds a lifecycle step | BEH-RM-003, 005, 012, 017, 028, 060, INV-RM-002, INV-RM-003 | REQ-RM-002, 008, 014, 025 |
 | [RSK-RM-004](risks.md#rsk-rm-004) | Guest reaches more than it was granted | BEH-RM-014, 036, 043, 044, 046, INV-RM-007 | REQ-RM-020, 021, 023 |
@@ -119,7 +133,9 @@ order. Planned location `packages/remote/test/` *(Planned)*. None has run.
 | [RSK-RM-010](risks.md#rsk-rm-010) | Flapping link churns dependents | BEH-RM-012, 025, 029, 030 | REQ-RM-016, 017 |
 | [RSK-RM-011](risks.md#rsk-rm-011) | Clock skew between host and guest | BEH-RM-017, 044 | REQ-RM-008, 021 |
 | [RSK-RM-012](risks.md#rsk-rm-012) | Dependents' finalizers lose the provider on a session loss | BEH-RM-020, 026, 030, 060, INV-RM-005 | REQ-RM-025 (exemption listed) |
-| [RSK-RM-013](risks.md#rsk-rm-013) | Revocation-caused withdrawals not attributed in the core audit trail | BEH-RM-014 | REQ-RM-023 |
+| [RSK-RM-013](risks.md#rsk-rm-013) | Revocation-caused withdrawals not attributed in the core audit trail | BEH-RM-014, core BEH-BR-126 | REQ-RM-023, 041 |
+| [RSK-RM-014](risks.md#rsk-rm-014) | Residency labels mistaken for a residency guarantee | BEH-RM-068, 069, INV-RM-011 | REQ-RM-037, 038 |
+| [RSK-RM-015](risks.md#rsk-rm-015) | A browser frame reached by, or reaching, the wrong party | BEH-RM-070 | REQ-RM-039 |
 
 ---
 

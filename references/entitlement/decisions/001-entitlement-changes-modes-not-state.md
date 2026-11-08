@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-ADR-001 |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.2 (2026-11-08): Round 2: recheck item 16 — the rejected interception alternative is distinguished from grant narrowing (ADR-EN-004) (CCR-EN-003)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -55,9 +55,14 @@ paid — the generic form of "a lapsed licence never blocks a legal duty".
 - **A boolean entitled / not entitled.** Rejected: hides the grace period from
   the plugin and the user, and conflates "read-only" with "nothing".
 - **Enforce read-only by intercepting services.** Rejected for in-process
-  code: interceptions change resolution only and are not isolation
+  code as an isolation claim: interceptions change resolution only and are
+  not isolation
   ([ADR-BR-019](../../core/decisions/019-realms-are-resolution-namespaces.md));
-  code that must be stopped from writing runs out of process.
+  code that must be stopped from writing runs out of process. Revision 0.2
+  adds, without that claim, the narrowing of a lapsed plugin's grants through
+  core's `CapabilityPolicy.changes`
+  ([ADR-EN-004](./004-a-lapse-narrows-capability-grants.md)): it changes no
+  state and is stated as narrowing, not enforcement.
 
 ## Consequences
 
@@ -73,8 +78,9 @@ paid — the generic form of "a lapsed licence never blocks a legal duty".
   refusals of `guard` but cannot prevent a bypass.
 - Applications must decide and document which uses are essential.
 
-**Trade-off accepted**: cooperative read-only for in-process plugins, at the
-cost of trusting plugin code to honour it, rather than a host-driven stop that
+**Trade-off accepted**: cooperative read-only for in-process plugins — for
+what they serve, and, beyond the services they captured (ADR-EN-004), for
+what they call — at the cost of trusting plugin code to honour it, rather than a host-driven stop that
 breaks the lease guarantees and the record.
 
 ## References

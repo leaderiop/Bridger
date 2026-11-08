@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-07                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — endpoint multiplexer (BEH-RM-056) for several sessions over one physical connection; frames before the handshake per endpoint; per-call transports keep a host-side logical session (R3-01, R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F15) — a multiplexed endpoint may be given the residency labels its route offers, which replace the physical profile's (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — `TransportProfile.residency` and `reportsUsage`, `Connection.usage`; isolation table rows for `Transport.postMessage` and the Workers for Platforms adapter (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — endpoint multiplexer (BEH-RM-056) for several sessions over one physical connection; frames before the handshake per endpoint; per-call transports keep a host-side logical session (R3-01, R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -46,6 +46,7 @@ interface Connection {
   readonly send: (frame: Uint8Array) => Effect.Effect<void, TransportClosed>   // never awaits the peer
   readonly receive: Stream.Stream<Uint8Array, TransportClosed>
   readonly closed: Effect.Effect<{ readonly reason: string }>                // completes once, when either end closes
+  readonly usage?: Stream.Stream<TransportUsage>                             // 09, BEH-RM-066; adapters that report usage
 }
 class TransportError  extends Schema.TaggedError<TransportError>()("TransportError", { adapter: Schema.String, message: Schema.String }) {}
 class TransportClosed extends Schema.TaggedError<TransportClosed>()("TransportClosed", { adapter: Schema.String, reason: Schema.String }) {}
@@ -88,6 +89,8 @@ interface TransportProfile {
   readonly closeTimeout: Duration.Duration          // bound on blocking local close (BEH-RM-005)
   readonly closeNotice: Duration.Duration
   readonly isolationProvidedBy: string              // free text naming the host mechanism, e.g. "none (same process)"
+  readonly residency?: readonly string[]            // labels this route offers, the consumer's statement (09, BEH-RM-068)
+  readonly reportsUsage?: readonly ("cpuMs" | "egressBytes" | "subrequests")[]   // 09, BEH-RM-066
 }
 ```
 
@@ -179,6 +182,8 @@ the host mechanism, and obligation 6 makes the adapter say so.
 | `@bridger/remote` MessagePort / WebSocket transports | whatever the application runs at the other end | the application's deployment of that end | everything the far end can do |
 | `@bridger/worker-loader` | a Cloudflare dynamic worker (Worker Loader) or a service binding | the provider's isolate and its configuration (`globalOutbound: null`, `env` holding only the Remote channel) | anything the provider's isolate model allows; isolate escapes in the provider's runtime |
 | `@bridger/workerd` | a self-hosted `workerd` process | a VM or container the operator places around it (gVisor or Firecracker), per workerd's own documentation | escapes from workerd's isolates into the workerd process; anything outside the VM or container boundary is the operator's |
+| `@bridger/remote` `Transport.postMessage` | a document in a browser frame (09, BEH-RM-070) | the browser's origin isolation, as the consumer configures the frame's `sandbox`, origin and content security policy | anything the frame's configuration allows; a same-origin frame with `allow-same-origin` reaches the host page |
+| `@bridger/workers-for-platforms` | a user worker in a provider dispatch namespace (09, BEH-RM-071) | the provider's isolates, per-invocation limits and outbound route | anything the provider's isolate model allows; isolate escapes in the provider's runtime |
 | `@bridger/wasm` (later) | a WebAssembly component (WASI 0.3) in a host runtime | the Wasm runtime's memory and capability model | defects in that runtime |
 
 ```
@@ -268,7 +273,9 @@ default nobody noticed.
 ```ts
 // illustrative — not type-checked
 interface Multiplexed {
-  readonly endpoint: (name: string) => Transport           // a logical Transport over the shared connection
+  // a logical Transport over the shared connection; its profile is the physical transport's,
+  // with `residency` replaced when given (09, BEH-RM-068)
+  readonly endpoint: (name: string, options?: { readonly residency?: readonly string[] }) => Transport
   readonly closed: Effect.Effect<{ readonly reason: string }>
 }
 interface MultiplexedGuest {
@@ -287,6 +294,15 @@ REQUIREMENT: `Transport.multiplex` and `GuestTransport.multiplex` MUST carry
              `GuestTransport` of BEH-RM-049, so that every session over it
              has its own handshake, epoch, in-flight table and heartbeat;
              no frame of one endpoint MUST be delivered to another.
+```
+
+```
+REQUIREMENT: An endpoint's `profile` MUST be the physical transport's
+             profile, except that `residency` MUST be the labels given to
+             `endpoint`, when given, so that a caller who knows what the
+             route offers (the federation companion's `ManifestPeer`
+             residency) makes the link's placement check (BEH-RM-068)
+             compare against the same labels it compared.
 ```
 
 ```

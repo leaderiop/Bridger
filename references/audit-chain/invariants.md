@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): INV-AC-002 restated (an unexpected record is marked, not refused); INV-AC-003 markers; INV-AC-005 restated (anchoring never delays or fails a write; fail-closed at the gate) (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.3 (2026-11-08): INV-AC-006 (bundle verified from the bundle alone), INV-AC-007 (one series, one canonicaliser, one algorithm); store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): INV-AC-002 restated (an unexpected record is marked, not refused); INV-AC-003 markers; INV-AC-005 restated (anchoring never delays or fails a write; fail-closed at the gate) (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -66,7 +66,7 @@ and a repeated `auditSeq`, each appended with a "chain-order" marker and none
 refused; property test that the head observed in the status stream advances
 exactly once per successful append.
 
-**Related**: [BEH-AC-001](behaviors/01-hash-chain-sink.md#beh-ac-001-hashchainsink-provides-the-core-auditsink-by-wrapping-an-inner-chainsink), [BEH-AC-004](behaviors/01-hash-chain-sink.md#beh-ac-004-a-retried-record-gets-the-identical-link), [BEH-AC-005](behaviors/01-hash-chain-sink.md#beh-ac-005-contiguity-and-order-are-checked-per-host-and-a-violation-is-marked-not-refused), [ADR-AC-001](decisions/001-chain-in-a-wrapping-sink.md), core [INV-BR-023](../core/invariants.md#inv-br-023-the-audit-sequence-is-contiguous-per-host).
+**Related**: [BEH-AC-001](behaviors/01-hash-chain-sink.md#beh-ac-001-hashchainsink-provides-the-core-auditsink-by-wrapping-an-inner-chainstore), [BEH-AC-004](behaviors/01-hash-chain-sink.md#beh-ac-004-a-retried-record-gets-the-identical-link), [BEH-AC-005](behaviors/01-hash-chain-sink.md#beh-ac-005-contiguity-and-order-are-checked-per-host-and-a-violation-is-marked-not-refused), [ADR-AC-001](decisions/001-chain-in-a-wrapping-sink.md), core [INV-BR-023](../core/invariants.md#inv-br-023-the-audit-sequence-is-contiguous-per-host).
 
 ---
 
@@ -76,7 +76,7 @@ The `record` of every `ChainEntry` the package hands to a store is, field for
 field, the `AuditRecord` core passed to `record`.
 
 **Source**: `packages/audit-chain/src/HashChainSink.ts` and
-`packages/audit-chain/src/ChainSink.ts` *(Planned)* — the record object is
+`packages/audit-chain/src/ChainStore.ts` *(Planned)* — the record object is
 passed through without copying into a new shape; `split` passes it unchanged
 to the wrapped `AuditSink`; unsupported `schemaVersion` values and strings
 that are not I-JSON are marked on the link, never rewritten in the record.
@@ -86,11 +86,11 @@ created, which remains the original (core BEH-BR-208); the chain never
 changes what the trail says.
 
 **Verification** *(Planned)*: deep-equality assertions between the records
-core produced in a `TestHost` run and the records in `memoryChainSink`; a
+core produced in a `TestHost` run and the records in `memoryChainStore`; a
 schema-version-2 record and a record holding a lone surrogate stored unchanged
 with their markers.
 
-**Related**: [BEH-AC-002](behaviors/01-hash-chain-sink.md#beh-ac-002-the-record-reaches-the-store-unchanged), [BEH-AC-006](behaviors/01-hash-chain-sink.md#beh-ac-006-the-chainsink-obligations-and-chainsinksplit), [ADR-AC-001](decisions/001-chain-in-a-wrapping-sink.md).
+**Related**: [BEH-AC-002](behaviors/01-hash-chain-sink.md#beh-ac-002-the-record-reaches-the-store-unchanged), [BEH-AC-006](behaviors/01-hash-chain-sink.md#beh-ac-006-the-chainstore-obligations-and-chainstoresplit), [ADR-AC-001](decisions/001-chain-in-a-wrapping-sink.md).
 
 ---
 
@@ -139,6 +139,48 @@ bound, memory bounded, and with `ChainGate` wired, operator calls refused
 "anchor-overdue" past the limit while `record` keeps succeeding.
 
 **Related**: [BEH-AC-009](behaviors/02-anchoring.md#beh-ac-009-the-anchor-and-receiptstore-ports), [BEH-AC-011](behaviors/02-anchoring.md#beh-ac-011-anchoring-runs-on-a-schedule-off-the-write-path), [BEH-AC-013](behaviors/02-anchoring.md#beh-ac-013-fail-closed-anchoring-is-an-explicit-gate-piece-and-the-sink-keeps-recording), [ADR-AC-003](decisions/003-anchoring-off-the-write-path.md).
+
+---
+
+## INV-AC-006: A bundle is verified from the bundle alone
+
+`verifyBundle` reads nothing but its arguments: no network, no clock, no file
+system, no environment. Every receipt it reports as confirmed was confirmed
+offline against the effective trust roots — the inspector's pinned roots when
+given, otherwise the roots carried in the bundle, reported as such — and a
+receipt that would need an online check is never reported as confirmed.
+
+**Source**: `packages/audit-chain/src/Bundle.ts` *(Planned)* — a pure function
+over the decoded bundle and options; offline receipt verifiers are pure
+adapters.
+
+**Implication**: an inspector can check a trail on an isolated machine, and
+the report says exactly which evidence was checked there.
+
+**Verification** *(Planned)*: acceptance checks 18 and 19 of BEH-AC-040, with
+network, clock and file system unavailable.
+
+**Related**: [BEH-AC-034](behaviors/05-verification-bundle.md), [BEH-AC-035](behaviors/05-verification-bundle.md), [BEH-AC-036](behaviors/05-verification-bundle.md), [ADR-AC-005](decisions/005-one-chain-over-any-stream-hashing-the-stored-form.md).
+
+---
+
+## INV-AC-007: One series, one canonicaliser and one algorithm
+
+Every link of a series names the series id, the canonicaliser id and the
+algorithm it was computed with, and these are the same for every link of the
+series; a link computed otherwise is reported as a break, never accepted as a
+continuation.
+
+**Source**: `packages/audit-chain/src/ChainSink.ts` *(Planned)* — the series
+spec is fixed at construction; links carry `seriesId`, `canon` and `alg`.
+
+**Implication**: a verifier recomputes every link from the stored bytes and
+the named canonicaliser alone; a change of canonicaliser or algorithm cannot
+pass silently.
+
+**Verification** *(Planned)*: acceptance check 15 of BEH-AC-032.
+
+**Related**: [BEH-AC-025](behaviors/04-generic-chain.md), [BEH-AC-026](behaviors/04-generic-chain.md), [BEH-AC-027](behaviors/04-generic-chain.md), [ADR-AC-005](decisions/005-one-chain-over-any-stream-hashing-the-stored-form.md).
 
 ---
 

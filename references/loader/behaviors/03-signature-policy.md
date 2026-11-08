@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.3 (2026-11-08): The package statement is the "package" instance of the typed statement of file 07; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule" (round 2: recheck items 11, 15) (CCR-LD-003)<br>0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -47,13 +47,14 @@ Planned source: `packages/loader/src/Signature.ts`,
 ```ts
 // illustrative — not type-checked
 interface PackageStatement {
-  readonly type: "bridger-package-statement-v1"
-  readonly digest: string          // the package digest (01, BEH-LD-002)
+  readonly type: "bridger-statement-v1"
+  readonly statementType: "package"
+  readonly subject: { readonly digest: string }   // the package digest (01, BEH-LD-002)
   readonly id: string              // manifest id
   readonly version: string         // manifest version
 }
 // The signed bytes are the RFC 8785 (JCS) canonical JSON of the statement,
-// wrapped as a DSSE envelope with payloadType "application/vnd.bridger.package-statement+json".
+// wrapped as a DSSE envelope with payloadType "application/vnd.bridger.statement+json" (07, BEH-LD-049).
 interface Signature {
   readonly scheme: string          // "ed25519" | "sigstore" | an adapter's own scheme name
   readonly keyHint?: string        // advisory; never used to decide trust
@@ -73,6 +74,13 @@ REQUIREMENT: A signature over a statement whose `digest`, `id` or `version`
              differs from the loaded package's MUST NOT count, even when it
              is cryptographically valid.
 ```
+
+The package statement is the "package" instance of the typed statement of
+[07 — Signed Statements](./07-signed-statements.md) (BEH-LD-049): its signed
+bytes are the generic statement with `statementType: "package"`, the package
+digest as subject, and the manifest's id and version, and it is checked
+through the one step `SignaturePolicy.verify` (BEH-LD-050). Every requirement
+of this file applies to every statement type.
 
 Binding id and version, not only the digest, stops a valid signature from
 being replayed under another name: a reviewer who signed "report-export
@@ -161,6 +169,7 @@ interface TrustedSigner {
   readonly roles: readonly string[]         // opaque to the loader, e.g. ["publisher"], ["reviewer"]
   readonly validFrom?: string               // ISO-8601 UTC
   readonly validUntil?: string
+  readonly publishers?: readonly string[]   // publisher names this signer may vouch for (07, BEH-LD-053)
 }
 ```
 
@@ -267,7 +276,8 @@ of one signer's key withdraw exactly the packages that depended on it.
 class SignatureRejected extends Schema.TaggedError<SignatureRejected>()("SignatureRejected", {
   digest: Schema.String,
   policyId: Schema.String,
-  reason: Schema.Literal("unsatisfied", "verifier-timeout", "verifier-defect", "policy-invalid"),
+  statementType: Schema.String,               // "package" for loads (07, BEH-LD-049)
+  reason: Schema.Literal("unsatisfied", "verifier-timeout", "verifier-defect", "policy-invalid", "no-rule"),
   verified: Schema.Array(Schema.String),     // signer ids that verified
   ignored: Schema.Number,                     // signatures with no verifier or no trusted match
   missing: Schema.String                      // human-readable: which branch was not met

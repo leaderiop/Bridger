@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -48,6 +48,15 @@ interface FederationOptions {
   readonly listener?: Context.Key<any, LinkListener>   // required when the manifest names exports
   readonly reporter?: Context.Key<any, StatusReporter>
   readonly rebootstrap?: Context.Key<any, Rebootstrap>
+  readonly outbox?: Context.Key<any, RebootstrapOutbox>  // step 1 of a re-bootstrap (BEH-FD-014, BEH-FD-044)
+  readonly revocation: Context.Key<any, RevocationSource>    // the loader's; required — RevocationSource.constant when none (BEH-FD-041)
+  readonly maxDisabledPerRevision?: number              // blast-radius guard of the kill path, no default (BEH-FD-042)
+  readonly revocationActor?: Actor                      // kind "service"; default { kind: "service", id: "federation-revocation:" + authority }
+  readonly placement?: Context.Key<any, PlacementPolicy> // remote companion's; default PlacementPolicy.exact (BEH-FD-045)
+  readonly atomic?: boolean                             // ReconcileOptions.atomic for applies, default false (BEH-FD-008)
+  readonly hostResidency?: readonly string[]            // labels this host offers to plugins it installs (BEH-FD-045)
+  readonly rebootstrapOutboxTimeout?: Duration.Input    // default 2 minutes (BEH-FD-014)
+  readonly rebootstrapRetryMax?: Duration.Input         // default 30 minutes; re-bootstrap retries back off apart from sync (BEH-FD-014)
   readonly boot?: SignedManifest                        // boot bundle (BEH-FD-010)
   readonly syncEvery?: Duration.Input                   // default 1 minute
   readonly syncTimeout?: Duration.Input                 // default 30 seconds
@@ -63,8 +72,12 @@ interface ManifestSource {
 interface ManifestStore {
   readonly highest: Effect.Effect<Option.Option<SignedManifest>, StoreUnavailable>
   readonly putHighest: (m: SignedManifest, revision: number) => Effect.Effect<void, StoreUnavailable>
-  readonly lastApplied: Effect.Effect<Option.Option<{ revision: number; at: string }>, StoreUnavailable>
-  readonly putLastApplied: (revision: number, at: string) => Effect.Effect<void, StoreUnavailable>
+  readonly lastApplied: Effect.Effect<Option.Option<{ manifest: SignedManifest; revision: number; at: string }>, StoreUnavailable>
+  readonly putLastApplied: (manifest: SignedManifest, revision: number, at: string) => Effect.Effect<void, StoreUnavailable>
+  readonly pendingKills: Effect.Effect<ReadonlyArray<PendingKill>, StoreUnavailable>                 // BEH-FD-048
+  readonly putPendingKills: (kills: ReadonlyArray<PendingKill>) => Effect.Effect<void, StoreUnavailable>
+  readonly rebootstrap: Effect.Effect<Option.Option<RebootstrapMarker>, StoreUnavailable>            // BEH-FD-048
+  readonly putRebootstrap: (marker: Option.Option<RebootstrapMarker>) => Effect.Effect<void, StoreUnavailable>
   readonly lastContact: Effect.Effect<Option.Option<string>, StoreUnavailable>
   readonly putLastContact: (at: string) => Effect.Effect<void, StoreUnavailable>
   readonly firstActivation: Effect.Effect<Option.Option<string>, StoreUnavailable>   // BEH-FD-013
@@ -118,7 +131,10 @@ terminal after every outage.
 ```
 REQUIREMENT: At activation the plugin MUST read the highest verified manifest
              from the `ManifestStore`, verify it again (BEH-FD-002), and
-             apply it (BEH-FD-008) in the background before the first sync.
+             apply it (BEH-FD-008) in the background before the first sync
+             — unless a re-bootstrap marker is stored, in which case it MUST
+             apply the last applied manifest minus the pending kills, and
+             resume the re-bootstrap as BEH-FD-048 states.
 ```
 
 ```
@@ -208,8 +224,9 @@ REQUIREMENT: On the transition from `fresh` to `stale`, the plugin MUST
              re-apply the same revision with `fresh: false`, so that every
              entry marked `requiresFresh` is listed with `disabled: true`.
              On the transition back, it MUST re-apply with `fresh: true`.
-             Both re-applies MUST be attributed as in BEH-FD-008, with a
-             reason naming the freshness change.
+             Both re-applies MUST reconcile the last applied manifest minus
+             the pending kills (BEH-FD-048) and MUST be attributed as in
+             BEH-FD-008, with a reason naming the freshness change.
 ```
 
 ```
@@ -250,57 +267,144 @@ REQUIREMENT: While `offline-capped`, the applied manifest MUST be `stale`
 ```
 REQUIREMENT: The first successful contact after the cap was exceeded MUST
              require a re-bootstrap (BEH-FD-014) before any newer manifest is
-             applied, unless the source answers that the host is current
+             applied — the marker of BEH-FD-048 stored before that newer
+             manifest is stored as highest — unless the source answers that the host is current
              (`known` equals the authority's latest revision and the
              authority does not return `ResyncRequired`).
 ```
 
+```
+REQUIREMENT: Neither the cap nor a pending re-bootstrap MUST delay a kill:
+             a revocation list received in any state is applied at once
+             (BEH-FD-042), and the kill entries of a newer verified manifest
+             are applied by a kill-only apply while the re-bootstrap it must
+             wait for has not completed (BEH-FD-042).
+```
+
 The cap bounds how long a host may run on instructions nobody has confirmed:
-how long a kill entry may go unseen, how far its clock may drift unobserved,
+how long a desired-state change may go unseen (a kill does not wait for it,
+BEH-FD-042), how far its clock may drift unobserved,
 and how much application data it may accumulate before a replay would be a
 storm. Its value is the application's — a point-of-sale fleet may choose
 the 72 hours payment networks commonly allow for offline transactions — and
 the outbox bus companion should use the same bound for its replay horizon
 ([references/durable-bus/](../../durable-bus/README.md)).
 
-## BEH-FD-014: A host too far behind re-bootstraps from a snapshot
+## BEH-FD-014: A host too far behind re-bootstraps from a snapshot, outbox first
 
-> **Invariant:** [INV-FD-004](../invariants.md#inv-fd-004-a-host-always-has-a-defined-desired-state)
+<a id="beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot"></a>
+
+> **Invariant:** [INV-FD-004](../invariants.md#inv-fd-004-a-host-always-has-a-defined-desired-state), [INV-FD-011](../invariants.md#inv-fd-011-a-re-bootstrap-never-replaces-state-while-local-facts-are-neither-pushed-nor-kept)
 > **See:** [ADR-FD-007](../decisions/007-offline-cap-and-rebootstrap.md)
 > **Satisfies:** [URS-BR-016](../../core/urs.md#urs-br-016-drive-the-plugin-set-from-a-declarative-list)
 
 ```ts
 // illustrative — not type-checked
 interface Rebootstrap {
-  // The application restores its own state (projections, caches, event-delivery positions —
-  // for the event delivery companion, the inbox watermarks its HistorySource reads resume from)
-  // from a snapshot the authority serves, and returns the manifest revision it matches.
-  readonly run: (q: { readonly host: string; readonly since: string; readonly revision: number }) =>
-    Effect.Effect<{ readonly revision: number }, RebootstrapFailed>
+  // The application fetches a snapshot the authority serves (projections, caches, event-delivery
+  // positions — for the event delivery companion, the inbox watermarks its HistorySource reads resume from).
+  readonly fetch: (q: { readonly host: string; readonly since: string; readonly revision: number }) =>
+    Effect.Effect<SnapshotHandle, RebootstrapFailed, Scope.Scope>
+  // ... and replaces its local state with it, returning the manifest revision it matches. Called only through
+  // OutboxSettlement.install (step 3a); `InstallContext` is what that settlement provides (for the event
+  // delivery companion, its StoreTransaction when `replaces` is "in-store"). It MUST be re-runnable over a
+  // partly installed state, and MUST NOT replace the ManifestStore, the RevocationStore or the fence table.
+  readonly install: (snapshot: SnapshotHandle) => Effect.Effect<{ readonly revision: number }, RebootstrapFailed, InstallContext>
+  readonly replaces: "in-store" | "whole-store"   // no default: how install replaces local state (BEH-DB-048)
 }
+type SnapshotHandle = unknown          // opaque to this package
+
+interface RebootstrapOutbox {          // step 1; the event delivery companion supplies one (BEH-DB-048)
+  readonly settle: (q: { readonly timeout: Duration.Duration; readonly replaces: "in-store" | "whole-store" }) =>
+    Effect.Effect<OutboxSettlement, RebootstrapBlocked, Scope.Scope>   // held until the install ends or fails
+}
+interface OutboxSettlement {           // the guarded install path (BEH-DB-048)
+  readonly pushed: number
+  readonly kept: number
+  readonly install: <A, E, R>(run: Effect.Effect<A, E, R>) => Effect.Effect<A, E | RebootstrapBlocked, Exclude<R, InstallContext>>
+}
+class RebootstrapBlocked extends Schema.TaggedError<RebootstrapBlocked>()("RebootstrapBlocked", {
+  pending: Schema.Number, reason: Schema.String       // e.g. "outbox-unsettled", "outbox-unavailable", "no-outbox-port"
+}) {}
 ```
 
 ```
 REQUIREMENT: On `ResyncRequired`, or when BEH-FD-013 requires it, the plugin
-             MUST: (1) set the status `rebootstrapping`; (2) suspend every
-             link — close every outgoing and incoming link, stop accepting
-             new ones and stop dialling — so that no remote call starts in
-             either direction; (3) call `Rebootstrap.run`; (4) fetch and
-             apply the latest manifest; (5) resume links: accept and dial
-             again, with a new offer exchange on each. Steps run in that
-             order.
+             MUST act in this order, MUST NOT start a step before the
+             previous one succeeded, and MUST persist each step in the
+             re-bootstrap marker before acting on it (BEH-FD-048):
+             (0) store the marker (step "required"), set the status
+                 `rebootstrapping` and apply the newest released revocation
+                 set (BEH-FD-042); links stay up;
+             (1) push or keep the outbox: call `RebootstrapOutbox.settle`
+                 with `rebootstrapOutboxTimeout` (default 2 minutes) and
+                 the `Rebootstrap`'s `replaces`, in a scope held until step
+                 3a ends; links stay up, since pushing needs no suspension;
+             (2) suspend every link — close every "import:" endpoint, stop
+                 serving exports and stop opening new imports — keeping each
+                 link's "control" endpoint open for `kill` frames only
+                 (06, BEH-FD-041), then fetch the snapshot with
+                 `Rebootstrap.fetch`;
+             (3a) install: call `Rebootstrap.install` only through
+                 `OutboxSettlement.install`, so that the guarded path of the
+                 event delivery companion (outbox comparison in one
+                 transaction, or frozen outbox and a raised incarnation)
+                 covers it; record the returned revision in the marker
+                 (step "installed");
+             (3b) fetch and apply the latest manifest in full, which clears
+                 pending kills up to its revision (BEH-FD-048); when its
+                 revision differs from the installed revision, report
+                 `rebootstrap-revision-mismatch { installed, applied }`
+                 and apply it anyway — the install is never repeated
+                 because of the difference;
+             (4) resume links: open imports and serve exports again, with a
+                 new offer exchange on each, and clear the marker.
+```
+
+```
+REQUIREMENT: A failure of step 1 — `RebootstrapBlocked`, a timeout, a
+             defect — MUST stop the re-bootstrap before step 2: no snapshot
+             is fetched or installed, no link was suspended and no local
+             fact is dropped. The plugin MUST report status
+             `rebootstrap-blocked` with the pending count and reason, keep
+             the applied manifest in force and keep applying kills
+             (BEH-FD-042).
+```
+
+```
+REQUIREMENT: Retries of a re-bootstrap MUST back off on their own schedule,
+             not at every sync: from `syncEvery`, doubling up to
+             `rebootstrapRetryMax` (default 30 minutes), with jitter from
+             `Random`, reset when a re-bootstrap completes. A failure of
+             step 1 or 2 retries from step 1; a failure of step 3a retries
+             from step 1 with links kept suspended (local state may be half
+             replaced, so `install` runs again over it); a failure of step
+             3b retries step 3b only, with links kept suspended.
+```
+
+```
+REQUIREMENT: When the application wires a `Rebootstrap` but no
+             `RebootstrapOutbox`, step 1 MUST fail with `RebootstrapBlocked
+             { reason: "no-outbox-port" }` unless `FederationOptions.outbox`
+             is explicitly set to `RebootstrapOutbox.none` — a value whose
+             `settle` returns `{ pushed: 0, kept: 0 }` and documents that the
+             application holds no local facts — so that skipping the outbox
+             is a written decision.
 ```
 
 ```
 REQUIREMENT: Suspending links MUST NOT be a host operation: the import
              proxies stay installed and `active`; their sessions end with
-             the links, so their session children are withdrawn and their
+             their endpoints, so their session children are withdrawn and their
              dependents wait as on a partition (BEH-FD-021), audited by core
              as system transitions. Calls in flight when a link is closed
              fail with the remote companion's `SessionLost` (`outcome:
              "unknown"`), and calls served to peers are cut as on a link
              loss. Every link MUST show `suspended` in `Federation.Status`
-             while the re-bootstrap runs.
+             from step 2 until step 4. The outbox's own delivery transport
+             is not a federation link and is never suspended; a deployment
+             that carries it over a peer link pushes in step 1, before any
+             suspension.
 ```
 
 ```
@@ -311,9 +415,20 @@ REQUIREMENT: Without a wired `Rebootstrap`, `ResyncRequired` MUST be
 ```
 
 ```
-REQUIREMENT: A `RebootstrapFailed` MUST leave the applied manifest in force,
-             MUST keep links suspended, MUST be reported, and MUST be retried
-             at the next sync.
+REQUIREMENT: A `RebootstrapFailed` from step 2 MUST leave the applied
+             manifest in force and resume links; from step 3a or 3b it MUST
+             leave the applied manifest in force and keep links suspended.
+             Either MUST be reported and retried as the retry rule above
+             states.
+```
+
+```
+REQUIREMENT: Documentation MUST state that `Rebootstrap.install` MUST NOT
+             replace or roll back the `ManifestStore`, the loader's
+             `RevocationStore` or the fence table: doing so is exactly the
+             store rollback that defeats revision monotonicity (BEH-FD-004)
+             and revocation monotonicity, whose protection the loader leaves
+             to the consumer (loader BEH-LD-026).
 ```
 
 ```
@@ -321,26 +436,36 @@ REQUIREMENT: The package MUST NOT define the snapshot's content, transfer or
              storage.
 ```
 
-**Settled here.** Manifests are full documents, so desired state never needs
-replay; what needs a snapshot is the application's data — catalogues,
-projections, the cursors of the outbox bus companion — which after a long absence is
-cheaper to replace than to replay, and replaying it would load the authority
-and every peer at once ([ADR-FD-007](../decisions/007-offline-cap-and-rebootstrap.md)).
-Suspending links during the restore avoids remote calls, in either
-direction, against state that is being replaced, and needs no admission
-switch of its own: from the proxies' point of view it is a partition, which
-already has a defined outcome everywhere.
+**Settled here.** (1) Manifests are full documents, so desired state never
+needs replay; what needs a snapshot is the application's data — catalogues,
+projections, the cursors of the outbox bus companion — which after a long
+absence is cheaper to replace than to replay
+([ADR-FD-007](../decisions/007-offline-cap-and-rebootstrap.md)).
+(2) Outbox first: a terminal that ran offline for days holds facts — sales,
+movements — that exist nowhere else. Installing a snapshot first could
+replace the store that holds them, or make the authority's next snapshot
+miss them. Pushing them before fetching the snapshot means the snapshot can
+already include them; keeping them where the install cannot reach is the
+fallback when the push cannot finish. Failing closed, with links resumed
+and kills still applied, keeps the host running on its last state rather
+than trading facts for freshness. (3) Fetch and install are separate steps
+so that a failed fetch leaves local state untouched and links can resume.
+Suspending links only for fetch and install avoids remote calls, in either
+direction, against state being replaced without tearing down every link at
+each attempt to push a long backlog; the control endpoint stays open so a
+kill still arrives. It needs no admission switch: from the proxies' point
+of view it is a partition. (4) The install goes through the outbox port's
+settlement, so that "kept" facts are protected by a check the bus runs
+rather than by the application's choice of restore path, and a
+whole-store swap gets a frozen outbox and a new origin incarnation
+(durable-bus BEH-DB-004, BEH-DB-048).
 
 For the event delivery companion, the positions a snapshot restores are the
 inbox watermarks from which its pull port, `HistorySource`, resumes
 ([BEH-DB-047](../../durable-bus/behaviors/06-replay-and-snapshots.md#beh-db-047-historysource--the-pull-port-for-downstream-history));
 a source that no longer retains them answers `SnapshotRequired`, which is
-where this re-bootstrap starts.
-
-**Open.** Whether facts recorded locally while offline (an outbox) must be
-delivered before the snapshot is installed is a rule of the bus companion
-(upstream facts are never truncated), not a federation one; the ordering of
-the two is left to the application's `Rebootstrap`.
+where this re-bootstrap starts. Its `RebootstrapOutbox` is
+`DurableBus.rebootstrapOutbox` ([BEH-DB-048](../../durable-bus/behaviors/06-replay-and-snapshots.md#beh-db-048-before-a-snapshot-the-outbox-is-pushed-or-kept)).
 
 ## BEH-FD-015: Federation.Status reports what the host follows
 
@@ -351,10 +476,14 @@ the two is left to the application's `Rebootstrap`.
 ```ts
 // illustrative — not type-checked
 interface FederationStatus {
-  readonly state: "unprovisioned" | "following" | "rebootstrapping" | "resync-required"
+  readonly state: "unprovisioned" | "following" | "rebootstrapping" | "rebootstrap-blocked" | "resync-required"
+  readonly revocation?: { readonly revision: number; readonly issuedAt: string }   // newest accepted list (BEH-FD-041)
+  readonly oldestVersions?: readonly OldestVersionReport[]                         // BEH-FD-047
   readonly freshness: "fresh" | "stale" | "offline-capped"
   readonly highestVerified?: number
   readonly lastApplied?: { readonly revision: number; readonly at: string }
+  readonly pendingKills?: readonly { readonly revision: number; readonly count: number }[]   // BEH-FD-048
+  readonly rebootstrap?: { readonly step: string; readonly startedAt: string }              // BEH-FD-048
   readonly lastContact?: string
   readonly dropped: readonly { readonly id: string; readonly reason: string }[]
   readonly rejected: ReconcileReport["rejected"]
@@ -369,8 +498,13 @@ interface FederationStatus {
 REQUIREMENT: `Federation.Status` MUST expose the current status and a stream
              of events (`applied`, `rejected`, `manifest-equivocation`,
              `store-invalid`, `stale`, `fresh`, `offline-capped`,
-             `rebootstrap-*`, `kill-unowned`, `kill-pending`, `realm-changed`,
-             link and export events). The
+             `rebootstrap-*` (including `rebootstrap-blocked` and
+             `rebootstrap-revision-mismatch`), `kill-unowned`,
+             `kill-pending`, `kill-held`, `revocation-applied`,
+             `revocation-stale`, `revocation-rejected`, `kill-only-apply`,
+             `apply-partial`,
+             `placement-refused`, `realm-changed`, link and export
+             events). The
              stream MUST be a sliding feed, like `Host.events`; it is not a
              record.
 ```

@@ -2,6 +2,8 @@
 
 Status: **proposed developer experience, not executable library code**. All `@bridger/*` packages and APIs below are design sketches. They have not been implemented or type-checked. The contracts are defined in [ERP-SPEC.md](ERP-SPEC.md); [Odoo core research](knowledge/ODOO-CORE.md) explains the reference architecture.
 
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
+
 The complete small use case is: Alice opens the ERP, creates a task, lists her tasks, marks one done, edits its title, and deletes it. The module can be disabled and enabled again without deleting remaining tasks. The database stores the records (PostgreSQL in the examples, through its storage adapter); FoldKit renders a metadata-driven screen.
 
 ## 1. What the user sees
@@ -377,6 +379,8 @@ Client methods return Effects with typed transport/domain errors. `Task.Row` inc
 
 ## 10. Optional custom command
 
+> **Superseded (2026-11-08).** `Command.contract` / `Command.implement` are governed by [`@bridger/command`](../references/command/README.md) (BEH-CM-001–016). The example shows the ERP author experience only.
+
 When marking complete needs additional business logic, add the contract to `contract.ts`:
 
 ```ts
@@ -489,3 +493,5 @@ These are reviewable behavior requirements, not tests already run. The walkthrou
 ## 14. A second plugin sharing the task table
 
 The [Planning extension example](ERP-MODELS.md) adds priority to the same Task table. It shows `Model.extend`, typed composition, extension migrations, tenant activation and shared write validation. The simple Todo plugin above remains unchanged.
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

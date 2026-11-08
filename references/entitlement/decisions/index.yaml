@@ -14,3 +14,7 @@ entries:
     file: "003-budgets-are-scoped-reservations.md"
     title: "Budgets are scoped reservations over opaque labels; exhaustion is a policy outcome"
     status: "Proposed"
+  - id: "ADR-EN-004"
+    file: "004-a-lapse-narrows-capability-grants.md"
+    title: "A lapse narrows a plugin's capability grants to read-only members, never refusing and never changing state"
+    status: "Proposed"

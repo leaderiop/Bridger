@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-OVW                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.2 (2026-11-08): `ChainGate` in the API surface and worked example (no `failClosed` option); `expectedHeads`; limits gain deletion of trailing windows and control of the process before the sink (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.4 (2026-11-08): `ChainLink` (`ChainLinkV1` audit, `ChainLinkV2` generic), `AnchorStatement` version 2, `resumeFrom` and `ChainStore.head` in the API surface (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Generic chain and verification bundle in the API surface; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `ChainGate` in the API surface and worked example (no `failClosed` option); `expectedHeads`; limits gain deletion of trailing windows and control of the process before the sink (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -51,7 +51,7 @@ after the last anchor are covered by the chain alone.
 | ------- | ------------ |
 | `@bridger/core` | Dependency. This package implements the core `AuditSink` port and calls `verifyAuditSequence`. Core never depends on this package and does not know it is wired. |
 | `@bridger/gxp` | No dependency in either direction. The GxP companion's scope includes optional trail sealing ([ADR-BR-034](../core/decisions/034-gxp-companion-scope.md)); it may adopt this package for that purpose, but this specification relies on nothing in the companion's draft ([ADR-AC-004](./decisions/004-separate-from-gxp-companion.md)). |
-| Consumer store | Behind the inner `ChainSink` port: where records and links are stored. Its durability, retention and access control are the consumer's. |
+| Consumer store | Behind the inner `ChainStore` port: where records and links are stored. Its durability, retention and access control are the consumer's. |
 | Anchor service | Behind the `Anchor` port: a timestamping authority, a transparency log, a write-once store held by another party. Its independence is the consumer's to establish. |
 
 Planned source: `packages/audit-chain/src/` *(Planned)*, testing entry point
@@ -65,13 +65,13 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
-| `HashChainSink.layer`, `HashChainSink.make` | functions | Provide the core `AuditSink` by wrapping an inner `ChainSink` |
+| `HashChainSink.layer`, `HashChainSink.make` | functions | Provide the core `AuditSink` by wrapping an inner `ChainStore` |
 | `HashChainSink.layerUnanchored` | function | The chain without anchoring, chosen explicitly; described as corruption detection only |
-| `ChainSink` | port | Inner store of chained entries (`append`), idempotent on `recordId` |
-| `ChainSink.split` | function | Keep an existing `AuditSink` for the records and send the links to a separate `LinkStore` |
-| `LinkStore` | port | Store of links only, for `ChainSink.split` |
+| `ChainStore` | port | Inner store of chained entries (`append`), idempotent on `recordId` |
+| `ChainStore.split` | function | Keep an existing `AuditSink` for the records and send the links to a separate `LinkStore` |
+| `LinkStore` | port | Store of links only, for `ChainStore.split` |
 | `KeyedHasher` | port | Optional: a keyed hash (for example HMAC in a hardware module) in place of the plain hash |
-| `ChainEntry`, `ChainLink`, `HashChainOptions` | types | The record with its link; options (`alg`, `continuesFrom`, anchoring) |
+| `ChainEntry`, `ChainLink`, `ChainLinkV1`, `ChainLinkV2`, `HashChainOptions` | types | The record with its link (version 1 for the audit instance, version 2 with `seriesId`, `seq`, `canon` for a generic series); options (`alg`, `continuesFrom`, anchoring) |
 
 ### Anchoring — [behaviour 02](./behaviors/02-anchoring.md)
 
@@ -79,7 +79,7 @@ All signatures are illustrative until code exists.
 | ------ | ---- | ------- |
 | `Anchor` | port | Publish an `AnchorStatement` outside the store; returns an `AnchorReceipt` |
 | `ReceiptStore` | port | Keep statements and receipts, separately from the chain store |
-| `AnchorStatement`, `AnchorReceipt`, `AnchorFailed` | types, error | Statement of a window (`fromSeq`, `toSeq`, `merkleRoot`, `headHash`) and its receipt |
+| `AnchorStatement`, `AnchorReceipt`, `AnchorFailed` | types, error | Statement of a window (version 2: `seriesId`, `canon`, `fromSeq`, `toSeq`, `merkleRoot`, `headHash`, `dropped`) and its receipt; version 1 statements are still read |
 | `HashChainSink.status` | member | `{ head, lastAnchored, unanchored, anchorFailures, pendingWindows, chainBreaks, … }` as a current value and a stream |
 | `ChainGate.make` | function | Optional core gate piece: refuses operator calls while anchoring is overdue or the chain carries a marked break; the sink keeps recording |
 
@@ -92,9 +92,30 @@ All signatures are illustrative until code exists.
 | `proveInclusion`, `verifyInclusion` | functions | Show that one record is covered by an anchored Merkle root without disclosing the others |
 | `ChainReport`, `InclusionProof` | types | Verification results |
 
+### Generic chain — [behaviour 04](./behaviors/04-generic-chain.md)
+
+| Export | Kind | Purpose |
+| ------ | ---- | ------- |
+| `ChainSink.make`, `ChainSink.makeUnanchored`, `ChainSinkShape<R, E>` | functions, type | Chain any append-only stream described by a `SeriesSpec<R>`; `HashChainSink` is its audit instance |
+| `SeriesSpec<R>`, `SeriesPosition` | types | Series id (separate from any host id), canonicaliser, position (`seq`, `recordId`, `origin`), optional loss counter |
+| `ChainStoreShape<R, E>` | type | The store port of any series (`ChainStore` is the audit instance's), with an optional `head` read used to resume a series; `ChainSinkOptions.resumeFrom` resumes it explicitly |
+| `Canonicaliser` | port | Pure, named encoding of a record into the hashed bytes; stored ciphertext is hashed, never plaintext |
+| `ChainProfile`, `auditProfile`, `verifySeriesSequence` | types, functions | How `verifyChain` reads a series: core's `verifyAuditSequence` for audit, a generic sequence check otherwise |
+| `SeriesConfigInvalid` | error | A series spec refused at construction |
+
+### Verification bundle — [behaviour 05](./behaviors/05-verification-bundle.md)
+
+| Export | Kind | Purpose |
+| ------ | ---- | ------- |
+| `exportBundle` | function | Export chain segments, anchors, receipts and trust roots, as stored, into a canonical `VerificationBundle` |
+| `verifyBundle` | function | Pure, total, offline check of a bundle; returns a `BundleReport`; used by the kit's `bridger verify-chain` |
+| `VerificationBundle`, `BundleReport`, `TrustRoot` | types | The bundle format `bridger-chain-bundle/v1` and its report |
+| `ChainReader`, `ReceiptReader`, `OfflineReceiptVerifier` | ports | Read sides for export; offline receipt confirmation |
+| `BundleExportFailed` | error | A store or receipt store that cannot be read; never a partial bundle |
+
 ### Testing
 
-`memoryChainSink`, `memoryReceiptStore` and `scriptedAnchor` (succeed, fail,
+`memoryChainStore`, `memoryReceiptStore` and `scriptedAnchor` (succeed, fail,
 hang on demand), exported from `@bridger/audit-chain/testing` only. The main
 entry point exports no `Anchor` implementation
 ([BEH-AC-023](./behaviors/03-verification.md#beh-ac-023-the-package-ships-no-production-anchor)).
@@ -104,7 +125,7 @@ entry point exports no `Anchor` implementation
 ```ts
 // illustrative — not type-checked
 import { Bridger } from "@bridger/core"
-import { HashChainSink, ChainGate, ChainSink, Anchor, ReceiptStore, verifyChain } from "@bridger/audit-chain"
+import { HashChainSink, ChainGate, ChainStore, Anchor, ReceiptStore, verifyChain } from "@bridger/audit-chain"
 
 // The consumer's adapters: its own database table and an anchor held by another party.
 const Receipts = Layer.succeed(ReceiptStore, myReceiptTable)
@@ -146,7 +167,7 @@ no hash and keeps no copy
 
 ## What stays in the application
 
-- The consumer's store behind `ChainSink`, its durability, backup, retention and access
+- The consumer's store behind `ChainStore`, its durability, backup, retention and access
   control.
 - The choice of anchor service and the evidence that it is independent of
   whoever can write the store.

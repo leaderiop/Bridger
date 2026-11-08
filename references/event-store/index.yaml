@@ -1,0 +1,20 @@
+kind: root
+package: bridger-event-store
+infix: ES
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-ES-00"
+    title: "Bridger Event Store — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-ES-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-ES-INV"
+    title: "Runtime Invariants"
+  - file: "risks.md"
+    id: "BRIDGER-ES-RISK"
+    title: "Risk Assessment — Event Store Companion"
+  - file: "traceability.md"
+    id: "BRIDGER-ES-TRACE"
+    title: "Traceability"

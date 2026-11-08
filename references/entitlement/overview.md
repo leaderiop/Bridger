@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.3 (2026-11-08): Gate scope (`install`, optional `replace`); core seam specified (BEH-BR-089); core modes `unmetered`/`unknown`; API rows `EntitlementGate.piece`, `Entitlement.skipPolicy`, `Skip.first`, `Budget.skipPolicy`; worked example options corrected (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16; core alignment — mission item 5 (grant narrowing), API rows `Entitlement.capabilityPolicy`, `ReadOnly`, `Entitlement.contributionPolicy`, `Policies.first`, `Budget.contributionPolicy`, `Budget.usage`; core `policy` and `settle` replace `skip`; limits updated (CCR-EN-003)<br>0.3 (2026-11-08): Gate scope (`install`, optional `replace`); core seam specified (BEH-BR-089); core modes `unmetered`/`unknown`; API rows `EntitlementGate.piece`, `Entitlement.skipPolicy`, `Skip.first`, `Budget.skipPolicy`; worked example options corrected (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -42,6 +42,10 @@ is being sold:
    fails or removes a plugin on its own.
 4. **`Budget.reserve`** reserves an amount against a key of labels, commits
    what was actually used, and releases the rest when its scope closes.
+5. **Grant narrowing** (`Entitlement.capabilityPolicy`) narrows a lapsed
+   plugin's captured services to the members the application classed as
+   read-only, through core's `CapabilityPolicy.changes`, without refusing a
+   capture or changing plugin state; renewal restores them.
 
 ## Package boundary
 
@@ -49,8 +53,10 @@ is being sold:
 `@bridger/core` never depends on it. It uses the core gate
 ([25](../core/behaviors/25-operation-gate.md)), the generic gate of
 [32](../core/behaviors/32-generic-gate-and-plan.md) (BEH-BR-313–321) and the hook
-points of [31](../core/behaviors/31-hook-points.md) (BEH-BR-297–308), whose
-`skip` option carries its entitlement and budget policies. Its one core seam,
+points of [31](../core/behaviors/31-hook-points.md) (BEH-BR-297–312), whose
+`policy` and `settle` options carry its entitlement and budget policies, and
+the capability grants of [29](../core/behaviors/29-capability-grants-and-call-log.md)
+(BEH-BR-273–281) for grant narrowing. Its one core seam,
 an optional `EntitlementView` port behind `Plugin.Runtime.entitled`, is
 specified in core ([BEH-BR-089](../core/behaviors/10-runtime-failure-and-health.md#beh-br-089-pluginruntime-is-provided-to-every-build),
 CCR-BR-020; see BEH-EN-013 and
@@ -81,7 +87,7 @@ All signatures are illustrative until code exists.
 | `EntitlementGate.layer` | layer | Provides it as the host's `OperationGate` when it is the only gate |
 | `EntitlementView.layer` | layer | Provides the core port behind `Plugin.Runtime.entitled` |
 | `Entitlement.guard` | function | Fails an effect with `NotEntitled` unless the current mode allows it; skips essential operations |
-| `Entitlement.skipPolicy`, `Skip.first` | functions | A hook point's `skip` policy: a not-entitled contribution is skipped and recorded "skipped-policy"; policies combined in order |
+| `Entitlement.contributionPolicy`, `Policies.first` | functions | A hook point's `policy` (and `settle`): a not-entitled contribution is skipped ("skipped-policy") or, under `onNotEntitled: "deny"`, denies a veto phase ("denied-policy"); bundles combined in order, a reserving bundle last |
 
 ### Budgets — [behaviour 03](./behaviors/03-budgets.md)
 
@@ -92,7 +98,15 @@ All signatures are illustrative until code exists.
 | `Reservation` | type | `commit(actual)`, `release`; released on scope close if not committed |
 | `BudgetExhausted` | error | `{ key, requested, remaining, resetsAt? }` |
 | `BudgetLedger` | port | Optional shared or persisted ledger behind `Budget` |
-| `Budget.skipPolicy` | function | A hook point's `skip` policy charging a per-call quota per contributor |
+| `Budget.contributionPolicy` | function | A hook point's `policy` and `settle`: reserves a per-call quota per contributor at admission, commits or releases it after the call |
+| `Budget.usage`, `UsageExport` | function, type | Amounts and counts per limit and period, a process-local diagnostic report |
+
+### Grant narrowing and usage — [behaviour 04](./behaviors/04-grant-narrowing-and-usage.md)
+
+| Export | Kind | Purpose |
+| ------ | ---- | ------- |
+| `Entitlement.capabilityPolicy` | layer | Provides core's `CapabilityPolicy`: the application's `inner` policy narrowed by entitlement; emits `ResolveAgain` on a mode change |
+| `ReadOnlyClassifier`, `ReadOnly.fromContracts`, `ReadOnly.fromServices`, `ReadOnly.combine` | type, functions | The application's classification of read-only members; no default |
 
 ## Worked example
 
@@ -136,21 +150,26 @@ Effect.scoped(Effect.gen(function* () {
 
 The gate port, its fail-closed handling and its records (`rejected` on a
 refusal); `reconcile`'s per-entry gating; `Plugin.Runtime` and its scope;
-hook points, deadlines, breakers and the `skip` option that records
-"skipped-policy" ([core 31](../core/behaviors/31-hook-points.md), BEH-BR-297–308). Core learns only that an
+hook points, deadlines, breakers and the `policy` and `settle` options that
+record "skipped-policy" and "denied-policy" ([core 31](../core/behaviors/31-hook-points.md), BEH-BR-297–312);
+the `CapabilityPolicy` port, the narrowing layer per capture and the
+re-resolution of live captures ([core 29](../core/behaviors/29-capability-grants-and-call-log.md), BEH-BR-273–281). Core learns only that an
 optional port may supply an `entitled` stream.
 
 ## What stays in the application
 
 What a subject is entitled to and how that is proven (tokens, keys, servers,
 grace rules); which operations are essential and must never be refused;
-what read-only means for each plugin; prices, invoices and anything charged;
+what read-only means for each plugin and which members of each service are
+read-only; prices, invoices and anything charged;
 how budgets are sized and reset.
 
 ## Limits
 
 - Read-only is a mode the plugin honours, not an isolation property:
-  in-process plugin code can ignore it. Code that must be stopped from
+  in-process plugin code can ignore it. Grant narrowing takes write members
+  out of the services a lapsed plugin captured, but it is shallow and is not
+  isolation either (BEH-EN-029). Code that must be stopped from
   writing belongs out of process ([references/remote/](../remote/README.md)).
 - Entitlement answers are only as good as the adapter and its clock.
 - `Budget` without a ledger counts per process; two hosts each with their own

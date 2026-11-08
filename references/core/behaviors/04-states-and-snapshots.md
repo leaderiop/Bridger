@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-04                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-08): idle return edges and `StopReason` "idle" (27, BEH-BR-252) (CCR-BR-024); disabled reason "refused-digest" and start-refused edges (CCR-BR-026)<br>0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -45,7 +45,7 @@ type PluginState = "dormant" | "waiting" | "starting" | "active" | "stopping" | 
 | `active` | The build succeeded and every provided service is published. |
 | `stopping` | The plugin accepts no new dependents or leases; its dependents, leases and activation scope are being closed. |
 | `failed` | Activation, runtime or cleanup failed; the phase and a message are visible. It holds no live scope. |
-| `disabled` | Registered with definition and configuration retained, deliberately not activated. It provides nothing and reserves no provider slot. |
+| `disabled` | Registered with definition and configuration retained, deliberately not activated. It provides nothing and reserves no provider slot. With reason `refused-digest` the host, not an operator, disabled it, because a wired `RefusalList` refused a start (28 — Plugin Principal and Mandatory Policy, BEH-BR-267). |
 
 ```
 REQUIREMENT: Every registered plugin MUST be in exactly one of the seven
@@ -113,6 +113,11 @@ stateDiagram-v2
     waiting --> dormant: replace with a lazy definition (27)
     failed --> dormant: replace with a lazy definition (27)
     stopping --> dormant: replace with a lazy definition completes (27)
+    active --> stopping: idle return of a loaded lazy plugin, next dormant (27, BEH-BR-252)
+    stopping --> dormant: idle return completes (27, BEH-BR-252)
+    waiting --> disabled: start refused (28)
+    dormant --> disabled: start refused (28)
+    stopping --> disabled: start refused (28)
 ```
 
 ```
@@ -166,7 +171,7 @@ type PluginSnapshot = PluginCommon & (
   | { readonly state: "active";   readonly providerIds: readonly string[]; readonly health: "healthy" | "degraded" | "unknown" }
   | { readonly state: "stopping"; readonly reason: StopReason; readonly next: "waiting" | "starting" | "disabled" | "dormant" | "gone" | "failed"; readonly parked: boolean }
   | { readonly state: "failed";   readonly failure: { readonly phase: "load" | "build" | "activation" | "runtime" | "cleanup"; readonly message: string }; readonly missingServiceIds: readonly ServiceId[] }
-  | { readonly state: "disabled" }
+  | { readonly state: "disabled"; readonly reason?: "refused-digest" }   // absent: disabled by an operator (28, BEH-BR-267)
 )
 interface PluginCommon {
   readonly id: string
@@ -177,7 +182,7 @@ interface PluginCommon {
   readonly allowChildren: boolean                // effective value (28, BEH-BR-263)
   readonly mandatoryServiceIds: readonly ServiceId[]   // installation-mandatory interceptions, own and inherited (28, BEH-BR-265)
 }
-type StopReason = "dependency-loss" | "remove" | "replace" | "restart" | "reconfigure" | "disable" | "runtime-failure" | "shutdown"
+type StopReason = "dependency-loss" | "remove" | "replace" | "restart" | "reconfigure" | "disable" | "runtime-failure" | "shutdown" | "idle"   // idle: 27, BEH-BR-252
 ```
 
 ```

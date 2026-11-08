@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-05                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -39,23 +39,37 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 calls drain; no tool table outside the toolset.
              2. A session with no principal, or a refused or failing
                 resolver, lists and calls nothing; every call carries the
-                session actor and an MCP-session provenance entry.
+                session actor and an MCP-session provenance entry; a session
+                is tainted with "mcp-inbound:<server id>" unless the
+                resolver answered `trusted: true`, and no client field can
+                change that.
              3. `tools/list` order equals the toolset order for random
                 contribution and activation orders (property test); pages
                 never mix revisions; a stale cursor fails with -32602
-                "toolset-changed"; annotations absent without a mapping.
+                "toolset-changed"; annotations absent without a mapping,
+                except `readOnlyHint` from the descriptor; the listing
+                record keeps the latest digest per listed name.
              4. `tools/call` pins the current toolset for the call and
                 dispatches exactly once with it; a name outside the toolset
                 fails at dispatch step 1 and never reaches the gate; a
                 republication during the call does not change what runs;
                 client cancellation interrupts the handler and awaits its
-                finalizers.
+                finalizers; an unlisted name fails with "unlisted-tool"; a
+                definition changed since listing fails with `ToolChanged`
+                before the gate; `_meta["bridger/idempotency-key"]` reaches
+                dispatch; a long command is awaited with no await timeout
+                (cancelled with the request) or bridged as a task, and a
+                keyed repeat gets the same task.
              5. Every dispatch outcome maps as the table of BEH-MC-005,
                 including a deferral (an `isError` result with the draft id,
                 with and without the tasks extension, and no task created);
-                no cause or configuration value appears on the wire.
-             6. No resources or prompts capability; a listed tool refused by
-                the gate is refused.
+                the `content` text of a success and a resource read is the
+                envelope of the output, capped by `maxResultBytes`, while
+                `structuredContent` is the raw output, and an output over
+                `maxStructuredBytes` is the "too-large" result; no cause or
+                configuration value appears on the wire.
+             6. No prompts capability; no resources capability without the
+                option; a listed tool refused by the gate is refused.
              7. Notifications go only to subscribers, are derived from the
                 toolset view's `changes` feed, follow the publication
                 they announce, carry its revision, strictly increase,
@@ -75,7 +89,10 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  an uncompilable schema, another dialect or a non-object
                  root excludes the tool; the descriptor's schemas are the
                  external ones; output checked against `outputSchema`;
-                 every imported descriptor tagged "external"; annotations
+                 every imported descriptor tagged "external", with
+                 `untrustedOutput` the root and never `readOnly`; each
+                 external call offered as an outbound "crossing" entry;
+                 annotations
                  carried as `externalAnnotations` change no tag, flag or
                  gate input; title and descriptions bounded and digested;
                  identity not forwarded.
@@ -83,7 +100,8 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  configuration value (secret-canary test); `inspect` of an
                  unknown plugin is `UnknownPlugin` and without `id` iterates
                  one snapshot in realm-then-id order; `reconcile-plan`
-                 changes nothing and accepts no configuration value;
+                 changes nothing on the host, accepts no configuration
+                 value and is not declared `readOnly`;
                  `reconcile-apply` is absent without `apply: true` and
                  always regulated.
              12. `reconcile-apply` passes the command gate, fails with
@@ -91,8 +109,24 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  pre-restart `planId`, fails with
                  `PlanStale` after a host change that alters the plan's diff, and then
                  consults the `OperationGate` once per entry action; a
-                 refused entry appears in `rejected`; host tools write no
-                 `AuditSink` record of their own.
+                 refused entry appears in `rejected`; with `atomic`, a
+                 failed entry yields `ApplyRolledBack` or `PartialApply` and
+                 undo requests reach the gate; host calls carry the
+                 dispatch's correlation; host tools write no `AuditSink`
+                 record of their own.
+             13. Resources: templates only for read-only commands tagged
+                 "mcp-resource" of the session's toolset, in toolset order;
+                 a read is one dispatch with the listed digest and the
+                 session's context, refused by the gate like a call; an
+                 unknown URI fails with "unknown-resource"; no
+                 subscription.
+             14. A tainted session's call of a command not declared
+                 `readOnly` is deferred or refused by the command catalog's
+                 taint floor, never allowed on an automatic decision; its
+                 declared reads and resource reads succeed as the gate
+                 decides (and with no gate), and are deferred or refused
+                 under `taintFloor.readOnly: "floor"`; a trusted session's
+                 calls are judged by the gate alone.
 ```
 
 | REQ | Check | Behaviours | Status |
@@ -109,6 +143,8 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
 | REQ-MC-010 | 10. Import: schemas, taint, untrusted annotations, no identity | [BEH-MC-019](./03-client-import.md#beh-mc-019-input-is-checked-against-the-external-json-schema-before-it-leaves), [BEH-MC-020](./03-client-import.md#beh-mc-020-imported-commands-are-always-marked-external-and-consumers-taint-by-descriptor), [BEH-MC-021](./03-client-import.md#beh-mc-021-external-annotations-and-descriptions-are-data-never-policy), [BEH-MC-022](./03-client-import.md#beh-mc-022-the-proxy-never-forwards-the-hosts-identity-or-annotations) | Not run |
 | REQ-MC-011 | 11. Host reads and plan change nothing and expose no values | [BEH-MC-025](./04-host-tools.md#beh-mc-025-host-tools-are-commands-contributed-by-one-plugin), [BEH-MC-026](./04-host-tools.md#beh-mc-026-snapshot-returns-the-host-snapshot-which-carries-no-configuration-values), [BEH-MC-027](./04-host-tools.md#beh-mc-027-inspect-returns-names-and-counts-only), [BEH-MC-028](./04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing) | Not run |
 | REQ-MC-012 | 12. Apply through both gates; stale plans refused | [BEH-MC-029](./04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates), [BEH-MC-030](./04-host-tools.md#beh-mc-030-host-tools-write-nothing-core-does-not-already-write) | Not run |
+| REQ-MC-013 | 13. Resources as projections of read-only commands | [BEH-MC-007](./01-server.md#beh-mc-007-read-models-are-served-as-resources-each-read-a-dispatch) | Not run |
+| REQ-MC-014 | 14. Inbound taint reaches the taint floor | [BEH-MC-002](./01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application), [BEH-MC-004](./01-server.md#beh-mc-004-toolscall-is-a-command-dispatch) | Not run |
 
 Every `BEH-MC` identifier of this companion appears in at least one row;
 BEH-MC-033 is this list itself.

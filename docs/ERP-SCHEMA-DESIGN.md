@@ -2,6 +2,8 @@
 
 Status: proposed design refinement; no implementation or type-check. Read alongside [shared models](ERP-MODELS.md) and the [source review](knowledge/EFFECT-SCHEMA-MODEL.md).
 
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
+
 ## 1. Decision
 
 Use **Effect Schema for value contracts** and **Effect's Model/VariantSchema machinery for representation variants**. Bridger adds field ownership, SQL storage mapping, model composition, permissions, migration history and activation. We should not create a second validation language inside `Field`.
@@ -129,3 +131,5 @@ Checked against Effect v4 documentation (version-specific rc.112 pages and the c
 - Confirm conflicts fail before schema merging and old requests retain their generation's codecs.
 
 Examples remain design sketches until pinned Effect dependencies and implementation tests exist.
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

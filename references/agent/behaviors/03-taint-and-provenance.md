@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.5 (2026-11-08): BEH-AG-020 scoped to commands not declared `readOnly`, following the command catalog's read-only exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): Field-level untrusted output taints the session (label `untrusted-field:`); `TaintGuard.drafts` also drafts batches; provenance reaches core's call-log entries through the dispatch context; BEH-AG-023 tool results reach the model only as size-capped envelopes (CCR-AG-003, round 2: recheck items 5, 8; X8)<br>0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -27,7 +27,7 @@ memory (`Taint`, `Provenance`) in core's operation-context annotation bag
 rule that taint only rises, where it comes from, and how a tainted request
 meets the command catalog's taint floor (command BEH-CM-016), for which
 `TaintGuard` supplies the drafts. This file owns
-BEH-AG-017–024 and uses BEH-AG-017–022; 023 and 024 are reserved.
+BEH-AG-017–024 and uses BEH-AG-017–023; 024 is reserved.
 
 > **What this does not do.** Taint is a label, propagated by the rules below.
 > It does not detect injected instructions, does not clean text, and is only as
@@ -50,7 +50,9 @@ Planned source: `packages/agent/src/Taint.ts`, `packages/agent/src/TaintGuard.ts
 //                                                       combine: append, first occurrence kept, at most 32; monotonic
 type TaintLabel =
   | `tool-output:${string}`      // command id of an output tagged "untrusted-output"
+  | `untrusted-field:${string}`  // command id whose output held a value at an untrusted path (command BEH-CM-030)
   | `imported-tool:${string}`    // MCP import prefix (@bridger/mcp)
+  | `mcp-inbound:${string}`      // set by @bridger/mcp on an untrusted inbound session (BEH-MC-002); carried here
   | `memory:${string}`           // memory entry id
   | `subagent:${string}`         // task id of a tainted subagent
   | `policy:${string}`           // a TaintPolicy rule name, or "policy:failed"
@@ -147,7 +149,10 @@ type TaintInput =
 ```
 REQUIREMENT: Whatever the policy says, a tool result MUST be tainted when
              its command was imported through `@bridger/mcp`'s client or is
-             tagged "external" or "untrusted-output"; a memory entry MUST be
+             tagged "external" or "untrusted-output", and when its envelope
+             (BEH-AG-023) lists at least one untrusted value — a value at
+             one of the descriptor's `untrustedOutput` paths (command
+             BEH-CM-030), labelled `untrusted-field:<command id>`; a memory entry MUST be
              tainted when it was stored with a non-empty taint set; a subagent's
              result MUST be tainted when the subagent's session is tainted
              (04 — Subagents). These defaults MUST NOT be overridable by
@@ -173,9 +178,9 @@ can add but not remove.
 **Settled here.** Policy failure taints (fail closed), as a gate failure
 refuses in core ([ADR-BR-032](../../core/decisions/032-operation-gate.md)).
 
-## BEH-AG-020: A tainted session is never auto-allowed
+## BEH-AG-020: A tainted session is never auto-allowed a change
 
-> **Invariant:** [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed)
+> **Invariant:** [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed-a-change)
 > **See:** [ADR-AG-003](../decisions/003-taint-is-monotone-and-forbids-auto-allow.md), [ADR-CM-005](../../command/decisions/005-taint-floor-in-dispatch.md)
 > **Core seam:** [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md), [30 — Operation context annotations](../../core/behaviors/30-operation-context-annotations.md), [command — Dispatch](../../command/behaviors/02-dispatch.md)
 
@@ -184,7 +189,7 @@ refuses in core ([ADR-BR-032](../../core/decisions/032-operation-gate.md)).
 // The application's approval store, as TaintGuard needs it.
 interface TaintDraftStore {
   // records a draft awaiting approval and returns the id it is stored under
-  readonly create: (request: CommandRequest, reason: "tainted-session") =>
+  readonly create: (requests: readonly [CommandRequest, ...CommandRequest[]], reason: "tainted-session" | "batch-deferred") =>
     Effect.Effect<{ readonly draftId: string }, TaintDraftStoreError>
 }
 class TaintDraftStoreError extends Schema.TaggedError<TaintDraftStoreError>()("TaintDraftStoreError", {
@@ -192,7 +197,8 @@ class TaintDraftStoreError extends Schema.TaggedError<TaintDraftStoreError>()("T
 }) {}
 
 declare const TaintGuard: {
-  // a CommandDraftSource (command BEH-CM-016) for CommandCatalog.layer({ drafts })
+  // a CommandDraftSource (command BEH-CM-016, BEH-CM-051) for CommandCatalog.layer({ drafts }),
+  // with both draftFor and draftForBatch
   readonly drafts: (store: TaintDraftStore) => CommandDraftSource
 }
 
@@ -203,7 +209,9 @@ declare const TaintGuard: {
 ```
 REQUIREMENT: The package MUST rely on the taint floor of the command
              catalog (command BEH-CM-016) for the rule that a tainted
-             request is never allowed on an automatic decision. It MUST
+             request of a command not declared `readOnly` is never allowed
+             on an automatic decision; a declared read keeps the gate's
+             decision and the session keeps its taint. It MUST
              NOT install a plugin, interception or gate of its own for
              that rule, and every agent tool call MUST reach a handler only
              through `Commands.dispatch` (BEH-AG-005), so that the floor
@@ -212,11 +220,18 @@ REQUIREMENT: The package MUST rely on the taint floor of the command
 
 ```
 REQUIREMENT: `TaintGuard.drafts(store)` MUST return a `CommandDraftSource`
-             whose `draftFor(r, reason)` calls `store.create(r, reason)`
+             whose `draftFor(r, reason)` calls `store.create([r], reason)`
              once and returns the well-formed draft of core BEH-BR-316:
              `draftId` the id the store returned (non-empty), `requests`
              exactly `[r]` without its `approval`, and `expected` exactly
-             `[{ key: "bridger-command:" + r.command, version: r.digest }]`.
+             `[{ key: "bridger-command:" + r.command, version: r.digest }]`;
+             and whose `draftForBatch(rs, parts, reason)` calls
+             `store.create(rs, reason)` once and returns a draft whose
+             `requests` are exactly `rs` in order (without `approval`) and
+             whose `expected` holds one such entry per distinct command of
+             `rs` together with every expectation of `parts`, without
+             duplicate keys (a key whose versions disagree MUST fail the
+             call).
              When the store fails or returns an empty id, `draftFor` MUST
              fail; it MUST NOT invent a draft id. (The floor then refuses
              with "gate-defect".)
@@ -279,8 +294,10 @@ REQUIREMENT: Every tool result returned to the loop MUST carry a
 
 ```
 REQUIREMENT: When core's `CallLog` port is wired, the annotations of every
-             agent dispatch MUST reach it through dispatch unchanged; the
-             package MUST NOT write a separate call log.
+             agent dispatch MUST reach it through the dispatch's context
+             unchanged — on the refusal entries the command catalog offers
+             and on core's entries for the calls a handler makes (command
+             BEH-CM-015); the package MUST NOT write a separate call log.
 ```
 
 ```
@@ -330,6 +347,57 @@ generation.
 **Settled here.** The switch happens at a turn boundary, because a turn sees
 one toolset (BEH-AG-003); a session tainted in the middle of a turn keeps its
 pin until the turn ends, and the floor still governs every call it makes.
+
+## BEH-AG-023: Tool results reach the model only as size-capped envelopes
+
+> **Invariant:** [INV-AG-007](../invariants.md#inv-ag-007-untrusted-tool-output-reaches-the-model-only-inside-an-envelope)
+> **See:** [ADR-AG-003](../decisions/003-taint-is-monotone-and-forbids-auto-allow.md)
+> **Core seam:** [command — JSON Schema projection](../../command/behaviors/04-json-schema-projection.md)
+
+```ts
+// illustrative — not type-checked
+AgentLoop.plugin({ maxToolResultBytes: 32768 })   // passed to Command.envelope as maxBytes; integer ≥ 1024
+// A tool message as stored and as shown to the model:
+//   { role: "tool", content: ModelEnvelope, provenance: { source: "tool", ref: "<command id>" } }
+```
+
+```
+REQUIREMENT: The reference loop MUST turn every `Ok` tool result into a
+             message whose content is `Command.envelope(descriptor,
+             encodedOutput, { maxBytes: maxToolResultBytes })` (command
+             BEH-CM-030), with the descriptor of the turn's pinned toolset,
+             and MUST store and replay that envelope, never the raw output,
+             as the tool message (BEH-AG-004, BEH-AG-034).
+```
+
+```
+REQUIREMENT: For an imported command (whole output untrusted) the envelope
+             holds the output as one untrusted value; for a command without
+             untrusted paths it holds the output as data, still bounded by
+             `maxBytes`. A `ModelAdapter` MUST present the envelope's
+             `untrusted` entries to the model as quoted data separate from
+             `data` and MUST NOT merge them back into it.
+```
+
+```
+REQUIREMENT: The package MUST NOT describe the envelope as removing or
+             neutralising instructions (BEH-AG-022). Its effects are that
+             untrusted text is marked and bounded in what the model reads,
+             and that the session is tainted when such text is present
+             (BEH-AG-019).
+```
+
+A model reads tool results as part of its context. Before this revision an
+imported tool's answer, or a supplier's product description inside an
+otherwise trusted output, reached the model as plain structure, unbounded.
+The envelope gives every consumer the same rendering — a size cap, numbered
+untrusted values, a deterministic shape a transcript can replay — and the
+taint keeps the gate's rule in force whatever the model does with it.
+
+**Settled here.** (1) The cap applies to every tool result, untrusted or not:
+a large trusted result can crowd out the prompt as well. (2) The envelope is
+computed by the loop, not by the runner, so a replacement `ToolRunner` cannot
+skip it.
 
 ---
 

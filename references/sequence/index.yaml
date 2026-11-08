@@ -1,0 +1,20 @@
+kind: root
+package: bridger-sequence
+infix: SQ
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-SQ-00"
+    title: "Bridger Sequence — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-SQ-OVW"
+    title: "Overview"
+  - file: "invariants.md"
+    id: "BRIDGER-SQ-INV"
+    title: "Runtime Invariants"
+  - file: "risks.md"
+    id: "BRIDGER-SQ-RISK"
+    title: "Risk Assessment — Sequence Companion"
+  - file: "traceability.md"
+    id: "BRIDGER-SQ-TRACE"
+    title: "Traceability"

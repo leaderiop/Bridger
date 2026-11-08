@@ -1,6 +1,8 @@
 # Bridger ERP: data and storage (dialect-neutral, adapter-based)
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Package names, interfaces, table names and SQL below are proposed. Effect APIs (`effect/sql` `SqlClient`, `SqlSchema`, `Migrator`, `effect/persistence` `PersistedQueue`) are cited from the [knowledge catalog](knowledge/README.md) entries E29–E32; qadi facts (`toPredicate`, `Predicate`, `@qadi/predicate-sql` supporting PostgreSQL, MySQL and SQLite) from reading `@qadi/core@0.8.0`; none were executed. Per-dialect behavior in §3.5 was checked against vendor documentation on 2026-10-02 (the page lists what is confirmed and what is not); the type mappings in §5 and any per-version minimums remain to be verified at certification. Policy: all packages target the latest stable Effect 4.x (4.0.0 at the time of writing). This document refines [ERP-SPEC.md](ERP-SPEC.md) §4 and §7 and [ERP-MODELS.md](ERP-MODELS.md) §5.
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Package names, interfaces, table names and SQL below are proposed. Effect APIs (`effect/sql` `SqlClient`, `SqlSchema`, `Migrator`, `effect/persistence` `PersistedQueue`) are cited from the [knowledge catalog](knowledge/README.md) entries E29–E32; qadi facts (`toPredicate`, `Predicate`, `@qadi/predicate-sql` supporting PostgreSQL, MySQL and SQLite) from reading `@qadi/core@0.8.0`; none were executed. Per-dialect behavior in §3.5 was checked against vendor documentation on 2026-10-02 (the page lists what is confirmed and what is not); the type mappings in §5 and any per-version minimums remain to be verified at certification. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). This document refines [ERP-SPEC.md](ERP-SPEC.md) §4 and §7 and [ERP-MODELS.md](ERP-MODELS.md) §5.
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 ## 1. Decision
 
@@ -15,6 +17,7 @@ The ERP core is **dialect-neutral**. It never emits dialect SQL directly. Every 
 | Isolation | One physical database per deployment, tenant column on every business table (shared schema). Database-per-tenant is a later adapter mode with its own migration ledger. |
 | Tenant identity | The tenant ID is the awthaq organization ID ([ERP-IDENTITY.md](ERP-IDENTITY.md)). |
 | One commit point | Business rows, audit, outbox and command receipt commit in one transaction (§9). |
+| Source of truth | **Row-as-truth CRUD.** The current business row is the source of truth; `create`, `update` and `delete` change it in place on the server, and audit and outbox entries are side records of that change (§9, §11, §12). **This conflicts with event-sourced, offline-first write paths**, where an append-only log of facts written locally (often offline) is the truth, rows are derived projections, and an authority orders and re-checks facts later. Such systems should not adopt this write path; they belong on [`@bridger/durable-bus`](../references/durable-bus/README.md) and the planned `@bridger/event-store` companion (planned, not yet drafted). |
 | Moving dialects | Not an adapter feature. Changing a deployment's dialect is an export/import project; the catalog, journals and receipts are per-database state. |
 | Authentication storage | awthaq's SQL layer currently supports PostgreSQL and SQLite only. A deployment on another ERP dialect runs awthaq on a separate PostgreSQL or SQLite database, without a shared transaction ([ERP-IDENTITY.md](ERP-IDENTITY.md) §2). |
 
@@ -59,7 +62,7 @@ flowchart TB
 | Write path | `insert`, `patch`, `remove` | Portable scoped statements with revision compare. |
 | Read path | `list`, `get` | Explicit column lists, cursors, predicate composition. |
 | Receipts | `reserve`, `complete` | Idempotency and retained results. |
-| Outbox | `append`, `lease`, `settle` | Durable event handoff after commit. |
+| Outbox | Adapter implementation of the durable-bus `OutboxStore` and `InboxStore` ports | Event handoff after commit; the contract is [`@bridger/durable-bus`](../references/durable-bus/README.md) (§12). The earlier `append`, `lease`, `settle` interface is superseded. |
 
 ## 3. The storage adapter contract
 
@@ -142,8 +145,8 @@ Because some dialects treat the empty string as null, the platform uses the sent
 | | Tier 1 (production) | Tier 2 (development/test) |
 | --- | --- | --- |
 | Functional suite (CRUD, scope, policy, receipts, outbox, audit, catalog) | Required | Required |
-| Concurrency suite (revision races, idempotency races, lease races, named lock) | Required | Skipped where the engine is single-writer; skip list published |
-| Crash suite (planner steps, install journal, outbox redelivery) | Required | Required where feasible |
+| Concurrency suite (revision races, idempotency races, lease races of the table-based named lock; outbox delivery races are durable-bus checks) | Required | Skipped where the engine is single-writer; skip list published |
+| Crash suite (planner steps, install journal, outbox port obligations under durable-bus redelivery) | Required | Required where feasible |
 | Differential suite (memory interpreter vs rendered SQL) | Required | Required |
 | Capabilities | Must include all required ones and `namedLock` (native or fallback certified) | May lack `exactDecimal`, `serializable` |
 
@@ -272,7 +275,7 @@ The catalog is durable metadata about physical storage. It is written by the DDL
 | `bridger_field_catalog` | `field_id` (qualified, e.g. `planning.task.priority`) | model ID, contributor, SQL column name, abstract type, nullability, `status` (`active`, `dormant`, `retired`), created-by migration ID. |
 | `bridger_migration_journal` | `(module_id, migration_id)` | checksum, state, current step, last error, applied-at. One row set per physical database. |
 | `bridger_tenant_activation` | `(tenant_id, extension_id)` | extension version, phase (`pending`, `backfilling`, `fenced`, `ready`, `disabled`), progress cursor, ready-at. |
-| Other platform tables | — | Defined with their features: `bridger_external_ids`, `bridger_data_migrations`, `bridger_event_handled`, `bridger_sequences`, `bridger_settings`, `bridger_translations` ([ERP-RECORDS.md](ERP-RECORDS.md) §12); `bridger_companies`, `bridger_grants`, `bridger_session_context` ([ERP-IDENTITY.md](ERP-IDENTITY.md)); module, artifact and journal tables ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md)). |
+| Other platform tables | — | Defined with their features: `bridger_external_ids`, `bridger_data_migrations`, `bridger_sequences`, `bridger_settings`, `bridger_translations` ([ERP-RECORDS.md](ERP-RECORDS.md) §12); `bridger_companies`, `bridger_grants`, `bridger_session_context` ([ERP-IDENTITY.md](ERP-IDENTITY.md)); module, artifact and journal tables ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md)). |
 | `bridger_dialect_info` | single row | dialect name, adapter version, capabilities seen at creation, catalog schema version. A mismatch with the running adapter stops startup (`DialectMismatch`). |
 
 ### Name allocation
@@ -423,6 +426,8 @@ Retention: `expires_at` defaults to 24 hours after creation, configurable. A cle
 
 ## 11. Audit
 
+> **Superseded in part (2026-11-08).** Attribution, the audit record and sequence are governed by core [22](../references/core/behaviors/22-attributable-operations.md), [23](../references/core/behaviors/23-audit-sink-and-record.md) and [24](../references/core/behaviors/24-time-ids-and-sequence.md) (BEH-BR-185–216); hash chaining and anchoring by [`@bridger/audit-chain`](../references/audit-chain/README.md). The table below is the ERP's own business audit, a consumer-owned store; it makes no tamper-evidence or ledger claim.
+
 `bridger_audit` is append-only and written in the command transaction.
 
 ```text
@@ -454,53 +459,26 @@ bridger_audit
 
 Application predicates are the primary control. Where the adapter provides `rowLevelSecurity` (PostgreSQL, SQL Server), deployments may enable a database-enforced tenant policy as a second layer; the transaction service sets the tenant session setting at transaction start (mirroring awthaq's `TenantScope.enableRls()` for its own tables). RLS guards against a missing predicate, not against a missing policy; it does not replace the qadi row rules. On PostgreSQL the request role must not be a superuser, hold the bypass attribute or own the tables (unless the policy is forced for owners); on SQL Server `db_owner` is subject to the policy. Without the capability, only application predicates apply, and this is stated in the adapter's capability notes. Platform tables that are cross-tenant (`bridger_model_catalog`, journals) are not under tenant policies.
 
-### Outbox
+### Outbox (superseded by `@bridger/durable-bus`)
 
-```text
-bridger_outbox
-  id             identity    primary key
-  tenant_id      id          not null
-  company_id     id          null
-  event_type     text        not null    -- e.g. todo.task.created
-  event_version  integer     not null
-  payload        json        not null    -- stable versioned contract
-  dedupe_key     text        not null    -- stable per business fact
-  ordering_key   text        null
-  correlation    text        not null
-  available_at   instant     not null
-  attempts       integer     not null default 0
-  leased_until   instant     null
-  leased_by      text        null
-  state          text        not null default 'pending'   -- pending | delivered | dead
-  last_error     text        null
-  created_at     instant     not null
-  UNIQUE (tenant_id, dedupe_key)
-  INDEX  (state, available_at)            -- plain index; a partial index is used when the capability exists
-```
+> **Superseded (2026-11-08).** The outbox contract is governed by [`@bridger/durable-bus`](../references/durable-bus/README.md), not by this document: the envelope ([01](../references/durable-bus/behaviors/01-events-and-envelope.md), BEH-DB-001–007), publishing inside the caller's transaction and the `OutboxStore` port ([02](../references/durable-bus/behaviors/02-transactional-outbox.md), BEH-DB-009–015), delivery, acknowledgement, inbox deduplication, retry and parking of failed envelopes ([03](../references/durable-bus/behaviors/03-delivery-and-inbox.md), BEH-DB-017–024), order ([05](../references/durable-bus/behaviors/05-order-and-clocks.md), BEH-DB-033) and replay ([06](../references/durable-bus/behaviors/06-replay-and-snapshots.md)). This application no longer defines its own leases, retry states or dead letters. The earlier text of this section is withdrawn: the `bridger_outbox` table with `leased_until`, `leased_by`, `attempts` and the `pending | delivered | dead` states; the `OutboxStore { append, lease, settle }` interface; the `skipLocked` and optimistic-claim leasing rules; the exhausted-to-`dead` retry rule; and the `bridger_event_handled` table. Durable-bus is itself a Draft specification with nothing implemented.
 
-```ts
-interface OutboxStore {
-  readonly append: (event: NewEvent) => Effect.Effect<void, StorageError, Tx>
-  readonly lease: (options: { batch: number; leaseFor: Duration }) => Effect.Effect<readonly LeasedEvent[], StorageError>
-  readonly settle: (id: number, result: "delivered" | { retryAfter: Duration } | "dead") => Effect.Effect<void, StorageError>
-}
-```
+What the ERP application still layers on top (proposed, not implemented):
 
-- `append` runs in the command's transaction, so an event exists if and only if the business change committed.
-- **Leasing.** With `skipLocked`, `lease` claims ready rows without blocking other workers. Without it, the adapter uses the optimistic claim: one conditional update per candidate (`WHERE id = ? AND state = 'pending' AND (leased_until IS NULL OR leased_until < now)`) and keeps the rows it actually updated. Both set `leased_until` and `leased_by`; a crashed worker's lease expires and the event is re-leased.
-- Delivery is **at least once**. Subscribers deduplicate on `(tenant_id, dedupe_key)`; framework subscribers record handled keys in `bridger_event_handled (tenant_id, subscriber_id, dedupe_key, handled_at; primary key on the first three)` inside their own transaction, so two subscribers handling one event do not skip each other.
-- Retries use exponential backoff with jitter and a maximum attempt count; exhausted events become `dead`, visible and replayable in the admin surface. Replay never changes the payload or the dedupe key.
-- Ordering is guaranteed only per `(tenant_id, ordering_key)` when the event declares one; the worker leases at most one event per key at a time. Without a key there is no ordering guarantee.
-- The worker is a scoped Effect fiber per process. It stops leasing on shutdown and waits for in-flight deliveries before the pool is released ([ERP-OPERATIONS.md](ERP-OPERATIONS.md)).
-- `effect/persistence` `PersistedQueue` is not the primary mechanism: it is not exactly-once and the outbox needs the business transaction.
-- Payment, mail and other external effects do not run in the command transaction. A command records an *intent* event; an integration subscriber performs the call and records the outcome, with its own reconciliation ([ERP-BUSINESS.md](ERP-BUSINESS.md)).
+- **The storage adapter implements the ports.** Each ERP storage adapter implements durable-bus's `OutboxStore` and `InboxStore` ports over its own tables; durable-bus embeds no SQL (BEH-DB-012). The table layout is the adapter's, as long as it meets the port obligations, and it is checked by the adapter conformance suite (§3.4).
+- **One commit point.** A command publishes through `DurableBus.publish` inside the command's transaction (BEH-DB-009, BEH-DB-010), so an event exists if and only if the business change committed, together with the audit row and the receipt (§9).
+- **Tenant and ordering key map to the stream.** The ERP chooses the durable-bus stream from the tenant and, when an event declares one, its ordering key, so the only guaranteed order — per origin and stream (BEH-DB-033) — gives per-tenant, per-key order. The exact stream naming is open.
+- **Business identity.** The stable per-business-fact key the ERP used as `dedupe_key` becomes part of the event payload; durable-bus deduplicates by envelope position, and a subscriber that must not repeat a business effect still checks that key itself (BEH-DB-024).
+- **External effects.** Payment, mail and other external effects do not run in the command transaction. A command records an *intent* event; an integration subscriber performs the call and records the outcome, with its own reconciliation ([ERP-BUSINESS.md](ERP-BUSINESS.md)).
+- **Administration.** Parked envelopes and stopped streams (BEH-DB-022) are shown in the ERP admin surface; releasing one is an administrative command with an audit record.
+- **Retention.** No envelope is removed before it is acknowledged (BEH-DB-014); how long an acknowledged envelope is retained is an ERP setting (§13).
 
 ## 13. Retention and purge
 
 | Data | Default retention | Mechanism |
 | --- | --- | --- |
 | Command receipts | `expires_at` (24 h) | Batched delete by a scheduled job. |
-| Outbox, delivered | 7 days | Batched delete; dead rows kept until resolved. |
+| Outbox, acknowledged | 7 days (ERP setting) | Batched delete of acknowledged envelopes only (BEH-DB-014); parked envelopes are kept until released ([durable-bus 03](../references/durable-bus/behaviors/03-delivery-and-inbox.md)). |
 | Audit | Deployment-configured (no default purge) | Purge under a separate maintenance role with its own audit record. |
 | Sessions, auth audit | awthaq `Retention` | Owned by awthaq. |
 | Business rows | Never purged automatically | Disable retains data; purge is a separate reviewed workflow ([ERP-SPEC.md](ERP-SPEC.md) §6). |
@@ -534,11 +512,11 @@ These are the checks every adapter must pass (the **conformance suite**), run ag
 - Kill the process after a DDL step commits but before the journal write: `resume` adopts the object once; no duplicate column or lost value (with and without `transactionalDdl`).
 - Two plugins adding columns to one table concurrently: the planner serializes; both columns exist; catalog names are unique and within `maxIdentifierBytes`.
 - Name allocation: two fields whose truncated names collide get distinct stable names; restart preserves them; a changed identifier limit renames nothing.
-- Outbox: crash after commit before delivery: event delivered after lease expiry; duplicate delivery is deduplicated by the subscriber; rollback leaves no event; two workers never process one event concurrently (with and without `skipLocked`).
+- Outbox: rollback leaves no event; a committed event is published exactly when the business change commits. Delivery, redelivery after a crash and deduplication are checked by the durable-bus acceptance checks ([durable-bus 08](../references/durable-bus/behaviors/08-testing-and-acceptance.md)) against this adapter's port implementation; the earlier lease-race check is superseded.
 - Disable then re-enable a module: catalog, columns, values and tenant activation state are preserved.
 - The rendered predicate agrees with qadi's reference interpreter on generated policies and rows (differential).
 - Capability negotiation: a module requiring `exactDecimal` refuses to install on an adapter without it; a Tier 2 adapter refuses production mode by default.
-- Receipts and delivered outbox rows are removed by retention jobs without touching business rows.
+- Receipts and acknowledged outbox envelopes are removed by retention jobs without touching business rows.
 - The empty-string sentinel rule holds: no platform key depends on distinguishing `''` from null.
 
 These are design acceptance scenarios, not tests already executed.
@@ -548,11 +526,13 @@ These are design acceptance scenarios, not tests already executed.
 | # | Item | Decision |
 | --- | --- | --- |
 | 1 | Dialect support | **Adapter-based, dialect-neutral core** (§1). PostgreSQL is the reference adapter; others certify through the conformance suite. |
-| 2 | Event ordering keys | **Optional in the first release** (§12). |
+| 2 | Event ordering keys | **Optional in the first release** (§12); an ordering key selects the durable-bus stream, so order follows BEH-DB-033. |
 | 3 | Destructive migrations | **Specified in §7a** as a reviewed contract plan with soft retire before drop. |
-| 4 | Partitioning of `bridger_audit` and `bridger_outbox` | **Deferred, adapter-specific.** Tables carry `occurred_at`/`created_at` and tenant-prefixed indexes so partitioning can be added by an adapter that supports it. Trigger: a table exceeds 100 million rows or retention purges exceed their maintenance window. |
+| 4 | Partitioning of `bridger_audit` and the adapter's outbox tables (durable-bus port implementation, §12) | **Deferred, adapter-specific.** Tables carry `occurred_at`/`created_at` and tenant-prefixed indexes so partitioning can be added by an adapter that supports it. Trigger: a table exceeds 100 million rows or retention purges exceed their maintenance window. |
 | 5 | Storage types in `Field.make` | **The closed abstract set in §5** (`text`, `boolean`, `integer`, `bigint`, `decimal(p,s)`, `date`, `instant`); no dialect-specific types. |
-| 6 | CDC / logical replication | **Not supported for external consumers in the first release.** The outbox is the integration contract. |
+| 6 | CDC / logical replication | **Not supported for external consumers in the first release.** The durable-bus outbox (§12) is the integration contract. |
 | 7 | Adapters after PostgreSQL | **SQLite, then MySQL/MariaDB, then SQL Server** (§3.5). Oracle and others can be added later by anyone who passes the conformance suite. |
 | 8 | Authentication storage on other dialects | **Separate PostgreSQL or SQLite database for awthaq** until awthaq supports the dialect ([ERP-IDENTITY.md](ERP-IDENTITY.md) §2). Extending awthaq's SQL layer is a possible follow-up. |
-| 9 | Driver availability per dialect | **Packages exist.** Effect publishes `@effect/sql-pg`, `@effect/sql-mysql2`, `@effect/sql-mssql`, `@effect/sql-sqlite-node` and `@effect/sql-libsql` (all at 4.0.0 on npm on 2026-10-02). Behavioral readiness of each (pooling, transactions, error codes) is still verified at certification. |
+| 9 | Driver availability per dialect | **Packages exist.** Effect publishes `@effect/sql-pg`, `@effect/sql-mysql2`, `@effect/sql-mssql`, `@effect/sql-sqlite-node` and `@effect/sql-libsql` (all at 4.0.0 on npm on 2026-10-02; to be re-checked against the Effect 4.1 target of the 2026-11-08 revision). Behavioral readiness of each (pooling, transactions, error codes) is still verified at certification. |
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions; `bridger_event_handled` removed from the platform-table list, as §12 withdraws it (R5-20, R5-22).

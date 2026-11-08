@@ -34,3 +34,7 @@ entries:
     file: "008-actor-and-annotations-are-claims.md"
     title: "Actor and annotations travel as claims"
     status: "Proposed"
+  - id: "ADR-DB-009"
+    file: "009-writers-last-for-offline-readers.md"
+    title: "Writers last for readers that cannot be upgraded first"
+    status: "Proposed"

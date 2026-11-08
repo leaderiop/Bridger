@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-05                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F20) — a duplicate of a running call is answered `InProgress` instead of dropped; a `DedupeStore` claim runs after the epoch, duplicate, in-flight and deadline checks (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 20 and 23, CORE-DECISIONS-2 — per-call duplicate check across invocations through a `DedupeStore`; served calls set `CurrentCorrelation` and `HostLink.reference`; residency refusal before any lease (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -117,9 +117,12 @@ REQUIREMENT: On a transport with `liveness: "per-call"` the guest runtime
              invocation's `call` on its own, using the frame's `epoch` and
              `version`, and refuses it with "incompatible-contract" when it
              does not serve that version. On such a transport the duplicate
-             check of BEH-RM-035 covers one invocation only, and
-             documentation MUST state that a handler reached through it MUST
-             be idempotent or tolerate a repeated call
+             check of BEH-RM-035 covers one invocation only unless a
+             `DedupeStore` is wired (09 — Placement, Budgets and Adapters,
+             BEH-RM-067), which carries the seen `callId`s and stored
+             results across invocations outside the guest. Without one,
+             documentation MUST state that a handler reached through it
+             MUST be idempotent or tolerate a repeated call
              ([RSK-RM-001](../risks.md#rsk-rm-001)).
 ```
 
@@ -140,9 +143,11 @@ REQUIREMENT: Before decoding a call's payload the guest MUST check, in this
              order: the frame's epoch equals the session's (else a `Refused`
              exit, reason "stale-epoch"); the `callId` has not been seen in
              this session (else answer with the stored result if it has one,
-             or drop the frame); the in-flight limit (else `Refused`,
-             "busy"); `remaining` is positive (else `Refused`,
-             "deadline-passed").
+             or answer `InProgress` while it is still running); the
+             in-flight limit (else `Refused`, "busy"); `remaining` is
+             positive (else `Refused`, "deadline-passed"). With a
+             `DedupeStore` (09, BEH-RM-067), its `claim` runs after these
+             four checks, so a refused copy never holds a claim.
 ```
 
 ```
@@ -316,6 +321,19 @@ REQUIREMENT: A `ResolutionRefused` from the capture (the core
              them (BEH-RM-033, BEH-RM-037). When the core `CallLog` port is
              wired, each served call MUST be offered to it as BEH-RM-046
              states, with direction "served".
+```
+
+```
+REQUIREMENT: Each served call MUST run with `CurrentCorrelation` set to the
+             `correlationId` carried in `claims`, when present, through the
+             `correlationId` of the `CallerContext` (core BEH-BR-292,
+             BEH-BR-187), and with `HostLink.reference` set to the serving
+             host's `host.link` (core BEH-BR-250), so that a provider that
+             dispatches a hook point with codes from the served fiber can
+             wake dormant contributors instead of being denied
+             "no-host-link". A served call whose `claims` carry a
+             residency annotation that this end's transport does not offer
+             MUST be refused as BEH-RM-069 states, before any lease.
 ```
 
 **Settled here.** (1) `Remote.serve` is the serving end a host needs when the

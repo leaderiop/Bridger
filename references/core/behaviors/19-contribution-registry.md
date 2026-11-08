@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-19                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -66,8 +66,9 @@ keyed, independent additions — and the rest of this file specifies it.
 // illustrative — not type-checked
 namespace ContributionRegistry {
   interface Registry<A> {
-    readonly add: (id: string, value: A, options?: { readonly priority?: number }) =>
-      Effect.Effect<void, DuplicateContribution, Scope.Scope>
+    readonly add: (id: string, value: A, options?: AddOptions) =>
+      Effect.Effect<void, DuplicateContribution | IncompatibleContract, Scope.Scope>
+                                                                  // IncompatibleContract: contract registries only
     readonly get: (id: string) => Effect.Effect<Option.Option<A>>
     readonly view: Effect.Effect<RegistryView<A>>                 // not protected by a lease
     readonly changes: Stream.Stream<RegistryView<A>>
@@ -77,16 +78,41 @@ namespace ContributionRegistry {
     readonly useAll: <B, E, R>(run: (view: RegistryView<A>) => Effect.Effect<B, E, R>,
       options?: { readonly timeout?: Duration.Input }) =>
       Effect.Effect<B, E | LeaseRevoked | LeaseTimeout, R>
+    readonly within: (range: ContractRange) => RegistryReader<A>  // contract registries only (26, BEH-BR-233)
+    readonly revocations: Stream.Stream<HoldRevoked>              // BEH-BR-167; a notification feed, not a log
   }
+  interface HoldRevoked {
+    readonly registry: string                       // Options.name
+    readonly id: string                             // the contribution whose removal revoked its holders
+    readonly owner?: EntryOwner                     // as on the view entry
+    readonly holders: number                        // use / useAll callbacks interrupted with LeaseRevoked
+    readonly at: string                             // Clock, ISO-8601 UTC with ms
+  }
+  interface EntryOwner { readonly pluginId: string; readonly realm: string }   // from ActivePlugin at add (13, BEH-BR-119)
+  type RegistryReader<A> = Pick<Registry<A>, "get" | "view" | "changes" | "use" | "useAll">
   interface RegistryView<A> {
     readonly revision: number
-    readonly entries: readonly { readonly id: string; readonly priority: number; readonly value: A }[]
+    readonly entries: readonly {
+      readonly id: string; readonly priority: number; readonly value: A
+      readonly version?: ContractVersion            // contract registries only (26, BEH-BR-233)
+      readonly methods?: readonly string[]          // contract registries only
+      readonly owner?: EntryOwner                   // the contributing plugin, when add ran in its activation
+    }[]
+  }
+  interface AddOptions {
+    readonly priority?: number
+    readonly implements?: ContractVersion | { readonly version: ContractVersion; readonly methods: readonly string[] }
+                                                    // required on, and only on, a contract registry
   }
   interface Options {
     readonly drainTimeout?: Duration.Input | "forever"   // default 30 seconds
     readonly name?: string                               // shown by inspect; default "registry"
   }
   function make<A>(options?: Options): Effect.Effect<Registry<A>, never, Scope.Scope>
+  function make<Self, Shape, M extends Record<string, MethodSpec>>(options: Options & {
+    readonly contract: Contract<Self, Shape, M>          // 26, BEH-BR-225
+    readonly range?: ContractRange                       // default "^" + contract.version
+  }): Effect.Effect<Registry<Shape>, never, Scope.Scope>
 }
 
 // Application setup: one registry, provided as a stable base service.
@@ -115,7 +141,11 @@ every contributor.
 to set a timeout, which would leave the error unreachable; the option mirrors
 `Host.use`. (2) `Options.name` is added so that `PluginInspection.contributions[].registry`
 (13 — Observability and Diagnostics) has something to show; the event bus
-names each per-event registry after the event id.
+names each per-event registry after the event id. (3) The `range` filter of
+contract registries is a reader, `within(range)`, rather than an option on
+each read, so that `view` and `changes` keep their shape for every existing
+caller ([26 — Versioned Contracts](./26-versioned-contracts.md),
+BEH-BR-233).
 
 ## BEH-BR-163: Registration is unique and scope-bound
 
@@ -146,7 +176,9 @@ REQUIREMENT: A `priority` that is not a finite number MUST be rejected at
 REQUIREMENT: When `add` is called inside a plugin's activation (the
              `@bridger/core/ActivePlugin` reference is set), the registry
              MUST report the contribution's owner to the host for
-             `inspect`. It MUST NOT use the reference for anything else.
+             `inspect` and MUST carry it as the entry's `owner`
+             (BEH-BR-165). It MUST NOT use the reference for anything
+             else.
 ```
 
 ```
@@ -155,6 +187,17 @@ REQUIREMENT: When an `AccessPolicy` was in the environment of `make`, `add`
              register nothing
              ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
              BEH-BR-264).
+```
+
+```
+REQUIREMENT: On a registry made with a `contract`, `add` MUST check the
+             declared `implements` against the registry's contract and
+             range after the `AccessPolicy` and before reserving the id, and
+             an incompatible contribution MUST fail with
+             `IncompatibleContract` and register nothing
+             ([26 — Versioned Contracts](./26-versioned-contracts.md),
+             BEH-BR-233). A registry made without a `contract` MUST behave
+             as this file specifies without it.
 ```
 
 A collision fails rather than replaces because two plugins contributing the
@@ -206,6 +249,24 @@ contributions drain, before the new activation runs `add` again.
 REQUIREMENT: `view` and `useAll` MUST present entries ordered by `priority`
              ascending, ties broken by `id` (code-unit order). The order of
              two entries MUST NOT change between revisions while both remain.
+```
+
+```
+REQUIREMENT: On a contract registry each view entry MUST carry the version
+             and method names its `add` declared; on any other registry both
+             MUST be absent. A reader from `within(range)` MUST filter
+             entries without changing `revision`, which stays the
+             registry's (BEH-BR-233).
+```
+
+```
+REQUIREMENT: Each view entry MUST carry `owner` — the plugin id and realm
+             that `@bridger/core/ActivePlugin` held when its `add` was
+             called — and MUST omit it when the reference was absent (a
+             contribution made by the application). `owner` is diagnostic
+             attribution (13, BEH-BR-119): core MUST NOT use it to
+             authorize anything, and it is not the plugin principal
+             (28, BEH-BR-257). A reader from `within(range)` MUST keep it.
 ```
 
 ```
@@ -263,8 +324,11 @@ REQUIREMENT: A value returned by `get` or `view` MUST be a plain reference
 A renderer that reads the view and later calls a contributed handler has
 read a value that may have been removed in between. A consumer that needs the
 contribution to outlive a read uses `use` or `useAll`; a renderer that mounts
-contributed UI uses a scoped lease on the owning plugin instead (see the
-React adapter).
+contributed UI holds both a scoped lease on the owning plugin's keys, which
+the plugin's stop drains before its activation scope closes, and a `use`
+hold on the entry, for contributions withdrawn while their owner stays
+active (docs/REACT-UI-PLUGINS.md §5.1); it learns the owner from the entry's
+`owner` (BEH-BR-165).
 
 ## BEH-BR-167: Removal waits for holders, bounded by drainTimeout, then revokes
 
@@ -290,6 +354,20 @@ REQUIREMENT: The wait MUST be bounded by `Options.drainTimeout` (default
 ```
 
 ```
+REQUIREMENT: When a removal revokes at least one holder, the registry MUST
+             publish one `HoldRevoked` to every current subscriber of
+             `revocations`, after the holders' finalizers ran and before
+             the removal completes, and MUST log it at warning level naming
+             the registry and the id. A removal that revoked no holder MUST
+             publish nothing. `revocations` MUST follow the delivery rules
+             of host events (13 — Observability and Diagnostics): a
+             subscriber sees only notices published after it subscribed, a
+             slow subscriber loses its own oldest notices, and publishing
+             never waits. The registry MUST NOT write an audit record for a
+             revocation: it is not a host operation (23, BEH-BR-193).
+```
+
+```
 REQUIREMENT: `drainTimeout: "forever"` MUST be accepted only when stated
              explicitly; it is never a default.
 ```
@@ -302,6 +380,14 @@ choice but the only way a finalizer can end. A consumer whose `use` callbacks
 perform regulated writes sets `drainTimeout` long enough for the longest
 such write, because interruption does not undo a half-finished external
 write.
+
+**Settled here.** A forced revocation of a host lease is a host event
+(`lease-revoked`, BEH-BR-086); a registry, which is independent of the host
+(BEH-BR-162), reports its own revocations on its `revocations` feed instead
+(CCR-BR-027). A renderer whose mounted UI was torn down by a revoked hold can
+tell that from a normal withdrawal, and a deployment can count revocations;
+neither needs an audit record, because a revocation changes no plugin state.
+This closes URS gap G68.
 
 ## BEH-BR-168: A generic extension point that reports ownership
 
@@ -327,7 +413,10 @@ the provider is the unambiguous owner that removal ordering and leases need,
 and the registry is where many plugins meet without any of them owning the
 others. Selection among contributions per call site is `Selector`, and a
 policied decision over contributions is a hook point
-([31 — Hook Points](./31-hook-points.md), BEH-BR-307).
+([31 — Hook Points](./31-hook-points.md), BEH-BR-307). When the
+implementations behind a registry are versions of one contract, the registry
+declares the contract and a selector can be limited to a range
+([26 — Versioned Contracts](./26-versioned-contracts.md), BEH-BR-233).
 
 ---
 

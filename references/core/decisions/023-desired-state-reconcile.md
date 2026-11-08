@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-023                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-051                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-11-08): Amended by ADR-BR-051 (CCR-BR-025)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -63,3 +63,4 @@ Applications usually keep the plugin set as data: a configuration file, a module
 - Requirements: [URS-BR-016](../urs.md#urs-br-016-drive-the-plugin-set-from-a-declarative-list), [URS-BR-028](../urs.md#urs-br-028-know-which-plugin-version-was-active-at-any-time)
 - Decisions: [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-032](../decisions/032-operation-gate.md)
 - Source: `docs/SPEC.md` — "Desired-state reconciliation", "Confluence"
+- Amended by: [ADR-BR-051](./051-atomic-bundle-apply.md) — `reconcile` acts in dependency order, and `atomic: true` undoes a list that does not complete (CCR-BR-025).

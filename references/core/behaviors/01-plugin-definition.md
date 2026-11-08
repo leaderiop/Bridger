@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-01                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-08): BEH-BR-001 Settled: `Plugin.Any` re-checked against effect 4.0.0; host-core prototype finding G-P15 not adopted, with reason (CCR-BR-029)<br>0.5 (2026-11-08): BEH-BR-007 Settled: the distribution-layer reference points to behaviours 26 and 27 and the loader companion instead of docs/ERP-DISTRIBUTION.md (CCR-BR-027)<br>0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -153,7 +153,14 @@ the branded `Plugin<R, P, E, C>`, so that no install surface accepts a literal
 that bypassed `define` (CCR-BR-022). This is a compatibility change: an
 unbranded `PluginDefinition` literal is refused in every install position,
 including group members and the generic overloads that accepted one before
-CCR-BR-020.
+CCR-BR-020. Re-checked in round 2 (CCR-BR-029, host-core prototype finding
+G-P15): effect 4.0.0 declares `Layer<in ROut, out E, out RIn>`, and a
+compile check confirms that `Layer<never, unknown, any>` accepts the build of
+a definition that provides nothing and of one that provides keys. What fails
+is `Layer<any, any, any>` (`any` is not assignable to `never`), which this
+type does not use. A type that erases `build` altogether, as the prototype
+does, also meets the requirement above; the declared type is kept because it
+still rejects a `build` that is not a `Layer`.
 
 ## BEH-BR-002: The build Layer is bounded by the declared keys at compile time
 
@@ -381,9 +388,13 @@ The `KeyMismatch` check catches two *objects* with one identifier; it cannot
 catch one identifier whose meaning changed between releases when only one copy
 is loaded. Nothing at runtime carries the shape. The residual risk is
 recorded as RSK-BR-010, and the mitigation is a naming convention plus the
-manifest-level checks a distribution layer may add (see `docs/ERP-DISTRIBUTION.md`
-in the source design). The core claims nothing beyond identifier and object
-identity.
+manifest-level checks a distribution layer may add: core compares declared
+contract versions and manifests
+([26 — Versioned Contracts](./26-versioned-contracts.md),
+[27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md)),
+and signing, registries and loading are the loader companion's
+([references/loader/](../../loader/README.md)). For plain keys the core
+claims nothing beyond identifier and object identity.
 
 ## BEH-BR-008: A plugin entry has no import-time side effects
 

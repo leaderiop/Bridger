@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): A package manifest carries no `digest`; the lazy definition carries the package digest beside it (core BEH-BR-244) (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.4 (2026-11-08): Open question 2 answered by the data-pack kind of file 08 (round 2: recheck item 12) (CCR-LD-003)<br>0.3 (2026-11-08): A package manifest carries no `digest`; the lazy definition carries the package digest beside it (core BEH-BR-244) (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -358,9 +358,12 @@ own `meta.digest` is refused, not overwritten.
 
 **Open.** (1) Whether a signed manifest field may carry the archive digest of
 an existing registry format (npm tarball integrity, OCI layer digest) so that
-packages can be served by unmodified registries. (2) Whether directories of
-reference data shipped beside code, but signed separately, need a fourth
-sub-digest or a separate package kind.
+packages can be served by unmodified registries.
+
+**Answered (round 2).** Reference data shipped beside code but signed
+separately is a separate package kind, the data pack, with its own digest
+construction and no entry code ([08 — Data Packs](./08-data-packs.md),
+BEH-LD-057–063); it does not add a fourth sub-digest to the package.
 
 ---
 

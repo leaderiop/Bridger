@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-18                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): BEH-BR-154: lazy identity `meta` (digest supplied beside the manifest); BEH-BR-153/155: `pruneDrain` and `pruneForce` (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-153 `DesiredPlugin.plugin` accepts lazy definitions, BEH-BR-154 lazy definitions compared by manifest `version` and `digest` without loading (CCR-BR-017); BEH-BR-153 `expect` and `PlanStale`, BEH-BR-156 diff shared with `Host.plan`, BEH-BR-158 a stale plan applies nothing (CCR-BR-019); BEH-BR-153 `plugin: Plugin.Any` (CCR-BR-020)<br>0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-08): BEH-BR-154 the diff reads the operator's `disabled` flag, a "refused-digest" registration counts as not disabled; BEH-BR-155 atomic undo removals use the prune options whatever `prune` is; BEH-BR-159 idempotence after a run with no rejection, refused entries retried; BEH-BR-160 refusal-list answers are history like failure (agent review R1-07, R1-11) (CCR-BR-029)<br>0.8 (2026-11-08): BEH-BR-160 lazy registrations compared with `dormant` and `active` as one class; eager registrations compared exactly (host-core prototype finding G-P7) (CCR-BR-028)<br>0.7 (2026-11-08): BEH-BR-153 `DesiredPlugin.mandatoryInterceptions` and `allowChildren`, `BridgerOptions.mandatoryCatalog`, `ReconcileOptions.atomic`, `PolicyMismatch`, `ApplyRolledBack` and `PartialApply`; BEH-BR-154 policy compared, never changed in place; BEH-BR-156 entries ordered by dependency (removals dependents first, other changes providers first), closing gap G36; BEH-BR-157 and 158 atomic apply and undo operations; acceptance checks 98 and 101 (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-154: lazy identity `meta` (digest supplied beside the manifest); BEH-BR-153/155: `pruneDrain` and `pruneForce` (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-153 `DesiredPlugin.plugin` accepts lazy definitions, BEH-BR-154 lazy definitions compared by manifest `version` and `digest` without loading (CCR-BR-017); BEH-BR-153 `expect` and `PlanStale`, BEH-BR-156 diff shared with `Host.plan`, BEH-BR-158 a stale plan applies nothing (CCR-BR-019); BEH-BR-153 `plugin: Plugin.Any` (CCR-BR-020)<br>0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -45,7 +45,21 @@ interface DesiredPlugin {
   readonly config?: unknown              // the override the plugin should hold; absent = no override
   readonly disabled?: boolean            // default false
   readonly realm?: string                // default "default"
+  readonly mandatoryInterceptions?: readonly string[]  // ids in BridgerOptions.mandatoryCatalog, in order; default []
+  readonly allowChildren?: boolean       // default true (28, BEH-BR-263)
 }
+
+// The application names the mandatory interceptions a desired list may cite.
+interface RegisteredInterception<S> extends MandatoryInterception<S> {   // 28, BEH-BR-260
+  readonly id: string                    // non-empty; unique within the catalog
+}
+interface BridgerOptions { /* ... */ readonly mandatoryCatalog?: readonly RegisteredInterception<any>[] }   // default []
+
+class PolicyMismatch extends Schema.TaggedError<PolicyMismatch>()("PolicyMismatch", {
+  id: Schema.String,
+  realm: Schema.String,
+  fields: Schema.Array(Schema.Literal("mandatoryInterceptions", "allowChildren"))   // the fields that differ
+}) {}
 
 interface ReconcileOptions {
   readonly scope?: string                // ownership scope, default "default"
@@ -53,6 +67,7 @@ interface ReconcileOptions {
   readonly pruneDrain?: Duration.Input | "forever"   // drain of each prune remove; default BridgerOptions.drainTimeout
   readonly pruneForce?: boolean          // force of each prune remove; default false
   readonly expect?: ReconcilePlan        // apply this plan or nothing (32, BEH-BR-319)
+  readonly atomic?: boolean              // all entries or none, by undo (32, BEH-BR-322); default false
 }
 
 interface ReconcileReport {
@@ -66,7 +81,7 @@ interface ReconcileReport {
   readonly rejected: readonly {
     readonly id: string
     readonly reason:
-      | InstallError | ConfigInvalid | ConfigFingerprintUnavailable | OperationRejected
+      | InstallError | ConfigInvalid | ConfigFingerprintUnavailable | OperationRejected | PolicyMismatch
       // Settled here (BEH-BR-157): an entry action that passes step 6 of
       // BEH-BR-188 and then fails operationally is reported, never dropped.
       | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock
@@ -75,7 +90,9 @@ interface ReconcileReport {
 
 interface Host {
   reconcile(desired: readonly DesiredPlugin[], options?: ReconcileOptions & OperationOptions):
-    Effect.Effect<ReconcileReport, Unattributed | ReasonRequired | AuditUnavailable | HostClosed | PlanStale>
+    Effect.Effect<ReconcileReport,
+      | Unattributed | ReasonRequired | AuditUnavailable | HostClosed | PlanStale
+      | ApplyRolledBack | PartialApply>   // the last two only with atomic: true (32, BEH-BR-324)
 }
 
 declare const Desired: {
@@ -102,6 +119,33 @@ REQUIREMENT: When two or more entries share one (id, realm), every one of
 ```
 REQUIREMENT: `reconcile` MUST NOT mutate `desired` and MUST NOT retain it
              after the call completes.
+```
+
+```
+REQUIREMENT: `BridgerOptions.mandatoryCatalog` MUST be fixed at construction.
+             Construction MUST fail with a defect naming `mandatoryCatalog`
+             when an entry's `id` is empty or two entries share one, as for
+             any other option outside its domain (02 — Host Construction,
+             BEH-BR-011).
+```
+
+```
+REQUIREMENT: An entry's `mandatoryInterceptions` MUST hold catalog ids only,
+             never an interception value or a function. An entry that names
+             an id absent from `mandatoryCatalog`, or names one id twice,
+             MUST be rejected with `InvalidDefinition { id, reason }`,
+             `reason` naming the id, and MUST cause no action.
+```
+
+```
+REQUIREMENT: An `install` issued for an entry MUST pass, as
+             `InstallOptions.mandatory`, the catalog entries the entry names,
+             in the entry's order, and as `InstallOptions.allowChildren` the
+             entry's `allowChildren` (default true)
+             ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+             BEH-BR-260, BEH-BR-263). The host MUST keep, for a plugin
+             `reconcile` installed, the ids and the flag it was installed
+             with, for as long as the registration lasts.
 ```
 
 ```
@@ -157,7 +201,16 @@ later wins, `config` merged deeply"). It is specified above: patches are
 matched by (id, realm), not by `id` alone, consistent with how entries are
 addressed; a patch that addresses no entry becomes a new entry only if it
 carries a `plugin`, since without one it is not a `DesiredPlugin` and the
-overlay has no error channel to report it through.
+overlay has no error channel to report it through. (4) A desired list is
+data — read from a file, a database or a federation authority, shown in a
+plan, compared with `expect` — so an entry names its mandatory interceptions
+by catalog id and never carries the `wrap` function itself. The functions
+stay in the application's code, wired once at construction; a list can only
+choose among them, which also means a list received from elsewhere cannot
+bring a policy function of its own into the host. This closes the
+desired-state half of gap G40; the gate request half is in
+[25 — Operation Gate](./25-operation-gate.md) and
+[28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md).
 
 ## BEH-BR-154: The keyed diff and the action sequence of one entry
 
@@ -175,6 +228,11 @@ REQUIREMENT: For each valid entry, `reconcile` MUST compare the entry with
                                           `config`, or with none to clear);
              - `disabled` differs       → `disable` or `enable`;
              - none of the above        → no action (`unchanged`).
+             The `disabled` compared MUST be the operator's flag: a
+             registration `disabled` with reason "refused-digest"
+             ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+             BEH-BR-267) MUST count as `disabled: false`, so the diff never
+             issues `enable` for it because of that reason (CCR-BR-029).
 ```
 
 ```
@@ -198,6 +256,19 @@ REQUIREMENT: When an installed entry needs more than one action, they MUST be
              - target enabled:  `replace`, then `reconfigure`, then
                `enable`.
              Each action MUST complete before the next is issued.
+```
+
+```
+REQUIREMENT: For an installed entry, `reconcile` MUST compare the entry's
+             `mandatoryInterceptions` (absent = empty) with the ids the
+             registration was installed with, as ordered lists, and the
+             entry's `allowChildren` (absent = true) with the registration's
+             flag. On any difference the entry MUST be rejected with
+             `PolicyMismatch { id, realm, fields }` at validation, before
+             any of its actions, and MUST cause no action. `reconcile` MUST
+             NOT change a registration's mandatory interceptions or
+             `allowChildren` by any action, and MUST NOT turn the difference
+             into a `replace`, a removal or a reinstall.
 ```
 
 ```
@@ -227,7 +298,16 @@ definitions". (2) SPEC.md lists the actions but not how they combine. `replace`
 drops the override (SPEC.md "Configuration and metadata"), so `reconfigure`
 must follow it; `replace` keeps a disabled plugin disabled, so disabling first
 and enabling last avoids a build of a definition that is about to be stopped
-or replaced.
+or replaced. (3) A difference in mandatory interceptions or
+`allowChildren` is a refusal, not an action, because no operation may change
+them on a registration (28 — Plugin Principal and Mandatory Policy,
+BEH-BR-260: they end only with `remove`). Turning the difference into a
+removal and a fresh install would drop the plugin's activation, its
+dependents and its children on the strength of a data edit, and an
+approver reading "policy changed" would not see "plugin removed". An operator
+who means it removes the entry (or the plugin) and lists it again: two
+requests, each gated and recorded. This settles the second question of gap
+G40.
 
 ## BEH-BR-155: A reconcile scope owns what it installed, and prunes only that
 
@@ -255,7 +335,10 @@ REQUIREMENT: Each prune `remove` MUST use `options.pruneDrain` as its
              (06 — Removal), with the defaults of a direct `remove` when
              they are absent; it is gated and recorded exactly as a direct
              `remove` with those options. `pruneDrain` and `pruneForce`
-             MUST be ignored when `prune` is false. A prune `remove` that
+             MUST be ignored when `prune` is false, except by the undo
+             removals of an atomic apply, which use them whatever `prune`
+             is ([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
+             BEH-BR-326). A prune `remove` that
              fails with `DrainTimeout` is reported in `rejected` like any
              other operational failure (BEH-BR-157).
 ```
@@ -286,12 +369,36 @@ prevent.
 
 ```
 REQUIREMENT: `reconcile` MUST compute its diff against the host state at the
-             moment its intent is recorded (below), and then act in this
-             fixed order: first the prune removals, in reverse dependency
-             order; then the entries, in list order. The diff computation
-             MUST be the one `Host.plan` uses
+             moment its intent is recorded (below), and then act in two
+             phases, each in a fixed order:
+             1. Removal phase — the prune removals and the entries whose
+                action sequence begins with `disable` (BEH-BR-154), with
+                dependents first: an action on a plugin P MUST come after
+                every action of this phase on a plugin that depends on P in
+                the current state. Ties MUST be broken with prune removals
+                before entries, prune removals by (realm, id) in code-unit
+                order, and entries in list order.
+             2. Change phase — every other entry that has actions, with
+                providers first: an entry D MUST come after an entry P when,
+                in the state the list describes, P's definition provides a
+                key that D's definition requires in D's resolution scope
+                (`scopeOf`, 17 — Realms and Interception). Ties MUST be
+                broken in list order.
+             The diff computation, including this order, MUST be the one
+             `Host.plan` uses
              ([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
              BEH-BR-317).
+```
+
+```
+REQUIREMENT: "Depends on" and "requires" in the order above MUST be read
+             from `requires` declarations only — plain keys and contract
+             references alike, `optional` keys excluded — and, for a lazy
+             definition, from its manifest, without calling its `load`
+             ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
+             BEH-BR-242). The order MUST be a function of the list and of the
+             registered definitions only, so that two runs of one list on one
+             state issue the same operations in the same sequence.
 ```
 
 ```
@@ -332,8 +439,31 @@ REQUIREMENT: An action issued by `reconcile` MUST be the same operation, with
 
 A fixed order makes two runs of one list on one state issue the same
 operations in the same sequence, which is what makes their audit records
-comparable. Prune removals go first so that a provider moving from a dropped
-plugin to a listed one frees its slot before the new one is installed.
+comparable. Removals go first so that a provider moving from a dropped
+plugin to a listed one frees its slot before the new one is installed; within
+them dependents go first, as every stop does
+([ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)). Changes go
+providers first so that a dependent which needs an upgraded provider meets
+the upgrade already registered: the compatibility check of
+[26 — Versioned Contracts](./26-versioned-contracts.md) (BEH-BR-228) runs
+against the definitions registered when each action is linearized, so a list
+that installs a dependent before the provider replacement it needs would
+otherwise be refused with `IncompatibleContract` and converge only on the
+next run.
+
+**Settled here (CCR-BR-025).** Earlier revisions acted on the entries in
+list order, which made the outcome depend on how the author happened to sort
+the list (gap G36). The order is now derived from the declarations, with list
+order kept only as the tie-break, so it stays deterministic and visible in
+the plan. One case is not solved by any fixed order and is stated rather than
+hidden: a `replace` that *narrows* a provider — a lower minor, fewer methods —
+while a listed dependent's *current* definition still needs what is taken
+away. Providers first refuses the provider's `replace`; the dependent's
+replacement must be registered first, which is a separate run (or, with
+`atomic`, an undo of the whole apply, 32 — Generic Gate and Plan,
+BEH-BR-322). Ordering against the final state as a whole, rather than step
+by step, would need every check to run against a staged set — the
+alternative [ADR-BR-051](../decisions/051-atomic-bundle-apply.md) rejects.
 
 **Settled here.** SPEC.md does not order the actions or say whether two
 reconciles may overlap. Overlapping reconciles would each diff against a
@@ -364,7 +494,10 @@ REQUIREMENT: An entry whose action fails validation, fails configuration
              passes step 6 of BEH-BR-188 and then fails MUST be reported
              in `rejected` with the error, MUST receive no further actions in
              this call, and MUST NOT stop the other entries — except as
-             stated below for audit unavailability.
+             stated below for audit unavailability, and with `atomic`, where
+             the first rejection stops the apply and undoes it
+             ([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
+             BEH-BR-322–326).
 ```
 
 ```
@@ -386,7 +519,9 @@ REQUIREMENT: When an entry action's `requested` record cannot be written,
              that action MUST change nothing, `reconcile` MUST issue no
              further action, and the call MUST fail with `AuditUnavailable`.
              Entry actions already completed MUST remain applied and
-             recorded; they are not rolled back.
+             recorded; they are not rolled back. With `atomic`, the call
+             MUST instead fail with `PartialApply` naming them
+             (32 — Generic Gate and Plan, BEH-BR-326).
 ```
 
 ```
@@ -407,7 +542,9 @@ others". For audit unavailability that rule is reversed: once one entry's
 change cannot be recorded, continuing would only produce a run of further
 refusals or, worse, a partially recorded batch. The completed actions are not
 undone, because each is an ordinary operation with its own pair of records,
-and an automatic reversal would itself be an unrequested change. A caller that
+and an automatic reversal would itself be an unrequested change — which is
+why reversal happens only when the caller asks for it with `atomic`, and even
+then not once the trail can no longer record it (BEH-BR-326). A caller that
 fails with `AuditUnavailable` reads the snapshot (and, once the sink is back,
 the trail) to see how far the batch went. (2) The latch is checked once for
 the call, but a latch that becomes set *during* the call also stops it:
@@ -449,9 +586,10 @@ REQUIREMENT: The `reconcile` call MUST run steps 1–3 of BEH-BR-188 (host
 REQUIREMENT: The attribution check of the call (step 2 of BEH-BR-188) MUST
              apply `requireReason` to `reconcile` and to every operation of
              a provisional diff computed against the host state at the
-             call. When any of them requires a reason and the context has
-             none, the call MUST fail with `ReasonRequired` and MUST write no
-             record.
+             call — with `atomic`, also to every operation the undo of that
+             diff could issue (32 — Generic Gate and Plan, BEH-BR-323). When
+             any of them requires a reason and the context has none, the
+             call MUST fail with `ReasonRequired` and MUST write no record.
 ```
 
 ```
@@ -501,7 +639,9 @@ REQUIREMENT: A gate refusal MUST change nothing for that entry and MUST place
 REQUIREMENT: Every entry action MUST be attributed to the `reconcile` call's
              context — the same actor and reason — and MUST carry the
              call's `correlationId` (supplied by the caller, or generated
-             once for the call when absent).
+             once for the call when absent). The undo actions of an atomic
+             apply MUST be attributed, gated and recorded by the same rules
+             (32 — Generic Gate and Plan, BEH-BR-325).
 ```
 
 The record structure — the parent pair, the per-entry pairs, how they are
@@ -537,9 +677,15 @@ G16, second review pass).
 > **Satisfies:** [URS-BR-016](../urs.md#urs-br-016-drive-the-plugin-set-from-a-declarative-list)
 
 ```
-REQUIREMENT: Running `reconcile(D, o)` and, after it completes, running
-             `reconcile(D, o)` again MUST issue no action the second time:
-             every entry is `unchanged` and nothing is pruned.
+REQUIREMENT: Running `reconcile(D, o)` and, after it completes with no
+             entry in `rejected`, running `reconcile(D, o)` again MUST issue
+             no action the second time: every entry is `unchanged` and
+             nothing is pruned. An entry rejected by the first run — by the
+             gate, or by the `RefusalList` (28, BEH-BR-267) — is attempted
+             again by the second, and rejected again while the reason
+             stands. A registration that the list moved to `disabled` with
+             reason "refused-digest" outside a call issues no action, by the
+             rule of BEH-BR-154 (CCR-BR-029).
 ```
 
 ```
@@ -547,7 +693,7 @@ REQUIREMENT: After `reconcile(D, o)` completes and the host is idle, the set
              of plugins owned by `o.scope`, their definitions, their
              overrides and their enabled flags MUST depend only on D — not on
              the edit history that led there — except as stated for failed
-             plugins in BEH-BR-160.
+             plugins and refused digests in BEH-BR-160.
 ```
 
 ```
@@ -582,6 +728,21 @@ REQUIREMENT: Once the host is idle, the set of active plugins MUST depend
 ```
 
 ```
+REQUIREMENT: A trigger (27 — Manifest and Lazy Activation, BEH-BR-245) is
+             history: two histories ending in the same installed set MAY
+             differ in whether a registration of a lazy definition is
+             loaded. For the comparison of this behaviour, the state of each
+             such registration MUST be read through one map — `dormant` and
+             `active` are one class, every other state stands for itself —
+             and under that map the states of all registrations MUST be
+             equal once idle. The states of registrations of eager
+             definitions MUST be equal without the map. For a lazy
+             registration in that class, its `lazy.loaded` flag, its
+             principal and the services and contributions it publishes MUST
+             NOT be compared (CCR-BR-028).
+```
+
+```
 REQUIREMENT: The one permitted exception is failure: two histories that
              differ in a past build, activation, runtime or cleanup failure
              MAY differ until that plugin is retried, restarted, replaced,
@@ -589,17 +750,49 @@ REQUIREMENT: The one permitted exception is failure: two histories that
              plugin to restore confluence.
 ```
 
+```
+REQUIREMENT: A `RefusalList` answer is history in the same way (28 — Plugin
+             Principal and Mandatory Policy, BEH-BR-267): the list stops no
+             running plugin, so a registration `active` when its digest was
+             listed stays `active`, while the same installed set built after
+             the listing has it `disabled` with reason "refused-digest". For
+             the comparison of this behaviour, a registration `disabled`
+             with that reason MAY differ from the same registration in any
+             other state until an operator call addresses it. Core MUST NOT
+             stop a plugin, or start one, to restore confluence
+             (CCR-BR-029).
+```
+
 Three properties carry confluence: dependents stop first and providers start
 first; a `waiting` plugin starts by itself when its provider returns; and
 `reconcile` is a function of its list. Failure is the deliberate exception
 because an automatic retry would repeat whatever side effects the failed
 `build` already performed, possibly in a loop — exactly the hidden behaviour
-[ADR-BR-005](../decisions/005-failure-is-sticky.md) rules out.
+[ADR-BR-005](../decisions/005-failure-is-sticky.md) rules out. The refusal
+list is the second exception for the same reason: making confluence hold
+would mean the list stopping running plugins, a mutating operation with no
+caller (BEH-BR-267, Settled 4); the loader companion's kill switch does
+that with an attributed `disable` or `remove`.
 
 The test suite checks confluence directly: two different histories ending in
 the same installed set must produce equal snapshots once idle, modulo
-revision numbers and timing ([21 — Testing Host](./21-testing-host.md)).
+revision numbers and timing, with lazy registrations compared under the map
+above ([21 — Testing Host](./21-testing-host.md)). The map exists because a
+wake is an operation: the host-core prototype's confluence property found
+histories that differ only in a woken lazy plugin (finding G-P7, 27,
+BEH-BR-252).
 
 ---
+
+## Acceptance checks
+
+These checks extend BEH-BR-184 (21 — Testing Host); their scenarios are
+allocated in [traceability.md](../traceability.md) §5. Each will be a tagged
+scenario once code exists; none has run.
+
+| Scenario | Check | Behaviours |
+| --- | --- | --- |
+| REQ-BR-098 | A list that installs a dependent before the provider replacement it needs, in any list order, converges in one run; removals and disable-first entries run dependents first, other changes providers first, ties in list order; `Host.plan` lists the same order; no lazy `load` is called to compute it | BEH-BR-156, BEH-BR-317 |
+| REQ-BR-101 | An entry's `mandatoryInterceptions` reach `InstallOptions.mandatory` from `mandatoryCatalog` in order, with `allowChildren`; unknown or repeated ids give `InvalidDefinition`; a policy difference on an installed entry gives `PolicyMismatch` and no action; a catalog with an empty or repeated id fails construction | BEH-BR-153, BEH-BR-154 |
 
 _Previous: [17 — Realms and Interception](./17-realms-and-interception.md)_ · _Next: [19 — Contribution Registry](./19-contribution-registry.md)_

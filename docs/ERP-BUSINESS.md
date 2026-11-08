@@ -1,6 +1,8 @@
 # Bridger ERP: platform services for business capabilities
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Interfaces and names are proposed. Effect APIs (`effect/workflow`, `effect/http-api`, `effect/persistence`, `Schedule`, `Cron`, `PartitionedSemaphore`) and Odoo/Sage/SAP evidence are cited from the [knowledge catalog](knowledge/README.md): workflow and jobs E19–E20, E33–E37, A24, B10; events and integrations E17, E38–E41, A22–A23, R15, R25, B13; finance and trade R11–R24, B11, B16; attachments, search, reporting R26–R28, B14, E18, E22; security R07–R08, B06. Nothing here was run. Policy: all packages target the latest stable Effect 4.x (4.0.0 at the time of writing). Country-specific accounting, tax and payroll rules need locale selection and domain validation; this document defines contracts, not compliance.
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Interfaces and names are proposed. Effect APIs (`effect/workflow`, `effect/http-api`, `effect/persistence`, `Schedule`, `Cron`, `PartitionedSemaphore`) and Odoo/Sage/SAP evidence are cited from the [knowledge catalog](knowledge/README.md): workflow and jobs E19–E20, E33–E37, A24, B10; events and integrations E17, E38–E41, A22–A23, R15, R25, B13; finance and trade R11–R24, B11, B16; attachments, search, reporting R26–R28, B14, E18, E22; security R07–R08, B06. Nothing here was run. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). Country-specific accounting, tax and payroll rules need locale selection and domain validation; this document defines contracts, not compliance.
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 ## 1. Decision
 
@@ -26,6 +28,8 @@ flowchart TB
 ```
 
 ## 2. Domain events
+
+> **Superseded in part (2026-11-08).** Event declaration, the envelope, the outbox, delivery, inbox deduplication, ordering and replay are governed by [`@bridger/durable-bus`](../references/durable-bus/README.md) ([01 — Events and envelope](../references/durable-bus/behaviors/01-events-and-envelope.md), [03 — Delivery and inbox](../references/durable-bus/behaviors/03-delivery-and-inbox.md)). The `DomainEvent` fields below map onto the durable-bus envelope and payload; the `bridger_event_handled` table is withdrawn. Subscribers' system subject: see core [28](../references/core/behaviors/28-plugin-principal-and-mandatory-policy.md) and [29](../references/core/behaviors/29-capability-grants-and-call-log.md).
 
 An event is a stable, versioned fact written to the outbox in the originating command's transaction ([ERP-STORAGE.md](ERP-STORAGE.md) §12).
 
@@ -60,7 +64,7 @@ Subscriber.define("todo.index", {
 })
 ```
 
-Delivery is at least once. The runtime records `(tenant_id, subscriber_id, dedupe_key)` in `bridger_event_handled` ([ERP-STORAGE.md](ERP-STORAGE.md) §12) **in the transaction in which the subscriber's own database work commits**, which makes database-only subscribers effectively once. A subscriber that calls an external system is not covered by a database transaction and must follow §6. A subscriber runs under a *system actor* context for its tenant (`Records.asSystem`, [ERP-RECORDS.md](ERP-RECORDS.md) §2) with the explicit system permissions listed in the module manifest, never under the original user's grants unless the event carries a delegation record.
+Delivery is at least once. The durable-bus inbox advances the subscription's cursor **in the transaction in which the subscriber's own database work commits** ([BEH-DB-020](../references/durable-bus/behaviors/03-delivery-and-inbox.md)), which makes database-only subscribers effectively once; the earlier `bridger_event_handled` table is withdrawn ([ERP-STORAGE.md](ERP-STORAGE.md) §12). A subscriber that calls an external system is not covered by a database transaction and must follow §6. A subscriber runs under a *system actor* context for its tenant (`Records.asSystem`, [ERP-RECORDS.md](ERP-RECORDS.md) §2) with the explicit system permissions listed in the module manifest, never under the original user's grants unless the event carries a delegation record.
 
 ## 3. Jobs and scheduling
 
@@ -84,6 +88,8 @@ JobSchedule.define("todo.cleanup", { cron: "0 3 * * *", timezone: "tenant", job:
 - Jobs run with a tenant (and optional company) context and a system subject; the job declares the permissions it needs, reviewed at approval ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §3).
 
 ## 4. Workflows and approvals
+
+> **Superseded in part (2026-11-08).** The approval *mechanism* is governed by core [32 — Generic gate and plan](../references/core/behaviors/32-generic-gate-and-plan.md): a gate answers `Allow`, `Refuse` or `Defer` with a draft (BEH-BR-313), a draft carries expected versions and a stale draft is re-planned (BEH-BR-316), and propose–approve–apply is described in BEH-BR-320. For commands, the command gate applies it ([BEH-CM-011](../references/command/behaviors/02-dispatch.md)). Approval rules, approval tasks and their storage stay in the application, which is what this section describes; `ApprovalRequired` and `ApprovalInvalidated` (§15) correspond to a `Defer` decision and a stale draft.
 
 Built on `effect/workflow` (`Workflow`, `WorkflowEngine`, `Activity`, `DurableClock`, `DurableDeferred`).
 
@@ -248,7 +254,7 @@ Order → reserve stock → invoice → post to ledger → reconcile payment, wi
 | Error | Meaning | Mapping |
 | --- | --- | --- |
 | `SubscriberFailed`, `JobFailed`, `JobTimeout`, `WorkflowFailed` | Durable work failed after retries | Visible in admin; replayable. Never surfaced to the original caller as failure of an already-committed command. |
-| `ApprovalRequired`, `ApprovalInvalidated` | Action awaits or lost approval | `Forbidden`-class with a link to the task. |
+| `ApprovalRequired`, `ApprovalInvalidated` | Action awaits or lost approval | `Forbidden`-class with a link to the task. Superseded in part: the dispatch outcome is the command companion's `CommandDeferred` or `ApprovalMismatch` ([BEH-CM-014](../references/command/behaviors/02-dispatch.md)); these ERP tags are application-level labels over it. |
 | `IntegrationUnknown` | External result ambiguous | Command already committed; reconciliation pending. |
 | `AttachmentRejected`, `ScanBlocked` | Upload or download refused | `InvalidInput` / `Forbidden`. |
 | `ImportRejected` | Staged import has blocking errors | Error report. |
@@ -282,3 +288,5 @@ These are design acceptance scenarios, not tests already executed.
 | 6 | Payroll, manufacturing, CRM, POS, advanced warehouse | **Out of scope for now.** Each needs a process catalog before design. |
 
 Only item 1 remains open and needs input from you.
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

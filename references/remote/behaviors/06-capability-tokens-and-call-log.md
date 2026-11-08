@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-06                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — token labels replaced by core-encoded wire annotations; callbacks deduplicated per parent call (INV-RM-010); the core `CapabilityPolicy` consulted only by the host's own capture, actor admission in a companion `CallbackAdmission`, error renamed `CallbackDenied`; callbacks run inside `CallerContext.serve`; annotations reach records only through core flows (R3-06, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-08): BEH-RM-046 crossing and revocation entries carry the session epoch again, now that core types `epoch` as an opaque string (core BEH-BR-280, CCR-BR-027) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 23 and 25, CORE-DECISIONS-2 — `TokenClaims.org`; `correlationId` from `CurrentCorrelation` and set for callbacks through `CallerContext.serve` (G58 closed); callbacks carry `HostLink.reference`; crossings, refusals and revocations offered with core entry kinds through `Host.offerCallEntry`, callbacks with `onFailure` "refuse" (G43 closed) (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — token labels replaced by core-encoded wire annotations; callbacks deduplicated per parent call (INV-RM-010); the core `CapabilityPolicy` consulted only by the host's own capture, actor admission in a companion `CallbackAdmission`, error renamed `CallbackDenied`; callbacks run inside `CallerContext.serve`; annotations reach records only through core flows (R3-06, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -45,7 +45,8 @@ interface TokenClaims {
   readonly actor: Actor                     // the caller's CurrentActor (BEH-BR-185)
   readonly onBehalfOf?: PrincipalRef        // when the caller is plugin code (core behaviour 28, BEH-BR-259)
   readonly annotations: WireAnnotations     // the caller's "wire" annotations, encoded (core BEH-BR-296; BEH-RM-024)
-  readonly correlationId?: string           // the caller's correlation, when its OperationContext supplied one
+  readonly correlationId?: string           // the caller's CurrentCorrelation (core BEH-BR-187)
+  readonly org?: string                     // opaque organisation claim (09, BEH-RM-065); never parsed here
   readonly pluginId: string                 // the link's ID
   readonly realm: string
   readonly version?: string                 // link meta.version
@@ -257,10 +258,15 @@ REQUIREMENT: A callback MUST run inside `CallerContext.serve({ actor,
 ```
 
 ```
-REQUIREMENT: The token's `correlationId`, when present, MUST be logged with
-             the callback and offered to the `CallLog`. Core keeps no
-             correlation in the fiber (core gap G58), so the remote package
-             MUST NOT claim that a callback's mutating operations carry it.
+REQUIREMENT: A token's `correlationId` MUST be the calling fiber's
+             `CurrentCorrelation` at mint (core BEH-BR-187). A callback MUST
+             run inside `CallerContext.serve({ actor, annotations,
+             correlationId })` with the token's `correlationId`, so that
+             `CurrentCorrelation` is set for the callback's work and every
+             mutating operation it reaches carries the caller's correlation
+             (core BEH-BR-292, gap G58 closed by CCR-BR-026). The callback
+             fiber MUST also carry `HostLink.reference` set to `host.link`
+             (core BEH-BR-250), as for served calls (BEH-RM-039).
 ```
 
 ## BEH-RM-046: Every boundary crossing is offered to the CallLog
@@ -272,35 +278,59 @@ REQUIREMENT: The token's `correlationId`, when present, MUST be logged with
 
 ```ts
 // illustrative — not type-checked
-// the shape of the entry is core behaviour 29's; the fields Remote fills:
-interface RemoteCallLogFields {
-  readonly direction: "host-to-guest" | "guest-to-host" | "served"   // "served": Remote.serve (BEH-RM-039)
-  readonly link: string; readonly realm: string; readonly epoch: string
-  readonly contract: string; readonly method: string; readonly callId: string; readonly parent?: string
-  readonly actor: Actor                     // "callLog"-flow annotations are added by core's rules (BEH-BR-293), not by this package
-  readonly decision: "allowed" | "refused"; readonly refusal?: string   // tag only
-  readonly outcome?: CallOutcome
-}
+// entries are offered through Host.offerCallEntry (core BEH-BR-280); the fields Remote fills:
+//
+//   host-to-guest call      kind "crossing", crossing { direction: "outbound", link, peer?, epoch }
+//   callback (admitted)     kind "crossing", crossing { direction: "inbound",  link, peer?, epoch }
+//   served call (BEH-RM-039) kind "crossing", crossing { direction: "inbound",  link, peer?, epoch }
+//   refused callback, refused served call, placement or budget refusal
+//                           kind "refusal",  refusal  { stage: "boundary", reason: <refusal tag> }
+//   boundary revocation     kind "revocation", revocation { link, epoch?, reason } (BEH-RM-014)
+//
+// common: companion "@bridger/remote"; serviceId = the contract's ServiceId; member = the method;
+// outcome: a result → "success"; a typed failure → "failure" (errorTag its tag); RemoteDefect → "defect";
+//          RemoteTimeout, SessionLost, cancellation (outcome "unknown" or "not-executed") → "interrupted",
+//          errorTag the remote tag; a boundary refusal → "refused"
+// callId = the remote callId; inbound entries: consumer = { kind: "remote", principal: claims.onBehalfOf
+// (the PrincipalRef.encode string, recorded unchanged), host?: the peer's host id when the transport names one }
+// epoch = the epoch string of the session or served connection that carried the call (BEH-RM-010, BEH-RM-039),
+// unchanged; core types it as an opaque string (BEH-BR-280, CCR-BR-027). A revocation carries it when a session was open
 ```
 
 ```
 REQUIREMENT: When the core `CallLog` port is wired, the remote package MUST
-             offer it one entry per host-to-guest call at its end and one per
-             callback at its end, including every refused callback, with the
-             fields above. Entries MUST carry no payload, result value or
-             token reference.
+             offer it, through `Host.offerCallEntry` (core BEH-BR-280), one
+             entry per host-to-guest call at its end, one per callback at
+             its end and one per served call at its end, with the kinds and
+             fields above, including every refused callback or served call
+             as a "refusal" entry. Entries MUST carry no payload, result
+             value, error message, `TokenRef` or annotation value placed by
+             this package; "callLog"-flow annotations reach them only by
+             core's rules (BEH-BR-293). Every "crossing" entry MUST carry
+             `epoch`, the epoch string of the session or served connection
+             that carried the call, unchanged; a "revocation" entry MUST
+             carry it when a session was open at the revocation. An offer
+             that fails with `InvalidCallEntry` is a defect of this package
+             and MUST be logged at error level.
 ```
 
 ```
-REQUIREMENT: The `CallLog` failure policy is the core's (core behaviour 29).
-             The remote package MUST NOT buffer entries beyond what that
-             policy allows, and MUST NOT let a `CallLog` outage admit a
-             callback the policy would refuse.
+REQUIREMENT: The `CallLog` failure policy is the core's (core BEH-BR-279).
+             For each offer the remote package MUST pass `onFailure`
+             "refuse" for an inbound crossing of a callback — so that a
+             `CallLog` outage refuses the callback with `CallbackDenied`
+             instead of admitting it unlogged — and MUST leave the port's
+             own `onFailure` for every other entry. The remote package MUST
+             NOT buffer entries beyond what that policy allows.
 ```
 
-**Open.** Whether the CallLog failure policy is fail-closed for callbacks
-(refuse when the log cannot be written) is set by [core behaviour 29](../../core/behaviors/29-capability-grants-and-call-log.md); this
-companion follows it.
+**Settled here.** One log of access: core's entry kinds (core BEH-BR-280)
+cover a call leaving for a guest, a callback arriving, a served call, a
+boundary refusal and a revocation, so a deployment reads remote crossings
+in the same log as captured calls, with the same correlation and identifiers
+(core gap G43, closed by CCR-BR-026). A callback is the one crossing that
+is refused when it cannot be logged: it reaches host services on a guest's
+request, which is the access a per-plugin access log exists to show.
 
 ## BEH-RM-047: Tokens never become values in logs, status or audit, and annotations follow core flows
 

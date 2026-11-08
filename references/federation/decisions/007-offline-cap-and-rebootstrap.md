@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-ADR-007                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the cap runs from a stored first activation when no contact was made; re-bootstrap suspends links instead of closing admission (R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F8–F11) — links suspended only for fetch and install; guarded install; persisted marker and separate retry backoff (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18 and 19 (X10) — fixed re-bootstrap order with the outbox first; the cap never delays a kill (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the cap runs from a stored first activation when no contact was made; re-bootstrap suspends links instead of closing admission (R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -24,7 +24,9 @@ A host must keep working offline, but unbounded offline operation means a kill e
 
 - A host boots from the last verified manifest it stored, and keeps running it offline ([BEH-FD-010](../behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-010-boot-applies-the-highest-verified-manifest-else-the-boot-bundle)).
 - Freshness: past `validUntil`, or past `maxOffline` (default 72 hours) since the last contact — or, with no contact ever, since the first activation stored in the `ManifestStore` — the manifest is stale and the entries marked `requiresFresh` are disabled; nothing else changes. A clock earlier than known times is treated as stale.
-- After the cap, or on the authority's `ResyncRequired`, the host re-bootstraps from a snapshot through an application `Rebootstrap` port before applying newer state; every link is suspended meanwhile, so imports wait as on a partition and exports serve nothing, with no host operation ([BEH-FD-014](../behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot)).
+- After the cap, or on the authority's `ResyncRequired`, the host re-bootstraps from a snapshot through an application `Rebootstrap` port before applying newer state; every link is suspended during the fetch and the install (control endpoints stay open for kill frames), so imports wait as on a partition and exports serve nothing, with no host operation ([BEH-FD-014](../behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first)).
+- The re-bootstrap order is fixed: (1) push or keep the outbox, links up, (2) suspend links and fetch the snapshot, (3) install through the outbox port's guarded settlement and apply the latest manifest, (4) resume links. A failure in step 1 stops it before anything is fetched, with `RebootstrapBlocked`, no link suspended and no fact dropped. Each step is persisted in a marker, so a crash resumes with links suspended; retries back off on their own schedule ([BEH-FD-048](../behaviors/06-kill-path-placement-and-skew.md#beh-fd-048-pending-kills-the-last-applied-manifest-and-the-re-bootstrap-marker-are-kept-in-the-store)).
+- The cap never delays a kill: revocation lists travel on their own channel and are applied at once, and a pending re-bootstrap gets a kill-only apply of a newer manifest's kill entries ([ADR-FD-009](./009-revocation-travels-apart-from-desired-state.md), [BEH-FD-042](../behaviors/06-kill-path-placement-and-skew.md#beh-fd-042-a-revocation-list-is-applied-at-once-before-re-bootstrap-and-before-any-manifest)).
 
 ## Alternatives considered
 
@@ -33,9 +35,9 @@ A host must keep working offline, but unbounded offline operation means a kill e
 
 ## Consequences
 
-**Positive**: bounded exposure to missed kills and drift; predictable reconnect cost.
+**Positive**: bounded exposure to drift and to unconfirmed desired state; kills unaffected by the cap; offline facts never traded for a snapshot; predictable reconnect cost.
 
-**Negative**: the snapshot's content and transfer are the application's; a host without a `Rebootstrap` stays in `resync-required`.
+**Negative**: the snapshot's content and transfer are the application's; a host without a `Rebootstrap` stays in `resync-required`; a host whose outbox cannot be pushed or kept stays `rebootstrap-blocked`.
 
 ## References
 

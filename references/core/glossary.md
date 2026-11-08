@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-08): Companion terms of round 2: receipt, listing record, model-facing envelope, signed statement, data pack, revocation list, kill-only apply, chain series, verification bundle, residency label, writers last, payload codec, expected version, fact, number series, crypto-shredding; entry owner and `HoldRevoked` (CCR-BR-027)<br>0.8 (2026-11-08): Hook point entry: phases, targets, breaker per plugin, declarations; declared contribution, HostLink, held event, idle return, denied-policy (CCR-BR-024); atomic apply, undo action, PartialApply, mandatory catalog, contract registry, Selector range (CCR-BR-025); refusal list, CurrentCorrelation, call-log failure policy, attributed unmount, call-log entry kinds (CCR-BR-026)<br>0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -226,6 +226,25 @@ A **lazy plugin** is registered from its manifest by `Plugin.lazy` and stays
 **trigger** applies: `OnService`, `OnContribution` or `OnEvent`. Its code is
 then loaded in its first build step (BEH-BR-244–246).
 
+### Declared contribution, HostLink
+
+A **declared contribution** is a `contributions` entry of a lazy plugin's
+manifest, reported by `Host.declaredContributions` while the plugin is not
+yet loaded. The **HostLink** is the narrow view (`declaredContributions`,
+`wake`) a hook point reads it through, carried in the fibers the host runs
+(BEH-BR-250, BEH-BR-309).
+
+### Held event
+
+The one event that applied an `OnEvent` trigger, held for the plugin it woke
+and delivered once to that plugin's listeners when it becomes `active`, or
+dropped with a diagnostic (BEH-BR-251).
+
+### Idle return
+
+A loaded lazy plugin with `idle` set that nothing uses goes back to
+`dormant` through a normal stop, recorded as `lazy-idle` (BEH-BR-252).
+
 ### `Plugin.Any`
 
 The type every plugin definition fits: the definition fields with
@@ -244,6 +263,13 @@ not authentication. `onBehalfOf` is that principal recorded on the gate request 
 made from plugin code; it is never an actor
 ([28](./behaviors/28-plugin-principal-and-mandatory-policy.md)).
 
+### `CurrentCorrelation`
+
+The fiber reference holding the correlation id of the request the code works
+for. A call takes it when its context supplies none; the host sets it for a
+call's work, listeners and served calls follow it, and background work
+starts without it ([22](./behaviors/22-attributable-operations.md), BEH-BR-187).
+
 ### Mandatory interception, `allowChildren`, access policy
 
 A **mandatory interception** comes from host, realm or installation options;
@@ -253,6 +279,20 @@ whether a plugin may mount children; children can narrow it, never widen it.
 The optional **`AccessPolicy`** port decides listen, emit, contribute and
 child requests (BEH-BR-260–264).
 
+### Refusal list, refused digest
+
+The optional **`RefusalList`** port names digests the host must not start.
+It is consulted on every start — operator calls (before the gate), dependency
+returns, lazy triggers, background restarts and child mounts. A plugin whose
+start it refused is `disabled` with reason `refused-digest` and the refusal
+is recorded as `start-refused` ([28](./behaviors/28-plugin-principal-and-mandatory-policy.md), BEH-BR-267).
+
+### Attributed unmount
+
+`Plugin.Runtime.unmount` removes a child on someone's request; the trail
+records `unmount-requested` with `requestedBy`, and the removal's records
+point to it ([14](./behaviors/14-children-and-groups.md), BEH-BR-126).
+
 ### Capability policy, grant, call log, `CurrentCall`
 
 The optional **`CapabilityPolicy`** port is consulted at each capture; its
@@ -261,7 +301,16 @@ applied as a shallow narrowing — not a security boundary in-process. The
 optional **`CallLog`** port receives one payload-free entry per call through a
 recorded capture; core keeps nothing. **`CurrentCall`** describes the
 intercepted call in progress and is the seam for per-call tokens
-([29](./behaviors/29-capability-grants-and-call-log.md)).
+([29](./behaviors/29-capability-grants-and-call-log.md)). Entries have a kind ("call", "crossing",
+"refusal", "revocation"); companions offer theirs with `Host.offerCallEntry`; a policy may re-resolve live captures
+through `changes` (BEH-BR-280, BEH-BR-281).
+
+### Call-log failure policy
+
+"drop" (an undeliverable entry is counted and the call stands) or "refuse"
+(the call does not deliver its outcome unless its entry was accepted), chosen
+by the `CallLog` port and per capture, over a bounded hand-off queue
+([29](./behaviors/29-capability-grants-and-call-log.md), BEH-BR-279).
 
 ### Annotation, annotation key, flow
 
@@ -278,16 +327,24 @@ carried, never enforced by core
 
 A **hook point** is a named extension point over a contribution registry
 whose contributions declare a role (veto, enrich, advisory), are admitted by
-the application's **admission rule** (`who`) over owner and labels, run in
-priority-then-id order under a per-hook timeout and a per-dispatch deadline,
-and yield a **decision record** naming the deciding contribution — returned
-and fed, never audited by core. A **breaker** is per contribution and is
-hook-level state, never plugin failure ([31](./behaviors/31-hook-points.md)).
+the application's **admission rule** (`who`) over owner, labels and what they
+ask for (failure policy, target), run in three ordered phases — enrich, then
+veto (seeing the enrichments), then advise — in priority-then-id order under
+a per-hook timeout and a per-dispatch deadline, and yield a **decision
+record** naming the deciding contribution — returned and fed, never audited
+by core. A **breaker** is per contribution or per plugin and is hook-level
+state, never plugin failure. Contributions declared by plugins not yet
+loaded are woken or deny ([31](./behaviors/31-hook-points.md)).
+
+### Denied-policy
+
+A hook dispatch denied by the point's `policy` about a veto contribution,
+recorded as such and never as that contribution's veto (BEH-BR-312).
 
 ### Selector
 
 The per-call choice among the implementations contributed to one registry; no
-failover (BEH-BR-307).
+failover (BEH-BR-307); with a contract registry, limited to a version range (BEH-BR-233).
 
 ### Gate (`Gate<Req>`), draft, plan
 
@@ -297,6 +354,30 @@ versions it was planned against; `OperationGate` is its host instance and
 result of `Host.plan`: what `reconcile` would do, without values;
 `reconcile(desired, { expect: plan })` applies it or nothing (`PlanStale`)
 ([32](./behaviors/32-generic-gate-and-plan.md)).
+
+### Atomic apply, undo action, PartialApply
+
+An **atomic apply** is `reconcile(desired, { atomic: true })`: its actions run
+in dependency order, the first that does not complete stops it, and every
+completed action is reversed by an **undo action** — the opposite ordinary
+operation, attributed, gated (`undo: true`) and recorded (`undoes`). It ends
+applied, rolled back (`ApplyRolledBack`) or partial (`PartialApply`, naming
+what stayed applied). "Atomic" covers the host's plugin set only, never
+external effects ([32](./behaviors/32-generic-gate-and-plan.md)).
+
+### Mandatory catalog
+
+`BridgerOptions.mandatoryCatalog`: the mandatory interceptions the
+application names by id so that a desired list can cite them as data
+(`DesiredPlugin.mandatoryInterceptions`); a difference on an installed entry
+is `PolicyMismatch` ([18](./behaviors/18-reconciliation-and-confluence.md)).
+
+### Contract registry
+
+A `ContributionRegistry` made with a `contract`: each contribution declares
+`implements`, checked against the registry's range at `add`;
+`within(range)` reads only compatible entries
+([26](./behaviors/26-versioned-contracts.md), BEH-BR-233).
 
 ### Realm family, ephemeral realm, narrowed actor, realm retirement
 
@@ -455,8 +536,8 @@ compliance; it does not satisfy a regulation.
 
 ## Companions
 
-Terms defined in the companion specifications (Drafts, CCR-BR-021); each tree
-is normative for its own terms.
+Terms defined in the companion specifications (Drafts, CCR-BR-021; round 2,
+CCR-BR-027); each tree is normative for its own terms.
 
 ### Remote plugin, link, session, epoch, guest
 
@@ -508,6 +589,79 @@ The kit's authoring function `definePlugin`; cases bound to one contract
 version and run with `Conformance.verify`; generated plain-TypeScript handlers
 run behind `Guest.serve`, not an isolation mechanism; a read-only devtools
 service ([kit](../kit/README.md)).
+
+### Receipt (command), listing record (MCP), model-facing envelope
+
+A **receipt** is the record, in the application's `CommandReceipts` store, of
+a completed dispatch under an idempotency key; a completed receipt never runs
+its handler again (command BEH-CM-041). A **listing record** holds, per MCP
+session, the descriptor digest of each tool the server listed; a call runs
+only that definition (mcp BEH-MC-003). The **model-facing envelope**
+(`Command.envelope`) is a command output with values at untrusted paths
+replaced by numbered references and listed apart, size-capped (command
+BEH-CM-030).
+
+### Signed statement, data pack
+
+A **signed statement** is a typed claim (`package`, `host-manifest`,
+`data-pack`, `licence`, `revocation-list`, or an application type) about a
+subject digest, whose type is part of the signed bytes, verified by the
+loader's `SignaturePolicy.verify` (BEH-LD-049). A **data pack** is a loader
+package kind holding a manifest and a payload of reference data and no entry
+code: verified as a signed statement, served as bytes, never evaluated, and
+reported stale past its `maxAge` (BEH-LD-057) ([loader](../loader/README.md)).
+
+### Revocation list, kill-only apply
+
+A **revocation list** is a signed, monotonic list of revoked digests and
+signers (loader BEH-LD-025), verified with `statementType`
+"revocation-list"; it travels apart from desired state (federation
+ADR-FD-009) and feeds the `RefusalList`. A **kill-only apply** reconciles a
+host's last applied desired list minus the entries a newer manifest's kill
+entries match, while a re-bootstrap is pending (BEH-FD-042).
+
+### Chain series, verification bundle
+
+A **chain series** is an append-only stream chained by the audit-chain
+companion's `ChainSink<R>` under a series id separate from any host id; core
+audit is one series (BEH-AC-025, BEH-AC-026). A **verification bundle** is a
+canonical export of chain segments, anchors, receipts and trust roots checked
+offline by the pure `verifyBundle` (BEH-AC-033, BEH-AC-034)
+([audit-chain](../audit-chain/README.md)).
+
+### Residency label, writers last, payload codec
+
+A **residency label** is the opaque `residency` string of a plugin manifest
+(BEH-BR-241), and the labels a transport or route declares it offers; core
+carries both and compares nothing, and the remote companion's
+`PlacementPolicy` compares them as strings (BEH-RM-068). It is not evidence
+of where code runs. **Writers last** is the rollout order for a version raise
+when some readers cannot be upgraded first: readers learn N first; writers
+switch to N by configuration once reports show no reader below N
+(BEH-FD-046, BEH-DB-031). The **payload codec** is the event delivery
+companion's port that encodes event payloads after schema encoding, for
+example field encryption (BEH-DB-008).
+
+### Expected version, fact, number series, crypto-shredding
+
+An **expected version** is the stream version an append requires; a
+mismatch is `WrongExpectedVersion`. A **fact** (offline fact) is input that
+already took effect on a host and is recorded, never rejected; rule
+violations become events (ADR-ES-005) ([event-store](../event-store/README.md)).
+A **number series** is a per-origin, contiguous, closeable sequence of
+record numbers owned by one host ([sequence](../sequence/README.md)).
+**Crypto-shredding** makes encrypted fields unreadable by destroying their
+key copies held by the keyring's key store, without changing stored records;
+the keyring companion states its limits and claims no erasure
+([keyring](../keyring/README.md)).
+
+### Entry owner, hold revocation notice
+
+A registry view entry's **owner** is the plugin id and realm that
+`ActivePlugin` held when its `add` ran — diagnostic attribution, never
+authorization (BEH-BR-165). A **`HoldRevoked`** notice is published on a
+registry's `revocations` feed when a removal interrupts holders at
+`drainTimeout` (BEH-BR-167); the feed is a notification, not a log.
 
 ---
 
