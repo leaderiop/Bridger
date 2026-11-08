@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -149,3 +149,45 @@ visibly does one or the other.
 inventory test over `@bridger/loader` and `@bridger/loader/testing`.
 
 **Related**: [BEH-LD-019](behaviors/03-signature-policy.md), [BEH-LD-022](behaviors/03-signature-policy.md), [BEH-LD-045](behaviors/06-limits-and-acceptance.md), [ADR-LD-003](decisions/003-n-of-m-signature-policy-with-no-default.md).
+
+---
+
+## INV-LD-007: A data pack is never evaluated
+
+No byte of a data pack reaches an evaluator, a module loader, `eval`,
+`Function`, `import()` or `require`, before or after verification, and no
+data-pack digest enters `Loader.resident` or `AcceptedDigests`.
+
+**Source**: `packages/loader/src/DataPack.ts` *(Planned)* — the data-pack
+pipeline has no evaluator dependency; `VerifiedDataPack` is a distinct type
+that `EvaluatorShape.evaluate` does not accept.
+
+**Implication**: reference data is judged like code for provenance and
+revocation, and is never run.
+
+**Verification** *(Planned)*: acceptance check 23 of BEH-LD-064 with the
+recording evaluator; a type-level test that a `VerifiedDataPack` cannot be
+passed to the evaluator.
+
+**Related**: [BEH-LD-057](behaviors/08-data-packs.md), [BEH-LD-058](behaviors/08-data-packs.md), [BEH-LD-059](behaviors/08-data-packs.md), [ADR-LD-007](decisions/007-data-packs-are-verified-never-evaluated.md).
+
+---
+
+## INV-LD-008: A signature counts only for the statement type it was made for
+
+Every signature the loader counts was verified over a statement the loader
+built, whose `statementType`, subject digest, id and version are those of the
+call it counts for; a signature over a statement of another type counts for
+nothing.
+
+**Source**: `packages/loader/src/Verify.ts` *(Planned)* — `SignaturePolicy.verify`
+is the only function that counts signatures, and it builds the statement
+from its request.
+
+**Implication**: a data publisher's, fleet operator's or licence signer's key
+never counts towards a release policy, and no signature is replayed across
+types.
+
+**Verification** *(Planned)*: acceptance checks 17 and 18 of BEH-LD-064.
+
+**Related**: [BEH-LD-049](behaviors/07-signed-statements.md), [BEH-LD-050](behaviors/07-signed-statements.md), [BEH-LD-051](behaviors/07-signed-statements.md), [BEH-LD-054](behaviors/07-signed-statements.md), [ADR-LD-006](decisions/006-one-verification-step-for-every-signed-statement.md).

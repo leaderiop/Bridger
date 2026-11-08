@@ -117,7 +117,24 @@ Your generated SDK speaks exactly one contract version. To serve two majors,
 generate and serve two modules. The product picks a version it accepts when
 it connects; you never negotiate in your code.
 
+## If you ship a user interface
+
+A partner UI bundle is never loaded into the product's page. The product renders
+it in an `<iframe>` whose `sandbox` attribute omits `allow-same-origin`, behind a
+proxy plugin, and talks to it over a postMessage transport
+([REACT-UI-PLUGINS.md §3.7](../REACT-UI-PLUGINS.md)). Your bundle serves the
+product's UI contract with the same generated SDK, receives plain JSON props,
+the locale, the text direction and theme tokens, and calls back only through
+the contracts you were granted. The browser's iframe sandbox is what confines
+your bundle; neither the SDK nor Bridger confines anything.
+
 ## When something fails
 
 Look the tag up in the [error catalog](./error-catalog.md); the tooling prints
 the same fix text next to every failure.
+
+## Publishing your package
+
+[Partner publishing guide](../../references/kit/appendices/b-partner-publishing.md) — pack, publish, countersign and what a host checks.
+
+Change log: 2026-11-08, round 2 — section "If you ship a user interface" (sandboxed iframe through `SandboxedSlot`); section "Publishing your package" links the partner publishing guide (CCR-BR-027).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-04                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): `dev` digests aligned with core's lazy and manifest digest rules (CCR-KT-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.5 (2026-11-08): `publish` takes `--signer`; without the deployment's rules it prints "policy unknown" and runs no verification, with them it needs an explicit revocation source or `--revocation unbounded` and writes no `LoadLog`; `verify-chain` synopsis gains `--verifier`, `--profile` and `--expect-head`, and exit code 4 (round-2 agent review R3-10–R3-13) (CCR-KT-003)<br>0.4 (2026-11-08): `publish` signs through the loader's `Statement.signingInput` and `StatementSigner` and reports with `SignaturePolicy.verify` (G56 closed for the kit); BEH-KT-032 `countersign`; `verify-chain` listed (06); manifests carry `role`, `target`, `listens`; `dev --cold`, non-atomic reloads and G65 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.3 (2026-11-08): `dev` digests aligned with core's lazy and manifest digest rules (CCR-KT-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -21,23 +21,30 @@ file watcher and a hot-reload policy ([ADR-BR-027](../../core/decisions/027-core
 they belong here. Every command that changes a host does so through core
 operations, attributed, gated and audited like any other caller
 ([INV-KT-004](../invariants.md#inv-kt-004-tooling-changes-a-host-only-through-host-operations)).
-This file owns BEH-KT-025–032 and uses BEH-KT-025–031; 032 is reserved.
+This file owns BEH-KT-025–032 and uses all eight.
 
 ```text
 bridger create <name> [--template plugin|contract|app|partner]
-bridger dev    [--entry <module>] [--plan]
+bridger dev    [--entry <module>] [--plan] [--cold]
 bridger test   [--conformance] [--reporter <name>]
 bridger check  [--contracts-only]
 bridger pack   [--out <dir>]
-bridger publish <package> --target <name>
+bridger publish <package> --target <name> [--signer <adapter>] [--rules <file>] [--revocation <file>|unbounded] [--partial]
+bridger countersign <package> [--signer <adapter>] [--rules <file>] [--revocation <file>|unbounded]
+bridger verify-chain <bundle> [--trust-roots <file>] [--verifier <module>]... [--profile <name>=<module>]... [--expect-head <seriesId>=<seq>[:<hash>]]... [--json]
 bridger inspect [--json] [--entry <module>] [<plugin>]
 bridger sdk generate <contract-package> [--out <dir>]
 ```
 
 Exit codes: 0 success; 1 a check or test failed; 2 usage error; 3 an
-environment problem (missing entry, unreadable lockfile). Every failure line
+environment problem (missing entry, unreadable lockfile); 4, for
+`verify-chain` only, nothing inconsistent was found but the check is
+incomplete (06, BEH-KT-047). Every failure line
 that involves an error tag ends with the tag's catalog reference
 (07 — Error catalog).
+
+`verify-chain` changes nothing and is specified with the other read-only tools in
+[06 — Devtools inspector](./06-devtools-inspector.md) (BEH-KT-047).
 
 Planned source: `packages/kit/src/cli/*.ts` *(Planned)*.
 
@@ -114,6 +121,16 @@ REQUIREMENT: On a saved change, `dev` MUST re-evaluate the entry in a fresh
 REQUIREMENT: When a replaced definition declares a state handoff (file 34),
              the reload MUST use it; otherwise the plugin cold-starts and
              `dev` MUST print "cold start: <id> (no handoff declared)".
+             `bridger dev --cold` MUST pass `cold: true` (core BEH-BR-353)
+             so that a reload skips a declared handoff on purpose.
+```
+
+```
+REQUIREMENT: `dev` MUST reconcile without `atomic` (core BEH-BR-153; the
+             default is false). When a reload narrows a provider that a
+             listed dependent still needs, core takes two runs (gap G65):
+             `dev` MUST print the entry core rejected and apply the second
+             run on the next save, not retry in a loop.
 ```
 
 ```
@@ -230,6 +247,18 @@ REQUIREMENT: `pack` MUST run `check`, then produce a package in the loader
 ```
 
 ```
+REQUIREMENT: The manifest `pack` emits, and the one `check` compares, MUST
+             carry each contribution's `role` and `target` when the plugin
+             registers its hook contributions with them, and `listens` with
+             the event ids its listeners subscribe to (core BEH-BR-241), so
+             that `Host.declaredContributions` and
+             `AccessPolicy.declaredOnly` (core BEH-BR-250, BEH-BR-268) see
+             what the code registers. A manifest emitted for a data pack
+             MUST be a loader `DataPackManifest` (BEH-LD-057), with no
+             plugin fields.
+```
+
+```
 REQUIREMENT: `pack` MUST be reproducible: the same sources, lockfile and kit
              version MUST give byte-identical packages (sorted paths, fixed
              timestamps, normalised line endings).
@@ -249,11 +278,53 @@ interface PublishTarget {                                // port; adapters per r
 ```
 
 ```
-REQUIREMENT: `publish` MUST obtain signatures by calling the signing step
-             the loader companion defines, passing the package digest, and
-             MUST NOT read, receive, store or log signing key material. When
-             the loader's signing policy needs N of M signers, `publish` MUST
-             stop after its own signature and print what remains.
+REQUIREMENT: `publish` MUST obtain its signature through the loader's
+             signing step: it MUST build the statement with
+             `Statement.make({ statementType: "package", subject: { digest },
+             id, version })`, hand `Statement.signingInput(statement)` to the
+             `StatementSigner` adapter the person publishing has wired, and
+             append the returned `Signature` to the package's signatures
+             (loader [07 — Signed statements](../../loader/behaviors/07-signed-statements.md),
+             BEH-LD-049, BEH-LD-054). It MUST NOT read, receive, store or
+             log signing key material.
+```
+
+```
+REQUIREMENT: `publish` MUST sign with the `StatementSigner` adapter named
+             by `--signer`, or by the project configuration when the option
+             is absent, and MUST stop with a usage error when neither names
+             one.
+```
+
+```
+REQUIREMENT: Without the deployment's rules (`--rules`, or the project
+             configuration), `publish` MUST NOT call
+             `SignaturePolicy.verify`, MUST print "policy unknown: the
+             deployment's rules were not given" in place of the policy line,
+             and MUST upload only with `--partial`. With the rules, it MUST
+             build a `StatementVerifier` from them, with `maxAge`
+             "unbounded" (it loads nothing) and no `LoadLog`, over the
+             revocation source `--revocation` names: a file holding a saved
+             `SignedRevocationList`, offered to `RevocationSource.verified`
+             built with the revocation issuer and trust root the rules file
+             gives (loader BEH-LD-026), whose `issuedAt` MUST be printed; or
+             the value `unbounded`, meaning `RevocationSource.constant` of an
+             empty set, in which case it MUST print a warning that no
+             revocation was checked. It MUST stop with a usage error when
+             the rules are given without `--revocation`.
+```
+
+```
+REQUIREMENT: After signing, `publish` MUST call `SignaturePolicy.verify`
+             (BEH-LD-050) with the package's signatures, the manifest's
+             `publisher`, and the deployment's rules as above; when the
+             result is `SignatureRejected` ("unsatisfied"),
+             it MUST stop after its own signature, upload nothing unless
+             `--partial` is given, and print the unmet branch the error
+             names (`missing`) as what remains — for example "needs 1
+             signer with role reviewer: run bridger countersign". A
+             `PublisherMismatch` MUST stop the publish with its catalog
+             entry.
 ```
 
 ```
@@ -261,6 +332,66 @@ REQUIREMENT: `publish` MUST refuse a package whose digest it cannot
              recompute from the files, and MUST refuse to run while `check`
              fails.
 ```
+
+## BEH-KT-032: countersign adds a second signer entry without changing the package
+
+> **Invariant:** [INV-KT-007](../invariants.md#inv-kt-007-publish-never-handles-signing-key-material)
+> **See:** [ADR-KT-001](../decisions/001-kit-is-sugar-and-tools-over-core.md)
+> **Core seam:** [references/loader/](../../loader/behaviors/07-signed-statements.md) (LD; BEH-LD-050, BEH-LD-053, BEH-LD-054)
+
+```text
+$ bridger countersign dist/report-export-1.4.0.bpkg --signer kms-reviewer
+package   report-export 1.4.0  sha256:3f…a1 (recomputed)
+verified  publisher-key (roles: publisher)
+signing   kms-reviewer …  ok (signer entry reviewer-key)
+policy    release-v1: satisfied (publisher-key, reviewer-key)
+```
+
+```
+REQUIREMENT: `countersign` MUST recompute the package digest from its files
+             with the loader's digest function (BEH-LD-002) and MUST refuse
+             a package whose digest differs from the one its signatures
+             name. It MUST verify the existing signatures with
+             `SignaturePolicy.verify` before signing and print the signer
+             entries that verified, with the rules and revocation source
+             built as for `publish` (BEH-KT-030); without the deployment's
+             rules it MUST print "policy unknown" and sign without that
+             report.
+```
+
+```
+REQUIREMENT: `countersign` MUST sign the same statement the existing
+             signatures cover — `statementType` "package", the recomputed
+             digest, the manifest's id and version — through
+             `Statement.signingInput` and the wired `StatementSigner`
+             (BEH-LD-054), and MUST append the signature beside the package
+             without changing any of its bytes. When the new signature
+             verifies to a signer entry that already signed, it MUST say so
+             and add nothing (the policy counts that entry once,
+             BEH-LD-020).
+```
+
+```
+REQUIREMENT: After appending, `countersign` MUST call
+             `SignaturePolicy.verify` again and print whether the policy is
+             satisfied or which branch remains. It MUST NOT read, receive,
+             store or log key material; a signer failure MUST end the
+             command with `SigningFailed` and its catalog entry, leaving the
+             signatures unchanged.
+```
+
+```
+REQUIREMENT: `countersign` MUST also accept a data pack (loader 08), with
+             `statementType` "data-pack" and the data-pack digest
+             (BEH-LD-058), under the same rules.
+```
+
+Countersigning is the second half of double signing: a reviewer who did not
+build the package signs the same statement days later, with a key the
+publisher never sees. Because signatures sit outside the digest, the catalog
+entry, the stamp and every earlier record keep naming the same bytes. The
+partner publishing guide ([appendix B](../appendices/b-partner-publishing.md))
+walks through both steps.
 
 ## BEH-KT-031: inspect prints the inspector report
 

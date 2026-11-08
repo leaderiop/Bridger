@@ -1,6 +1,8 @@
 # Bridger ERP: operations, deployment and administration
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Resource names, tables, endpoints and screens are proposed. Alchemy and Effect facts (stacks and stages, `Cloudflare.Website.Foldkit`, `RemovalPolicy.retain()`, drift, `Config.Redacted`, `Logger`/`Metric`/`Tracer`, `ManagedRuntime`) are cited from the [knowledge catalog](knowledge/README.md) entries A01–A21, A26–A30, E11, E15, E43, R29–R31, B03, B15, B18; they were not executed. Alchemy is at a 2.0 beta in the observed source. Policy: all packages target the latest stable Effect 4.x (4.0.0 at the time of writing). This document refines [ERP-SPEC.md](ERP-SPEC.md) §5–6.
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Resource names, tables, endpoints and screens are proposed. Alchemy and Effect facts (stacks and stages, `Cloudflare.Website.Foldkit`, `RemovalPolicy.retain()`, drift, `Config.Redacted`, `Logger`/`Metric`/`Tracer`, `ManagedRuntime`) are cited from the [knowledge catalog](knowledge/README.md) entries A01–A21, A26–A30, E11, E15, E43, R29–R31, B03, B15, B18; they were not executed. Alchemy is at a 2.0 beta in the observed source. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). This document refines [ERP-SPEC.md](ERP-SPEC.md) §5–6.
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 ## 1. Decision
 
@@ -57,11 +59,13 @@ export default Alchemy.Stack("bridger-erp", {
 
 ## 3. Process lifecycle and multi-replica rollout
 
+> **Superseded in part (2026-11-08).** Converging many hosts on what they should run — a signed host manifest per host, offline continuity and re-bootstrap — is governed by [`@bridger/federation`](../references/federation/README.md) ([01 — Host manifest](../references/federation/behaviors/01-host-manifest.md), [02 — Sync, offline and re-bootstrap](../references/federation/behaviors/02-sync-offline-and-rebootstrap.md)). The replica protocol below is an example for replicas that share one ERP database; it does not cover offline or multi-site hosts. Outbox leasing in the shutdown order is replaced by the durable-bus relay ([`@bridger/durable-bus`](../references/durable-bus/README.md)).
+
 ### Startup and shutdown
 
-Startup order: configuration and secrets → connect pool → **platform migrations** under the storage adapter's named lock (one replica runs them; others wait) → artifact store check → `recover()` module journals ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §7) → start outbox, job, scheduler and workflow workers → open admission module by module → readiness green (platform plugins active and no in-flight install journal unresolved; tenant modules are not part of readiness because tenants load lazily). `ErpNode.runMain` owns signals.
+Startup order: configuration and secrets → connect pool → **platform migrations** under the storage adapter's named lock (one replica runs them; others wait) → artifact store check → `recover()` module journals ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §7) → start the durable-bus relay and the job, scheduler and workflow workers → open admission module by module → readiness green (platform plugins active and no in-flight install journal unresolved; tenant modules are not part of readiness because tenants load lazily). `ErpNode.runMain` owns signals.
 
-Shutdown (`SIGTERM`): (1) readiness red, load balancer drains; (2) stop admitting new requests; (3) stop leasing outbox/jobs/workflow tasks; (4) await admitted requests and in-flight deliveries up to `shutdownGrace` (default 30 s); (5) close registry generations (leases drain), activation scopes, pool. Cloud platforms may kill without finalizers (A21), so **durability never depends on a finalizer running**: leases expire, idempotency absorbs repeats, journals are resumable.
+Shutdown (`SIGTERM`): (1) readiness red, load balancer drains; (2) stop admitting new requests; (3) stop the durable-bus relay (it loses nothing on stop, BEH-DB-052) and stop leasing jobs and workflow tasks; (4) await admitted requests and in-flight deliveries up to `shutdownGrace` (default 30 s); (5) close registry generations (leases drain), activation scopes, pool. Cloud platforms may kill without finalizers (A21), so **durability never depends on a finalizer running**: leases expire, idempotency absorbs repeats, journals are resumable.
 
 Health endpoints: `GET /healthz` (process alive), `GET /readyz` (database reachable, recovery complete, required modules active on this node), `GET /erp/diagnostics` (authorized: module phases, resident artifact versions, worker lag).
 
@@ -97,10 +101,10 @@ One-process Todo needs none of this; it is the multi-replica requirement noted a
 
 - **Logging**: Effect `Logger` with structured JSON; fields `tenantId`, `companyId` (when present), `actorId` hash, `correlation`, `module`, `operation`. Secrets and `Redacted` values never appear. Request bodies are not logged by default.
 - **Tracing**: Effect `Tracer` exported with OTLP. A span per request, per command transaction, per outbox delivery, per job and per workflow activity, linked by `correlation`. qadi emits spans and metrics for decisions (`qadi.evaluate`, predicate translation counters); they are included.
-- **Metrics** (`Metric`): request counts/latency by operation and error class; transaction duration and retries; revision conflicts; idempotency hits/conflicts; outbox depth, oldest pending age, lease expiries, dead count; job queue depth/latency/failures; workflow instances by state; module phase counts by state (per-tenant detail lives in logs and the admin view); worker lag; pool saturation; catalog revision lag; attachment scan backlog; memory/resident artifact versions.
+- **Metrics** (`Metric`): request counts/latency by operation and error class; transaction duration and retries; revision conflicts; idempotency hits/conflicts; outbox backlog and oldest pending age, parked envelopes (durable-bus); job queue depth/latency/failures; workflow instances by state; module phase counts by state (per-tenant detail lives in logs and the admin view); worker lag; pool saturation; catalog revision lag; attachment scan backlog; memory/resident artifact versions.
 - **Cardinality rule**: metric labels are bounded (operation ID, error tag, module ID, state). `tenantId` and `actorId` are **never** metric labels; per-tenant visibility comes from logs/traces and the admin surface.
 - **Audit is not telemetry**: business audit ([ERP-STORAGE.md](ERP-STORAGE.md) §11) and awthaq auth audit are stores with retention; traces/logs are sampled and expire.
-- **Alerts** (defaults): outbox oldest-pending age, dead-letter count > 0, module in `failed`, rollout incomplete beyond timeout, migration lock held beyond threshold, pool exhaustion, readiness flapping, elevated `InternalError` rate, certificate/key expiry (publisher keys, secrets).
+- **Alerts** (defaults): outbox oldest-pending age, parked envelopes or stopped streams > 0 ([durable-bus BEH-DB-022](../references/durable-bus/behaviors/03-delivery-and-inbox.md)), module in `failed`, rollout incomplete beyond timeout, migration lock held beyond threshold, pool exhaustion, readiness flapping, elevated `InternalError` rate, certificate/key expiry (publisher keys, secrets).
 - A correlation ID is minted at the edge (or accepted from a trusted header), returned to clients in `InternalError`, and stored in audit rows and events.
 
 ## 5. Isolation and the trust decision
@@ -118,7 +122,7 @@ One-process Todo needs none of this; it is the multi-replica requirement noted a
 | Secrets and publisher public keys | Secret manager backup; public keys also in the database. | |
 | Alchemy state | Provider state backup, separate. | Retention is not a backup. |
 
-Post-restore procedure: stop admission; run schema drift check ([ERP-STORAGE.md](ERP-STORAGE.md) §7); `recover()` journals; **re-evaluate outbox and job leases** (all leases cleared); run reconciliation for integration intents in `unknown` ([ERP-BUSINESS.md](ERP-BUSINESS.md) §6) because the restored database may predate external effects that did happen; reindex search; reopen admission. Documented RPO/RTO targets are deployment choices; defaults proposed: RPO ≤ 5 min, RTO ≤ 1 h.
+Post-restore procedure: stop admission; run schema drift check ([ERP-STORAGE.md](ERP-STORAGE.md) §7); `recover()` journals; **raise the durable-bus origin incarnation** of every restored node before its relay restarts ([BEH-DB-004](../references/durable-bus/behaviors/01-events-and-envelope.md#beh-db-004-an-origin-is-an-incarnation-never-reused): without it, receivers stop the restored streams with `EnvelopeConflict`, and once their inbox retention has passed they absorb the reissued envelopes as repeats without recording them). The number can be raised by hand, or kept by a wired `IncarnationSource` (same behaviour), which stores it outside the database's backups so a restore cannot roll it back; clear job leases (jobs stay ERP-owned); run reconciliation for integration intents in `unknown` ([ERP-BUSINESS.md](ERP-BUSINESS.md) §6) because the restored database may predate external effects that did happen; reindex search; reopen admission. Documented RPO/RTO targets are deployment choices; defaults proposed: RPO ≤ 5 min, RTO ≤ 1 h.
 
 ## 7. Retention, purge and anonymization
 
@@ -143,7 +147,7 @@ Administration uses the same operation pipeline (authorized management commands,
 | Audit and sessions | Search audit, active sessions, impersonation with reason/expiry | awthaq admin |
 | System | Readiness, resident versions, migration lock, worker lag | read-only |
 
-Destructive actions require a reason, are audited, and honor the impersonation restriction. Dangerous actions (revoke artifact, replay dead letters, terminate workflows) require a second confirmation step in the UI and appear in the audit with before/after state.
+Destructive actions require a reason, are audited, and honor the impersonation restriction. Dangerous actions (revoke artifact, release parked envelopes ([durable-bus 03](../references/durable-bus/behaviors/03-delivery-and-inbox.md), BEH-DB-022), terminate workflows) require a second confirmation step in the UI and appear in the audit with before/after state.
 
 ## 9. Configuration
 
@@ -184,3 +188,7 @@ These are design acceptance scenarios, not tests already executed.
 | 6 | Chaos and load testing | **Targets are recorded after the first prototype and before general availability.** The plan is: capacity targets per node for command and query throughput, outbox latency, and failover; chaos cases are the acceptance checks in §11 plus pool exhaustion and database failover. |
 
 Only item 1 remains open and needs input from you.
+
+Change log: 2026-11-08, round-2 agent review fixes — §6 post-restore procedure: "re-evaluate outbox leases" (a withdrawn model) replaced by raising the durable-bus origin incarnation before relays restart (BEH-DB-004), job leases kept; §3 startup and shutdown start and stop the durable-bus relay instead of outbox workers and outbox leasing; §8 "replay dead letters" replaced by releasing parked envelopes (BEH-DB-022) (R5-12); status banner links the event-store, sequence and keyring companions (R5-20).
+
+Change log: 2026-11-08, round-2 integration (CCR-BR-029) — §6 post-restore procedure names the durable-bus `IncarnationSource` (BEH-DB-004), which keeps the incarnation number outside the database's backups, as an alternative to raising it by hand.

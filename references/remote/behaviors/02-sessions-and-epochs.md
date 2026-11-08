@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-02                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — accepted range bounded by core BEH-BR-232; `hello` carries the epoch and `welcome` must echo it; revocations held for the life of `Remote.layer`, re-read from the revocation source at start, and recorded in the companion's own status (R3-04, R3-07, R3-08, R3-12, R3-13) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F23, F28) — the wire version is negotiated per session (`hello` lists N and N−1, `welcome` picks the highest common), which is writers last without a fleet condition; `RemoteOptions.wireVersions`; the revocation entry carries `epoch` when a session was open (stale parenthesis removed) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 25 — a revocation unmounts the session child with `Plugin.Runtime.unmount` and `requestedBy` (core G57 closed), offers a "revocation" entry through `Host.offerCallEntry` (G43 closed), and cites `RefusalList` for starts (G60 closed); recheck item 22 — the `wire` version follows the N/N−1, writers-last rule (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — accepted range bounded by core BEH-BR-232; `hello` carries the epoch and `welcome` must echo it; revocations held for the life of `Remote.layer`, re-read from the revocation source at start, and recorded in the companion's own status (R3-04, R3-07, R3-08, R3-12, R3-13) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -33,12 +33,12 @@ Planned source: `packages/remote/src/Session.ts`, `packages/remote/src/Handshake
 
 ```
 REQUIREMENT: On each new connection the link MUST send `hello` naming the
-             wire version, the session's epoch (BEH-RM-010), the contract's
+             wire versions it speaks, the session's epoch (BEH-RM-010), the contract's
              identifier, the accepted range and a descriptor of each grant
              (contract identifier, version range, methods). The guest MUST
-             answer `welcome` with the same epoch, the contract version it
-             serves and the in-flight limit it applies, or `refuse` with a
-             reason.
+             answer `welcome` with the same epoch, the agreed wire version,
+             the contract version it serves and the in-flight limit it
+             applies, or `refuse` with a reason.
 ```
 
 ```
@@ -62,6 +62,30 @@ REQUIREMENT: The link MUST accept a `welcome` only when the served version
              stays `active` and mounts no session child, so the contract
              stays unprovided and its dependents stay `waiting`; no
              activation fails.
+```
+
+```
+REQUIREMENT: The wire version is negotiated per session — the N/N−1 rule of
+             the federation companion's skew model
+             ([BEH-FD-046](../../federation/behaviors/06-kill-path-placement-and-skew.md#beh-fd-046-one-skew-model-for-every-version-axis)):
+             a release at wire N MUST list N and N−1 in `hello.wire` and
+             MUST encode `hello` at the lowest version it lists; the guest
+             MUST answer `welcome` with the highest version both ends list,
+             or `refuse` with reason "wire" when there is none. Every later
+             frame of the session MUST be sent and read at the agreed
+             version, and a frame at another version MUST end the session
+             with reason "wire". `hello`, `welcome` and `refuse` MUST keep
+             the fields they need to negotiate readable at N−1.
+```
+
+```
+REQUIREMENT: Writers last on this axis follows from the negotiation: a
+             release at N sends N only to a peer that listed N, so no
+             option chooses the version sent and no fleet-wide condition is
+             needed. `RemoteOptions.wireVersions` MAY narrow the listed
+             versions to one (for example to N−1 while a rollout is held
+             back by desired state); it MUST NOT add a version the release
+             cannot read.
 ```
 
 ```
@@ -269,40 +293,58 @@ REQUIREMENT: `revoke` MUST require an `OperationContext`. It MUST record the
              selector, the actor's id, the reason and the `Clock` time in
              `RemoteBoundary.revoked` and in the `revoked` field of the
              `LinkStatus` of every matching link, MUST log them at warning
-             level with the link IDs it withdrew, and MUST write one entry to
-             the core `CallLog` port (core behaviour 29, BEH-BR-276) naming
-             the selector, the actor and the reason, when that port is
-             wired.
+             level with the link IDs it withdrew, and, when a `CallLog` is
+             wired, MUST offer one entry per matching link through
+             `Host.offerCallEntry` (core BEH-BR-280) with `kind`
+             "revocation", `companion` "@bridger/remote", the link's
+             contract as `serviceId`, `outcome` "refused" and `revocation`
+             `{ link, reason }` and `epoch` when a session was open
+             (BEH-RM-046), run in a fiber whose `CurrentActor` is the
+             context's actor.
+```
+
+```
+REQUIREMENT: The session child of each matching link MUST be removed with
+             `Plugin.Runtime.unmount(child, { context })` (core BEH-BR-126),
+             called by the link with the `context` given to `revoke`, before
+             the session's sub-scope closes. Core then records one
+             `unmount-requested` record carrying `requestedBy` (the revoking
+             actor and reason) and the `system-stop` records of the child
+             and its dependents, caused by it. When the child's removal has
+             already begun (the session ended for another reason first), the
+             call waits for it and adds no record; the revocation is then
+             visible only in this companion's trail and the `CallLog`.
 ```
 
 Revocation and removal are two steps on purpose: the boundary must refuse in
-the same instant a kill switch is pulled, while removal follows the core's
-ordering — dependents first, bounded drain — and its approval rules. When the
-loader companion's revocation source is wired ([references/loader/](../../loader/README.md)),
-`Remote.layer` subscribes to it and calls `revoke` for each digest
-it names.
+the same instant a kill switch is pulled, while removal of the link follows
+the core's ordering — dependents first, bounded drain — and its approval
+rules. When the loader companion's revocation source is wired
+([references/loader/](../../loader/README.md)), `Remote.layer` subscribes to
+it and calls `revoke` for each digest it names, with the revocation source's
+actor.
 
-The session child's unmount after a revocation is the sub-scope removal of
-core BEH-BR-126: it and the dependents' stops that follow are audited as
-`system-stop` by `Actor.system`, caused by the child's mount record. The
-revoking actor and reason reach no core audit record — core gap G57 — so
-until core offers an attributed cause, this companion's own trail
-(`RemoteBoundary.revoked`, `LinkStatus.revoked`, the warning log line and
-the `CallLog` entry) is the only place that links the withdrawal to who
-pulled the switch ([RSK-RM-013](../risks.md#rsk-rm-013)).
+The session child's unmount after a revocation is attributed: core's
+`Plugin.Runtime.unmount` writes `requestedBy` beside `Actor.system`, so the
+core trail shows both that the host stopped the child and on whose request
+(core gap G57, closed by CCR-BR-026). This companion's own trail
+(`RemoteBoundary.revoked`, `LinkStatus.revoked`, the warning line and the
+`CallLog` entry) remains the place that names the selector
+([RSK-RM-013](../risks.md#rsk-rm-013)).
 
-A revocation stops a link from serving, not core from starting it: core
-never gates a system start (core BEH-BR-223, gap G60), so a revoked link may
-still be started by core, but each of its activations opens no session and
-provides nothing. Making the digest unusable on the host is the separate
+A revocation stops a link from serving; core's `RefusalList` stops it from
+starting. When the deployment's `RefusalList` (core BEH-BR-267) refuses the
+link's digest — the loader companion feeds it from the same revocation
+source — core leaves the link `disabled` with reason "refused-digest" at its
+next start, restart or mount, whatever causes it (core gap G60, closed by
+CCR-BR-026). Without a wired `RefusalList`, a revoked link may still be
+started by core, but each of its activations opens no session and provides
+nothing. Making a running digest unusable on the host is the separate
 `disable` or `remove`.
 
-**Open.** (1) Whether a revocation entry belongs in the core `CallLog` or in a
-record kind of its own depends on the entry shape of core's `CallLog` port (BEH-BR-276), which
-defines only core's own call entries (core URS gap G43); until it is fixed,
-the entry above is the planned use. (2) Lifting a revocation is not
-specified in this revision: a revocation from the source ends when the
-source stops naming it and `Remote.layer` restarts.
+**Open.** Lifting a revocation is not specified in this revision: a
+revocation from the source ends when the source stops naming it and
+`Remote.layer` restarts.
 
 ---
 

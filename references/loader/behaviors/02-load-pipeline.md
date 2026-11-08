@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-02                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.4 (2026-11-08): Steps 4 and 5 run through `SignaturePolicy.verify` with the publisher binding; system starts of revoked digests refused by core's `RefusalList` backed by the loader (G60 closed); undo requests judged as the operation they issue (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -62,9 +62,12 @@ REQUIREMENT: `load` MUST run these steps in this order, and each step MUST
              1. fetch the package bytes (BEH-LD-010);
              2. check paths and compute the digests (01, BEH-LD-001–003);
              3. compare with the expected digest, when given (01, BEH-LD-004);
-             4. evaluate the signature policy (03 — Signature Policy);
+             4. evaluate the signature policy (03 — Signature Policy) and
+                the publisher binding, through `SignaturePolicy.verify`
+                with `statementType: "package"` (07, BEH-LD-050,
+                BEH-LD-053);
              5. check the current revocation set (04 — Revocation and Kill
-                Switch, BEH-LD-027);
+                Switch, BEH-LD-027), within the same `verify` call;
              6. run the application's predicates (01, BEH-LD-006);
              7. evaluate the entry file (BEH-LD-011);
              8. extract and check the definition, and stamp it (BEH-LD-014,
@@ -268,8 +271,8 @@ interface LoadedPlugin {
 }
 type LoadError =
   | FetchFailed | PackageMalformed | UnsupportedDigestAlgorithm | DigestMismatch
-  | SignatureRejected | Revoked | RevocationUnavailable | RevocationStale
-  | PackageRefused | EvaluationFailed | NotAPluginDefinition | ManifestMismatch
+  | SignatureRejected | PublisherMismatch | Revoked | RevocationUnavailable | RevocationStale
+  | PackageRefused | EvaluationFailed | NotAPluginDefinition | ManifestMismatch | LoadLogFailed
 ```
 
 ```
@@ -434,12 +437,25 @@ system transition (core
 and the load at trigger time still runs steps 1–6 (05, BEH-LD-037).
 
 Refusing the restart-like operations of a revoked digest keeps an operator
-from undoing a revocation. It cannot do more: core never gates a system
-transition, so an installed plugin of a revoked digest starts again when its
-dependencies return or a background fiber restarts (core
-[BEH-BR-223](../../core/behaviors/25-operation-gate.md#beh-br-223-system-transitions-and-shutdown-are-audited-not-gated));
-only `disable` or `remove` — the kill switch's job (04) — makes the digest
-unusable on a running host.
+from undoing a revocation. The gate cannot do more: core never gates a system
+transition (core
+[BEH-BR-223](../../core/behaviors/25-operation-gate.md#beh-br-223-system-transitions-and-shutdown-are-audited-not-gated)).
+System starts are covered instead by core's `RefusalList`, consulted before
+every start whatever its cause (core
+[BEH-BR-267](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md#beh-br-267-the-refusallist-port--a-refused-digest-does-not-start-system-starts-included)),
+which the loader backs with its revocation set (07, BEH-LD-056). With the list
+wired, core refuses those operator calls at its step 4b before the gate is
+asked, and this piece's refusal is a second line for deployments without the
+list. An `active` plugin is still stopped only by `disable` or `remove` — the
+kill switch's job (04).
+
+An undo request of an atomic reconcile (`OperationRequest.undo: true`, core
+BEH-BR-219, BEH-BR-325) is judged by the same rules as the operation it
+issues: restoring a digest that is no longer accepted, or that was revoked
+meanwhile, is refused, and core reports the entry in `PartialApply.notUndone`.
+The piece never restores revoked code to undo a failed apply. The fields
+`allowChildren` and `mandatoryInterceptions` of a request are not read by the
+piece.
 
 The check remains a label check: it holds because a definition carrying a
 loader-accepted digest can only have been produced by the loader's stamping,
@@ -465,6 +481,7 @@ interface VerificationRecord {
   readonly acceptedBy?: "pinned" | "signed"            // step 4 passed: which branch of the acceptance rule accepted it
   readonly revocationRevision?: number                 // present once step 5 was reached
   readonly outcome: "accepted" | { readonly _tag: string; readonly message: string }
+  // statementType, statementDigest, publisher, publisherBound: 07, BEH-LD-055
 }
 interface LoadLogShape {
   readonly record: (r: VerificationRecord) => Effect.Effect<void, LoadLogFailed>
@@ -512,7 +529,8 @@ host over the shared `AcceptedDigests` store, with explicit exemptions for
 bootstrap and bundled plugins. (4) Verified catalog entries count as
 accepted for the install of a lazy definition; the trigger-time load still
 runs every step. (5) Revoked digests are refused for every operator call
-that restarts code; system transitions remain ungated (core G60, open).
+that restarts code; system starts of a revoked digest are refused by core's
+`RefusalList` backed by the loader (07, BEH-LD-056; core G60 closed).
 (6) The loader's record is fail-closed for acceptances when wired, and
 separate from core's trail.
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-25                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): BEH-BR-219: what a gate can and cannot do with the installed digest (revocation) (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-219 `definition.manifest` and `previousManifest`, a manifest is allowed (CCR-BR-017); `onBehalfOf` and gate-flow `annotations`, BEH-BR-221 bound by `Annotation.Deadline` (CCR-BR-018); BEH-BR-217 adapters `OperationGate.fromGate`/`asGate` are not implementations (CCR-BR-019); `_Next` to 26 (CCR-BR-017)<br>0.4 (2026-10-03): BEH-BR-219 `configChange: ConfigChange` with optional `fingerprints` from the consumer's `ConfigFingerprinter`, equal to the records'; a fingerprint is not a configuration value; Settled (3) (CCR-BR-014)<br>0.3 (2026-10-02): An approval is never consumed without a `requested` record; interruption outcomes aligned with BEH-BR-188; that rule placed after the refusal rules; `intent-ended` is not gated (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.8 (2026-11-08): BEH-BR-223 lists every `SystemTransition`, `lazy-idle` and `unmount-requested` included (agent review R1-15) (CCR-BR-029)<br>0.7 (2026-11-08): BEH-BR-219 `allowChildren` and `mandatoryInterceptions` on the request of plugin-addressed operations (G41), revocation paragraph points to the `RefusalList`; BEH-BR-218 and BEH-BR-220 the refusal list at step 4b, before the gate; BEH-BR-223 "start-refused" among system transitions, and the list consulted on system starts without gating them (CCR-BR-026); `OperationRequest.undo` (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-219: what a gate can and cannot do with the installed digest (revocation) (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-219 `definition.manifest` and `previousManifest`, a manifest is allowed (CCR-BR-017); `onBehalfOf` and gate-flow `annotations`, BEH-BR-221 bound by `Annotation.Deadline` (CCR-BR-018); BEH-BR-217 adapters `OperationGate.fromGate`/`asGate` are not implementations (CCR-BR-019); `_Next` to 26 (CCR-BR-017)<br>0.4 (2026-10-03): BEH-BR-219 `configChange: ConfigChange` with optional `fingerprints` from the consumer's `ConfigFingerprinter`, equal to the records'; a fingerprint is not a configuration value; Settled (3) (CCR-BR-014)<br>0.3 (2026-10-02): An approval is never consumed without a `requested` record; interruption outcomes aligned with BEH-BR-188; that rule placed after the refusal rules; `intent-ended` is not gated (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -106,9 +106,11 @@ adopted on purpose, or visibly has none.
 ```
 REQUIREMENT: When a gate is wired, `authorize` MUST be called exactly once per
              mutating call (once per entry action for `reconcile`), at step 5
-             of BEH-BR-188: after the host-closed, attribution, latch and
-             validation checks have passed, and before the `requested` record
-             is written or the intent recorded.
+             of BEH-BR-188: after the host-closed, attribution, latch,
+             validation, fingerprint and refusal-list checks have passed
+             (steps 1–4b), and before the `requested` record is written or
+             the intent recorded. A call the `RefusalList` refuses at step
+             4b (28, BEH-BR-267) MUST NOT be submitted to the gate.
 ```
 
 ```
@@ -153,6 +155,12 @@ interface OperationRequest {
   readonly configChange?: ConfigChange             // { paths, fingerprints? } (23, BEH-BR-195)
   readonly onBehalfOf?: PrincipalRef               // calls made from plugin code only (28, BEH-BR-259)
   readonly annotations: Annotations                // flow "gate" only (30, BEH-BR-292)
+  readonly allowChildren?: boolean                 // plugin-addressed operations only (28, BEH-BR-263)
+  readonly mandatoryInterceptions?: readonly {     // plugin-addressed operations only (28, BEH-BR-260)
+    readonly serviceId: ServiceId
+    readonly id?: string                           // the catalog id, when the interception has one (18)
+  }[]
+  readonly undo?: true                             // an undo action of an atomic reconcile (32, BEH-BR-325)
 }
 ```
 
@@ -164,6 +172,12 @@ interface OperationRequest {
 (BEH-BR-259) and `annotations`
 [30 — Operation Context Annotations](./30-operation-context-annotations.md)
 (BEH-BR-292).
+
+`undo` marks the undo actions of an atomic `reconcile`
+([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md), BEH-BR-325),
+so that a gate answering from a recorded approval can match them against the
+approved plan's `undo` lists; a gate that refuses them makes the apply end in
+`PartialApply`.
 
 ```
 REQUIREMENT: `operation`, `target`, `actor`, `reason` and `correlationId`
@@ -182,13 +196,35 @@ REQUIREMENT: `definition` MUST be present for every plugin-addressed
 A gate can therefore refuse, by the installed `definition.digest`, every
 operator call that would start a plugin's code again — `enable`, `retry`,
 `restart`, `reconfigure` and, by the incoming digest, `install` and
-`replace` — which is what a revocation companion needs
-([`references/loader/`](../../loader/README.md)). It cannot do more: system
-transitions are never gated (BEH-BR-223), so a gate does not stop an
-installed plugin from starting again when its dependencies return, when a
-lazy trigger applies or when a background fiber restarts under its own
-policy. Making a digest unusable on a running host takes a `disable` or a
-`remove`; a gate only keeps operators from undoing it.
+`replace`. It cannot do more: system transitions are never gated
+(BEH-BR-223). What a revocation companion
+([`references/loader/`](../../loader/README.md)) needs for the starts nobody
+calls — a dependency returning, a lazy trigger, a background fiber
+restarting — is the `RefusalList` port
+([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+BEH-BR-267), which the host consults on every start, operator or system,
+and which refuses operator calls before the gate is asked. Making a digest
+unusable on a running host still takes a `disable` or a `remove`; the list
+keeps it from starting again.
+
+A gate can likewise require that a plugin is installed with
+`allowChildren: false` or with a given mandatory interception, because the
+request carries both (URS gap G41).
+
+```
+REQUIREMENT: `allowChildren` and `mandatoryInterceptions` MUST be present
+             for every plugin-addressed operation and absent otherwise. For
+             `install` they MUST describe the registration the call would
+             create — the effective `allowChildren` (the parent's value AND
+             the option, for a child) and the installation-mandatory
+             interceptions, inherited ones first, own last, in the order of
+             step 3 of BEH-BR-261 — and for every other operation the
+             installed registration's. Each element of
+             `mandatoryInterceptions` MUST carry the interception's service
+             id and, when it was given through the catalog of
+             18 — Reconciliation and Confluence, its catalog `id`; an
+             interception given as a bare value carries no `id`.
+```
 
 ```
 REQUIREMENT: `configChange` MUST follow the rule of BEH-BR-197 and MUST equal
@@ -265,6 +301,14 @@ REQUIREMENT: A `rejected` record is a terminal record. When it cannot be
              written within `auditTimeout`, the call MUST still fail with
              `OperationRejected`, and the host MUST set the audit-degraded
              latch.
+```
+
+```
+REQUIREMENT: A call refused by the `RefusalList` at step 4b of BEH-BR-188
+             (28 — Plugin Principal and Mandatory Policy, BEH-BR-267) MUST
+             be failed and recorded as this behaviour states for a gate
+             refusal, with `OperationRejected.reason` and the record's
+             `error.message` "refused-digest: <reason>".
 ```
 
 A refused request is itself an event a reviewer may need: someone tried to
@@ -389,9 +433,21 @@ to close them by other means.
 ```
 REQUIREMENT: System transitions — `system-start`, `system-stop`,
              `runtime-failure`, `lease-revoked`, `health-degraded` and
-             `intent-ended`, including a child's mount and its removal with
-             its parent — MUST NOT be submitted to the gate. They MUST be
+             `intent-ended`, `lazy-triggered`, `lazy-idle`, `handoff`,
+             `start-refused` and `unmount-requested` — every value of
+             `SystemTransition` (22 — Attributable Operations, BEH-BR-185),
+             including a child's mount and its removal with its parent —
+             MUST NOT be submitted to the gate. They MUST be
              audited as specified in 23 — Audit Sink and Record.
+```
+
+```
+REQUIREMENT: A wired `RefusalList` MUST be consulted on system starts as
+             28 — Plugin Principal and Mandatory Policy, BEH-BR-267,
+             states. Consulting it is not gating: the list is a synchronous
+             lookup with no approval, no `OperationRequest` and no
+             `rejected` record, and a refused system start is recorded as
+             the system transition `start-refused`.
 ```
 
 ```

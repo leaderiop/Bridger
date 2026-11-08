@@ -1,0 +1,17 @@
+kind: behaviors
+package: bridger-sequence
+infix: SQ
+entries:
+  - file: "01-series-and-ownership.md"
+    id: "BRIDGER-SQ-BEH-01"
+    title: "Series and ownership"
+    range: "BEH-SQ-001..008"
+  - file: "02-incarnation-and-verification.md"
+    id: "BRIDGER-SQ-BEH-02"
+    title: "Incarnation and verification"
+    range: "BEH-SQ-009..016"
+  - file: "03-formats-testing-and-acceptance.md"
+    id: "BRIDGER-SQ-BEH-03"
+    title: "Formats, testing and acceptance"
+    range: "BEH-SQ-017..024"
+    used: "BEH-SQ-017..020"

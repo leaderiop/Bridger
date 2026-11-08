@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-06                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -25,7 +25,7 @@ asks host-wide questions: what depends on what, why is this plugin waiting,
 who holds leases, what happened in the last minute. The inspector computes
 those answers from core's observation API and nothing else, and it changes
 nothing ([ADR-KT-005](../decisions/005-devtools-are-read-only.md)). This file
-owns BEH-KT-041–048 and uses BEH-KT-041–046; 047 and 048 are reserved.
+owns BEH-KT-041–048 and uses BEH-KT-041–047; 048 is reserved.
 
 Planned source: `packages/kit/src/devtools/*.ts` *(Planned)*.
 
@@ -164,6 +164,19 @@ REQUIREMENT: The timeline MUST keep the last `timelineSize` (default 500)
              label "diagnostic feed — not an audit trail".
 ```
 
+```
+REQUIREMENT: The inspector MUST render the states and events core added in
+             CCR-BR-024–026 by name: a `disabled` plugin with reason
+             "refused-digest" (core BEH-BR-027, BEH-BR-267) is shown as
+             refused by the refusal list, not as disabled by an operator;
+             `plugin-idled` (core BEH-BR-252), `held-event-dropped` (core
+             BEH-BR-251) and `reconcile-partial` with its `notUndone`
+             entries (core BEH-BR-324) appear in the timeline as such; a
+             hook breaker shows its `scope` (core BEH-BR-310). An event or
+             state it does not know MUST be shown with its raw tag, never
+             dropped.
+```
+
 ## BEH-KT-046: The JSON report is versioned and stable
 
 > **See:** [ADR-KT-005](../decisions/005-devtools-are-read-only.md)
@@ -175,6 +188,89 @@ REQUIREMENT: `InspectorReport` MUST be defined by an Effect `Schema` with
              (realm, id). A field may be added in a minor kit release;
              removing or changing one MUST increment `schemaVersion`.
 ```
+
+## BEH-KT-047: verify-chain checks a verification bundle offline and prints what was checked
+
+> **Invariant:** [INV-KT-003](../invariants.md#inv-kt-003-tooling-output-carries-names-and-counts-never-values)
+> **See:** [ADR-KT-005](../decisions/005-devtools-are-read-only.md)
+> **Core seam:** [references/audit-chain/](../../audit-chain/behaviors/05-verification-bundle.md) (AC; BEH-AC-033, BEH-AC-034, BEH-AC-038)
+
+```text
+$ bridger verify-chain trail-2026-q3.bundle.json --trust-roots inspector-roots.json \
+    --verifier ./verifiers/rfc3161.js --profile release-log=./profiles/release-log.js
+bundle    bridger-chain-bundle/v1  digest matches
+roots     pinned (2 fingerprints)
+loaded    verifier ./verifiers/rfc3161.js (sha256:5d…07); profile release-log ./profiles/release-log.js (sha256:a2…9c)
+series    host-7f…  seq 1–48210  links recomputed through 48210, no break
+series    release-log  seq 1–212  links recomputed through 212, no break
+receipts  12 confirmed offline, 1 not checked (needs-online-check)
+heads     none given by you; 1 stated by the bundle (unconfirmed)
+dropped   auditDropped 0 → 3 at seq 31877 (notice)
+no overall verdict is given; read each line
+exit 4: nothing checked was found inconsistent; the check is incomplete (1 receipt not checked, 1 head unconfirmed)
+```
+
+```
+REQUIREMENT: `verify-chain` MUST read the bundle file, decode it as JSON and
+             call the audit-chain companion's `verifyBundle` (BEH-AC-034)
+             with no network, clock or file access beyond reading the
+             bundle, the `--trust-roots` file, whose roots MUST be passed
+             as `pinnedTrustRoots` (BEH-AC-035), and the modules named by
+             `--verifier` and `--profile`. It MUST NOT verify anything
+             itself and MUST NOT contact an anchor service.
+```
+
+```
+REQUIREMENT: `--verifier <module>` (repeatable) MUST load an
+             `OfflineReceiptVerifier` (BEH-AC-036) from a module on the
+             inspector's machine and pass it in `receiptVerifiers`;
+             `--profile <name>=<module>` (repeatable) MUST load a
+             `ChainProfile` and pass it in `profiles` under that name
+             (BEH-AC-031, BEH-AC-034). The output MUST list every loaded
+             module by path and SHA-256 digest of its file. A module MUST
+             NOT be read from the bundle or from a location the bundle
+             names. Without these options, documentation MUST state that
+             only series with the "audit" profile are verified and that no
+             receipt can be "confirmed offline", because the kit's main
+             entry point ships no verifier that confirms one.
+```
+
+```
+REQUIREMENT: Expected heads MUST be passed from `--expect-head
+             <seriesId>=<seq>[:<hash>]` (repeatable) as
+             `options.expectedHeads`; heads carried in the bundle MUST be
+             printed as "stated by the bundle (unconfirmed)" (BEH-AC-034).
+```
+
+```
+REQUIREMENT: The output MUST render the `BundleReport` under the wording
+             rules of the audit-chain companion (BEH-AC-022, BEH-AC-038):
+             counts and positions, which trust roots were used (pinned or
+             carried, by fingerprint), each receipt as "confirmed offline",
+             "not checked" with its reason, or "failed", and no overall
+             pass or fail. With `--json` it MUST print exactly the report's
+             JSON encoding. It MUST NOT print record contents.
+```
+
+```
+REQUIREMENT: Exit codes: 1 when the report has a break, a failed receipt,
+             an anchor mismatch, a bundle digest mismatch or a malformed
+             entry; otherwise 4 when the check is incomplete — trust roots
+             carried by the bundle (no `--trust-roots`), any receipt "not
+             checked", any head "head-unconfirmed" or not given, or any
+             series not verified ("unknown-profile"); otherwise 0; 2 for a
+             usage error; 3 when the bundle, the trust-root file or a module
+             cannot be read or loaded. Documentation MUST state that exit
+             code 0 means "nothing checked was found inconsistent, and every
+             check the report offers was made with pinned roots", not that
+             the trail is complete or unaltered, and that scripts which
+             treat 4 as success accept a check the producer could have
+             satisfied alone.
+```
+
+An inspector checks a trail on a machine that never talks to the producer's
+systems; the tool's only job is to run the companion's pure check and say,
+line by line, what it covered.
 
 ---
 

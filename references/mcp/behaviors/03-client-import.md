@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Supplied JSON Schema; declared `ImportedToolError`; dispatch's timeout; imported commands marked external instead of tainted values; `externalAnnotations` and `title` (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.3 (2026-11-08): Imported commands declare their whole output untrusted (`jsonSchema.untrusted`, command BEH-CM-030), so every consumer can render it through the model-facing envelope; never `readOnly` (CCR-MC-003, round 2: recheck item 8)<br>0.2 (2026-11-08): Supplied JSON Schema; declared `ImportedToolError`; dispatch's timeout; imported commands marked external instead of tainted values; `externalAnnotations` and `title` (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -45,7 +45,7 @@ McpClient.import(options: {
   readonly realm?: string
   readonly timeout?: Duration.Input                 // per call; default 30 seconds; "forever" refused
   readonly map?: (tool: ExternalTool) => ImportMapping
-}): Plugin<[CommandCatalog, JsonSchemaValidator], [], never>
+}): Plugin<[CommandCatalog, JsonSchemaValidator, Bridger.Host], [], never>
 
 interface ExternalTool {                            // as received; every field untrusted
   readonly name: string
@@ -242,8 +242,12 @@ converter for external schemas in older dialects; v0.1 excludes them.
 ```
 REQUIREMENT: Every imported command's descriptor MUST carry the tag
              "external" and `owner` the proxy plugin (command BEH-CM-003,
-             BEH-CM-004). No `ImportMapping` and no option of
-             `McpClient.import` MAY remove the tag.
+             BEH-CM-004), and its spec MUST set `jsonSchema.untrusted: true`,
+             so that `untrustedOutput` is the root pointer "" (command
+             BEH-CM-030). No `ImportMapping` and no option of
+             `McpClient.import` MAY remove the tag, clear the untrusted
+             mark or set `readOnly`: the external `readOnlyHint` stays in
+             `externalAnnotations`, as data.
 ```
 
 ```
@@ -279,10 +283,10 @@ consumer that ignores the tag receives untrusted text with no mark; that is
 stated in [INV-MC-003](../invariants.md#inv-mc-003-every-imported-command-is-marked-external) and is the reason
 the agent package taints by descriptor.
 
-**Open.** Whether a result envelope carrying taint with the value (for
-consumers that are not `@bridger/agent`) is worth its cost; v0.1 has none.
-
-**Open.** None.
+**Settled here (envelope).** The result envelope asked for in revision 0.2 is
+the command companion's `Command.envelope` (BEH-CM-030): with the whole output
+marked untrusted, any consumer — not only `@bridger/agent` — can hand an
+imported result to a model as one numbered, size-capped untrusted value.
 
 ## BEH-MC-021: External annotations and descriptions are data, never policy
 
@@ -344,9 +348,16 @@ REQUIREMENT: The proxy MUST send the external server only the decoded
 ```
 
 ```
-REQUIREMENT: When a `CallLog` port is wired (core file 29), each imported
-             call MUST be reported to it as a call of the proxy plugin, with
-             the command id and outcome, as dispatch reports any command.
+REQUIREMENT: When a `CallLog` port is wired (core file 29), each call the
+             proxy sends to the external server MUST be offered once with
+             `Host.offerCallEntry` (core BEH-BR-280) as an entry of kind
+             "crossing", `crossing: { direction: "outbound", link: <proxy
+             plugin id> }`, `companion` "@bridger/mcp", `serviceId` the
+             `CommandCatalog` key, `member` the command id, and the outcome
+             and duration of the external call. The entry is offered from
+             the handler's fiber, so core records the dispatch's actor,
+             correlation (`CurrentCorrelation`) and "callLog" annotations
+             with it; none of them is sent to the external server.
 ```
 
 **Settled here.** Forwarding identity is opt-in: an external server that

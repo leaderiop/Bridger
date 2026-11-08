@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-INV                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Runtime Invariants                                           |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.2 (2026-11-08): INV-KT-007 covers `countersign` and the loader's `StatementSigner` (round 2: recheck items 11, 17) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -123,17 +123,18 @@ partner code, or partner exception text reaches host logs.
 
 ## INV-KT-007: Publish never handles signing key material
 
-`bridger publish` passes a digest to the loader companion's signing step and
-receives signatures; it never reads, receives, stores or logs a private key.
+`bridger publish` and `bridger countersign` pass the loader's signing input
+(`Statement.signingInput`) to a `StatementSigner` adapter and receive
+signatures; they never read, receive, store or log a private key.
 
-**Source**: `packages/kit/src/cli/publish.ts` *(Planned)*.
+**Source**: `packages/kit/src/cli/publish.ts`, `packages/kit/src/cli/countersign.ts` *(Planned)*.
 
 **Implication**: the kit cannot leak a signing key, because it never has one.
 
-**Verification** *(Planned)*: REQ-KT-019 with a signer double that records
-what it was given.
+**Verification** *(Planned)*: REQ-KT-019 and REQ-KT-025 with a signer double
+that records what it was given.
 
-**Related**: [BEH-KT-030](./behaviors/04-cli.md#beh-kt-030-publish-delegates-signing-to-the-loader-and-holds-no-key)
+**Related**: [BEH-KT-030](./behaviors/04-cli.md#beh-kt-030-publish-delegates-signing-to-the-loader-and-holds-no-key), [BEH-KT-032](./behaviors/04-cli.md#beh-kt-032-countersign-adds-a-second-signer-entry-without-changing-the-package), [BEH-LD-054](../loader/behaviors/07-signed-statements.md#beh-ld-054-signing-input-and-countersigning-add-signer-entries-without-changing-the-digest)
 
 ---
 

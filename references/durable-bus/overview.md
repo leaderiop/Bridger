@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `HistorySource`, `follow`, `acceptGap`, `releaseStream`, `resume`; new error tags; annotations under flow "wire" (BEH-BR-296) (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review — API rows for `OutboxSettlement`, `IncarnationSource`, `HistoryReader`/`HistoryAccess`, `Withheld`, `subscribeEnvelopes`, reader versions; errors `OutboxFrozen`, `IncarnationUnavailable` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 19–22 and 24 — API rows and errors for the codec, outbox settle, writers-last options and version reports; access through `AccessPolicy.ask` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `HistorySource`, `follow`, `acceptGap`, `releaseStream`, `resume`; new error tags; annotations under flow "wire" (BEH-BR-296) (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -53,7 +53,9 @@ authority orders and re-checks them.
 | In-memory typed events between plugins of one host | Core — [16 — Event bus](../core/behaviors/16-event-bus.md); not replaced, not wrapped |
 | `Actor`, `OperationContext`, `CurrentActor` | Core — [22 — Attributable operations](../core/behaviors/22-attributable-operations.md) |
 | Annotation bag (taint, provenance, deadline) | Core — [core 30 — Operation context annotations](../core/behaviors/30-operation-context-annotations.md) (BEH-BR-289–296) |
-| Who may publish or subscribe | Core — [core 28 — Plugin principal and mandatory policy](../core/behaviors/28-plugin-principal-and-mandatory-policy.md) (bus access rules; BEH-BR-257–266), optional |
+| Who may publish, subscribe and receive each delivery | Core — [core 28 — Plugin principal and mandatory policy](../core/behaviors/28-plugin-principal-and-mandatory-policy.md) (`AccessPolicy.ask` BEH-BR-269, `declaredOnly` BEH-BR-268), optional |
+| Payload encryption keys, per-subject erasure | The planned keyring companion, through this package's `PayloadCodec` port |
+| Residency labels and their comparison | `@bridger/remote` `PlacementPolicy` ([references/remote/](../remote/README.md)) |
 | `Clock`, `Random`, `IdGenerator` | Core — [24 — Time, identifiers and sequence](../core/behaviors/24-time-ids-and-sequence.md) |
 | Transport between hosts, sessions, epochs, call timeouts | `@bridger/remote` ([references/remote/](../remote/README.md)) or an application transport |
 | Offline cap, re-bootstrap trigger for a host | `@bridger/federation` — [references/federation/](../federation/README.md) |
@@ -76,6 +78,13 @@ All signatures are illustrative until code exists.
 | `SnapshotProvider` | port | The application's snapshot for a subscriber behind the horizon | [06](./behaviors/06-replay-and-snapshots.md) |
 | `DurableBus.plugin` | function | The bus as a plugin with its relay as a background fiber | [07](./behaviors/07-core-bus-and-adapters.md) |
 | `DurableBus.forward` | function | Explicit, after-commit bridge to a core `EventKey` | [07](./behaviors/07-core-bus-and-adapters.md) |
+| `PayloadCodec`, `PayloadCodec.identity` | port, value | Encodes payloads after schema encoding (for example field encryption) | [01](./behaviors/01-events-and-envelope.md) |
+| `DurableBus.rebootstrapOutbox`, `OutboxSettlement` | function, type | Push or keep the outbox before a snapshot (the federation companion's `RebootstrapOutbox`); the settlement's `install` is the guarded install path | [06](./behaviors/06-replay-and-snapshots.md) |
+| `IncarnationSource` | port | The origin's incarnation kept outside the store, raised by a whole-store re-bootstrap | [01](./behaviors/01-events-and-envelope.md) |
+| `HistoryReader`, `HistoryAccess` | types, port | Per-reader placement and access on the pull path | [06](./behaviors/06-replay-and-snapshots.md) |
+| `Withheld` | type | A sequence withheld from a destination or reader | [02](./behaviors/02-transactional-outbox.md), [03](./behaviors/03-delivery-and-inbox.md) |
+| `DurableBus.subscribeEnvelopes`, `onUnreadable` | function, option | Undecoded delivery for fact recorders; halt or park on an unreadable payload | [03](./behaviors/03-delivery-and-inbox.md) |
+| `DurableEventOptions.publishVersion`, `downcast`; `DurableBus.status.versions`, `status.readers`, `resetVersions`, `versionReports` | options, status | Writers-last rollout, the oldest version received per origin and the readers' versions | [04](./behaviors/04-versions-and-upcasters.md) |
 | `TestStore`, `TestDelivery` | testing | In-memory transactional store, faulty delivery | [08](./behaviors/08-testing-and-acceptance.md) |
 
 ### Errors
@@ -93,12 +102,20 @@ All signatures are illustrative until code exists.
 | `HistoryUnavailable { source, cause }` | A history read could not be served; the follower backs off |
 | `MalformedBatch { destination }` | A received batch holds an element without a decodable origin, stream or sequence; nothing is stored |
 | `UnknownEnvelopeFormat { origin, stream, sequence, envelope }` | An element's envelope format is not 1; its stream stops at the inbox |
+| `PayloadEncodeFailed`, `PayloadDecodeFailed`, `PayloadUnreadable` | The codec could not encode, could not decode, or can no longer read a payload (handled under `onUnreadable`: parked, halted or handed over raw; never dropped) |
+| `DowncastRefused { type, from, reason }` | A value at N cannot be published at N−1 without loss |
+| `RebootstrapBlocked { pending, reason }` | `rebootstrapOutbox` could neither push nor keep the outbox, or the install kind does not allow it (federation's tag) |
+| `OutboxFrozen { reason }` | `publish` during a whole-store re-bootstrap (the caller's transaction fails with it) |
+| `IncarnationUnavailable { cause }` | The `IncarnationSource` could not be read or raised |
+| `AccessRefused { kind, subject, reason }` | Core's tag: the `AccessPolicy` denied a publish, a subscription or a delivery |
+| `PlacementRefused` | The remote companion's tag: a route or inbox does not offer an envelope's residency label |
 | `ClockSkewExceeded { origin, drift }` | A received HLC is ahead of the local clock by more than `maxDrift` (reported; the envelope is still received) |
 
 Parked envelopes and halted subscription streams (BEH-DB-021, BEH-DB-022) carry
 `UnknownEventVersion`, `UpcastFailed`, `DecodeFailed` or the handler's
-failure as their reason; streams stopped at the inbox carry
-`UnknownEnvelopeFormat` or `EnvelopeConflict`.
+failure as their reason, and also `PayloadDecodeFailed`, `PayloadUnreadable`
+(under `onUnreadable`) or `AccessRefused`; streams stopped at the inbox carry
+`UnknownEnvelopeFormat`, `EnvelopeConflict` or `PlacementRefused`.
 
 ## Worked example
 
@@ -134,7 +151,10 @@ order, once each.
 ## What stays in core, and what stays in the application
 
 - **Core** keeps its in-memory bus, unchanged, and owns no storage
-  ([ADR-BR-027](../core/decisions/027-core-exclusions.md)).
+  ([ADR-BR-027](../core/decisions/027-core-exclusions.md)). This package
+  uses core's `AccessPolicy.ask`, `CurrentCorrelation` and
+  `PrincipalRef.encode`; core now holds one triggering event for a lazy
+  plugin (BEH-BR-251), which does not replace this package.
 - **The application** chooses the storage engine and its persistence
   settings, implements or adopts an adapter that meets the obligations of
   [07](./behaviors/07-core-bus-and-adapters.md), decides routes and global

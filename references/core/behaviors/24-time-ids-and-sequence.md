@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-24                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -200,10 +200,17 @@ interface HostControls {
   readonly auditTimeout: Duration.Duration
   readonly gateTimeout: Duration.Duration | "forever"
   readonly fingerprintTimeout: Duration.Duration
+  readonly buildTimeout: Duration.Duration             // per build, a lazy plugin's load included (05, 27)
   readonly idGenerator: "default" | "provided"         // whether an IdGenerator was supplied (BEH-BR-210)
   readonly auditPosition?: { readonly lastWritten: number }   // present only when an AuditSink is wired
-  readonly policy: { /* access, capability, callLog wiring and mandatory service ids — 28, BEH-BR-265 */ }
-  readonly callLog: { readonly failed: number }        // CallLog record failures (29, BEH-BR-276)
+  readonly policy: { /* access, refusal, capability, callLog wiring and mandatory service ids — 28, BEH-BR-265 */ }
+  readonly callLog: {                                  // 29, BEH-BR-276, BEH-BR-279
+    readonly failed: number                            // record calls that failed, died or timed out
+    readonly dropped: number                           // entries dropped (full queue, host closing)
+    readonly refused: number                           // calls refused under "refuse"
+    readonly onFailure: "drop" | "refuse"              // effective port default; "drop" when no CallLog is wired
+    readonly queue: number                             // hand-off queue capacity; 0 when no CallLog is wired
+  }
 }
 // Host.controls(): Effect.Effect<HostControls>  (02 — Host Construction, BEH-BR-013)
 ```
@@ -212,8 +219,9 @@ interface HostControls {
 REQUIREMENT: `Host.controls` MUST return the host's `hostId`, which of
              `AuditSink`, `OperationGate` and `ConfigFingerprinter` were
              resolved at construction, the effective `attribution`,
-             `auditTimeout`, `gateTimeout` and `fingerprintTimeout` after
-             defaults are applied (02 — Host Construction, BEH-BR-011), and
+             `auditTimeout`, `gateTimeout`, `fingerprintTimeout` and
+             `buildTimeout` after defaults are applied (02 — Host
+             Construction, BEH-BR-011), and
              whether an `IdGenerator` was supplied or the default is used.
              None of these MUST change for the life of the host.
 ```
@@ -249,7 +257,11 @@ written, so the report's `auditLastSeq` cannot include it (prototype finding
 G34); the final high-water mark is read from `Host.controls` once the writer
 has flushed. (3) Core reports the position; it does not compare it with any
 store, and claims nothing about what the store kept
-(BEH-BR-208 of 23 — Audit Sink and Record).
+(BEH-BR-208 of 23 — Audit Sink and Record). (4) `buildTimeout` is reported
+(CCR-BR-026) because a lazy plugin's `load` runs inside it (27 — Manifest
+and Lazy Activation, BEH-BR-246): the loader companion must fit its fetch
+and verification steps within that bound, and can now read it from the
+host instead of relying on a value the application repeats (URS gap G61).
 
 Numbering at the writer, rather than when a record is created, is what makes
 the numbers the sink receives contiguous even when records are created

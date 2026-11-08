@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-00                                                |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Master Index (companion)          |
-> | Change History | 0.2 (2026-11-08): Register row CCR-AC-002 (resolutions of the agent review of 2026-11-08); honest-claims limits extended; Open questions section; dependency on core 32 (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.4 (2026-11-08): CCR-AC-003 extended with revision 2, resolutions of the round-2 agent review (R3-06–R3-09, R3-16; R5-08) (CCR-AC-003)<br>0.3 (2026-11-08): Register row CCR-AC-003; contents 04, 05 and ADR-AC-005; open questions answered (G54, G59 closed) (round 2: recheck items 13, 14; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): Register row CCR-AC-002 (resolutions of the agent review of 2026-11-08); honest-claims limits extended; Open questions section; dependency on core 32 (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -84,6 +84,8 @@ and [24 — Time, Identifiers and Sequence](../core/behaviors/24-time-ids-and-se
 | 01 | [Hash-chain sink](./behaviors/01-hash-chain-sink.md) | BEH-AC-001–008 |
 | 02 | [Anchoring](./behaviors/02-anchoring.md) | BEH-AC-009–016 |
 | 03 | [Verification](./behaviors/03-verification.md) | BEH-AC-017–024 |
+| 04 | [Generic chain](./behaviors/04-generic-chain.md) | BEH-AC-025–032 |
+| 05 | [Verification bundle](./behaviors/05-verification-bundle.md) | BEH-AC-033–040 |
 
 ### Decisions
 
@@ -93,6 +95,7 @@ and [24 — Time, Identifiers and Sequence](../core/behaviors/24-time-ids-and-se
 | [ADR-AC-002](./decisions/002-anchor-defends-against-insider.md) | Only an external anchor defends against an insider |
 | [ADR-AC-003](./decisions/003-anchoring-off-the-write-path.md) | Anchoring runs off the write path; fail-closed only when declared, as a gate piece |
 | [ADR-AC-004](./decisions/004-separate-from-gxp-companion.md) | A package separate from `@bridger/gxp` |
+| [ADR-AC-005](./decisions/005-one-chain-over-any-stream-hashing-the-stored-form.md) | One chain over any append-only stream, hashing the stored form |
 
 ## Dependencies on core
 
@@ -108,17 +111,17 @@ any other; core does not know it exists.
 
 ## Open questions
 
-Residual questions this package cannot settle within the current core; each is
-for core's change control, not decided here.
+Both questions this package recorded for core are answered by core
+CCR-BR-026:
 
-1. **Ill-formed strings in records.** Core does not guarantee that the strings
-   it writes into records are well-formed UTF-16 (core gap G59,
-   [urs.md](../core/urs.md) §7). The sink chains such a record with an escaped
-   canonical form and a marker (BEH-AC-003) rather than refusing it; whether
-   core should refuse ill-formed strings at the call is open in core.
-2. **`auditDropped` is not visible to a sink.** Records core drops for queue
-   overflow are never chained, and the sink cannot put their count into its
-   statements (core gap G54).
+1. **Ill-formed strings in records** (core gap G59, closed). Core replaces
+   lone surrogates with U+FFFD and marks the record `sanitized: true` (core
+   BEH-BR-196). The sink keeps its escaped encoding and marker (BEH-AC-003)
+   for records that do not come from a conforming core.
+2. **`auditDropped` is visible to a sink** (core gap G54, closed). Every record
+   carries core's non-decreasing `auditDropped` counter (core BEH-BR-195);
+   statements carry the last value of their window and reports show where it
+   rose ([04](./behaviors/04-generic-chain.md), BEH-AC-030).
 
 ## Identifier scheme
 
@@ -140,6 +143,7 @@ package introduces or reduces are carried in the core register
 
 | CCR | Date | Change |
 | --- | ---- | ------ |
+| CCR-AC-003 | 2026-11-08 | Round 2: recheck items 13 and 14, and alignment with core CCR-BR-024–026. Item 13: generic `ChainSink<R>` over any append-only stream, with a `SeriesSpec<R>` naming a series id separate from the host id, a pluggable, named `Canonicaliser`, and the rule that stored ciphertext is hashed, never plaintext, so that shredding by the planned keyring companion leaves every link recomputable; `HashChainSink` is its audit instance and keeps every rule of 01; the inner store port is renamed `ChainStore` (`ChainStore.split`, `memoryChainStore`); verification profiles and a generic sequence check. Item 14 (audit-chain side): portable verification bundle — `exportBundle` copies segments, anchors, receipts and request-supplied trust roots as stored into a canonical `bridger-chain-bundle/v1`; `verifyBundle` is pure, total and offline, confirms receipts only with offline verifiers, and reports online-only evidence as "not-checked"; the kit's `bridger verify-chain` renders the report. Core alignment: `auditDropped` carried into statements and reports (G54 closed); `sanitized` records from core (G59 closed); `requestedBy`, `undoes`, new system transitions and `lazy-triggered` `onBehalfOf` chained as fields; open questions answered.<br>**Impact (PROC-03 §3).** (1) Identifiers: BEH-AC-025–040, INV-AC-006–007, ADR-AC-005, REQ-AC-013–020 added; BEH-AC-001–008 prose and BEH-AC-006 heading amended for the store rename; nothing withdrawn. (2) Risk: bears on RSK-BR-045 (offline inspection states what was checked; ciphertext hashing keeps detection after shredding) and RSK-BR-018 (bundle report wording); no score changed by this record. (3) GxP impact: yes — inspectors' offline review of chained records and of non-audit streams; no claim that a chain or bundle prevents alteration. (4) Revalidation: nothing released (implementation absent); REQ-AC-013–020 added. (5) Compatibility: draft API rename `ChainSink` (store) → `ChainStore`; `ChainSink<R>` now names the generic sink; no core type changed.<br>**Revision 2 (2026-11-08): resolutions of the round-2 agent review** (review R3, findings R3-06, R3-07, R3-08, R3-09, R3-16; review R5, finding R5-08 on the audit-chain side). R3-06: a series resumes across hosts from `ChainSinkOptions.resumeFrom` or the store's optional `head` read; `continuesFrom` stays for a different predecessor series; new `SeriesConfigInvalid` reasons "resume-and-continue" and "resume-mismatch"; a resumed writer's windows start after the resumed head. R3-07: generic series write `ChainLinkV2` (`seriesId`, `seq`, `recordId`, `canon`, `origin`) under the domain string "bridger-audit-chain/v2/", with the canonicaliser id and position in every record hash; the audit instance keeps `ChainLinkV1` links unchanged; every series writes `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped`, and version 1 statements are read and reported as anchoring no loss counter (G54 now closed in the types as well); the store shape of 01 renamed `ChainStoreShape`. R3-08: expected heads carried in a bundle are always "head-unconfirmed"; only the inspector's own heads confirm. R3-09 and R5-08: key destruction is no longer described as erasure; fields stored in clear remain, the ciphertext is unreadable only to holders with no other key copy (keyring BEH-KR-022), and whether that meets an erasure obligation is the application's determination. R3-16: the bundle signature uses the loader's reserved "chain-bundle" type and its `id`/`version` convention.<br>**Impact of revision 2 (PROC-03 §3).** (1) Identifiers: none added or withdrawn; BEH-AC-001, 009, 010, 025–028, 032 (checks 13–16), 034, 037, 040 (check 19) and REQ-AC-013–016, 019 amended. (2) Risk: bears on RSK-BR-045 (a bundle producer can no longer confirm a head by naming a root; a loss counter is now anchored) and RSK-BR-006; no score changed by this record. (3) GxP impact: yes — what an anchor commits to and what a bundle report may confirm change; no claim that a chain prevents alteration or that shredding erases. (4) Revalidation: nothing released (implementation absent); REQ-AC-013–016 and 019 updated. (5) Compatibility: draft API changes (`ChainLink` union, `AnchorStatement` version 2, `ChainStoreShape` rename in 01, `resumeFrom`, `ChainStoreShape.head`, `ChainSink.make` error type); no core type changed. |
 | CCR-AC-002 | 2026-11-08 | Resolutions of the agent review of 2026-11-08 (review R4, findings AC-B1, AC-M1, AC-M2, AC-m1), aligned with core CCR-BR-022: the false claim that system transitions are still recorded under fail-closed anchoring is removed; fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, refusing operator calls outside an explicit `allow` list, while the sink keeps accepting every record; no condition of the sink's own fails a write — order and host violations and retry mismatches are appended with break markers, unsupported schema versions with a marker; memory is bounded by compact ranges and queued statements instead of a failing backlog (AC-B1); the threat table gains the party controlling the host process or the sink before append (AC-M1) and the deletion of trailing anchored windows with their receipts, detected only with an independently learned head (`verifyChain` option `expectedHeads`, per-host `head` result) (AC-M2); records that are not I-JSON are chained with an escaped canonical form and a marker (AC-m1; core G59 open). Open questions recorded above.<br>**Impact (PROC-03 §3).** (1) Identifiers: none added or withdrawn; BEH-AC-001–005, 008, 011–014, 016, 017, 019, 022, 024, INV-AC-001–003, INV-AC-005, ADR-AC-001, ADR-AC-003 amended; headings of BEH-AC-005, BEH-AC-013, INV-AC-002 and INV-AC-005 changed. (2) Risk: removes the control-introduced risk RSK-BR-045 names for failed-write fail-closed and the permanent halt of recording RSK-BR-020 names for deterministic refusals; two undetected cases stated for RSK-BR-045; no score changed by this record. (3) GxP impact: yes — what the chain detects and when operator changes are refused change. (4) Revalidation: nothing released (implementation absent); REQ-AC-001–004, 008, 011 updated. (5) Compatibility: draft API changes (`failClosed` and `maxPending` options removed, `ChainGate` and `maxPendingWindows` added, `ChainLink` markers, `ChainReport.head` and `notices`); no core type changed; the package still consumes `AuditRecord` version 1 and now chains other versions with a marker. |
 | CCR-AC-001 | 2026-11-08 | Initial draft: `HashChainSink` wrapping the core `AuditSink` port with an inner `ChainSink` store port and `ChainSink.split`; canonical encoding (RFC 8785) with domain separation; links identical across the core writer's retries; contiguity enforced per host; optional keyed hasher; `Anchor` port publishing Merkle roots of record windows off the write path, with an explicit fail-closed option; `verifyChain` (pure, total, built on `verifyAuditSequence`); inclusion proofs; the threat model stating why a chain alone can be rewritten and what the anchor adds. Gap item 13 of the Bridger gap analysis of 2026-11-08; roadmap step B4.<br>**Impact (PROC-03 §3).** (1) Identifiers: BEH-AC-001–024, INV-AC-001–005, ADR-AC-001–004 and REQ-AC-001–012 added; no core identifier changed (proposed core amendments are recorded separately for the core's change control). (2) Risk: no core risk re-scored by this record; a new core risk (chain or anchor mistaken for tamper-proofing; anchor store not independent) and a note on RSK-BR-006 are proposed for the core register. (3) GxP impact: yes — the package concerns detection of alteration of stored audit records (21 CFR 11.10(e), EU GMP Annex 11 §9); it changes no core record or behaviour. (4) Revalidation: no version has been released or qualified (implementation absent); none. (5) Compatibility: no core public type, record field or `schemaVersion` changes; the package consumes `AuditRecord` version 1 and refuses any other version. |
 

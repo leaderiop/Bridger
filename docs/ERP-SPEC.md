@@ -1,6 +1,8 @@
 # Bridger ERP — core and public API design
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Package names, exports, descriptors and signatures in this document are proposed. We retain the project's existing spelling, **Bridger ERP**. The target is the latest stable Effect 4.x; unstable modules are used only where a feature needs them.
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Package names, exports, descriptors and signatures in this document are proposed. We retain the project's existing spelling, **Bridger ERP**. The target is the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target); unstable modules are used only where a feature needs them.
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 Read [the complete Todo walkthrough](ERP-TODO-WALKTHROUGH.md) first to see the author experience. Permissions and policies are specified in [ERP-ACCESS.md](ERP-ACCESS.md). [Odoo core research](knowledge/ODOO-CORE.md) records the source evidence behind this proposal. The existing [Bridger core spec](SPEC.md) remains the generic plugin runtime. Area specifications: [storage](ERP-STORAGE.md), [identity and tenants](ERP-IDENTITY.md), [module distribution](ERP-DISTRIBUTION.md), [browser shell](ERP-BROWSER.md), [business platform services](ERP-BUSINESS.md), [operations](ERP-OPERATIONS.md), [developer experience](ERP-DX.md); see the [index](ERP-INDEX.md). Authentication is provided by awthaq ([ERP-IDENTITY.md](ERP-IDENTITY.md)); where this document and an area specification differ, the area specification is more detailed.
 
@@ -63,6 +65,8 @@ flowchart TB
 | Policy (`@bridger/qadi` over `@qadi/core`) | Permission tokens, qadi policies, request subject | Operation gates, row predicates compiled to SQL, field projection and consistent enforcement across all entry points. Tenant/company scope is added by Records and is not a plugin policy. See [ERP-ACCESS.md](ERP-ACCESS.md). |
 | Transaction | Execute one command unit | Record mutation, command receipt, audit and outbox share one SQL transaction. |
 | UI Catalog | Authorized descriptors and revision changes | Available navigation/screens and compatible UI artifacts; no live server values enter the catalog. |
+
+> **Superseded in part (2026-11-08).** The Operation Gateway and the `Command.contract` / `Command.implement` model are governed by [`@bridger/command`](../references/command/README.md) ([02 — Dispatch](../references/command/behaviors/02-dispatch.md)); the outbox in the Transaction row by [`@bridger/durable-bus`](../references/durable-bus/README.md); the Module Manager's multi-node rollout by [`@bridger/federation`](../references/federation/README.md); per-tenant registry generations by core [33 — Realm families](../references/core/behaviors/33-realm-families.md). See the [supersession table](ERP-INDEX.md#supersession-table).
 
 Every asynchronous method returns an Effect unless explicitly shown as a pure descriptor or Promise-free browser configuration. Pure definition calls never contact a database or install code.
 
@@ -150,6 +154,8 @@ Definitions are validated before publication: duplicate IDs, incompatible fields
 
 ## 4. Request execution and transactions
 
+> **Row-as-truth write path.** This section keeps the server CRUD model: the business row is the source of truth and one server transaction commits the row, its audit entry, its outbox entry and its receipt. **This conflicts with event-sourced, offline-first write paths**, where facts are appended locally (often offline), rows are derived projections and an authority orders and re-checks facts later. Such systems should not use this path; see the status banner. The gateway steps below are governed by [`@bridger/command`](../references/command/README.md) and the outbox by [`@bridger/durable-bus`](../references/durable-bus/README.md).
+
 ```mermaid
 sequenceDiagram
     participant UI as Browser screen (FoldKit or React)
@@ -180,7 +186,7 @@ Queries are read-only, permission-filtered and bounded. Their cursor is opaque a
 
 Commands issued together by the UI (FoldKit Commands or React effects) can run concurrently. Optimistic updates use `expectedRevision`, implemented as a scoped compare-and-update. Two writes against one revision produce one success and one `RevisionConflict`; no silent last-write-wins overwrite. Revision mismatch details are only available after row authorization.
 
-An outbox worker leases an event for delivery after commit. Delivery may repeat, so subscribers deduplicate. Sending mail or charging a payment provider inside a SQL transaction is not rolled back by the database; those integrations need recorded intent and their own reconciliation policy.
+Events are published through [`@bridger/durable-bus`](../references/durable-bus/README.md) inside the command transaction and delivered at least once by its relay; leasing, retry and parking are durable-bus rules, not ERP rules ([ERP-STORAGE.md](ERP-STORAGE.md) §12). Sending mail or charging a payment provider inside a SQL transaction is not rolled back by the database; those integrations need recorded intent and their own reconciliation policy.
 
 ## 5. Application assembly and trusted administration
 
@@ -299,6 +305,8 @@ The server checks the UI module's model/operation references and filters catalog
 
 For custom logic, use a named ERP command:
 
+> **Superseded (2026-11-08).** The command model below is governed by [`@bridger/command`](../references/command/README.md): a command is a value with an id and schemas ([01 — Command definition](../references/command/behaviors/01-command-definition.md), BEH-CM-001), its handler is a contribution for the lifetime of a scope (BEH-CM-003), and every caller goes through one dispatch path ([02 — Dispatch](../references/command/behaviors/02-dispatch.md), BEH-CM-009). Approval is a gate `Defer` (BEH-CM-011, core [32](../references/core/behaviors/32-generic-gate-and-plan.md)). The sketch is kept to show the ERP author experience.
+
 A command is also two parts. The **contract** (name, input and output schemas) is browser-safe and lives in contracts; the **implementation** (permission, `execute`) is server-only.
 
 ```ts
@@ -385,3 +393,5 @@ The details are design choices, not a compatibility layer. Odoo has online modul
 - Disable with an in-flight command; the admitted transaction settles before the server activation closes.
 - A stale or disconnected browser cannot keep a server generation alive or bypass current policy.
 - Render diagrams and type-check illustrative programs when implementation prototypes are authorized. At this stage, verification is document consistency and source review.
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

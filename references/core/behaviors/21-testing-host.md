@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.16                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-08): check 22 (generation `changes` and `view`); checks 63, 65, 66 (lazy digest, not-yet-loaded `reconfigure`, `methods`); copies of checks 67, 68, 70, 75 and 76 aligned with files 28 and 30; checks 77, 79, 81, 83 and 85 aligned with files 31–33; check 91 (entitlement failure modes, mode `unmetered`) (CCR-BR-022)<br>0.10 (2026-11-08): Acceptance checks 59–66 (CCR-BR-017), 67–76 (CCR-BR-018), 77–88 (CCR-BR-019) and 89–91 (CCR-BR-020); `Fault.loadFails` and `Fault.handoffFails`; scripted `AccessPolicy`, `CapabilityPolicy` and `Gate<Req>` fixtures, in-memory `CallLog` fixture and `heldHandoff` (CCR-BR-017, CCR-BR-018, CCR-BR-019)<br>0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.16 (2026-11-08): Checks amended for the host-core prototype third pass: 83 (prune drain and force compared only when they take effect, G-P23), 92 (link without `hostId`, wait to the end of a non-empty window, G-P20, G-P21), 96 (a discarded successful build drops "ended", G-P19), 97 (kept trigger not in `triggered`, G-P22), 99 (half-finished two-action undo step, G-P24) (CCR-BR-030)<br>0.15 (2026-11-08): Checks amended for the round-2 agent review and prototype second pass: 72 (`Grant.all` layer with `changes`, G-P13), 92 (idling and refused declarations, owner matching, `HostLink.none`, failed reads, wake window, long waking), 96 (held-event drop reason during a load, G-P14), 97 (registry holds not idle conditions, G-P17), 99 (multi-action undo, override restore, prune options, refused digests), 104 (refused-digest and the reconcile diff, plan) (CCR-BR-029)<br>0.14 (2026-11-08): Checks amended for the resolutions of the host-core prototype findings G-P1..G-P12: 49 (lazy registrations in the confluence comparison), 59 (`serviceKey`), 60 (`disabled: true`), 62 (`consentDiff` shapes), 63 (`range` with `version`), 79 (`settle` outcomes), 83 (decoded paths, host-level mismatches), 86 (delimiter rule), 92 (empty wake window, woken while `starting`, `make` refusal), 108 (which records carry `sanitized`) (CCR-BR-028)<br>0.13 (2026-11-08): BEH-BR-184 checks 112 (call-log kind "dispatch", string epochs) and 113 (registry entry owner, `HoldRevoked` feed) (CCR-BR-027)<br>0.12 (2026-11-08): Check 64 amended, checks 92–97 (CCR-BR-024); checks 98–103 (CCR-BR-025); `memoryCallLog` `onFailure` and `queue`, `scriptedRefusalList` fixture, check 79 renamed to `policy` and covers `settle`, checks 104–111 (CCR-BR-026)<br>0.11 (2026-11-08): check 22 (generation `changes` and `view`); checks 63, 65, 66 (lazy digest, not-yet-loaded `reconfigure`, `methods`); copies of checks 67, 68, 70, 75 and 76 aligned with files 28 and 30; checks 77, 79, 81, 83 and 85 aligned with files 31–33; check 91 (entitlement failure modes, mode `unmetered`) (CCR-BR-022)<br>0.10 (2026-11-08): Acceptance checks 59–66 (CCR-BR-017), 67–76 (CCR-BR-018), 77–88 (CCR-BR-019) and 89–91 (CCR-BR-020); `Fault.loadFails` and `Fault.handoffFails`; scripted `AccessPolicy`, `CapabilityPolicy` and `Gate<Req>` fixtures, in-memory `CallLog` fixture and `heldHandoff` (CCR-BR-017, CCR-BR-018, CCR-BR-019)<br>0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -412,7 +412,7 @@ offered `scriptedGate.allowAll` would be that same object one import away.
 Making the test write its decision — even `() => "allow"` — keeps the
 permissiveness visible in the test that relies on it.
 
-### Policy, call-log and gate fixtures (files 28, 29, 32)
+### Policy, call-log, refusal-list and gate fixtures (files 28, 29, 32)
 
 ```ts
 TestHost.scriptedAccessPolicy(
@@ -421,12 +421,19 @@ TestHost.scriptedAccessPolicy(
 TestHost.scriptedCapabilityPolicy(
   resolve: (request: ResolutionRequest, index: number) => Grant | { readonly refuse: string } | "die" | "hang"
 ): Effect.Effect<{ readonly layer: Layer.Layer<CapabilityPolicy>; readonly requests: Effect.Effect<readonly ResolutionRequest[]> }>
-TestHost.memoryCallLog(options?: { readonly behave?: (attempt: number, entry: CallEntry) => "store" | "fail" | "die" | "hang" }):
+TestHost.memoryCallLog(options?: {
+  readonly behave?: (attempt: number, entry: CallEntry) => "store" | "fail" | "die" | "hang"
+  readonly onFailure?: "drop" | "refuse"                  // the port's failure policy (29, BEH-BR-279); default "drop"
+  readonly queue?: number                                 // hand-off queue capacity (29, BEH-BR-279)
+}):
   Effect.Effect<{ readonly layer: Layer.Layer<CallLog>; readonly entries: Effect.Effect<readonly CallEntry[]> }, never, Scope.Scope>
 TestHost.scriptedGateOf<Req>(
   decide: (request: Req, index: number) => GateDecision<Req> | "die" | "hang"
 ): Effect.Effect<{ readonly gate: Gate<Req>; readonly requests: Effect.Effect<readonly Req[]> }>
 TestHost.heldHandoff(ref: PluginRef): Effect.Effect<Option.Option<unknown>>   // the held value of a replace in progress (34)
+TestHost.scriptedRefusalList(
+  refused: (subject: RefusalSubject, index: number) => Option.Option<string> | "die"
+): Effect.Effect<{ readonly layer: Layer.Layer<RefusalList>; readonly subjects: Effect.Effect<readonly RefusalSubject[]> }>   // 28, BEH-BR-267
 ```
 
 ```
@@ -442,6 +449,9 @@ REQUIREMENT: The policy and gate fixtures MUST require their decision
              process memory for the test scope and is not a record store
              (BEH-BR-276). `heldHandoff` MUST be exported only from
              `@bridger/core/testing` (34 — State Handoff, BEH-BR-348).
+             `scriptedRefusalList` MUST require its function, with no
+             constant that refuses nothing, and MUST be documented as a test
+             fixture, not a revocation feed (28, BEH-BR-267).
 ```
 
 ## BEH-BR-183: Required acceptance checks — the lifecycle core
@@ -675,7 +685,9 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  without waiting for one; and seeded random operation
                  histories, with racing operations, across realms, optional
                  dependencies and a parent with a child, settle to the
-                 snapshot of a direct install of the final set (05 —
+                 snapshot of a direct install of the final set, lazy
+                 registrations compared with `dormant` and `active` as one
+                 class and eager ones exactly (05 —
                  Activation, BEH-BR-034, BEH-BR-035; 18 — Reconciliation and
                  Confluence, BEH-BR-160).
              50. A child's lifetime edges: a mount attempted by a fiber of
@@ -749,7 +761,10 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  fail with `InvalidDefinition`; `Contract.satisfies` and
                  `maxSatisfying` follow the table of BEH-BR-226 and return
                  `false`/`None` for input outside the grammar; a range
-                 leaving the major fails with `InvalidDefinition`
+                 leaving the major fails with `InvalidDefinition`; a
+                 contract's `key` is its `ServiceId` string and `serviceKey`
+                 the key passed to `Contract.make`, also for a contract
+                 built on a class key
                  (26 — Versioned Contracts, BEH-BR-225–227).
              60. `IncompatibleContract`: a dependent installed against a
                  registered provider whose version does not satisfy its
@@ -758,7 +773,9 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  missing a method of a dependent's older copy; a base
                  service with and without a `baseContracts` entry; the
                  first incompatible pair named; the check order of
-                 BEH-BR-228; nothing registered (BEH-BR-228).
+                 BEH-BR-228; nothing registered; an `install` with
+                 `disabled: true` never fails with `IncompatibleContract`
+                 and its `enable` checks its pairs (BEH-BR-228).
              61. Two separately built copies of one contract at compatible
                  versions bind without `KeyMismatch`; a plain key against a
                  contract of another object fails with `KeyMismatch`; an
@@ -771,7 +788,10 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  unchanged; `engines["@bridger/core"]` unsatisfied fails with
                  `IncompatibleEngine`; `consentDiff` classifies each field of
                  its table, reports other differences as unclassified, sets
-                 `requiresConsent`, and is deterministic and non-mutating
+                 `requiresConsent`, and is deterministic and non-mutating;
+                 `methods` going from a list to absent is widened from
+                 "list" to "all" and the reverse narrowed, and an egress
+                 `purpose` change on an unchanged host is unclassified
                  (27 — Manifest and Lazy Activation, BEH-BR-241–243).
              63. A lazy definition installs as `dormant` with `load` never
                  called: its manifest's keys reserve slots
@@ -783,14 +803,16 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  with phase "load") is not decoded at the call, records the
                  raw value's top-level keys as paths and hands a wired
                  fingerprinter form "raw"; a reference with `version` and no
-                 `methods` fails with `InvalidDefinition` (BEH-BR-241,
+                 `methods`, or a required reference with `range` and no
+                 `version` or `version` and no `range`, fails with
+                 `InvalidDefinition` (BEH-BR-241,
                  BEH-BR-244, BEH-BR-247).
              64. Triggers: an eager dependent registered while its provider
                  is dormant wakes it; a lazy dependent wakes its providers
                  only once woken; `wake` with `OnService`, `OnContribution`
                  and `OnEvent` reports the plugins it woke; an event
-                 dispatch wakes plugins declaring it and is not delivered to
-                 them; `use`, `lease`, `useOptional`, `awaitActive`,
+                 dispatch wakes plugins declaring it, and is delivered to
+                 each only as the held event of check 96; `use`, `lease`, `useOptional`, `awaitActive`,
                  `restart`, `retry` and optional keys wake nothing
                  (BEH-BR-245).
              65. Loading: `load` runs in the build slot under
@@ -867,7 +889,8 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  `resolution-refused` (BEH-BR-273, BEH-BR-274).
              72. A grant naming members delivers an object whose ungranted
                  members die with `CapabilityDenied`; `Grant.all` adds no
-                 layer; the narrowed object exposes nothing the wrapped one
+                 layer when the policy declares no `changes`, and a
+                 delegating layer when it does; the narrowed object exposes nothing the wrapped one
                  does not; leases are unaffected; a grant on `Bridger.Host`
                  withholds its mutating members (BEH-BR-275).
              73. A selected capture yields exactly one `CallEntry` per call,
@@ -920,8 +943,8 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  are errors; enrich and advisory results are namespaced,
                  schema-checked, in view order, and never change the verdict
                  (BEH-BR-300, BEH-BR-301).
-             79. Per-hook timeout and `onError` "deny" and "skip"; a `skip`
-                 policy's skips are recorded as "skipped-policy", never deny
+             79. Per-hook timeout and `onError` "deny" and "skip"; a
+                 `policy` `Skip` is recorded as "skipped-policy", never denies
                  and never count toward the breaker; the dispatch returns
                  within its effective deadline (least of hook point, call and
                  context annotation) without waiting for finalizers; a hook
@@ -931,8 +954,13 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  is published on `decisions` as a breaker record and not on
                  `Host.events`, and never changes plugin state or writes an
                  audit record; a contribution with no owner runs with no
-                 principal (BEH-BR-302, BEH-BR-303, BEH-BR-304,
-                 BEH-BR-306).
+                 principal; `settle` is called once per call `policy` let
+                 run, with its outcome, also on timeout ("timeout"),
+                 revocation ("revoked") and interruption by the dispatcher
+                 or the deadline ("interrupted"), never for skipped or
+                 denied contributions,
+                 and its failure changes nothing (BEH-BR-302, BEH-BR-303,
+                 BEH-BR-304, BEH-BR-306).
              80. Every dispatch yields one decision record naming the deciding
                  contribution, with no input, value, message or params; a
                  selector holds the chosen implementation for the call, fails
@@ -954,13 +982,17 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  25 — Operation Gate produces identical records (BEH-BR-315).
              83. `Host.plan` equals the diff `reconcile` then applies,
                  including the recorded `configChange.paths` of a
-                 `reconfigure` entry, writes no record, consults no gate or
+                 `reconfigure` entry, decoded with the loaded definition's
+                 schema, writes no record, consults no gate or
                  fingerprinter, emits no event and carries no value (its
                  rejections are `{ _tag, message }`); `reconcile` with
                  `expect` fails `PlanStale` with no record when stale at the
                  call — also when `configChange.paths` or the prune options
-                 differ — with a
-                 parent `failed` record when stale at the intent, and
+                 differ, `pruneDrain` and `pruneForce` counting only when
+                 `prune` or `atomic` is true — with a
+                 parent `failed` record when stale at the intent, and a
+                 mismatch of `hostId`, `scope`, a prune option or `atomic`
+                 carrying no `id` or `realm`, and
                  otherwise gates every entry (BEH-BR-317, BEH-BR-318,
                  BEH-BR-319, BEH-BR-320).
              84. A family creates a member once per key on first use through
@@ -987,7 +1019,8 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  `Actor.narrow` returns the documented value at every depth,
                  refuses invalid input and reserved actors, and is recorded as
                  any actor; `Actor.isWithin` recognises the actor itself and
-                 every narrowing of it, and nothing else (BEH-BR-336,
+                 every narrowing of it, and nothing else, among ids that
+                 keep the delimiter rule (BEH-BR-336,
                  BEH-BR-337).
              87. A replace of an active plugin with handoff on both sides
                  exports after the drain and before scope close, upgrades
@@ -1035,6 +1068,240 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  operation or writes a record; `EntitlementView` is not in the
                  requirements of `Bridger.layer` (10 — Runtime Failure and
                  Health, BEH-BR-089).
+             92. Dormant declarations at a hook point: a veto declared in
+                 the manifest of a `dormant` plugin is read by
+                 `declaredContributions` without `load`; the dispatch
+                 admits it with `who` (`declared: true`), wakes it from the
+                 dispatcher's fiber and runs it when its contribution
+                 registers within the deadline less one `timeout`; a wake
+                 that is late, fails, or meets a "load-failed" registration
+                 is resolved by the point's `onError` ("deny" denies with
+                 cause "wake-timeout" or "wake-failed", "skip" records it);
+                 `dormant: "deny"` denies with cause "dormant" and still
+                 wakes; a refused declaration is "declared-refused" and
+                 wakes nothing; enrich and advisory declarations are
+                 "skipped-dormant" by default; a dispatch with no
+                 `HostLink` on a point with codes is `Denied` with cause
+                 "no-host-link"; with several denying declarations `by` is
+                 the first by id whatever order the wakes settle in; a
+                 woken contribution takes part while its plugin is
+                 `starting`; a wake window already empty at the start of
+                 the dispatch still wakes and records "wake-timeout"
+                 without waiting; `make` rejects a `timeout` equal to
+                 `deadline` on a point with codes whose veto `dormant` is
+                 "wake"; a veto owner in an idle return is reported
+                 "idling", woken and waited for, so a dispatch during the
+                 idle drain never ends `Allowed` without it; a veto owner
+                 disabled by the `RefusalList` is reported "refused" and
+                 resolved by `onError` without a wake; a contribution of
+                 another owner or role under the declared id leaves the
+                 declaration kept (`errorTag` "DuplicateContribution") and
+                 does not complete its wake; `HostLink.none` denies a point
+                 with codes unless `allowNoLink`, and the record names the
+                 link; a failed or late declarations read denies with cause
+                 "no-host-link"; an enrich contribution in the view shortens
+                 the wake window by one `timeout`; a declaration still
+                 "waking" after a wait that ran to the end of a non-empty
+                 window records "wake-timeout" without waiting, and one
+                 only seen "waking" earlier is waited for; a link without
+                 `hostId` denies a point with codes unless `allowNoLink`
+                 and is recorded as "none"
+                 (31 — Hook Points, BEH-BR-297, BEH-BR-305, BEH-BR-309; 27,
+                 BEH-BR-250, BEH-BR-253).
+             93. Contribution failure policy: a `register` `onError` not
+                 allowed by the point, or "deny" on an enrich or advisory
+                 contribution, fails with `HookRegistrationRefused` and
+                 registers nothing; `who` receives the effective `onError`;
+                 errors, deadline expiry and open breakers of a veto
+                 contribution follow its effective `onError`; under
+                 `breakerScope: "plugin"` the errors of one owner's
+                 contributions open one breaker that makes all of them
+                 "breaker-open", one probe call closes or reopens it, one
+                 `HookBreakerRecord` with `scope: "plugin"` is published per
+                 transition, and an unowned contribution keeps its own
+                 breaker (BEH-BR-310, BEH-BR-302, BEH-BR-304).
+             94. Phase order: enrich hooks complete before the first veto
+                 hook is called; veto and advisory hooks receive the
+                 conforming enrichments in view order and the ids of
+                 enrichers with no value in `missing`, and cannot change
+                 them; an enrich failure never denies; a denied dispatch
+                 returns its enrichments, empty advice and calls no
+                 adviser; a deadline expiring in the enrich or veto phase
+                 denies only when an uncompleted veto contribution has
+                 effective `onError` "deny", naming the first such
+                 (BEH-BR-311, BEH-BR-300, BEH-BR-301, BEH-BR-303,
+                 BEH-BR-306).
+             95. Targets and policy deny: a `target` that does not decode
+                 with the selector, or a `target` on a point without
+                 `targets`, refuses the registration; `who` receives the
+                 decoded selector; contributions and declarations whose
+                 selector does not match are "not-targeted", not called or
+                 woken, and feed no breaker; a throwing `descriptor` on a
+                 point with codes denies with "target-failed" and no hook
+                 call; `policy` `Deny` on a veto contribution or
+                 declaration ends the dispatch "denied-policy" with its
+                 reason at that contribution's turn, without calling or
+                 waking it, feeding a breaker or applying `onError`, and on
+                 an enrich or advisory contribution is "skipped-policy"
+                 (BEH-BR-312, BEH-BR-302, BEH-BR-305).
+             96. Held event: an `emit`, `parallel`, `serial` or `waterfall`
+                 dispatch that wakes a plugin returns without waiting for
+                 it; once the plugin is `active` its `on` listeners for the
+                 event registered during that activation receive the event
+                 exactly once, other listeners and `around` listeners never;
+                 the event is dropped, logged and reported as
+                 `held-event-dropped` with reason "no-listener",
+                 "activation-failed" (including phase "load", and a
+                 `remove`, `replace` or `disable` that waited for a load or
+                 build that then failed), "ended" (removed, replaced or
+                 disabled while no load or build runs, idled, host closed,
+                 and a `remove` that waited for a load and build that
+                 succeeded and were discarded, with no listener receiving
+                 the event)
+                 or
+                 "timeout" (`holdTimeout` under `TestClock`); a `wake`
+                 naming `OnEvent` holds nothing; a sentinel argument value
+                 appears in no record, event, log, span or snapshot
+                 (27 — Manifest and Lazy Activation, BEH-BR-251; 16,
+                 BEH-BR-141).
+             97. Idle return and wake attribution: with `idle` set, a
+                 loaded `active` plugin with no lease or `use` callback
+                 holding its keys, no running `Bridger.Events` listener, no
+                 child and no non-dormant dependent becomes
+                 `dormant` after `idle` under `TestClock`, through a stop
+                 whose finalizers run, keeping its slots, with one
+                 `lazy-idle` record (no `system-stop`) and `plugin-idled`;
+                 any of those conditions resets the idle time; a registry
+                 hold of one of its contributions does not prevent the idle
+                 return and drains under the registry's `drainTimeout`; a
+                 trigger
+                 applied during the idle stop wakes it again on arrival in
+                 `dormant` and is not listed in that `wake`'s `triggered`; the next activation calls `load` again; a `wake`
+                 from plugin code, and an event dispatch from plugin code,
+                 write root `lazy-triggered` records carrying that plugin's
+                 principal as `onBehalfOf` and `Actor.system` as actor,
+                 caused `lazy-triggered` records carry none, and a forged
+                 principal makes `wake` die with `PrincipalForged`
+                 (BEH-BR-252, BEH-BR-253).
+             98. `reconcile` orders its actions by declarations: prune
+                 removals and disable-first entries dependents first, every
+                 other change providers first, ties in list order; a list
+                 that installs a dependent before the provider replacement
+                 it needs converges in one run in any list order;
+                 `Host.plan` shows the same order and no lazy `load` runs
+                 (18 — Reconciliation and Confluence, BEH-BR-156; 32,
+                 BEH-BR-317).
+             99. With `atomic: true` the first refused or failed forward
+                 action stops the apply and every completed action is
+                 undone in reverse by the opposite operation, each
+                 attributed to the call, gated with `undo: true` and
+                 recorded with `undoes`; the call fails `ApplyRolledBack`;
+                 a validation-stage rejection applies nothing; an activation
+                 failure starts no undo; the plan carries `atomic` and
+                 per-entry `undo`; a multi-action entry (`[replace,
+                 reconfigure, enable]`, `[disable, replace, reconfigure]`)
+                 is undone in full with each `registeredAt` check made
+                 against the revision the previous undo action produced;
+                 the undo of a `replace` of a plugin that had an override
+                 puts that override back, and when that `reconfigure` fails
+                 or is skipped the step is one `notUndone` entry with
+                 `action` `replace`, not in `undone`; with `prune: false` the undo of an
+                 `install` removes with `pruneDrain` and `pruneForce`; a
+                 refused digest in the diff applies nothing, and one refused
+                 at step 4b stops the apply with `OperationRejected`
+                 (32 — Generic Gate and Plan, BEH-BR-317, BEH-BR-318,
+                 BEH-BR-319, BEH-BR-322–326).
+            100. An undo refused, failing or skipped by `ChangedSinceApply`,
+                 a parked forward `DrainTimeout`, a latch set mid-apply and
+                 shutdown each end in `PartialApply` naming what stayed
+                 applied, with a `reconcile-partial` event and no retry;
+                 caller interruption after the intent still completes the
+                 undo; an undo `replace` hands off state as any replace; the
+                 next reconcile waits for the undo (BEH-BR-323, BEH-BR-324,
+                 BEH-BR-326; 34, BEH-BR-353).
+            101. Desired-entry policy: `mandatoryInterceptions` reach
+                 `InstallOptions.mandatory` from `mandatoryCatalog` in
+                 order, with `allowChildren`; unknown or repeated ids give
+                 `InvalidDefinition`; a difference on an installed entry
+                 gives `PolicyMismatch` and no action; a catalog with an
+                 empty or repeated id fails construction (18, BEH-BR-153,
+                 BEH-BR-154).
+            102. A contract registry refuses an `add` without `implements`,
+                 below its range or missing a method with
+                 `IncompatibleContract` (`dependentId` "registry:<name>")
+                 and registers nothing; `within(range)` and a selector range
+                 hide out-of-range entries; `implements` on a plain registry
+                 is a defect; `MethodSpec.timeout` appears in
+                 `descriptor.timeouts`, is never enforced in-process and
+                 fails no check; an invalid timeout makes the contract
+                 invalid (26 — Versioned Contracts, BEH-BR-233, BEH-BR-234;
+                 19, BEH-BR-163, BEH-BR-165).
+            103. With `handoff.alsoOn`, an active plugin's `restart` and
+                 restarting `reconfigure` hand off state with one `handoff`
+                 record caused by that call; `cold: true`, an unlisted
+                 operation, a non-active plugin, its dependents and a
+                 volatile-only `reconfigure` hand nothing off and write no
+                 record (34 — State Handoff, BEH-BR-346, BEH-BR-350,
+                 BEH-BR-353).
+            104. RefusalList: operator calls of a refused digest fail with
+                 `OperationRejected` ("refused-digest: ...") and one
+                 `rejected` record without the gate; system starts, cascade
+                 restarts, lazy triggers and background restarts of a
+                 refused digest land in `disabled` with reason
+                 "refused-digest" and one `start-refused` record, loading
+                 and building nothing; a refused mount fails with
+                 `ChildNotAllowed`; row "disabled (refused-digest)" holds;
+                 such a registration counts as not disabled for the diff
+                 and `registeredAt`, so a second `reconcile` issues nothing
+                 for it; `Host.plan` lists a refused entry in `rejected`
+                 (28 — Plugin Principal and Mandatory Policy, BEH-BR-267;
+                 18, BEH-BR-154, BEH-BR-159; 32, BEH-BR-317, BEH-BR-318).
+            105. The `OperationRequest` of plugin-addressed operations
+                 carries `allowChildren` and `mandatoryInterceptions` equal
+                 to the registration's effective values (25 — Operation
+                 Gate, BEH-BR-219; 28, BEH-BR-263).
+            106. `CurrentCorrelation`: resolution order, set for the work of
+                 a call and its system transitions, reset for background
+                 work, followed by listeners and served calls, recorded on
+                 root system records and call entries, never seen by the
+                 fingerprinter or the diagnostic channels (22 —
+                 Attributable Operations, BEH-BR-187; 30, BEH-BR-292).
+            107. Call-log failure policy "drop" and "refuse", bounded
+                 queue, `CallLogUnavailable`, counters and close (29 —
+                 Capability Grants and Call Log, BEH-BR-279).
+            108. Every record carries `auditDropped` equal to the overflow
+                 count when it was numbered, never decreasing; a lone
+                 surrogate in an actor, reason or correlation is replaced by
+                 U+FFFD on the gate request and on every record of the call
+                 (`requested`, `rejected`, terminal), each carrying
+                 `sanitized: true`, while a system record the call causes
+                 carries the replaced correlation without `sanitized`;
+                 `Host.controls` reports `buildTimeout`
+                 (23 — Audit Sink and Record, BEH-BR-195, BEH-BR-196,
+                 BEH-BR-202; 22, BEH-BR-185; 24, BEH-BR-212).
+            109. `AccessPolicy.declaredOnly` and `AccessPolicy.ask` (28,
+                 BEH-BR-268, BEH-BR-269).
+            110. `Plugin.Runtime.unmount` writes `unmount-requested` with
+                 `requestedBy` before the removal's records, which it
+                 causes; call-log entry kinds, `Host.offerCallEntry` and
+                 the `PrincipalRef` encoding (14 — Children and Groups,
+                 BEH-BR-126; 22, BEH-BR-190; 29, BEH-BR-280).
+            111. `CapabilityPolicy.changes` re-resolves live captures,
+                 narrowing later calls without changing plugin state (29,
+                 BEH-BR-281).
+            112. Offered entries of kind "dispatch" and string epochs on
+                 crossing and revocation entries (29, BEH-BR-276,
+                 BEH-BR-280).
+            113. A registry view entry carries `owner` (plugin id and
+                 realm) when `add` ran in a plugin's activation and none
+                 for an application contribution, also through
+                 `within(range)`; a removal that revokes holders at
+                 `drainTimeout` publishes one `HoldRevoked` with the
+                 number of holders to current `revocations` subscribers
+                 after their finalizers and writes no audit record; a
+                 removal that revokes none publishes nothing (19 —
+                 Contribution Registry, BEH-BR-163, BEH-BR-165,
+                 BEH-BR-167).
 ```
 
 Checks 31–42 exist because the GxP hooks are only worth specifying if each

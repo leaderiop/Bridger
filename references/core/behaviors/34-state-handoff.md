@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-34                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.3 (2026-11-08): BEH-BR-353 handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `alsoOn`, `cold` call option, none on a volatile-only `reconfigure` (gap G44); BEH-BR-346 and 350 extended to those operations and to the undo `replace` of an atomic apply; BEH-BR-352 the previous definition kept for an atomic apply's undo; acceptance check 103 (CCR-BR-025)<br>0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -34,8 +34,8 @@ new build fails — the new activation starts cold, and the loss is recorded.
 Stop-then-start, one provider per key and no rollback are unchanged. It has
 no SPEC.md source section
 ([ADR-BR-049](../decisions/049-state-handoff-on-replace.md), complementing
-ADR-BR-004). This file owns BEH-BR-345–360 and uses BEH-BR-345–352;
-numbers 353–360 of the block are reserved.
+ADR-BR-004). This file owns BEH-BR-345–360 and uses BEH-BR-345–353;
+numbers 354–360 of the block are reserved.
 
 > **What core does not do — and who does**
 >
@@ -64,6 +64,7 @@ interface Handoff<S, Encoded, Provided> {
   readonly accepts?: readonly string[]                       // older formats it can read; default [version]
   readonly upgrade?: (from: { readonly version: string; readonly encoded: unknown }) =>
     Effect.Effect<Encoded, HandoffError>                     // code_change: old format → this format
+  readonly alsoOn?: readonly ("restart" | "reconfigure")[]   // also hand off on these (BEH-BR-353); default []
 }
 class HandoffError extends Schema.TaggedError<HandoffError>()("HandoffError", { message: Schema.String }) {}
 
@@ -98,8 +99,9 @@ REQUIREMENT: `export` and `import` MUST have as their only requirements the
 
 ```
 REQUIREMENT: `version` MUST be a non-empty string, `accepts`, when given,
-             MUST contain `version`, and the schema's encoded side MUST be
-             plain data. A definition that breaks these MUST fail the
+             MUST contain `version`, `alsoOn`, when given, MUST hold only
+             "restart" and "reconfigure" without repetition, and the
+             schema's encoded side MUST be plain data. A definition that breaks these MUST fail the
              definition checks of `install` and `replace` with
              `InvalidDefinition` (03 — Installation).
 ```
@@ -118,23 +120,25 @@ format without a version label at all. (2) `accepts` and `upgrade` are the
 read, because only it knows its own shape. A plugin whose state is private
 to its build provides a private key for it, or does not declare a handoff.
 
-## BEH-BR-346: Handoff applies only to replace of an active plugin
+## BEH-BR-346: Handoff applies only to replace of an active plugin, and where BEH-BR-353 admits it
 
 > **See:** [ADR-BR-049](../decisions/049-state-handoff-on-replace.md), [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md)
 > **Satisfies:** [URS-BR-040](../urs.md#urs-br-040-keep-a-plugins-state-across-a-replacement), [URS-BR-002](../urs.md#urs-br-002-remove-or-replace-a-plugin-safely-while-it-is-in-use)
 
 ```
 REQUIREMENT: A handoff MUST be attempted only for a `replace` (including a
-             `reconcile` entry action `replace`) of a plugin that is
-             `active` when its stop begins and whose old and new definitions
-             both declare `handoff`.
+             `reconcile` entry action `replace` and the undo `replace` of an
+             atomic apply, 32 — Generic Gate and Plan, BEH-BR-323) of a
+             plugin that is `active` when its stop begins and whose old and
+             new definitions both declare `handoff`, and for the `restart`
+             and restarting `reconfigure` that BEH-BR-353 admits.
 ```
 
 ```
-REQUIREMENT: No other stop — `remove`, `restart`, `disable`, `reconfigure`,
-             a runtime failure, dependency loss, shutdown — and no
-             `replace` of a plugin in any other state MUST export, hold or
-             import state.
+REQUIREMENT: No other stop — `remove`, `disable`, a `restart` or
+             `reconfigure` that BEH-BR-353 does not admit, a runtime
+             failure, dependency loss, shutdown — and no `replace` of a
+             plugin in any other state MUST export, hold or import state.
 ```
 
 ```
@@ -147,8 +151,10 @@ REQUIREMENT: Handoff MUST NOT change the stop-then-start order of
 
 Limiting handoff to `replace` keeps it the answer to one question — "carry
 my state to the new code" — and keeps every other stop exactly as it is.
-`restart` runs the same definition; a plugin that wants its state across a
-restart is asking for persistence, which is its own store's job.
+`restart` and `reconfigure` run the same definition, and hand off only when
+the definition asks for it (BEH-BR-353); a plugin that wants its state
+across a process restart is asking for persistence, which is its own store's
+job.
 
 ## BEH-BR-347: Export runs after the drain and before the scope closes
 
@@ -312,7 +318,8 @@ type HandoffLoss =
 REQUIREMENT: With a sink wired, each attempted handoff MUST produce exactly
              one system record with `operation: "handoff"`, phase
              `system`, actor `Actor.system`, the plugin as `target`, and a
-             `causationId` naming the `replace`'s `requested` record
+             `causationId` naming the `requested` record of the `replace`,
+             `restart` or `reconfigure` that attempted it
              (BEH-BR-190). When the state was imported, the record MUST
              carry no `error`; when it was lost, `error` MUST carry one of
              the `HandoffLoss` tags and a core-written message naming the
@@ -416,7 +423,10 @@ REQUIREMENT: Core documentation MUST state that handoff is not rollback
 
 ```
 REQUIREMENT: Core MUST NOT keep the old definition, or its exported state,
-             to restore after a failed replace.
+             to restore after a failed replace — except that an atomic
+             `reconcile` keeps the previous definition object, never its
+             exported state, until the call ends, to issue its undo
+             (32 — Generic Gate and Plan, BEH-BR-323).
 ```
 
 Handoff narrows the cost of an upgrade; it does not change what an upgrade
@@ -424,6 +434,89 @@ is. The replaced plugin is still stopped before the new one starts, the
 dependents still restart, and a failed upgrade is still a visible failure
 that an operator answers with `replace(previous)` — which starts the
 previous version cold, because nothing was kept for it.
+
+## BEH-BR-353: Handoff on restart and on a restarting reconfigure, when the definition asks for it
+
+> **Invariant:** [INV-BR-045](../invariants.md#inv-br-045-handed-off-state-is-never-observable-and-its-loss-is-recorded), [INV-BR-014](../invariants.md#inv-br-014-every-activation-gets-a-fresh-scope-and-memo-map)
+> **See:** [ADR-BR-049](../decisions/049-state-handoff-on-replace.md), [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-018](../decisions/018-configuration-decoded-before-build.md)
+> **Satisfies:** [URS-BR-040](../urs.md#urs-br-040-keep-a-plugins-state-across-a-replacement), [URS-BR-007](../urs.md#urs-br-007-configure-plugins-safely-including-secrets-and-live-changes)
+> **Risk:** [RSK-BR-035](../gxp/03-risk-assessment.md#rsk-br-035)
+
+```ts
+// illustrative — not type-checked
+interface HandoffCallOptions { readonly cold?: boolean }        // default false: hand off when admitted
+// restart(ref, options?: RemoveOptions & HandoffCallOptions)            (07, BEH-BR-058)
+// reconfigure(ref, config?, options?: OperationOptions & HandoffCallOptions)   (11, BEH-BR-101)
+
+const sessions = Plugin.make({
+  id: "pos/sessions",
+  provides: [Sessions],
+  build: SessionsLive,
+  config: SessionsConfig,
+  handoff: { version: "1", schema: SessionTable, export: exportTable, import: importTable,
+             alsoOn: ["restart", "reconfigure"] }
+})
+```
+
+```
+REQUIREMENT: A handoff MUST also be attempted for a `restart` of a plugin
+             that is `active` when its stop begins (07 — Replacement and
+             Reactivation, BEH-BR-058), and for a `reconfigure` that
+             restarts a plugin that is `active` when its stop begins (a
+             change to a non-volatile field, 11 — Configuration, BEH-BR-101,
+             BEH-BR-102), when the definition's `handoff.alsoOn` lists that
+             operation and the call does not pass `cold: true`. Both calls
+             issued by `reconcile` — an entry action or an undo action —
+             MUST follow the same rule.
+```
+
+```
+REQUIREMENT: In such a handoff the old and new definitions MUST be the same
+             definition: the format versions are equal, `upgrade` MUST NOT
+             run, and the export, hold, decode, import, failure and record
+             rules of BEH-BR-347–351 MUST apply unchanged. For a
+             `reconfigure`, `import` MUST run in the activation built with
+             the new configuration; whether the state suits it is the
+             plugin's `import` to decide.
+```
+
+```
+REQUIREMENT: A `reconfigure` confined to volatile fields (BEH-BR-102) MUST
+             NOT attempt a handoff and MUST write no `handoff` record: the
+             activation does not stop, so its state stays where it is.
+```
+
+```
+REQUIREMENT: A `restart` or `reconfigure` with `cold: true`, or of a
+             definition whose `alsoOn` does not list the operation, MUST NOT
+             run `export` and MUST write no `handoff` record. A `restart` of
+             a plugin in any state other than `active` — `starting`,
+             `waiting`, `failed` — MUST NOT attempt a handoff. Dependents
+             stopped and started again by the restart MUST NOT hand off
+             (BEH-BR-346).
+```
+
+```
+REQUIREMENT: `cold` MUST NOT change any other behaviour of `restart` or
+             `reconfigure`, MUST NOT appear in a gate request or an audit
+             record, and MUST be accepted, and ignored, on a definition
+             without `handoff`.
+```
+
+The case for this is the one the review of gap G44 described: a plugin
+reconfigured with a new upstream address, or restarted by an operator to
+pick up a rotated certificate, loses its open sessions although nothing
+about its code or its state format changed. The same machinery that carries
+state across a `replace` carries it across these stops, with the same bound,
+the same record and the same cold start when it fails.
+
+**Settled here.** (1) Opt-in per definition, and per call through `cold`.
+`restart` is also the way to *clear* state — a development adapter restarts
+a plugin because its external world changed (BEH-BR-058) — so handing off by
+default would turn a reset into a no-op. (2) A volatile-only `reconfigure`
+needs no handoff: its activation keeps running and its state with it. (3) The
+handoff stays in memory and in one process; it is not persistence, and a
+crash still loses the state (BEH-BR-352). This closes gap G44.
 
 ---
 
@@ -437,6 +530,7 @@ scenario once code exists; none has run.
 | --- | --- | --- |
 | REQ-BR-087 | A replace of an active plugin with handoff on both sides exports after the drain and before scope close, upgrades through `accepts`/`upgrade`, imports before publication, and writes one `handoff` record before `system-start`; no other operation or state hands off; keys are never provided twice; the held value appears in no record, event, log, snapshot or error | BEH-BR-345, BEH-BR-346, BEH-BR-347, BEH-BR-348, BEH-BR-349 |
 | REQ-BR-088 | Export failure, unaccepted version, upgrade or decode failure each give a cold start with the matching loss record and event; import failure fails the activation with no retry; new-build failure, `waiting`, removal and shutdown abandon the handoff with a record; a cascade-ended parked replace, and a replace into `dormant`, export nothing and write no record | BEH-BR-347, BEH-BR-349, BEH-BR-350, BEH-BR-351, BEH-BR-352 |
+| REQ-BR-103 | With `alsoOn`, an active plugin's `restart` and restarting `reconfigure` export after the drain and import into the new activation (built with the new configuration) with one `handoff` record caused by that call; `cold: true`, an unlisted operation, a non-active plugin, its dependents and a volatile-only `reconfigure` hand nothing off and write no record; loss paths as for replace | BEH-BR-346, BEH-BR-350, BEH-BR-353 |
 
 ---
 

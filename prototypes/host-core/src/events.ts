@@ -3,6 +3,10 @@ import { Clock, Effect, PubSub, Stream } from "effect"
 
 export type HostEventBody =
   | { readonly type: "plugin-installed" }
+  | { readonly type: "handoff-imported" }
+  | { readonly type: "handoff-lost"; readonly tag: string }
+  | { readonly type: "plugin-triggered"; readonly trigger: { readonly _tag: string } }
+  | { readonly type: "reconcile-partial"; readonly scope: string; readonly correlationId: string; readonly notUndone: ReadonlyArray<{ readonly id: string; readonly realm: string; readonly action: string }> }
   | { readonly type: "plugin-removed" }
   | { readonly type: "build-started" }
   | { readonly type: "build-finished"; readonly durationMs: number; readonly outcome: "success" | "failure" | "interrupted" }

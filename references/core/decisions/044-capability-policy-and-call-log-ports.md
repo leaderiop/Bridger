@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-044                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed — amends ADR-BR-029                                 |
+> | Status         | Proposed — amends ADR-BR-029; amended by ADR-BR-054          |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): the port never receives an actor (stated with the route for companions); `contract` is `{ name, version }`; one member set for narrowing (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.3 (2026-11-08): Amended by ADR-BR-054; bounded hand-off queue, CapabilityPolicy.changes, entry kinds (CCR-BR-026)<br>0.2 (2026-11-08): the port never receives an actor (stated with the route for companions); `contract` is `{ name, version }`; one member set for narrowing (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 
@@ -59,3 +59,4 @@ Deployments want to narrow what each consumer can call on a service and to keep 
 - Requirements: [URS-BR-034](../urs.md#urs-br-034-narrow-and-log-what-each-plugin-can-call)
 - Risks: [RSK-BR-029](../gxp/03-risk-assessment.md#rsk-br-029), [RSK-BR-030](../gxp/03-risk-assessment.md#rsk-br-030)
 - Decisions: [ADR-BR-019](./019-realms-are-resolution-namespaces.md), [ADR-BR-027](./027-core-exclusions.md), [ADR-BR-029](./029-attributable-mutations.md), [ADR-BR-043](./043-plugin-principal-and-mandatory-policy.md)
+- Amended by: [ADR-BR-054](./054-correlation-in-the-fiber.md) (the call log receives the correlation) and by CCR-BR-026: the alternative "A core-owned queue for call entries" is now partly adopted — a bounded hand-off queue that keeps no history, needed for the fail-closed policy (BEH-BR-279); `CapabilityPolicy.changes` (BEH-BR-281); entry kinds and offered entries (BEH-BR-280).

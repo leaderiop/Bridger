@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1, F2) — `SignedManifest` is the loader's `SignedStatement` ("host-manifest", id JCS([authority, host]), version the decimal revision, loader `Signature` shape) verified by exactly the loader's call, with the envelope checked against the decoded manifest; revocation lists no longer verified here; a newer manifest held behind a re-bootstrap records pending kills; every apply subtracts pending kills and passes `Revocation.filterDesired`; the last applied manifest's bytes are recorded (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18 and 20, CORE-DECISIONS-2 — verification through the loader's `SignaturePolicy.verify({ statementType: "host-manifest" })`; kill entries are no longer the only kill path (BEH-FD-041); `residency` on imports, exports and peers; `mandatoryInterceptions` and `allowChildren` carried as manifest data; `atomic` off by default with `PartialApply` reported; core reconcile order and G65 stated (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -60,15 +60,20 @@ interface ManifestPlugin {
   readonly config?: unknown                  // the override the plugin should hold
   readonly disabled?: boolean
   readonly requiresFresh?: boolean           // disabled once the manifest is stale (BEH-FD-012)
+  readonly mandatoryInterceptions?: readonly string[]  // catalog ids, projected to DesiredPlugin (core BEH-BR-153)
+  readonly allowChildren?: boolean           // projected to DesiredPlugin (core BEH-BR-153)
 }
 
 interface ManifestRealm  { readonly id: string; readonly isolate: readonly string[] }   // ServiceIds
-interface ManifestPeer   { readonly id: string; readonly address: string; readonly protocol: readonly [min: number, max: number] }
+interface ManifestPeer   { readonly id: string; readonly address: string; readonly protocol: readonly [min: number, max: number]
+                           readonly residency?: readonly string[] }  // labels the route to this peer offers (BEH-FD-045)
 interface ManifestExport { readonly key: string; readonly version: number; readonly to: readonly string[] | "*"
-                           readonly methods?: readonly string[]; readonly fence?: ExportFence }       // 04
+                           readonly methods?: readonly string[]; readonly fence?: ExportFence
+                           readonly residency?: string }             // label the served data requires (BEH-FD-045)     // 04
 interface ManifestImport { readonly key: string; readonly from: string
                            readonly version: string                  // the provision's version V; one import = one major (BEH-FD-020)
-                           readonly realm?: string; readonly timeout?: string }                       // 04
+                           readonly realm?: string; readonly timeout?: string
+                           readonly residency?: string }             // label the imported calls carry (BEH-FD-045)      // 04
 type KillEntry =
   | { readonly digest: string; readonly reason: string }
   | { readonly id: string; readonly realm?: string; readonly reason: string }
@@ -99,7 +104,7 @@ REQUIREMENT: A manifest MUST be complete: it states the whole desired state of
 **Settled here.** (1) Full documents, not deltas: a host that missed
 revisions converges on the latest one without replaying the ones in between,
 so the manifest itself never needs a replay horizon; only application data
-does ([BEH-FD-014](./02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot)).
+does ([BEH-FD-014](./02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first)).
 (2) Ignoring unknown fields follows the add-only evolution of [core 26](../../core/behaviors/26-versioned-contracts.md); a
 change that older hosts must not ignore takes a new `format`.
 
@@ -112,30 +117,43 @@ left to the integration of [core 27](../../core/behaviors/27-manifest-and-lazy-a
 
 > **Invariant:** [INV-FD-002](../invariants.md#inv-fd-002-no-unverified-manifest-is-applied)
 > **See:** [ADR-FD-004](../decisions/004-signatures-delegated-to-loader.md)
-> **Depends on:** `SignaturePolicy` of the loader companion ([references/loader/](../../loader/README.md))
+> **Depends on:** `SignaturePolicy.verify` and `SignedStatement` of the loader companion ([references/loader/](../../loader/README.md), [07 — Signed statements](../../loader/behaviors/07-signed-statements.md), BEH-LD-049, BEH-LD-050)
 > **Satisfies:** [URS-BR-020](../../core/urs.md#urs-br-020-load-plugin-definitions-dynamically-while-running)
 
 ```ts
-// illustrative — not type-checked; the port's exact shape is the loader companion's
-interface SignedManifest {
-  readonly payload: Uint8Array                       // canonical bytes, as signed
-  readonly signatures: readonly { readonly keyId: string; readonly algorithm: string; readonly value: Uint8Array }[]
+// illustrative — not type-checked; the shapes are the loader companion's (loader BEH-LD-049, BEH-LD-050)
+// The loader's SignedStatement, statementType "host-manifest":
+interface SignedManifest extends SignedStatement {
+  readonly statementType: "host-manifest"
+  readonly id: string                          // RFC 8785 (JCS) of the JSON array [authority, host], e.g. '["fleet-a","pos-17"]'
+  readonly version: string                     // the revision in decimal: digits only, no sign, no leading zero ("42")
+  readonly payload: Uint8Array                 // canonical manifest bytes, as signed
+  readonly signatures: readonly Signature[]    // loader 03, BEH-LD-017: { scheme, keyHint?, bytes }
 }
-
-// loader companion (assumed shape)
-interface SignaturePolicy {
-  readonly verify: (subject: { readonly kind: "host-manifest"; readonly bytes: Uint8Array },
-                    signatures: SignedManifest["signatures"]) =>
-    Effect.Effect<{ readonly signers: readonly string[] }, SignatureRejected>
-}
+// the one call (loader BEH-LD-050):
+//   SignaturePolicy.verify({ statementType: "host-manifest",      // from this package's code, never from the envelope
+//                            subject: { bytes: envelope.payload }, id: envelope.id, version: envelope.version,
+//                            signatures: envelope.signatures })
+// Revocation lists are never verified here: they go to the loader's RevocationSource.offer (06, BEH-FD-041).
 ```
 
 ```
-REQUIREMENT: The federation plugin MUST pass the received `payload` bytes,
-             unchanged, with their signatures, to the `SignaturePolicy` named
-             in its options, and MUST decode the payload only after that port
+REQUIREMENT: The federation plugin MUST refuse, before calling `verify`, an
+             envelope whose `statementType` is not "host-manifest". It MUST
+             pass the received envelope unchanged to the `SignaturePolicy`
+             named in its options, through exactly the call above — subject
+             `{ bytes: payload }`, the envelope's `id`, `version` and
+             `signatures` — and MUST decode the payload only after that call
              accepted it. Bytes re-encoded from a decoded value MUST NOT be
              verified in place of the received bytes.
+```
+
+```
+REQUIREMENT: After acceptance and decoding, a manifest whose JCS of
+             [authority, host] differs from `envelope.id`, or whose
+             `revision` written in decimal differs from `envelope.version`,
+             MUST be refused with `ManifestRejected { reason: "signature" }`,
+             since its signature then covers a different statement.
 ```
 
 ```
@@ -202,7 +220,12 @@ REQUIREMENT: The `ManifestStore` MUST keep the highest verified revision the
              bytes and signatures of that revision. A verified manifest
              MUST be compared with it:
              - higher revision         → accepted; stored as the highest
-                                         verified BEFORE it is applied;
+                                         verified BEFORE it is applied (in
+                                         full, or — while a re-bootstrap is
+                                         pending — only by a kill-only
+                                         apply, with its kill entries
+                                         recorded as pending kills in the
+                                         same write, BEH-FD-048);
              - equal revision, same
                payload bytes           → a no-op (already known);
              - equal revision,
@@ -304,6 +327,19 @@ REQUIREMENT: Documentation MUST state that boot without network is only as
 ```
 
 ```
+REQUIREMENT: The projection MUST copy `mandatoryInterceptions` and
+             `allowChildren` of each `ManifestPlugin` into its
+             `DesiredPlugin` (core BEH-BR-153), so that installation policy
+             travels as manifest data and reaches the gate in
+             `OperationRequest.mandatoryInterceptions` and `allowChildren`
+             (core BEH-BR-219). A `PolicyMismatch` that reconcile reports
+             for an installed entry (core BEH-BR-154) MUST be listed in
+             `Federation.Status.rejected` and MUST NOT be retried: changing
+             installation policy takes a remove and an install, which the
+             authority expresses as two revisions.
+```
+
+```
 REQUIREMENT: `Manifest.toDesired` MUST be pure in the sense of
              `Desired.overlay` (BEH-BR-153): no I/O, no host, clock or
              identifier service. Resolution happens before it; freshness is
@@ -358,7 +394,7 @@ killed.
 
 > **Invariant:** [INV-FD-003](../invariants.md#inv-fd-003-a-killed-plugin-is-never-in-a-desired-list)
 > **See:** [ADR-FD-003](../decisions/003-monotonic-manifest-revisions.md)
-> **Depends on:** loader `RevocationSource` ([references/loader/](../../loader/README.md)), optional
+> **Depends on:** loader `RevocationSource` and `Revocation.filterDesired` ([references/loader/](../../loader/README.md))
 > **Satisfies:** [URS-BR-002](../../core/urs.md#urs-br-002-remove-or-replace-a-plugin-safely-while-it-is-in-use)
 
 ```
@@ -383,16 +419,23 @@ REQUIREMENT: A kill by digest MUST also refuse that digest for imports and
 ```
 
 ```
-REQUIREMENT: When a loader `RevocationSource` is wired, a digest it revokes
-             MUST be treated as a kill entry at the next apply, whether or not
-             the manifest lists it.
+REQUIREMENT: Every desired list MUST also have removed every entry that a
+             pending kill matches (BEH-FD-048), and MUST be passed through
+             the loader's `Revocation.filterDesired` with the newest
+             released revocation set (06, BEH-FD-042), so that a digest the
+             set revokes — by digest, statement digest or signer — is
+             treated as a kill entry at every apply, whether or not the
+             manifest lists it.
 ```
 
-The kill switch is therefore a manifest entry, applied at the next sync like
-any other change: there is no separate push channel whose loss would
-silently disable it. How quickly a kill reaches a host is bounded by
-`syncEvery` while online; offline, by nothing — which is why the offline cap
-exists ([ADR-FD-007](../decisions/007-offline-cap-and-rebootstrap.md)).
+A kill entry is part of desired state and is applied at the next apply like
+any other change. It is not the only kill path: a signed revocation list
+travels on its own channel — a `kill` control frame on any link, and the
+loader companion's `RevocationSource` — and is applied at once, before any
+manifest, before a re-bootstrap and past the offline cap
+([06 — Kill path, placement and skew](./06-kill-path-placement-and-skew.md),
+BEH-FD-041, BEH-FD-042). An urgent kill is therefore issued as a revocation
+list by digest; an entry here names what the next desired state excludes.
 Removal goes through core `remove`, so a plugin in use drains under its
 leases first ([09 — Leases](../../core/behaviors/09-leases.md)).
 
@@ -427,8 +470,10 @@ REQUIREMENT: A manifest MUST NOT list the federation plugin itself, nor any
 ```
 
 ```
-REQUIREMENT: The revision MUST be recorded in the `ManifestStore` as the
-             last applied revision only when `reconcile` returned a report.
+REQUIREMENT: The revision, with the manifest's signed bytes, MUST be
+             recorded in the `ManifestStore` as the last applied manifest
+             (BEH-FD-048) only when `reconcile` of a full apply returned a
+             report.
              Rejected entries in the report MUST NOT prevent that record;
              they MUST be reported on `Federation.Status` and to the
              `StatusReporter`. When `reconcile` fails (`AuditUnavailable`,
@@ -443,13 +488,26 @@ REQUIREMENT: An entry rejected for a transient reason — `Conflict`,
              `OperationRejected` with reason "gate-timeout" or
              "gate-defect" — MUST be listed in `Federation.Status.pending`
              and MUST be retried at every sync, by the same reconcile of the
-             last applied revision with a reason naming the retry, until it
+             last applied manifest (minus pending kills, BEH-FD-048) with a
+             reason naming the retry, until it
              is applied or rejected for another reason. The same retry MUST
              run while any plugin owned by the federation scope matches a
              kill entry; each such plugin MUST be reported as
              `kill-pending { id, realm, reason }` until it is no longer
              installed. A gate refusal for any other reason is the gate's
              decision and MUST NOT be retried.
+```
+
+```
+REQUIREMENT: The apply MUST NOT set `ReconcileOptions.atomic` unless
+             `FederationOptions.atomic` is true (core default false,
+             BEH-BR-153). With it set, an `ApplyRolledBack` MUST leave the
+             last applied revision unchanged and be retried at the next
+             sync; a `PartialApply` MUST be reported as `apply-partial` with
+             its `notUndone` entries on `Federation.Status.changes` and to
+             the `StatusReporter`, and MUST NOT be retried as a whole
+             (core BEH-BR-324): the next sync re-applies the same revision,
+             which converges entry by entry.
 ```
 
 ```
@@ -487,6 +545,11 @@ that ran out, a gate that timed out — is retried, because the revision is
 still what the authority wants and a kill must not wait for an unrelated
 new revision. Re-running the same reconcile is safe: unchanged entries are
 left alone (core [INV-BR-021](../../core/invariants.md#inv-br-021-reconcile-is-idempotent)).
+(3) Core orders a reconcile — removals dependents first, other changes
+providers first (core BEH-BR-156) — so a manifest's list order carries no
+meaning. Replacing a provider with one that offers less while a listed
+dependent still needs it takes two applies (core gap G65); the authority
+issues the dependent's change first.
 
 ---
 

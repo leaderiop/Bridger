@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-049                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
+> | Change History | 0.2 (2026-11-08): Alternative "Hand off on restart and reconfigure too" adopted as an opt-in (BEH-BR-353) (CCR-BR-025)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
 
 ---
 
@@ -38,7 +38,7 @@ Erlang's `code_change(OldVsn, State, Extra)` is the reference design: the runnin
 - **Persisting the state through a port.** Rejected: persistence across restarts is a plugin's own store; a core port would invite treating handoff as a backup.
 - **Silent cold start.** Rejected: a plugin that lost its state looks healthy and behaves wrongly; the loss must be in the trail.
 - **Retry the import, or restart cold after an import failure.** Rejected: an automatic second build or import is the unrequested repetition [ADR-BR-005](./005-failure-is-sticky.md) refuses.
-- **Hand off on `restart` and `reconfigure` too.** Deferred: the same definition restarting is a persistence question. It is left as an open item.
+- **Hand off on `restart` and `reconfigure` too.** Deferred at first; adopted as an opt-in per definition (`alsoOn`) with a per-call `cold` option, none on a volatile-only `reconfigure` (CCR-BR-025, BEH-BR-353).
 
 ## Consequences
 

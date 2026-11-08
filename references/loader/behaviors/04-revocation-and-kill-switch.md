@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-04                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): Signers revoked by identity; un-revocation and store rollback stated; `filterDesired` drops digests with no verification record when a signer is revoked; re-evaluation at acceptance time; the kill switch is the scope's one reconciler, with the application's actor for desired-list changes and the revocation actor for removals only; blast-radius guard (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03; offline review F3, F4, F29): `SignedRevocationList`, its canonical encoding and `issuer` defined here; lists verified under a separate revocation trust root with no revocation step, ending the cycle with `StatementVerifier`; a list may revoke its own signers for later lists; `RevocationSource.offer` replaces the constructor-time feed as the way other companions hand lists in; statement digests reach `filterDesired`; `Revoked.by` gains "statement-digest"; the kill switch's scope is exclusive of other actuators (CCR-LD-003)<br>0.4 (2026-11-08): Revocation digests match subject and statement digests of every statement type; revocation lists verified as "revocation-list" statements; the set backs core's `RefusalList` (round 2: recheck item 11; core alignment K4) (CCR-LD-003)<br>0.3 (2026-11-08): Signers revoked by identity; un-revocation and store rollback stated; `filterDesired` drops digests with no verification record when a signer is revoked; re-evaluation at acceptance time; the kill switch is the scope's one reconciler, with the application's actor for desired-list changes and the revocation actor for removals only; blast-radius guard (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -48,16 +48,52 @@ Planned source: `packages/loader/src/Revocation.ts`,
 ```ts
 // illustrative — not type-checked
 interface RevocationSet {
-  readonly revision: number                       // strictly increasing per source
+  readonly issuer: string                         // the issuing authority's name; the statement id (07, BEH-LD-049)
+  readonly revision: number                       // positive integer, strictly increasing per issuer
   readonly issuedAt: string                       // ISO-8601 UTC, from the issuer
   readonly digests: ReadonlyMap<string, { readonly reason: string; readonly revokedAt: string }>
   readonly signers: ReadonlyMap<string, { readonly reason: string; readonly revokedAt: string }>  // TrustedSigner.identity (03, BEH-LD-019)
 }
+// The signed form: a SignedStatement (07, BEH-LD-049) of type "revocation-list".
+interface SignedRevocationList extends SignedStatement {
+  readonly statementType: "revocation-list"
+  readonly id: string                             // = issuer
+  readonly version: string                        // = revision, in decimal (07, BEH-LD-049)
+  readonly payload: Uint8Array                    // RevocationSet.encode(set), exactly as signed
+}
+declare const RevocationSet: {
+  // UTF-8 of the RFC 8785 (JCS) form of
+  // { format: "bridger-revocation-set/v1", issuer, revision, issuedAt,
+  //   digests: { [digest]: { reason, revokedAt } }, signers: { [identity]: { reason, revokedAt } } }
+  readonly encode: (set: RevocationSet) => Uint8Array
+  readonly decode: (payload: Uint8Array) => Effect.Effect<RevocationSet, RevocationListMalformed>
+}
+type RawRevocationFeed = Stream.Stream<SignedRevocationList>
+type OfferOutcome =
+  | { readonly _tag: "Accepted"; readonly revision: number }
+  | { readonly _tag: "NotNewer"; readonly revision: number; readonly held: number }
+  | { readonly _tag: "Rejected"; readonly reason: "signature" | "malformed" | "envelope-mismatch" | "wrong-issuer" | "no-trust-root"
+      readonly cause?: SignatureRejected | RevocationListMalformed }
 interface RevocationSourceShape {
   readonly current: Effect.Effect<RevocationSet, RevocationUnavailable>
   readonly changes: Stream.Stream<RevocationSet>  // each accepted set, latest wins
+  // Hands one received list to the source, which verifies, orders and persists it (BEH-LD-026).
+  // `from` names the channel for logs, e.g. "authority", "peer:<id>".
+  readonly offer: (list: SignedRevocationList, from: string) => Effect.Effect<OfferOutcome, RevocationStoreFailed>
 }
 class RevocationSource extends Context.Service<RevocationSource, RevocationSourceShape>()("@bridger/loader/RevocationSource") {}
+class RevocationListMalformed extends Schema.TaggedError<RevocationListMalformed>()("RevocationListMalformed", {
+  message: Schema.String
+}) {}
+```
+
+```
+REQUIREMENT: `RevocationSet.encode` MUST produce exactly the bytes above;
+             `decode` MUST refuse with `RevocationListMalformed` a payload
+             that is not that JSON shape, whose `format` differs, whose
+             `revision` is not a positive integer, or whose map keys repeat.
+             The loader MUST keep and persist a list's payload as received
+             and MUST NOT re-encode it to verify or to store it.
 ```
 
 ```
@@ -81,6 +117,11 @@ REQUIREMENT: Revoked signers MUST be named by their `identity` (03,
              one configuration cannot un-revoke it.
 ```
 
+A digest in `digests` is matched against the subject digest and the statement
+digest of every signed statement, whatever its type — packages, data packs,
+host manifests, licences ([07 — Signed Statements](./07-signed-statements.md),
+BEH-LD-052).
+
 Revocation by digest stops one release; revocation by signer stops every
 release whose acceptance depended on a compromised key (BEH-LD-030). Both are
 needed: a defect is a digest, a stolen key is a signer. The issuer of a list
@@ -95,11 +136,18 @@ within one policy; it does know the keys and identities, so lists name those.
 ```ts
 // illustrative — not type-checked
 declare const RevocationSource: {
-  // Wraps a raw source: verifies each signed list, refuses rollbacks, persists through the store.
-  readonly verified: (raw: RawRevocationFeed, options: {
-    readonly policy: SignaturePolicy               // may differ from the package policy
+  // Verifies each offered list under the revocation trust root, refuses rollbacks, persists through the store.
+  readonly verified: (options: {
+    readonly issuer: string                        // the one issuer this source follows; configuration
+    readonly trustRoot: AcceptanceRule             // the revocation trust root (03, BEH-LD-022); configuration,
+                                                   // separate from StatementRules (07, BEH-LD-051)
+    readonly verifiers: readonly SignatureVerifierShape[]
+    readonly verifyTimeout: Duration.Input         // bounds steps 3–4, as 02, BEH-LD-013; no default
     readonly store: RevocationStore                // the application's persistence port
-  }) => Layer.Layer<RevocationSource, never, Clock>
+    readonly feeds?: readonly RawRevocationFeed[]  // optional: each element is offered as by `offer`, with from "feed:<index>"
+  }) => Layer.Layer<RevocationSource, RevocationStoreFailed, Clock>
+  // For an application with no revocation channel: a constant set; every offer is Rejected "no-trust-root".
+  readonly constant: (set: RevocationSet) => Layer.Layer<RevocationSource>
 }
 interface RevocationStoreShape {
   readonly load: Effect.Effect<Option.Option<SignedRevocationList>, RevocationStoreFailed>
@@ -108,10 +156,47 @@ interface RevocationStoreShape {
 ```
 
 ```
-REQUIREMENT: `RevocationSource.verified` MUST accept a list only when its
-             signatures satisfy the given policy, over a statement of type
-             "bridger-revocation-statement-v1" carrying the list's digest
-             and revision, as for packages (03 — Signature Policy).
+REQUIREMENT: The revocation source MUST accept a list only when all of the
+             following hold, checked in this order before the payload is
+             decoded: the envelope's `statementType` is "revocation-list"
+             and its `id` is the configured `issuer` (otherwise "wrong-issuer"
+             or "envelope-mismatch"); its signatures satisfy `trustRoot` over
+             the statement of 07, BEH-LD-049 — subject `{ bytes: payload }`,
+             id the issuer, version the revision as written in the envelope
+             — run as steps 1–4 and 6 of `SignaturePolicy.verify` with no
+             publisher and with no step 5 (07, BEH-LD-050). After
+             acceptance the payload MUST be decoded, and a list whose decoded
+             `issuer` or `revision` differs from the envelope's MUST be
+             refused ("envelope-mismatch").
+```
+
+```
+REQUIREMENT: The revocation source MUST NOT depend on `RevocationSource`,
+             `StatementVerifier` or `StatementRules`, and no revocation set
+             — the held one included — MUST be consulted for the list's
+             digest or statement digest. The only state of the source that
+             enters a list's verification is the set of signer identities
+             revoked by the list it holds: a trust-root signer whose
+             `identity` the held list revokes MUST NOT count towards
+             `trustRoot` for any later list. A list MAY revoke one of the
+             signers that signed it; it is itself judged with the signers
+             as they stood before it, and the revocation takes effect from
+             the next list on. A later list that omits that identity
+             restores the signer for the lists after it, logged as an
+             un-revocation (below).
+```
+
+```
+REQUIREMENT: `offer` MUST be the one way a list enters the source: the
+             `feeds` of `verified` and every other companion (the federation
+             companion's kill frames, for example) go through it. It MUST
+             answer `Accepted` only after the list is saved and published,
+             `NotNewer` for a revision not greater than the held one,
+             `Rejected` with its reason otherwise, and fail only when the
+             store cannot be written. A refusal by the trust root, a
+             verifier timeout or a verifier death MUST be `Rejected`
+             ("signature"), never `Accepted`. Concurrent offers MUST be
+             handled one at a time.
 ```
 
 ```
@@ -135,7 +220,23 @@ REQUIREMENT: Monotonicity applies to `revision` only. A list with a greater
 ```
 REQUIREMENT: At construction, the last saved list MUST be loaded and
              re-verified before any package is loaded, so that a restart
-             without network keeps every revocation it had.
+             without network keeps every revocation it had. Because the
+             lists before it are not kept, it MUST be re-verified against
+             `trustRoot` with no signer removed. A saved list that fails
+             re-verification, or a store that cannot be read, MUST leave the
+             source with no current set (`current` fails with
+             `RevocationUnavailable`) and MUST be logged at error level; the
+             layer MUST fail to build only when the store cannot be read.
+```
+
+```
+REQUIREMENT: Documentation MUST state that a list which revokes enough
+             trust-root signers to leave `trustRoot` unsatisfiable leaves
+             the source unable to accept any later list, and that the remedy
+             is a new trust root given as configuration (03, BEH-LD-023);
+             and MUST recommend a threshold trust root (more than one
+             signer, BEH-LD-032) so that one compromised key can neither
+             issue nor block lists alone.
 ```
 
 A kill switch that a man-in-the-middle can switch off by replaying an older
@@ -148,6 +249,19 @@ a revision kept elsewhere) is the consumer's control. Where the store keeps
 the list, and for how long, is the application's. Un-revocation is allowed
 because a revocation issued in error must be correctable by the same signed
 channel; it is logged rather than silent because it widens what may run.
+
+A revocation list is checked against its own trust root, never against a
+revocation set, because the set is what the list establishes: at first boot
+there is none, and a list judged by the set it replaces would let an old set
+veto its own successor. Keeping the trust root out of `StatementRules` keeps
+the two configurations — who may sign code, who may withdraw it — apart, and
+keeps the source free of any dependency on the `StatementVerifier`, which
+itself needs the source. The one piece of state the source does use, the
+signer revocations of the list it holds, is what lets a deployment retire a
+stolen revocation key by the same signed channel. `offer` replaces a
+constructor-time feed so that a companion which itself depends on the
+revocation source, such as the federation plugin relaying kill frames, can
+hand lists in without a dependency cycle.
 
 ## BEH-LD-027: A load checks revocation, and a stale set refuses the load
 
@@ -162,7 +276,7 @@ interface LoaderOptions {
   readonly revocation: { readonly maxAge: Duration.Input | "unbounded" }   // no default
 }
 class Revoked extends Schema.TaggedError<Revoked>()("Revoked", {
-  digest: Schema.String, reason: Schema.String, by: Schema.Literal("digest", "signer"), revision: Schema.Number
+  digest: Schema.String, reason: Schema.String, by: Schema.Literal("digest", "statement-digest", "signer"), revision: Schema.Number
 }) {}
 class RevocationStale extends Schema.TaggedError<RevocationStale>()("RevocationStale", {
   revision: Schema.Number, issuedAt: Schema.String, maxAge: Schema.String
@@ -171,8 +285,9 @@ class RevocationStale extends Schema.TaggedError<RevocationStale>()("RevocationS
 
 ```
 REQUIREMENT: Step 5 of the pipeline (02, BEH-LD-009) MUST read the current
-             set and MUST fail with `Revoked` when the package digest is
-             listed, or when the policy is no longer satisfied once revoked
+             set and MUST fail with `Revoked` when the package digest or
+             the package statement's digest (07, BEH-LD-052) is listed, or
+             when the policy is no longer satisfied once revoked
              signers are removed from the verified signers (BEH-LD-030).
 ```
 
@@ -220,8 +335,10 @@ declare const Revocation: {
 REQUIREMENT: `filterDesired` MUST drop every entry whose definition's
              `meta.digest` — for a lazy definition, its `meta.digest` taken
              from `Plugin.lazy`'s `digest` option (core BEH-BR-244; 05,
-             BEH-LD-037) — is revoked by digest or by signer (BEH-LD-030),
-             and MUST keep every other entry unchanged and in order.
+             BEH-LD-037) — is revoked by digest, by the `statementDigest` of
+             the record `verification` returns for it (07, BEH-LD-052), or
+             by signer (BEH-LD-030), and MUST keep every other entry
+             unchanged and in order.
 ```
 
 ```
@@ -297,6 +414,17 @@ REQUIREMENT: `KillSwitch.run` MUST be the only caller of `Host.reconcile`
              MUST NOT reconcile the same scope elsewhere: it hands its
              desired list to the kill switch instead, and the kill switch
              applies `filterDesired` (BEH-LD-028) to every list it applies.
+```
+
+```
+REQUIREMENT: Documentation MUST state that `KillSwitch.run` MUST NOT be
+             given a scope in which another component reconciles, removes or
+             disables plugins in response to revocation — for example the
+             scope of a federation companion, which acts on revocations
+             itself (federation BEH-FD-042) — and that a component acting on
+             revocations outside the kill switch does not get the
+             blast-radius guard of BEH-LD-032 unless it implements that
+             guard itself.
 ```
 
 ```
@@ -478,7 +606,9 @@ in review.
 
 **Settled here.** (1) Revocation is a signed, monotonic list kept by the
 application's store across restarts; signers are revoked by identity;
-un-revocation is allowed by a newer list and is logged. (2) `maxAge` has no
+un-revocation is allowed by a newer list and is logged. Lists are verified
+under a separate revocation trust root with no revocation step, enter only
+through `offer`, and may revoke their own signers for later lists. (2) `maxAge` has no
 default. (3) The kill switch is the one reconciler of its scope: desired-list
 changes are reconciled under the application's actor, and revocation removals
 under the revocation actor with a reason naming the revision, gated and
@@ -490,8 +620,23 @@ revoked code is reported; a restart is the only remedy.
 
 **Open.** (1) Whether the kill switch should offer `disable` instead of
 removal for plugins whose data must stay readable (needs [core 27](../../core/behaviors/27-manifest-and-lazy-activation.md)'s manifest,
-BEH-BR-241, to say so). (2) How a federation of hosts (references/federation/) carries the
-revocation set — likely as an entry of the signed desired-state manifest.
+BEH-BR-241, to say so). (2) Whether the blast-radius guard of BEH-LD-032
+should be offered as a standalone helper, so that a companion that acts on
+revocations in its own scope (the federation companion's immediate `disable`)
+can apply the same cap and `release` rather than restate them.
+
+**Round 2, agent review.** A federation of hosts carries revocation lists on
+their own channel: the federation plugin hands each list it receives to
+`RevocationSource.offer`, and reads the outcome; the source alone verifies,
+orders and persists lists (BEH-LD-026). Revocation lists are verified under the
+source's own trust root, with no revocation step, so neither first boot nor the
+`StatementVerifier` depends on a set that does not exist yet.
+
+**Round 2.** The revocation set also backs core's `RefusalList`, so a revoked
+digest that would start again — a dependency's return, a lazy trigger, a
+background restart — becomes `disabled` with reason "refused-digest" instead
+(07, BEH-LD-056; core BEH-BR-267). The kill switch remains what stops an
+`active` plugin.
 
 ---
 

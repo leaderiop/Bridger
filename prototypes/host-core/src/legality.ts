@@ -1,6 +1,6 @@
 // The state × operation table of references/core behaviour 08 (BEH-BR-071), as a pure,
 // total function. Every route to an operation consults it (BEH-BR-077).
-export type PluginState = "waiting" | "starting" | "active" | "stopping" | "failed" | "disabled"
+export type PluginState = "dormant" | "waiting" | "starting" | "active" | "stopping" | "failed" | "disabled"
 export type Row = PluginState | "unknown" | "failed-cleanup"
 export type Op = "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart" | "disable" | "enable"
 export type Outcome =
@@ -25,6 +25,8 @@ export const legality = (row: Row, op: Op): Outcome => {
   if (op === "reconfigure" && row !== "stopping") return row === "failed-cleanup" ? C("cleanup-failure") : P
   switch (row) {
     case "waiting":  return op === "retry" || op === "restart" || op === "enable" ? N : P
+    // The dormant row (BEH-BR-247): every cell completes at once; retry, restart and enable are no-ops.
+    case "dormant":  return op === "retry" || op === "restart" || op === "enable" ? N : P
     case "starting": return op === "retry" || op === "enable" ? N : P   // restart supersedes the in-flight build
     case "active":   return op === "retry" || op === "enable" ? N : P
     // Not reached from the host: a stopping plugin has a flight (decided by `inFlight`, BEH-BR-072) or a

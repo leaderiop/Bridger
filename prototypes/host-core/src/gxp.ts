@@ -1,7 +1,7 @@
 // GxP hooks of the host core (references/core behaviours 22–25): attribution, the
 // AuditSink port and its single writer, the audit sequence, IdGenerator and the
 // OperationGate port. Phase-P3 prototype — not product code.
-import { Clock, Context, Deferred, Effect, Schema } from "effect"
+import { Clock, Context, Deferred, Effect, Option, Schema } from "effect"
 
 // ---------------------------------------------------------------- attribution (behaviour 22)
 export interface Actor { readonly id: string; readonly kind: "user" | "service" | "system"; readonly display?: string }
@@ -9,12 +9,12 @@ export const Actor = {
   system: { id: "bridger:system", kind: "system" } as Actor,
   unattributed: { id: "bridger:unattributed", kind: "system" } as Actor,
 }
-export interface OperationContext { readonly actor: Actor; readonly reason?: string; readonly correlationId?: string }
+export interface OperationContext { readonly actor: Actor; readonly reason?: string; readonly correlationId?: string; readonly annotations?: unknown }
 export interface OperationOptions { readonly context?: OperationContext }
 export const CurrentActor = Context.Reference<Actor>("@bridger/core/CurrentActor", { defaultValue: () => Actor.unattributed })
 
 export type Operation = "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart" | "disable" | "enable" | "reconcile" | "defineRealm" | "shutdown" | "acknowledgeAuditDegraded"
-export type SystemTransition = "system-start" | "system-stop" | "runtime-failure" | "lease-revoked" | "intent-ended" | "health-degraded"
+export type SystemTransition = "system-start" | "system-stop" | "runtime-failure" | "lease-revoked" | "intent-ended" | "health-degraded" | "lazy-triggered" | "lazy-idle" | "start-refused" | "unmount-requested" | "handoff"
 export type AuditPhase = "requested" | "rejected" | "completed" | "failed" | "superseded" | "joined" | "system"
 
 export interface AttributionOptions { readonly require?: boolean; readonly requireReason?: ReadonlyArray<Operation> }
@@ -59,6 +59,14 @@ export interface AuditRecord {
   readonly endsIntentOf?: string                    // `intent-ended` only: the parked call's `requested` record id (BEH-BR-080)
   readonly resumes?: string                         // a resumer's terminal record: the parked call's `requested` record id (BEH-BR-200)
   readonly children?: number                        // reconcile parent terminal record only (BEH-BR-201)
+  readonly trigger?: { readonly _tag: string; readonly [k: string]: string }   // lazy-triggered records only (BEH-BR-248)
+  readonly onBehalfOf?: { readonly id: string; readonly realm: string; readonly version?: string; readonly digest?: string; readonly revision: number }   // BEH-BR-259
+  readonly annotations?: ReadonlyArray<{ readonly key: string; readonly value: unknown }>   // flow "audit" (BEH-BR-293)
+  readonly annotationsOmitted?: ReadonlyArray<string>
+  readonly requestedBy?: Actor                      // unmount-requested (BEH-BR-126)
+  readonly undoes?: string                          // an undo action's records: the undone action's requested record id (BEH-BR-325)
+  readonly auditDropped?: number                    // overflow count when numbered (BEH-BR-195, round 2)
+  readonly sanitized?: true                         // a lone surrogate was replaced by U+FFFD (BEH-BR-185)
 }
 export class AuditSink extends Context.Service<AuditSink, {
   readonly record: (r: AuditRecord) => Effect.Effect<void, AuditWriteFailed>
@@ -72,6 +80,11 @@ export interface OperationRequest {
   readonly correlationId: string
   readonly definition?: DefinitionRef
   readonly configChange?: ConfigChange
+  readonly undo?: true                              // an atomic apply's undo action (BEH-BR-325)
+  readonly onBehalfOf?: AuditRecord["onBehalfOf"]   // BEH-BR-259
+  readonly annotations?: unknown                    // flow "gate" (BEH-BR-292)
+  readonly allowChildren?: boolean                  // BEH-BR-219, 263
+  readonly mandatoryInterceptions?: ReadonlyArray<{ readonly serviceId: string; readonly id?: string }>
 }
 export class OperationGate extends Context.Service<OperationGate, {
   readonly authorize: (request: OperationRequest) => Effect.Effect<void, OperationRejected>
@@ -112,6 +125,20 @@ export const verifyAuditSequence = (records: ReadonlyArray<Pick<AuditRecord, "au
 }
 
 // ---------------------------------------------------------------- the single writer (BEH-BR-202..205, 212, 213)
+/** BEH-BR-185: lone surrogates in actor, reason and correlation become U+FFFD; the record says so. */
+export const sanitizeString = (x: string): string => x.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD")
+export const sanitizeContext = <T extends { readonly actor: Actor; readonly reason?: string; readonly correlationId?: string }>(c: T): { value: T; sanitized: boolean } => {
+  const actor = { ...c.actor, id: sanitizeString(c.actor.id), ...(c.actor.display !== undefined ? { display: sanitizeString(c.actor.display) } : {}) }
+  const value = { ...c, actor, ...(c.reason !== undefined ? { reason: sanitizeString(c.reason) } : {}), ...(c.correlationId !== undefined ? { correlationId: sanitizeString(c.correlationId) } : {}) }
+  return { value, sanitized: JSON.stringify(value) !== JSON.stringify(c) }
+}
+const sanitizeDraft = (d: Draft): Draft => {
+  const { value, sanitized } = sanitizeContext(d)
+  return sanitized ? { ...value, sanitized: true } : d
+}
+export interface RefusalSubject { readonly id: string; readonly realm: string; readonly version?: string; readonly digest: string }
+/** `@bridger/core/RefusalList` (BEH-BR-267): synchronous and pure; Some(reason) refuses. */
+export class RefusalList extends Context.Service<RefusalList, { readonly refused: (subject: RefusalSubject) => Option.Option<string> }>()("@bridger/core/RefusalList") {}
 export type Draft = Omit<AuditRecord, "auditSeq" | "recordId" | "timestamp" | "hostId" | "schemaVersion">
 interface Pending { readonly draft: Draft; readonly recordId: string; readonly done: Deferred.Deferred<boolean> }
 
@@ -151,7 +178,8 @@ export const makeWriter = (opts: {
     // and kept by every retry, so a failed write never consumes a number (BEH-BR-213).
     const record: AuditRecord = {
       schemaVersion: 1, recordId: p.recordId, hostId: opts.hostId, auditSeq: ++seq,
-      timestamp: new Date(yield* Clock.currentTimeMillis).toISOString(), ...p.draft
+      timestamp: new Date(yield* Clock.currentTimeMillis).toISOString(), ...sanitizeDraft(p.draft),
+      auditDropped: state.dropped                                    // the overflow count when numbered (BEH-BR-195)
     }
     const started = yield* Clock.currentTimeMillis
     let delay = 100

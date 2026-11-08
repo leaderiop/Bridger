@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-27                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): a lazy definition's identity digest is supplied to `Plugin.lazy` beside the manifest (a signed manifest cannot carry its own package's digest); manifest `digest` compared only when present; a loaded definition's own manifest ignored; contract references with a version require `methods`; manifest decoding first within the `InvalidDefinition` check; `reconfigure` on any registration not yet loaded is treated like `install` with `config`; `wake` takes no `OperationContext`; checks 62–66 (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
+> | Change History | 0.8 (2026-11-08): BEH-BR-251 a load and build that succeed for a stop that waited are discarded and drop the held event "ended" (prototype finding G-P19); BEH-BR-252 a trigger kept during an idle return is not listed in `WakeReport.triggered` (G-P22); BEH-BR-250 a link without `hostId` counts as `HostLink.none` at a hook point (G-P20) (CCR-BR-030)<br>0.7 (2026-11-08): BEH-BR-250 declarations also reported "idling" (idle return under way) and "refused" (disabled by the `RefusalList`), `HostLink.hostId`, the link is no longer called harmless (agent review R1-03, R1-04, R1-06); BEH-BR-251 drop reason when a removal waits for a running load (G-P14); BEH-BR-252 idle conditions limited to what the host observes (G-P17) (CCR-BR-029)<br>0.6 (2026-11-08): BEH-BR-241 `range` and `version` of a required reference appear together (prototype finding G-P5); BEH-BR-243 shapes of `methods` going from a list to absent and of an egress `purpose` change (G-P6); BEH-BR-252 Settled (4), loaded or not is history for confluence (G-P7) (CCR-BR-028)<br>0.5 (2026-11-08): BEH-BR-241 note: the loader companion binds `publisher` to a configured signer (`PublisherMismatch`, loader BEH-LD-053); core's reading unchanged (CCR-BR-027)<br>0.4 (2026-11-08): manifest `listens`; BEH-BR-246 Settled cites `AccessPolicy.declaredOnly`; BEH-BR-245 refused starts are not triggered (CCR-BR-026)<br>0.3 (2026-11-08): manifest `contributions` entries carry an optional hook `role` and `target`; `Host.declaredContributions` and the `HostLink` reference (BEH-BR-250); an `OnEvent` wake holds its triggering event for the woken plugin's listeners (BEH-BR-251, amends BEH-BR-245); `Plugin.lazy` `idle` returns an idle loaded plugin to `dormant` through a normal drain (BEH-BR-252, closes URS gap G37); the root `lazy-triggered` record of a `wake` or a dispatch carries the caller's principal as `onBehalfOf` (BEH-BR-253, closes URS gap G39); checks 92, 96 and 97 (CCR-BR-024)<br>0.2 (2026-11-08): a lazy definition's identity digest is supplied to `Plugin.lazy` beside the manifest (a signed manifest cannot carry its own package's digest); manifest `digest` compared only when present; a loaded definition's own manifest ignored; contract references with a version require `methods`; manifest decoding first within the `InvalidDefinition` check; `reconfigure` on any registration not yet loaded is treated like `install` with `config`; `wake` takes no `OperationContext`; checks 62–66 (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
 
 ---
 
@@ -35,7 +35,11 @@ The decisions are [ADR-BR-041](../decisions/041-manifest-as-data.md) and
 [ADR-BR-042](../decisions/042-lazy-activation.md); this file has no SPEC.md
 source section. It adds a seventh plugin state, `dormant`, and amends files
 04, 08, 13, 18 and 23 as stated in each behaviour below. It owns
-BEH-BR-241–256 and uses BEH-BR-241–249; 250–256 are reserved.
+BEH-BR-241–256 and uses BEH-BR-241–253; 254–256 are reserved. BEH-BR-250–253
+(revision 0.3, [ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md))
+let a hook point see contributions declared by plugins not yet loaded, hold
+the event that woke a plugin, return an idle plugin to `dormant`, and record
+on whose behalf a plugin was woken.
 
 > **What core does not do — and who does**
 >
@@ -54,7 +58,7 @@ BEH-BR-241–256 and uses BEH-BR-241–249; 250–256 are reserved.
 
 Planned source: `packages/core/src/Manifest.ts` *(Planned)*,
 `packages/core/src/Lazy.ts` *(Planned)*. The required acceptance checks are
-62–66 of BEH-BR-184 ([21 — Testing Host](./21-testing-host.md)).
+62–66, 92, 96 and 97 of BEH-BR-184 ([21 — Testing Host](./21-testing-host.md)).
 
 ## BEH-BR-241: A manifest is data, and core reads only its resolution fields
 
@@ -95,7 +99,12 @@ const PluginManifest = Schema.Struct({
   optional: Schema.optional(Schema.Array(RequiredRef)),
   engines: Schema.optional(Schema.Record(Schema.String, Schema.String)),   // core reads "@bridger/core" only
   activation: Schema.optional(Schema.Array(LazyTrigger)),
-  contributions: Schema.optional(Schema.Array(Schema.Struct({ registry: Schema.String, id: Schema.String }))),
+  contributions: Schema.optional(Schema.Array(Schema.Struct({
+    registry: Schema.String, id: Schema.String,
+    role: Schema.optional(Schema.Literal("veto", "enrich", "advisory")),   // read by hook points only (31, BEH-BR-309)
+    target: Schema.optional(Schema.Unknown)                                 // a hook target selector, carried uninterpreted (31, BEH-BR-312)
+  }))),
+  listens: Schema.optional(Schema.Array(Schema.String)),   // event ids the plugin listens to; compared by AccessPolicy.declaredOnly (28, BEH-BR-268)
   // labels — carried, compared by consentDiff, never interpreted
   description: Schema.optional(Schema.String),
   publisher: Schema.optional(Schema.String),
@@ -145,7 +154,11 @@ REQUIREMENT: In `provides`, `requires` and `optional`, a reference that has
              `version` and no `methods` MUST fail the call with
              `InvalidDefinition`, `reason` beginning "manifest:" and naming
              the path. A reference without `version` (a plain key) MUST NOT
-             have `methods`, under the same failure.
+             have `methods`, under the same failure. In `requires` and
+             `optional`, `range` and `version` MUST appear together: a
+             reference with one and not the other MUST fail the call with
+             `InvalidDefinition`, `reason` beginning "manifest:" and naming
+             the path (CCR-BR-028).
 ```
 
 ```
@@ -164,12 +177,27 @@ a new tier name, a residency class — never needs a core release. The label
 fields are deliberately strings: what "tier" or "residency" means is the
 application's ([ADR-BR-041](../decisions/041-manifest-as-data.md)).
 
+Core does not interpret `publisher`. The loader companion accepts a package
+whose manifest carries a `publisher` only when a verified signer is
+configured for that name, otherwise it refuses the package with
+`PublisherMismatch`
+([`references/loader/`](../../loader/behaviors/07-signed-statements.md),
+BEH-LD-053); under a pinned-digest acceptance the label is reported as
+unbound. Core's reading of the field is unchanged (CCR-BR-027).
+
 **Settled here.** (1) `requested.capabilities` has the shape of a grant
 request — a `ServiceId` and optional method names — so that the policy port
 of [29 — Capability Grants and Call Log](./29-capability-grants-and-call-log.md) (BEH-BR-273, `Grant.of`) can compare a request with a grant without a translation;
 the port, not core, decides what is granted. (2) Unknown properties are kept,
 not dropped and not an error: a newer manifest read by an older core keeps
-what it does not understand, and `consentDiff` still sees it.
+what it does not understand, and `consentDiff` still sees it. (3) A
+`contributions` entry may say which hook role and which target it will
+register with (revision 0.3). Core does not check either against what the
+plugin later registers; it hands both to the hook point named by `registry`
+through `declaredContributions` (BEH-BR-250), which admits the declaration
+by its own rule ([31 — Hook Points](./31-hook-points.md), BEH-BR-309). A
+change to either is reported by `consentDiff` as `unclassified`, like any
+change to `contributions`.
 
 ## BEH-BR-242: A manifest's resolution fields must agree with what core resolves
 
@@ -221,9 +249,10 @@ REQUIREMENT: For a lazy definition (BEH-BR-244), every check of BEH-BR-018,
 ```
 
 ```
-REQUIREMENT: A trigger in `activation` and a `contributions` entry MUST be
-             well formed per the schema; core MUST NOT check that a
-             contribution's registry or an event's key exists.
+REQUIREMENT: A trigger in `activation`, a `contributions` entry and a
+             `listens` entry MUST be well formed per the schema; core MUST
+             NOT check that a contribution's registry or an event's key
+             exists.
 ```
 
 A manifest that disagreed with its own definition would let a consent
@@ -270,6 +299,21 @@ interface ConsentChange {
 | `requested.egress` | a `host` is added | a `host` is removed |
 | `requires`, `optional` | a `ServiceId` is added | a `ServiceId` is removed |
 | `publisher`, `tier`, `residency` | — (relabelled whenever the value differs) | — |
+
+```
+REQUIREMENT: For `requested.capabilities`, `methods` going from a list to
+             absent MUST be reported in `widened` as `{ path:
+             "requested.capabilities[<serviceId>].methods", from: "list",
+             to: "all" }`, and from absent to a list in `narrowed` with
+             `from: "all", to: "list"`; method names added to or removed
+             from a list present in both manifests MUST be reported under
+             the same path with `added` or `removed`. For
+             `requested.egress`, a change of `purpose` on a `host` present
+             in both manifests MUST be reported in `unclassified` with path
+             `requested.egress[<host>].purpose`, `from` the previous
+             purpose and `to` the next, each absent when that manifest has
+             none (CCR-BR-028).
+```
 
 ```
 REQUIREMENT: `Manifest.consentDiff` MUST be pure and total: no I/O, no host,
@@ -325,12 +369,16 @@ interface LazyPluginDefinition {
   readonly meta: { readonly version: string; readonly digest?: string }   // the identity: version from the manifest,
                                                                           // digest from options.digest ?? manifest.digest
   readonly load: Effect.Effect<AnyPluginDefinition, unknown>
+  readonly idle?: Duration.Duration                 // BEH-BR-252
+  readonly holdTimeout: Duration.Duration           // BEH-BR-251
 }
 declare const Plugin: {
   lazy(options: {
     readonly manifest: PluginManifest
     readonly load: Effect.Effect<AnyPluginDefinition, unknown>
     readonly digest?: string        // the digest of the code `load` will return, supplied beside the manifest
+    readonly idle?: Duration.Input  // BEH-BR-252: return to `dormant` after this long idle; default: never
+    readonly holdTimeout?: Duration.Input   // BEH-BR-251: how long a triggering event is held; default 60 seconds
   }): LazyPluginDefinition
   // ...
 }
@@ -383,8 +431,9 @@ REQUIREMENT: The `dormant` snapshot variant MUST list in `triggers` every
              duplicates, in that order. `meta` MUST be the lazy
              definition's `meta` (`version`, `digest`) with the manifest's
              `description`. `lazy.loaded`
-             MUST be false until a load succeeds and true afterwards, for
-             the rest of the registration.
+             MUST be false until a load succeeds and true afterwards, until
+             the registration ends or an idle return releases the loaded
+             definition (BEH-BR-252).
 ```
 
 ```
@@ -396,8 +445,10 @@ REQUIREMENT: The transitions of 04 — States and Snapshots (BEH-BR-026) MUST
              (enable of a registration not yet loaded); `waiting → dormant`
              and `failed → dormant` (replace with a lazy definition); and
              `stopping → dormant` (a replace with a lazy definition
-             completes). `starting` MUST cover loading as well as queued and
-             building.
+             completes, or an idle return completes, BEH-BR-252). An idle
+             return MUST use the existing edge `active → stopping` with
+             `next: "dormant"`. `starting` MUST cover loading as well as
+             queued and building.
 ```
 
 `dormant` is a seventh state rather than a flag on `waiting` or `disabled`
@@ -420,9 +471,10 @@ plugin could take a key while the first is dormant, and the conflict would
 appear at load, at a moment no operator chose. (2) Once loaded, the loaded
 definition is kept for the registration — through `restart`, `retry` after a
 build failure, `reconfigure`, `disable` and `enable` — and dropped only by
-`remove` and `replace`. Returning a loaded plugin to `dormant` when idle is
-**Open**: it would deactivate behaviour but could not reclaim the imported
-code (BEH-BR-008).
+`remove` and `replace`, or released by an idle return. Returning a loaded
+plugin to `dormant` when idle was **Open** until revision 0.3 (URS gap G37);
+it is specified by BEH-BR-252, which deactivates behaviour and releases the
+loaded definition but cannot reclaim imported code (BEH-BR-008).
 
 ## BEH-BR-245: Triggers wake a dormant plugin
 
@@ -475,9 +527,11 @@ REQUIREMENT: `use`, `useAll`, `lease`, `useOptional`, `whenAvailable`,
 
 ```
 REQUIREMENT: The dispatch that fires an `OnEvent` trigger MUST NOT be
-             delayed by it and MUST NOT be delivered to the plugin it wakes,
-             which has no listener yet. Core MUST NOT buffer or replay the
-             event.
+             delayed by it, and MUST NOT wait for the plugin it wakes, which
+             has no listener yet. The triggering event MUST be held for that
+             plugin and delivered to it as BEH-BR-251 specifies; core MUST
+             NOT buffer or replay any other event. (Amended by revision 0.3;
+             revisions 0.1–0.2 dropped the triggering event.)
 ```
 
 ```
@@ -486,6 +540,14 @@ REQUIREMENT: `wake` MUST return once the triggers it applied have been
              `dormant` because of it, and MUST NOT wait for them to become
              `active`. It MUST NOT be submitted to the gate and is not one of
              the mutating operations of 08 — Operation Legality.
+```
+
+```
+REQUIREMENT: A plugin whose start a wired `RefusalList` refuses (28 — Plugin
+             Principal and Mandatory Policy, BEH-BR-267) MUST NOT be
+             triggered: it moves to `disabled` with reason
+             "refused-digest", writes no `lazy-triggered` record, and MUST
+             NOT be listed in `WakeReport.triggered`.
 ```
 
 `wake` is the explicit entry for a caller that knows something the host does
@@ -499,12 +561,15 @@ something needs it.
 
 **Settled here.** (1) Reads never trigger. A `use` that loaded code would turn
 a read into a lifecycle change with no caller to attribute it to and no
-bound on its latency; the caller that wants a load asks for one. (2) The
-event that fires `OnEvent` is not redelivered: the event bus is fire and
-forget (BEH-BR-141), and buffering for plugins that do not exist yet would
-make it a queue. A plugin that must see the event that woke it needs a
-companion that retains events ([`references/durable-bus/`](../../durable-bus/README.md)) or an `OnService`
-trigger instead. (3) Leaving `dormant` is not gated: the operator decision
+bound on its latency; the caller that wants a load asks for one. A hook
+point that finds a declared contribution of a plugin not yet loaded is such
+a caller: it calls `wake` itself (31 — Hook Points, BEH-BR-309). (2) The
+event that fires `OnEvent` is held — that one event, for the plugin it woke,
+for a bounded time — and delivered once the plugin is `active` (BEH-BR-251).
+Revision 0.2 dropped it, so a lazy consumer always missed the first event it
+existed for. Other events dispatched while the plugin starts are not held:
+holding them would make the bus a queue. A plugin that must see every event
+needs a companion that retains events ([`references/durable-bus/`](../../durable-bus/README.md)). (3) Leaving `dormant` is not gated: the operator decision
 was the `install` or `replace` of the lazy definition, with its manifest,
 which was gated (BEH-BR-248); loading on demand is its consequence, as a
 `system-start` after a provider returns is (BEH-BR-223).
@@ -583,8 +648,10 @@ which checks the digest and signatures before the code is evaluated
 can tell "the code could not be obtained or did not match its manifest" from
 "the code ran and failed", which call for different people. A loaded plugin
 that contributes to a registry or listens to an event its manifest did not
-declare is not detected by core; contribution and bus access rules are those of
-[28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md) (BEH-BR-264).
+declare is refused when the deployment wires `AccessPolicy.declaredOnly`
+([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
+BEH-BR-268); otherwise contribution and bus access rules are those of
+BEH-BR-264.
 
 ## BEH-BR-247: The dormant row of the legality table
 
@@ -670,8 +737,11 @@ interface AuditRecord {
   // ... (23, BEH-BR-195)
   readonly trigger?: LazyTrigger                      // lazy-triggered records only
 }
-// SystemTransition gains "lazy-triggered"; PluginState in before/after gains "dormant".
-// HostEvent gains { type: "plugin-triggered"; trigger: LazyTrigger } (13).
+// SystemTransition gains "lazy-triggered" and "lazy-idle" (BEH-BR-252); PluginState in before/after gains "dormant".
+// HostEvent gains { type: "plugin-triggered"; trigger: LazyTrigger } (13),
+//   { type: "plugin-idled" } (BEH-BR-252) and
+//   { type: "held-event-dropped"; event: string; reason: HeldEventDropReason } (BEH-BR-251).
+// A root lazy-triggered record carries onBehalfOf when the caller had a principal (BEH-BR-253).
 ```
 
 ```
@@ -708,7 +778,8 @@ REQUIREMENT: With a sink wired, when a plugin leaves `dormant` because a
              replace or enable of a dependent; a dependent's own
              `lazy-triggered` record), and it MUST be a root otherwise
              (`wake`, an event dispatch), with the `correlationId` of
-             `wake`'s options when one is given.
+             `wake`'s options when one is given. A root record carries the
+             caller's principal as `onBehalfOf` (BEH-BR-253).
 ```
 
 ```
@@ -766,6 +837,412 @@ list capabilities that have not been loaded and decide whether to wake one.
 Beyond the host, the same record travels on its own: it is a Schema-described
 value, and the loader companion is to keep and serve it next to the package
 it describes.
+
+## BEH-BR-250: Declared contributions are readable without loading, through a HostLink
+
+> **Invariant:** [INV-BR-034](../invariants.md#inv-br-034-comparing-and-checking-manifests-evaluates-no-plugin-code), [INV-BR-032](../invariants.md#inv-br-032-a-dormant-plugin-has-run-none-of-its-code)
+> **See:** [ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md), [ADR-BR-041](../decisions/041-manifest-as-data.md)
+> **Satisfies:** [URS-BR-049](../urs.md#urs-br-049-keep-a-policy-decision-closed-while-a-contributor-to-it-is-not-yet-loaded), [URS-BR-030](../urs.md#urs-br-030-know-what-a-plugin-declares-before-running-its-code)
+> **Risk:** [RSK-BR-057](../gxp/03-risk-assessment.md#rsk-br-057)
+
+```ts
+// illustrative — not type-checked
+interface DeclaredContribution {
+  readonly registry: string
+  readonly id: string
+  readonly role?: "veto" | "enrich" | "advisory"     // the manifest entry's role, when present
+  readonly target?: unknown                           // the manifest entry's target, the object as given
+  readonly pluginId: string                           // the registration's id
+  readonly realm: string                              // the registration's realm
+  readonly status: "dormant" | "waking" | "load-failed"
+                | "idling"                                    // stopping toward dormant by an idle return (BEH-BR-252)
+                | "refused"                                   // disabled with reason "refused-digest" (28, BEH-BR-267)
+}
+
+interface Host {
+  // ...
+  declaredContributions(registry: string): Effect.Effect<readonly DeclaredContribution[], HostClosed>
+  readonly link: HostLink
+}
+
+interface HostLink {
+  readonly hostId?: string                            // the host's hostId (02, BEH-BR-016); absent on HostLink.none;
+                                                      // a link without hostId counts as HostLink.none at a hook point (31, BEH-BR-309)
+  readonly declaredContributions: (registry: string) => Effect.Effect<readonly DeclaredContribution[], HostClosed>
+  readonly wake: Host["wake"]
+}
+
+declare const HostLink: {
+  // Context.Reference, identifier "@bridger/core/HostLink", default Option.none()
+  readonly reference: Context.Reference<Option.Option<HostLink>>
+  readonly none: HostLink                             // declares nothing; its wake applies nothing
+}
+
+// Application code outside the host's fibers dispatches a hook point with the host's link:
+yield* point.dispatch(input).pipe(Effect.provideService(HostLink.reference, Option.some(host.link)))
+```
+
+```
+REQUIREMENT: `declaredContributions(registry)` MUST return one entry per
+             `contributions` entry whose `registry` equals the argument, of
+             every registration in any realm whose registered definition is
+             lazy and that is in one of these states: status "dormant" for
+             a `dormant` registration, "waking" for one in `waiting` or
+             `starting` before its load succeeded, "load-failed" for one
+             `failed` with phase "load" — these three not yet loaded
+             (BEH-BR-247) — "idling" for a loaded one `stopping` with
+             `next: "dormant"` because of an idle return (BEH-BR-252), from
+             the revision in which the stop begins, and "refused" for one
+             `disabled` with reason "refused-digest" (28 — Plugin Principal
+             and Mandatory Policy, BEH-BR-267). A registration `disabled`
+             by an operator MUST NOT be reported (CCR-BR-029). Entries MUST be ordered by realm, then plugin id, then
+             contribution id, in code-unit order. `role` and `target` MUST
+             be those of the manifest entry, `target` being the object of
+             the manifest kept by BEH-BR-241, unchanged.
+```
+
+```
+REQUIREMENT: `declaredContributions` MUST be a read: it MUST NOT call
+             `load`, apply a trigger, write a record, consult the gate or
+             emit a host event, and it MUST NOT be attributed. Like
+             `inspect`, which already returns each manifest (BEH-BR-249), it
+             MUST NOT consult the `AccessPolicy`.
+```
+
+```
+REQUIREMENT: `Host.link` MUST be a `HostLink` whose two members are the
+             host's `declaredContributions` and `wake`. The host MUST set
+             `HostLink.reference` to `Some(link)` in every fiber in which it
+             runs plugin or callback code: builds, finalizers, background
+             fibers, bus listeners, hooks (which inherit the dispatcher's
+             fiber context, 31 — Hook Points, BEH-BR-306), and the callbacks
+             of `Host.use`, `useAll` and `lease`. `Host.link.hostId` MUST be
+             the host's `hostId`. `HostLink.none` MUST have no `hostId`,
+             return an empty list and a `WakeReport` with nothing
+             triggered, and touch no host.
+```
+
+```
+REQUIREMENT: Documentation MUST state that `HostLink.reference` may be
+             provided by any code, and that the link a dispatch reads
+             selects which declarations it sees: in-process code can provide
+             `HostLink.none` or a link of its own that reports nothing, and
+             a hook point cannot tell such a link from the host's. A link
+             grants no more than a read of declarations (data `inspect`
+             already returns) and `wake` (which any holder of the `Host` may
+             call, and which records the caller's real principal,
+             BEH-BR-253, not one taken from the link); the hook point
+             records which link answered (31 — Hook Points, BEH-BR-305,
+             BEH-BR-309) and treats `HostLink.none` as no link on a point
+             with veto codes unless the point opts in with `allowNoLink`.
+             It MUST also state that declarations are
+             matched to a registry by name, so hook point ids SHOULD be
+             unique within a host.
+```
+
+A hook point is a helper outside the host and made before it (it is usually
+passed to `Bridger.make` as a base service), so it cannot hold the host. The
+link reaches it the way `HeldPlugins` does: through the fiber of whoever
+dispatches. Plugin code — the usual dispatcher — always has one; application
+code at the edge provides `host.link`; a unit test of a hook point with no
+host provides `HostLink.none` and says so in its code.
+
+**Settled here.** (1) Registrations not yet loaded are reported, and two
+loaded or never-loaded states in which the host, not an operator, has taken
+the plugin out of the decision. A loaded plugin has otherwise already
+registered what it registers, or has failed to; its manifest is no longer
+the best account of what it contributes. An idle return hides the plugin's
+contributions as soon as its stop begins (19, BEH-BR-167), while it is still
+loaded, so without "idling" a veto would be neither in the view nor declared
+for up to a registry's `drainTimeout` — a routine, unrecorded fail-open
+(CCR-BR-029, agent review R1-03). A registration the `RefusalList` disabled
+never loaded; leaving it out would turn the revocation of a veto's owner into
+an open decision with no trace, so it is reported "refused" and the point's
+`onError` decides (R1-04). (2) A registration `disabled` by an operator is
+left out: disabling is an operator's decision that the plugin take no part,
+as it is for an eager plugin; the trail records that decision. (3) The link
+is not the principal and carries no identity, unlike `CurrentPlugin`
+([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md), BEH-BR-257).
+It is not harmless either: whoever provides the link chooses what the
+dispatch sees. Core records the link's `hostId` and refuses `HostLink.none`
+on veto points; a forged link remains possible for in-process code and is a
+residual of RSK-BR-057 (R1-06).
+
+## BEH-BR-251: An OnEvent wake holds its triggering event for the plugin it woke
+
+> **Invariant:** [INV-BR-047](../invariants.md#inv-br-047-a-held-triggering-event-is-delivered-at-most-once-only-to-the-plugin-it-woke), [INV-BR-032](../invariants.md#inv-br-032-a-dormant-plugin-has-run-none-of-its-code)
+> **See:** [ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md), [ADR-BR-042](../decisions/042-lazy-activation.md), [ADR-BR-020](../decisions/020-typed-event-bus.md)
+> **Satisfies:** [URS-BR-050](../urs.md#urs-br-050-let-a-plugin-started-by-an-event-receive-that-event), [URS-BR-031](../urs.md#urs-br-031-start-a-plugin-only-when-it-is-needed)
+> **Risk:** [RSK-BR-058](../gxp/03-risk-assessment.md#rsk-br-058)
+
+```ts
+// illustrative — not type-checked
+type HeldEventDropReason =
+  | "no-listener"          // the plugin became active with no `on` listener for the event
+  | "activation-failed"    // its load, build or activation failed
+  | "ended"                // removed, replaced, disabled, returned to dormant, or the host closed, before it became active,
+                           // or the build a stop waited for succeeded and was discarded (CCR-BR-030)
+  | "timeout"              // holdTimeout elapsed before it became active
+```
+
+```
+REQUIREMENT: When a dispatch on `Bridger.Events` applies an `OnEvent` trigger
+             that moves a plugin out of `dormant` (BEH-BR-245), the host
+             MUST hold that event for that plugin: the event's id, its
+             arguments as given, and the dispatch's operation-context
+             annotations filtered to flow "events" (30 — Operation Context
+             Annotations, BEH-BR-292). It MUST hold at most one event per
+             trigger application, and none for a trigger that reaches a
+             plugin no longer `dormant`, for an `OnEvent` named by `wake`,
+             or for any other event dispatched while the plugin starts.
+```
+
+```
+REQUIREMENT: When the activation the trigger started reaches `active`, after
+             the revision in which it is published, the bus MUST deliver the
+             held event exactly once, with the semantics of `emit`
+             (16 — Event Bus, BEH-BR-141), to the `on` listeners for that
+             event id that the plugin registered in that activation's scope
+             before it became `active`, in listener order, and to no other
+             listener; `around` listeners MUST NOT receive it. Each
+             listener MUST run as BEH-BR-144 states, with the held
+             annotations, an empty `HeldPlugins` and the listener owner's
+             principal; a failure MUST be reported as `listener-failed`.
+             No new access decision is made for the emitter: the dispatch
+             was allowed when it applied the trigger (16, BEH-BR-141).
+```
+
+```
+REQUIREMENT: When the plugin becomes `active` with no such listener, or when
+             it does not become `active` because its activation fails, it
+             leaves the path to `active` (removed, replaced, disabled,
+             returned to `dormant`, or the host closes), or `holdTimeout`
+             (default 60 seconds, measured with `Clock` from the trigger)
+             elapses first, the host MUST drop the held event, log the drop
+             at warning level with the plugin id and event id, and emit
+             `held-event-dropped { event, reason }` on `Host.events`
+             (13 — Observability and Diagnostics). The held value MUST be
+             released at delivery or drop.
+```
+
+```
+REQUIREMENT: A `remove`, `replace` or `disable` that reaches the plugin while
+             its load or build is running follows the `starting` rows of
+             08 — Operation Legality (BEH-BR-071, BEH-BR-246) and waits for
+             that activation. If the activation then fails, the reason MUST
+             be "activation-failed". If its load and build succeed, their
+             result is discarded (BEH-BR-071) and nothing is published, so
+             the held event MUST be dropped once with reason "ended" when
+             the result is discarded, and no listener of that activation
+             receives it. "ended" MUST otherwise apply only when the
+             registration leaves the path to `active` while no load or
+             build of it is running — removed, replaced or disabled while
+             `waiting`, returned to `dormant`, or the host closing
+             (CCR-BR-029, host-core prototype finding G-P14; CCR-BR-030,
+             finding G-P19).
+```
+
+```
+REQUIREMENT: A held event's arguments and annotations MUST NOT appear in any
+             audit record, host event, log, span, snapshot, inspection or
+             error; only the event id and the drop reason may. The
+             triggering dispatch MUST NOT be delayed and its result MUST NOT
+             change: the delivery is a separate notification, never a
+             re-run of a `parallel`, `serial` or `waterfall` dispatch.
+```
+
+A lazy consumer of an event exists to handle that event, and before revision
+0.3 it never saw the first one: the dispatch that woke it ended before it had
+a listener. Holding exactly the triggering event, for exactly the plugin it
+woke, until that plugin is ready, fixes that case without turning the bus
+into a queue. Delivery waits for `active` so that the listener's plugin has
+published its services and every listener it registers in its build is in
+place.
+
+**Settled here.** (1) Only the triggering event is held. An event dispatched
+while the plugin is loading reaches whatever listeners exist at that moment,
+as for any plugin, and is lost to the plugin if it has none yet; the
+event delivery companion ([`references/durable-bus/`](../../durable-bus/README.md))
+is for consumers that must see every event. (2) The delivery uses `emit`
+semantics whatever the triggering dispatch was: the dispatcher of a
+`parallel`, `serial` or `waterfall` has already received its result, so
+there is nobody to return a listener's result to. (3) The hold is bounded in
+space (one event per wake) and in time (`holdTimeout`, a property of the lazy
+definition, so the plugin's author can size it to its load). A held value
+lives in memory only and is lost if the process ends.
+
+## BEH-BR-252: An idle loaded plugin returns to dormant through a normal drain
+
+> **Invariant:** [INV-BR-032](../invariants.md#inv-br-032-a-dormant-plugin-has-run-none-of-its-code), [INV-BR-006](../invariants.md#inv-br-006-a-leased-provider-does-not-close-under-its-lease), [INV-BR-001](../invariants.md#inv-br-001-one-provider-per-service-key-per-realm)
+> **See:** [ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md), [ADR-BR-042](../decisions/042-lazy-activation.md), [ADR-BR-015](../decisions/015-leases-one-primitive.md)
+> **Satisfies:** [URS-BR-031](../urs.md#urs-br-031-start-a-plugin-only-when-it-is-needed)
+> **Risk:** [RSK-BR-058](../gxp/03-risk-assessment.md#rsk-br-058), [RSK-BR-026](../gxp/03-risk-assessment.md#rsk-br-026)
+
+```ts
+// illustrative — not type-checked
+const reports = Plugin.lazy({ manifest, load, digest, idle: "15 minutes" })
+```
+
+```
+REQUIREMENT: `idle`, when given, MUST be a positive finite duration;
+             otherwise `install`, `replace` and `reconcile` MUST fail the
+             definition with `InvalidDefinition`. Without `idle`, a loaded
+             registration MUST NOT return to `dormant` except by `replace`
+             with a lazy definition.
+```
+
+```
+REQUIREMENT: A loaded, `active` registration of a lazy definition with
+             `idle` is *idle* while all of the following hold: no lease and
+             no `use` or `useAll` callback holds a key it provides; no
+             listener of it on `Bridger.Events` is running (16 — Event Bus);
+             it has no mounted child (14 — Children and Groups); and no
+             registration that is neither `dormant` nor `disabled` has, in
+             `requires`, a key whose provider under `scopeOf` is this
+             plugin. Holds of its contributions in a registry, and hook
+             calls on them, MUST NOT be conditions: registries and hook
+             points are helpers outside the host, and `ActivePlugin`
+             reports contributions added and withdrawn, not holds (19 —
+             Contribution Registry, BEH-BR-168). Documentation MUST state
+             that an idle return can therefore withdraw a contribution a
+             registry `use` or a hook dispatch holds; the hold drains under
+             the registry's `drainTimeout` and is then revoked (BEH-BR-167),
+             as for any stop (CCR-BR-029, host-core prototype finding
+             G-P17). Idle time MUST be measured with `Clock` from the latest
+             moment one of these conditions stopped holding, or from the
+             revision in which the plugin became `active`.
+```
+
+```
+REQUIREMENT: When a registration has been idle for `idle`, the host MUST
+             take an *idle return* at the plugin's linearization point,
+             after any operation already linearized there, and only if the
+             plugin is still `active` and idle at that point: a system
+             transition `active → stopping` with `next: "dormant"`, carried
+             out as a system stop (06 — Removal): its providers are hidden
+             at once, its contributions and listeners are removed under
+             their registries' `drainTimeout`, its finalizers run, and its
+             principal is retired (28, BEH-BR-257). It MUST NOT be forced
+             beyond what a system stop forces, and MUST NOT be gated.
+```
+
+```
+REQUIREMENT: When the stop completes, the plugin MUST be `dormant`: its
+             loaded definition released, `lazy.loaded` false, its provider
+             slots still reserved (they MUST NOT be released at any point of
+             the idle return), its stored configuration override kept raw,
+             and its `triggers` listed as BEH-BR-244 states. The next
+             activation MUST run `load` again (BEH-BR-246) under a new
+             principal.
+```
+
+```
+REQUIREMENT: A trigger that applies while the plugin is `stopping` with
+             `next: "dormant"` because of an idle return MUST be kept and
+             applied once the plugin reaches `dormant`, with its event held
+             if it is an `OnEvent` trigger from a dispatch (BEH-BR-251). Such
+             a trigger MUST NOT be listed in the `WakeReport.triggered` of
+             the `wake` that applied it, since the plugin has not left
+             `dormant` when that `wake` returns (BEH-BR-245), and the later
+             application lists it in no `WakeReport`. Documentation MUST say
+             that an empty `triggered` list does not mean that no start
+             will follow while an idle return is under way (CCR-BR-030,
+             host-core prototype finding G-P22). An
+             operator operation that reaches the plugin during the idle
+             return MUST follow the `stopping` row of 08 — Operation
+             Legality (BEH-BR-071), as for any system stop.
+```
+
+```
+REQUIREMENT: With a sink wired, an idle return MUST write one `system`
+             record with operation `lazy-idle`, attributed to
+             `Actor.system`, `before.state` "active", `after.state`
+             "dormant", as a root, without `onBehalfOf`, when the plugin
+             reaches `dormant`; it MUST NOT also write a `system-stop`
+             record. `Host.events` MUST emit `plugin-idled` in that
+             revision.
+```
+
+An idle return is the reverse of a trigger: a plugin nothing needs any more
+gives back its scope, fibers and listeners, and the next need loads it
+again. The conditions are chosen so that the return disturbs no one the
+host can see: no dependent would cascade to `waiting`, no call through a
+lease or `use` callback and no listener run is in progress. A contribution
+held in a registry is outside the host's sight and drains as on any stop. A plugin reached only through `Host.use` by application code has no
+dependent to keep it awake and will idle out; its caller must `wake` it, as
+for any lazy provider (BEH-BR-245). Because the stop removes its hook
+contributions and listeners, a hook dispatch finds its declaration — as
+"idling" while the stop runs, "dormant" after it (BEH-BR-250; 31 — Hook
+Points, BEH-BR-309) and a later event wakes it with the
+event held (BEH-BR-251).
+
+**Settled here.** (1) The loaded definition is released and the next
+activation loads again. Keeping it would make a `dormant` registration that
+already ran code look like one that never did; reloading gives the loader
+companion a fresh check at every wake, so a digest revoked meanwhile is
+refused at load. Neither choice reclaims imported code from the process
+(BEH-BR-008). (2) `idle` is not part of a lazy definition's identity
+(BEH-BR-248): two definitions with equal `meta` and different `idle` are the
+same to `reconcile`, and changing `idle` takes a `replace`. (3) The return
+is a system transition, not gated: the gated decision was the `install` or
+`replace` of a definition with `idle`, as for `lazy-triggered`. It is
+recorded as `lazy-idle`, not as a `system-stop`, so that a trail reader can
+tell an idle return from a stop caused by a provider leaving. (4) Whether a
+lazy plugin is loaded is history, not state the installed set determines: a
+history that woke it ends with it `active`, a direct install of the same set
+with it `dormant`. Confluence compares the two under the map of
+[18 — Reconciliation and Confluence](./18-reconciliation-and-confluence.md),
+BEH-BR-160 (CCR-BR-028, host-core prototype finding G-P7).
+
+## BEH-BR-253: A wake records on whose behalf it was made
+
+> **Invariant:** [INV-BR-035](../invariants.md#inv-br-035-only-the-host-mints-a-plugin-principal)
+> **See:** [ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md), [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-029](../decisions/029-attributable-mutations.md)
+> **Satisfies:** [URS-BR-032](../urs.md#urs-br-032-know-which-plugin-made-a-change-and-for-whom), [URS-BR-031](../urs.md#urs-br-031-start-a-plugin-only-when-it-is-needed)
+> **Risk:** [RSK-BR-028](../gxp/03-risk-assessment.md#rsk-br-028)
+> **Regulatory:** supports 21 CFR 11.10(e); ALCOA+ Attributable
+
+```
+REQUIREMENT: `wake`, and a dispatch on `Bridger.Events` that applies an
+             `OnEvent` trigger, MUST read the principal of the calling fiber
+             as a mutating host call does at step 2 of BEH-BR-188 (28 —
+             Plugin Principal and Mandatory Policy, BEH-BR-257): a forged
+             principal MUST make the call die with `PrincipalForged`, and a
+             retired one MUST make it die with `PrincipalRetired`.
+```
+
+```
+REQUIREMENT: The `lazy-triggered` record of each plugin that a `wake` or such
+             a dispatch moves out of `dormant` — a root record (BEH-BR-248) —
+             MUST carry `onBehalfOf` naming that principal, with the fields
+             of BEH-BR-259, and MUST carry none when the caller has no
+             principal. A `lazy-triggered` record that has a cause (an
+             install, replace or enable of a dependent, or a dependent's own
+             `lazy-triggered` record) MUST NOT carry `onBehalfOf`.
+```
+
+```
+REQUIREMENT: The record MUST stay attributed to `Actor.system`;
+             `onBehalfOf` MUST NOT count as an actor, MUST NOT be settable
+             through `wake`'s options, and MUST NOT appear in
+             `plugin-triggered`, logs, spans or metrics (BEH-BR-259).
+             `WakeReport` MUST NOT change.
+```
+
+Core 28 states that system records carry no `onBehalfOf` (BEH-BR-259),
+because a system transition is a consequence and its cause record names
+the call. A root `lazy-triggered` record has no cause record: before this
+revision, a wake by a command catalog, a hook point (31 — Hook Points,
+BEH-BR-309) or an emitting plugin was recorded as the system's, with nobody
+named (URS gap G39). Recording the caller's principal on exactly those
+records names the plugin that asked, without pretending it was an actor.
+
+**Settled here.** (1) This is the one exception to the rule of BEH-BR-259
+that system records carry no `onBehalfOf`; 28 is amended to say so
+(CCR-BR-024). (2) Records with a cause do not repeat the principal: the call
+record they lead to already carries it, and carrying it twice would let the
+two disagree. (3) `wake` stays ungated and not attributed (22 — Attributable
+Operations): the principal is recorded, not authorised.
 
 ---
 

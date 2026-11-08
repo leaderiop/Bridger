@@ -1,0 +1,24 @@
+kind: decisions
+package: bridger-keyring
+infix: KR
+entries:
+  - id: "ADR-KR-001"
+    file: "001-shred-keys-never-rewrite-events.md"
+    title: "Shred keys; never rewrite events"
+    status: "Proposed"
+  - id: "ADR-KR-002"
+    file: "002-field-encryption-through-the-payload-codec.md"
+    title: "Field encryption through the durable-bus PayloadCodec, one codec for storage and wire"
+    status: "Proposed"
+  - id: "ADR-KR-003"
+    file: "003-a-shredded-subject-is-closed.md"
+    title: "A shredded subject is closed, never given a new key"
+    status: "Proposed"
+  - id: "ADR-KR-004"
+    file: "004-key-custody-is-an-obligation.md"
+    title: "Key storage, rotation and backup are obligations of the adapter and the consumer"
+    status: "Proposed"
+  - id: "ADR-KR-005"
+    file: "005-the-application-chooses-personal-fields.md"
+    title: "Which fields are personal data stays with the application"
+    status: "Proposed"

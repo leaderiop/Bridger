@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -433,6 +433,7 @@ requirement availability (07 — Replacement and Reactivation, BEH-BR-057);
 | **failed** (load, build, activation, runtime) | `DuplicatePlugin` | unregisters | swap → starting/waiting | → starting/waiting | → starting/waiting | as `retry` → starting/waiting | → `disabled` | no-op |
 | **failed(cleanup)** | `DuplicatePlugin` | unregisters; leak acknowledged; cleanup not re-run | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) | Conflict (cleanup-failure) |
 | **disabled** | `DuplicatePlugin` | unregisters | swap; stays `disabled` | Conflict (disabled) | stores or clears the override for the next `enable` | Conflict (disabled) | no-op (joins the state) | re-check → starting/waiting (or `dormant`, lazy and not loaded), or `InstallError` |
+| **disabled (refused-digest)** | `DuplicatePlugin` | unregisters | incoming digest refused: `OperationRejected` at step 4b; otherwise swap → starting/waiting (or `dormant`), reason cleared | Conflict (disabled) | stores or clears the override for the next `enable` | Conflict (disabled) | → `disabled` by the operator; reason cleared | digest still refused: `OperationRejected` at step 4b; otherwise as **disabled**, reason cleared |
 | **host closing** | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` | `HostClosed` |
 
 ```
@@ -445,7 +446,9 @@ A `replace` with a lazy definition lands in `dormant` where a cell says
 starting/waiting, and the `dormant` row is specified with its rules in
 [27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md)
 (BEH-BR-247, CCR-BR-017); the settled rows are now eight states by eight
-operations.
+operations, with `disabled` split by its reason: a plugin the `RefusalList`
+disabled has its own row (28 — Plugin Principal and Mandatory Policy,
+BEH-BR-267, CCR-BR-026).
 
 ```
 REQUIREMENT: Every cell of this table and of BEH-BR-072 MUST be an

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-OVW                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-08): API surface: `AcceptedDigests`, `LoaderGate.make`/`piece`, `Loader.stampRemote`, `KillSwitch.release`; worked example wires the gate before the host and leaves the scope to the kill switch alone (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.4 (2026-11-08): `SignedStatement`, `SignedRevocationList`, `RevocationSet.encode`/`decode`, `RevocationSource.offer` and `.constant`, "chain-bundle" and `RevocationListMalformed` in the API surface (round-2 agent review) (CCR-LD-003)<br>0.3 (2026-11-08): Signed statements, `SignaturePolicy.verify`, `StatementSigner`, `Revocation.refusalList` and data packs in the API surface and errors (round 2: recheck items 11, 12, 15) (CCR-LD-003)<br>0.2 (2026-11-08): API surface: `AcceptedDigests`, `LoaderGate.make`/`piece`, `Loader.stampRemote`, `KillSwitch.release`; worked example wires the gate before the host and leaves the scope to the kill switch alone (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -25,7 +25,11 @@ a release can require a publisher's key and an independent reviewer's key —
 that the keys belong to different people is the application's configuration), and **how to
 stop them** (revocation that refuses new loads and drives `reconcile` to
 remove what is running). The loader answers them before evaluation, because
-in JavaScript evaluating a module runs it.
+in JavaScript evaluating a module runs it. The same three questions are
+answered for every other signed thing a deployment judges — host manifests,
+licence tokens, and data packs of reference data, which are verified and
+served as bytes but never evaluated — through one verification step,
+`SignaturePolicy.verify`.
 
 ## Package boundary
 
@@ -50,7 +54,7 @@ All signatures are illustrative until code exists.
 | `PackagePredicate` | type | Application checks after verification, before evaluation (SBOM, permissions, engines) |
 | `SignaturePolicy.pinned`, `.signed`, `.anyOf`, `SignaturePolicy`, `TrustedSigner`, `Requirement` | functions, types | Acceptance rules; no permissive rule exists ([03](./behaviors/03-signature-policy.md)) |
 | `SignatureVerifier`, `VerifiedSigner` | port, type | Scheme adapters (Ed25519, Sigstore) |
-| `RevocationSource`, `RevocationSource.verified`, `RevocationStore`, `RevocationSet` | port, function, port, type | Signed, monotonic revocation sets persisted by the application ([04](./behaviors/04-revocation-and-kill-switch.md)) |
+| `RevocationSource`, `RevocationSource.verified`, `.constant`, `RevocationSourceShape.offer`, `RevocationStore`, `RevocationSet`, `RevocationSet.encode`, `.decode`, `SignedRevocationList`, `RawRevocationFeed` | port, functions, port, types | Signed, monotonic revocation sets persisted by the application, verified under their own trust root with no revocation step; other companions hand lists in through `offer` ([04](./behaviors/04-revocation-and-kill-switch.md)) |
 | `Revocation.filterDesired`, `KillSwitch.run`, `KillSwitch.status`, `KillSwitch.release` | functions, stream | Kill switch through `reconcile`, the one reconciler of its scope; blast-radius release |
 | `AcceptedDigests`, `AcceptedDigests.layer` | service, layer | Store of accepted digests and their verification records, built before the host and shared by the gate piece, the loader and the catalog |
 | `LoaderGate.make`, `LoaderGate.piece` | functions | Core `Gate<OperationRequest>` piece refusing installs whose digest the loader did not accept, and operator restarts of revoked digests; explicit exemptions |
@@ -58,13 +62,20 @@ All signatures are illustrative until code exists.
 | `Catalog.verifyEntry`, `Catalog.resolve`, `CatalogRegistry`, `CatalogEntry`, `VerifiedEntry` | functions, registry, types | Signed manifests verified without code ([05](./behaviors/05-catalog-and-lazy-loading.md)) |
 | `Loader.lazy` | function | A verified entry as a `Plugin.lazy({ manifest, load, digest })` definition |
 | `Loader.stampRemote` | function | Stamps a remote proxy definition with a verified guest bundle's version and digest |
+| `Statement`, `Statement.make`, `.signingInput`, `.digest`, `StatementType`, `SignedStatement` | functions, types | Typed signed statements (`package`, `host-manifest`, `data-pack`, `licence`, `revocation-list`, `chain-bundle`, or an application's own type) about a subject digest, with one `id`/`version` convention per reserved type; `SignedStatement` is the transport envelope ([07](./behaviors/07-signed-statements.md)) |
+| `SignaturePolicy.verify`, `StatementVerifier`, `StatementVerifier.layer`, `StatementRules` | function, service, layer, type | The one verification step for every statement type, with one rule per type; used by loads, the catalog, data packs, the kit and the federation companion |
+| `StatementSigner` | port | Signing adapter over the signing input; the loader holds no key; countersigning appends a signer entry |
+| `Revocation.check`, `Revocation.refusalList` | function, layer | Pure re-check of a recorded statement; core's `RefusalList` backed by the revocation set |
+| `DataPacks`, `DataPacks.status`, `.requireFresh`, `.decode`, `DataPackManifest`, `VerifiedDataPack`, `DataPackStore`, `DataPackFeed` | service, functions, types, ports | Signed data packs: verified, served as bytes, never evaluated; window and freshness reported ([08](./behaviors/08-data-packs.md)) |
 | `@bridger/loader/testing` | entry point | `memoryFetcher`, `scriptedVerifier`, `fixedRevocations`, `recordingEvaluator`, `packageBuilder` |
 
 Errors: `FetchFailed`, `PackageMalformed`, `UnsupportedDigestAlgorithm`,
 `DigestMismatch`, `SignatureRejected`, `Revoked`, `RevocationUnavailable`,
-`RevocationStale`, `PackageRefused`, `EvaluationFailed`,
+`RevocationStale`, `RevocationListMalformed`, `PackageRefused`, `EvaluationFailed`,
 `NotAPluginDefinition`, `ManifestMismatch`, `LoadLogFailed`,
-`CatalogEntryRejected`, `NoMatchingEntry`.
+`CatalogEntryRejected`, `NoMatchingEntry`, `PublisherMismatch`,
+`StatementRevoked`, `SigningFailed`, `DataPackStale` (a report, also the
+failure of `requireFresh`), `DataPackStoreFailed`.
 
 ## Worked example
 
@@ -131,6 +142,8 @@ Core still does not verify `meta.digest` and says so
 
 Trust roots, keys and identities, and who may sign; the signature policy;
 the revocation channel and the store that keeps the last list; `maxAge`;
+the rule for each statement type and the publisher names each signer may use;
+whether stale data packs may be used;
 SBOM and permission predicates; whether its gate lets kill-switch removals
 through without a human; marketplace rules (review, ranking, pricing);
 scheduled restarts to clear resident code.

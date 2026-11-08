@@ -14,3 +14,7 @@ entries:
     id: "BRIDGER-EN-BEH-03"
     title: "Budgets"
     range: "BEH-EN-017..024"
+  - file: "04-grant-narrowing-and-usage.md"
+    id: "BRIDGER-EN-BEH-04"
+    title: "Grant narrowing and usage"
+    range: "BEH-EN-025..032"

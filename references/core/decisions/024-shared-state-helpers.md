@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-024                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-052                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-03): A forced Generation drain interrupts `acquire` holders (G26) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-08): Amended by ADR-BR-052 (CCR-BR-025)<br>0.2 (2026-10-03): A forced Generation drain interrupts `acquire` holders (G26) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -74,3 +74,4 @@ The event bus is built on `ContributionRegistry` ([ADR-BR-020](../decisions/020-
 - Requirements: [URS-BR-014](../urs.md#urs-br-014-contribute-to-a-shared-extension-point-safely), [URS-BR-015](../urs.md#urs-br-015-switch-several-behaviours-atomically)
 - Decisions: [ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md), [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-015](../decisions/015-leases-one-primitive.md), [ADR-BR-020](../decisions/020-typed-event-bus.md)
 - Source: `docs/SPEC.md` — "Revertibility and shared state", "Generations: atomic publication and admission control"
+- Amended by: [ADR-BR-052](./052-typed-registries.md) — a `ContributionRegistry` may declare a contract and check each contribution's declared version at `add` (CCR-BR-025).

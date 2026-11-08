@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.4 (2026-11-08): BEH-AG-011 open question restated: command tasks keep records through the command companion's `CommandTaskStore`, agent runs stay in memory; BEH-AG-015 keyed repeats and lost command tasks (round-2 agent review A-08, A-09) (CCR-AG-003)<br>0.3 (2026-11-08): `awaiting-approval` carries every drafted command; approval of a batch draft resumes with one outcome per command, all or none; BEH-AG-015 command tasks of long commands: the loop's wait, the herdr and MCP bridges (CCR-AG-003, round 2: recheck items 5, 7)<br>0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -25,7 +25,7 @@ core's pattern for plugin state: a discriminated snapshot, monotone revisions,
 a state feed that may skip intermediate states
 ([ADR-BR-014](../../core/decisions/014-discriminated-plugin-snapshot.md),
 [ADR-BR-007](../../core/decisions/007-observation-primitives.md)). This file
-owns BEH-AG-009–016 and uses BEH-AG-009–014; 015 and 016 are reserved.
+owns BEH-AG-009–016 and uses BEH-AG-009–015; 016 is reserved.
 
 Planned source: `packages/agent/src/Tasks.ts`, `packages/agent/src/bridges/Herdr.ts`,
 `packages/agent/src/bridges/McpTasks.ts` *(Planned)*.
@@ -50,7 +50,7 @@ type TaskSnapshot = TaskBase & (
   | { readonly state: "queued" }
   | { readonly state: "working"; readonly step: number }
   | { readonly state: "needs-input"; readonly prompt: string }
-  | { readonly state: "awaiting-approval"; readonly draftId: string; readonly command: string }
+  | { readonly state: "awaiting-approval"; readonly draftId: string; readonly commands: ReadonlyArray<string> }   // one, or every command of a batch draft
   | { readonly state: "stale"; readonly draftId: string; readonly reason: "expected-version" }
   | { readonly state: "done"; readonly answer?: string }
   | { readonly state: "failed"; readonly error: { readonly _tag: string; readonly message: string } }
@@ -200,32 +200,39 @@ otherwise awaiting `awaiting-approval` on a task that fails would wait until
 its timeout. (2) The default timeout of 30 seconds matches core's default
 drain bound; `"forever"` must be stated.
 
-**Open.** Whether the `Tasks` table should be held by a `SessionStore` so a
-task survives a host restart; v0.1 keeps it in memory for the host's life.
+**Open.** Whether the `Tasks` table should be held by a store port so that an
+agent run's record survives a host restart, as command tasks' records can
+(command BEH-CM-054, `CommandTaskStore`); v0.1 keeps agent runs in memory for
+the host's life, and recheck item 7 is closed for agent runs only within the
+process. A run cut off by a restart is not resumed and leaves no record.
 
 ## BEH-AG-012: awaiting-approval follows a gate Defer, and stale follows a stale draft
 
-> **Invariant:** [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed)
+> **Invariant:** [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed-a-change)
 > **See:** [ADR-AG-002](../decisions/002-task-snapshot-is-a-state-feed.md), [ADR-AG-003](../decisions/003-taint-is-monotone-and-forbids-auto-allow.md)
 > **Core seam:** [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md), [command — Dispatch](../../command/behaviors/02-dispatch.md)
 
 ```
-REQUIREMENT: When `ToolRunner` returns `Deferred { draftId }`, the loop MUST
-             end the current step without calling the model again, MUST
-             publish `awaiting-approval` with that `draftId` and the
-             command id, and MUST hold no pinned toolset, model call or
-             budget reservation while it waits.
+REQUIREMENT: When `ToolRunner` returns `Deferred { draftId, commands }` — for
+             one call, or for every call of a batch (01, BEH-AG-008) — the
+             loop MUST end the current step without calling the model
+             again, MUST publish `awaiting-approval` once with that
+             `draftId` and the command ids, and MUST hold no pinned
+             toolset, model call or budget reservation while it waits.
 ```
 
 ```
 REQUIREMENT: When the application has applied the approved draft — by
              dispatching the command again with an `ApprovalRef` (command
-             BEH-CM-011) — it resumes the task with
-             `ResumeInput.Approved { draftId, outcome }`, `outcome` being
-             that re-dispatch mapped as `ToolRunner` maps a dispatch
-             (BEH-AG-005). The loop MUST then publish `working`, and the
-             outcome MUST reach the model as the tool result of the
-             deferred call. `Refused { draftId, reason }` MUST return the
+             BEH-CM-011), or the whole batch again with a
+             `BatchApprovalRef` (command BEH-CM-051) — it resumes the task
+             with `ResumeInput.Approved { draftId, outcomes }`, one outcome
+             per drafted command in draft order, each mapped as
+             `ToolRunner` maps a dispatch (BEH-AG-005, BEH-AG-008). The loop
+             MUST accept `Approved` only when the number of outcomes equals
+             the number of drafted commands (`TaskNotResumable` otherwise),
+             MUST then publish `working`, and the outcomes MUST reach the
+             model as the tool results of the deferred calls. `Refused { draftId, reason }` MUST return the
              task to `working` with the refusal as that tool result.
 ```
 
@@ -237,8 +244,10 @@ REQUIREMENT: When the application's `Draft.check` (core BEH-BR-316) finds
              that re-plans from current state, publishing `working`. It
              MUST NOT apply the stale draft and MUST NOT resubmit it
              unchanged. A re-dispatch that fails because the command's
-             definition changed (`ToolChanged`, command BEH-CM-011) MUST be
-             treated as stale in the same way.
+             definition changed (`ToolChanged`, command BEH-CM-011) or
+             because dispatch's own `Draft.check` found the draft stale
+             (`CommandDraftStale`, command BEH-CM-051) MUST be treated as
+             stale in the same way.
 ```
 
 ```
@@ -251,8 +260,11 @@ A turn that waits for a person holds nothing: the pin is released, so the
 re-planned turn sees the current toolset, and no reservation is held across
 an approval that may take a day.
 
-**Settled here.** Re-planning is a new turn (a new pin), not a continuation
-of the old one, because the state the old plan assumed is gone.
+**Settled here.** (1) Re-planning is a new turn (a new pin), not a
+continuation of the old one, because the state the old plan assumed is gone.
+(2) A batch draft is approved all or none (recheck X6): the loop has no
+outcome for "part of the plan approved", and an approval store that wants
+partial approval asks the agent to propose a smaller plan.
 
 ## BEH-AG-013: The herdr bridge maps states and adds none
 
@@ -272,8 +284,9 @@ of the old one, because the state the old plan assumed is gone.
 ```
 REQUIREMENT: `HerdrBridge.plugin({ connect })` MUST report each task's state
              to herdr using exactly this mapping, from the `Tasks.all`
-             feed, and MUST report nothing herdr would read as a state not
-             in this table.
+             feed (and command tasks by the mapping of BEH-AG-015), and MUST
+             report nothing herdr would read as a state not in these
+             tables.
 ```
 
 ```
@@ -324,12 +337,13 @@ REQUIREMENT: `McpTaskBridge` MUST expose a task to an MCP client that
 ```
 
 ```
-REQUIREMENT: The bridge MUST expose only tasks that exist in `Tasks`, that
-             is, runs of an `AgentLoop` started for the MCP session's
-             principal. It MUST NOT create a task for a direct MCP
-             `tools/call` that a gate or the taint floor deferred: such a
-             call is a plain dispatch with no loop behind it, and the MCP
-             server answers it as an `isError` result carrying the draft id
+REQUIREMENT: The bridge MUST expose only tasks that exist in `Tasks` — runs
+             of an `AgentLoop` started for the MCP session's principal — or
+             in `CommandTasks` (BEH-AG-015). It MUST NOT create a task for a
+             direct MCP `tools/call` that a gate or the taint floor
+             deferred: such a call is a plain dispatch with nothing behind
+             it that would complete, and the MCP server answers it as an
+             `isError` result carrying the draft id
              (`@bridger/mcp`, [server](../../mcp/behaviors/01-server.md),
              BEH-MC-005).
 ```
@@ -350,6 +364,68 @@ REQUIREMENT: When the client did not negotiate the tasks extension, the
 **Settled here.** Approval through MCP task input is refused: an MCP client
 is often the agent's own host, and accepting approval from it would let the
 agent approve its own drafts.
+
+## BEH-AG-015: Command tasks in the bridges
+
+> **See:** [ADR-AG-002](../decisions/002-task-snapshot-is-a-state-feed.md)
+> **Core seam:** [command — Batches and long commands](../../command/behaviors/07-batches-and-long-commands.md)
+
+| CommandTaskSnapshot state | herdr state | MCP task status | `statusMessage` |
+| ------------------------- | ----------- | --------------- | --------------- |
+| running | working | working | the progress note, when present |
+| done | done | completed | — |
+| failed | done | failed | the error tag |
+| cancelled | done | cancelled | — |
+
+```
+REQUIREMENT: When `ToolRunner` returns `Started { taskId, command }` for a
+             long command (command BEH-CM-052), the loop MUST wait with
+             `CommandTasks.await(taskId, { timeout: longToolWait })` (default
+             30 seconds) inside the step, keeping the turn's pin. A terminal
+             snapshot MUST become the call's tool result: `done` as `Ok`
+             with the envelope of its encoded output (BEH-AG-023), `failed`
+             and `cancelled` as `Failed`. A wait that times out MUST give
+             the model the result `{ "taskId": …, "state": "running" }`
+             and MUST NOT cancel the command task.
+```
+
+```
+REQUIREMENT: `HerdrBridge` and `McpTaskBridge` MUST also expose command
+             tasks from `CommandTasks.all` when a `CommandCatalog` is
+             resolvable, mapped by the table above, each bridge exposing
+             only tasks whose `actor` is the observer's principal (the MCP
+             session's actor, or the actor the application names for a
+             herdr connection). `tasks/cancel` on a command task MUST call
+             `CommandTasks.cancel` with the MCP session's principal as the
+             context actor.
+```
+
+```
+REQUIREMENT: A long command dispatched by an MCP `tools/call` from a session
+             that negotiated the tasks extension MUST be answered with an
+             MCP task for its `taskId` (`@bridger/mcp`,
+             [server](../../mcp/behaviors/01-server.md), BEH-MC-004); the
+             bridge MUST NOT create a task for anything that is not an
+             agent run or a command task.
+```
+
+herdr's `wait` and an MCP client's task view observe what a person is waiting
+for. An agent run and a long import started from a UI are both that, so both
+appear through the same bridges, with the same mapping style: fewer states
+than the feed, nothing added.
+
+**Settled here.** (1) The bridges filter by actor because `CommandTasks`
+itself does not (command BEH-CM-053): the package that exposes a task to
+another party is the one that decides who sees it. A command task found
+running when the catalog layer was rebuilt is shown as `failed` with
+`TaskLost` (command BEH-CM-054), and a keyed repeat of the call that started
+a task returns that same task (command BEH-CM-041). (2) The loop does not hold
+a turn open until a long command ends; after `longToolWait` the model is told
+the command is still running and the command continues on its own.
+
+**Open.** How a later turn learns that a command it started has finished:
+v0.1 relies on the application to post the outcome into the session (a user
+or system message); a built-in "await task" tool is a candidate.
 
 ---
 

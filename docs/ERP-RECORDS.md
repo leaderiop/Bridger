@@ -1,6 +1,8 @@
 # Bridger ERP: Records, model logic, relations, queries and platform data services
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Every name, signature and table below is proposed. This document completes the model layer of [ERP-SPEC.md](ERP-SPEC.md) §3–§4 and [ERP-MODELS.md](ERP-MODELS.md): the `Records` interface, model logic (constraints, computed fields, hooks), relations, queries and aggregates, module data (seeds and data migrations), inter-module services, sequences, settings, money, translatable data and the clock. Storage mechanics are in [ERP-STORAGE.md](ERP-STORAGE.md); the runtime that hosts all of this is in [ERP-RUNTIME.md](ERP-RUNTIME.md). Policy: all packages target the latest stable Effect 4.x (4.0.0 at the time of writing).
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Every name, signature and table below is proposed. This document completes the model layer of [ERP-SPEC.md](ERP-SPEC.md) §3–§4 and [ERP-MODELS.md](ERP-MODELS.md): the `Records` interface, model logic (constraints, computed fields, hooks), relations, queries and aggregates, module data (seeds and data migrations), inter-module services, sequences, settings, money, translatable data and the clock. Storage mechanics are in [ERP-STORAGE.md](ERP-STORAGE.md); the runtime that hosts all of this is in [ERP-RUNTIME.md](ERP-RUNTIME.md). Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target).
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 ## 1. Decision
 
@@ -68,7 +70,11 @@ interface WriteOptions { readonly projection?: Projection<AnyModel>; readonly lo
 - **Row type.** `Row<M, P>` follows the projection (base row plus the named extensions). Fields the caller may not read are rejected with `Forbidden`, not silently omitted ([ERP-MODELS.md](ERP-MODELS.md) §3).
 - **Transactions.** `Records` never opens a transaction; it requires the gateway's `Tx`. Nested calls share it.
 
+> **Superseded in part (2026-11-08).** The system subject is governed by the core plugin principal ([28](../references/core/behaviors/28-plugin-principal-and-mandatory-policy.md), BEH-BR-257–266) and capability grants ([29](../references/core/behaviors/29-capability-grants-and-call-log.md), BEH-BR-273–278); the gateway that provides `RecordsEnv` is governed by [`@bridger/command`](../references/command/README.md). See the [supersession table](ERP-INDEX.md#supersession-table).
+
 ## 3. The write pipeline, constraints, computed fields and hooks
+
+> **Row-as-truth write path.** This pipeline updates the current row in place in a server transaction; the row is the source of truth. **This conflicts with event-sourced, offline-first write paths**, where facts are appended locally and rows are projections built from them. Such systems should not use this pipeline; see the status banner.
 
 ### Order of execution for `create` and `update`
 
@@ -123,6 +129,8 @@ Model.serve(Invoice, { computed: { total: ({ subtotal, tax }) => Money.add(subto
 - Dormant stored values of a disabled extension are recomputed on re-enable before exposure ([ERP-MODELS.md](ERP-MODELS.md) §6).
 
 ### 3.3 Hooks
+
+> **Superseded in part (2026-11-08).** The hook mechanism — roles (veto, enrich, advisory), order, per-hook timeout, failure policy, per-dispatch deadline, circuit breaker and decision record — is governed by core [31 — Hook points](../references/core/behaviors/31-hook-points.md) (BEH-BR-297–308). Where this section differs (for example, here any hook failure aborts the command, while core 31 resolves a hook error by the point's failure policy and never raises it to the dispatcher), core 31 governs. What remains ERP-specific is which hooks a model declares and the record context they receive.
 
 ```ts
 hooks: {
@@ -408,3 +416,5 @@ These are design acceptance scenarios, not tests already executed.
 | 4 | Filter/sort on translated values | **Source locale only** in the first release (§11). |
 | 5 | Exchange rates and fiscal calendars | **Not platform data.** Money conversion takes a caller-supplied rate; fiscal calendars belong to the accounting domain. |
 | 6 | Rich view definition language | **Deferred** ([ERP-BROWSER.md](ERP-BROWSER.md) §13). |
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-OVW                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): `TaintGuard.drafts` wired through the command catalog layer; neutral example input; seams updated (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.4 (2026-11-08): Worked example: the taint floor withholds automatic allow of changes; declared reads keep the gate's decision (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): API surface: model family, batches of tool calls, envelopes, command tasks in the bridges, idempotency option; seams: realm families, `CurrentCorrelation` (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `TaintGuard.drafts` wired through the command catalog layer; neutral example input; seams updated (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -50,6 +50,9 @@ not: a task state feed, taint tracking, and subagents.
 | `CallLog` port | core, [file 29](../core/behaviors/29-capability-grants-and-call-log.md) |
 | Hook points | core, [file 31](../core/behaviors/31-hook-points.md) |
 | Generic gate with `Defer`, drafts with expected versions | core, [file 32](../core/behaviors/32-generic-gate-and-plan.md) |
+| Realm families (a model adapter per session) | core, [file 33](../core/behaviors/33-realm-families.md) |
+| Correlation of a task's steps and dispatches (`CurrentCorrelation`) | core, [file 22](../core/behaviors/22-attributable-operations.md) |
+| Batches, long-command tasks, the model-facing envelope | [`@bridger/command`](../command/behaviors/07-batches-and-long-commands.md) |
 | Model vendor adapters, prompts, skills, approval UI, which inputs are untrusted beyond the defaults, regulated-command rules | the application |
 
 The package's only runtime dependencies are `effect`, `@bridger/core` and
@@ -60,11 +63,11 @@ The package's only runtime dependencies are `effect`, `@bridger/core` and
 | Export | Kind | Specified in |
 | ------ | ---- | ------------ |
 | `ModelAdapter`, `ModelRequest`, `ModelEvent`, `ModelError` | service key, types | [BEH-AG-001](./behaviors/01-agent-seams.md#beh-ag-001-five-agent-service-keys-each-one-provider-per-realm) |
-| `AgentLoop`, `AgentLoop.plugin` | service key, reference plugin | [BEH-AG-003](./behaviors/01-agent-seams.md#beh-ag-003-a-turn-pins-one-toolset-and-runs-every-tool-call-through-dispatch) |
+| `AgentLoop`, `AgentLoop.plugin({ models?, batchToolCalls?, maxToolResultBytes?, longToolWait?, evalWho?, maxSteps? })` | service key, reference plugin | [BEH-AG-003](./behaviors/01-agent-seams.md#beh-ag-003-a-turn-pins-one-toolset-and-runs-every-tool-call-through-dispatch), [BEH-AG-007](./behaviors/01-agent-seams.md#beh-ag-007-the-model-adapter-is-resolved-per-session-through-a-realm-family), [BEH-AG-008](./behaviors/01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch), [BEH-AG-023](./behaviors/03-taint-and-provenance.md#beh-ag-023-tool-results-reach-the-model-only-as-size-capped-envelopes) |
 | `SessionStore`, `MemoryStore` | service keys | [BEH-AG-004](./behaviors/01-agent-seams.md#beh-ag-004-sessionstore-and-memorystore-keep-data-with-its-provenance) |
-| `ToolRunner`, `ToolRunner.plugin` | service key, reference plugin | [BEH-AG-005](./behaviors/01-agent-seams.md#beh-ag-005-toolrunner-is-dispatch-with-the-turns-pinned-toolset) |
+| `ToolRunner`, `ToolRunner.plugin({ idempotency? })`, `ToolRunner.runBatch` | service key, reference plugin | [BEH-AG-005](./behaviors/01-agent-seams.md#beh-ag-005-toolrunner-is-dispatch-with-the-turns-pinned-toolset), [BEH-AG-008](./behaviors/01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch) |
 | `TaskSnapshot`, `Tasks`, `Tasks.await` | types, service | [02 — Tasks](./behaviors/02-tasks.md) |
-| `HerdrBridge.plugin`, `McpTaskBridge` | adapters | [BEH-AG-013](./behaviors/02-tasks.md#beh-ag-013-the-herdr-bridge-maps-states-and-adds-none), [BEH-AG-014](./behaviors/02-tasks.md#beh-ag-014-the-mcp-tasks-bridge) |
+| `HerdrBridge.plugin`, `McpTaskBridge` (agent runs and command tasks) | adapters | [BEH-AG-013](./behaviors/02-tasks.md#beh-ag-013-the-herdr-bridge-maps-states-and-adds-none), [BEH-AG-014](./behaviors/02-tasks.md#beh-ag-014-the-mcp-tasks-bridge), [BEH-AG-015](./behaviors/02-tasks.md#beh-ag-015-command-tasks-in-the-bridges) |
 | `Taint`, `Provenance`, `TaintPolicy`, `TaintGuard.drafts` | read view over core keys, port, draft source for the command catalog | [03 — Taint and provenance](./behaviors/03-taint-and-provenance.md) |
 | `Agent.spawnSubagent` | function | [04 — Subagents](./behaviors/04-subagents.md) |
 | `ScriptedModel`, `ReplayModel`, `Transcript`, `EvalHook`, `Toolsets.reachable` assertion helper | testing entry point | [05 — Agent testing](./behaviors/05-agent-testing.md) |
@@ -111,8 +114,9 @@ What the example relies on: each step's tool calls go through
 `Commands.dispatch` with the turn's pinned toolset; a gate `Defer` turns the
 task to `awaiting-approval` rather than failing it; if the session has read
 an imported tool's output, the command catalog's taint floor withholds any
-automatic allow and `TaintGuard.drafts` turns it into a draft, so a person
-approves before anything changes through dispatch.
+automatic allow of a command not declared `readOnly` and `TaintGuard.drafts`
+turns it into a draft, so a person approves before anything changes through
+dispatch; declared reads still run on the gate's decision.
 
 ## What stays in core, and what stays in the application
 
@@ -120,7 +124,8 @@ Core gains nothing from this package. It needs core seams that are specified
 in core: the annotation bag and `CallerContext` ([file 30](../core/behaviors/30-operation-context-annotations.md)),
 the plugin principal ([file 28](../core/behaviors/28-plugin-principal-and-mandatory-policy.md)),
 the generic gate with `Defer` and drafts ([file 32](../core/behaviors/32-generic-gate-and-plan.md)),
-and `Realm.ephemeral` with `Actor.narrow` ([file 33](../core/behaviors/33-realm-families.md)).
+`Realm.ephemeral`, `Realm.family` and `Actor.narrow` ([file 33](../core/behaviors/33-realm-families.md)),
+and `CurrentCorrelation` ([file 22](../core/behaviors/22-attributable-operations.md)).
 The application keeps every domain rule: which commands an agent may see,
 which ones are regulated and how they are approved, which texts are untrusted
 beyond the defaults, how much an agent may spend.

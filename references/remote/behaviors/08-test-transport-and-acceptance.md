@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-08                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -292,6 +292,76 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  them into the receiving fiber; a callback's mutating call
                  records the token's actor, the link as `onBehalfOf`, and
                  the "audit" keys.
+             34. With `OrgOf` provided, a token and the `call` claims carry
+                 `org`; without it neither does; `org` never appears in
+                 `RemoteStatus` (BEH-RM-065).
+             35. A `PrincipalBudget` refusal fails the call with
+                 `RemoteBudgetExceeded` before any frame and offers one
+                 "refusal" entry; a failing `admit` refuses; `charge` sees
+                 only the measures the profile lists (BEH-RM-066).
+             36. On a per-call `TestTransport` profile that duplicates a
+                 `call` to two guest instances sharing one in-memory
+                 `DedupeStore`, the handler runs once; the second copy is
+                 answered with the stored result, or with `InProgress`
+                 while the first runs, and the link keeps the call in
+                 flight on `InProgress` (outcome "unknown" at its
+                 deadline); a copy refused "busy" or "deadline-passed"
+                 holds no claim; a copy delivered after the retention
+                 expired runs again (the stated residual); a guest started
+                 with neither a store nor "idempotent-handlers" fails to
+                 start; a failing `claim` refuses "busy" and runs nothing
+                 (BEH-RM-020, BEH-RM-035, BEH-RM-067, INV-RM-009).
+             37. A link whose manifest `residency` is not among its
+                 transport's labels fails its build with `PlacementRefused`
+                 and opens no session; with no labels declared it is
+                 refused; with no required label it is never refused; a
+                 throwing policy refuses "policy-defect" (BEH-RM-068).
+             38. A call carries `placement/residency` in its encoded
+                 annotations; a serving end whose profile does not offer the
+                 label answers "placement-refused" before any lease and
+                 offers a "refusal" entry; the label reaches the audit
+                 records of a callback's mutating call; a fiber already
+                 carrying a label that the link's transport does not offer
+                 is refused before any frame is sent, on a link with no
+                 required label or a different one (BEH-RM-069).
+             39. `Transport.postMessage` refuses `targetOrigin` "*"; the
+                 guest ignores messages from an origin not listed, from a
+                 source other than its parent, or without one port; in the
+                 "opaque" mode `open` refuses a frame whose `sandbox`
+                 contains "allow-same-origin", ignores a `ready` from
+                 another window or with an unknown or used nonce, posts the
+                 port once, and fails at `connectTimeout` without `ready`;
+                 after the handshake no frame travels on
+                 `window.postMessage`; a reloaded frame is a new session
+                 with a new epoch (BEH-RM-070).
+             40. The Workers for Platforms adapter passes `limits` and
+                 `outbound` on every dispatch, fails `open` beyond provider
+                 limits, and runs the transport conformance suite with a
+                 `DedupeStore` (BEH-RM-071).
+             41. A boundary revocation records `unmount-requested` with
+                 `requestedBy` the revoking actor and reason before the
+                 session child's `system-stop`; with a wired `RefusalList`
+                 refusing the link's digest, a later restart leaves the
+                 link `disabled` ("refused-digest"); one "revocation"
+                 entry is offered per matching link (BEH-RM-014).
+             42. Crossings and refusals are offered with core entry kinds;
+                 a callback under a `CallLog` whose `record` fails is
+                 refused with `CallbackDenied`; a served call's and a
+                 callback's mutating calls carry the caller's correlation;
+                 a hook point dispatched from a served call wakes a dormant
+                 veto contributor instead of "no-host-link"; a method's
+                 deadline is the descriptor's timeout when shorter than
+                 `callTimeout` (BEH-RM-017, BEH-RM-039, BEH-RM-045,
+                 BEH-RM-046).
+             43. Wire negotiation: a release at N and a guest at N−1 agree
+                 on N−1, two ends at N on N, an end listing only N against
+                 one at N−1 is refused "wire" with no session; a frame at a
+                 version other than the agreed one ends the session; a
+                 revocation entry carries the epoch when a session was
+                 open (BEH-RM-009, BEH-RM-014).
+             44. A multiplexed endpoint given residency labels reports
+                 them in its profile, and a link over it is placed against
+                 them (BEH-RM-056, BEH-RM-068).
 ```
 
 A check that is listed here and has no executed test is a gap in the
@@ -300,4 +370,4 @@ something nearby.
 
 ---
 
-_Previous: [07 — Transports and Adapters](./07-transports-and-adapters.md)_
+_Previous: [07 — Transports and Adapters](./07-transports-and-adapters.md)_ · _Next: [09 — Placement, Budgets and Adapters](./09-placement-budgets-and-adapters.md)_

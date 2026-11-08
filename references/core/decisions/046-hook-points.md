@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-046                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-050                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): breaker transitions on the hook point's `decisions` stream only, not host events; deadline interruptions do not feed the breaker (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.3 (2026-11-08): Amended by ADR-BR-050; the Phases bullet superseded (CCR-BR-024)<br>0.2 (2026-11-08): breaker transitions on the hook point's `decisions` stream only, not host events; deadline interruptions do not feed the breaker (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -34,7 +34,7 @@ Add one helper, `HookPoint`, and one function, `Selector`, beside `ContributionR
 - **Roles.** Each contribution declares a role at registration: `veto` (may end the decision), `enrich` (adds a value under its own id), `advisory` (adds advice). A result outside the role is an error.
 - **Admission by the application's rule.** `who(contributor, role, hookPoint)` runs once at registration over the owner, read from the plugin principal ([28 — Plugin Principal and Mandatory Policy](../behaviors/28-plugin-principal-and-mandatory-policy.md)), and labels the application supplies. Core knows no tiers and ships no default rule.
 - **Deterministic order.** Priority then id, over the view at the start of the dispatch, held for its duration.
-- **Phases.** Veto hooks run serially; the first admitted veto decides. Only if allowed, enrich and advisory hooks run concurrently, each on the input alone; their values stay namespaced by contribution id.
+- **Phases.** Veto hooks run serially; the first admitted veto decides. Only if allowed, enrich and advisory hooks run concurrently, each on the input alone; their values stay namespaced by contribution id. *(Superseded by [ADR-BR-050](./050-dormant-veto-and-hook-phases.md): phases run enrich, then veto over the enrichments, then advise.)*
 - **Closed veto vocabulary.** A veto carries a code from the hook point's declared set and primitive parameters, never free text.
 - **Failure policy.** A per-hook `timeout`; `onError: "deny" | "skip"` for veto hooks; enrich and advisory errors are always skipped. An optional `skip` policy (for example entitlement or budget) skips a contribution before its call; such a skip is recorded as `skipped-policy`, never denies and never counts toward the breaker. `dispatch` never fails: its result is a verdict.
 - **Deadline.** A per-dispatch deadline (the least of the hook point's, the call's and the context's `Deadline` annotation) bounds the whole decision; the dispatch does not wait for interrupted hooks' finalizers.
@@ -77,3 +77,4 @@ Add one helper, `HookPoint`, and one function, `Selector`, beside `ContributionR
 - Risks: [RSK-BR-032](../gxp/03-risk-assessment.md#rsk-br-032), [RSK-BR-014](../gxp/03-risk-assessment.md#rsk-br-014)
 - Decisions: [ADR-BR-003](./003-one-provider-per-key-per-realm.md), [ADR-BR-005](./005-failure-is-sticky.md), [ADR-BR-020](./020-typed-event-bus.md), [ADR-BR-024](./024-shared-state-helpers.md), [ADR-BR-030](./030-audit-sink-port.md), [ADR-BR-032](./032-operation-gate.md)
 - Source: architecture review of 2026-11-08 (gap analysis), §4 conflicts and §5 item 6. No SPEC.md section.
+- Amended by: [ADR-BR-050](./050-dormant-veto-and-hook-phases.md) — phases enrich → veto → advise; declarations of plugins not yet loaded; per-contribution `onError`, `breakerScope`, targets; `skip` renamed `policy` with a `Deny` outcome (CCR-BR-024).

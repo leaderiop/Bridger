@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-01                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-08, A-09, A-16): `Started` chosen by the descriptor's `long`, never by the output's shape; the idempotency key covers a resubmission within the process, not crash recovery of the run; a step with a long call is not batched; a batch of declared reads from a tainted session runs on the gate's decision, other batches need an approval that also covers their compensations (CCR-AG-003)<br>0.3 (2026-11-08): Steps run under core `CurrentCorrelation`; tool calls carry an idempotency key; tool results reach the model as envelopes; long commands and batches in `ToolOutcome`; `ResumeInput.Approved` carries one outcome per drafted command; BEH-AG-007 model adapter per session through a realm family; BEH-AG-008 a step's tool calls as one batch (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -22,8 +22,7 @@ spending is bounded. This file names them as ordinary Bridger service keys,
 each provided by one plugin per realm
 ([ADR-BR-003](../../core/decisions/003-one-provider-per-key-per-realm.md)), and
 fixes the structure of one turn: one pinned toolset, every tool call through
-command dispatch. This file owns BEH-AG-001–008 and uses BEH-AG-001–006; 007
-and 008 are reserved.
+command dispatch. This file owns BEH-AG-001–008 and uses all eight.
 
 Planned source: `packages/agent/src/Keys.ts`, `packages/agent/src/AgentLoop.ts`,
 `packages/agent/src/ToolRunner.ts` *(Planned)*.
@@ -88,7 +87,7 @@ interface ModelAdapterShape {
 }
 
 interface ModelRequest {
-  readonly messages: ReadonlyArray<Message>              // from SessionStore, each with its Provenance (03)
+  readonly messages: ReadonlyArray<Message>              // from SessionStore, each with its Provenance (03); tool results as envelopes (BEH-AG-023)
   readonly tools: ReadonlyArray<CommandDescriptor>       // the turn's pinned Toolset, in Toolset order
   readonly toolsetFingerprint: string
   readonly maxOutputTokens?: number
@@ -152,11 +151,13 @@ interface StartRequest {
   readonly selector?: ToolsetSelector      // @bridger/command; default selector when absent
   readonly taintedSelector?: ToolsetSelector  // used for turns that begin while the session is tainted (03, BEH-AG-022)
   readonly budget?: BudgetScope            // entitlement companion's scope descriptor
+  readonly model?: string                  // the model key of BEH-AG-007; default: the session id
 }
 
 // How the application tells a waiting task what happened (02, BEH-AG-012).
 type ResumeInput =
-  | { readonly _tag: "Approved"; readonly draftId: string; readonly outcome: ToolOutcome }   // the re-dispatch's outcome
+  | { readonly _tag: "Approved"; readonly draftId: string
+      readonly outcomes: ReadonlyArray<ToolOutcome> }          // one per drafted command, in draft order (02, BEH-AG-012)
   | { readonly _tag: "Refused"; readonly draftId: string; readonly reason: string }
   | { readonly _tag: "Stale"; readonly draftId: string            // core Draft.check returned Stale (BEH-BR-316)
       readonly mismatches: ReadonlyArray<{ readonly key: string; readonly expected: string; readonly actual: Option.Option<string> }> }
@@ -201,6 +202,15 @@ REQUIREMENT: The loop MUST bound a turn by `maxSteps` (default 20) and fail
 ```
 REQUIREMENT: The loop MUST report every state change of a task through
              `Tasks` (02 — Tasks) in the order it happens.
+```
+
+```
+REQUIREMENT: The loop MUST take one correlation id per task from the host's
+             `IdGenerator` and MUST run every step inside core's
+             `CurrentCorrelation.with(id)` (BEH-BR-187), so that model
+             calls, tool dispatches, their hooks and handlers, and any host
+             call they cause carry it. The loop MUST NOT pass a
+             `correlationId` in `OperationContext` for that purpose.
 ```
 
 ```
@@ -288,7 +298,7 @@ session; v0.1 assumes one turn at a time per session and the loop serializes.
 
 ## BEH-AG-005: ToolRunner is dispatch with the turn's pinned toolset
 
-> **Invariant:** [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed), [INV-AG-002](../invariants.md#inv-ag-002-a-turn-sees-one-toolset)
+> **Invariant:** [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed-a-change), [INV-AG-002](../invariants.md#inv-ag-002-a-turn-sees-one-toolset)
 > **See:** [ADR-AG-001](../decisions/001-agent-is-swappable-keys.md)
 > **Core seam:** [command — Dispatch](../../command/behaviors/02-dispatch.md), [30 — Operation context annotations](../../core/behaviors/30-operation-context-annotations.md), [28 — Plugin principal and mandatory policy](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md)
 
@@ -302,20 +312,28 @@ interface ToolCallRequest {
   readonly tool: string
   readonly input: unknown
   readonly toolset: PinnedToolset
-  readonly context: OperationContext            // actor, correlationId, annotations incl. Taint and Provenance
+  readonly context: OperationContext            // actor and annotations incl. Taint and Provenance; correlation from the fiber
+  readonly idempotencyKey?: string              // "agent:" + taskId + ":" + step + ":" + callId, when enabled
 }
 type ToolOutcome =
-  | { readonly _tag: "Ok"; readonly output: unknown; readonly provenance: Provenance }
-  | { readonly _tag: "Deferred"; readonly draftId: string }
+  | { readonly _tag: "Ok"; readonly output: Json; readonly provenance: Provenance }   // the encoded output; rendered by the loop (BEH-AG-023)
+  | { readonly _tag: "Started"; readonly taskId: string; readonly command: string }   // a long command (02, BEH-AG-015)
+  | { readonly _tag: "Deferred"; readonly draftId: string; readonly commands: ReadonlyArray<string> }
   | { readonly _tag: "Failed"; readonly error: { readonly _tag: string; readonly message: string } }
 ```
 
 ```
 REQUIREMENT: `ToolRunner.plugin()` MUST run each call as
-             `Commands.dispatch(call.tool, call.input, { context, toolset })`
-             and MUST map the result: success to `Ok`, `CommandDeferred` to
-             `Deferred` with its draft id, and every other failure to
-             `Failed` with its tag and a message.
+             `Commands.dispatch(call.tool, call.input, { context, toolset,
+             idempotencyKey })` and MUST map the result: success to `Ok`
+             with the output encoded by the command's output schema (the
+             loop renders it as an envelope, BEH-AG-023), the
+             `CommandTaskRef` of a command whose descriptor in the pinned
+             toolset is `long` to `Started` (decided by the descriptor,
+             never by the shape of the output, command BEH-CM-052),
+             `CommandDeferred` to `Deferred` with its draft id and the
+             command id, and every other failure to `Failed` with its tag
+             and a message.
 ```
 
 ```
@@ -344,9 +362,21 @@ the same rules. A tool error goes back to the model as data rather than
 failing the task, because the model may recover from it; a `Deferred` stops
 the turn (02 — Tasks).
 
-**Settled here.** Tool errors are returned to the model with their tag, not
-their cause: a cause can contain internal detail an application would not
-send to a model vendor.
+**Settled here.** (1) Tool errors are returned to the model with their tag,
+not their cause: a cause can contain internal detail an application would not
+send to a model vendor. (2) The idempotency key names the task, the step and
+the model's call id, so that a runner or loop that resubmits the same call
+within the life of the task — a retry after a transport failure, a resumed
+step after an approval — meets the stored outcome (command BEH-CM-041)
+instead of a second run; a model that calls the tool again makes a new call
+with a new id, judged again. It is not crash recovery: the `Tasks` table is
+in memory (02, BEH-AG-011), so after a restart the task and its id are gone
+and nothing resubmits under its key; a command task the call started keeps
+its record only when the catalog has a persistent `CommandTaskStore`
+(command BEH-CM-054). The key is passed only with
+`ToolRunner.plugin({ idempotency: true })`: a keyed dispatch is refused when
+the catalog has no `CommandReceipts` (`IdempotencyConflict`, "no-receipts"),
+so enabling it is the application's choice once receipts are wired.
 
 ## BEH-AG-006: Budgets are reserved through the entitlement companion, and the reference plugins are replaceable
 
@@ -382,6 +412,122 @@ model budget and is the application's command rule.
 
 **Open.** Whether tool calls should also reserve against `Budget` (some
 commands cost money); left to the entitlement companion's scope model.
+
+## BEH-AG-007: The model adapter is resolved per session through a realm family
+
+> **See:** [ADR-AG-001](../decisions/001-agent-is-swappable-keys.md)
+> **Core seam:** [33 — Realm families](../../core/behaviors/33-realm-families.md)
+
+```ts
+// illustrative — not type-checked
+AgentLoop.plugin(options: {
+  readonly models?: RealmFamily<string>     // core Realm.family, owned by the application; members provide ModelAdapter
+  readonly maxSteps?: number
+  readonly evalWho?: AdmissionRule          // 05, BEH-AG-036
+})
+// The application decides what a model key means: one realm per session, or per model profile.
+const models = yield* Realm.family(host, {
+  id: "agent-models",
+  realm: () => ({}),
+  plugins: (key) => [modelPluginFor(key)],          // e.g. a vendor adapter configured for that profile
+  context: { actor: serviceActor, reason: "agent model per session" },
+  idleEvict: { after: "15 minutes" }
+})
+```
+
+```
+REQUIREMENT: When `models` is given, the reference loop MUST resolve the
+             `ModelAdapter` of every step through
+             `models.use(key, [ModelAdapter], …)` (core BEH-BR-329–332),
+             with `key` = `StartRequest.model` when given and the session id
+             otherwise, holding the member for the length of the model call
+             only. Without `models`, it MUST resolve `ModelAdapter` in the
+             loop plugin's own realm, as revision 0.2 did.
+```
+
+```
+REQUIREMENT: A `FamilyMemberUnavailable` or other resolution failure MUST
+             fail the step with `ModelError { kind: "unavailable" }` and
+             MUST NOT fall back to another key or to the loop's realm.
+```
+
+```
+REQUIREMENT: The package MUST NOT create the family or choose its plugins:
+             the family's owner is the application (core BEH-BR-329), and
+             the members' plugins are its model adapters. The package MUST
+             NOT describe a member realm as isolating one session's model
+             from another's.
+```
+
+Different sessions want different models — a cheaper one for a summary, a
+customer's own deployment for another — and a model adapter often carries
+per-session configuration. A realm family gives each key its own
+`ModelAdapter` provider, created on first use and evicted when idle, through
+public host operations that are attributed, gated and audited. The loop only
+names the key.
+
+**Settled here.** (1) The member is held per model call, not per turn, so an
+idle eviction never waits for a turn that is waiting on a person. (2) Keying
+by session id is the default because it needs no extra input; an application
+that has profiles passes `model` and keeps the number of members small.
+
+## BEH-AG-008: The tool calls of one step may be dispatched as one batch
+
+> **See:** [ADR-AG-003](../decisions/003-taint-is-monotone-and-forbids-auto-allow.md)
+> **Core seam:** [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md), [command — Batches and long commands](../../command/behaviors/07-batches-and-long-commands.md)
+
+```ts
+// illustrative — not type-checked
+AgentLoop.plugin({ batchToolCalls: true })   // default false
+// ToolRunnerShape gains:
+//   readonly runBatch: (calls: readonly [ToolCallRequest, ...ToolCallRequest[]]) => Effect.Effect<ReadonlyArray<ToolOutcome>>
+```
+
+```
+REQUIREMENT: With `batchToolCalls: true`, when a step's model call requests
+             two or more tool calls, the loop MUST run them through
+             `ToolRunner.runBatch`, which MUST make exactly one
+             `Commands.batch` (command BEH-CM-049) of the calls in the order
+             the model gave them, with the turn's pinned toolset and each
+             call's idempotency key. With `batchToolCalls: false`, a
+             single call, or a step in which any call names a command whose
+             descriptor in the pinned toolset is `long` (a batch refuses
+             long items, command BEH-CM-049), the loop MUST run each call
+             through `run`, in the model's order.
+```
+
+```
+REQUIREMENT: `runBatch` MUST map the batch's outcome to one `ToolOutcome`
+             per call: on success, `Ok` for each; on `CommandDeferred`, the
+             same `Deferred { draftId, commands }` for each, `commands`
+             being every call's command id; on `CommandBatchRejected`,
+             `Failed` for the rejected call and `Failed` with tag
+             "NotRun" for the others; on `CommandBatchRolledBack` or
+             `CommandBatchPartial`, `Failed` for each call with that tag and
+             a message naming whether the call's effects were undone.
+```
+
+```
+REQUIREMENT: A deferred batch MUST put the task in `awaiting-approval` once,
+             with the draft id and all command ids (02, BEH-AG-012); the
+             approval applies all calls or none.
+```
+
+A model that plans three edits in one step means them together. Dispatching
+them as one batch lets the gate see all three before any runs, defers them as
+one proposal when any needs a person, and applies the approval to all or none
+(recheck X6). A model that issues independent lookups in one step loses
+nothing: a batch of commands declared `readOnly` is admitted and run like
+separate calls, also in a tainted session, because the command catalog's
+taint floor keeps the gate's decision for declared reads (command
+BEH-CM-016). A batch with any other command, in a tainted session, is
+deferred as one draft; its approval also covers the compensations planned
+for its items (command BEH-CM-051), so its undo does not need a second
+approval.
+
+**Settled here.** Off by default, because a batch changes what a model sees
+when one call fails: the others are reported as not run or undone, which a
+prompt must be written to understand.
 
 ---
 

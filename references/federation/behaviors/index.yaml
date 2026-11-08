@@ -22,3 +22,7 @@ entries:
     id: "BRIDGER-FD-BEH-05"
     title: "Testing and acceptance"
     range: "BEH-FD-033..040"
+  - file: "06-kill-path-placement-and-skew.md"
+    id: "BRIDGER-FD-BEH-06"
+    title: "Kill path, placement and skew"
+    range: "BEH-FD-041..048"

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-30                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
+> | Change History | 0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
 
 ---
 
@@ -285,12 +285,17 @@ REQUIREMENT: Annotations MUST cross a process boundary only under
 
 ```ts
 // illustrative — not type-checked
-interface CallerContext { readonly actor: Actor; readonly annotations: Annotations }
+interface CallerContext {
+  readonly actor: Actor
+  readonly annotations: Annotations
+  readonly correlationId?: string        // the invoker's CurrentCorrelation, when set (22, BEH-BR-187)
+}
 declare const CallerContext: {
-  // the calling fiber's CurrentActor and CurrentAnnotations
+  // the calling fiber's CurrentActor, CurrentAnnotations and CurrentCorrelation
   readonly current: Effect.Effect<CallerContext>
-  // runs `effect` with CurrentActor = ctx.actor and CurrentAnnotations = ctx.annotations
-  // combined into what the fiber carries (monotonic keys kept); the principal is not touched
+  // runs `effect` with CurrentActor = ctx.actor, CurrentAnnotations = ctx.annotations
+  // combined into what the fiber carries (monotonic keys kept) and, when ctx.correlationId
+  // is present, CurrentCorrelation = ctx.correlationId; the principal is not touched
   readonly serve: (ctx: CallerContext) => <X, E, R>(effect: Effect.Effect<X, E, R>) => Effect.Effect<X, E, R>
 }
 ```
@@ -303,8 +308,8 @@ REQUIREMENT: Code that one party registers and another party invokes as a
              fiber — is a *served call*. Whoever runs a served call MUST run
              it inside `CallerContext.serve(ctx)`, with `ctx` read by
              `CallerContext.current` in the invoking fiber, so that the
-             served code sees the invoker's actor and annotations, exactly
-             as a provider's method does. `CallerContext.serve` MUST NOT
+             served code sees the invoker's actor, annotations and
+             correlation, exactly as a provider's method does. `CallerContext.serve` MUST NOT
              change the fiber's plugin principal: the principal stays the
              one the running context carries (for a handler run with the
              contributor's captured context, the contributor's), so a host
@@ -340,9 +345,13 @@ nested request or host call from it would be unattributed and untainted —
 a laundering route through honest code. `serve` adds no power: `CurrentActor`
 and `CurrentAnnotations` are references any code can provide; it fixes one
 way of using them so that every companion that dispatches does the same.
-A correlation id is not part of `CallerContext`: core keeps no correlation in
-the fiber (22, BEH-BR-187), and a dispatcher that wants nested calls to share
-one passes it in their `options.context`.
+Revision 0.2 kept the correlation out of `CallerContext` because core kept
+none in the fiber. Revision 0.3 (CCR-BR-026) adds `CurrentCorrelation` (22,
+BEH-BR-187; [ADR-BR-054](../decisions/054-correlation-in-the-fiber.md)), and
+`CallerContext` carries it, so a nested host call from served code records
+the invoker's correlation without the dispatcher passing it in
+`options.context` (URS gap G58). A `ctx` without `correlationId` leaves the
+fiber's `CurrentCorrelation` as it is.
 
 ## BEH-BR-293: Which annotations reach audit records and the call log
 
@@ -541,6 +550,21 @@ REQUIREMENT: The following checks MUST pass before this file's behaviours
                  "callLog" keys; no annotation appears in snapshots,
                  events or logs; with none set, the suites of files 02–29
                  pass unchanged (BEH-BR-293, BEH-BR-295).
+             106. Correlation in the fiber: a call takes `options.context`'s
+                 `correlationId`, else the fiber's `CurrentCorrelation`,
+                 else a generated one; the gate request, every record of the
+                 call, the system records it causes and the builds and
+                 finalizers they run see that id, and a host call from such
+                 a build records it; background fibers, health checks and
+                 `whenAvailable` runs start with none; listeners see the
+                 dispatcher's; `CallerContext.serve` sets the invoker's for
+                 a served call and a nested host call records it; a root
+                 system record takes the fiber's correlation when one is
+                 set; a `CallEntry` carries the caller's; the
+                 `ConfigFingerprinter` never sees one; no correlation
+                 appears in snapshots, events or logs (22 — Attributable
+                 Operations, BEH-BR-187; 23 — Audit Sink and Record,
+                 BEH-BR-199; BEH-BR-292).
 ```
 
 ---

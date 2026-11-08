@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-08                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — checks 6, 8, 13, 15, 17, 20, 21, 24, 25 and 27 restated; checks 28–30 added (receiver regression, two parking levels, history pulls) (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F13, F16, F22, F25, F26, F27; R5-04/05, R5-13) — checks 31, 33–35, 37, 38 restated; checks 39–41 added (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — checks 31–38 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — checks 6, 8, 13, 15, 17, 20, 21, 24, 25 and 27 restated; checks 28–30 added (receiver regression, two parking levels, history pulls) (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -97,6 +97,17 @@ REQUIREMENT: An implementation MUST pass the checks below with `TestStore`
 28. A receiver restored to an older store reports a lower watermark; the relay reports `receiver-regressed` and resends from it out of `retained`; when the outbox purged part of the range it reports `envelopes-lost`, and the stream proceeds only after an attributed `acceptGap` (BEH-DB-017, BEH-DB-019).
 29. An unknown envelope format and a conflicting event id stop the (origin, stream) at the inbox — watermark unchanged, later envelopes not acknowledged, no subscription sees them — until `releaseStream`; a batch with an element lacking origin, stream or sequence is refused whole; a parked envelope is per subscription, and after `unpark` it is processed after the envelopes that followed it (BEH-DB-002, BEH-DB-018, BEH-DB-022).
 30. `follow` pulls pages of at most `maxPage` with one read in flight per source, backs off with seeded jitter, and feeds pages through the inbox rules (duplicates and gaps absorbed) (BEH-DB-047).
+31. With a test `PayloadCodec`, every stored and sent payload is the codec's output and `Envelope.codec` names it; no other field differs from an identity-codec run; a codec failure fails `publish` and writes nothing; `PayloadUnreadable` is parked under `onUnreadable` "park" and halts under "halt"; `subscribeEnvelopes` hands the handler the stored payload and codec unchanged, with no decode; an envelope under a codec id listed in `decodes` reads after a rotation, an unlisted one is handled under `onPoison` (BEH-DB-008, BEH-DB-020).
+32. `onBehalfOf` is `PrincipalRef.encode` of the publisher's principal and decodes on receipt; `correlationId` is the publisher's `CurrentCorrelation`; a handler's mutating calls carry the envelope's correlation (BEH-DB-002, BEH-DB-005, BEH-DB-007).
+33. `rebootstrapOutbox().settle` pushes pending envelopes and reports `pushed` and `kept`; under "pushed" (the default) a remaining backlog fails with `RebootstrapBlocked`; "pushed-or-kept" with `replaces` "whole-store" fails with "kept-needs-in-store"; a store error fails with "outbox-unavailable"; `settle` acknowledges nothing itself (BEH-DB-048).
+34. A `SnapshotProvider.restore`, or an in-store install run through `OutboxSettlement.install`, that deletes or acknowledges an outbox row is rolled back with "outbox-touched" and the outbox is unchanged; an envelope published between `settle` and the in-store install survives it (BEH-DB-044, BEH-DB-048, INV-DB-009).
+35. A wired `AccessPolicy` is asked on publish, on subscribe and on every delivery, with the envelope's `node#incarnation` origin for local, received and pulled envelopes; a denied publish or subscribe fails with `AccessRefused` and writes nothing; a denied delivery parks or halts under `onPoison`, never runs the handler, for local, received and pulled envelopes; a retired principal leaves the cursor in place (BEH-DB-053).
+36. With `publishVersion` N−1, a value that survives the round trip is published at N−1 and one that does not fails with `DowncastRefused`; `publishVersions` switches the writer to N without a new release; `DurableEvent.make` rejects a `publishVersion` below N−1 or without `downcast[N]` (BEH-DB-030, BEH-DB-031).
+37. `status.versions` reports the lowest and highest version stored per (type, origin), updated in the receipt transaction, reset only by an attributed `resetVersions`; `status.readers` reports the lowest version read per type by registered subscriptions; both are offered as federation `VersionReports` (kinds "received" and "reader") (BEH-DB-032).
+38. A destination whose route does not offer an envelope's `placement/residency` label is skipped and reported, and receives a `Withheld` marker at that sequence carrying no type, payload, actor or annotations; its inbox stores the marker, advances the watermark and every cursor without a handler call, and the next envelope of the stream is processed without a gap; a receiver whose `inboxResidency` does not offer a label stops the (origin, stream) with `PlacementRefused` (BEH-DB-016, BEH-DB-018, BEH-DB-020).
+39. A whole-store re-bootstrap without an `IncarnationSource` is refused with "no-incarnation-source"; with one, `publish` fails with `OutboxFrozen` from the end of the first drain phase until the settlement's scope closes, the install raises the incarnation, and envelopes published afterwards carry the new origin and are accepted by a receiver that acknowledged the old one (BEH-DB-004, BEH-DB-048).
+40. A `HistorySource` built for a reader returns, in place of an envelope the reader's route does not offer or the `HistoryAccess` denies, a `Withheld` marker with the matching reason, counted per reader; with `access` "open" only placement is checked; a failing `decide` is a denial (BEH-DB-047).
+41. Every `publish` error (`EncodeFailed`, `DowncastRefused`, `PayloadEncodeFailed`, `AccessRefused`, `OutboxFrozen`, `OutboxWriteFailed`, `Unattributed`) writes nothing and, left unhandled, rolls back the caller's own write in the same transaction (BEH-DB-009, BEH-DB-031).
 
 ---
 

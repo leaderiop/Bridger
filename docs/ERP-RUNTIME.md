@@ -1,6 +1,8 @@
 # Bridger ERP: how the ERP runs on the Bridger core
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Names, interfaces and numbers below are proposed. This document joins the generic runtime in [SPEC.md](SPEC.md) (`Host`, scoped leases, `Generation`) to the ERP contracts in [ERP-SPEC.md](ERP-SPEC.md), [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) and [ERP-STORAGE.md](ERP-STORAGE.md). It **supersedes** the earlier statements that the ERP keeps one Bridger Host per tenant. Policy: all packages target the latest stable Effect 4.x (4.0.0 at the time of writing).
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Names, interfaces and numbers below are proposed. This document joins the generic runtime in [SPEC.md](SPEC.md) (`Host`, scoped leases, `Generation`) to the ERP contracts in [ERP-SPEC.md](ERP-SPEC.md), [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) and [ERP-STORAGE.md](ERP-STORAGE.md). It **supersedes** the earlier statements that the ERP keeps one Bridger Host per tenant. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target).
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 ## 1. Decision
 
@@ -98,6 +100,8 @@ Everything in it is immutable and tenant-independent. Module-scoped resources (c
 
 ## 5. The tenant generation
 
+> **Superseded in part (2026-11-08).** A per-key realm created lazily and evicted when idle through lease drain is governed by core [33 — Realm families](../references/core/behaviors/33-realm-families.md) (BEH-BR-329–338). The ERP registry content below remains an application design; re-expressing the tenant generation as a member of a realm family keyed by tenant is open.
+
 ```ts
 interface TenantGeneration {
   readonly tenantId: string
@@ -194,6 +198,8 @@ Numbers are initial defaults to be tuned after a prototype; the structure is the
 
 ## 9. Multiple nodes
 
+> **Superseded in part (2026-11-08).** Multi-host rollout is governed by [`@bridger/federation`](../references/federation/README.md). The rule below applies only to nodes that share one ERP database.
+
 Each node has its own Host, activations and generation cache; the database holds the desired state. The rollout protocol of [ERP-OPERATIONS.md](ERP-OPERATIONS.md) §3 applies **per (tenant, module) on nodes where the tenant is resident**:
 
 - A node where the tenant is resident acknowledges the target generation after publishing its new `TenantGeneration` (drained).
@@ -233,3 +239,5 @@ These are design acceptance scenarios, not tests already executed.
 | 2 | Numeric defaults | **Initial values in §8**, to be tuned after a prototype. |
 | 3 | Dynamic service keys | The loader creates `ModuleRuntime` keys per closure; if Effect's key identity proves unsuitable for runtime-created keys, an indirection (one key, a closure-indexed map) is the fallback. To be settled in the loader prototype. |
 | 4 | Cross-tenant module state | **Not allowed.** Module activations hold no tenant data; module-level caches may hold only tenant-independent data (compiled artifacts, regexes). |
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-06                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — downstream history is pulled through the new `HistorySource` port (BEH-DB-047); `SnapshotRequired` only on that port; `Ack.retryAfter` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F16) — BEH-DB-048 rewritten: scoped `settle` returns an `OutboxSettlement` whose `install` is the guarded install path ("in-store": outbox comparison in one transaction; "whole-store": outbox frozen with `OutboxFrozen`, incarnation raised through `IncarnationSource`); default `require` "pushed", "pushed-or-kept" only in-store; heading changed (old anchor kept); `HistorySource` built per reader with a placement check and a `HistoryAccess` decision ("open" explicit), refusals served as `Withheld` markers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 19 — BEH-DB-048 `DurableBus.rebootstrapOutbox` (push or keep before a snapshot, `RebootstrapBlocked`); BEH-DB-044 restore checked not to touch the outbox (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — downstream history is pulled through the new `HistorySource` port (BEH-DB-047); `SnapshotRequired` only on that port; `Ack.retryAfter` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -26,8 +26,7 @@ own outbox) are never dropped, only slowed; **downstream history** (a
 source's retained envelopes that a subscriber reads) may be replaced by a
 snapshot. Upstream facts are pushed by the relay (`DeliveryTransport`, 03);
 downstream history is pulled by the subscriber (`HistorySource`,
-BEH-DB-047). This file owns BEH-DB-041–048 and uses BEH-DB-041–047;
-BEH-DB-048 is reserved.
+BEH-DB-047). This file owns BEH-DB-041–048 and uses all eight.
 
 Planned source: `packages/durable-bus/src/Relay.ts` and
 `packages/durable-bus/src/Snapshot.ts` *(Planned)*.
@@ -84,7 +83,7 @@ of routine events; ordering within each stream is never traded for it.
 
 > **Invariant:** [INV-DB-006](../invariants.md#inv-db-006-no-envelope-is-dropped-silently)
 > **See:** [ADR-DB-006](../decisions/006-bounded-replay-and-snapshots.md)
-> **Depends on:** [BEH-FD-014](../../federation/behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot) (federation re-bootstrap)
+> **Depends on:** [BEH-FD-014](../../federation/behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first) (federation re-bootstrap)
 
 ```
 REQUIREMENT: A `HistorySource` (BEH-DB-047) MUST answer a read whose `after`
@@ -116,6 +115,16 @@ interface SnapshotProvider {
 ```
 REQUIREMENT: The snapshot's restore, the watermark reset and the cursor
              resets MUST commit in one `StoreTransaction`.
+```
+
+```
+REQUIREMENT: The restore MUST NOT remove, rewrite or acknowledge any outbox
+             envelope. Inside the restore transaction, the bus MUST compare,
+             for each destination, the pending (origin, stream, sequence)
+             set and the highest outbox sequence per (origin, stream) before
+             and after `SnapshotProvider.restore`; any difference MUST roll
+             the transaction back and fail the restore with
+             `SnapshotFailed { reason: "outbox-touched" }`.
 ```
 
 **Settled here.** The snapshot's content is the application's (a catalogue, a
@@ -167,11 +176,23 @@ REQUIREMENT: `DurableBus.status` MUST report, per destination, the pending
 // illustrative — not type-checked
 interface HistorySource {
   readonly read: (q: { readonly origin: string; readonly stream: string; readonly after: number; readonly limit: number }) =>
-    Effect.Effect<readonly Envelope[] | SnapshotRequired, HistoryUnavailable>
+    Effect.Effect<readonly (Envelope | Withheld)[] | SnapshotRequired, HistoryUnavailable>
+}
+interface HistoryReader {
+  readonly id: string                               // the reader the serving transport authenticated (a peer, a host)
+  readonly residency?: readonly string[]            // labels the route to this reader offers (BEH-DB-016)
+}
+interface HistoryAccess {                           // the serving side's decision per reader and event type
+  readonly decide: (q: { readonly reader: string; readonly type: string; readonly origin: string }) =>
+    Effect.Effect<"allow" | { readonly deny: string }>
 }
 declare const DurableBus: {
-  // serves this bus's retained envelopes (its outbox, and envelopes its inbox stores) as a HistorySource
-  historySource(options?: { readonly maxPage?: number }): Effect.Effect<HistorySource, never, DurableBus>
+  // serves this bus's retained envelopes (its outbox, and envelopes its inbox stores) to ONE reader
+  historySource(options: {
+    readonly reader: HistoryReader
+    readonly access: HistoryAccess | "open"         // no default: "open" is the operator's written egress decision
+    readonly maxPage?: number
+  }): Effect.Effect<HistorySource, never, DurableBus>
   // pulls one source's history into this bus's inbox, for the streams and origins named
   follow(options: { readonly source: string; readonly history: HistorySource;
                     readonly streams: readonly string[]; readonly origins: readonly string[] }):
@@ -187,7 +208,25 @@ REQUIREMENT: `read` MUST return committed envelopes of (origin, stream) with
              empty array means the source holds nothing newer. It MUST return
              `SnapshotRequired` under BEH-DB-044. How a remote subscriber
              reaches a source's `read` is the transport's (for example one
-             bounded call of the remote companion).
+             bounded call of the remote companion), and the serving
+             transport MUST build one `HistorySource` per reader it
+             authenticated.
+```
+
+```
+REQUIREMENT: Before returning an envelope, `read` MUST, for that reader:
+             (1) evaluate the `PlacementPolicy` (subject kind "route",
+             `offered` the reader's `residency`) for the envelope's
+             `placement/residency` label, as BEH-DB-016 does for a route;
+             (2) unless `access` is "open", call `HistoryAccess.decide`
+             with the reader's id, the envelope's type and its
+             `node#incarnation` origin (07, BEH-DB-053). An envelope refused by either MUST
+             be returned as a `Withheld` element with reason
+             "placement-refused" or "access-refused" in its place — never
+             the envelope, and never omitted, so the reader's inbox sees no
+             gap — and the refusal MUST be counted in `DurableBus.status`
+             per reader. A failure or defect of `decide` MUST be treated as
+             a denial.
 ```
 
 ```
@@ -207,12 +246,113 @@ REQUIREMENT: `follow` MUST run as a background fiber of the bus plugin
              snapshot state MUST appear in `DurableBus.status` (BEH-DB-046).
 ```
 
-**Settled here.** Pulling makes the subscriber the party that paces
+**Settled here.** Access on the pull path is decided by the serving side,
+because the reader is outside the serving host and its own `AccessPolicy`
+(BEH-DB-053) is not the serving host's. `access` has no default, so serving
+every stream to a peer is a written decision. On the push path, a route
+(BEH-DB-013) is the operator's egress decision: this package checks only
+placement there. Pulling makes the subscriber the party that paces
 downstream replay: it asks for a bounded page when it is ready, which is the
 credit rule of BEH-DB-041 seen from the other side. The pull reuses the
 inbox, so the delivery contract does not fork into two sets of rules. A
 federation host that re-bootstraps after the offline cap restores its
 application state and these positions together (BEH-DB-044).
+
+## BEH-DB-048: Before a snapshot, the outbox is pushed or kept, and the install goes through the bus
+
+<a id="beh-db-048-before-a-snapshot-the-outbox-is-pushed-or-kept"></a>
+
+> **Invariant:** [INV-DB-009](../invariants.md#inv-db-009-no-snapshot-restore-removes-an-unacknowledged-outbox-envelope), [INV-DB-006](../invariants.md#inv-db-006-no-envelope-is-dropped-silently)
+> **See:** [ADR-DB-006](../decisions/006-bounded-replay-and-snapshots.md)
+> **Depends on:** federation re-bootstrap order ([BEH-FD-014](../../federation/behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first))
+
+```ts
+// illustrative — not type-checked
+declare const DurableBus: {
+  rebootstrapOutbox(options?: { readonly require?: "pushed" | "pushed-or-kept" }):   // default "pushed"
+    Effect.Effect<RebootstrapOutbox, never, DurableBus>      // the federation companion's port (BEH-FD-014)
+}
+// RebootstrapOutbox.settle({ timeout, replaces }) — scoped; the settlement lives until its Scope closes
+//   replaces: "in-store"    — the application's install rewrites state inside the bus's store
+//             "whole-store" — the application's install replaces the store by other means (a new database file)
+interface OutboxSettlement {
+  readonly pushed: number
+  readonly kept: number
+  // runs the application's install on the guarded path for `replaces` (below); federation step 3 calls it
+  readonly install: <A, E, R>(run: Effect.Effect<A, E, R>) =>
+    Effect.Effect<A, E | SnapshotFailed | IncarnationUnavailable, Exclude<R, StoreTransaction>>
+}
+class OutboxFrozen extends Schema.TaggedError<OutboxFrozen>()("OutboxFrozen", { reason: Schema.String }) {}
+// settle fails with RebootstrapBlocked { pending, reason }: "outbox-unsettled", "outbox-unavailable",
+//   "kept-needs-in-store", "no-incarnation-source"
+```
+
+```
+REQUIREMENT: `settle` MUST run the relay for every destination with
+             pending envelopes, under the credit and backoff rules of 06,
+             until no envelope is pending or `timeout` passes, then read
+             `OutboxStore.backlog` for every destination; `pushed` is the
+             number acknowledged during the call and `kept` the number
+             still pending. `settle` MUST NOT acknowledge, delete or
+             rewrite an envelope itself. A store that cannot answer MUST
+             fail with `RebootstrapBlocked { reason: "outbox-unavailable" }`.
+```
+
+```
+REQUIREMENT: With `require` "pushed" (the default), any envelope still
+             pending MUST fail `settle` with `RebootstrapBlocked { reason:
+             "outbox-unsettled", pending }`. "pushed-or-kept" MUST be
+             accepted only with `replaces` "in-store"; with "whole-store"
+             it MUST fail with `RebootstrapBlocked { reason:
+             "kept-needs-in-store" }`, because nothing protects kept
+             envelopes from a store that is replaced.
+```
+
+```
+REQUIREMENT: With `replaces` "in-store", `install(run)` MUST run `run`
+             inside one bus `StoreTransaction` with the before-and-after
+             outbox comparison of BEH-DB-044 around it: a difference rolls
+             the transaction back and fails with `SnapshotFailed { reason:
+             "outbox-touched" }`. Envelopes published after `settle`
+             returned stay pending and survive the install; no write fence
+             is needed.
+```
+
+```
+REQUIREMENT: With `replaces` "whole-store", `settle` MUST require a wired
+             `IncarnationSource` (01, BEH-DB-004), else fail with
+             `RebootstrapBlocked { reason: "no-incarnation-source" }`.
+             Once the first drain phase has ended, `settle` MUST freeze the
+             outbox — every `publish` fails with `OutboxFrozen` and writes
+             nothing — then drain what is still pending for at most
+             `timeout` again, and keep the freeze until the settlement's
+             `Scope` closes. `install(run)` MUST run `run`, then
+             `IncarnationSource.raise`, record the new incarnation in the
+             replaced store and switch the bus to the new origin, before
+             the freeze is lifted. A failure of `run` lifts the freeze when
+             the scope closes and raises nothing.
+```
+
+```
+REQUIREMENT: The bus MUST report `outbox-frozen` and `outbox-thawed` on
+             `DurableBus.status`, and documentation MUST state that the
+             freeze refuses business writes that publish for the length of
+             the drain, the snapshot fetch and the install, and that an
+             application which cannot accept that uses an in-store install.
+```
+
+**Settled here.** Upstream facts are never truncated (BEH-DB-045); a
+re-bootstrap is the moment that rule is most at risk, because it replaces
+local state wholesale. Putting the install on the bus's path is what makes
+"kept" checkable: the federation companion calls the application's install
+only through `OutboxSettlement.install`, so the outbox comparison runs on
+every in-store install rather than on the restores the application happens
+to route through `SnapshotProvider`. A whole-store swap cannot be checked,
+so it gets the strict mode instead: everything pushed, nothing new written
+until the swap is over, and a new incarnation afterwards, so that the
+replaced store's sequences are never issued twice under one origin
+(BEH-DB-004). "pushed" is the default because it is safe for both kinds of
+install; "kept" is an opt-in that only the in-store path can honour.
 
 ---
 

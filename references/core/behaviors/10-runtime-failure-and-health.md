@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-10                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-08): BEH-BR-089: `EntitlementView` failure modes (one `watch` per activation, shared latest-wins, unbounded first element, ended port yields a stale state once); unwired mode `unmetered`, core-only mode `unknown` (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-089 `Plugin.Runtime` gains `principal` and `asSelf` and `install` may fail with `ChildNotAllowed` (CCR-BR-018); `install` takes `Plugin.Any`, and the optional `EntitlementView` port with `Plugin.Runtime.entitled` (CCR-BR-020)<br>0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-11-08): BEH-BR-089 `Plugin.Runtime.unmount` for an attributed child removal (14, BEH-BR-126); BEH-BR-090 a wired `RefusalList` is consulted before each background restart (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-089: `EntitlementView` failure modes (one `watch` per activation, shared latest-wins, unbounded first element, ended port yields a stale state once); unwired mode `unmetered`, core-only mode `unknown` (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-089 `Plugin.Runtime` gains `principal` and `asSelf` and `install` may fail with `ChildNotAllowed` (CCR-BR-018); `install` takes `Plugin.Any`, and the optional `EntitlementView` port with `Plugin.Runtime.entitled` (CCR-BR-020)<br>0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -65,6 +65,10 @@ interface PluginRuntime {
     (child: Plugin.Any, options?: InstallOptions):
       Effect.Effect<PluginHandle, InstallError | Conflict | HostClosed | ChildNotAllowed, Scope.Scope>
   }
+  // Removes one of this activation's children on someone's request, recorded with that
+  // request's actor and reason (behaviour 14, BEH-BR-126).
+  readonly unmount: (child: PluginRef, options: { readonly context: OperationContext }) =>
+    Effect.Effect<void, UnknownPlugin | HostClosed>
   // Plugin principal: behaviour 28 (BEH-BR-258).
   readonly principal: PluginPrincipal
   readonly asSelf: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
@@ -184,7 +188,17 @@ REQUIREMENT: Under "fail-plugin", a failure or defect of the fiber MUST be
 ```
 REQUIREMENT: Under "restart", the effect MUST be wrapped with the given
              `restart` schedule (`Effect.retry` / `Effect.repeat`). A restart
-             MUST restart only that fiber and MUST NOT change plugin state.
+             MUST restart only that fiber and MUST NOT change plugin state,
+             except as the next requirement states.
+```
+
+```
+REQUIREMENT: When a `RefusalList` is wired and the plugin's definition
+             declares a digest, the host MUST consult the list before each
+             restart. A refusal MUST leave the fiber stopped and MUST stop
+             the plugin into `disabled` with reason "refused-digest", as
+             28 — Plugin Principal and Mandatory Policy, BEH-BR-267,
+             states.
 ```
 
 ```

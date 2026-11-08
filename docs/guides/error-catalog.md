@@ -436,6 +436,62 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** `import` rejects a state its new version cannot read.
 - **Fix.** Fix the handoff schema or `upgrade`; the `handoff` record names the lost step.
 
+### PolicyMismatch
+
+*error* · origin: core/18 · raised by: `reconcile`, `Host.plan` (in `rejected`)
+
+- **Cause.** A desired entry's `mandatoryInterceptions` or `allowChildren` differ from the installed registration (`id`, `realm`, `fields`); no action is taken for it and it is never retried.
+- **Example.** A manifest adds a mandatory interception to a plugin that is already installed without it.
+- **Fix.** Replace the plugin through an operator call with the new policy, or restore the desired entry.
+
+### AccessRefused
+
+*error* · origin: core/28 · raised by: `AccessPolicy.ask`, `on`, `subscribe`, `add`, event delivery by companions
+
+- **Cause.** The `AccessPolicy` refused a listen, subscribe, publish or contribute request (`kind`, `subject`, `reason`), including "principal-retired".
+- **Example.** A plugin without `listens` in its manifest subscribes under `AccessPolicy.declaredOnly`
+- **Fix.** Declare the listener or contribution in the manifest, or ask the integrator to change the policy.
+
+### DigestRefused
+
+*record-only* · origin: core/28 · raised by: `AuditRecord.error` of a `start-refused` record
+
+- **Cause.** A system start of a digest the `RefusalList` refuses; the plugin lands in `disabled` with reason "refused-digest".
+- **Example.** A dependency returns and its dependent's revoked digest would start again.
+- **Fix.** Install a release whose digest is not refused; check the revocation source.
+
+### CallLogUnavailable
+
+*error* · origin: core/29 · raised by: service calls under the "refuse" call-log policy (a defect there), `Host.offerCallEntry`
+
+- **Cause.** The call-log entry could not be delivered under "refuse": the queue was full, or `record` failed, died or timed out (`serviceId`, `member`, `why`); no value reached the consumer.
+- **Example.** A data-access log backend is down while a service is configured to refuse unlogged calls.
+- **Fix.** Restore the log backend; choose "drop" for services where an unlogged call is acceptable.
+
+### InvalidCallEntry
+
+*error* · origin: core/29 · raised by: `Host.offerCallEntry`
+
+- **Cause.** An offered call-log entry is malformed (`message`): empty `companion`, a missing or extra info field for its `kind`, or an empty `dispatch.command`.
+- **Example.** A companion offers a "crossing" entry without `crossing`
+- **Fix.** Fill the entry as BEH-BR-280 states.
+
+### ApplyRolledBack
+
+*error* · origin: core/32 · raised by: `reconcile(desired, { atomic: true })`
+
+- **Cause.** An entry failed (`failed`) and every applied entry was undone (`undone`).
+- **Example.** The third of four entries fails to activate; the first two are undone in reverse.
+- **Fix.** Fix the failed entry's cause and run again; nothing stayed applied.
+
+### PartialApply
+
+*error* · origin: core/32 · raised by: `reconcile(desired, { atomic: true })`
+
+- **Cause.** An entry failed and some undo actions could not run (`notUndone`, never retried); `reconcile-partial` is published.
+- **Example.** An undo `replace` is refused by the gate.
+- **Fix.** Resolve each `notUndone` entry by an operator call; read the reasons (`ChangedSinceApply`, `DrainTimeout`, gate, audit).
+
 ## Companions
 
 ### PackageMalformed
@@ -696,25 +752,25 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### PackageRefused
 
-*error* · origin: loader/01 · raised by: acceptance rule
+*error* · origin: loader/01, loader/08 · raised by: acceptance rule; data-pack load
 
-- **Cause.** A package predicate refused the package (`predicate`, `reason`).
-- **Example.** A file outside the declared layout.
-- **Fix.** Rebuild the package within the rules.
+- **Cause.** A package predicate refused the package (`predicate`, `reason`); for a data pack, predicate "schema-id", "rollback" (a lower version) or "equivocation" (the same version with a different digest).
+- **Example.** A file outside the declared layout; a second data pack "price-list" 3.1.0 with other bytes.
+- **Fix.** Rebuild the package within the rules; publish a data-pack correction as a new version.
 
 ### SignatureRejected
 
-*error* · origin: loader/02 · raised by: signature policy
+*error* · origin: loader/02, loader/07 · raised by: `SignaturePolicy.verify` (loads, catalog, data packs, other statements)
 
-- **Cause.** The signatures do not satisfy the policy, or the verifier timed out.
+- **Cause.** The signatures do not satisfy the statement type's rule, the verifier timed out, or the type has no rule ("no-rule"; always for "revocation-list", which only the revocation source verifies).
 - **Example.** Only the publisher signed where a reviewer is also required.
-- **Fix.** Obtain the missing signatures.
+- **Fix.** Obtain the missing signatures (`bridger countersign`), or configure a rule for the type; hand revocation lists to `RevocationSource.offer`.
 
 ### Revoked
 
-*error* · origin: loader/02 · raised by: revocation check
+*error* · origin: loader/02 · raised by: revocation check of a package
 
-- **Cause.** The digest or a signer is in the revocation set.
+- **Cause.** The digest, the package statement's digest or a signer is in the revocation set (`by`: digest, statement-digest, signer; other statement types report `StatementRevoked`).
 - **Example.** Loading a release revoked after a defect.
 - **Fix.** Use a non-revoked release.
 
@@ -725,6 +781,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** The revocation set could not be read.
 - **Example.** The revocation channel is unreachable.
 - **Fix.** Restore the channel; new loads wait or are refused by policy.
+
+### RevocationListMalformed
+
+*error* · origin: loader/04 · raised by: `RevocationSet.decode` (inside `offer`)
+
+- **Cause.** A verified revocation-list payload is not the `bridger-revocation-set/v1` shape, has a non-positive revision or repeated keys; the offer is `Rejected` ("malformed").
+- **Example.** An issuer that signs a list written by hand rather than by `RevocationSet.encode`.
+- **Fix.** Ask the list issuer to re-issue the list with `RevocationSet.encode`.
 
 ### RevocationStale
 
@@ -840,11 +904,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### EntitlementConfigError
 
-*error* · origin: entitlement/02 · raised by: `EntitlementGate.piece`, `EntitlementGate.layer`
+*error* · origin: entitlement/02, entitlement/04 · raised by: `EntitlementGate.piece`, `EntitlementGate.layer`, `Entitlement.capabilityPolicy`, `ReadOnly.fromContracts`, `ReadOnly.fromServices`, `Policies.first`
 
-- **Cause.** The entitlement service's `checkTimeout` is not shorter than the piece's `timeout` (or the stated `gateTimeout`).
-- **Example.** A piece with `timeout: "2 seconds"` over an entitlement service with a 5-second check timeout.
-- **Fix.** Shorten `checkTimeout` or lengthen the piece's timeout.
+- **Cause.** A construction rule of the entitlement package is broken (`component`, `reason`): `checkTimeout` is not shorter than the piece's `timeout`, the stated `gateTimeout` or the host's `resolutionTimeout`; `readOnly`, `onUnclassified` or `onNone` is missing; a classified name is not a method of its contract, or a contract or key is listed twice; a reserving budget bundle is not last in `Policies.first`.
+- **Example.** `Policies.first(quota, entitled)` — the budget bundle reserves, so a later entitlement `Skip` would leave its reservation to expire.
+- **Fix.** Correct what `reason` names: shorten `checkTimeout`, state the missing option, fix the classification, or list the budget bundle last.
 
 ### HistoryUnavailable
 
@@ -898,7 +962,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: command/02 · raised by: dispatch
 
-- **Cause.** The effective gate (`CommandGate` and its wrappers) refused (`reason`), or the taint floor withheld an automatic allow with no draft source wired (`reason` "tainted-session"), or a gate or draft source failed ("gate-defect", "gate-timeout").
+- **Cause.** The effective gate (`CommandGate` and its wrappers) refused (`reason`), or the taint floor withheld an automatic allow of a command not declared `readOnly` with no draft source wired (`reason` "tainted-session"), or a gate or draft source failed ("gate-defect", "gate-timeout"), or the receipt store failed ("receipts-unavailable"), or a batch draft or version reader is missing ("no-batch-draft-source", "no-version-reader"), or a `long` command was put in `Commands.batch` ("long-in-batch", command BEH-CM-049).
 - **Example.** An unapproved regulated command; a tainted agent call on a catalog built without `drafts`.
 - **Fix.** Obtain the approval the gate requires.
 
@@ -906,7 +970,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: command/02 · raised by: dispatch
 
-- **Cause.** The gate deferred, or the taint floor turned an automatic allow into a draft from the configured draft source; carries `draftId` for approval.
+- **Cause.** The gate deferred, or the taint floor turned an automatic allow of a command not declared `readOnly` into a draft from the configured draft source; carries `draftId` for approval.
 - **Example.** A tainted agent session proposing a write.
 - **Fix.** Approve the draft and dispatch again with the approval reference.
 
@@ -914,9 +978,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: command/02 · raised by: dispatch
 
-- **Cause.** A veto hook refused (`hook`, `reason`).
+- **Cause.** A `before` hook point denied (`cause`: veto, hook-failed, hook-timeout, breaker-open, deadline, denied-policy, dormant, wake-failed, wake-timeout, no-host-link, target-failed; `hook`, `code`, `reason` when present).
 - **Example.** A hook forbidding the command outside opening hours.
-- **Fix.** Act on the reason.
+- **Fix.** Act on the cause: a veto code, a policy reason, an outage, or `CommandCatalog.attach` for "no-host-link".
 
 ### CommandTimeout
 
@@ -944,11 +1008,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### ToolChanged
 
-*error* · origin: command/02 · raised by: dispatch from a pinned toolset; re-dispatch with an `ApprovalRef`
+*error* · origin: command/02 · raised by: dispatch from a pinned toolset or with `expectDigest` (an MCP call checks the digest the session listed); re-dispatch with an `ApprovalRef`
 
-- **Cause.** The command's digest changed since the toolset was pinned or the draft was made (`expected`, `actual`).
+- **Cause.** The command's digest changed since the toolset was pinned, the session listed it, or the draft was made (`expected`, `actual`).
 - **Example.** A plugin replaced during an agent turn.
-- **Fix.** Re-pin the toolset in a new turn; re-plan a draft.
+- **Fix.** Re-pin or list again; re-plan a draft.
 
 ### ApprovalMismatch
 
@@ -1102,6 +1166,384 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** The agent called a tool the script did not expect.
 - **Fix.** Fix the agent or the script.
 
+### IdempotencyConflict
+
+*error* · origin: command/06 · raised by: dispatch with `idempotencyKey`
+
+- **Cause.** The key's receipt was made by another actor, for another input or another definition digest, in the other mode (value vs task), a dispatch under the key is still running, or no `CommandReceipts` is wired (`reason`: actor-differs, input-differs, definition-differs, mode-differs, in-flight, no-receipts).
+- **Example.** A retry reuses a key with a changed amount.
+- **Fix.** Use a new key for new data or after the definition changed; retry later for in-flight; wire receipts or drop the key.
+
+### TaskStoreUnavailable
+
+*error* · origin: command/07 · raised by: `CommandTaskStore` port
+
+- **Cause.** The task store failed; a `put` failure is logged and changes no outcome, a failure while reading at layer build fails the layer.
+- **Example.** The application's task table is unreachable when the catalog layer is built.
+- **Fix.** Check the application's store.
+
+### TaskLost
+
+*error* · origin: command/07 · raised by: failed task (BEH-CM-054)
+
+- **Cause.** A task was found running when the catalog layer was built; its work was cut off by a restart.
+- **Example.** A long export interrupted by a process restart.
+- **Fix.** Retry with the same key to run it again.
+
+### CommandBreakerOpen
+
+*error* · origin: command/06 · raised by: dispatch
+
+- **Cause.** The breaker for the command or its providing plugin is open (`scope`, `key`); no handler ran.
+- **Example.** A handler's backend timed out five times within a minute.
+- **Fix.** Wait for the cooldown; fix the failing handler or backend.
+
+### CommandWrapperFailed
+
+*error* · origin: command/06 · raised by: dispatch (step 7)
+
+- **Cause.** A handler wrapper failed, did not call `run`, or the receipt could not be completed (`wrapper`, `message`).
+- **Example.** A transaction wrapper's commit fails.
+- **Fix.** Fix the wrapper or its store; a transaction wrapper rolled back.
+
+### CommandDraftStale
+
+*error* · origin: command/07 · raised by: re-dispatch or batch with an approval carrying expected versions
+
+- **Cause.** `Draft.check` found versions that moved (`draftId`, `mismatches`); nothing ran.
+- **Example.** A record changed between approval and execution.
+- **Fix.** Re-plan and have the new draft approved.
+
+### CommandBatchRejected
+
+*error* · origin: command/07 · raised by: `Commands.batch`
+
+- **Cause.** An item failed admission (`batchId`, `index`, `error`); no handler ran.
+- **Example.** The third item's input does not decode.
+- **Fix.** Fix or remove the item.
+
+### CommandBatchRolledBack
+
+*error* · origin: command/07 · raised by: `Commands.batch`
+
+- **Cause.** An item failed after earlier items ran; every earlier item was undone by an atomic wrapper or compensation (`failed`, `undone`).
+- **Example.** The second item fails and the first is compensated.
+- **Fix.** Fix the failing item and submit the batch again.
+
+### CommandBatchPartial
+
+*error* · origin: command/07 · raised by: `Commands.batch`
+
+- **Cause.** An item failed and some earlier items could not be undone (`failed`, `undone`, `notUndone`); never retried.
+- **Example.** A compensation is refused by the gate.
+- **Fix.** Resolve each `notUndone` item by hand or with its compensation.
+
+### CommandTaskNotFound
+
+*error* · origin: command/07 · raised by: `CommandTasks`
+
+- **Cause.** No task with this id (`taskId`); terminal tasks beyond `tasks.retain` are forgotten and tasks do not survive the process.
+- **Example.** Reading a long command's task after a restart.
+- **Fix.** Check the id.
+
+### CommandTaskAwaitTimeout
+
+*error* · origin: command/07 · raised by: `CommandTasks.await`
+
+- **Cause.** The task did not end within the timeout (`taskId`, `last`); the task is unaffected.
+- **Example.** Awaiting a report generation for 5 seconds.
+- **Fix.** Await again, or raise the timeout.
+
+### ReceiptsUnavailable
+
+*port-error* · origin: command/06 · raised by: `CommandReceipts`
+
+- **Cause.** The application's receipt store failed (`message`); a failed claim refuses the dispatch ("receipts-unavailable").
+- **Example.** The receipts table is locked.
+- **Fix.** Fix the store.
+
+### WrapperError
+
+*port-error* · origin: command/06 · raised by: a handler or batch wrapper
+
+- **Cause.** The application's wrapper reported a failure (`message`); surfaced as `CommandWrapperFailed`.
+- **Example.** A wrapper cannot open its transaction.
+- **Fix.** Fix the wrapper.
+
+### PublisherMismatch
+
+*error* · origin: loader/07 · raised by: `SignaturePolicy.verify`, loads, catalog entries, data packs
+
+- **Cause.** The manifest's `publisher` is matched by no verified signer's configured `publishers` or `identity`; nothing is evaluated.
+- **Example.** A package signed by `acme-publisher` declares `publisher: "Other Corp"`
+- **Fix.** Sign with a key configured for that publisher, or correct the manifest's `publisher`.
+
+### StatementRevoked
+
+*error* · origin: loader/07 · raised by: `SignaturePolicy.verify` (statement types other than "package"), `Revocation.check`, `DataPacks`
+
+- **Cause.** The statement's subject digest, statement digest or a signer it depended on is revoked (`by`, `revision`).
+- **Example.** A host manifest whose statement digest appears in revocation list revision 42.
+- **Fix.** Obtain a statement that is not revoked (a new issuance or release); packages report `Revoked` instead.
+
+### SigningFailed
+
+*port-error* · origin: loader/07 · raised by: `StatementSigner.sign`; `bridger publish`, `bridger countersign`
+
+- **Cause.** The signing adapter (KMS, hardware token, keyless flow) failed; no signature was added.
+- **Example.** The KMS adapter's credentials expired during `bridger countersign`
+- **Fix.** Fix the signer adapter or its access; the package and its digest are unchanged.
+
+### DataPackStale
+
+*error (also a report)* · origin: loader/08 · raised by: `DataPacks.status` (reported), `DataPacks.requireFresh` (failure)
+
+- **Cause.** The pack is older than its `maxAge` since `issuedAt` ("max-age"), or past `effectiveUntil` ("expired").
+- **Example.** A `price-list` pack with `maxAge: "30 days"` read 31 days after `issuedAt`
+- **Fix.** Load a newer pack; whether stale data may be used is the application's decision.
+
+### DataPackStoreFailed
+
+*port-error* · origin: loader/08 · raised by: `DataPackStore`
+
+- **Cause.** The application's data-pack store failed (`operation`: highest, save, load); an unsaved pack is not published.
+- **Example.** The store's disk is full when saving a new pack.
+- **Fix.** Fix the store; the current pack is unchanged.
+
+### SeriesConfigInvalid
+
+*error* · origin: audit-chain/04 · raised by: `ChainSink.make` (construction)
+
+- **Cause.** A series spec is refused (`reason`: series-id-syntax, canonicaliser-id-syntax, continues-from-self, resume-and-continue, resume-mismatch).
+- **Example.** A series id containing a space; a `resumeFrom` that differs from the head the store reports.
+- **Fix.** Correct the series id, canonicaliser id, `continuesFrom` or `resumeFrom` (use the store's head).
+
+### BundleExportFailed
+
+*error* · origin: audit-chain/05 · raised by: `exportBundle`
+
+- **Cause.** The chain store or receipt store could not be read, the series is unknown, or the range is invalid (`reason`); no partial bundle is produced.
+- **Example.** `exportBundle` for a series id the store does not know.
+- **Fix.** Fix the store access or the requested range and export again.
+
+### PlacementRefused
+
+*error* · origin: remote/09 (also federation/06, event-delivery/02) · raised by: `Remote.define` (link build), served calls, imports and exports, event destinations
+
+- **Cause.** A required residency label is not offered by the transport, route or inbox (`subject`, `required`, `offered`, `reason`).
+- **Example.** A plugin whose manifest says `residency: "eu"` behind a transport that offers only `"us"`
+- **Fix.** Use a transport, route or inbox that offers the label, or correct the manifest; the label is compared as a string and proves nothing about where code runs.
+
+### RemoteBudgetExceeded
+
+*error* · origin: remote/09 · raised by: calls through a link
+
+- **Cause.** `PrincipalBudget.admit` refused, or failed (`link`, `reason`); outcome not-executed, no frame sent, a "refusal" call-log entry offered.
+- **Example.** A partner principal exceeds its hourly call budget.
+- **Fix.** Wait for the budget window, or raise the principal's budget.
+
+### RevocationListStale
+
+*error* · origin: federation/06 · raised by: `kill` frame handling
+
+- **Cause.** A revocation list in a `kill` frame is not newer than the held list: `RevocationSource.offer` answered `NotNewer` (`revision`, `held`, `from`); not applied, not relayed; `revocation-stale` event. A list `offer` answers `Rejected` is reported as the status event `revocation-rejected`, not as this tag. Distinct from the loader's `RevocationStale`.
+- **Example.** A relay forwards revision 41 to a host that holds 42.
+- **Fix.** No action for a duplicate; investigate a peer that keeps sending older lists.
+
+### RebootstrapBlocked
+
+*error* · origin: federation/02 (raised by event-delivery `rebootstrapOutbox`) · raised by: re-bootstrap step 1
+
+- **Cause.** The outbox could neither push nor keep local facts (`pending`, `reason`: outbox-unsettled, outbox-unavailable, no-outbox-port), or the settlement was refused (`reason`: kept-needs-in-store for "pushed-or-kept" with a whole-store install, no-incarnation-source for a whole-store install without an `IncarnationSource`; event-delivery/06, BEH-DB-048); nothing fetched or installed, links resumed, status `rebootstrap-blocked`, retried next sync.
+- **Example.** A terminal with 300 unsent envelopes cannot reach the hub when a snapshot is due.
+- **Fix.** Restore delivery so the outbox settles; wire an outbox port if none is configured; for a whole-store install, wire an `IncarnationSource` or install in store.
+
+### OutboxFrozen
+
+*error* · origin: event-delivery/06 (BEH-DB-048) · raised by: `publish`
+
+- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`); nothing is written and the caller's transaction fails with it.
+- **Example.** A terminal records a sale while it installs a fresh snapshot from the hub.
+- **Fix.** Retry the publish after the re-bootstrap ends.
+
+### IncarnationUnavailable
+
+*port-error* · origin: event-delivery/01 (BEH-DB-004) · raised by: `IncarnationSource.current`, `IncarnationSource.raise`
+
+- **Cause.** The application's incarnation source could not be read or raised (`cause`); a whole-store install that cannot raise it fails.
+- **Example.** The file that keeps the incarnation number outside the database is not writable.
+- **Fix.** Fix the incarnation source's storage, which lives outside the store's backups.
+
+**Federation status events (not error tags).** `revocation-rejected` (a kill frame's list that `RevocationSource.offer` answered `Rejected`), `kill-held` (a revision that would disable more owned plugins than `maxDisabledPerRevision` allows, held until `releaseRevocation`) and `rebootstrap-revision-mismatch` (the installed snapshot's revision differs from the applied manifest's) are reported on the federation status feed (federation BEH-FD-015). Remote `WireExit.InProgress` (BEH-RM-020) is not a tag: a call that reaches its deadline after it fails with `RemoteTimeout`, outcome "unknown".
+
+### DowncastRefused
+
+*error* · origin: event-delivery/04 · raised by: `publish` under `publishVersion`
+
+- **Cause.** A value at N does not survive the N→N−1→N round trip (`type`, `from`, `reason`); nothing is written.
+- **Example.** A field added in version 3 is set while writers still publish version 2.
+- **Fix.** Leave the new field empty until readers are upgraded, or raise `publishVersion` once reports show no reader below N.
+
+### PayloadEncodeFailed
+
+*error* · origin: event-delivery/01 · raised by: `publish`, event-store `append`
+
+- **Cause.** The `PayloadCodec` could not encode the payload; nothing is written.
+- **Example.** The keyring codec refuses to encode for a shredded subject.
+- **Fix.** Fix the codec's dependency (for example the key store), or stop publishing for that subject.
+
+### PayloadDecodeFailed
+
+*error* · origin: event-delivery/01 · raised by: reading envelopes, event-store reads
+
+- **Cause.** The `PayloadCodec` could not decode the payload, or the reader lacks the envelope's `codec`; handled under the subscription's `onPoison` (event-store: the read ends, BEH-ES-032).
+- **Example.** A reader without the keyring codec receives an encrypted envelope.
+- **Fix.** Wire the codec named in `Envelope.codec` on the reader.
+
+### PayloadUnreadable
+
+*error* · origin: event-delivery/01 · raised by: reading envelopes
+
+- **Cause.** The codec can no longer read the payload (for example its key was destroyed); the envelope is parked for that subscription and the stream is not halted.
+- **Example.** An envelope whose every encrypted field's key is gone without a tombstone.
+- **Fix.** Expected after a deliberate key destruction; otherwise restore the key store.
+
+### WrongExpectedVersion
+
+*error* · origin: event-store/01, event-store/05 · raised by: `Stream.append`, `Aggregate.handle`, sequence `next()`
+
+- **Cause.** The stream's version was not the expected one (`stream`, `expected`, `actual`; "unknown" when the adapter detects the conflict only at commit); nothing is written.
+- **Example.** Two terminals append to one stream from version 7.
+- **Fix.** Read the stream again and decide again; `Aggregate.run` retries.
+
+### DuplicateEventType
+
+*error* · origin: event-store/01 · raised by: `EventStore.register`
+
+- **Cause.** An event type with this id is already registered with the store (`type`).
+- **Example.** Registering one `DurableEvent` twice.
+- **Fix.** Register each event type once.
+
+### UnregisteredEventType
+
+*error* · origin: event-store/01 · raised by: `Stream.append`
+
+- **Cause.** The event's type was not registered with the store (`type`); nothing is written.
+- **Example.** Appending an event declared after the store was built.
+- **Fix.** Register the type with `EventStore.register` first.
+
+### StoreWriteFailed
+
+*error* · origin: event-store/05 · raised by: `Stream.append`, checkpoint writes, the `EventStoreAdapter`
+
+- **Cause.** The storage adapter could not write (`message`); the transaction rolls back.
+- **Example.** The database rejects the insert because the disk is full.
+- **Fix.** Fix the storage; nothing was appended.
+
+### StoreUnavailable
+
+*error* · origin: event-store/05 (also federation/02) · raised by: `Stream.read`, `EventStoreAdapter.transact`, `readStream`; the federation store port
+
+- **Cause.** The storage adapter could not be reached or read (`message`).
+- **Example.** The database connection pool is exhausted.
+- **Fix.** Restore the storage and retry.
+
+### StoreContention
+
+*error* · origin: event-store/02 · raised by: `Aggregate.record`, `Aggregate.run`
+
+- **Cause.** Appends kept conflicting past `retries`; an operational error, never a refusal of a fact.
+- **Example.** Many terminals record facts on one hot stream at once.
+- **Fix.** Retry later; split the stream if it is hot by design.
+
+### ProjectionFailed
+
+*port-error* · origin: event-store/03 · raised by: a projection's `apply` or `reset`
+
+- **Cause.** The application's projection failed; the batch rolls back, is retried with backoff and then the projection halts at that position, never skipping.
+- **Example.** A read model's unique index rejects a row.
+- **Fix.** Fix the projection or its table; the follower resumes from the checkpoint.
+
+### NotOwner
+
+*error* · origin: sequence/01 · raised by: `Series.open`
+
+- **Cause.** The origin is not this host's configured origin (`origin`, `configured`); only closure of a superseded series by a later incarnation is allowed.
+- **Example.** A host opens a series of another terminal.
+- **Fix.** Open series only for the host's own origin.
+
+### SeriesNameInvalid
+
+*error* · origin: sequence/01 · raised by: `Series.open`
+
+- **Cause.** The series name is outside the grammar (`name`).
+- **Example.** A name containing a space.
+- **Fix.** Use a name that matches the grammar.
+
+### SeriesClosed
+
+*error* · origin: sequence/01 · raised by: `next()`, `close`
+
+- **Cause.** The series is closed (`seriesId`, `last`); no number is issued after closure (also the name of the closing event).
+- **Example.** Issuing a number after the series was closed for a restore.
+- **Fix.** Open the series of the current incarnation.
+
+### KeyShredded
+
+*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, the field codec's encode
+
+- **Cause.** The subject has a tombstone; no key is given out and nothing is encrypted for it.
+- **Example.** Encrypting a new record for a customer whose data was removed.
+- **Fix.** Stop writing personal data for that subject; reads yield `Shredded` markers.
+
+### KeyStoreUnavailable
+
+*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, `shred`
+
+- **Cause.** The application's key store could not be reached (`message`).
+- **Example.** The key vault is down.
+- **Fix.** Restore the key store; nothing was encrypted or destroyed.
+
+### SubjectInvalid
+
+*error* · origin: keyring/01 · raised by: `Keyring.key`, `shred`
+
+- **Cause.** The subject id is not 1–128 characters of `[A-Za-z0-9._:/-]` (`reason`).
+- **Example.** A subject id containing a name with spaces.
+- **Fix.** Use an opaque id; the subject id stays readable after a shred.
+
+### DecryptFailed
+
+*error* · origin: keyring/01 · raised by: `decrypt`; the field codec's decode (as `PayloadDecodeFailed`)
+
+- **Cause.** The ciphertext, nonce, key id or authenticated data does not match.
+- **Example.** An encrypted field copied into another event type.
+- **Fix.** Do not move ciphertext between fields, types or subjects; check the stored form.
+
+### RedactionFailed
+
+*port-error* · origin: keyring/03 · raised by: a callback registered with `Keyring.onShred`
+
+- **Cause.** The application's redaction of plaintext copies failed; the shred stays pending for that callback.
+- **Example.** A read model's delete statement fails.
+- **Fix.** Fix the callback; it is retried from its own cursor.
+
+### DuplicateCallback
+
+*error* · origin: keyring/03 · raised by: `Keyring.onShred`
+
+- **Cause.** A redaction callback with this name is already registered.
+- **Example.** Two plugins register `customer-view` callbacks.
+- **Fix.** Give each callback a unique name.
+
+### SubjectFromEncryptedField
+
+*defect* · origin: keyring/02 · raised by: `Keyring.fields` (construction)
+
+- **Cause.** A `FieldSpec`'s subject function reads a path listed for encryption.
+- **Example.** The subject is read from the `customerId` field that is also encrypted.
+- **Fix.** Read the subject from an unencrypted field.
+
 ## Kit
 
 ### MissingProvision
@@ -1192,4 +1634,22 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** The registry refuses an upload because the version already exists.
 - **Fix.** Read the adapter's message; the package is unchanged.
 
+## Adapters (outside this specification)
+
+Tags of adapters documented in `docs/`, not in a companion tree; proposed, not specified.
+
+### InvalidContribution
+
+*error* · origin: @bridger/react (proposed; docs/REACT-UI-PLUGINS.md) · raised by: `Ui.messages`, `Ui.theme`
+
+- **Cause.** A message catalog or theme token set did not decode (non-string values, malformed locale tag); nothing was registered.
+- **Example.** `ui.messages({ id: "sales/fr", locale: "fr", messages: { "sales/orders": 3 } })`
+- **Fix.** Contribute string values and a BCP 47 locale tag.
+
 Missing a tag? The kit treats an uncatalogued tag as a failure of its own catalog test ([BEH-KT-051](../../references/kit/behaviors/07-error-catalog.md#beh-kt-051-the-catalog-is-checked-against-the-specifications)).
+
+Change log: 2026-11-08, round 2 — entries for the core tags `PolicyMismatch`, `AccessRefused`, `DigestRefused`, `CallLogUnavailable`, `InvalidCallEntry`, `ApplyRolledBack`, `PartialApply`; the command, loader, audit-chain, remote, federation, event delivery, event-store, sequence and keyring tags of round 2; the React adapter's `InvalidContribution`; `CommandVetoed`, `ToolChanged`, `CommandRefused`, `SignatureRejected`, `Revoked` and `EntitlementConfigError` updated (CCR-BR-027).
+
+Change log: 2026-11-08, round-2 agent review — entries `RevocationListMalformed`, `TaskStoreUnavailable`, `TaskLost`; `IdempotencyConflict` ("definition-differs", "mode-differs"), `CommandRefused` ("long-in-batch") and the taint-floor wording of `CommandRefused`/`CommandDeferred` (commands not declared `readOnly`) updated; `PackageRefused` (data-pack "rollback" and "equivocation"), `SignatureRejected` ("revocation-list" verified only by the revocation source), `Revoked` (statement-digest revocation) and `SeriesConfigInvalid` ("resume-and-continue", "resume-mismatch") updated (CCR-BR-029).
+
+Change log: 2026-11-08, round-2 integration — entries `OutboxFrozen` and `IncarnationUnavailable`; `RebootstrapBlocked` gains "kept-needs-in-store" and "no-incarnation-source"; `RevocationListStale` raised on an `offer` answer `NotNewer`; a note on the federation status events `revocation-rejected`, `kill-held`, `rebootstrap-revision-mismatch` and remote `WireExit.InProgress` (CCR-BR-029).

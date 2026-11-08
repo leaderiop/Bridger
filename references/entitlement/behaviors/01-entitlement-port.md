@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-01                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -264,8 +264,10 @@ plugin that missed "grace" and sees "read-only" has lost nothing it needs.
 REQUIREMENT: The application MAY declare a list of essential labels
              (`EntitlementOptions.essential`, opaque strings). A use that
              carries one of them — through `Entitlement.guard`'s `labels`, a
-             hook contribution's labels (`step.labels` of a skip policy, 02,
-             BEH-EN-016), or a budget reservation's `essential` flag — MUST NOT be refused or degraded by any component of this
+             hook contribution's labels (`step.labels` of a contribution
+             policy, 02, BEH-EN-016), a plugin subject's labels when grants
+             are narrowed (04, BEH-EN-027), or a budget reservation's
+             `essential` flag — MUST NOT be refused or degraded by any component of this
              package, whatever the mode or budget.
 ```
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-04                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): `PlanStore` and `PlanUnknown`; `UnknownPlugin`; inspect without id; served host calls; error classes declared (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.5 (2026-11-08): `reconcile-plan` no longer declared `readOnly`: it writes a plan into the `PlanStore` and may evict others (round-2 agent review A-18) (CCR-MC-003)<br>0.4 (2026-11-08): Reads and plans declared `readOnly`; host calls carry the dispatch's correlation through core `CurrentCorrelation`; `reconcile-plan` takes `atomic`, `reconcile-apply` reports `ApplyRolledBack` and `PartialApply`, undo requests, core's order and refused digests; call-log wording (CCR-MC-003, round 2: recheck item 9; core round 2 alignment)<br>0.3 (2026-11-08): `PlanStore` and `PlanUnknown`; `UnknownPlugin`; inspect without id; served host calls; error classes declared (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -46,9 +46,9 @@ HostTools.plugin(options?: {
 
 | Command id | `regulated` | Tags | Effect on the host |
 | ---------- | ----------- | ---- | ------------------ |
-| `bridger.host.snapshot` | false | `bridger-host`, `read` | none |
-| `bridger.host.inspect` | false | `bridger-host`, `read` | none |
-| `bridger.host.reconcile-plan` | false | `bridger-host`, `plan` | none |
+| `bridger.host.snapshot` | false | `bridger-host`, `read` | none (`readOnly: true`) |
+| `bridger.host.inspect` | false | `bridger-host`, `read` | none (`readOnly: true`) |
+| `bridger.host.reconcile-plan` | false | `bridger-host`, `plan` | none on the host; stores a plan in the plugin's `PlanStore` (BEH-MC-028), so not `readOnly` |
 | `bridger.host.reconcile-apply` | **true** | `bridger-host`, `host-mutation` | host lifecycle operations, each gated and audited by core |
 
 ```
@@ -63,8 +63,10 @@ REQUIREMENT: `HostTools.plugin` MUST contribute exactly the commands in the
 REQUIREMENT: The host tools' handlers run as served calls (command
              BEH-CM-003, core `CallerContext.serve`, BEH-BR-292), and MUST
              call the `Host` they require from that fiber, passing the
-             `HandlerContext`'s `correlationId` and the input's `reason` in
-             `options.context`. The host then attributes each lifecycle call
+             input's `reason` in `options.context` and leaving
+             `correlationId` unset, so that core takes the dispatch's
+             correlation from the fiber's `CurrentCorrelation` (core
+             BEH-BR-187). The host then attributes each lifecycle call
              to the dispatching actor (the MCP session's or the agent's),
              with the dispatch's annotations, and records the host-tools
              plugin as `onBehalfOf` (the fiber's plugin principal, core
@@ -100,8 +102,9 @@ REQUIREMENT: The output MUST NOT contain a configuration value, a cause, a
              `_tag` and the message core already exposes in snapshots.
 ```
 
-**Settled here.** The snapshot is passed through, not re-derived, so it can
-never say more than the core snapshot does
+**Settled here.** The snapshot is passed through, not re-derived — a
+`disabled` plugin's `reason` (for example "refused-digest", core BEH-BR-027)
+included — so it can never say more than the core snapshot does
 ([INV-BR-013](../../core/invariants.md#inv-br-013-configuration-values-are-never-observable)).
 
 **Open.** Realm filtering is a convenience, not access control (a realm is not
@@ -183,13 +186,15 @@ interface ReconcileInput {
   readonly desired: readonly DesiredEntryRef[]
   readonly scope?: string                    // ownership scope, default "agent"
   readonly prune?: boolean                   // default false for host tools
+  readonly atomic?: boolean                  // core ReconcileOptions.atomic (BEH-BR-322); default false, as core
 }
 ```
 
 ```
 REQUIREMENT: `bridger.host.reconcile-plan` MUST resolve every entry through
              `DefinitionResolver`, then call the read-only
-             `host.plan(desired, { scope, prune })` (core BEH-BR-317), and
+             `host.plan(desired, { scope, prune, atomic })` (core BEH-BR-317;
+             the plan's `atomic` and each entry's `undo`, BEH-BR-318), and
              return core's `ReconcilePlan` (BEH-BR-318): per entry, the
              action sequence core would run and the host revision the plan
              was computed at, plus the unresolved entries with their
@@ -259,11 +264,16 @@ REQUIREMENT: `bridger.host.reconcile-apply` MUST take `{ planId, reason }`
              the digests the stored `desired` list bound, failing with
              core's `PlanStale` (one mismatch per changed entry) otherwise;
              (4) core
-             `reconcile(desired, { scope, prune, expect: plan })`
-             (BEH-BR-319), which itself fails with `PlanStale` when the host
-             no longer matches the plan, and otherwise consults the
-             `OperationGate` once per entry action and audits each (core
-             BEH-BR-158).
+             `reconcile(desired, { scope, prune, atomic, expect: plan })`
+             (BEH-BR-319, BEH-BR-322), which itself fails with `PlanStale`
+             when the host no longer matches the plan, and otherwise
+             consults the `OperationGate` once per entry action — and, for
+             an atomic apply that rolls back, once per undo request
+             (`OperationRequest.undo`, matched by the gate against the
+             plan's `PlannedEntry.undo`, BEH-BR-325) — and audits each
+             (core BEH-BR-158). Entries run in core's order (removals
+             dependents first, other changes providers first,
+             BEH-BR-156), not in input order.
 ```
 
 ```
@@ -274,9 +284,15 @@ REQUIREMENT: The command MUST NOT bypass, cache or pre-approve the
 
 ```
 REQUIREMENT: The result MUST be `{ report, proposedBy }`: the core
-             `ReconcileReport`, including its per-entry `rejected` outcomes,
-             encoded without configuration values, and the stored plan's
-             proposing actor.
+             `ReconcileReport`, including its per-entry `rejected` outcomes
+             (an operator call refused by core's `RefusalList` appears as
+             `OperationRejected` with reason "refused-digest: …",
+             BEH-BR-267), encoded without configuration values, and the
+             stored plan's proposing actor. Core's `ApplyRolledBack` and
+             `PartialApply` (BEH-BR-324) MUST be declared in the command's
+             `error` schema and returned as `isError` results with their
+             `failed`, `undone` and `notUndone` lists; a `PartialApply`
+             MUST NOT be described as rolled back.
 ```
 
 ```
@@ -314,9 +330,10 @@ again.
 
 ```
 REQUIREMENT: The host tools MUST NOT write `AuditSink` records themselves.
-             The lifecycle records of reconcile-apply are core's; the
-             dispatch of each host tool is reported to the `CallLog` port
-             when wired, like any command.
+             The lifecycle records of reconcile-apply are core's; a
+             refused dispatch of a host tool is offered to the `CallLog`
+             port like any command's (command BEH-CM-015), and the host
+             calls a handler makes carry the dispatch's correlation.
 ```
 
 ```
@@ -326,6 +343,11 @@ REQUIREMENT: The host tools MUST NOT be described as an approval mechanism.
 
 **Settled here.** Reads and plans leave no audit record: they change no
 GMP-relevant state, and the call log is the place for access records.
+`reconcile-plan` is still not declared `readOnly` (command BEH-CM-006 means
+"the handler changes no state"): it writes a plan and can evict another
+actor's plan, so it gets no `readOnlyHint`, is not projected as a resource,
+and from a tainted session it is deferred or refused by the command
+catalog's taint floor unless approved (command BEH-CM-016).
 
 **Open.** None.
 

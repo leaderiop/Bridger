@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-TRACE                                             |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.2 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-020 and RSK-BR-045 notes (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.4 (2026-11-08): REQ-AC-013–016 and 019 summaries follow the round-2 agent review resolutions (CCR-AC-003)<br>0.3 (2026-11-08): Rows BEH-AC-025–040 and REQ-AC-013–020; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-020 and RSK-BR-045 notes (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -48,6 +48,22 @@ core RSK-BR → test. Every test is *Planned*; no row is evidence
 | BEH-AC-022 | — | ADR-AC-002, ADR-AC-004 | — | URS-BR-026 | REQ-AC-012 |
 | BEH-AC-023 | — | ADR-AC-002 | — | URS-BR-026 | REQ-AC-012 |
 | BEH-AC-024 | — | — | — | URS-BR-022, URS-BR-025 | REQ-AC-001–012 |
+| BEH-AC-025 | INV-AC-001, INV-AC-007 | ADR-AC-005, ADR-AC-001 | — | URS-BR-026 | REQ-AC-013, REQ-AC-014 |
+| BEH-AC-026 | INV-AC-007 | ADR-AC-005 | BEH-BR-212 | URS-BR-022 | REQ-AC-013, REQ-AC-014 |
+| BEH-AC-027 | INV-AC-007 | ADR-AC-005 | — | URS-BR-022 | REQ-AC-015 |
+| BEH-AC-028 | — | ADR-AC-005, ADR-AC-002 | — | URS-BR-026 | REQ-AC-015 |
+| BEH-AC-029 | INV-AC-002, INV-AC-003 | ADR-AC-001 | — | URS-BR-022 | REQ-AC-014 |
+| BEH-AC-030 | — | ADR-AC-005 | BEH-BR-195, BEH-BR-202 | URS-BR-022 | REQ-AC-016 |
+| BEH-AC-031 | INV-AC-004 | ADR-AC-005 | BEH-BR-215 | URS-BR-022 | REQ-AC-016 |
+| BEH-AC-032 | — | — | — | URS-BR-025 | REQ-AC-013–016 |
+| BEH-AC-033 | INV-AC-003 | ADR-AC-002, ADR-AC-005 | — | URS-BR-022, URS-BR-026 | REQ-AC-017 |
+| BEH-AC-034 | INV-AC-004, INV-AC-006 | ADR-AC-002 | — | URS-BR-022, URS-BR-026 | REQ-AC-018 |
+| BEH-AC-035 | INV-AC-006 | ADR-AC-002 | — | URS-BR-026 | REQ-AC-019 |
+| BEH-AC-036 | — | ADR-AC-002 | — | URS-BR-026 | REQ-AC-019 |
+| BEH-AC-037 | INV-AC-006 | ADR-AC-005 | — | URS-BR-022 | REQ-AC-018 |
+| BEH-AC-038 | INV-AC-004 | ADR-AC-002, ADR-BR-034 | — | URS-BR-026 | REQ-AC-020 |
+| BEH-AC-039 | — | ADR-AC-005 | — | URS-BR-026 | REQ-AC-017, REQ-AC-020 |
+| BEH-AC-040 | — | — | — | URS-BR-025 | REQ-AC-017–020 |
 
 Behaviours are in [01](./behaviors/01-hash-chain-sink.md),
 [02](./behaviors/02-anchoring.md) and [03](./behaviors/03-verification.md);
@@ -67,7 +83,7 @@ Test files are *Planned* under `packages/audit-chain/test/` *(Planned)*.
 | <a id="req-ac-002"></a>REQ-AC-002 | 2 | Canonical form recomputed independently; escaped encoding for non-I-JSON records | BEH-AC-003 |
 | <a id="req-ac-003"></a>REQ-AC-003 | 3 | Retry carries the identical link; differing retry marked | BEH-AC-004 |
 | <a id="req-ac-004"></a>REQ-AC-004 | 4 | Host and order violations appended with a "chain-order" marker, never refused | BEH-AC-005 |
-| <a id="req-ac-005"></a>REQ-AC-005 | 5 | `ChainSink.split` order and crash window | BEH-AC-006 |
+| <a id="req-ac-005"></a>REQ-AC-005 | 5 | `ChainStore.split` order and crash window | BEH-AC-006 |
 | <a id="req-ac-006"></a>REQ-AC-006 | 6 | Keyed hasher and `continuesFrom` | BEH-AC-007 |
 | <a id="req-ac-007"></a>REQ-AC-007 | 7 | Windows, Merkle root, ordered retries | BEH-AC-010, BEH-AC-014 |
 | <a id="req-ac-008"></a>REQ-AC-008 | 8 | Off the write path; bounded memory without failed writes; `ChainGate` refusals | BEH-AC-009, BEH-AC-011, BEH-AC-013 |
@@ -75,6 +91,14 @@ Test files are *Planned* under `packages/audit-chain/test/` *(Planned)*.
 | <a id="req-ac-010"></a>REQ-AC-010 | 10 | `verifyChain` purity; sequence from core | BEH-AC-017, BEH-AC-018 |
 | <a id="req-ac-011"></a>REQ-AC-011 | 11 | Detection matrix executed, including what is not detected; expected heads | BEH-AC-016, BEH-AC-019 |
 | <a id="req-ac-012"></a>REQ-AC-012 | 12 | Receipts confirmed, inclusion proofs, wording, no shipped anchor | BEH-AC-020, BEH-AC-021, BEH-AC-022, BEH-AC-023 |
+| <a id="req-ac-013"></a>REQ-AC-013 | 13 | Audit instance of `ChainSink<R>` reproduces 01's version 1 links; its statements are version 2 | BEH-AC-025, BEH-AC-026 |
+| <a id="req-ac-014"></a>REQ-AC-014 | 14 | Generic series: series id, resumption across hosts (`resumeFrom`, store head), markers, store errors | BEH-AC-025, BEH-AC-026, BEH-AC-029 |
+| <a id="req-ac-015"></a>REQ-AC-015 | 15 | Canonicaliser and position in the version 2 hash input; ciphertext hashed, links survive key destruction | BEH-AC-027, BEH-AC-028 |
+| <a id="req-ac-016"></a>REQ-AC-016 | 16 | Loss counters (`auditDropped`) carried in version 2 statements and reported; verification profiles | BEH-AC-030, BEH-AC-031 |
+| <a id="req-ac-017"></a>REQ-AC-017 | 17 | Bundle export copies what is stored; trust roots from the request; inclusion disclosure | BEH-AC-033, BEH-AC-039 |
+| <a id="req-ac-018"></a>REQ-AC-018 | 18 | `verifyBundle` pure, total and offline; canonical digest | BEH-AC-034, BEH-AC-037 |
+| <a id="req-ac-019"></a>REQ-AC-019 | 19 | Offline receipt confirmation; online-only evidence "not-checked"; pinned trust roots; carried expected heads never confirmed | BEH-AC-035, BEH-AC-036 |
+| <a id="req-ac-020"></a>REQ-AC-020 | 20 | Report wording; same result as `verifyChain`; encrypted series after key destruction | BEH-AC-038, BEH-AC-039 |
 
 ## §3 Risk notes
 

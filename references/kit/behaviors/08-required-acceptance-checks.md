@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-08                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.2 (2026-11-08): Checks 25–27 and REQ-KT-025–027 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -20,7 +20,7 @@ The checks below are what the kit's test suite is required to contain, in the
 style of core's [BEH-BR-183](../../core/behaviors/21-testing-host.md). A check
 listed here with no executed test is a gap in the evidence and must be reported
 as such ([ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)).
-This file owns BEH-KT-057–064 and uses BEH-KT-057; 058–064 are reserved.
+This file owns BEH-KT-057–064 and uses BEH-KT-057; 058–064 are reserved. Checks 25–27 were added by CCR-KT-003.
 
 Planned tests: `packages/kit/test/` *(Planned)*. Type-level checks (1–6, 11,
 16, 20) are compile tests: a file that must compile and a file whose expected
@@ -91,6 +91,25 @@ REQUIREMENT: The kit test suite MUST contain at least one test for each of
              24. why follows waiting providers depth first once each;
                 leases are counts; timeline shows gaps and its label; JSON
                 report is schema-versioned and sorted.
+             25. publish and countersign: both sign
+                `Statement.signingInput` through a scripted
+                `StatementSigner` and never see key material; publish stops
+                and prints the unmet branch under N-of-M; countersign
+                refuses a package whose digest does not recompute, adds a
+                signature without changing any digest, adds nothing for a
+                signer entry that already signed, and reports
+                `PublisherMismatch` and `SigningFailed` with their catalog
+                entries; emitted manifests carry `role`, `target` and
+                `listens`.
+             26. verify-chain calls `verifyBundle` with the pinned roots,
+                makes no network or clock access, prints no record content
+                and no overall verdict, maps reports to exit codes 0, 1
+                and 3, and prints `--json` as the report's encoding.
+             27. The inspector shows "refused-digest", `plugin-idled`,
+                `held-event-dropped`, `reconcile-partial` and breaker scope
+                by name and unknown tags raw; `PluginTest` re-exports core's
+                `scriptedRefusalList` and `memoryCallLog`; `dev --cold`
+                skips a declared handoff.
 ```
 
 ## Acceptance scenario traceability
@@ -121,6 +140,9 @@ REQUIREMENT: The kit test suite MUST contain at least one test for each of
 | REQ-KT-022 | 22. Every tag of ADR-BR-008, of files 26–34 and of the companions has exactly one catalog entry, and none is stale | [BEH-KT-049](./07-error-catalog.md#beh-kt-049-one-entry-per-tag-as-data), [BEH-KT-051](./07-error-catalog.md#beh-kt-051-the-catalog-is-checked-against-the-specifications), [BEH-KT-052](./07-error-catalog.md#beh-kt-052-the-catalog-v01) | Not run |
 | REQ-KT-023 | 23. Inspector calls no mutating operation; report retries to a consistent revision; edges include missing | [BEH-KT-041](./06-devtools-inspector.md#beh-kt-041-the-inspector-is-a-plugin-over-core-observation-only), [BEH-KT-042](./06-devtools-inspector.md#beh-kt-042-the-dependency-graph-is-consistent-with-one-snapshot-revision) | Not run |
 | REQ-KT-024 | 24. why follows waiting providers depth first once each; leases are counts; timeline shows gaps and its label; JSON report is schema-versioned and sorted | [BEH-KT-043](./06-devtools-inspector.md#beh-kt-043-why-explains-a-waiting-plugin-as-a-chain), [BEH-KT-044](./06-devtools-inspector.md#beh-kt-044-leases-are-counts-per-plugin-never-holders), [BEH-KT-045](./06-devtools-inspector.md#beh-kt-045-the-timeline-is-the-event-feed-with-gaps-shown), [BEH-KT-046](./06-devtools-inspector.md#beh-kt-046-the-json-report-is-versioned-and-stable), [BEH-KT-031](./04-cli.md#beh-kt-031-inspect-prints-the-inspector-report) | Not run |
+| REQ-KT-025 | 25. publish and countersign sign the loader's signing input through a signer adapter, never see keys, change no digest, report what remains; manifests carry roles, targets and listens | [BEH-KT-029](./04-cli.md#beh-kt-029-pack-builds-a-loader-package-and-nothing-else), [BEH-KT-030](./04-cli.md#beh-kt-030-publish-delegates-signing-to-the-loader-and-holds-no-key), [BEH-KT-032](./04-cli.md#beh-kt-032-countersign-adds-a-second-signer-entry-without-changing-the-package) | Not run |
+| REQ-KT-026 | 26. verify-chain runs `verifyBundle` offline with pinned roots and prints what was checked, with no overall verdict | [BEH-KT-047](./06-devtools-inspector.md#beh-kt-047-verify-chain-checks-a-verification-bundle-offline-and-prints-what-was-checked) | Not run |
+| REQ-KT-027 | 27. Inspector renders the core states and events of CCR-BR-024–026; core fixtures re-exported; dev --cold | [BEH-KT-045](./06-devtools-inspector.md#beh-kt-045-the-timeline-is-the-event-feed-with-gaps-shown), [BEH-KT-013](./02-plugin-test.md#beh-kt-013-faults-and-stepping-stay-cores), [BEH-KT-026](./04-cli.md#beh-kt-026-dev-reloads-changed-plugins-with-replace-on-a-host-it-owns) | Not run |
 
 ---
 

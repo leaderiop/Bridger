@@ -1,6 +1,8 @@
 # Bridger ERP: the browser UI (FoldKit or React), catalog and custom UI artifacts
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. `@bridger/erp-ui`, `@bridger/erp-foldkit`, `@bridger/erp-react`, catalog schemas, endpoints and widget contracts are proposed. FoldKit facts (Model/Message/update/Command/Subscription loop, `Runtime.embed`, Ports, Story/Scene tests) are cited from the [knowledge catalog](knowledge/README.md) entries F01–F16, E16, E42, A30, O09–O10 and from [FOLDKIT-API.md](FOLDKIT-API.md); nothing was run. awthaq client behavior is from reading `@awthaq/client`'s README *(inferred)*. Policy: all packages target the latest stable Effect 4.x (4.0.0 at the time of writing). This document refines [ERP-SPEC.md](ERP-SPEC.md) §8 and [ERP-TODO-WALKTHROUGH.md](ERP-TODO-WALKTHROUGH.md) §8.
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. `@bridger/erp-ui`, `@bridger/erp-foldkit`, `@bridger/erp-react`, catalog schemas, endpoints and widget contracts are proposed. FoldKit facts (Model/Message/update/Command/Subscription loop, `Runtime.embed`, Ports, Story/Scene tests) are cited from the [knowledge catalog](knowledge/README.md) entries F01–F16, E16, E42, A30, O09–O10 and from [FOLDKIT-API.md](FOLDKIT-API.md); nothing was run. awthaq client behavior is from reading `@awthaq/client`'s README *(inferred)*. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). This document refines [ERP-SPEC.md](ERP-SPEC.md) §8 and [ERP-TODO-WALKTHROUGH.md](ERP-TODO-WALKTHROUGH.md) §8.
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 ## 1. Decision
 
@@ -246,31 +248,33 @@ Widgets exchange only schema-validated data with the form machine; the form mach
 
 ## 9. Teardown through the core's lease rules
 
-A UI plugin is torn down with the same guarantees as a server plugin ([SPEC.md](SPEC.md), "Leases"). This replaces an ad hoc handshake with the core's lease and drain rules.
+A UI plugin is torn down with the same guarantees as a server plugin ([core 09 — Leases](../references/core/behaviors/09-leases.md)). The mount and teardown rules are those of [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5, which govern; this section states only what the ERP renderers add.
 
 ```mermaid
 sequenceDiagram
     participant Cat as Catalog
     participant Shell as Shell (machines)
     participant Host as Browser Bridger host
+    participant R as Renderer (PluginBoundary)
     participant Reg as Registries
-    participant R as Renderer
     Cat->>Shell: widget plugin removed (revision)
     Shell->>Host: remove(pluginId, { drain, force })
-    Host->>Reg: contributions of the plugin withdrawn
-    Reg->>R: notify: instances must unmount
-    R->>R: unmount instances (React cleanup / FoldKit shutdown + dispose)
-    R-->>Host: scoped leases released
-    Host->>Host: scope closed, plugin removed
-    Note over Host: drain timeout -> force: instance fibers interrupted, generic widget shown
+    Host->>R: Host.changes: plugin stopping (new leases refused)
+    R->>R: unmount instances (React cleanup, parent to child / FoldKit Shutdown, then Closed)
+    R->>R: release after the cleanup pass and its calls
+    R-->>Host: owner lease released
+    R-->>Reg: registry hold released
+    Host->>Host: lease drain complete, activation scope closes
+    Host->>Reg: scope close withdraws the plugin's contributions
+    Note over Host,R: drain limit (5 s in erp-react) with force: hold fibers interrupted (lease-revoked), generic widget shown
 ```
 
-1. **Instances hold leases.** Mounting a widget or view takes a scoped lease on its UI plugin (`Host.lease`). The lease is released when the instance unmounts.
-2. **Removal.** A catalog revision that removes the plugin, or a module disable or upgrade, makes the shell call `host.remove(pluginId, { drain })`. The core hides the plugin from new consumers (registries stop returning its contributions, so new mounts fall back to the generic widget) and waits for leases.
-3. **Unmount.** Registries notify the renderer that affected instances must unmount; the form machine keeps the last value so the generic widget can take over.
-   - **React:** unmount runs effect cleanup, which releases the lease. React runs cleanup before any re-mount, and leases are scoped to the effect lifecycle, so StrictMode's double mount neither leaks nor releases early.
-   - **FoldKit:** the embedded runtime receives `Shutdown` on its Port, finalizes, replies `Closed`; the renderer then disposes the `EmbedHandle` and releases the lease. FoldKit disposal is not an awaitable barrier ([FOLDKIT-API.md](FOLDKIT-API.md)), so `Closed` is the barrier; the lease is released on `Closed` or at the unmount timeout.
-4. **Drain limit.** If instances do not unmount within the drain limit (default 5 seconds), `force` interrupts the instances' fibers, the generic widget replaces them, and a `ForcedTeardown` event is recorded for administrators. The UI never blocks on a plugin.
+1. **Instances hold the owner and the entry.** Mounting a widget or view renderer takes the two holds of [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5.1: an owner lease, `host.lease(keys, { realm })` on the service keys the UI plugin provides (`Host.lease` takes keys, not a plugin; a UI plugin that provides no key has no owner lease), and a registry hold on the instance's entry. An instance mounts only while its plugin is `active`.
+2. **Removal.** A catalog revision that removes the plugin, or a module disable or upgrade, makes the shell call `host.remove(pluginId, { drain })`. The host refuses new leases and publishes the plugin as `stopping` on `Host.changes`; it waits for leases **before** it closes the plugin's activation scope, and the registries withdraw its contributions only when that scope closes (BEH-BR-167).
+3. **Unmount on `stopping`, not on the registry.** The renderer unmounts affected instances as soon as `Host.changes` shows the plugin no longer `active`, or when the entry leaves the registry view, whichever comes first. Waiting for the registry notification would hold the owner lease until the drain limit and force every removal. The form machine keeps the last value so the generic widget can take over.
+   - **React:** the boundary releases its holds after React's parent-to-child cleanup pass and the service calls those cleanups started ([REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5.1, step 6), so StrictMode's double mount neither leaks nor releases early.
+   - **FoldKit:** the embedded runtime receives `Shutdown` on its Port, finalizes, replies `Closed`; the renderer then disposes the `EmbedHandle` and releases the holds. FoldKit disposal is not an awaitable barrier ([FOLDKIT-API.md](FOLDKIT-API.md)), so `Closed` is the barrier; the holds are released on `Closed` or at the drain limit.
+4. **Drain limit.** `@bridger/erp-react` sets both limits to 5 seconds (`createBridgerClient({ host: { drainTimeout }, ui: { drainTimeout } })`, [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5.3); `@bridger/react` and the core default to 30 seconds. If instances do not unmount within it, `force` interrupts their hold fibers (a `lease-revoked` host event, BEH-BR-086), the generic widget replaces them, and a `ForcedTeardown` diagnostic is reported for administrators. The UI never blocks on a plugin.
 5. **Server disable never waits for browsers.** Browsers hold no server leases; stale calls fail with `ModuleUnavailable` or `ContractMismatch`, the shell refreshes the catalog, and the process above runs locally.
 
 ## 10. Error and offline behavior
@@ -318,3 +322,5 @@ These are design acceptance scenarios, not tests already executed.
 | 8 | Slots and shell contributions in FoldKit | **Open.** The extension point tokens are framework-neutral; [FOLDKIT-API.md](FOLDKIT-API.md) has no rendering model for them yet. Until it does, FoldKit deployments extend through widgets and view renderers only, and the conformance suite (§11) covers slots in React only. |
 
 One open item remains (8).
+
+Change log: 2026-11-08, round-2 agent review fixes — §9 rewritten to the mount and teardown rule of REACT-UI-PLUGINS §5 (owner lease on keys plus registry hold; unmount when the plugin leaves `active`, before the registry withdraws its entries; release after React's cleanup pass; 5 s for both limits set by `@bridger/erp-react`); the pre-fix order (unmount on registry withdrawal, lease "on the plugin") is withdrawn. REACT-API.md's round-2 change log had claimed this alignment before §9 itself was changed (R5-11); status banner links the event-store, sequence and keyring companions (R5-20).

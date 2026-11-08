@@ -1,6 +1,8 @@
 # Bridger ERP: developer experience, test kit and CI
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. CLI commands, packages, helpers and file layouts are proposed. Effect testing facts (`effect/testing`, `TestClock`, `Arbitrary` which is unstable) and Alchemy/FoldKit test facilities are cited from the [knowledge catalog](knowledge/README.md) entries E44, A18–A20, F11–F12, R30; awthaq's `TestAuth.layer`, `CookieAssertions`, BDD suite and repository scripts were read in `/Users/mohammadalmechkor/Projects/Perso/effect-auth` (README and file names; not executed). Policy: all packages target the latest stable Effect 4.x (4.0.0 at the time of writing). This document turns the acceptance sections of the other specs into a testable structure.
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. CLI commands, packages, helpers and file layouts are proposed. Effect testing facts (`effect/testing`, `TestClock`, `Arbitrary` which is unstable) and Alchemy/FoldKit test facilities are cited from the [knowledge catalog](knowledge/README.md) entries E44, A18–A20, F11–F12, R30; awthaq's `TestAuth.layer`, `CookieAssertions`, BDD suite and repository scripts were read in `/Users/mohammadalmechkor/Projects/Perso/effect-auth` (README and file names; not executed). Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). This document turns the acceptance sections of the other specs into a testable structure.
+
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
 ## 1. Decision
 
@@ -174,7 +176,7 @@ Release: changesets with lockstep versions for `@bridger/*`; `release:dry-run` b
 
 ## 7a. Tooling from the Effect ecosystem and beyond
 
-Checked against npm and project documentation on 2026-10-02; none of it has been tried in this repository. Versions: Effect and its `@effect/*` packages are published at 4.0.0.
+Checked against npm and project documentation on 2026-10-02; none of it has been tried in this repository. Versions: Effect and its `@effect/*` packages were published at 4.0.0 when checked on 2026-10-02; the target is now Effect 4.1 (2026-11-08 revision), and these versions are to be re-checked against 4.1.
 
 | Need | Tool | Notes |
 | --- | --- | --- |
@@ -198,7 +200,7 @@ Checked against npm and project documentation on 2026-10-02; none of it has been
 Notes:
 
 - The old standalone `@effect/cli`, `@effect/rpc`, `@effect/workflow` and `@effect/cluster` packages (0.x versions) are the v3 lineage; in v4 the same functionality is in the core `effect` package, and some import paths are under `unstable` ([knowledge/README.md](knowledge/README.md)).
-- The Effect version policy for all packages is the latest stable 4.x. awthaq and qadi currently pin `4.0.0-rc.116` exactly and need a version bump before they can share one Effect copy with Bridger packages on the server.
+- The Effect version policy for all packages is the latest stable 4.x, 4.1 as of the 2026-11-08 revision. awthaq and qadi currently pin `4.0.0-rc.116` exactly and need a version bump before they can share one Effect copy with Bridger packages on the server.
 
 ## 8. Acceptance checks
 
@@ -223,4 +225,6 @@ These are design acceptance scenarios, not tests already executed.
 | 4 | "Why was this denied" tool | **Adopt `@qadi/devtools`** in the `bridger dev` diagnostics page, opt-in, never enabled in production builds. |
 | 5 | Mutation testing | **Deferred.** Before general availability of the access wrapper, run a mutation tool (for example Stryker) over the policy compiler and column mapping. |
 
-No remaining open items in this document.
+**Status (2026-11-08): open items remain.** The decisions above date from October 2026. Open: the test kit and CLI overlap with the `@bridger/kit` companion ([references/kit/](../references/kit/README.md)) and are to be reconciled with it; tool versions are to be re-checked against the Effect 4.1 target; nothing here is implemented or run.
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

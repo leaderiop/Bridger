@@ -34,3 +34,7 @@ entries:
     file: "008-fenced-single-owner-exports.md"
     title: "Fenced single-owner exports against split-brain"
     status: "Proposed"
+  - id: "ADR-FD-009"
+    file: "009-revocation-travels-apart-from-desired-state.md"
+    title: "Revocation travels apart from desired state"
+    status: "Proposed"

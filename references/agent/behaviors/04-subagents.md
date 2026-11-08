@@ -193,7 +193,7 @@ behaviour depends on them and does not define them.
 
 ## BEH-AG-029: Taint flows into the subagent and back
 
-> **Invariant:** [INV-AG-005](../invariants.md#inv-ag-005-taint-is-monotone-per-session), [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed)
+> **Invariant:** [INV-AG-005](../invariants.md#inv-ag-005-taint-is-monotone-per-session), [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed-a-change)
 > **See:** [ADR-AG-003](../decisions/003-taint-is-monotone-and-forbids-auto-allow.md), [ADR-AG-004](../decisions/004-subagent-is-ephemeral-realm-and-narrowed-actor.md)
 
 ```

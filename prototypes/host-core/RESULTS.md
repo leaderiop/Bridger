@@ -1,4 +1,4 @@
-# Host-core prototype — results (phases P1–P5, G11, in-flight table, CCR-BR-008, CCR-BR-012, CCR-BR-014)
+# Host-core prototype — results (phases P1–P5, G11, in-flight table, CCR-BR-008, CCR-BR-012, CCR-BR-014, P7 round 2)
 
 Throwaway prototype of the Bridger host core — behaviours 01–09 of
 `references/core/` (definition, installation, states and snapshots,
@@ -453,6 +453,276 @@ presence.
 
 Suite: 238 passed; `tsc --noEmit` clean.
 
+## P7 (round 2): core 26–34
+
+**This prototype evidences no requirement (CCR-BR-004, ADR-BR-035).** Its tests find specification
+defects; passing them shows nothing about `@bridger/core`. Work done for round 2, phase 2, workstream WS8.
+
+### Baseline and Effect version
+
+- Baseline on 2026-11-08 before any change: `npm ci`, `tsc --noEmit` clean, **227 tests in 18 files, all
+  passing**. The previous section records 238 tests in 19 files; the difference is `test/ccr14.test.ts`, which
+  is absent from the working tree (its code in `src/gxp.ts` and `src/host.ts` is present). It was never committed
+  and is lost; the second pass **reconstructed** it (see below).
+- Effect stays at **4.0.0**. Owner decision D5 asks for 4.1, but on 2026-11-08 `npm view effect time` gives
+  4.1.0 = 2026-10-29, 4.1.1 = 2026-10-30, 4.1.2 = 2026-11-02: no 4.1.x release is two weeks old yet. Under the
+  two-week rule 4.1.0 becomes eligible on **2026-11-12** (4.1.2 on 2026-11-16).
+- After the first pass: 274 tests in 25 files. **After the second pass: 319 tests in 29 files, all passing**
+  (repeated full runs), `tsc --noEmit` clean. The
+  227 earlier tests pass unchanged; the only edits that touch them are additive fields (`auditDropped` on every
+  record, `registeredAt` on entries) and the reconcile order of BEH-BR-156, which the P4 reconcile suite accepts.
+
+### What was built
+
+| Area | Files | What |
+| --- | --- | --- |
+| core 26 | `src/contract.ts`, `src/host.ts`, `src/registry.ts` | `Contract.make`/`method`/`at`/`range`, grammar, `satisfies`, `maxSatisfying`, descriptor with `timeouts`, `parseOptions`; validation of references in `requires`/`optional`/`provides`; `IncompatibleContract` after `DependencyCycle` (dependent side, then provider side by id); `KeyMismatch` relaxed between two contract references; `baseContracts`; optional incompatible = absent; contract registries (`contract`, `range`, `implements`, `within`) (K3) |
+| core 27 | `src/manifest.ts`, `src/host.ts` | manifest decode (path-naming, value-free), agreement with an eager definition, `engines` / `IncompatibleEngine`, `consentDiff`, `Plugin.lazy`, `dormant` state and row, triggers (`OnService` from waiting dependents, `wake` for all three kinds), `load` in the build slot under `buildTimeout` with `LoadFailed`/`ManifestMismatch` (phase "load", sticky, `retry` reloads), `lazy-triggered` record before `system-start`, `plugin-triggered`, `declaredContributions`, `Host.link`, `HostLink.reference`/`none` |
+| core 31 | `src/hooks.ts` | hook points over a registry: `who`, roles, effective `onError`, targets, phases enrich → veto → advise, per-hook timeout in supervised fibers, deadline, policy `Run`/`Skip`/`Deny`, `settle`, breaker per contribution or per plugin, decision and breaker records, the dormant wake step (K1) with `wake`/`deny`/`skip`, `declared-refused`, `wake-failed`/`wake-timeout`, `no-host-link`, `target-failed` |
+| core 32 | `src/gate.ts`, `src/host.ts` | `Gate.run`, `Gate.all`, `Draft.check`, `OperationGate.fromGate`/`asGate`; `Host.plan`; reconcile order of BEH-BR-156; `expect` (at the call and at the intent); `atomic` with undo in reverse, `undo: true` on the gate request, `undoes` on records, `ChangedSinceApply`, `ApplyRolledBack`, `PartialApply`, `reconcile-partial` |
+| core 30 (part) | `src/annotations.ts` | keys with flows, branded immutable bag, combine/monotonic, `filter`, `encode`, `resolve`, the three core keys; read by `Gate.run` only |
+| core 33 (part) | `src/actor.ts` | `Actor.narrow`, `Actor.isWithin` |
+| core 34 | `src/host.ts`, `src/plugin.ts` | `handoff` on definitions; export after drain and before scope close on `replace` of an active plugin (and `restart` under `alsoOn`, unless `cold`); upgrade/decode/import before publication; one `handoff` record before `system-start`; `handoff-imported`/`handoff-lost`; loss tags |
+| K4, K10 | `src/gxp.ts`, `src/host.ts` | `RefusalList` at step 4b (one `rejected` record, no gate) and at system starts and triggers (`disabled`, reason "refused-digest", `start-refused`); `auditDropped` on every record; lone-surrogate sanitising with `sanitized: true`; `HostControls.buildTimeout` |
+
+Deliberate simplifications: durations are milliseconds; the hook point reads the owner from `ActivePlugin`
+(no plugin principal); `PlanStale` carries a message, not `mismatches`; the plan's `configChange.paths` for a
+`reconfigure` entry are computed from raw values; `registeredAt` is set in `commit` when the definition, override,
+disabled flag or ownership object changes; `replace` with a lazy definition is not supported; handoff
+abandonment on `waiting`, removal and shutdown is not implemented (the held value then waits for the next build).
+
+### Acceptance checks 59–111
+
+Covered (test files `test/p7-*.test.ts`; "partial" names what is missing):
+
+| Check | Status | Test / what is missing |
+| --- | --- | --- |
+| 59 | covered | p7-contracts (install and replace; `enable` goes through the same `validate`) |
+| 60 | covered | p7-contracts |
+| 61 | partial | p7-contracts; `whenAvailable` not exercised |
+| 62 | partial | p7-lazy; unknown properties are kept by construction, `inspect().manifest` not implemented |
+| 63 | partial | p7-lazy; slots, triggers, dormant row; cycle detection and contract checks from the manifest, `reconfigure` paths and form "raw" not asserted |
+| 64 | partial | p7-lazy; eager dependent wakes, `wake` kinds, reads wake nothing; event dispatch wakes not implemented |
+| 65 | partial | p7-lazy; operations during a load and the `loading` flag not asserted |
+| 66 | partial | p7-lazy; gate request `definition.manifest` / `previousManifest` not implemented |
+| 74 | partial | p7-gate; bag rules only, no host integration |
+| 77, 78, 94 | covered | p7-hooks |
+| 79 | partial | p7-hooks; the no-owner principal rule not testable without core 28 |
+| 80 | partial | p7-hooks; `Selector` not implemented |
+| 81 | covered | p7-gate |
+| 82 | partial | p7-gate; the 25 — Operation Gate scenarios were not rerun through the adapter |
+| 83 | covered | p7-reconcile (plan, stale at the call, stale at the intent, recorded paths for an install entry) |
+| 86 | partial | p7-gate; `Actor.narrow`/`isWithin` only, not `Realm.ephemeral` |
+| 87 | covered | p7-handoff |
+| 88 | partial | p7-handoff; abandonment on `waiting`/removal/shutdown, cascade-ended parked replace, replace into `dormant` |
+| 92 | covered | p7-hooks (with a real host and lazy plugins) |
+| 93 | covered | p7-hooks |
+| 95 | covered | p7-hooks |
+| 98, 99 | covered | p7-reconcile |
+| 100 | partial | p7-reconcile; only `ChangedSinceApply` — parked `DrainTimeout`, latch, shutdown, interruption, next reconcile waiting not tested |
+| 102 | covered | p7-contracts (except the `Selector` range) |
+| 103 | partial | p7-handoff; `restart` and `cold`; `reconfigure` under `alsoOn` and dependents not tested |
+| 104 | partial | p7-gate; operator call and lazy trigger; cascade and background restarts and mounts not implemented |
+| 108 | covered | p7-gate |
+
+The two tests the recheck names: "a lazy veto plugin denies on its first dispatch" and "a failing wake denies"
+(p7-hooks, with a real `TestHost`, `Plugin.lazy` and `host.link`); "an atomic bundle switch applies in either
+list order, or not at all with `ApplyRolledBack`" (p7-reconcile). The confluence property is extended in
+`test/p7-confluence.test.ts`: 30 seeded random histories mixing lazy installs, `wake`, `plan` (asserted to change
+nothing), `replace` with handoff, restarts and random step orders.
+
+(First pass; superseded by the second pass below.) Not covered, with the reason: **67–70, 105, 109** (core 28: principals, `onBehalfOf`, mandatory interceptions,
+`allowChildren`, `AccessPolicy`) — a per-activation principal threads through every fiber the host starts and
+was out of reach in this pass; **71–73, 107, 110, 111** (core 29: `CapabilityPolicy`, grants, `CallLog`,
+`offerCallEntry`, `PrincipalRef`) — they depend on the principal; **75, 76, 106** (annotation propagation,
+audit keys, `CurrentCorrelation`) — need host-wide context plumbing; **84, 85** (realm families, idle eviction,
+`retireRealm`); **89** (sub-scope child mount); **90** (`Plugin.Any`, a compile-time check); **91**
+(`Plugin.Runtime.entitled`); **96** (held event); **97** (idle return); **101** (`mandatoryCatalog`). All: time.
+
+### Mutation checks
+
+Each mutation applied alone by a script, the named P7 suite run, then the file restored. 14 of 14 caught.
+
+| # | Mutation | Result |
+| --- | --- | --- |
+| M1 | contract condition 3 applied below the dependent's copy | caught (2 tests) |
+| M2 | reconcile change phase in list order | caught (3) |
+| M3 | atomic: no undo | caught (2) |
+| M4 | undo gated without `undo: true` | caught (1) |
+| M5 | `ChangedSinceApply` check skipped | caught (1) |
+| M6 | `OnService` triggers not applied | caught (1) |
+| M7 | loaded digest not compared | caught (1) |
+| M8 | hook wake step never calls `wake` | caught (3); a first M8 (drop the first registry poll) survived and is an equivalent mutation: the loop finds the contribution on the next branch |
+| M9 | enrichments not passed to veto hooks | caught (1) |
+| M10 | deadline expiry ignores `onError: "deny"` of uncompleted vetoes | caught (1) |
+| M11 | `RefusalList` step 4b skipped | caught (1) |
+| M12 | handoff import skipped | caught (3) |
+| M13 | `Gate.all` returns the first deferral at once | caught (1) |
+| M14 | a refused dormant plugin is still triggered | caught (1) |
+
+### Findings for the specification (G-P1 … G-P12)
+
+Exact proposed edits are in the round-2 notes (`P2-WS8.md`); none was applied here.
+
+| # | Finding | Where |
+| --- | --- | --- |
+| G-P1 | `Contract extends Context.Key` but declares `key: Context.Key`: in Effect 4 every key already has `key: string`, read by `Context.add`/`get`. Built on a class key, `name` also collides with the read-only `Function.name`. Not implementable as written | BEH-BR-225 |
+| G-P2 | Whether `install` with `disabled: true` is checked for `IncompatibleContract` is not said (it forms no registered pair) | BEH-BR-228 |
+| G-P3 | The wake window is "deadline less one `timeout`", but `timeout = deadline` is valid: the window is empty and every dormant veto declaration ends "wake-timeout" (shown by a test). A call `deadline` or a `Deadline` annotation can empty it too | BEH-BR-297, 309 |
+| G-P4 | A woken contribution takes part as soon as it is in the registry, while its plugin is still `starting`; its build may then fail. Not stated either way | BEH-BR-309 |
+| G-P5 | A manifest `RequiredRef` with `range` but no `version` is unclassified (contract or plain key?) | BEH-BR-241 |
+| G-P6 | `consentDiff` does not classify an egress `purpose` change on an unchanged host, nor give the shape of `methods` going from a list to absent | BEH-BR-243 |
+| G-P7 | Confluence does not hold for lazy plugins: a history that woke one ends with it loaded and `active`, a direct install leaves it `dormant` (shown by the property test) | BEH-BR-160, 252 |
+| G-P8 | `Actor.isWithin` treats an actor whose own id contains "/" as a narrowing ("acme/alice" is within "acme") | BEH-BR-337 |
+| G-P9 | `PlanStale.mismatches` items need `id` and `realm`, but host-level mismatches (`hostId`, `scope`, prune options, `atomic`, `unchanged`/`rejected` sets) have none | BEH-BR-319 |
+| G-P10 | `plan` MAY decode a `reconfigure` value, yet check 83 requires the plan's `configChange.paths` to equal the recorded (decoded) ones: MAY must be MUST | BEH-BR-317, check 83 |
+| G-P11 | `settle`'s outcome for a hook interrupted by the dispatch deadline is not named ("interrupted"? "timeout"?); the record says "deadline" | BEH-BR-302, 303 |
+| G-P12 | "every record carries `sanitized: true`" — every record of the call, or also system records caused by it (which carry its sanitised correlation)? | BEH-BR-185, check 108 |
+
+### Second pass (round 2, WS8): every check 59–111 has a passing test
+
+Built (all in `prototypes/host-core`):
+
+| Area | Files | What |
+| --- | --- | --- |
+| core 28 | `src/policy.ts`, `src/host.ts`, `src/bus.ts`, `src/registry.ts` | `CurrentPlugin` (`get`, `require`, minted per activation, `PrincipalForged`, `PrincipalRetired` after the scope closes), `Plugin.Runtime.principal`/`asSelf`, `onBehalfOf` on requests and records (also reconcile entries and root `lazy-triggered`), mandatory interceptions at host, realm and installation level in the order of BEH-BR-261 (Host.use/useAll/lease get "all" layers only), `allowChildren` (`ChildNotAllowed`, `child-refused`), `AccessPolicy` on listen/emit/contribute/child (`AccessDenied`, "policy-defect"), `declaredOnly`, `ask`, `RefusalList` on child mounts, `mandatoryCatalog` with `DesiredPlugin.mandatoryInterceptions`/`allowChildren` and `PolicyMismatch`, request fields `allowChildren`/`mandatoryInterceptions`, `controls.policy` |
+| core 29 | `src/policy.ts`, `src/host.ts` | `CapabilityPolicy` on every route with `resolutionTimeout`, `Grant.of`/`all`, the grant proxy (`CapabilityDenied`), `changes` re-resolving live captures, `CallLog` (`select`, bounded queue, `onFailure` drop/refuse, `CallLogUnavailable`, counters in `controls.callLog`, `callLogTimeout`), `CurrentCall`, `offerCallEntry` with entry kinds and `InvalidCallEntry`, `PrincipalRef` encode/decode |
+| core 30, 22 | `src/policy.ts`, `src/host.ts`, `src/bus.ts` | annotations resolved at step 2, gate-flow on the request, audit-flow (encoded, sorted, `annotationsOmitted`) on records, events-flow for listeners, empty in builds, `Deadline` shortening the gate and a `use` with a timeout; `CurrentCorrelation` (context, else fiber, else generated; set for the call's work; listeners follow); `CallerContext.current`/`serve` |
+| core 27 rest | `src/host.ts`, `src/bus.ts` | event dispatches wake `OnEvent` plugins and hold the event (delivery once to the woken plugin's `on` listeners; drops `no-listener`, `activation-failed`, `ended`, `timeout`); idle return with `lazy-idle` and `plugin-idled` |
+| core 33 | `src/realms.ts`, `src/host.ts` | `Realm.family` (lazy creation per key, shared, invalid key, options changed, failed until reset, idle eviction through reconcile with `pruneDrain`/`pruneForce: false`, family events), `Realm.ephemeral`, `Host.retireRealm` (`RealmInUse`) |
+| core 10, 14, 01 | `src/host.ts`, `src/plugin.ts` | `Plugin.Runtime.entitled` with the optional `EntitlementView`, `Plugin.Runtime.unmount` (`unmount-requested`, `requestedBy`), children under a sub-scope removed at its close, `Plugin.Any` (compile-time brand) |
+
+**`test/ccr14.test.ts` was reconstructed.** The original was never committed and is lost. Its 11 scenario tests
+were rebuilt from acceptance checks 55–58 in `references/core/behaviors/21-testing-host.md` and the CCR-BR-014
+table above, against the source code that had survived. They pass without any change to that code. They are a
+reconstruction, not the original file.
+
+New test files: `test/p7-principal.test.ts` (10), `test/p7-capability.test.ts` (10), `test/p7-lifecycle.test.ts`
+(14), `test/ccr14.test.ts` (11).
+
+Coverage of checks 59–111 after the second pass. Every check has at least one passing test; "partial" names what
+is still not exercised.
+
+| Check | Status | Missing |
+| --- | --- | --- |
+| 59, 60, 77, 78, 81, 83, 87, 92–95, 98, 99, 102, 108 | covered | — |
+| 64, 69, 71, 73, 86, 90, 101, 105, 107, 109, 110, 111 | covered (second pass) | — |
+| 67, 68, 70 | covered | 67: a finalizer that removes a child; 70: the "a child cannot widen it" case is only the trivial one |
+| 61 | partial | `whenAvailable` with an incompatible optional contract |
+| 62, 63, 65, 66 | partial | as in the first pass (inspect manifest, cycle and contract checks from manifests, operations during a load, gate `definition.manifest`) |
+| 72 | partial | a grant on `Bridger.Host` itself (the generic narrowing is tested) |
+| 74, 75, 76 | partial | `Annotations.decode` and the "wire" filter (75); a `Redacted` value and size limits (76) |
+| 79, 80 | partial | the no-owner principal of hooks (hooks read `ActivePlugin`); `Selector` |
+| 82 | partial | the operation-gate scenarios were not all rerun through the adapter |
+| 84, 85 | partial | 85: a use arriving during an eviction |
+| 88, 100, 103 | partial | as in the first pass |
+| 89 | partial | dependents of the child, drain and revocation at the scope close |
+| 91 | partial | a `watch` that fails or dies (ending early is tested) |
+| 96 | partial | `parallel`/`serial`/`waterfall` triggering dispatches; "ended" by replace, disable, idle and host close (removal while `waiting` is tested) |
+| 97 | partial | a trigger applied during the idle stop |
+| 104 | partial | cascade restarts and background restarts of a refused digest |
+| 106 | partial | system transitions and the diagnostic channels |
+
+Second-pass mutations (each applied alone, the named suite run, then the file restored): **13 of 13 caught**.
+One mutation (N9) first survived because the test's application listener was never registered (it ran in a
+`use` callback with no scope). The test was fixed, and N9 is now caught.
+
+| # | Mutation | Result |
+| --- | --- | --- |
+| N1 | `onBehalfOf` not recorded | caught (2) |
+| N2 | forged principal accepted | caught (1) |
+| N3 | host mandatory before realm mandatory | caught (1) |
+| N4 | `allowChildren` ignored | caught (1) |
+| N5 | grant narrowing lets every member through | caught (2) |
+| N6 | call-log "refuse" treated as "drop" | caught (1) |
+| N7 | fiber correlation ignored by mutations | caught (2) |
+| N8 | listener not run under its owner's principal | caught (1) |
+| N9 | held event delivered to every `on` listener | caught after the test fix |
+| N10 | idle ignores leases | caught (1) |
+| N11 | `retireRealm` retires a non-empty realm | caught (1) |
+| N12 | sub-scope child not removed at scope close | caught (1) |
+| N13 | a refused required capture does not fail the activation | caught (1) |
+
+New findings (G-P13 … G-P18). The exact proposed edits are in the notes.
+
+| # | Finding | Where |
+| --- | --- | --- |
+| G-P13 | "`Grant.all` adds no layer" contradicts `changes`, which must narrow *later calls* of a live capture: without a layer the host cannot narrow a captured object. The prototype adds a layer when the policy has `changes` | BEH-BR-275, 281 |
+| G-P14 | A `remove` or `disable` that arrives while a lazy plugin is loading waits for the load (the `starting` rows), so the held event is delivered or dropped "activation-failed", never "ended". The reason for this race is not defined | BEH-BR-251, 246 |
+| G-P15 | `Plugin.Any` cannot be written as `PluginDefinition<any, any, any>`, nor with a `Layer<any, any, any>` build: Layer's output is declared `in out` in Effect 4, so a `Layer<never>` is not assignable to it. The type must erase the build | BEH-BR-001, 017 |
+| G-P16 | For `Host.use`/`useAll`/`lease` from plugin code, it is not said whose realm's mandatory layers apply: the call's `realm` option or the caller's realm. The prototype uses the call's realm | BEH-BR-262 |
+| G-P17 | Idle return's conditions "no contribution it added is held by a registry `use`/`useAll` or dispatch" and "no listener of it is running" cannot be observed by the host: registries and hook points live outside it, and `ActivePlugin` reports contributions, not holds. Unimplementable as written; the prototype checks leases, children and dependents only | BEH-BR-252 |
+| G-P18 | `CallLog` "refuse" does not say when capacity is judged. Before the call, the call is refused. After it, the call has already run and only the entry is lost, which is "drop". The prototype judges before the call | BEH-BR-279 |
+
+### P7 third pass (CCR-BR-029 alignment)
+
+Round 2, WS8c. The prototype follows the core text as amended by CCR-BR-029 (behaviours 18, 25–29, 31, 32). It
+evidences no requirement. **After the third pass: 340 tests in 32 files, all passing (three full runs), `tsc
+--noEmit` clean.** The 319 earlier tests pass. Three were edited because they relied on behaviour the
+amendment changed: in `p7-hooks`, unit points dispatched with `HostLink.none` now set `allowNoLink: true`, and the
+G-P3 test now expects `make` to refuse `timeout = deadline` when a veto may be woken; in `p7-capability` (check 107),
+the first half now expects a "refuse" call to wait for its record. New files: `test/p7-ccr29-reconcile.test.ts` (7),
+`test/p7-ccr29-hooks.test.ts` (8), `test/p7-ccr29-policy.test.ts` (6).
+
+| Item | Change (files) | Tests |
+| --- | --- | --- |
+| R1-01 | The undo of `replace` is `replace` and then, when the entry's previous override is not none, `reconfigure` with it. "Previous" is read per entry, from before the entry's first action. `PlannedEntry.undo` and `reasonRequiredFor` list both actions (`host.ts`) | regression: an undone `[replace]` builds again with `{n:1}` and the plan lists `["replace","reconfigure"]` |
+| R1-02 | Each undo check compares `registeredAt` with the revision this call last produced on the plugin (`lastRev`, moved by forward and undo actions). The second action of a two-action step is checked too (`host.ts`) | regression: `[replace, reconfigure]` is undone in full (`ApplyRolledBack`, three undo records) instead of `PartialApply`/`ChangedSinceApply` |
+| R1-03 | `declaredContributions` reports `idling` for a loaded plugin under an idle stop. `wake` and `OnEvent` dispatches keep a trigger that reaches it and apply it at `dormant`, the event held. The hook wakes an "idling" declaration and waits as for "dormant" (`host.ts`, `hooks.ts`) | a dispatch during the idle stop is decided by the woken veto, which is loaded twice |
+| R1-04 | `refused` for a lazy registration `disabled` with "refused-digest"; an operator's disable is not reported. The hook records "wake-failed" without a wake and lets `onError` decide | deny and skip; no `lazy-triggered` record |
+| R1-05 | Declarations are matched by id, owner and role. A same-id contribution of another owner or role keeps the declaration and tags its step `DuplicateContribution`. A wake completes only with the declaring owner's contribution (`hooks.ts`) | regression: an advisory squatter under the veto's id no longer hides it (`wake-failed`, not `Allowed`) |
+| R1-06 | `HostLink.hostId`, set on `Host.link` and absent on `HostLink.none`. Records carry `link`: the hostId, "none", or absent with no link. `HookPointOptions.allowNoLink` (default false) lets `HostLink.none` through (`host.ts`, `hooks.ts`) | none denies; with `allowNoLink` it is allowed and recorded "none"; the host link is recorded by its hostId |
+| R1-07 | The diff reads the operator's `disabled` flag. `registeredAt` tracks that flag. An operator `disable` of a refused registration clears the reason and moves `registeredAt`. `plan` and atomic validation ask the `RefusalList` for each action step 4b would submit and list `OperationRejected` "refused-digest: …" in `rejected` (one shared `refusalOf` with step 4b). Plan rejections carry their real realm (`host.ts`) | plan, atomic (no record), non-atomic (one `rejected` record), stale plan when the list changes; refused registration: no `enable`, `registeredAt` unchanged, operator takeover |
+| R1-08 | The wake window is reduced by one more `timeout` when the view has an enrich contribution or an enrich declaration is to be woken (`hooks.ts`) | the same 250 ms load is woken without enrich work and is "wake-timeout" with it |
+| R1-09 | A declarations read that fails, dies or outlasts the effective deadline denies `no-host-link` on a point with codes. On a point without codes it is "unseen" | dying and never-ending links |
+| R1-10 | A declaration seen "waking" through a whole, non-empty window is recorded "wake-timeout" at once until its status changes (hook-level state per (pluginId, realm, id)) | the second dispatch takes < 50 ms |
+| R1-11 | Undo removals already used `pruneDrain`/`pruneForce` whatever `prune` is. This is now tested | `prune: false`: forced removal → `ApplyRolledBack`; unforced → `PartialApply` `DrainTimeout` |
+| R1-12 | A step-4b refusal of a forward action stops an atomic apply. Its `failed` reason keeps the message "refused-digest: …" (`reasonOf`) | a digest listed by the gate during the first action stops the apply and undoes it |
+| G-P3 (CCR-BR-028, not yet built) | `HookPoint.make` refuses `timeout = deadline` when codes are non-empty and the veto dormant policy is "wake" | the old G-P3 test |
+| G-P14 | A stop that waits for a running load or build keeps the held event: a failure drops it "activation-failed". A success is discarded by the `starting` row, so "ended" is used (G-P19). A published activation now delivers its held event inside the publishing turn, before any waiting stop. The other activation-failure paths also drop "activation-failed" (`host.ts`) | load fails during `remove` → "activation-failed"; load succeeds → one "ended" drop, nothing delivered |
+| G-P16 (not adopted) | `Host.use`/`useAll`/`lease` from plugin code applies the plugin's installation set, then its registration realm's set, then the call realm's set when the call names another realm, then the host's set. "plugins" layers apply to every plugin consumer (`host.ts` `deliver`) | trails `install, realm-t, (realm-u,) host, host-plugins`; the application gets `realm-u, host` |
+| G-P17 | Idle conditions: leases (which cover `use`/`useAll` callbacks), running `Bridger.Events` listeners (counted by the bus per owner), children, dependents. Registry holds are not conditions (`bus.ts`, `host.ts`) | a 150 ms listener run keeps an `idle: 20` plugin active; it then idles |
+| G-P18 | Call-log slots last from queue or reservation until `record` returns. "refuse" reserves before the member runs and waits for `record`; a failed or timed-out record dies `record-failed`/`record-timeout`. Waiting calls die `host-closing` at close. "drop" is judged after the call (`host.ts`) | an offered entry is dropped while a reserved call runs, and the call completes; a failing record withholds the value |
+
+The note on G-P15 in `src/plugin.ts` was corrected: G-P15 was not adopted, and effect 4.0.0 declares
+`Layer<in ROut, out E, out RIn>`.
+
+Third-pass mutations: each was applied alone by a script, the named new suite was run, and the file was restored. **14
+of 14 caught.**
+
+| # | Mutation | Result |
+| --- | --- | --- |
+| Q1 | undo of `replace` without the `reconfigure` (R1-01) | caught (2) |
+| Q2 | `lastRev` not moved by undo actions (R1-02) | caught (2) |
+| Q3 | declarations matched by id only (R1-05) | caught (1) |
+| Q4 | `HostLink.none` accepted without `allowNoLink` (R1-06) | caught (1) |
+| Q5 | `plan` does not ask the `RefusalList` for installs (R1-07) | caught (1) |
+| Q6 | "refused" not reported (R1-04) | caught (1) |
+| Q7 | plugin `Host.use` without its installation set (G-P16) | caught (1) |
+| Q8 | listener runs not an idle condition (G-P17) | caught (1) |
+| Q9 | no enrich allowance in the window (R1-08) | caught (1) |
+| Q10 | a long "waking" declaration waited for again (R1-10) | caught (1) |
+| Q11 | "refuse" call does not wait for its record (G-P18) | caught (2) |
+| Q12 | "idling" not reported (R1-03) | caught (1) |
+| Q13 | held event not kept across a waiting stop (G-P14) | caught (1) |
+| Q14 | diff reads `disabled` including "refused-digest" (R1-07) | caught (1) |
+
+Deliberate simplifications: a `HostLink` with no `hostId` is treated as `HostLink.none` (G-P20). Prune options
+are compared by `expect` whether or not `prune` or `atomic` is set (G-P23). A `WakeReport` returned during an
+idle stop does not list the kept trigger, as BEH-BR-245 implies (G-P22). An `offerCallEntry` under "refuse" still does not wait for
+`record`.
+
+New findings (G-P19 … G-P24). The exact proposed edits are in the round-2 notes (`P2-WS8c.md`). None was applied here.
+
+| # | Finding | Where |
+| --- | --- | --- |
+| G-P19 | "If it publishes, the held event MUST be delivered before the stop begins" cannot happen. The `starting` row of 08 discards a build that settles under `remove`, `replace` or `disable`, so it never publishes. The reason for a successful discarded build is then undefined, because "ended" is excluded while a build runs | BEH-BR-251, BEH-BR-071 (08 table) |
+| G-P20 | `HostLink.hostId` is optional, but only `HostLink.none` is named. What is recorded as `link`, and whether a veto point denies, for a link that is not `HostLink.none` and has no `hostId`, is not said | BEH-BR-250, 305, 309 |
+| G-P21 | "Waited for through one whole wake window": the text does not say whether a window that a call `deadline` or a `Deadline` annotation shortened counts as whole | BEH-BR-309 |
+| G-P22 | A trigger kept during an idle stop has not moved the plugin out of `dormant` when `wake` returns. BEH-BR-245 therefore implies that `WakeReport.triggered` leaves it out, and a caller cannot tell "kept" from "matched nothing". This is a documentation gap only | BEH-BR-252, 245 |
+| G-P23 | BEH-BR-319 compares `pruneDrain`/`pruneForce` without condition. BEH-BR-155 says they are ignored when `prune` is false, and BEH-BR-326 says `plan` and `expect` compare them "whenever `atomic` is true". It is not said whether they are compared with `prune: false` and no `atomic` | BEH-BR-155, 319, 326 |
+| G-P24 | Two-action undo step: when its `replace` completes and the `reconfigure` is refused, fails or is skipped by `ChangedSinceApply`, the text does not say how the step is reported (`undone`, `notUndone` or both) or which action the reason names | BEH-BR-323, 324 |
+
 ## Output of the run recorded on 2026-10-03
 
 ```
@@ -560,3 +830,9 @@ stdout | test/p2.test.ts > observability (behaviour 13) > BEH-BR-118: inspect sh
    Start at  15:27:46
    Duration  3.05s (transform 970ms, setup 0ms, collect 5.61s, tests 14.88s, environment 2ms, prepare 1.21s)
 ```
+
+#### Follow-up after CCR-BR-030
+
+`staleness` in `src/host.ts` now compares `prune.enabled` always and `pruneDrain`/`pruneForce` only when `prune` or
+`atomic` is true (G-P23, BEH-BR-319). Suite: 340 tests in 32 files, all passing; `tsc` clean. Still open in the
+prototype: `offerCallEntry` under "refuse" does not wait for its record. The prototype evidences no requirement.

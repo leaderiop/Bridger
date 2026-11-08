@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-05                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.4 (2026-11-08): Entries verified through `SignaturePolicy.verify` with the publisher binding; manifest roles, targets and `listens` carried for `declaredContributions` and `AccessPolicy.declaredOnly`; `idle`/`holdTimeout` passed through, fresh check on each reload, refused lazy starts (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -101,9 +101,11 @@ interface VerifiedEntry {
 REQUIREMENT: `verifyEntry` MUST recompute the package digest from the
              manifest bytes and the two sub-digests (01, BEH-LD-002), MUST
              refuse the entry when it differs from the claimed one, and MUST
-             then evaluate the loader's acceptance rule (03) and the current
-             revocation set (04) on the recomputed digest, exactly as step 4
-             and step 5 of a load.
+             then evaluate the loader's acceptance rule (03), the publisher
+             binding and the current revocation set (04) on the recomputed
+             digest through `SignaturePolicy.verify` with
+             `statementType: "package"`, exactly as steps 4 and 5 of a load
+             (07, BEH-LD-050, BEH-LD-053).
 ```
 
 ```
@@ -118,7 +120,7 @@ REQUIREMENT: `verifyEntry` MUST refuse, as a manifest decode error, a
 ```
 REQUIREMENT: A refused entry MUST fail with `CatalogEntryRejected`
              carrying the cause's tag (`DigestMismatch`,
-             `SignatureRejected`, `Revoked`, `RevocationStale`,
+             `SignatureRejected`, `PublisherMismatch`, `Revoked`, `RevocationStale`,
              `RevocationUnavailable`, or the manifest decode error) and MUST
              be recorded in the `LoadLog` when one is wired (02,
              BEH-LD-016).
@@ -268,6 +270,17 @@ Settled item 0). Revocation is
 re-checked when the trigger fires, so an entry revoked between install and
 first use is never evaluated.
 
+`Loader.lazy` passes through core's other `Plugin.lazy` options, `idle` and
+`holdTimeout` (core BEH-BR-244, BEH-BR-251, BEH-BR-252), when the application
+gives them. A plugin that returns to `dormant` after idling is reloaded at its
+next trigger, and that load runs the full pipeline again — fetch, digest,
+`verify`, revocation, predicates — so each wake gets a fresh check, never the
+acceptance of the previous one (03, BEH-LD-024). With core's `RefusalList`
+backed by the loader (07, BEH-LD-056), a trigger for a revoked digest does not
+even start the load: core moves the plugin to `disabled` with reason
+"refused-digest", writes no `lazy-triggered` record and leaves it out of
+`WakeReport.triggered` (core BEH-BR-245, BEH-BR-267).
+
 ## BEH-LD-038: A desired list from the catalog reconciles without evaluating code
 
 > **See:** [ADR-LD-004](../decisions/004-revocation-acts-through-desired-state.md), [ADR-BR-023](../../core/decisions/023-desired-state-reconcile.md)
@@ -377,6 +390,22 @@ REQUIREMENT: The catalog MUST be readable as plain data — verified
              manifests, digests, versions and the verification record — so
              that an admin screen, a marketplace view or an agent can list,
              compare and propose plugins without loading code.
+```
+
+```
+REQUIREMENT: The catalog MUST carry the verified manifest's declarations as
+             core decodes them — `contributions[]` with their optional
+             `role` and `target`, and `listens` (core BEH-BR-241) — so that
+             `Host.declaredContributions` (core BEH-BR-250) and
+             `AccessPolicy.declaredOnly` (core BEH-BR-268) compare a lazy
+             plugin's later registrations against declarations its signers
+             signed.
+```
+
+```
+REQUIREMENT: The catalog MUST show a manifest's `publisher` as the publisher
+             only when the entry's record has `publisherBound: true`, and
+             MUST show it as unbound otherwise (07, BEH-LD-053).
 ```
 
 ```

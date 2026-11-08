@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links on the remote companion's multiplexer and `Remote.serve`; single-major imports; per-import peer realms; listener port and `contracts` option; worked example updated (R3-01, R3-02, R3-18) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1–F4, F8–F10, F22) — API rows for the extended `ManifestStore`, `OutboxSettlement`, `releaseRevocation` and the loader's `RevocationSource.offer` (the `revocationFeed` row withdrawn), reader-version reports; worked example wires the required `revocation` and the outbox port (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18–20 and 22 — API rows for `RebootstrapOutbox`, `Federation.revocationFeed`, `VersionReports`; errors `RebootstrapBlocked`, `RevocationListStale`; `PlacementRefused` reused; core seams used (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links on the remote companion's multiplexer and `Remote.serve`; single-major imports; per-import peer realms; listener port and `contracts` option; worked example updated (R3-01, R3-02, R3-18) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -75,12 +75,15 @@ All signatures are illustrative until code exists.
 | `Federation.Status` | service | `current`, `changes`: applied revision, freshness, links, conflicts | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Federation.sync` | method | Fetch, verify and apply now | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `ManifestSource` | port | Fetches the latest signed manifest for this host from the authority | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
-| `ManifestStore` | port | Keeps the highest verified manifest and the last applied revision | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
+| `ManifestStore` | port | Keeps the highest verified manifest, the last applied manifest's bytes, pending kills and the re-bootstrap marker | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `StatusReporter` | port | Optional: reports apply outcomes to the authority | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Rebootstrap` | port | The application's snapshot re-bootstrap, invoked on `ResyncRequired` | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `LinkDialer`, `LinkListener` | ports | Open, and accept, one physical connection (a remote-companion `Connection`) per link | [03](./behaviors/03-links-and-skew-handshake.md) |
 | `ControlFrame`, `PeerOffer`, `LinkAgreement`, `PeerLinkStatus` | types | The offer exchange on the control endpoint, its outcome, and a link's status | [03](./behaviors/03-links-and-skew-handshake.md) |
 | `ExportFence` | type | Fencing token of a single-owner export | [04](./behaviors/04-exports-and-imports.md) |
+| `RebootstrapOutbox`, `OutboxSettlement`, `RebootstrapOutbox.none` | port, types, value | Step 1 of a re-bootstrap: push or keep local facts; the settlement's `install` is the only path to `Rebootstrap.install` | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
+| `Federation.releaseRevocation`; the loader's `SignedRevocationList` and `RevocationSource.offer` | method; loader type and method | Kill-frame lists handed to the loader's revocation source; release of a revision held by the blast-radius guard | [06](./behaviors/06-kill-path-placement-and-skew.md) |
+| `VersionReports`, `OldestVersionReport` | port, type | The oldest version received per origin and axis, and each host's reader versions, reported to the authority | [06](./behaviors/06-kill-path-placement-and-skew.md) |
 | `TestFederation` | testing | Authority fixture, test signer, partitions, clock | [05](./behaviors/05-testing-and-acceptance.md) |
 
 ### Errors
@@ -93,11 +96,14 @@ All signatures are illustrative until code exists.
 | `ExportConflict { key, owners }` | Two owners present the same fence for one single-owner export |
 | `StaleExport { key, fence, highest }` | An owner presents a fence lower than the highest the importer has seen |
 | `ResyncRequired { host, since }` | The authority, or the offline cap, demands a snapshot re-bootstrap |
+| `RebootstrapBlocked { pending, reason }` | Step 1 of a re-bootstrap could neither push nor keep the local facts; nothing was fetched or replaced |
+| `RevocationListStale { revision, held, from }` | A revocation list received in a `kill` frame is not newer than the one held; not applied, not relayed |
 
 `IncompatibleContract` ([core 26](../core/behaviors/26-versioned-contracts.md)) is reused as the cause of an import whose
 peer does not export its major at its version or above; the session-level
 errors of the remote companion (stale epoch, call timeout, session loss)
-pass through unchanged.
+pass through unchanged, and its `PlacementRefused` is reused for an import
+or export refused on placement (BEH-FD-045).
 
 ## Worked example
 
@@ -115,7 +121,9 @@ const federation = Federation.plugin({
   listener: AppLinks.listener,
   syncEvery: "1 minute",
   maxOffline: "72 hours",
-  rebootstrap: AppSnapshot.rebootstrap                        // application
+  revocation: "@app/Revocation",                             // the loader's RevocationSource key (required)
+  outbox: "@app/RebootstrapOutbox",                           // DurableBus.rebootstrapOutbox() (event delivery companion)
+  rebootstrap: AppSnapshot.rebootstrap                        // application; declares `replaces`
 })
 
 // The host boots from a small static list holding only the federation plugin.
@@ -159,9 +167,14 @@ one core lease per call.
 
 - **Core** keeps one plugin set per host, decided by `reconcile` and the
   legality table. Federation adds no host operation and no state to the host.
+  It uses core's `RefusalList` (BEH-BR-267) for the kill path, carries
+  `mandatoryInterceptions` and `allowChildren` as manifest data
+  (BEH-BR-153), and needs no new core seam for residency: core only carries
+  the label.
 - **The application** runs the authority: it decides what each host should
-  run, holds signing keys, signs manifests, issues export fences, serves
-  snapshots, and decides what a site does when its hub is down
+  run, holds signing keys, signs manifests and revocation lists, issues export fences, serves
+  snapshots, labels routes and plugins for residency, decides when to switch
+  writers to a new version, and decides what a site does when its hub is down
   (failover policy is not automatic here; see
   [ADR-FD-008](./decisions/008-fenced-single-owner-exports.md)).
 - Domain concepts (sites, terminals, tenants) are names the application puts

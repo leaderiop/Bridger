@@ -38,3 +38,7 @@ entries:
     file: "009-deterministic-test-transport.md"
     title: "A deterministic test transport, and the core suites re-run through proxies"
     status: "Proposed"
+  - id: "ADR-RM-010"
+    file: "010-placement-labels-compared-at-the-boundary.md"
+    title: "Placement labels are compared at the process boundary, as strings"
+    status: "Proposed"

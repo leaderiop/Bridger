@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F5) — the `kill` frame precedes the offer on every new link; a suspended link keeps its control endpoint open for kill frames only; `SignedRevocationList` is the loader's (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck item 18 and CORE-DECISIONS-2 — `kill` control frame with one schema across protocol versions; asserted principals decoded with `PrincipalRef.decode` and kept as provenance; served calls carry the peer's correlation; peer selection through core `Selector.make` with a range (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -130,6 +130,7 @@ type ControlFrame =
   | { readonly t: "offer"; readonly offer: PeerOffer }
   | { readonly t: "refuse"; readonly error: IncompatiblePeer }
   | { readonly t: "goodbye"; readonly reason: string }
+  | { readonly t: "kill"; readonly list: SignedRevocationList }   // the loader's type (loader BEH-LD-025); every protocol version (06, BEH-FD-041)
 
 interface LinkAgreement {
   readonly protocol: number
@@ -141,7 +142,8 @@ interface LinkAgreement {
 ```
 REQUIREMENT: On every new link, before any remote session starts on an
              "import:" endpoint, each end MUST send a `ControlFrame` offer on
-             the "control" endpoint and MUST decode the other's with an
+             the "control" endpoint — right after its `kill` frame, which
+             comes first (06, BEH-FD-043) — and MUST decode the other's with an
              Effect Schema that ignores unknown fields. A later offer on the
              same link (sent when the sender applies a new manifest) MUST be
              handled as a new offer for that link.
@@ -159,6 +161,20 @@ REQUIREMENT: An end MUST refuse the link with `IncompatiblePeer
 REQUIREMENT: The offer's `exports` MUST list only what the offering host's
              applied manifest exports to this peer (04), with the contract
              majors its exporting plugin actually serves.
+```
+
+```
+REQUIREMENT: While links are suspended for a re-bootstrap (02, BEH-FD-014),
+             the "control" endpoint of each link MUST stay open and MUST
+             carry only `kill` frames; offers received meanwhile MUST be
+             ignored and answered by a new offer exchange at resumption.
+```
+
+```
+REQUIREMENT: The `kill` frame MUST keep one schema across every federation
+             protocol version, so that two ends whose protocols do not
+             overlap can still exchange it before the link is refused
+             (06, BEH-FD-041, BEH-FD-043).
 ```
 
 **Settled here.** (1) The offer is exchanged on every new link, not once per
@@ -339,7 +355,10 @@ keys, which core forbids. (2) Peer realms are plain realms defined with
 formed by the family (core gap G47) and are created lazily by it, which
 would not give the fixed, readable id an operator finds in snapshots.
 Choosing between two peers for a local consumer is a provider-selection
-question this package does not answer (see 04).
+question this package does not answer (see 04); a consumer that answers it
+builds a core `Selector.make` over a contract registry with a `range`
+(core BEH-BR-307), so that only peers whose imports satisfy the range are
+candidates.
 
 ## BEH-FD-023: A peer's claims are claims
 
@@ -362,7 +381,18 @@ REQUIREMENT: Every call served to peer P (04) MUST run, through the
              wire annotations combined with one `Annotation.Provenance`
              entry `{ source: "peer:" + P, ref: <the asserted actor's id> }`
              (core BEH-BR-290). The actor the peer asserts in the call's
-             claims MUST NOT become the served call's actor.
+             claims MUST NOT become the served call's actor. A principal the
+             peer asserts (`claims.onBehalfOf`) MUST be read with core
+             `PrincipalRef.decode` (BEH-BR-280) and kept only as a second
+             provenance entry `{ source: "peer:" + P + ":principal", ref:
+             <the encoded string> }`; one that does not decode MUST be
+             dropped and logged.
+```
+
+```
+REQUIREMENT: A served call MUST carry the peer's `claims.correlationId` as
+             its `CurrentCorrelation` (core BEH-BR-187), through the
+             `CallerContext` that `options.context` returns.
 ```
 
 ```

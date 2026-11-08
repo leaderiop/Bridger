@@ -2,6 +2,8 @@
 
 Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. The `@bridger/qadi` wrapper and every `Access.*` name below are proposed. `@qadi/core`, `@qadi/predicate-sql` and `@qadi/audit` are existing packages; their signatures below were read from `@qadi/core@0.8.0` and its npm metadata, not executed. This document refines the access parts of [ERP-SPEC.md](ERP-SPEC.md).
 
+> **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
+
 ## 1. Decision
 
 Authorization uses [`@qadi/core`](https://github.com/leaderiop/qadi): permission tokens, a role DAG, a serializable policy ADT, an Effect evaluator that returns a `Decision` with a trace, and `toPredicate` for compiling row rules. Bridger does not define a second policy language. `@bridger/qadi` is a thin wrapper that maps Bridger concepts (module permissions, model access, tenant/company scope, request context, errors) onto qadi.
@@ -127,7 +129,7 @@ The catalog filters visible modules and views with `check(hasPermission(...))` f
 
 ## 9. Version policy
 
-All Bridger packages target the latest stable Effect 4.x (4.0.0 at the time of writing). `@qadi/core@0.8.0` and awthaq currently pin `effect@4.0.0-rc.116` exactly; the browser shell's FoldKit copy of Effect is separate and talks to the server only over HTTP ([ERP-BROWSER.md](ERP-BROWSER.md) §1), so it does not need to match. See [knowledge/README.md](knowledge/README.md).
+All Bridger packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). `@qadi/core@0.8.0` and awthaq currently pin `effect@4.0.0-rc.116` exactly; the browser shell's FoldKit copy of Effect is separate and talks to the server only over HTTP ([ERP-BROWSER.md](ERP-BROWSER.md) §1), so it does not need to match. See [knowledge/README.md](knowledge/README.md).
 
 ## 10. Acceptance checks
 
@@ -139,3 +141,5 @@ All Bridger packages target the latest stable Effect 4.x (4.0.0 at the time of w
 - Extension fields appear in row predicates only while their extension is active.
 - Removing a role from an actor changes the next request's decisions; cached decisions never outlive a generation change.
 - Examples remain design sketches until the pinned dependencies exist.
+
+Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

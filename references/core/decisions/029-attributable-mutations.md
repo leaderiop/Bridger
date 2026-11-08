@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-029                                              |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-044 and ADR-BR-054              |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.5 (2026-11-08): The actor also reaches the `CallLog`; `onBehalfOf` is recorded beside the actor, never an actor (CCR-BR-018); `Actor.narrow` is a caller-invoked derivation (CCR-BR-019)<br>0.4 (2026-10-03): `reconcile` options merged, reserved actors and blank ids refused, step 7 in full (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `intent-ended` added to the system transitions (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-08): Amended by ADR-BR-054 (CCR-BR-026)<br>0.5 (2026-11-08): The actor also reaches the `CallLog`; `onBehalfOf` is recorded beside the actor, never an actor (CCR-BR-018); `Actor.narrow` is a caller-invoked derivation (CCR-BR-019)<br>0.4 (2026-10-03): `reconcile` options merged, reserved actors and blank ids refused, step 7 in full (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `intent-ended` added to the system transitions (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -75,3 +75,4 @@ interface OperationOptions { readonly context?: OperationContext }
 - GxP documents: [../gxp/02-compliance-matrix.md](../gxp/02-compliance-matrix.md)
 - Source: `docs/SPEC.md` — "Host interface" (SPEC.md has no attribution; this ADR extends it)
 - External: 21 CFR Part 11 §11.10(d), §11.10(e), §11.300; EU GMP Annex 11 (2011) §12.4; PIC/S PI 041 (ALCOA+, attributable).
+- Amended by: [ADR-BR-054](./054-correlation-in-the-fiber.md) — a call's correlation may come from `CurrentCorrelation` (CCR-BR-026).

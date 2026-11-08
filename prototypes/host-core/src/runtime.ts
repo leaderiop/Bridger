@@ -15,7 +15,12 @@ export class PluginRuntime extends Context.Service<PluginRuntime, {
   /** An unrecoverable condition detected by the plugin itself (BEH-BR-091). */
   readonly reportFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>
   /** Mounts a child for the lifetime of this activation (BEH-BR-121). */
-  readonly install: (child: AnyPlugin, options?: Omit<InstallOptions, "context">) => Effect.Effect<PluginHandle, InstallError | HostClosed | Conflict, Scope.Scope>
+  readonly install: (child: AnyPlugin, options?: Omit<InstallOptions, "context">) => Effect.Effect<PluginHandle, InstallError | HostClosed | Conflict | import("./policy.js").ChildNotAllowed, Scope.Scope>
+  /** Round 2 (core 28, 10, 14): this activation's principal; run under it; entitlement; attributed child removal. */
+  readonly principal: import("./policy.js").PluginPrincipal
+  readonly asSelf: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
+  readonly entitled: import("effect").Stream.Stream<import("./policy.js").EntitlementState>
+  readonly unmount: (child: PluginHandle, options: { readonly context: import("./gxp.js").OperationContext }) => Effect.Effect<void>
   /** Point-in-time read of an optional key; never leased (BEH-BR-130). */
   readonly optional: <S>(key: Context.Key<any, S>) => Effect.Effect<Option.Option<S>>
   /** Runs `run` under a lease when the optional key is available (BEH-BR-131). */

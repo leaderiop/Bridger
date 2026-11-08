@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-02                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): `wake` takes no `OperationContext` and is a class of its own (system transitions only); generic `install`/`replace` overloads take the branded `Plugin` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-011 options `mandatory`, `resolutionTimeout`, `callLogTimeout` (CCR-BR-018), `baseContracts` (CCR-BR-017), `handoffTimeout` (CCR-BR-019); BEH-BR-013 `Plugin.Any` overloads (CCR-BR-020), `wake` (CCR-BR-017), `plan`, `retireRealm`, `PlanStale` (CCR-BR-019), `ResolutionRefused` (CCR-BR-018); BEH-BR-014 `retireRealm` operation; BEH-BR-015 policy ports, context references (CCR-BR-018) and `EntitlementView` (CCR-BR-020)<br>0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-08): BEH-BR-010 `HostLink` reference and BEH-BR-013 `declaredContributions` and `link` (CCR-BR-024); BEH-BR-011 option `mandatoryCatalog` and its domain rule (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-010 `CurrentCorrelation` reference; BEH-BR-013 `offerCallEntry`, Settled item 8; BEH-BR-015 the `RefusalList` port and the `CallLog` fields read at construction (CCR-BR-026)<br>0.5 (2026-11-08): `wake` takes no `OperationContext` and is a class of its own (system transitions only); generic `install`/`replace` overloads take the branded `Plugin` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-011 options `mandatory`, `resolutionTimeout`, `callLogTimeout` (CCR-BR-018), `baseContracts` (CCR-BR-017), `handoffTimeout` (CCR-BR-019); BEH-BR-013 `Plugin.Any` overloads (CCR-BR-020), `wake` (CCR-BR-017), `plan`, `retireRealm`, `PlanStale` (CCR-BR-019), `ResolutionRefused` (CCR-BR-018); BEH-BR-014 `retireRealm` operation; BEH-BR-015 policy ports, context references (CCR-BR-018) and `EntitlementView` (CCR-BR-020)<br>0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -93,6 +93,8 @@ Bridger.Events     // "@bridger/core/Events"          — typed event bus, a bas
 HeldPlugins        // "@bridger/core/HeldPlugins"   ReadonlySet<string>, default: empty set (09; leases, builds, finalizers)
 ActivePlugin       // "@bridger/core/ActivePlugin"  default: none (13)
 CurrentActor       // "@bridger/core/CurrentActor"  default: Actor.unattributed (22)
+CurrentCorrelation // "@bridger/core/CurrentCorrelation"  default: none (22, BEH-BR-187)
+HostLink           // "@bridger/core/HostLink"      Option<HostLink>, default: none (27, BEH-BR-250; set by the host in every fiber it runs code in)
 ```
 
 ```
@@ -147,6 +149,7 @@ interface BridgerOptions<EBase = never> {
   readonly fingerprintTimeout?: Duration.Input         // per ConfigFingerprinter call; default 5 seconds (22)
   readonly baseContracts?: readonly (Contract | ContractProvision)[]  // contract versions the base implements; default [] (26)
   readonly mandatory?: readonly MandatoryInterception<any>[]          // host-wide mandatory interceptions; default [] (28)
+  readonly mandatoryCatalog?: readonly RegisteredInterception<any>[]  // interceptions a desired list names by id; default [] (18, BEH-BR-153)
   readonly resolutionTimeout?: Duration.Input          // per CapabilityPolicy decision; default 5 seconds (29)
   readonly callLogTimeout?: Duration.Input             // per CallLog.record; default 1 second (29)
   readonly handoffTimeout?: Duration.Input             // per handoff export, upgrade and import; default 5 seconds (34)
@@ -172,7 +175,9 @@ REQUIREMENT: Construction MUST reject an option value outside its domain —
              is invalid or names a `ServiceId` the base does not provide
              (checked once the base is built; 26 — Versioned Contracts); a
              `drainTimeout`, `gateTimeout` or `stallWarning` that is
-             neither a positive duration nor its named keyword — by failing with a defect that names the option, before
+             neither a positive duration nor its named keyword; a
+             `mandatoryCatalog` entry with an empty id, or two entries with
+             one id (18 — Reconciliation and Confluence, BEH-BR-153) — by failing with a defect that names the option, before
              any base layer is built.
 ```
 
@@ -208,7 +213,9 @@ port that does not answer within a bounded time fails the call closed.
 [28](./28-plugin-principal-and-mandatory-policy.md),
 [29](./29-capability-grants-and-call-log.md)) and `handoffTimeout`
 (CCR-BR-019, [34](./34-state-handoff.md)) follow the same rule: none of the
-timeouts has "forever".
+timeouts has "forever". `mandatoryCatalog` (CCR-BR-025,
+[18](./18-reconciliation-and-confluence.md)) names mandatory interceptions by
+id so that a desired list can cite them as data.
 
 ## BEH-BR-012: Base services are a Context or a Layer
 
@@ -313,6 +320,11 @@ interface Host {
     Effect.Effect<ReconcilePlan, HostClosed>                                                     // 32; read-only
   wake(trigger: LazyTrigger, options?: { readonly realm?: string; readonly correlationId?: string }):
     Effect.Effect<WakeReport, UnknownRealm | HostClosed>                                         // 27
+  offerCallEntry(entry: OfferedCallEntry, options?: { readonly onFailure?: "drop" | "refuse" }):
+    Effect.Effect<void, CallLogUnavailable | InvalidCallEntry>                                   // 29; not mutating
+  declaredContributions(registry: string):
+    Effect.Effect<readonly DeclaredContribution[], HostClosed>                                   // 27, BEH-BR-250; read-only
+  readonly link: HostLink                                                                        // 27, BEH-BR-250
 
   // — leases (not mutating) —
   use<Service, A, E, R>(key: Context.Key<any, Service>, run: (service: Service) => Effect.Effect<A, E, R>,
@@ -375,7 +387,7 @@ and `lease` carry no `HostClosed`: after shutdown begins every provider is
 stopping or gone, and they fail with `ServiceUnavailable`
 ([09 — Leases](./09-leases.md)).
 
-**Settled here.** The error unions differ from SPEC.md in seven places, each to
+**Settled here.** The error unions differ from SPEC.md in eight places, each to
 make a reachable outcome representable rather than leave it to a defect or to
 a silent success:
 
@@ -419,6 +431,16 @@ a silent success:
    its audit position ([24 — Time, Identifiers and
    Sequence](./24-time-ids-and-sequence.md), BEH-BR-212); it has no error,
    and it stays readable after the host has closed.
+8. The host gains `offerCallEntry` (CCR-BR-026): a companion's way to put an
+   entry of its own — a remote crossing, a boundary refusal, a revocation —
+   into the wired `CallLog` under the same queue and failure policy as
+   core's entries ([29 — Capability Grants and Call
+   Log](./29-capability-grants-and-call-log.md), BEH-BR-280). It is not a
+   mutating operation: it changes no plugin and writes no audit record.
+   No error union of a mutating operation changes for the `RefusalList`
+   ([28 — Plugin Principal and Mandatory
+   Policy](./28-plugin-principal-and-mandatory-policy.md), BEH-BR-267),
+   whose refusals are reported as `OperationRejected`.
 
 ## BEH-BR-014: Every mutating operation takes OperationOptions and reports the GxP errors
 
@@ -495,14 +517,18 @@ hides that it can be refused for an attribution, audit or approval reason.
 ```
 REQUIREMENT: The host MUST read `AuditSink`, `OperationGate`,
              `ConfigFingerprinter`, `AccessPolicy`
-             (`@bridger/core/AccessPolicy`), `CapabilityPolicy`
+             (`@bridger/core/AccessPolicy`), `RefusalList`
+             (`@bridger/core/RefusalList`), `CapabilityPolicy`
              (`@bridger/core/CapabilityPolicy`), `CallLog`
              (`@bridger/core/CallLog`) and `EntitlementView`
              (`@bridger/core/EntitlementView`) with `Effect.serviceOption`
              from the environment in which `Bridger.layer` or `Bridger.make`
              runs, once, at construction. It MUST NOT re-resolve them for
              the lifetime of the host, and none of them MAY appear in the
-             requirements of `Bridger.layer` or `Bridger.make`.
+             requirements of `Bridger.layer` or `Bridger.make`. The
+             `CallLog` fields `onFailure` and `queue` MUST be read and
+             checked at the same moment (29 — Capability Grants and Call
+             Log, BEH-BR-279).
 ```
 
 ```
@@ -515,6 +541,10 @@ REQUIREMENT: The context references `CurrentPlugin`
              host (28 — Plugin Principal and Mandatory Policy, BEH-BR-257;
              29 — Capability Grants and Call Log, BEH-BR-277;
              30 — Operation Context Annotations, BEH-BR-292).
+             `CurrentCorrelation` (`@bridger/core/CurrentCorrelation`;
+             default none) is set by the host for the work of a call and by
+             any code through `CurrentCorrelation.with` (22 — Attributable
+             Operations, BEH-BR-187).
 ```
 
 ```

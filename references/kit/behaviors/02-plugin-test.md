@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-02                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.2 (2026-11-08): Core fixtures `scriptedRefusalList` and `memoryCallLog` (`onFailure`, `queue`) re-exported; hook `settle` observed through core (core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -205,6 +205,18 @@ REQUIREMENT: `PluginTest.holdLease(key)` MUST be generic over any key,
              including a union of keys, and MUST return a handle with
              `release` and the holding fiber; it MUST be implemented with
              `host.use`.
+```
+
+```
+REQUIREMENT: `PluginTest` MUST re-export core's testing fixtures for the
+             seams of CCR-BR-024–026 unchanged — `scriptedRefusalList` and
+             `memoryCallLog` with its `onFailure` and `queue` options (core
+             [21 — Testing host](../../core/behaviors/21-testing-host.md),
+             BEH-BR-182) — and MUST NOT define its own refusal list, call
+             log or hook `settle` double. A test of a budgeted hook point
+             observes refunds through the hook point's `settle` step (core
+             BEH-BR-302) and the entitlement companion's usage export, not
+             through a kit-specific hook.
 ```
 
 The second requirement replaces the prototype's `key as typeof Logger`

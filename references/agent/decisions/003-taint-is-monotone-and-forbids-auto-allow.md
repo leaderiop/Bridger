@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-ADR-003                                           |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): Rule enforced by the command catalog's taint floor; `TaintGuard.drafts` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.4 (2026-11-08): The rule forbids automatic allow of changes; commands declared `readOnly` keep the gate's decision under the command catalog's exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): Rule enforced by the command catalog's taint floor; `TaintGuard.drafts` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -39,7 +39,10 @@ easy to forget.
   ([ADR-CM-005](../../command/decisions/005-taint-floor-in-dispatch.md), command BEH-CM-016): every
   dispatch of a tainted request passes on `Allow` only with a wired gate and
   an `ApprovalRef` bound to the request's digest and input digest; otherwise
-  it is deferred or refused, gate or no gate. **`TaintGuard.drafts`** supplies
+  it is deferred or refused, gate or no gate. Since command revision 0.6 of
+  dispatch, a command declared `readOnly` is exempt by default and keeps the
+  gate's decision, with the session's taint unchanged (command ADR-CM-005);
+  the rule forbids automatic allow of changes, not of declared reads. **`TaintGuard.drafts`** supplies
   the floor's draft source, so a withheld allow becomes a draft a person can
   approve; the application's gate checks that the approval exists and was not
   given by an actor within the agent's actor (`Actor.isWithin`) (BEH-AG-020).
@@ -74,7 +77,7 @@ not depend on every gate author remembering it.
 ## References
 
 - Behaviours: [03 — Taint and provenance](../behaviors/03-taint-and-provenance.md), [04 — Subagents](../behaviors/04-subagents.md)
-- Invariants: [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed), [INV-AG-005](../invariants.md#inv-ag-005-taint-is-monotone-per-session)
+- Invariants: [INV-AG-001](../invariants.md#inv-ag-001-a-tainted-session-is-never-auto-allowed-a-change), [INV-AG-005](../invariants.md#inv-ag-005-taint-is-monotone-per-session)
 - Core: [28 — Plugin principal and mandatory policy](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md), [30 — Operation context annotations](../../core/behaviors/30-operation-context-annotations.md), [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md)
 - Command: [ADR-CM-005](../../command/decisions/005-taint-floor-in-dispatch.md)
 - Companion: [`@bridger/mcp` client import](../../mcp/behaviors/03-client-import.md)

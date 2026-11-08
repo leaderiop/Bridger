@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.11 (2026-11-08): INV-BR-046 covers idling and refused declarations, `HostLink.none` and failed reads, and states its scope (forged links, gap G64); INV-BR-052 retitled to Effect members with the residual named (CCR-BR-029)<br>0.10 (2026-11-08): INV-BR-046–047; INV-BR-040 and INV-BR-032 amended (CCR-BR-024); INV-BR-048–049 (CCR-BR-025); INV-BR-050–052 (CCR-BR-026)<br>0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -1196,9 +1196,11 @@ incompatible optional provider treated as absent.
 
 ## INV-BR-032: A dormant plugin has run none of its code
 
-While a plugin is `dormant`, its `load` has not been called for its current
-registration, it provides nothing, holds no scope and no lease, and its
-provider slots are reserved from its manifest's `provides`.
+While a plugin is `dormant`, no code of it runs and its `load` has not been
+called since it last entered `dormant` (at registration, by a replace with a
+lazy definition, or by an idle return, BEH-BR-252); it provides nothing,
+holds no scope and no lease, and its provider slots are reserved from its
+manifest's `provides`.
 
 **Source**: `packages/core/src/Lazy.ts` *(Planned)* — `load` is called only
 from the build step of an activation (BEH-BR-246), which begins only after a
@@ -1218,7 +1220,7 @@ across every operation of the dormant legality row, `inspect`, `snapshot`,
 asserting that every `load` call is preceded by a `lazy-triggered` record for
 the plugin.
 
-**Related**: [BEH-BR-244](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-245](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-247](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-042](decisions/042-lazy-activation.md).
+**Related**: [BEH-BR-244](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-245](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-247](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-252](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-042](decisions/042-lazy-activation.md).
 
 ---
 
@@ -1398,15 +1400,19 @@ a differential test with no annotations set (checks 74–76).
 
 ## INV-BR-040: Only an admitted veto contribution decides a hook dispatch
 
-A hook dispatch ends `Denied` only because of a contribution registered with
-role "veto" and admitted by the hook point's rule; no enrich or advisory
-contribution, and no contribution the rule refused, changes the verdict.
+A hook dispatch ends `Denied` only because of a veto-role contribution
+admitted by the hook point's rule — registered with role "veto", or declared
+with it by a registration not yet loaded — by its veto, its failure under its
+effective `onError`, the deadline, a failed or late wake, or the point's
+policy denying it; or because the point, failing closed, could not read
+declarations or compute its target. No enrich or advisory contribution, and
+no contribution or declaration the rule refused, changes the verdict.
 
 **Source**: `packages/core/src/HookPoint.ts` *(Planned)* — `register` reads
 the owner from the plugin principal, evaluates `who` once and adds nothing on
 refusal; the role is fixed per contribution; the dispatch derives `Denied`
 only in the veto phase, from a `Veto` with a declared code or from
-`onError: "deny"`; results outside a role are errors.
+`onError: "deny"`; results outside a role are errors; declarations are admitted by the same rule with `declared: true` (BEH-BR-309).
 
 **Implication**: an application's rule "only shipped code may veto" holds for
 every dispatch; a partner's advisory hook cannot block, and a plugin cannot
@@ -1414,9 +1420,9 @@ register as another plugin.
 
 **Verification** *(Planned)*: property test over generated registrations
 (roles, owners, labels, rules) and hook results, asserting that `decidedBy`
-always names an admitted veto contribution; check 77 and 78.
+always names an admitted veto contribution; check 77, 78, 92 and 95.
 
-**Related**: [BEH-BR-298](behaviors/31-hook-points.md), [BEH-BR-299](behaviors/31-hook-points.md), [BEH-BR-300](behaviors/31-hook-points.md), [BEH-BR-302](behaviors/31-hook-points.md), [ADR-BR-046](decisions/046-hook-points.md).
+**Related**: [BEH-BR-298](behaviors/31-hook-points.md), [BEH-BR-299](behaviors/31-hook-points.md), [BEH-BR-300](behaviors/31-hook-points.md), [BEH-BR-302](behaviors/31-hook-points.md), [BEH-BR-309](behaviors/31-hook-points.md), [BEH-BR-310](behaviors/31-hook-points.md), [BEH-BR-311](behaviors/31-hook-points.md), [BEH-BR-312](behaviors/31-hook-points.md), [ADR-BR-046](decisions/046-hook-points.md), [ADR-BR-050](decisions/050-dormant-veto-and-hook-phases.md).
 
 ---
 
@@ -1529,3 +1535,174 @@ record before `system-start`; a scan of records, events, logs and snapshots
 for a sentinel value placed in the state; check 87 and 88.
 
 **Related**: [BEH-BR-348](behaviors/34-state-handoff.md), [BEH-BR-350](behaviors/34-state-handoff.md), [BEH-BR-351](behaviors/34-state-handoff.md), [ADR-BR-049](decisions/049-state-handoff-on-replace.md).
+
+---
+
+## INV-BR-046: A declared veto of a plugin not yet loaded is never passed over unrecorded
+
+For every hook dispatch on a point with veto codes, each veto contribution
+that a registration not yet loaded, idling toward `dormant` or disabled by
+the `RefusalList` declares for the point, and that the point's rule admits,
+is either woken and run as a contribution, or ends the dispatch `Denied`, or
+is recorded as skipped under an explicit `onError: "skip"` or by the point's
+policy; a dispatch that cannot read declarations — no link, `HostLink.none`
+without `allowNoLink`, a failed or late read — denies. The guarantee holds
+for the declarations the link reports: a link forged by in-process code is
+outside it (RSK-BR-057), and a loaded plugin inactive for another cause is
+gap G64.
+
+**Source**: `packages/core/src/HookPoint.ts` *(Planned)* — the wake step
+reads `declaredContributions` through the calling fiber's `HostLink`, admits
+each declaration with `who`, consults `policy`, and applies `dormant` and
+`onError`; `packages/core/src/Lazy.ts` *(Planned)* — `declaredContributions`
+reports the manifest entries of every lazy registration not yet loaded,
+idling, or disabled with reason "refused-digest".
+
+**Implication**: making a veto plugin lazy cannot turn a closed decision into
+an open one without a trace; the record names every declaration and its
+outcome.
+
+**Verification** *(Planned)*: property test over generated registrations
+(eager, lazy, loaded, dormant, load-failed), declarations, roles, rules and
+policies, asserting that no dispatch ends `Allowed` while an admitted veto
+declaration is neither run nor recorded "wake-failed", "wake-timeout",
+"skipped-policy" or "declared-refused"; check 92.
+
+**Related**: [BEH-BR-309](behaviors/31-hook-points.md), [BEH-BR-250](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-253](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-050](decisions/050-dormant-veto-and-hook-phases.md).
+
+---
+
+## INV-BR-047: A held triggering event is delivered at most once, only to the plugin it woke
+
+An event that applied an `OnEvent` trigger is held for the plugin it moved
+out of `dormant` and for no other; it is delivered at most once, with `emit`
+semantics, only to that plugin's `on` listeners registered in the activation
+the trigger started; it never delays the triggering dispatch; and when it is
+not delivered its drop is logged and emitted as `held-event-dropped`.
+
+**Source**: `packages/core/src/Lazy.ts` *(Planned)* — the held value lives in
+the trigger's transition state, keyed by registration and activation, and is
+released at delivery or drop; `packages/core/src/Events.ts` *(Planned)* —
+delivery filters listeners by owner activation.
+
+**Implication**: a lazy consumer receives the event it was loaded for, other
+plugins never receive it twice, and a lost first event is visible.
+
+**Verification** *(Planned)*: scenarios for each drop reason and for a plugin
+registering zero, one and several listeners; a scan of records, events, logs
+and snapshots for a sentinel argument value; check 96.
+
+**Related**: [BEH-BR-251](behaviors/27-manifest-and-lazy-activation.md), [BEH-BR-141](behaviors/16-event-bus.md), [BEH-BR-245](behaviors/27-manifest-and-lazy-activation.md), [ADR-BR-050](decisions/050-dormant-veto-and-hook-phases.md).
+
+---
+
+## INV-BR-048: An atomic apply leaves the prior plugin set, or reports what it left
+
+A `reconcile` with `atomic: true` ends in exactly one of three ways: every
+forward action completed and the report is returned; every completed action
+was undone by an attributed, gated, recorded opposite operation and the call
+fails with `ApplyRolledBack`; or the call fails with `PartialApply` listing
+every completed action that was not undone, with its reason. No completed
+action is left applied without appearing in `PartialApply.notUndone`.
+
+**Source**: `packages/core/src/Reconcile.ts` *(Planned)* — the call records
+each completed action and the previous registration it replaced, and undoes
+them in reverse completion order before writing the parent terminal record.
+
+**Implication**: an approved bundle is never left half-applied silently; the
+scope is the host's plugin set, not external effects of plugin code.
+
+**Verification** *(Planned)*: scenarios injecting a gate refusal, a build-time
+operational failure, an undo refusal, a concurrent change, a parked drain, a
+latch and shutdown at every position of a list; a property test comparing the
+registered set after `ApplyRolledBack` with the set before the call; checks
+99 and 100.
+
+**Related**: [BEH-BR-322](behaviors/32-generic-gate-and-plan.md), [BEH-BR-323](behaviors/32-generic-gate-and-plan.md), [BEH-BR-324](behaviors/32-generic-gate-and-plan.md), [BEH-BR-325](behaviors/32-generic-gate-and-plan.md), [BEH-BR-326](behaviors/32-generic-gate-and-plan.md), [ADR-BR-051](decisions/051-atomic-bundle-apply.md).
+
+---
+
+## INV-BR-049: A contract-checked registry holds only compatible contributions
+
+Every contribution in the view of a registry made with a `contract` declared
+a version and methods that satisfy the registry's range and, when the
+version is not below the registry's contract, include every method name of
+that contract; a contribution that does not was refused at `add` and was
+never visible.
+
+**Source**: `packages/core/src/ContributionRegistry.ts` *(Planned)* — the
+check runs on declarations before the id is reserved, with the comparison
+functions of `packages/core/src/Contract.ts` *(Planned)*.
+
+**Implication**: a consumer that selects an implementation by range gets one
+whose declared version is in that range; a declared version is still the
+author's declaration (RSK-BR-025).
+
+**Verification** *(Planned)*: scenarios with compatible, out-of-range,
+method-missing and undeclared contributions; check 102.
+
+**Related**: [BEH-BR-233](behaviors/26-versioned-contracts.md), [BEH-BR-163](behaviors/19-contribution-registry.md), [BEH-BR-165](behaviors/19-contribution-registry.md), [ADR-BR-052](decisions/052-typed-registries.md).
+
+---
+
+## INV-BR-050: A refused digest never enters starting
+
+While a wired `RefusalList` refuses a digest, no registration whose
+definition carries that digest enters `starting`, has its code loaded or
+built, or has a background fiber restarted, and every refusal outside an
+operator call leaves one `start-refused` record (with a sink wired).
+
+**Source**: `packages/core/src/Host.ts` *(Planned)* — the move into
+`starting`, the background restart and the child mount consult the list;
+step 4b of the call path.
+
+**Implication**: revocation holds across system starts; a refused plugin is
+visible as `disabled` with reason `refused-digest`.
+
+**Verification** *(Planned)*: scenarios for each start route with a scripted
+list; property test over random histories of list changes and starts;
+check 104.
+
+**Related**: [BEH-BR-267](behaviors/28-plugin-principal-and-mandatory-policy.md), [BEH-BR-033](behaviors/05-activation.md), [BEH-BR-090](behaviors/10-runtime-failure-and-health.md), [BEH-BR-071](behaviors/08-operation-legality.md), [ADR-BR-053](decisions/053-refusal-list.md).
+
+---
+
+## INV-BR-051: A call's correlation follows the work it causes
+
+The `correlationId` a call resolves is the one its gate request, its records,
+the system records it causes and the call-log entries of the calls made from
+the code it runs carry; work the host starts with no caller behind it starts
+without one.
+
+**Source**: `packages/core/src/Attribution.ts` *(Planned)* — resolution
+order; `packages/core/src/Host.ts` *(Planned)* — `CurrentCorrelation` set
+around a call's work and reset at background entry points.
+
+**Implication**: one request can be followed through every record it caused.
+
+**Verification** *(Planned)*: scenarios over command → hook → nested call
+chains; check 106.
+
+**Related**: [BEH-BR-187](behaviors/22-attributable-operations.md), [BEH-BR-199](behaviors/23-audit-sink-and-record.md), [BEH-BR-292](behaviors/30-operation-context-annotations.md), [BEH-BR-276](behaviors/29-capability-grants-and-call-log.md), [ADR-BR-054](decisions/054-correlation-in-the-fiber.md).
+
+---
+
+## INV-BR-052: Under "refuse", no Effect member delivers its outcome unless its entry was accepted
+
+For a capture under the call-log policy "refuse", a member returning an
+Effect delivers its outcome to the consumer only after `record` accepted its
+entry; otherwise the call dies with `CallLogUnavailable`, and a member is
+never run without a reserved queue slot.
+
+**Source**: `packages/core/src/CallLog.ts` *(Planned)* — slot reservation
+and the wait for `record`.
+
+**Implication**: a fail-closed data-access log cannot be bypassed by a slow
+or failing log for Effect members. A synchronous or Stream-returning member
+is refused only at admission (no free slot) and delivers before `record`
+returns; that residual is stated in RSK-BR-062 (BEH-BR-279, CCR-BR-029).
+
+**Verification** *(Planned)*: scenarios with a failing, slow and full log;
+check 107.
+
+**Related**: [BEH-BR-279](behaviors/29-capability-grants-and-call-log.md), [BEH-BR-276](behaviors/29-capability-grants-and-call-log.md).

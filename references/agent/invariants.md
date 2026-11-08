@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.5 (2026-11-08): INV-AG-001 scoped to commands not declared `readOnly` and retitled (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): INV-AG-007 added (untrusted output only inside an envelope) (CCR-AG-003, round 2: recheck item 8)<br>0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -23,17 +23,17 @@ every Source and Verification is *(Planned)*, and no invariant here may be
 cited as evidence until a test that checks it has run
 ([ADR-BR-035](../core/decisions/035-evidence-from-executed-tests.md)).
 
-## INV-AG-001: A tainted session is never auto-allowed
+## INV-AG-001: A tainted session is never auto-allowed a change
 
-A command the agent dispatches while its session is tainted runs its handler
-only if an application gate is wired, the request re-dispatches an approved
+A command not declared `readOnly` that the agent dispatches while its
+session is tainted runs its handler only if an application gate is wired, the request re-dispatches an approved
 draft (an `ApprovalRef` bound by dispatch to the same descriptor digest and
 the same input digest), and that gate allows it; every other outcome is a
 deferral (with `TaintGuard.drafts` wired) or a refusal. This holds because
 the session's taint is on every agent dispatch before the model reads the
 tainted text (BEH-AG-017 to BEH-AG-019) and the command catalog's taint floor
 applies to every dispatch, nested or not
-([INV-CM-006](../command/invariants.md#inv-cm-006-a-tainted-dispatch-never-runs-on-an-automatic-allow)).
+([INV-CM-006](../command/invariants.md#inv-cm-006-a-tainted-dispatch-not-declared-read-only-never-runs-on-an-automatic-allow)).
 
 **Source**: `packages/agent/src/Taint.ts`, `packages/agent/src/ToolRunner.ts`
 *(Planned)* — labels added before the model call, carried on every dispatch;
@@ -43,7 +43,10 @@ source.
 
 **Implication**: text from an imported tool, a tagged untrusted output or a
 tainted memory can steer what an agent proposes, but cannot make a change
-happen through dispatch on an automatic decision. Whether the approval is
+happen through dispatch on an automatic decision. A command declared
+`readOnly` keeps the gate's decision (command BEH-CM-016), so a tainted
+session can still look things up; the guarantee is then as sound as that
+declaration, which is not enforced (command BEH-CM-006). Whether the approval is
 genuine, and was not given by the agent itself, is the application gate's
 check; a source of untrusted text nobody declared is not covered.
 
@@ -136,3 +139,23 @@ model, and a gate or tool change shows as a divergence at the call it affects.
 **Verification** *(Planned)*: record-and-replay tests (acceptance check 10).
 
 **Related**: BEH-AG-033, BEH-AG-034, BEH-AG-035, BEH-AG-038; ADR-AG-005.
+
+## INV-AG-007: Untrusted tool output reaches the model only inside an envelope
+
+Every tool result the reference loop shows to a model, stores or replays is a
+`ModelEnvelope` of the command companion, bounded by `maxToolResultBytes`,
+with every value at an untrusted output path listed as a numbered untrusted
+entry; a result that holds such a value taints the session.
+
+**Source**: `packages/agent/src/AgentLoop.ts` *(Planned)* — the loop renders
+each `Ok` with `Command.envelope` before appending the tool message.
+
+**Implication**: untrusted text is marked and bounded in what the model reads,
+and the gate's rule for tainted sessions applies to whatever follows. The
+guarantee is about presentation and labelling; it does not detect or remove
+instructions in the text.
+
+**Verification** *(Planned)*: tests over commands with and without untrusted
+paths, an imported command and an oversized output (acceptance check 14).
+
+**Related**: BEH-AG-019, BEH-AG-023; command BEH-CM-030; ADR-AG-003.
