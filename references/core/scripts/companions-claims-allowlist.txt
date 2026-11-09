@@ -1,0 +1,14 @@
+# companions-claims-allowlist.txt — lines outside references/core that may use a
+# restricted claim word (validated, qualified, compliant, compliance-ready,
+# tamper-evident, tamper-proof, durable, durability) without an escape word in
+# the same sentence.
+#
+# Format:  <path relative to references/>::<exact substring of the line>
+#
+# The list fails in both directions: an entry whose substring no longer appears
+# in a flagged line is itself a failure, so stale exceptions are removed. Add an
+# entry only with a reason.
+#
+# The gap analysis's classification is quoted, not claimed: the package is not
+# said to be tamper-evident, only that item 13 of that analysis uses the term.
+audit-chain/decisions/004-separate-from-gxp-companion.md::lists tamper-evident audit as

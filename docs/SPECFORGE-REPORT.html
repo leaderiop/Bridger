@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SpecForge Readiness Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Schibsted+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: an engineering drawing sheet. Title block on top, ruled sections, diagrams as figures on a drafting ground. */
+:root{
+  --bg:#F1F4F6; --surface:#FFFFFF; --ink:#14222E; --muted:#566673; --line:#C9D3DB;
+  --accent:#1F5FBF; --accent-soft:#E2ECFA; --ok:#1B7A4D; --gap:#C03E28; --warn:#9A6200;
+  --code-bg:#E7ECF0; --ok-soft:#E1F2E9; --gap-soft:#FBE7E2; --warn-soft:#F8EBD3;
+  --sans:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1B2B; --surface:#12263A; --ink:#E4EDF5; --muted:#93A7B9; --line:#2A4560;
+    --accent:#6EB0FF; --accent-soft:#16365A; --ok:#5FCB93; --gap:#FF8670; --warn:#E8B04A;
+    --code-bg:#0A1624; --ok-soft:#12372A; --gap-soft:#3C1E1B; --warn-soft:#3A2E12; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1B2B; --surface:#12263A; --ink:#E4EDF5; --muted:#93A7B9; --line:#2A4560;
+  --accent:#6EB0FF; --accent-soft:#16365A; --ok:#5FCB93; --gap:#FF8670; --warn:#E8B04A;
+  --code-bg:#0A1624; --ok-soft:#12372A; --gap-soft:#3C1E1B; --warn-soft:#3A2E12; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 17px/1.65 var(--sans);margin:0;padding-inline:20px;padding-block:32px 72px}
+.sheet{max-width:980px;margin-inline:auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--sans);text-wrap:balance;margin:0}
+h1{font-weight:800;font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;letter-spacing:-.02em}
+h2{font-weight:800;font-size:clamp(1.5rem,3vw,2rem);line-height:1.15;letter-spacing:-.01em}
+h3{font-weight:600;font-size:1.15rem;line-height:1.3}
+p{margin:0}
+a{color:var(--accent)}
+code{font:600 .88em var(--mono);background:var(--code-bg);padding:.1em .35em;border-radius:3px}
+pre{font:400 13.5px/1.55 var(--mono);background:var(--code-bg);padding:14px 16px;border-radius:4px;margin:0;overflow-x:auto;border-left:3px solid var(--line)}
+pre code{background:none;padding:0;font-weight:400;font-size:inherit}
+.k{color:var(--accent);font-weight:600}.s{color:var(--ok)}.e{color:var(--gap);font-weight:600}.c{color:var(--muted)}
+.titleblock{display:grid;grid-template-columns:2fr 1fr 1fr;border:1.5px solid var(--ink);background:var(--surface)}
+.titleblock>div{padding:10px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.titleblock>div:last-child{border-right:0}
+.titleblock .lab{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block}
+.titleblock .big{grid-column:1/-1;padding:22px 18px 20px;border-right:0}
+.titleblock .big p{margin-top:12px;max-width:62ch;color:var(--muted)}
+.toc{display:flex;flex-wrap:wrap;gap:8px 18px;font:600 14px var(--mono);padding:0;margin:0;list-style:none}
+.toc a{text-decoration:none;color:var(--ink);border-bottom:2px solid var(--line)}
+.toc a:hover{border-color:var(--accent)}
+section{display:flex;flex-direction:column;gap:20px}
+.part{font:600 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border-top:2px solid var(--ink);padding-top:10px}
+.lead{font-size:1.12rem;max-width:66ch}
+.text{max-width:68ch}
+.plain{background:var(--accent-soft);border-left:4px solid var(--accent);padding:14px 18px;max-width:72ch}
+.plain b{display:block;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.warnbox{background:var(--warn-soft);border-left:4px solid var(--warn);padding:14px 18px;max-width:72ch}
+.warnbox b{display:block;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:4px}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.verdict>div{background:var(--surface);border:1px solid var(--line);padding:16px 18px;min-width:0}
+.verdict h3{margin-bottom:6px}
+.verdict .tag{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.tag.ok{color:var(--ok)}.tag.gap{color:var(--gap)}.tag.warn{color:var(--warn)}
+figure{margin:0;display:flex;flex-direction:column;gap:10px}
+.fig{overflow-x:auto;background:var(--surface);border:1px solid var(--line);padding:12px}
+.fig svg{display:block;width:100%;min-width:660px;height:auto;color:var(--ink)}
+figcaption{font-size:.92rem;color:var(--muted);max-width:72ch}
+figcaption b{color:var(--ink)}
+/* svg vocabulary (page CSS styles inline svg) */
+svg .box{fill:var(--surface);stroke:var(--ink);stroke-width:1.5}
+svg .box.acc{fill:var(--accent-soft);stroke:var(--accent)}
+svg .box.ok{fill:var(--ok-soft);stroke:var(--ok)}
+svg .box.gap{fill:var(--gap-soft);stroke:var(--gap);stroke-dasharray:6 4}
+svg .box.warn{fill:var(--warn-soft);stroke:var(--warn)}
+svg .panel{fill:none;stroke:var(--line);stroke-width:1.5}
+svg .lbl{font:600 14px var(--sans);fill:var(--ink)}
+svg .sub{font:400 12px var(--mono);fill:var(--muted)}
+svg .small{font:400 12.5px var(--sans);fill:var(--ink)}
+svg .ttl{font:600 11.5px var(--mono);letter-spacing:.1em;fill:var(--muted);text-transform:uppercase}
+svg .edge{stroke:var(--ink);stroke-width:1.5;fill:none}
+svg .edge.acc{stroke:var(--accent)}
+svg .edge.gap{stroke:var(--gap);stroke-dasharray:6 4}
+svg .edge.ok{stroke:var(--ok)}
+svg .edge.warn{stroke:var(--warn);stroke-dasharray:6 4}
+svg .edge.thin{stroke:var(--line)}
+svg .elbl{font:400 12px var(--mono);fill:var(--muted)}
+svg .okt{fill:var(--ok);font:600 13px var(--sans)}
+svg .gapt{fill:var(--gap);font:600 13px var(--sans)}
+svg .warnt{fill:var(--warn);font:600 13px var(--sans)}
+svg .mid{text-anchor:middle}
+svg .end{text-anchor:end}
+table{border-collapse:collapse;width:100%;font-size:.95rem;background:var(--surface)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line)}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+td:first-child{white-space:nowrap}
+.pill{display:inline-block;font:600 11.5px var(--mono);padding:2px 8px;border-radius:99px;letter-spacing:.03em}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.gap{background:var(--gap-soft);color:var(--gap)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.new{background:var(--accent-soft);color:var(--accent)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.cols>*{min-width:0}
+.glossary{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.glossary div{background:var(--surface);border:1px solid var(--line);padding:12px 14px}
+.glossary dt{font:600 13px var(--mono);color:var(--accent)}
+.glossary dd{margin:2px 0 0;font-size:.95rem}
+dl{margin:0}
+ul.tight{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;max-width:68ch}
+.foot{font-size:.9rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+@media (max-width:640px){.titleblock{grid-template-columns:1fr 1fr}.titleblock>div:first-child{grid-column:1/-1}}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+</head>
+<body>
+
+<!-- shared arrow markers, colors follow the theme tokens -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--ink)"/></marker>
+    <marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--accent)"/></marker>
+    <marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--gap)"/></marker>
+    <marker id="arrO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--ok)"/></marker>
+  </defs>
+</svg>
+
+<main class="sheet">
+
+<header class="titleblock">
+  <div class="big">
+    <h1>Can SpecForge replace the Markdown spec in Bridger?</h1>
+    <p>A plain-language report. It explains what SpecForge is, what the Bridger spec needs, what I tested, what is missing, and the designs I propose to close the gaps.</p>
+  </div>
+  <div><span class="lab">Document</span>SFG-ASSESS-01</div>
+  <div><span class="lab">Date</span>2026-10-04</div>
+  <div><span class="lab">Subject</span>SpecForge 0.1.0 vs <code>references/</code></div>
+  <div><span class="lab">Status</span>Draft analysis, rev 2</div>
+  <div><span class="lab">Evidence</span>CLI probes, source and corpus review</div>
+  <div><span class="lab">Changes to repo</span>none (scratch only)</div>
+</header>
+
+<nav aria-label="Contents">
+<ul class="toc">
+  <li><a href="#tldr">Short answer</a></li>
+  <li><a href="#what">What is SpecForge</a></li>
+  <li><a href="#bridger">What Bridger needs</a></li>
+  <li><a href="#tested">What I tested</a></li>
+  <li><a href="#vision">Experts and users</a></li>
+  <li><a href="#designs">Four designs</a></li>
+  <li><a href="#specfirst">Spec-first</a></li>
+  <li><a href="#wasm">WASM or declarative</a></li>
+  <li><a href="#core">One shared core</a></li>
+  <li><a href="#plan">Plan</a></li>
+  <li><a href="#glossary">Glossary</a></li>
+</ul>
+</nav>
+
+<!-- ============ SHORT ANSWER ============ -->
+<section id="tldr">
+  <div class="part">Short answer</div>
+  <h2>Not yet. The missing part is the expert toolkit, not the checker.</h2>
+  <p class="lead">Bridger's spec is a set of Markdown files held together by a 305-line shell script. SpecForge could do that job better with a typed graph, executable test proof and generated tables. Today it cannot, for three hard reasons and one big gap in the ecosystem.</p>
+  <div class="verdict">
+    <div><span class="tag gap">Blocker 1</span><h3>IDs with hyphens</h3><p>The parser refuses <code>BEH-BR-041</code>. Every ID in Bridger has hyphens.</p></div>
+    <div><span class="tag gap">Blocker 2</span><h3>One text block per behavior</h3><p>A behavior has one <code>contract</code> string. Bridger has about 800 separate requirement blocks.</p></div>
+    <div><span class="tag gap">Blocker 3</span><h3>No expert toolkit</h3><p>Nobody has packaged a standard like Bridger's as a plugin yet, and authors lack the tools to do it.</p></div>
+    <div><span class="tag ok">Good news</span><h3>The base is stronger than I first said</h3><p>7 built-in extensions exist, including decisions, risks, constraints and a Vitest test collector.</p></div>
+  </div>
+  <div class="plain"><b>In one sentence</b>SpecForge is a good engine with few ready-made rulebooks. Bridger needs a rulebook that does not exist yet, and someone has to write it once so every user can just install it.</div>
+  <div class="plain"><b>Update, revision 2</b>The goal moved from "bind Markdown to a graph" to "everything lives in <code>.spec</code> files and the Markdown is generated". I measured the corpus: about a fifth of it is structure and two thirds is hand-written text, so prose must be stored verbatim. The tool can already hold that text, but it cannot print documents yet. See Part 6.</div>
+  <div class="warnbox"><b>Correction to earlier messages</b>I first tested only 2 of the extensions and said rules always need Rust. Both statements were wrong. There are 7 built-in extensions, and most rules can be written without code. This report uses the corrected facts.</div>
+</section>
+
+<!-- ============ WHAT IS SPECFORGE ============ -->
+<section id="what">
+  <div class="part">Part 1</div>
+  <h2>What SpecForge is, explained with a pinboard</h2>
+  <p class="text">Picture a detective's pinboard. Each pinned card is one fact: a requirement, a rule the system must obey, a decision. Strings connect related cards. A good board lets you ask: "what hangs off this card?" and "which cards have no string at all?"</p>
+  <p class="text">SpecForge builds that pinboard from text files. You write cards in <code>.spec</code> files. A compiler reads them, connects the strings, and tells you what is broken or unproven.</p>
+
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 260" role="img" aria-label="Spec files go through the compiler to become a graph, which answers check, trace and coverage questions. Extensions plug into the compiler.">
+  <rect class="box" x="20" y="60" width="140" height="80" rx="4"/>
+  <text class="lbl mid" x="90" y="94">spec files</text><text class="sub mid" x="90" y="114">.spec text</text>
+  <rect class="box acc" x="215" y="60" width="140" height="80" rx="4"/>
+  <text class="lbl mid" x="285" y="94">compiler</text><text class="sub mid" x="285" y="114">specforge check</text>
+  <rect class="box" x="410" y="60" width="140" height="80" rx="4"/>
+  <text class="lbl mid" x="480" y="94">graph</text><text class="sub mid" x="480" y="114">cards + strings</text>
+  <rect class="box" x="595" y="45" width="150" height="110" rx="4"/>
+  <text class="lbl mid" x="670" y="82">answers</text><text class="sub mid" x="670" y="104">check</text><text class="sub mid" x="670" y="122">trace</text><text class="sub mid" x="670" y="140">coverage</text>
+  <line class="edge" x1="160" y1="100" x2="213" y2="100" marker-end="url(#arr)"/><text class="elbl mid" x="187" y="88">read</text>
+  <line class="edge" x1="355" y1="100" x2="408" y2="100" marker-end="url(#arr)"/><text class="elbl mid" x="382" y="88">link</text>
+  <line class="edge" x1="550" y1="100" x2="593" y2="100" marker-end="url(#arr)"/><text class="elbl mid" x="571" y="88">ask</text>
+  <rect class="box acc" x="195" y="190" width="180" height="52" rx="4"/>
+  <text class="lbl mid" x="285" y="214">extensions (plugins)</text><text class="sub mid" x="285" y="232">7 built in</text>
+  <line class="edge acc" x1="285" y1="190" x2="285" y2="142" marker-end="url(#arrA)"/>
+  <text class="elbl" x="296" y="172">teach it new card types and rules</text>
+</svg>
+    </div>
+    <figcaption><b>The whole product in one picture.</b> Without extensions the compiler only understands one card type, <code>spec</code>. Everything useful comes from extensions.</figcaption>
+  </figure>
+
+  <h3>The extensions that exist today</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Extension</th><th>Card types it adds</th><th>Think of it as</th></tr></thead>
+    <tbody>
+      <tr><td><code>product</code></td><td>feature, journey, milestone, module, release, persona, term …</td><td>the planning vocabulary</td></tr>
+      <tr><td><code>software</code></td><td>behavior, invariant, event, type, port</td><td>the engineering vocabulary</td></tr>
+      <tr><td><code>governance</code></td><td>decision, constraint, failure_mode</td><td>decision records, quality targets, risks</td></tr>
+      <tr><td><code>formal</code></td><td>property, axiom, protocol, refinement, process</td><td>mathematical-style checks</td></tr>
+      <tr><td><code>testing</code></td><td>(none, adds <code>verify</code> meaning)</td><td>"this claim is proven by a test"</td></tr>
+      <tr><td><code>vitest</code>, <code>cargo-test</code></td><td>(none)</td><td>readers that link test results to cards</td></tr>
+    </tbody>
+  </table></div>
+  <div class="plain"><b>Why this matters</b>An extension is like an expansion pack for a board game. The base game is empty. The expansion brings the pieces and the rules.</div>
+</section>
+
+<!-- ============ BRIDGER ============ -->
+<section id="bridger">
+  <div class="part">Part 2</div>
+  <h2>What the Bridger spec actually holds</h2>
+  <p class="text">The folder <code>references/core</code> is a spec for <code>@bridger/core</code>, a library that lets an application add and remove plugins while it runs. The spec is Markdown, but it behaves like a pinboard already. Every file has numbered cards, and every card links to others.</p>
+
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="A behavior sits in the middle. It satisfies a requirement, keeps an invariant true, is explained by a decision, guards against a risk, and is proved by an acceptance test. A shell script polices all the links.">
+  <rect class="box acc" x="300" y="130" width="160" height="70" rx="4"/>
+  <text class="lbl mid" x="380" y="161">Behavior</text><text class="sub mid" x="380" y="181">BEH-BR-041</text>
+  <rect class="box" x="30" y="135" width="150" height="60" rx="4"/>
+  <text class="lbl mid" x="105" y="161">Requirement</text><text class="sub mid" x="105" y="180">URS-BR-002</text>
+  <rect class="box" x="560" y="30" width="170" height="60" rx="4"/>
+  <text class="lbl mid" x="645" y="56">Invariant</text><text class="sub mid" x="645" y="75">INV-BR-017</text>
+  <rect class="box" x="560" y="135" width="170" height="60" rx="4"/>
+  <text class="lbl mid" x="645" y="161">Decision (ADR)</text><text class="sub mid" x="645" y="180">ADR-BR-006</text>
+  <rect class="box" x="300" y="10" width="160" height="60" rx="4"/>
+  <text class="lbl mid" x="380" y="36">Risk</text><text class="sub mid" x="380" y="55">RSK-BR-004</text>
+  <rect class="box" x="300" y="255" width="160" height="60" rx="4"/>
+  <text class="lbl mid" x="380" y="281">Acceptance test</text><text class="sub mid" x="380" y="300">REQ-BR-0xx</text>
+  <rect class="box gap" x="560" y="255" width="190" height="60" rx="4" style="stroke:var(--accent);fill:var(--accent-soft)"/>
+  <text class="lbl mid" x="655" y="281">verify-traceability.sh</text><text class="sub mid" x="655" y="300">14 checks, 305 lines</text>
+  <line class="edge" x1="300" y1="165" x2="182" y2="165" marker-end="url(#arr)"/><text class="elbl mid" x="241" y="155">satisfies</text>
+  <line class="edge" x1="460" y1="140" x2="562" y2="80" marker-end="url(#arr)"/><text class="elbl" x="500" y="94">keeps true</text>
+  <line class="edge" x1="460" y1="165" x2="558" y2="165" marker-end="url(#arr)"/><text class="elbl mid" x="510" y="155">see</text>
+  <line class="edge" x1="380" y1="130" x2="380" y2="72" marker-end="url(#arr)"/><text class="elbl" x="390" y="106">guards against</text>
+  <line class="edge" x1="380" y1="200" x2="380" y2="253" marker-end="url(#arr)"/><text class="elbl" x="390" y="232">proved by</text>
+  <line class="edge acc" x1="562" y1="262" x2="462" y2="196" marker-end="url(#arrA)" stroke-dasharray="6 4"/><text class="elbl" x="520" y="238">polices links</text>
+</svg>
+    </div>
+    <figcaption><b>One behavior and everything attached to it.</b> The script on the bottom right is what keeps the links honest today. The goal is to let SpecForge do that job.</figcaption>
+  </figure>
+
+  <div class="cols">
+    <div class="tablewrap"><table>
+      <thead><tr><th>Item</th><th>Rough count</th></tr></thead>
+      <tbody>
+        <tr><td>Behaviors (BEH)</td><td>222</td></tr>
+        <tr><td>Invariants (INV)</td><td>30</td></tr>
+        <tr><td>Decisions (ADR)</td><td>40</td></tr>
+        <tr><td>Risks (RSK)</td><td>about 24</td></tr>
+        <tr><td>User requirements (URS)</td><td>about 28</td></tr>
+        <tr><td>Requirement blocks</td><td>about 800</td></tr>
+      </tbody>
+    </table></div>
+    <div class="text">
+      <p>Counts come from searching headings and block labels, so they may be off by a few.</p>
+      <p style="margin-top:10px">Under every behavior sits a small block of links: <code>Satisfies</code>, <code>See</code>, <code>Invariant</code>, <code>Risk</code>, <code>Regulatory</code>. Together there are roughly 700 of them.</p>
+    </div>
+  </div>
+
+  <h3>Example: how one behavior looks in Markdown today</h3>
+<pre><code><span class="k">## BEH-BR-041: remove stops a plugin and unregisters it after cleanup</span>
+
+&gt; **See:** ADR-BR-006
+&gt; **Satisfies:** URS-BR-002
+&gt; **Risk:** RSK-BR-004
+
+REQUIREMENT: `remove` MUST stop the plugin ... and MUST unregister
+             its definition only after its cleanup has completed.
+
+REQUIREMENT: `remove` MUST complete only once the plugin has no
+             snapshot entry ... a `plugin-removed` event MUST be emitted.</code></pre>
+  <p class="text">Notice what the text carries: an ID, three kinds of links, and several separate rules. A tool that wants to replace this must hold all three.</p>
+
+  <h3>What the shell script checks</h3>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 170" role="img" aria-label="Of the 14 checks in the script: 1 is not needed, 6 can be written as declarative rules today, 4 need a new core feature, 3 need a WASM validator or a richer expression language.">
+  <rect x="20" y="40" width="51.4" height="56" fill="var(--line)" stroke="var(--ink)" stroke-width="1.5"/>
+  <rect x="71.4" y="40" width="308.6" height="56" class="box ok"/>
+  <rect x="380" y="40" width="205.7" height="56" class="box warn"/>
+  <rect x="585.7" y="40" width="154.3" height="56" class="box gap" style="stroke-dasharray:none"/>
+  <text class="lbl mid" x="45" y="74">1</text>
+  <text class="lbl mid" x="225" y="74">6 checks</text>
+  <text class="lbl mid" x="483" y="74">4 checks</text>
+  <text class="lbl mid" x="663" y="74">3 checks</text>
+  <text class="ttl" x="20" y="28">The 14 checks, by what it takes to express them</text>
+  <text class="small" x="20" y="124">not needed</text><text class="sub" x="20" y="142">index = disk</text>
+  <text class="okt" x="75" y="124">declarative rules</text><text class="sub" x="75" y="142">links, enums, "has a control"</text>
+  <text class="warnt" x="384" y="124">new core feature</text><text class="sub" x="384" y="142">requirement blocks, files, links</text>
+  <text class="gapt" x="590" y="124">WASM or richer language</text><text class="sub" x="590" y="142">ranges, honesty, claims</text>
+</svg>
+    </div>
+    <figcaption><b>My classification.</b> It is a judgment based on the rule vocabulary I read in the source, not a measured result. Detail below.</figcaption>
+  </figure>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Group</th><th>Checks</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill ok">declarative</span></td><td>2 trace rows for INV and ADR · 3 URS and NFR rows · 4 each risk cites a control · 5 allocation is one of four values · 10 REQ cites real behaviors · 13 CCR cited must exist</td></tr>
+      <tr><td><span class="pill warn">new core feature</span></td><td>7 each behavior has requirement blocks with MUST/SHOULD · 9 "Planned" paths must not exist · 12 Markdown links and anchors resolve · 14 headings map to a migration table</td></tr>
+      <tr><td><span class="pill gap">WASM / richer</span></td><td>6 ID ranges per file and no gaps · 8 status honesty (nothing "Accepted" while code is absent) · 11 restricted claim words with allow-list</td></tr>
+      <tr><td><span class="pill new">not needed</span></td><td>1 <code>index.yaml</code> matches the files on disk (the graph is the index)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ TESTED ============ -->
+<section id="tested">
+  <div class="part">Part 3</div>
+  <h2>What I tested, and what happened</h2>
+  <p class="text">I copied nothing into your repo. All experiments ran in a scratch folder with the installed <code>specforge</code> 0.1.0, then I confirmed the results against the SpecForge source code at <code>~/Projects/Perso/SpecForge</code>.</p>
+
+  <h3>Experiment 1: use a Bridger ID</h3>
+<pre><code><span class="k">behavior</span> BEH-BR-041 {
+  contract "remove stops a plugin"
+}
+
+<span class="e">[E001] Error: syntax error: unexpected '-BR-041'</span></code></pre>
+  <p class="text">The grammar defines an identifier as letters, digits and underscores. The source confirms it: <code>/[a-zA-Z_][a-zA-Z0-9_]*/</code>. A hyphen ends the name.</p>
+
+  <h3>Experiment 2: use underscores and Bridger's link fields</h3>
+<pre><code><span class="k">behavior</span> BEH_BR_041 {
+  contract "..."
+  invariants [INV_BR_017, <span class="e">INV_BR_999</span>]     <span class="c">// does not exist</span>
+  satisfies  [URS_BR_002]               <span class="c">// Bridger's link</span>
+}
+
+<span class="e">[E003] unresolved reference 'INV_BR_999'</span>      <span class="c">// good: dangling links are caught</span>
+<span class="e">[W020] unrecognized field 'satisfies'</span>            <span class="c">// no place for Bridger's links</span></code></pre>
+
+  <h3>How each Bridger item fits the built-in card types</h3>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 450" role="img" aria-label="Mapping of nine Bridger items onto SpecForge kinds. Decision, invariant and constraint fit well. Behavior, risk and acceptance test fit partly. Requirement fits poorly. Regulatory clause and change request have no match.">
+  <text class="ttl" x="30" y="16">Bridger item</text><text class="ttl" x="520" y="16">SpecForge card type</text>
+  <!-- rows y = 28 + i*46 -->
+  <rect class="box" x="30" y="28" width="210" height="34" rx="3"/><text class="small" x="42" y="50">Decision (ADR)</text>
+  <line class="edge ok" x1="240" y1="45" x2="520" y2="45"/><text class="okt mid" x="380" y="38">fits</text>
+  <rect class="box ok" x="520" y="28" width="210" height="34" rx="3"/><text class="small" x="532" y="50">decision</text>
+
+  <rect class="box" x="30" y="74" width="210" height="34" rx="3"/><text class="small" x="42" y="96">Invariant</text>
+  <line class="edge ok" x1="240" y1="91" x2="520" y2="91"/><text class="okt mid" x="380" y="84">fits</text>
+  <rect class="box ok" x="520" y="74" width="210" height="34" rx="3"/><text class="small" x="532" y="96">invariant</text>
+
+  <rect class="box" x="30" y="120" width="210" height="34" rx="3"/><text class="small" x="42" y="142">Quality target (NFR)</text>
+  <line class="edge ok" x1="240" y1="137" x2="520" y2="137"/><text class="okt mid" x="380" y="130">fits</text>
+  <rect class="box ok" x="520" y="120" width="210" height="34" rx="3"/><text class="small" x="532" y="142">constraint</text>
+
+  <rect class="box" x="30" y="166" width="210" height="34" rx="3"/><text class="small" x="42" y="188">Behavior with 3+ rules</text>
+  <line class="edge warn" x1="240" y1="183" x2="520" y2="183"/><text class="warnt mid" x="380" y="176">partly: one text field only</text>
+  <rect class="box warn" x="520" y="166" width="210" height="34" rx="3"/><text class="small" x="532" y="188">behavior</text>
+
+  <rect class="box" x="30" y="212" width="210" height="34" rx="3"/><text class="small" x="42" y="234">Risk (RSK)</text>
+  <line class="edge warn" x1="240" y1="229" x2="520" y2="229"/><text class="warnt mid" x="380" y="222">partly: only one invariant link</text>
+  <rect class="box warn" x="520" y="212" width="210" height="34" rx="3"/><text class="small" x="532" y="234">failure_mode</text>
+
+  <rect class="box" x="30" y="258" width="210" height="34" rx="3"/><text class="small" x="42" y="280">Acceptance test (REQ)</text>
+  <line class="edge warn" x1="240" y1="275" x2="520" y2="275"/><text class="warnt mid" x="380" y="268">partly: stronger, test-proven</text>
+  <rect class="box warn" x="520" y="258" width="210" height="34" rx="3"/><text class="small" x="532" y="280">verify + vitest</text>
+
+  <rect class="box" x="30" y="304" width="210" height="34" rx="3"/><text class="small" x="42" y="326">User requirement (URS)</text>
+  <line class="edge gap" x1="240" y1="321" x2="520" y2="321"/><text class="gapt mid" x="380" y="314">poor: wants a "problem" field</text>
+  <rect class="box gap" x="520" y="304" width="210" height="34" rx="3"/><text class="small" x="532" y="326">feature</text>
+
+  <rect class="box" x="30" y="350" width="210" height="34" rx="3"/><text class="small" x="42" y="372">Regulatory clause</text>
+  <text class="gapt mid" x="380" y="372">no match</text>
+  <rect class="box gap" x="520" y="350" width="210" height="34" rx="3"/><text class="small" x="532" y="372">nothing</text>
+
+  <rect class="box" x="30" y="396" width="210" height="34" rx="3"/><text class="small" x="42" y="418">Change request (CCR)</text>
+  <text class="gapt mid" x="380" y="418">no match</text>
+  <rect class="box gap" x="520" y="396" width="210" height="34" rx="3"/><text class="small" x="532" y="418">nothing</text>
+</svg>
+    </div>
+    <figcaption><b>Three fit, three partly fit, one fits poorly, two are missing.</b> The <code>governance</code> extension is what makes decisions, risks and constraints possible.</figcaption>
+  </figure>
+
+  <h3>Findings from the source code</h3>
+  <ul class="tight">
+    <li>Extensions can declare card types, fields and links in a plain <code>manifest.json</code>. No Rust needed for that part.</li>
+    <li>Rules also have a declarative form with six check types: <code>no_incoming_edges</code>, <code>no_outgoing_edges</code>, <code>missing_field_when_flag_set</code>, <code>field_value_constraint</code>, <code>cycle_detection</code>, <code>file_exists</code>.</li>
+    <li>A seventh check type, <code>custom</code>, runs your own code compiled to WASM.</li>
+    <li>The <code>vitest</code> extension links a passing test to a card through <code>meta: { specforge: { behavior, verify } }</code>.</li>
+    <li>There is no public registry yet. Extensions come built in or from a local path.</li>
+  </ul>
+</section>
+
+<!-- ============ VISION ============ -->
+<section id="vision">
+  <div class="part">Part 4</div>
+  <h2>The real purpose: experts write the rules, users just use them</h2>
+  <p class="text">You made a point that changes the design. SpecForge exists so that an expert, say a GxP validation specialist, packages hard-won knowledge once. Everyone else installs it and writes content. Users should not invent their own standard.</p>
+
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 300" role="img" aria-label="An expert writes and publishes an extension. The end user installs it and writes only content. The registry between them does not exist yet.">
+  <rect class="panel" x="20" y="20" width="250" height="240" rx="6"/>
+  <text class="ttl" x="36" y="46">Expert (writes once)</text>
+  <text class="small" x="36" y="84">• card types and statements</text>
+  <text class="small" x="36" y="112">• rules and computed values</text>
+  <text class="small" x="36" y="140">• ID scheme, profiles</text>
+  <text class="small" x="36" y="168">• settings the user may change</text>
+  <text class="small" x="36" y="196">• tests for the standard itself</text>
+  <text class="small" x="36" y="224">• templates and generated docs</text>
+  <rect class="box acc" x="320" y="95" width="120" height="76" rx="4"/>
+  <text class="lbl mid" x="380" y="127">extension</text><text class="sub mid" x="380" y="147">@acme/gxp</text>
+  <rect class="box gap" x="310" y="208" width="140" height="50" rx="4"/>
+  <text class="gapt mid" x="380" y="230">registry</text><text class="sub mid" x="380" y="248">missing today</text>
+  <line class="edge gap" x1="380" y1="172" x2="380" y2="206"/>
+  <line class="edge acc" x1="270" y1="133" x2="318" y2="133" marker-end="url(#arrA)"/><text class="elbl mid" x="294" y="122">publish</text>
+  <line class="edge acc" x1="442" y1="133" x2="488" y2="133" marker-end="url(#arrA)"/><text class="elbl mid" x="465" y="122">install</text>
+  <rect class="panel" x="490" y="20" width="250" height="240" rx="6"/>
+  <text class="ttl" x="506" y="46">End user (just uses)</text>
+  <text class="small" x="506" y="84">• writes content only</text>
+  <text class="small" x="506" y="112">• picks a profile</text>
+  <text class="small" x="506" y="140">• sets typed settings</text>
+  <text class="small" x="506" y="168">• files waivers with a reason</text>
+  <text class="small" x="506" y="196">• reads reports and answers</text>
+  <text class="sub" x="506" y="232">never writes a rule</text>
+</svg>
+    </div>
+    <figcaption><b>Two roles, one package.</b> My early designs let users write rules in their own spec files. That was wrong for this model. Rules live inside the extension, and the user sees only content, a profile and typed settings.</figcaption>
+  </figure>
+
+  <h3>What the user's side looks like</h3>
+<pre><code><span class="c">// specforge.json (the only configuration the user touches)</span>
+{
+  "extensions": {
+    "@acme/gxp": {
+      "profile": "strict",
+      "settings": { "idInfix": "BR", "package": "bridger-core" }
+    }
+  }
+}</code></pre>
+  <p class="text">If a rule must be bypassed, the user files a <b>waiver</b>: a rule code, a card, a written reason and an optional end date. A waiver is visible in reports, so an exception can be audited instead of silently weakening the standard.</p>
+
+  <h3>What experts are missing today</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>#</th><th>Missing piece</th><th>Why an expert needs it</th></tr></thead>
+    <tbody>
+      <tr><td>E1</td><td>A richer declarative language</td><td>Six check types cannot express counts, ranges, computed values or reports.</td></tr>
+      <tr><td>E2</td><td>A non-Rust way to author</td><td>Domain experts are not Rust developers. The scaffold needs a Rust toolchain and a WASM target.</td></tr>
+      <tr><td>E3</td><td>A test harness for a standard</td><td>"This bad spec must produce exactly these errors", run in CI.</td></tr>
+      <tr><td>E4</td><td>A user-facing configuration contract</td><td>Typed settings, named profiles and waivers.</td></tr>
+      <tr><td>E5</td><td>Packaging of templates and docs</td><td>An expert should ship starter files and generated reports with the rules.</td></tr>
+      <tr><td>E6</td><td>Registry, signing, versions</td><td>No public registry, so sharing an expert's work is not possible.</td></tr>
+      <tr><td>E7</td><td>The actual standards</td><td>No GxP, URS/REQ or regulatory-mapping extension exists.</td></tr>
+      <tr><td>E8</td><td>Core hooks</td><td>ID characters, requirement statements and Markdown binding must be exposed by the core.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="plain"><b>The readiness test</b>Can an expert package everything in <code>references/core/process/</code> plus the shell script as one extension, so Bridger holds only content and a profile? Today the answer is no.</div>
+</section>
+
+<!-- ============ DESIGNS ============ -->
+<section id="designs">
+  <div class="part">Part 5</div>
+  <h2>Four designs that close the gaps</h2>
+  <p class="text">These are <span class="pill new">proposals</span>, not features that exist. Each shows only the interface a person would use, not how to build it.</p>
+
+  <!-- ---- 1 IDs ---- -->
+  <h3>Design 1: IDs with hyphens</h3>
+  <p class="text">Allow hyphens inside identifiers, but only when the project opts in, and let each card type declare a pattern its IDs must match.</p>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 240" role="img" aria-label="Today the parser splits BEH-BR-041 into five pieces and fails. Proposed, it reads one ID and checks it against a pattern.">
+  <rect class="panel" x="20" y="14" width="340" height="212" rx="6"/>
+  <text class="ttl" x="36" y="40">Today</text>
+  <rect class="box" x="40" y="70" width="62" height="40" rx="3"/><text class="lbl mid" x="71" y="95">BEH</text>
+  <rect class="box gap" x="108" y="70" width="28" height="40" rx="3"/><text class="gapt mid" x="122" y="95">-</text>
+  <rect class="box" x="142" y="70" width="46" height="40" rx="3"/><text class="lbl mid" x="165" y="95">BR</text>
+  <rect class="box gap" x="194" y="70" width="28" height="40" rx="3"/><text class="gapt mid" x="208" y="95">-</text>
+  <rect class="box" x="228" y="70" width="62" height="40" rx="3"/><text class="lbl mid" x="259" y="95">041</text>
+  <text class="small" x="40" y="146">Parser reads 5 pieces, not 1 name.</text>
+  <text class="gapt" x="40" y="172">E001 syntax error</text>
+  <text class="sub" x="40" y="200">/[a-zA-Z_][a-zA-Z0-9_]*/</text>
+  <line class="edge acc" x1="360" y1="120" x2="398" y2="120" marker-end="url(#arrA)"/>
+  <rect class="panel" x="400" y="14" width="340" height="212" rx="6"/>
+  <text class="ttl" x="416" y="40">Proposed</text>
+  <rect class="box ok" x="420" y="70" width="200" height="40" rx="3"/><text class="lbl mid" x="520" y="95">BEH-BR-041</text>
+  <text class="small" x="420" y="146">One ID. Checked against the pattern.</text>
+  <text class="okt" x="420" y="172">matches BEH-[A-Z]{2}-\d{3}</text>
+  <text class="sub" x="420" y="200">identifiers.charset: "kebab"</text>
+</svg>
+    </div>
+    <figcaption><b>Opt-in, so nothing changes for existing projects.</b> The ID stays identical in the spec, the Markdown and the code. An alias such as <code>BEH_BR_041 as "BEH-BR-041"</code> would give one thing two names, so I rejected it.</figcaption>
+  </figure>
+<pre><code><span class="c">// project setting (opt-in)</span>
+{ "identifiers": { "charset": "kebab" } }
+
+<span class="c">// card type declared by the extension</span>
+{ "keyword": "behavior", "idPattern": "BEH-[A-Z]{2}-\\d{3}" }
+
+<span class="c">// what the user writes</span>
+<span class="k">behavior</span> BEH-BR-041 "remove stops a plugin" {
+  satisfies [URS-BR-002]
+  invariants [INV-BR-017]
+}</code></pre>
+
+  <!-- ---- 2 Requirements ---- -->
+  <h3>Design 2: several requirement blocks per behavior</h3>
+  <p class="text">Today a behavior has one text field. Bridger needs many separate rules per behavior, each with its own link to a test. The core already has a precedent: <code>verify</code> is a reserved line inside a card, and the <code>testing</code> extension gives it meaning. I propose the same pattern for <code>requirement</code>.</p>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="A behavior has three requirements. Two are proved by a verify line and a Vitest test. The third has no verify line, so the gap is visible per requirement.">
+  <rect class="box acc" x="20" y="120" width="170" height="80" rx="4"/>
+  <text class="lbl mid" x="105" y="153">behavior</text><text class="sub mid" x="105" y="173">BEH-BR-041</text>
+  <rect class="box" x="250" y="26" width="220" height="48" rx="3"/><text class="small" x="262" y="48">r1 MUST stop, then unregister</text><text class="sub" x="262" y="65">BEH-BR-041.r1</text>
+  <rect class="box" x="250" y="136" width="220" height="48" rx="3"/><text class="small" x="262" y="158">r2 MUST end with no entry</text><text class="sub" x="262" y="175">BEH-BR-041.r2</text>
+  <rect class="box" x="250" y="246" width="220" height="48" rx="3"/><text class="small" x="262" y="268">r3 SHOULD leave dependents waiting</text><text class="sub" x="262" y="285">BEH-BR-041.r3</text>
+  <line class="edge" x1="190" y1="145" x2="248" y2="52" marker-end="url(#arr)"/>
+  <line class="edge" x1="190" y1="160" x2="248" y2="160" marker-end="url(#arr)"/>
+  <line class="edge" x1="190" y1="175" x2="248" y2="268" marker-end="url(#arr)"/>
+  <rect class="box" x="520" y="26" width="110" height="48" rx="3"/><text class="small mid" x="575" y="55">verify unit</text>
+  <rect class="box" x="520" y="136" width="110" height="48" rx="3"/><text class="small mid" x="575" y="165">verify unit</text>
+  <rect class="box gap" x="520" y="246" width="110" height="48" rx="3"/><text class="gapt mid" x="575" y="275">no verify</text>
+  <line class="edge" x1="470" y1="50" x2="518" y2="50" marker-end="url(#arr)"/>
+  <line class="edge" x1="470" y1="160" x2="518" y2="160" marker-end="url(#arr)"/>
+  <line class="edge gap" x1="470" y1="270" x2="518" y2="270"/>
+  <rect class="box ok" x="665" y="26" width="80" height="48" rx="3"/><text class="okt mid" x="705" y="55">test ✓</text>
+  <rect class="box ok" x="665" y="136" width="80" height="48" rx="3"/><text class="okt mid" x="705" y="165">test ✓</text>
+  <rect class="box gap" x="665" y="246" width="80" height="48" rx="3"/><text class="gapt mid" x="705" y="275">GAP</text>
+  <line class="edge ok" x1="630" y1="50" x2="663" y2="50" marker-end="url(#arrO)"/>
+  <line class="edge ok" x1="630" y1="160" x2="663" y2="160" marker-end="url(#arrO)"/>
+  <line class="edge gap" x1="630" y1="270" x2="663" y2="270"/>
+  <text class="ttl" x="520" y="14">proof, per requirement</text>
+</svg>
+    </div>
+    <figcaption><b>Coverage per MUST instead of per behavior.</b> Markdown can only claim a test exists. A graph can compute which requirement has none.</figcaption>
+  </figure>
+<pre><code><span class="k">behavior</span> BEH-BR-041 "remove stops a plugin" {
+  satisfies [URS-BR-002]
+
+  <span class="k">requirement</span> r1 MUST """
+    `remove` MUST stop the plugin through the stop path,
+    and MUST unregister its definition only after cleanup.
+  """
+  <span class="k">requirement</span> r2 MUST   "The plugin MUST have no snapshot entry on success."
+  <span class="k">requirement</span> r3 SHOULD "Dependents SHOULD end waiting with missingServiceIds."
+
+  <span class="k">verify</span> unit "r1: unregister happens after cleanup"
+}
+
+<span class="c">// the extension declares the statement once (expert side)</span>
+"statements": [{
+  "keyword": "requirement",
+  "args": [ {"name":"id","type":"local_id"},
+            {"name":"level","type":"enum","values":["MUST","MUST_NOT","SHOULD","SHOULD_NOT","MAY"]},
+            {"name":"text","type":"string"} ],
+  "addressable": true, "min": 1
+}]</code></pre>
+  <div class="plain"><b>Plain version</b>A requirement becomes its own small card inside a behavior, with an address like <code>BEH-BR-041.r1</code>. Tests and links can point at it, and a missing test shows up as a gap.</div>
+
+  <!-- ---- 3 Rules ---- -->
+  <h3>Design 3: cross-cutting rules, written by the expert</h3>
+  <p class="text">These rules sit inside the extension, never in the user's files. Each has a code, a message and a fix hint, just like the built-in checks.</p>
+<pre><code><span class="k">rule</span> status_honesty {
+  severity error
+  when    spec.implementation == "absent"
+  forbid  decision where status in ["Accepted"]
+  message "{kind} {id} cannot be {status} while implementation is absent"
+}
+
+<span class="k">rule</span> risk_has_control {
+  severity error
+  require failure_mode has &gt;= 1 edge [controlled_by]
+}
+
+<span class="k">rule</span> ids_contiguous {
+  severity warning
+  contiguous behavior by number(id) per package
+}
+
+<span class="k">rule</span> restricted_claims {
+  severity error
+  forbid_terms ["validated", "qualified", "compliant"]
+     in [requirement.text]  unless_nearby ["not", "consumer", "companion"]
+     allow "claims-allowlist.spec"        <span class="c">// stale entries fail too</span>
+}</code></pre>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Vocabulary</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>require / forbid</code></td><td>something must (not) be true of a matching card</td></tr>
+      <tr><td><code>has &gt;=, &lt;=, == N</code></td><td>count links or statements</td></tr>
+      <tr><td><code>unique · contiguous · within</code></td><td>IDs and ranges</td></tr>
+      <tr><td><code>when …</code></td><td>apply only if a condition holds</td></tr>
+      <tr><td><code>forbid_terms … unless_nearby</code></td><td>word lists with exceptions and an allow-list</td></tr>
+    </tbody>
+  </table></div>
+
+  <!-- ---- 4 Prose (revised) ---- -->
+  <h3>Design 4 (revised): the spec is the source, the Markdown is generated</h3>
+  <p class="text">My first version kept prose in Markdown and bound it to the graph. You asked for more: convert everything, ADRs included, into graph and <code>.spec</code> files, and generate Markdown that looks exactly like <code>references/</code>. That is a bigger design, and Part 6 covers it with measurements. In short: prose moves into the spec as verbatim text fields, and a layout shipped by the expert extension turns the spec into the document set.</p>
+  <div class="warnbox"><b>Superseded</b>The heading-binding and <code>sync --check</code> idea is dropped. Generated links cannot point at a missing heading, so there is nothing left to check.</div>
+</section>
+
+<!-- ============ SPEC FIRST ============ -->
+<section id="specfirst">
+  <div class="part">Part 6</div>
+  <h2>Going all the way: the spec is the source, Markdown is generated</h2>
+  <p class="text">The goal: every document in <code>references/</code> comes out of <code>.spec</code> files, byte for byte, and people only edit the spec. Before designing it, I measured what the files are made of. A second pass read the SpecForge source for what it can already render.</p>
+
+  <h3>1. What the files are made of</h3>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 190" role="img" aria-label="Of the non-blank lines in references/core, about 18 percent are mechanical structure, 7 percent tables, 32 percent requirement blocks, 7 percent code and diagrams, and 36 percent prose and lists.">
+  <text class="ttl" x="20" y="24">Non-blank lines in references/core (about 17,400)</text>
+  <rect x="20" y="40" width="129.6" height="56" class="box ok"/>
+  <rect x="149.6" y="40" width="50.4" height="56" class="box acc"/>
+  <rect x="200" y="40" width="230.4" height="56" class="box warn"/>
+  <rect x="430.4" y="40" width="50.4" height="56" class="box" style="fill:var(--line)"/>
+  <rect x="480.8" y="40" width="259.2" height="56" class="box warn"/>
+  <text class="lbl mid" x="85" y="74">18%</text><text class="lbl mid" x="175" y="74">7%</text><text class="lbl mid" x="315" y="74">32%</text><text class="lbl mid" x="455" y="74">7%</text><text class="lbl mid" x="610" y="74">36%</text>
+  <text class="okt" x="20" y="120">mechanical</text><text class="sub" x="20" y="137">headings, links, doc control</text>
+  <text class="small" x="150" y="150" style="fill:var(--accent)">tables</text>
+  <text class="warnt" x="204" y="120">REQUIREMENT blocks</text><text class="sub" x="204" y="137">one rule each, hand-wrapped</text>
+  <text class="small" x="420" y="150">code, diagrams</text>
+  <text class="warnt" x="484" y="120">prose and lists</text><text class="sub" x="484" y="137">context, decisions, glossary</text>
+</svg>
+    </div>
+    <figcaption><b>About a fifth is structure. About two thirds is text a person wrote.</b> Every file type can be modelled, but the prose has to live somewhere, and it cannot be thrown away.</figcaption>
+  </figure>
+
+  <h3>2. What can be computed instead of written</h3>
+  <p class="text">A lot of the Markdown is the same fact written in several places. A graph states it once.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Today it is written by hand</th><th>How many</th><th>In a graph it becomes</th></tr></thead>
+    <tbody>
+      <tr><td><code>index.yaml</code> files</td><td>6</td><td>derived from titles, IDs and ranges</td></tr>
+      <tr><td>README contents tables</td><td>3 tables</td><td>a view over the same entities</td></tr>
+      <tr><td>Prev / Next footers</td><td>39 lines</td><td>document order</td></tr>
+      <tr><td>"This file owns BEH-081–088"</td><td>25 sentences</td><td>computed from the headings</td></tr>
+      <tr><td><code>traceability.md</code> §2 (invariant → behaviors)</td><td>30 of 30 rows are exact inverses</td><td>a reverse-edge view</td></tr>
+      <tr><td><code>Related:</code> lines and link blocks</td><td>855 links in blocks</td><td>drawn from edges</td></tr>
+      <tr><td>Document Control table</td><td>80 files, mostly constants</td><td>a template plus 4 fields; revision equals the top history entry in 80 of 80 files</td></tr>
+      <tr><td>Risk summary table (§4)</td><td>24 rows</td><td>a view over each risk entry</td></tr>
+    </tbody>
+  </table></div>
+  <div class="warnbox"><b>Not purely derivable</b><code>urs.md</code> §6 is a curated summary (only 14 of 36 rows match what the <code>Satisfies:</code> lines would give), and the planned-source and verification columns in the traceability tables are authored data. Those stay as fields.</div>
+
+  <h3>3. The exactness question</h3>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 190" role="img" aria-label="Re-wrapping reproduces 45 percent of behavior paragraphs and 18 percent of requirement blocks. Storing the text verbatim is expected to reproduce all of them.">
+  <text class="ttl" x="20" y="22">Could a template re-create the original line breaks?</text>
+  <text class="small" x="20" y="56">Behavior paragraphs</text>
+  <rect x="230" y="40" width="500" height="22" class="panel"/><rect x="230" y="40" width="225" height="22" class="box warn"/>
+  <text class="sub" x="462" y="56">45%  (297 of 732)</text>
+  <text class="small" x="20" y="96">REQUIREMENT blocks</text>
+  <rect x="230" y="80" width="500" height="22" class="panel"/><rect x="230" y="80" width="90" height="22" class="box gap" style="stroke-dasharray:none"/>
+  <text class="sub" x="328" y="96">18%  (143 of 802)</text>
+  <text class="small" x="20" y="136">Stored verbatim</text>
+  <rect x="230" y="120" width="500" height="22" class="box ok"/>
+  <text class="sub" x="238" y="136">expected byte-identical (not yet tested)</text>
+  <text class="elbl" x="20" y="176">Prose is hand-wrapped at about 78 columns. ADR prose is not wrapped, so it is safe either way.</text>
+</svg>
+    </div>
+    <figcaption><b>Decision: store prose verbatim, line breaks included, and never reflow it.</b> A template that wraps text would only match about half of it.</figcaption>
+  </figure>
+
+  <h3>4. The model, in four layers</h3>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="Spec files hold entities and verbatim prose. A renderer combines them with derived views and layouts from the expert extension to write references Markdown files. CI checks that re-rendering produces no diff.">
+  <rect class="box ok" x="20" y="100" width="190" height="110" rx="4"/>
+  <text class="lbl mid" x="115" y="130">.spec files</text>
+  <text class="sub mid" x="115" y="152">L1 entities and edges</text>
+  <text class="sub mid" x="115" y="170">L2 verbatim prose</text>
+  <text class="sub mid" x="115" y="188">ADR · BEH · INV · RSK …</text>
+  <rect class="box acc" x="285" y="100" width="190" height="110" rx="4"/>
+  <text class="lbl mid" x="380" y="140">renderer</text><text class="sub mid" x="380" y="162">fills a layout</text><text class="sub mid" x="380" y="180">writes files in order</text>
+  <rect class="box" x="550" y="100" width="190" height="110" rx="4"/>
+  <text class="lbl mid" x="645" y="130">references/**/*.md</text><text class="sub mid" x="645" y="152">committed to git</text><text class="sub mid" x="645" y="170">nobody edits by hand</text>
+  <line class="edge" x1="210" y1="155" x2="283" y2="155" marker-end="url(#arr)"/><text class="elbl mid" x="247" y="145">read</text>
+  <line class="edge" x1="475" y1="155" x2="548" y2="155" marker-end="url(#arr)"/><text class="elbl mid" x="512" y="145">write</text>
+  <rect class="box acc" x="285" y="14" width="190" height="52" rx="4"/>
+  <text class="lbl mid" x="380" y="38">L3 derived views</text><text class="sub mid" x="380" y="56">indexes, trace tables, links</text>
+  <line class="edge acc" x1="380" y1="66" x2="380" y2="98" marker-end="url(#arrA)"/>
+  <rect class="box acc" x="285" y="244" width="190" height="52" rx="4"/>
+  <text class="lbl mid" x="380" y="268">L4 layouts</text><text class="sub mid" x="380" y="286">from the expert's extension</text>
+  <line class="edge acc" x1="380" y1="244" x2="380" y2="212" marker-end="url(#arrA)"/>
+  <path class="edge gap" d="M645 212 V300 H115 V212" marker-end="url(#arrG)"/>
+  <text class="gapt mid" x="560" y="318">CI: render --check, the diff must be empty</text>
+</svg>
+    </div>
+    <figcaption><b>Four layers.</b> The user writes only the left box. The expert supplies the layouts and the derived views. The committed Markdown is a build output that CI keeps honest.</figcaption>
+  </figure>
+
+  <h3>5. An ADR, converted</h3>
+  <p class="text">Every ADR has the same five sections, so ADRs convert cleanly. The picture shows where each part of <code>decisions/015-leases-one-primitive.md</code> goes.</p>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 400" role="img" aria-label="Each section of an ADR Markdown file maps to a spec field: title and id to fields, document control to a derived table, context to verbatim text, numbered decisions to ordered point statements, alternatives to alternative statements, consequences to text fields, references to edges.">
+  <text class="ttl" x="20" y="14">ADR Markdown file</text><text class="ttl" x="500" y="14">.spec field</text>
+  <rect class="box" x="20" y="24" width="250" height="40" rx="3"/><text class="small" x="32" y="48"># ADR-BR-015: Leases are …</text>
+  <rect class="box ok" x="500" y="24" width="240" height="40" rx="3"/><text class="small" x="512" y="48">id + title</text>
+  <line class="edge ok" x1="270" y1="44" x2="498" y2="44"/><text class="okt mid" x="384" y="37">fields</text>
+
+  <rect class="box" x="20" y="76" width="250" height="40" rx="3"/><text class="small" x="32" y="100">Document Control table</text>
+  <rect class="box acc" x="500" y="76" width="240" height="40" rx="3"/><text class="small" x="512" y="100">revision · status · history</text>
+  <line class="edge acc" x1="270" y1="96" x2="498" y2="96"/><text class="elbl mid" x="384" y="89">template + 3 fields</text>
+
+  <rect class="box" x="20" y="128" width="250" height="40" rx="3"/><text class="small" x="32" y="152">## Context (3 paragraphs)</text>
+  <rect class="box warn" x="500" y="128" width="240" height="40" rx="3"/><text class="small" x="512" y="152">context  (verbatim text)</text>
+  <line class="edge warn" x1="270" y1="148" x2="498" y2="148"/><text class="warnt mid" x="384" y="141">prose</text>
+
+  <rect class="box" x="20" y="180" width="250" height="40" rx="3"/><text class="small" x="32" y="204">## Decision: 1. 2. 3. … 7.</text>
+  <rect class="box warn" x="500" y="180" width="240" height="40" rx="3"/><text class="small" x="512" y="204">point "lead-in" text  (× 7)</text>
+  <line class="edge warn" x1="270" y1="200" x2="498" y2="200"/><text class="warnt mid" x="384" y="193">ordered statements</text>
+
+  <rect class="box" x="20" y="232" width="250" height="40" rx="3"/><text class="small" x="32" y="256">## Alternatives considered</text>
+  <rect class="box warn" x="500" y="232" width="240" height="40" rx="3"/><text class="small" x="512" y="256">alternative "name" rejected …</text>
+  <line class="edge warn" x1="270" y1="252" x2="498" y2="252"/><text class="warnt mid" x="384" y="245">ordered statements</text>
+
+  <rect class="box" x="20" y="284" width="250" height="40" rx="3"/><text class="small" x="32" y="308">## Consequences: + / − / trade-off</text>
+  <rect class="box warn" x="500" y="284" width="240" height="40" rx="3"/><text class="small" x="512" y="308">positive · negative · tradeoff</text>
+  <line class="edge warn" x1="270" y1="304" x2="498" y2="304"/><text class="warnt mid" x="384" y="297">prose</text>
+
+  <rect class="box" x="20" y="336" width="250" height="40" rx="3"/><text class="small" x="32" y="360">## References (label lists)</text>
+  <rect class="box ok" x="500" y="336" width="240" height="40" rx="3"/><text class="small" x="512" y="360">behaviors · invariants · risks …</text>
+  <line class="edge ok" x1="270" y1="356" x2="498" y2="356"/><text class="okt mid" x="384" y="349">real edges</text>
+</svg>
+    </div>
+    <figcaption><b>Green is structure, amber is verbatim prose, blue is computed.</b> The References section stops being text and becomes links in the graph, so "which decisions cite this behavior" is a query.</figcaption>
+  </figure>
+<pre><code><span class="k">decision</span> ADR-BR-015 "Leases are one bounded primitive with a supervised child" {
+  revision 0.3
+  status   Proposed
+  history  change { rev 0.3  date 2026-10-03  ccr CCR-BR-013
+                    text "Scoped-lease revocation interrupts the acquiring fiber" }
+
+  context md """
+    A caller that obtains a plugin's service and then calls it must not
+    have the provider's scope closed in the middle of the call ...
+  """
+
+  <span class="k">point</span> "One primitive."   md """`lease(keys, { realm })` is the primitive ..."""
+  <span class="k">point</span> "Canonical order." md """Multi-key leases are acquired in a canonical key order ..."""
+
+  <span class="k">alternative</span> "Reference counting on the caller's fiber, no child."
+              rejected md """Force would have to interrupt the caller's own fiber ..."""
+
+  positive md """No provider closes under an admitted call unless ..."""
+  negative md """..."""
+  tradeoff md  """..."""
+
+  behaviors  [BEH-BR-081, BEH-BR-082]       <span class="c">// real edges, rendered as links</span>
+  invariants [INV-BR-017]
+  risks      [RSK-BR-001]
+  source md """SPEC.md "Leases" ..."""
+}</code></pre>
+  <p class="text">Cross-links inside prose are written as <code>{ref INV-BR-006}</code> and rendered to the relative link plus anchor. Of 3,129 links in the corpus, about 85% sit in structured places (link blocks, tables, reference lists). Only about 360 are in free prose. Anchors follow GitHub's heading-slug rule, and risks use an explicit <code>&lt;a id&gt;</code>, so both can be produced exactly.</p>
+  <div class="warnbox"><b>What does not fit neatly</b>About 12 one-off bullets under References (for example "Ordering rule") are really bold-lead-in prose, so the spec needs a free <code>note "label" md """…"""</code> statement. Four ADRs also carry small tables, which stay inside the verbatim text.</div>
+
+  <h3>6. A behavior, with the link block computed</h3>
+<pre><code><span class="k">behavior</span> BEH-BR-041 "remove stops a plugin and unregisters it after cleanup" {
+  see ADR-BR-006   satisfies URS-BR-002   risk RSK-BR-004
+  signature ts """ remove(ref: PluginRef, options?: RemoveOptions): Effect.Effect&lt;void, … &gt; """
+  <span class="k">requirement</span> r1 md """`remove` MUST stop the plugin, if it has a live activation, ..."""
+  <span class="k">requirement</span> r2 md """`remove` MUST complete successfully only once the plugin has no ..."""
+}
+
+<span class="c">// rendered, exactly as in 06-removal.md:</span>
+<span class="c">// ## BEH-BR-041: remove stops a plugin and unregisters it after cleanup</span>
+<span class="c">//</span>
+<span class="c">// &gt; **See:** [ADR-BR-006](../decisions/006-one-instance-per-id-per-realm.md)</span>
+<span class="c">// &gt; **Satisfies:** [URS-BR-002](../urs.md#urs-br-002-remove-or-replace-a-plugin-safely-while-it-is-in-use)</span>
+<span class="c">// &gt; **Risk:** [RSK-BR-004](../gxp/03-risk-assessment.md#rsk-br-004)</span></code></pre>
+
+  <h3>7. What SpecForge lacks for this (checked in the source)</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>#</th><th>Needed</th><th>Status today</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Render files from inside the tool</td><td><span class="pill gap">absent</span> <code>export</code> gives graph, brief, context and dot only. <code>gen</code> and <code>renderers</code> are designed, not built.</td></tr>
+      <tr><td>2</td><td>Template mechanism with full graph access</td><td><span class="pill gap">absent</span> no template engine anywhere</td></tr>
+      <tr><td>3</td><td>Source order kept (fields, entities)</td><td><span class="pill gap">absent</span> fields come out alphabetical, entities sorted by id. Each node does carry <code>file</code> and <code>line</code>.</td></tr>
+      <tr><td>4</td><td>A verbatim <code>md</code> field type</td><td><span class="pill warn">partial</span> <code>"""</code> strings kept a code fence, table and nested list byte for byte in my test. No <code>md</code> type exists, and a string cannot contain <code>"""</code>.</td></tr>
+      <tr><td>5</td><td>Ordered list of structured items</td><td><span class="pill gap">absent</span> list items cannot be blocks. Only repeated blocks like <code>verify</code> keep order.</td></tr>
+      <tr><td>6</td><td>Link helper (ref → path + anchor)</td><td><span class="pill gap">absent</span></td></tr>
+      <tr><td>7</td><td>Derived tables callable from a layout</td><td><span class="pill warn">partial</span> trace and stats exist, as JSON</td></tr>
+      <tr><td>8</td><td><code>render --check</code> for CI</td><td><span class="pill gap">absent</span></td></tr>
+      <tr><td>9</td><td>Full-prose export for tooling</td><td><span class="pill warn">partial</span> <code>brief</code> and <code>context</code> drop the long fields; only <code>graph</code> keeps them</td></tr>
+    </tbody>
+  </table></div>
+  <div class="plain"><b>Plain version</b>SpecForge can already hold the text and the links. It cannot yet print them as documents. Items 1, 2, 6 and 7 are the missing printer. Items 3 and 5 are the same ordering gap behind Design 2.</div>
+
+  <h3>8. How to prove it before changing the core</h3>
+  <p class="text">A golden round trip needs no core change. An outside script does the printing, so the experiment shows exactly which features cost how many files.</p>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 170" role="img" aria-label="Round trip test: the references Markdown is migrated to spec files, exported as graph JSON, rendered by a script back to Markdown, and compared with the original. The diff should be empty.">
+  <rect class="box" x="10" y="30" width="110" height="52" rx="4"/><text class="lbl mid" x="65" y="54">references</text><text class="sub mid" x="65" y="72">*.md</text>
+  <rect class="box acc" x="135" y="30" width="110" height="52" rx="4"/><text class="lbl mid" x="190" y="54">migrate.py</text><text class="sub mid" x="190" y="72">run once</text>
+  <rect class="box" x="260" y="30" width="110" height="52" rx="4"/><text class="lbl mid" x="315" y="54">.spec</text><text class="sub mid" x="315" y="72">files</text>
+  <rect class="box" x="385" y="30" width="110" height="52" rx="4"/><text class="lbl mid" x="440" y="54">export</text><text class="sub mid" x="440" y="72">graph JSON</text>
+  <rect class="box acc" x="510" y="30" width="110" height="52" rx="4"/><text class="lbl mid" x="565" y="54">render.py</text><text class="sub mid" x="565" y="72">templates</text>
+  <rect class="box" x="635" y="30" width="110" height="52" rx="4"/><text class="lbl mid" x="690" y="54">out</text><text class="sub mid" x="690" y="72">*.md</text>
+  <line class="edge" x1="120" y1="56" x2="133" y2="56" marker-end="url(#arr)"/>
+  <line class="edge" x1="245" y1="56" x2="258" y2="56" marker-end="url(#arr)"/>
+  <line class="edge" x1="370" y1="56" x2="383" y2="56" marker-end="url(#arr)"/>
+  <line class="edge" x1="495" y1="56" x2="508" y2="56" marker-end="url(#arr)"/>
+  <line class="edge" x1="620" y1="56" x2="633" y2="56" marker-end="url(#arr)"/>
+  <path class="edge gap" d="M690 84 V128 H65 V84" marker-end="url(#arrG)"/>
+  <text class="gapt mid" x="378" y="150">diff -r references out   →   target: empty</text>
+</svg>
+    </div>
+    <figcaption><b>The test.</b> Start with the 39 ADRs (the most regular), then the invariants, then one behavior file. Field order comes from the template, and entity order from each node's <code>file</code> and <code>line</code>.</figcaption>
+  </figure>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Known hazard</th><th>Handling</th></tr></thead>
+    <tbody>
+      <tr><td>Hand-wrapped prose (about 78 columns)</td><td>store verbatim, never reflow</td></tr>
+      <tr><td>Change History cells joined with <code>&lt;br&gt;</code></td><td>template emits exactly, no padding or truncation</td></tr>
+      <tr><td>Table separators differ per file (<code>---</code> vs <code>-----</code>)</td><td>layout carries the exact separator text</td></tr>
+      <tr><td>One file has a double blank line</td><td>normalize it once, or allow it in that layout</td></tr>
+      <tr><td>Non-ASCII characters (— ✓ ► ≥, about 3,500)</td><td>none needed; plain UTF-8</td></tr>
+      <tr><td>Planned markers, ASCII diagrams, <code>ts</code> blocks</td><td>verbatim fenced text</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>9. What changes if you go this way</h3>
+  <ul class="tight">
+    <li><b>Checks that disappear by construction:</b> index equals disk, link and anchor resolution, the derivable trace tables, the Document Control shape. That covers check 1, check 12 and parts of checks 2, 3, 5 and 8.</li>
+    <li><b>Authoring cost:</b> people write prose inside <code>"""</code> in <code>.spec</code> files, with no Markdown preview. This is the main usability risk, and an editor or preview command should be part of the plan.</li>
+    <li><b>Review:</b> commit the generated Markdown and gate it in CI, so reviewers still read Markdown and nobody edits it by hand.</li>
+    <li><b>Exactness:</b> byte-identical output is plausible for all 80 core files if prose is stored verbatim. That is an expectation until the round trip is run.</li>
+  </ul>
+</section>
+
+<!-- ============ WASM ============ -->
+<section id="wasm">
+  <div class="part">Part 7</div>
+  <h2>Why not put every rule in a WASM plugin?</h2>
+  <p class="text">WASM is already the escape hatch in SpecForge, and it is the right home for some rules. It is a poor default for most of them.</p>
+
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 330" role="img" aria-label="Decision flow. If a rule needs files or links, use a host built-in check. If it needs text analysis, use a WASM validator. Otherwise use a declarative rule, which is the default.">
+  <rect class="box" x="270" y="10" width="220" height="40" rx="4"/><text class="lbl mid" x="380" y="35">A rule you want to enforce</text>
+  <line class="edge" x1="380" y1="50" x2="380" y2="82" marker-end="url(#arr)"/>
+  <rect class="box acc" x="250" y="84" width="260" height="46" rx="4"/><text class="small mid" x="380" y="112">Does it read files or links?</text>
+  <line class="edge" x1="510" y1="107" x2="560" y2="107" marker-end="url(#arr)"/><text class="elbl" x="520" y="98">yes</text>
+  <rect class="box warn" x="562" y="84" width="180" height="46" rx="4"/><text class="small mid" x="652" y="105">Host built-in check</text><text class="sub mid" x="652" y="121">new, needs core work</text>
+  <line class="edge" x1="380" y1="130" x2="380" y2="172" marker-end="url(#arr)"/><text class="elbl" x="390" y="156">no</text>
+  <rect class="box acc" x="250" y="174" width="260" height="46" rx="4"/><text class="small mid" x="380" y="202">Does it analyse prose?</text>
+  <line class="edge" x1="510" y1="197" x2="560" y2="197" marker-end="url(#arr)"/><text class="elbl" x="520" y="188">yes</text>
+  <rect class="box gap" x="562" y="174" width="180" height="46" rx="4" style="stroke-dasharray:none"/><text class="small mid" x="652" y="195">WASM validator</text><text class="sub mid" x="652" y="211">word lists, negation</text>
+  <line class="edge" x1="380" y1="220" x2="380" y2="262" marker-end="url(#arr)"/><text class="elbl" x="390" y="246">no</text>
+  <rect class="box ok" x="230" y="264" width="300" height="52" rx="4"/><text class="lbl mid" x="380" y="288">Declarative rule (default)</text><text class="sub mid" x="380" y="305">counts, enums, patterns, links</text>
+</svg>
+    </div>
+    <figcaption><b>Use the cheapest tool that can say the rule.</b> Most of Bridger's 14 checks end up at the bottom.</figcaption>
+  </figure>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th>Concern</th><th>Declarative rule</th><th>WASM plugin</th></tr></thead>
+    <tbody>
+      <tr><td>Who can write it</td><td>Anyone who writes specs</td><td>Needs Rust, a WASM target, an SDK, a build</td></tr>
+      <tr><td>Review in a pull request</td><td>Readable text diff</td><td>Source plus a binary</td></tr>
+      <tr><td>Free tooling</td><td>Explain, editor hints, rule lists</td><td>Each rule builds its own messages</td></tr>
+      <tr><td>Host understands it</td><td>Yes, so it can rebuild only what changed</td><td>No, it only sees pass or fail</td></tr>
+      <tr><td>Security</td><td>No code runs</td><td>Third-party code runs during check</td></tr>
+      <tr><td>Data it sees</td><td>The whole graph</td><td>One card and its direct links (per-card API)</td></tr>
+      <tr><td>Expressive power</td><td>Closed vocabulary</td><td>Anything</td></tr>
+    </tbody>
+  </table></div>
+  <div class="plain"><b>Plain version</b>Writing a Rust crate to say "every risk needs a control" is like hiring a locksmith to close a door. Keep WASM for the two or three rules that need real programming, such as the restricted-words check.</div>
+</section>
+
+<!-- ============ CORE ============ -->
+<section id="core">
+  <div class="part">Part 8</div>
+  <h2>One shared language for rules and more</h2>
+  <p class="text">You asked why a declarative language should serve only rules. It should not. If the language is a small query and condition core, many extension features can reuse it. This lets an expert ship far more without writing code.</p>
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 310" role="img" aria-label="An expression core in the middle feeds six uses: rules, computed fields, views, gates, impact queries and generated regions.">
+  <rect class="box acc" x="285" y="115" width="190" height="80" rx="4"/>
+  <text class="lbl mid" x="380" y="147">expression core</text><text class="sub mid" x="380" y="167">select · where · count</text><text class="sub mid" x="380" y="183">path · match · aggregate</text>
+  <rect class="box" x="30" y="20" width="210" height="52" rx="4"/><text class="lbl" x="44" y="44">Rules</text><text class="sub" x="44" y="62">require / forbid</text>
+  <rect class="box" x="275" y="10" width="210" height="52" rx="4"/><text class="lbl" x="289" y="34">Computed fields</text><text class="sub" x="289" y="52">rpn = sev × occ × det</text>
+  <rect class="box" x="520" y="20" width="210" height="52" rx="4"/><text class="lbl" x="534" y="44">Views</text><text class="sub" x="534" y="62">trace tables, reports</text>
+  <rect class="box" x="30" y="238" width="210" height="52" rx="4"/><text class="lbl" x="44" y="262">Gates</text><text class="sub" x="44" y="280">"release ready" policy</text>
+  <rect class="box" x="275" y="248" width="210" height="52" rx="4"/><text class="lbl" x="289" y="272">Impact queries</text><text class="sub" x="289" y="290">what breaks if X changes</text>
+  <rect class="box" x="520" y="238" width="210" height="52" rx="4"/><text class="lbl" x="534" y="262">Generated regions</text><text class="sub" x="534" y="280">tables inside Markdown</text>
+  <line class="edge thin" x1="240" y1="60" x2="300" y2="117"/><line class="edge thin" x1="380" y1="62" x2="380" y2="113"/><line class="edge thin" x1="520" y1="60" x2="460" y2="117"/>
+  <line class="edge thin" x1="240" y1="250" x2="300" y2="193"/><line class="edge thin" x1="380" y1="246" x2="380" y2="197"/><line class="edge thin" x1="520" y1="250" x2="460" y2="193"/>
+</svg>
+    </div>
+    <figcaption><b>Design the core once, use it six ways.</b> The rule vocabulary in Design 3 becomes short-hand over this core instead of a separate mini-language.</figcaption>
+  </figure>
+  <h3>Three examples an expert could ship</h3>
+<pre><code><span class="c">// 1. computed value, replaces a documented gap: RPN is never checked today</span>
+<span class="k">derive</span> failure_mode.rpn = severity * occurrence * detection
+
+<span class="c">// 2. a view that renders traceability.md, so it can never go stale</span>
+<span class="k">view</span> behavior_to_risk {
+  from behavior b  join b -[risk]-> failure_mode r
+  select b.id, r.id, r.severity   order by r.severity desc
+}
+
+<span class="c">// 3. an executable definition of done</span>
+<span class="k">gate</span> release_ready {
+  require count(failure_mode where severity &gt;= "high" and not has edge [mitigated_by]) == 0
+  require proof_pct(behavior) &gt;= 0.9
+}</code></pre>
+  <div class="warnbox"><b>Guard rails</b>Keep the language closed: no loops, no recursion, no file access, and it only reads the graph. Check every field name against the loaded schema so a typo is an error, not an empty result. Version the language so older tools can refuse new syntax cleanly.</div>
+</section>
+
+<!-- ============ PLAN ============ -->
+<section id="plan">
+  <div class="part">Part 9</div>
+  <h2>Recommendation and next steps</h2>
+  <div class="verdict">
+    <div><span class="tag ok">Now</span><h3>Keep Markdown as the source</h3><p>It carries the prose, anchors and reviewed reasoning. The shell script already enforces your domain rules.</p></div>
+    <div><span class="tag warn">Optional trial</span><h3>Generate a read-only projection</h3><p>A small script turns headings and link blocks into <code>.spec</code> files so you can try graph queries. It is throwaway. Hyphen IDs must be mapped to underscores for now.</p></div>
+    <div><span class="tag gap">Core changes</span><h3>Four for SpecForge itself</h3><p>Hyphenated IDs (Design 1), ordered statements (Design 2), a verbatim <code>md</code> field with source order kept, and a document renderer with a drift check (Part 6).</p></div>
+    <div><span class="tag new">Ecosystem</span><h3>Then the expert toolkit</h3><p>Expression core, test harness for standards, typed settings and waivers, and a registry. Then package Bridger's standard as one extension.</p></div>
+  </div>
+
+  <figure>
+    <div class="fig">
+<svg viewBox="0 0 760 170" role="img" aria-label="Order of work: core changes for IDs and requirements, then the expression core and expert toolkit, then packaging the Bridger standard, then migrating the metadata layer.">
+  <rect class="box gap" x="20" y="50" width="160" height="70" rx="4" style="stroke-dasharray:none"/><text class="lbl mid" x="100" y="80">Core changes</text><text class="sub mid" x="100" y="100">IDs · statements · render</text>
+  <rect class="box warn" x="215" y="50" width="160" height="70" rx="4"/><text class="lbl mid" x="295" y="80">Expert toolkit</text><text class="sub mid" x="295" y="100">language · tests · registry</text>
+  <rect class="box acc" x="410" y="50" width="160" height="70" rx="4"/><text class="lbl mid" x="490" y="80">Package standard</text><text class="sub mid" x="490" y="100">Bridger as one plugin</text>
+  <rect class="box ok" x="605" y="50" width="135" height="70" rx="4"/><text class="lbl mid" x="672" y="80">Migrate</text><text class="sub mid" x="672" y="100">metadata layer</text>
+  <line class="edge" x1="180" y1="85" x2="213" y2="85" marker-end="url(#arr)"/>
+  <line class="edge" x1="375" y1="85" x2="408" y2="85" marker-end="url(#arr)"/>
+  <line class="edge" x1="570" y1="85" x2="603" y2="85" marker-end="url(#arr)"/>
+  <text class="ttl" x="20" y="32">What has to land, in order</text>
+  <text class="elbl" x="20" y="150">Prose stays in Markdown throughout.</text>
+</svg>
+    </div>
+    <figcaption><b>The order matters.</b> Packaging the standard before the toolkit exists would mean writing Rust for rules that a declarative language could say.</figcaption>
+  </figure>
+
+  <h3>Open questions</h3>
+  <ul class="tight">
+    <li><b>First proof.</b> Run the ADR round trip with an outside script before any core change? It shows how many of the 39 ADRs come out byte-identical and which feature costs how many files.</li>
+    <li><b>Authoring.</b> Prose now lives in <code>"""</code> blocks. Is an editor extension or a live preview a requirement before migrating?</li>
+    <li><b>Waivers.</b> Keep them, with a mandatory reason and an end date? They make strict standards usable, but they let users loosen a standard.</li>
+    <li><b>Kebab IDs.</b> Reject a hyphen where it could be confused with a negative number? The grammar has no arithmetic today, so I think it is safe.</li>
+    <li><b>Requirement IDs.</b> Require a hand-written local ID (<code>r1</code>) or auto-number? I prefer hand-written, so inserting one does not renumber the others.</li>
+  </ul>
+
+  <h3>What I did not verify</h3>
+  <ul class="tight">
+    <li>Whether the corpus round-trips byte for byte. The renderer pass confirmed there is no Markdown export of entities, but no migration or render script was run.</li>
+    <li>The WASM validator interface beyond reading its description file. No custom WASM extension was built or run.</li>
+    <li>How rules in <code>product</code> behave on real data. I only confirmed it installs.</li>
+    <li>Whether the Vitest collector works with Bridger's actual tests. No test run was attempted.</li>
+    <li>All counts of Bridger items are approximate.</li>
+  </ul>
+</section>
+
+<!-- ============ GLOSSARY ============ -->
+<section id="glossary">
+  <div class="part">Glossary</div>
+  <h2>Words used in this report</h2>
+  <dl class="glossary">
+    <div><dt>spec</dt><dd>A written description of what a system must do, in a form a tool can read.</dd></div>
+    <div><dt>card / entity</dt><dd>One item on the pinboard: a behavior, a decision, a risk.</dd></div>
+    <div><dt>string / edge</dt><dd>A typed link between two cards, such as "satisfies" or "proved by".</dd></div>
+    <div><dt>graph</dt><dd>All cards and strings together. You can ask it questions.</dd></div>
+    <div><dt>extension</dt><dd>A plugin that adds card types, links and rules to SpecForge.</dd></div>
+    <div><dt>manifest</dt><dd>The plain file that describes an extension to SpecForge.</dd></div>
+    <div><dt>declarative rule</dt><dd>A rule written as a statement ("every risk needs a control"), not as program code.</dd></div>
+    <div><dt>WASM</dt><dd>A compact format that lets an extension ship real program code to run safely inside the tool.</dd></div>
+    <div><dt>invariant</dt><dd>Something that must always be true while the system runs.</dd></div>
+    <div><dt>ADR</dt><dd>Architecture Decision Record: a written decision with its reasons and alternatives.</dd></div>
+    <div><dt>MUST / SHOULD</dt><dd>Words that say how strong a requirement is (a standard called RFC 2119).</dd></div>
+    <div><dt>traceability</dt><dd>Being able to follow a requirement through to the code and the test that proves it.</dd></div>
+    <div><dt>GxP</dt><dd>Quality rules for regulated industries such as pharma, where records must be provable.</dd></div>
+    <div><dt>waiver</dt><dd>A recorded, reasoned exception to one rule.</dd></div>
+    <div><dt>projection</dt><dd>A generated copy of the data in another format, used for experiments.</dd></div>
+    <div><dt>verbatim</dt><dd>Stored exactly as written, with line breaks kept, and never reformatted.</dd></div>
+    <div><dt>round trip</dt><dd>Convert A to B and back, then compare with A. An empty difference proves nothing was lost.</dd></div>
+    <div><dt>layout / template</dt><dd>A fixed shape for one kind of document, filled in from the spec data.</dd></div>
+    <div><dt>registry</dt><dd>An online catalog where experts publish extensions and users install them.</dd></div>
+  </dl>
+  <p class="foot">Sources: SpecForge 0.1.0 CLI and MCP probes in a scratch folder; SpecForge source (<code>docs/extension-*.md</code>, <code>wit/specforge-extension.wit</code>, <code>crates/tree-sitter-specforge/grammar.js</code>); Bridger <code>references/core</code>. Corpus measurements from a read-only scan of <code>references/core</code>. Companion Markdown version: <code>docs/SPECFORGE-ASSESSMENT.md</code> (not yet updated for revision 2).</p>
+</section>
+
+</main>
+</body>
+</html>

@@ -2,4 +2,6 @@ specforge-infer.json
 specforge-report.json
 .specforge/
 node_modules/
+__pycache__/
+*.pyc
 .DS_Store

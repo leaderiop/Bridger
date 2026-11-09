@@ -1,0 +1,10 @@
+kind: appendices
+package: bridger-gxp
+infix: GX
+entries:
+  - file: "core-interface-map.md"
+    id: "BRIDGER-GX-APP-01"
+    title: "Core interface map"
+  - file: "qadi-audit-comparison.md"
+    id: "BRIDGER-GX-APP-02"
+    title: "Qadi audit comparison"
