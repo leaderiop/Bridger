@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-09                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -47,7 +47,7 @@ captured through the port of
 ```ts
 // illustrative — not type-checked
 interface Binding {
-  readonly v: 1
+  readonly v: 2                                           // 1 for tickets issued before CCR-GX-002 (no longer accepted)
   readonly scope: string                                  // the deployment the ticket is for, e.g. "lims-prod"
   readonly operation: GatedOperation
   readonly target?: { readonly id: string; readonly realm: string }
@@ -58,6 +58,15 @@ interface Binding {
     readonly fingerprints?: readonly { readonly path: string; readonly fingerprint: string }[]
   }
   readonly requester: { readonly id: string; readonly kind: "user" | "service" }
+  readonly onBehalfOf?: {                                 // the plugin principal of a call from plugin code (BEH-BR-259)
+    readonly id: string; readonly realm: string; readonly version?: string; readonly digest?: string   // never `revision`
+  }
+  readonly undo?: true                                    // an undo action of an atomic reconcile (BEH-BR-325)
+  readonly requestOnly?: {                                // request fields no record carries; matched by the gate only
+    readonly manifestDigest?: string                      // "sha256:" over the canonical `definition.manifest` (BEH-BR-248)
+    readonly allowChildren?: boolean                      // BEH-BR-263
+    readonly mandatoryInterceptions?: readonly { readonly serviceId: string; readonly id?: string }[]   // BEH-BR-260, in request order
+  }
   readonly reason?: string                                // present only when the rule has bindReason
 }
 
@@ -84,9 +93,16 @@ REQUIREMENT: A binding MUST contain exactly the fields that apply to the
              whenever the request will carry `configChange`, with `paths` and,
              when the request will carry them, `fingerprints` in the same
              order; `requester` the `id` and `kind` of the actor (never
-             `display`); and `reason` exactly when the governing rule has
+             `display`); `onBehalfOf` whenever the request will carry it,
+             with its `id`, `realm`, `version` and `digest` as present and
+             never its `revision`; `undo` exactly when the request will carry
+             `undo: true`; `requestOnly` with `manifestDigest` whenever the
+             request's `definition` will carry a `manifest`, and
+             `allowChildren` and `mandatoryInterceptions` whenever the request
+             will carry them; and `reason` exactly when the governing rule has
              `bindReason`. A field that does not apply MUST be absent, never
-             `null` or empty.
+             `null` or empty. The request's gate-flow `annotations` and its
+             `previousManifest` MUST NOT be bound (ADR-GX-012).
 ```
 
 ```
@@ -128,12 +144,16 @@ REQUIREMENT: The companion's test suite MUST include the vectors below, each
              and that SHA-256 of its UTF-8 bytes is `sha256`. The
              specification checker MUST recompute them (check 17), and a
              vector MUST NOT be changed except with a new binding version `v`.
+             The three vectors of binding version 1 stay as canonical-form
+             vectors; the fourth is a version 2 binding.
 ```
 
 The vectors cover a bound `install` with a definition digest and a
 fingerprint, a `reconfigure` whose identifiers and reason contain non-ASCII
 characters, a quotation mark, a backslash, U+2028 and a control character,
-and an `acknowledgeAuditDegraded` with no target. Each block is one JSON
+an `acknowledgeAuditDegraded` with no target, and a version 2 `replace` made
+from plugin code as an undo action, with a bound manifest digest, children
+refused and one mandatory interception. Each block is one JSON
 object; `canonical` is the exact canonical text and `sha256` the hexadecimal
 digest without the "sha256:" prefix.
 
@@ -147,6 +167,10 @@ digest without the "sha256:" prefix.
 
 ```vector
 {"input": {"v": 1, "scope": "lims-prod", "operation": "acknowledgeAuditDegraded", "requester": {"id": "svc:ops-console", "kind": "service"}, "reason": "store restored after network outage, INC-4471"}, "canonical": "{\"operation\":\"acknowledgeAuditDegraded\",\"reason\":\"store restored after network outage, INC-4471\",\"requester\":{\"id\":\"svc:ops-console\",\"kind\":\"service\"},\"scope\":\"lims-prod\",\"v\":1}", "sha256": "0f8360a6c2fa88d836686d843e34a2b454ab0def95f11dbd743a665d30da39c1"}
+```
+
+```vector
+{"input": {"v": 2, "scope": "lims-prod", "operation": "replace", "target": {"id": "sample-registry", "realm": "default"}, "definition": {"version": "2.5.0", "digest": "sha256:4d7a1c9e0b3f5a2c8e6d4b0a9f1e3c5d7b9a1f3e5c7d9b1a3f5e7c9d1b3a5f7e"}, "requester": {"id": "u:jrivera", "kind": "user"}, "onBehalfOf": {"id": "plugin:batch-scheduler", "realm": "default", "version": "1.4.2"}, "undo": true, "requestOnly": {"manifestDigest": "sha256:0c1e3a5f7b9d2c4e6a8f0b1d3c5e7a9f2b4d6c8e0a1f3b5d7c9e2a4f6b8d0c1e", "allowChildren": false, "mandatoryInterceptions": [{"serviceId": "lims.audit-tap", "id": "tap-1"}]}, "reason": "CC-2026-131: roll back registry 2.5.0"}, "canonical": "{\"definition\":{\"digest\":\"sha256:4d7a1c9e0b3f5a2c8e6d4b0a9f1e3c5d7b9a1f3e5c7d9b1a3f5e7c9d1b3a5f7e\",\"version\":\"2.5.0\"},\"onBehalfOf\":{\"id\":\"plugin:batch-scheduler\",\"realm\":\"default\",\"version\":\"1.4.2\"},\"operation\":\"replace\",\"reason\":\"CC-2026-131: roll back registry 2.5.0\",\"requestOnly\":{\"allowChildren\":false,\"mandatoryInterceptions\":[{\"id\":\"tap-1\",\"serviceId\":\"lims.audit-tap\"}],\"manifestDigest\":\"sha256:0c1e3a5f7b9d2c4e6a8f0b1d3c5e7a9f2b4d6c8e0a1f3b5d7c9e2a4f6b8d0c1e\"},\"requester\":{\"id\":\"u:jrivera\",\"kind\":\"user\"},\"scope\":\"lims-prod\",\"target\":{\"id\":\"sample-registry\",\"realm\":\"default\"},\"undo\":true,\"v\":2}", "sha256": "8cffefdb774aed048e6855ff7e040323ae9b398933c203ba2758471b72773769"}
 ```
 
 The second vector is the one most implementations get wrong: RFC 8785

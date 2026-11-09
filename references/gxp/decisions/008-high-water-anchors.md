@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-008                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): `HighWaterMark.seal` withdrawn; the `AnchorStore` holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -25,7 +25,7 @@ CCR-BR-014 gave core two sources for that number. `Host.controls` returns `audit
 ## Decision
 
 - **An `AnchorStore` port under separate custody.** High-water marks are written to `AnchorStore` (planned at `packages/gxp/src/AnchorStore.ts` *(Planned)*), a caller-supplied port with no default ([ADR-GX-003](../decisions/003-ports-without-defaults.md)). It is append-only, like the trail store: `put(mark) → "stored" | "already-stored" | AnchorWriteFailed`, `list({ hostId }) → Stream<HighWaterMark>` and `latest({ hostId }) → Option<HighWaterMark>`, with a manifest naming the declared `custodian`. The user is told, in the API docs and the IQ check, that it must sit under custody separate from the trail store (different system, different credentials, different administrators); the companion cannot check custody, so IQ reports it as a probe ([ADR-GX-020](../decisions/020-iq-proof-and-probe.md)).
-- **What a mark holds.** `HighWaterMark { v: 1, hostId, lastWritten, at, source: "periodic" | "close", seal? }`. `at` comes from the `Clock` and orders nothing; `lastWritten` is the mark. `seal` is present only when the host's trail is sealed, and is then the seal of the entry at `lastWritten` ([ADR-GX-009](../decisions/009-optional-sealing.md)).
+- **What a mark holds.** `HighWaterMark { v: 1, hostId, lastWritten, at, source: "periodic" | "close" }`. `at` comes from the `Clock` and orders nothing; `lastWritten` is the mark. Revision 0.1 also carried a `seal`, so that a mark doubled as an anchor of the companion's own seal chain; that chain is withdrawn ([ADR-GX-029](./029-sealing-through-audit-chain.md)), its anchors are `@bridger/audit-chain`'s `Anchor`, and the `AnchorStore` of this decision holds high-water marks only. With sealing on, a host's highest mark is passed to audit-chain's verification as its expected head.
 - **When marks are taken.** `recordHighWater(host, anchors, { every })` reads `Host.controls.auditPosition.lastWritten` once per `every` (1 second to 1 hour) and puts a mark when it has advanced. At close, `recordClose(report)` puts a `"close"` mark with `Host.controls` read once after shutdown has returned and the writer's final flush is done; `CloseReport.auditLastSeq` is only a lower bound, since the shutdown's terminal record is written after the report (G34). A failed periodic `put` is logged, counted in the recorder's status and retried at the next tick; it never blocks the host, because marks detect and do not gate.
 - **What is reported.** `checkHighWater(store, anchors, { hostId })` reports `tailLoss` (from the stored `lastSeq` + 1 to the highest mark's `lastWritten`) when a mark exceeds the highest stored `auditSeq`, and `unanchoredTail` (from the highest mark's `lastWritten` + 1 to the stored `lastSeq`) for stored entries above the last mark. The second is a statement of coverage, not a fault.
 - **Limits stated.** Tail loss is detected only up to the last anchor written, and only against a party that cannot also lower or delete anchors. Records written after the last anchor and lost with it are not detectable by this mechanism.
@@ -54,5 +54,5 @@ CCR-BR-014 gave core two sources for that number. `Host.controls` returns `audit
 
 - Behaviours: [06 — High-water marks and anchors](../behaviors/06-high-water-marks-and-anchors.md)
 - Risks: [RSK-GX-003](../gxp/03-risk-assessment.md#rsk-gx-003), [RSK-GX-005](../gxp/03-risk-assessment.md#rsk-gx-005)
-- Decisions: [ADR-GX-003](../decisions/003-ports-without-defaults.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md), [ADR-GX-009](../decisions/009-optional-sealing.md), [ADR-GX-020](../decisions/020-iq-proof-and-probe.md)
+- Decisions: [ADR-GX-003](../decisions/003-ports-without-defaults.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md), [ADR-GX-029](../decisions/029-sealing-through-audit-chain.md), [ADR-GX-020](../decisions/020-iq-proof-and-probe.md)
 - Core: [BEH-BR-106](../../core/behaviors/12-shutdown-and-hosting.md), [BEH-BR-013](../../core/behaviors/02-host-construction.md), [BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md), [ADR-BR-034](../../core/decisions/034-gxp-companion-scope.md)

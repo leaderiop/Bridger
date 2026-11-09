@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-20                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -23,9 +23,11 @@ released, in the numbered style of core's required checks ([BEH-BR-183](../../co
 the acceptance scenario `REQ-GX-nnn` with the same number, in order, in
 [traceability](../traceability.md) §5. Checks 1–11 cover storage, conformance, checks on
 read, anchors and sealing; checks 12–28 tickets, signatures, the gate,
-fingerprints, evidence and export; checks 29–42 the cross-cutting rules
-([ADR-GX-021](../decisions/021-oq-from-runner-output.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)). This file owns BEH-GX-153–168 and uses all
-sixteen.
+fingerprints, evidence and export; checks 29–42 the cross-cutting rules; and
+checks 43–47, added by CCR-GX-002, the sink's marks, the trail gate, record
+pairing and binding version 2
+([ADR-GX-021](../decisions/021-oq-from-runner-output.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)). This file owns BEH-GX-153–169 and uses all
+seventeen.
 
 > **What these checks do not show**
 >
@@ -44,8 +46,8 @@ skipped or not covered.
 
 ## BEH-GX-153: Required acceptance checks — storage, conformance, checks on read, anchors and sealing
 
-> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry), [INV-GX-009](../invariants.md#inv-gx-009-a-finding-is-never-suppressed-or-upgraded), [INV-GX-013](../invariants.md#inv-gx-013-a-hosts-seal-chain-is-linear-over-exactly-the-stored-sequence)
-> **See:** [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-GX-006](../decisions/006-conformance-through-testhost.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md), [ADR-GX-008](../decisions/008-high-water-anchors.md), [ADR-GX-009](../decisions/009-optional-sealing.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)
+> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry), [INV-GX-009](../invariants.md#inv-gx-009-a-finding-is-never-suppressed-or-upgraded), [INV-GX-016](../invariants.md#inv-gx-016-the-sink-never-refuses-a-record-for-a-condition-of-its-own)
+> **See:** [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-GX-006](../decisions/006-conformance-through-testhost.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md), [ADR-GX-008](../decisions/008-high-water-anchors.md), [ADR-GX-029](../decisions/029-sealing-through-audit-chain.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)
 > **Satisfies:** [URS-GX-001](../urs.md#urs-gx-001-store-audit-records-with-honest-acknowledgement), [URS-GX-002](../urs.md#urs-gx-002-show-that-a-trail-adapter-conforms), [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records), [URS-GX-004](../urs.md#urs-gx-004-detect-loss-of-the-newest-records), [URS-GX-005](../urs.md#urs-gx-005-optionally-detect-alteration-of-sealed-records)
 > **Risk:** [RSK-GX-001](../gxp/03-risk-assessment.md#rsk-gx-001), [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002), [RSK-GX-003](../gxp/03-risk-assessment.md#rsk-gx-003), [RSK-GX-004](../gxp/03-risk-assessment.md#rsk-gx-004), [RSK-GX-016](../gxp/03-risk-assessment.md#rsk-gx-016)
 > **Regulatory:** supports 21 CFR 11.10(a), 11.10(c), 11.10(e); EU GMP Annex 11 §4.7, §7.1, §9
@@ -55,22 +57,26 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run
              against the installed package through `GxpTestHost` unless the
              check concerns a pure function, for each of the following:
              1. `trailSink` acknowledges a record only after `append` answered
-                "stored", or "already-stored" for an entry equal to the one
-                written; a store that fails or dies reaches core as
+                "stored" or "stored-collision", or "already-stored" for an
+                entry equal to the one written; a store that fails or dies
+                reaches core as
                 `AuditWriteFailed` carrying no record content, a hung
                 `append` is interrupted, and the call fails with
                 `AuditUnavailable` after `auditTimeout` (BEH-GX-017 to
                 BEH-GX-021; BEH-BR-203).
              2. A repeated append of a stored entry answers "already-stored"
                 and stores nothing; an entry with the same `recordId` or the
-                same `(hostId, auditSeq)` and different content fails with
-                "conflict", and the first entry reads back byte-identical
-                (BEH-GX-011, BEH-GX-012).
-             3. The sink refuses a record whose `schemaVersion` is not
+                same `(hostId, auditSeq)` and different content answers
+                "stored-collision" and is read back after the primary with
+                `collision` set, and the first entry reads back
+                byte-identical (BEH-GX-011, BEH-GX-012).
+             3. The sink stores a record whose `schemaVersion` is not
                 supported, or which has a field the schema does not define,
-                and core sets the audit-degraded latch when the refused
-                record is a terminal, `rejected` or system record
-                (BEH-GX-007, BEH-GX-018; BEH-BR-205).
+                marked `schema: "unsupported"`, and a record holding a lone
+                surrogate with the escaped encoding, marked `canonical:
+                "jcs-escaped"`; each call succeeds, core's latch is not set,
+                and the record vector of BEH-GX-018 is reproduced
+                (BEH-GX-007, BEH-GX-018, BEH-GX-019).
              4. Every conformance case 1 to 16 passes against
                 `memoryTrailStore`; every `brokenTrailStore` variant fails
                 each case listed for it; a store declared without reopen
@@ -93,7 +99,8 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run
              8. An entry of an unknown schema version is reported as
                 `unknownSchemaVersion` and still takes part in the sequence
                 and digest checks; `requestedWithoutTerminal`,
-                `droppedSinceAck` and `noCleanClose` are reported; and the
+                `droppedSinceAck`, `auditDropped` (a rise and a decrease) and
+                `noCleanClose` are reported; and the
                 report's `statement` is exactly the text of BEH-GX-033, with
                 the kinds not checked listed (BEH-GX-033, BEH-GX-036 to
                 BEH-GX-038).
@@ -109,14 +116,18 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run
                  are removed from the store, `checkHighWater` reports
                  `tailLoss` for exactly that range, and `unanchoredTail` above
                  the highest mark (BEH-GX-042 to BEH-GX-046).
-             11. With sealing on, `verifySeals` reports `chainBreak` at an
-                 altered entry, `anchorMismatch` for each anchor that no
-                 longer matches, and `unanchoredTail` above the last matching
-                 anchor; with no matching anchor and no `chainBreak` it
-                 states "The chain is internally consistent; no anchor
-                 confirms it."; with sealing
-                 off both kinds are listed as not checked (BEH-GX-049 to
-                 BEH-GX-055).
+             11. With sealing on through `@bridger/audit-chain`, every stored
+                 entry carries the link audit-chain computed and nothing of
+                 the companion's own; `verifySeals` reports `chainBreak` at
+                 an altered entry, `anchorMismatch` for each anchor that no
+                 longer matches, `unanchoredTail` above the last confirmed
+                 anchor, and `headMismatch` when the newest anchored windows
+                 and receipts are removed below a high-water mark, each with
+                 the `ChainReport` attached unchanged; with no confirmed
+                 anchor and no `chainBreak` it states "The chain is
+                 internally consistent; no anchor confirms it."; with sealing
+                 off the seal kinds are listed as not checked (BEH-GX-170 to
+                 BEH-GX-174).
 ```
 
 These are the checks the trail side of the companion depends on: an
@@ -136,7 +147,7 @@ rather than the companion's functions in isolation.
 ```
 REQUIREMENT: The companion's test suite MUST also contain at least one test,
              run as BEH-GX-153 states, for each of the following:
-             12. `bindingDigest` reproduces the three vectors of BEH-GX-066,
+             12. `bindingDigest` reproduces the four vectors of BEH-GX-066,
                  and `bindingOf` over a proposal, the request core passes to
                  the gate and the call's `requested` or `rejected` record
                  gives one digest, and over a terminal record gives None
@@ -546,7 +557,7 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
              BEH-GX-153 states, for the following:
              42. Running the companion's suite against the installed package
                  and passing its output to `collectOqEvidence` reports every
-                 requirement REQ-GX-001 to REQ-GX-042 as pass, with no
+                 requirement REQ-GX-001 to REQ-GX-047 as pass, with no
                  deviation of kind `unknown-requirement`, `package-mismatch`
                  or `environment-incomplete`; line and branch coverage
                  of `packages/gxp` reach 95% and the mutation score 80%
@@ -557,6 +568,54 @@ The last check closes the loop: the companion's own release evidence is
 produced by the generator it specifies, from the runner's output, and a check
 of this file with no executed test appears as "not covered" rather than
 disappearing.
+
+## BEH-GX-169: Required acceptance checks — the sink's marks, the trail gate, record pairing and binding version 2
+
+> **Invariant:** [INV-GX-016](../invariants.md#inv-gx-016-the-sink-never-refuses-a-record-for-a-condition-of-its-own), [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced), [INV-GX-003](../invariants.md#inv-gx-003-an-allowed-call-holds-a-valid-binding-with-an-equal-digest), [INV-GX-009](../invariants.md#inv-gx-009-a-finding-is-never-suppressed-or-upgraded)
+> **See:** [ADR-GX-030](../decisions/030-sink-marks-and-gate-refuses.md), [ADR-GX-029](../decisions/029-sealing-through-audit-chain.md), [ADR-GX-012](../decisions/012-binding-contents.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)
+> **Satisfies:** [URS-GX-001](../urs.md#urs-gx-001-store-audit-records-with-honest-acknowledgement), [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records), [URS-GX-007](../urs.md#urs-gx-007-bind-an-approval-to-exactly-the-change-approved), [URS-GX-009](../urs.md#urs-gx-009-link-each-signature-to-the-change-it-approved)
+> **Risk:** [RSK-GX-019](../gxp/03-risk-assessment.md#rsk-gx-019), [RSK-GX-023](../gxp/03-risk-assessment.md#rsk-gx-023), [RSK-GX-003](../gxp/03-risk-assessment.md#rsk-gx-003), [RSK-GX-006](../gxp/03-risk-assessment.md#rsk-gx-006)
+> **Regulatory:** supports 21 CFR 11.10(e), 11.10(f), 11.70; EU GMP Annex 11 §9, §14
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for each of the following:
+             43. With `trailGate` used, a stored entry marked
+                 `schema: "unsupported"`, one marked `canonical:
+                 "jcs-escaped"`, a "stored-collision" answer and an
+                 unconfirmed "already-stored" answer each raise their count
+                 in `TrailSinkStatus`; the next operator call not in `allow`
+                 is refused with "trail: <reason>" and leaves one `rejected`
+                 record, which the sink stores; system transitions and the
+                 refused call's records are stored; with every piece
+                 "not-used" no `OperationGate` is provided (BEH-GX-176 to
+                 BEH-GX-178).
+             44. A call refused by "trail" or "chain" consumes no binding: a
+                 later call citing the same ticket, after the host is rebuilt,
+                 is allowed by "approval" (BEH-GX-178, BEH-GX-089).
+             45. Over seeded traces, a `superseded` terminal pairs with its
+                 request whatever its `causationId`, a `joined` terminal pairs
+                 by its `causationId` and a resumer's `completed` record by
+                 its own correlation, and none of them is reported as
+                 `requestedWithoutTerminal` (BEH-GX-037; BEH-BR-200).
+             46. `bindingOf` gives one version 2 digest from a proposal and a
+                 request carrying `onBehalfOf`, `undo: true`, a manifest,
+                 `allowChildren` and `mandatoryInterceptions`; changing any one
+                 of them refuses the call; the record-side link holds with
+                 `requestOnly` taken from the consumed binding and its
+                 rendering says those fields were matched by the gate only;
+                 changing a gate-flow annotation or `previousManifest` changes
+                 nothing (BEH-GX-065, BEH-GX-082, BEH-GX-083).
+             47. The installation checks report whether `trailGate` and
+                 audit-chain's `ChainGate` are used, with the fixed statement
+                 for a `trailGate` given "not-used", and every evidence pack
+                 carries the sink's counts (BEH-GX-179, BEH-GX-175).
+```
+
+These checks are the executable form of the re-baseline of CCR-GX-002: a sink
+that keeps recording through conditions it used to refuse, a gate that stops
+changes instead, a pairing rule that follows core's records, and a binding
+that covers the fields core added to the request.
 
 ---
 

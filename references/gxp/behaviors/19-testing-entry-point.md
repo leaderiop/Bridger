@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-19                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): `memoryTrailStore` keeps collisions beside the primary; `brokenTrailStore` variants "overwrite-on-collision" and "drop-on-collision"; `GxpTestHost.make` takes `trailGate` (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -93,7 +93,7 @@ fixtures are full port implementations that would otherwise look real.
 
 ## BEH-GX-146: memoryTrailStore keeps every trail store rule in memory, and faultyTrailStore wraps any store
 
-> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry)
+> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry)
 > **See:** [ADR-GX-024](../decisions/024-fixtures-are-marked.md), [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-GX-006](../decisions/006-conformance-through-testhost.md)
 > **Satisfies:** [URS-GX-002](../urs.md#urs-gx-002-show-that-a-trail-adapter-conforms)
 > **Risk:** [RSK-GX-017](../gxp/03-risk-assessment.md#rsk-gx-017), [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002)
@@ -108,8 +108,8 @@ declare function memoryTrailStore(options?: { readonly maxEntryBytes?: number })
 ```
 REQUIREMENT: `memoryTrailStore` MUST implement every requirement of
              02 — Trail Store Port: idempotence on `recordId` with content
-             comparison, uniqueness per `(hostId, auditSeq)`, conflicts that
-             never overwrite, ranged reads in ascending order, exact
+             comparison, one primary entry per `recordId` and per `(hostId,
+             auditSeq)`, collision entries kept beside and never over it, ranged reads in ascending order, exact
              read-back of `canonical`, and `hosts` extents. Its manifest MUST
              be `{ name: "@bridger/gxp/testing/memoryTrailStore", version:
              the companion's version, commit: "in-memory", isolation:
@@ -142,9 +142,10 @@ here; its plan argument is required, like core's fault plans
 | `defect` | What the variant does wrong | Cases that MUST fail against it |
 | --- | --- | --- |
 | "duplicate-on-repeat" | appends a repeated `recordId` again and answers "stored" | 3, 4, 5 |
-| "unchecked-already-stored" | answers "already-stored" for a repeated `recordId` without comparing content | 8 |
-| "overwrite-on-conflict" | replaces the stored entry with the new one and answers "stored" | 8, 9 |
-| "no-sequence-check" | accepts a second `recordId` at an occupied `(hostId, auditSeq)` | 9, 11 |
+| "unchecked-already-stored" | answers "already-stored" for a repeated `recordId` without comparing content, storing nothing | 8 |
+| "overwrite-on-collision" | replaces the stored entry with the new one and answers "stored" | 8, 9 |
+| "drop-on-collision" | answers "stored-collision" for a colliding entry and stores nothing | 8, 9, 11 |
+| "no-sequence-check" | stores a second `recordId` at an occupied `(hostId, auditSeq)` as a primary entry | 9, 11 |
 | "ack-without-store" | answers "stored" for the first append of each `recordId` and stores nothing | 1, 2, 6, 7 |
 
 ```
@@ -301,7 +302,8 @@ that stale tickets and unavailable keys can be tested.
 declare const GxpTestHost: {
   make(options: {
     readonly trail: TrailStoreShape | "memory"
-    readonly sealing: SealingOptions | "off"
+    readonly sealing: SealingOptions | "off"                // 21; audit-chain's testing anchor when given
+    readonly trailGate: Parameters<typeof trailGate>[1] | "not-used"     // 22
     readonly approvals: { readonly policy: ApprovalPolicy; readonly decide: ScriptedDecide } | "not-used"
     readonly fingerprints: { readonly eligibility: FingerprintEligibility; readonly seed: string } | "not-used"
     readonly scope: string

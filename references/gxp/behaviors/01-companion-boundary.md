@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-01                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-001 `@bridger/audit-chain` as an optional peer dependency (C-09); BEH-GX-002 canonical domain widened to I-JSON numbers, the integer-only claim corrected (F-01); BEH-GX-004 `trail.gate` and the composed host gate; BEH-GX-007 an unsupported record shape is stored and marked, not refused (F-02); BEH-GX-008 sealing wording points at 21 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -49,8 +49,12 @@ Planned source: `packages/gxp/src/GxpLayer.ts`, `packages/gxp/src/Crypto.ts`,
 
 ```
 REQUIREMENT: The published package MUST declare runtime dependencies on
-             `effect` and `@bridger/core` only. Both MUST be peer
-             dependencies; the package MUST NOT bundle either.
+             `effect` and `@bridger/core` only, both as peer dependencies,
+             and `@bridger/audit-chain` as an optional peer dependency,
+             imported only by the sealing entry `@bridger/gxp/sealing`
+             (BEH-GX-170). The package MUST NOT bundle any of them, and the
+             main entry point MUST load without `@bridger/audit-chain`
+             installed.
 ```
 
 ```
@@ -140,12 +144,16 @@ REQUIREMENT: When neither WebCrypto nor `node:crypto` is available, building
 
 ```
 REQUIREMENT: The canonical form MUST be the same byte sequence for the same
-             value on every supported platform. Canonicalisation MUST refuse,
-             with `CanonicalisationFailed { path }`, a value that RFC 8785
-             cannot represent exactly: a non-finite number, a number that is
-             not a safe integer, a lone surrogate, `undefined` inside an
-             array, a `bigint`, a `Date` or any non-plain object. `path` MUST
-             name the position in the value and MUST NOT contain the value.
+             value on every supported platform, over the I-JSON domain, with
+             numbers written as RFC 8785 §3.2.2.3 writes them. Outside the
+             sink, canonicalisation MUST refuse, with
+             `CanonicalisationFailed { path }`, a value that RFC 8785 cannot
+             represent exactly: a non-finite number, a lone surrogate,
+             `undefined` inside an array, a `bigint`, a `Date` or any
+             non-plain object. `path` MUST name the position in the value and
+             MUST NOT contain the value. A trail record is never refused: the
+             sink writes the escaped encoding and marks the entry
+             (BEH-GX-018).
 ```
 
 The canonical form is where two parties that must agree on a digest — the
@@ -154,11 +162,12 @@ ticket issuer and the gate, the sink and the checker — can silently disagree
 loss, and refusing everything else by name, removes the floating-point and
 object-ordering cases where implementations differ.
 
-**Settled here.** Numbers in every structure the companion canonicalises are
-integers within ±(2^53 − 1). Core's records hold only such numbers
-(`auditSeq`, `revision`, `children`, `droppedSinceAck`); allowing
-non-integers would bring in RFC 8785's number serialisation for no field
-that needs it.
+**Settled here.** Revision 0.1 restricted numbers to integers within
+±(2^53 − 1) on the ground that core's records held no others. Since
+CCR-BR-018 a record's `annotations` carry arbitrary JSON values
+([BEH-BR-195](../../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-293](../../core/behaviors/30-operation-context-annotations.md)), including non-integer numbers, so the
+canonical form uses RFC 8785's number serialisation throughout; the record
+vector of [03 — Trail Sink](./03-trail-sink.md#beh-gx-018-the-sink-classifies-canonicalises-and-digests-every-record-and-marks-what-it-cannot-handle-exactly-instead-of-refusing-it) and check 17 cover it.
 
 ## BEH-GX-003: No port that stores, authenticates, signs, holds keys or decides has a default
 
@@ -211,7 +220,7 @@ implementation.
 ## BEH-GX-004: GxpLayer.make requires every port, and a missing port is a type error
 
 > **Invariant:** [INV-GX-001](../invariants.md#inv-gx-001-no-decision-port-has-a-default-outside-the-testing-entry-point)
-> **See:** [ADR-GX-003](../decisions/003-ports-without-defaults.md), [ADR-GX-009](../decisions/009-optional-sealing.md), [ADR-GX-017](../decisions/017-hmac-through-the-core-port.md)
+> **See:** [ADR-GX-003](../decisions/003-ports-without-defaults.md), [ADR-GX-029](../decisions/029-sealing-through-audit-chain.md), [ADR-GX-030](../decisions/030-sink-marks-and-gate-refuses.md), [ADR-GX-017](../decisions/017-hmac-through-the-core-port.md)
 > **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine), [URS-GX-001](../urs.md#urs-gx-001-store-audit-records-with-honest-acknowledgement), [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made)
 > **Risk:** [RSK-GX-017](../gxp/03-risk-assessment.md#rsk-gx-017), [RSK-GX-011](../gxp/03-risk-assessment.md#rsk-gx-011)
 > **Regulatory:** supports EU GMP Annex 11 §4.4 (a stated configuration of the installed parts)
@@ -223,7 +232,8 @@ declare const GxpLayer: {
     readonly scope: string                                // deployment scope bound into every binding (09, 12)
     readonly trail: {
       readonly store: TrailStore                         // 02
-      readonly sealing: SealingOptions | "off"            // 07
+      readonly sealing: SealingOptions | "off"            // 21 (@bridger/audit-chain, from @bridger/gxp/sealing)
+      readonly gate: TrailGateOptions | "not-used"        // 22, BEH-GX-177
     }
     readonly anchors: {
       readonly store: AnchorStore                         // 06
@@ -238,7 +248,7 @@ declare const GxpLayer: {
       readonly keys: FingerprintKeyProvider               // 14
       readonly eligibility: FingerprintEligibility        // 13
     } | "not-used"
-  }): Layer.Layer<AuditSink | OperationGate | ApprovalGateLink | ConfigFingerprinter, GxpLayerInvalid | GxpPlatformUnsupported | GxpCoreVersionUnsupported>
+  }): Layer.Layer<AuditSink | TrailSinkStatus | OperationGate | ApprovalGateLink | ConfigFingerprinter, GxpLayerInvalid | GxpPlatformUnsupported | GxpCoreVersionUnsupported>
 }
 
 class GxpLayerInvalid extends Schema.TaggedError<GxpLayerInvalid>()("GxpLayerInvalid", {
@@ -256,11 +266,13 @@ REQUIREMENT: Every key of the options object, and every key inside a section
 ```
 
 ```
-REQUIREMENT: The layer MUST provide `AuditSink` built by `trailSink`
-             (BEH-GX-017); `OperationGate` and `ApprovalGateLink` built by
+REQUIREMENT: The layer MUST provide `AuditSink` and `TrailSinkStatus` built
+             by `trailSink` (BEH-GX-017); `ApprovalGateLink` built by
              `approvalGate` (BEH-GX-089), with the policy and ticket store of
              `approvals` and the top-level `scope`, only when `approvals` is
-             used; and `ConfigFingerprinter` built by `hmacFingerprinter`
+             used; `OperationGate` composed by BEH-GX-178 from the pieces
+             "trail" (`trail.gate`), "chain" (`trail.sealing.gate`) and
+             "approval", only when at least one of them is used; and `ConfigFingerprinter` built by `hmacFingerprinter`
              (BEH-GX-097) only when `fingerprints` is used. A section given as
              "not-used" MUST provide nothing, so that core's behaviour without
              that port applies unchanged (INV-BR-026). A blank `scope` MUST
@@ -311,7 +323,7 @@ worse than an explicit, reported absence.
 
 | Path | A port fails, dies, times out or answers malformed data | Outcome in core |
 | --- | --- | --- |
-| `trailSink` → `TrailStore.append` | `AuditWriteFailed` ([BEH-GX-019](./03-trail-sink.md#beh-gx-019-the-sink-acknowledges-only-stored-or-a-verified-already-stored-and-every-failure-is-auditwritefailed-without-record-content)) | writer retries in place; the call fails with `AuditUnavailable` after `auditTimeout` ([BEH-BR-203](../../core/behaviors/23-audit-sink-and-record.md)) |
+| `trailSink` → `TrailStore.append` | `AuditWriteFailed` ([BEH-GX-019](./03-trail-sink.md#beh-gx-019-the-sink-fails-a-write-only-when-the-store-did-not-store-the-record-and-every-failure-is-auditwritefailed-without-record-content)) | writer retries in place; the call fails with `AuditUnavailable` after `auditTimeout` ([BEH-BR-203](../../core/behaviors/23-audit-sink-and-record.md)) |
 | `approvalGate` → `TicketStore`, policy | refusal reason `ticket-store-unavailable` ([BEH-GX-089](./12-approval-gate.md)) | `OperationRejected`, one `rejected` record ([BEH-BR-220](../../core/behaviors/25-operation-gate.md)) |
 | `hmacFingerprinter` → `FingerprintKeyProvider` | `ConfigFingerprintFailed` ([BEH-GX-100](./13-config-fingerprints.md)) | the call fails with `ConfigFingerprintUnavailable`, no record ([BEH-BR-188](../../core/behaviors/22-attributable-operations.md) step 4a) |
 | `issueTicket` → `SignatureCapture` | `SignatureCaptureFailed` ([BEH-GX-077](./10-signature-capture-port.md#beh-gx-077-declining-and-failing-are-distinct-and-both-leave-the-ticket-unsigned)) | no signature is recorded; nothing reaches core |
@@ -385,7 +397,7 @@ channel. The fingerprinter is the one component that receives values, through
 core's port, and it returns only HMACs under a key the consumer holds
 ([BEH-GX-097](./13-config-fingerprints.md)).
 
-## BEH-GX-007: The companion refuses to run against an unsupported core or record shape
+## BEH-GX-007: The companion refuses to run against an unsupported core, and marks a record of an unsupported shape
 
 > **See:** [ADR-GX-025](../decisions/025-core-version-range.md), [ADR-BR-034](../../core/decisions/034-gxp-companion-scope.md)
 > **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine), [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records)
@@ -411,23 +423,27 @@ REQUIREMENT: Building `GxpLayer` MUST read the version exported by
 ```
 REQUIREMENT: The companion MUST state, as an exported constant, the
              `AuditRecord.schemaVersion` values it supports. `trailSink` MUST
-             fail a write of a record with any other `schemaVersion` with
-             `AuditWriteFailed` (BEH-GX-019); the checks on read MUST report
-             such an entry as `unknownSchemaVersion` and MUST NOT skip it
-             (BEH-GX-036).
+             store a record with any other `schemaVersion` marked
+             `schema: "unsupported"` and MUST NOT refuse it (BEH-GX-018); the
+             checks on read MUST report such an entry as
+             `unknownSchemaVersion` and MUST NOT skip it (BEH-GX-036).
 ```
 
 ```
 REQUIREMENT: A record field that the supported schema does not define MUST be
-             treated as a different shape: `trailSink` MUST refuse to store
-             it, and the checks MUST report it as `unknownSchemaVersion`. The
-             companion MUST NOT drop or rename a field to make a record fit.
+             treated as a different shape: `trailSink` MUST store the record
+             marked `schema: "unsupported"`, and the checks MUST report it as
+             `unknownSchemaVersion`. The companion MUST NOT drop or rename a
+             field to make a record fit.
 ```
 
-The sink refusing an unknown shape means the host's latch is set and operator
-changes stop. That is deliberate: a store that silently accepts records it
-cannot check would let a schema drift ([RSK-GX-019](../gxp/03-risk-assessment.md#rsk-gx-019)) go unnoticed until
-somebody reads the trail.
+An unknown shape is stored, marked, counted and reported, and `trailGate`
+refuses operator changes while such entries exist
+([BEH-GX-177](./22-trail-status-and-gate.md#beh-gx-177-trailgate-refuses-operator-changes-while-the-sink-reports-a-condition-of-its-own)). Revision 0.1 refused the record instead, which set the latch
+and then stopped recording for the life of the host, because core retries a
+refused record forever ([BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md), Settled (0)). Either way a schema
+drift ([RSK-GX-019](../gxp/03-risk-assessment.md#rsk-gx-019)) does not go unnoticed; only the first keeps the
+trail.
 
 ## BEH-GX-008: The companion inherits core's non-claims and adds its own
 
@@ -450,7 +466,7 @@ REQUIREMENT: Every check report and evidence pack MUST state, in its own text,
              checked kinds" (BEH-GX-033); seal verification "detects
              alteration, insertion, removal or reordering of sealed records up
              to the last verified anchor, against a party that cannot also
-             rewrite the anchor store" (BEH-GX-054); evidence shows only
+             rewrite the anchor store" (BEH-GX-173); evidence shows only
              executed tests (BEH-GX-121).
 ```
 
@@ -468,8 +484,8 @@ list ([ADR-GX-027](../decisions/027-claims-and-non-claims.md)) adds what its par
    suite shows behaviour under faults it injects, not the store's behaviour
    under faults of the user's infrastructure ([BEH-GX-025](./04-conformance-suite.md#beh-gx-025-runtrailstoreconformance-registers-the-numbered-cases-with-the-callers-test-runner)).
 2. Checks on read detect the kinds of defect they name, and nothing else.
-3. Sealing detects, it does not prevent, and only within the custody
-   assumption stated in [BEH-GX-054](./07-optional-sealing.md#beh-gx-054-seal-verification-is-described-in-exactly-one-way).
+3. Sealing, which is `@bridger/audit-chain`'s, detects, it does not prevent,
+   and only within the custody assumption stated in [BEH-GX-173](./21-sealing-through-audit-chain.md#beh-gx-173-seal-verification-is-described-in-exactly-one-way).
 4. A captured signature carries what the capture port attests; the companion
    verifies neither the signer's identity nor the re-authentication
    ([BEH-GX-079](./10-signature-capture-port.md#beh-gx-079-re-authentication-and-the-11200-controls-are-attested-by-the-implementer-not-verified)).

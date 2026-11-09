@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GXP-01                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Sealing is `@bridger/audit-chain`'s, adopted by the companion (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -27,7 +27,7 @@ There is no companion code. No package `packages/gxp` exists, so nothing is veri
 `@bridger/gxp` is a library that plugs into the optional ports `@bridger/core` leaves open for regulated use ([ADR-BR-034](../../core/decisions/034-gxp-companion-scope.md)) and supplies the companion's scope as core fixed it:
 
 - **a trail adapter contract with conformance tests** — the `TrailStore` port, a sink that acknowledges core's writes only when the store reports them stored, and a suite that shows how a given adapter behaves under core's retry and fault paths ([02](../behaviors/02-trail-store-port.md)–[04](../behaviors/04-conformance-suite.md));
-- **checks on read** — findings of named kinds over stored records, loss of the newest records against high-water marks held elsewhere, and optional seal verification ([05](../behaviors/05-checks-on-read.md)–[07](../behaviors/07-optional-sealing.md));
+- **checks on read** — findings of named kinds over stored records, loss of the newest records against high-water marks held elsewhere, and optional seal verification through `@bridger/audit-chain` ([05](../behaviors/05-checks-on-read.md), [06](../behaviors/06-high-water-marks-and-anchors.md), [21](../behaviors/21-sealing-through-audit-chain.md));
 - **approval and electronic-signature capture through core's gate** — a deny-by-default policy, signed single-use tickets, a signature port with a mandatory manifestation, and a gate that only checks a ticket ([08](../behaviors/08-approval-policy.md)–[12](../behaviors/12-approval-gate.md));
 - **optional value fingerprints** — keyed fingerprints of allow-listed configuration values through core's `ConfigFingerprinter` port, so an approval can bind to a value without revealing it ([13](../behaviors/13-config-fingerprints.md)–[14](../behaviors/14-fingerprint-keys.md), [ADR-BR-039](../../core/decisions/039-config-fingerprint-port.md));
 - **IQ/OQ evidence** — installation checks and operational evidence generated from executed tests, packed with their gaps, and trail export ([15](../behaviors/15-installation-checks.md)–[18](../behaviors/18-archive-and-export.md)).
@@ -101,7 +101,7 @@ The companion is written against the same instruments and editions as core ([cor
 | ISPE GAMP 5, *A Risk-Based Approach to Compliant GxP Computerized Systems*, Second Edition | 2022 | Life cycle, categories, supplier roles, FMEA scoring; the title's word is not a claim about the companion |
 | US FDA, *Computer Software Assurance for Production and Quality System Software* | Final guidance, 2025 | Risk-based rigour in the [validation plan](./04-validation-plan.md) §4 |
 | IETF RFC 8785, *JSON Canonicalization Scheme (JCS)* | 2020 | Canonical form of every digested value ([ADR-GX-005](../decisions/005-jcs-and-sha256.md)) |
-| NIST FIPS 180-4, *Secure Hash Standard*; FIPS 198-1, *The Keyed-Hash Message Authentication Code (HMAC)* | 2015; 2008 | SHA-256 digests and seals; HMAC-SHA256 fingerprints ([ADR-GX-017](../decisions/017-hmac-through-the-core-port.md)). The titles are the standards' own; no property is claimed from them beyond the functions they define. |
+| NIST FIPS 180-4, *Secure Hash Standard*; FIPS 198-1, *The Keyed-Hash Message Authentication Code (HMAC)* | 2015; 2008 | SHA-256 digests; HMAC-SHA256 fingerprints ([ADR-GX-017](../decisions/017-hmac-through-the-core-port.md)). The titles are the standards' own; no property is claimed from them beyond the functions they define. |
 
 Regulation text is paraphrased, never quoted at length. The user works from the official text.
 
@@ -112,7 +112,7 @@ The companion assembles controls and tests them; it never makes a system complia
 1. **The verb is "supports".** A companion behaviour *supports* a user's compliance with a clause; it does not satisfy the clause. Every `**Regulatory:**` line of a behaviour says "supports" and nothing stronger (checker check 16).
 2. **No status words.** No document may describe the companion, a store, a trail, a seal, a signature or a pack as validated, qualified, compliant, durable, tamper-evident, intact, immutable, authentic, secure, legally binding or non-repudiable, or say that it guarantees anything, except in a sentence that negates the word. The checker's claims lint enforces this sentence by sentence, with no escape word for "companion" (check 11, [ADR-GX-028](../decisions/028-checker-copy-and-adapt.md)).
 3. **Checks state what they checked.** Checks on read report "no findings of the checked kinds" over a stated range, never that a trail is complete or unaltered ([ADR-GX-007](../decisions/007-checks-never-claim-integrity.md)).
-4. **Sealing is "seal verification".** It detects alteration, insertion, removal or reordering of sealed records up to the last verified anchor, against a party that cannot also rewrite the separately held anchor store — and nothing else ([ADR-GX-009](../decisions/009-optional-sealing.md)).
+4. **Sealing is "seal verification".** It detects alteration, insertion, removal or reordering of sealed records up to the last verified anchor, against a party that cannot also rewrite the separately held anchor store — and nothing else. The mechanism is `@bridger/audit-chain`'s, adopted by the companion ([ADR-GX-029](../decisions/029-sealing-through-audit-chain.md)).
 5. **Attested is not verified.** Re-authentication and the §11.200 controls behind a signature are attested by the user's signature port; the companion records the attestation and does not verify it ([ADR-GX-016](../decisions/016-signature-port-and-manifestation.md)).
 6. **No control in name only.** No port that stores, authenticates, signs, holds keys or decides has a default, not even a no-op; fixtures live only in `@bridger/gxp/testing`, are marked, and fail IQ ([INV-GX-001](../invariants.md#inv-gx-001-no-decision-port-has-a-default-outside-the-testing-entry-point), [INV-GX-014](../invariants.md#inv-gx-014-test-fixtures-are-detectable)).
 7. **Evidence is runner output only, and gaps stay gaps** ([INV-GX-010](../invariants.md#inv-gx-010-evidence-results-come-only-from-runner-output-and-gaps-stay-gaps)).

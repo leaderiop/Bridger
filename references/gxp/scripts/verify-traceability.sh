@@ -5,7 +5,7 @@
 #
 # Copied from references/core/scripts/verify-traceability.sh and adapted
 # (ADR-GX-028); a shared engine is deferred to a later CCR on both sides.
-# Requires bash and python3 (standard library only). Implements the seventeen
+# Requires bash and python3 (standard library only). Implements the eighteen
 # checks listed in process/requirement-id-scheme.md §5. Each check reports
 # PASS, FAIL or PLANNED (a planned source/test path that correctly does not
 # exist yet). Exit status is 1 if any check FAILs. --strict additionally fails
@@ -402,18 +402,38 @@ for p in md_files:
         if FORBIDDEN_VERB.search(body): fails[16].append(f"{rel(p)}:{ln}: Regulatory line uses '{FORBIDDEN_VERB.search(body).group(0)}'")
 
 # ---------------------------------------------------------------- check 17: test vectors recompute
+def es_number(x):
+    """ECMAScript Number::toString of a finite double, as RFC 8785 §3.2.2.3 requires."""
+    from decimal import Decimal
+    if x != x or x in (float("inf"), float("-inf")): raise ValueError(f"non-finite number {x!r} is outside I-JSON")
+    if x == 0: return "0"
+    if x < 0: return "-" + es_number(-x)
+    t = Decimal(repr(x)).normalize().as_tuple()
+    d = "".join(map(str, t.digits)); k = len(d); n = k + t.exponent
+    if k <= n <= 21: return d + "0" * (n - k)
+    if 0 < n <= 21: return d[:n] + "." + d[n:]
+    if -6 < n <= 0: return "0." + "0" * (-n) + d
+    e = n - 1; es = ("+" if e >= 0 else "-") + str(abs(e))
+    return (d if k == 1 else d[0] + "." + d[1:]) + "e" + es
+
 def jcs(v):
-    """RFC 8785 subset: sorted keys (UTF-16 order), no whitespace, JSON string
-    escaping with non-ASCII left literal, integers only."""
+    """RFC 8785: sorted keys (UTF-16 order), no whitespace, JSON string escaping
+    with non-ASCII left literal, numbers as ECMAScript writes them (I-JSON
+    domain; records may carry non-integer annotation values since CCR-BR-018)."""
     if isinstance(v, dict):
         return "{" + ",".join(json.dumps(k, ensure_ascii=False) + ":" + jcs(v[k]) for k in sorted(v, key=lambda k: k.encode("utf-16-be"))) + "}"
     if isinstance(v, list): return "[" + ",".join(jcs(x) for x in v) + "]"
     if v is True: return "true"
     if v is False: return "false"
     if v is None: return "null"
-    if isinstance(v, int): return str(v)
+    if isinstance(v, int):
+        if abs(v) > 2**53 - 1: raise ValueError(f"integer {v} is outside I-JSON's exact range")
+        return str(v)
+    if isinstance(v, float): return es_number(v)
     if isinstance(v, str): return json.dumps(v, ensure_ascii=False)
-    raise ValueError(f"non-integer number {v!r} is outside the canonical subset")
+    raise ValueError(f"value {v!r} is outside the canonical domain")
+
+assert [es_number(x) for x in (1e-7, 99.5, 1e21, 123456789012345680000.0, 0.000001, -2.5, 5e-324)] == ["1e-7", "99.5", "1e+21", "123456789012345680000", "0.000001", "-2.5", "5e-324"]
 
 def b64url(b): return base64.urlsafe_b64encode(b).decode("ascii").rstrip("=")
 
@@ -437,7 +457,8 @@ def fp_fields(x):
     elif isinstance(x, list):
         for y in x: yield from fp_fields(y)
 
-VECTOR_FILES = {os.path.join("behaviors", "09-approval-tickets.md"): ("input", "canonical", "sha256"),
+VECTOR_FILES = {os.path.join("behaviors", "03-trail-sink.md"): ("input", "canonical", "sha256"),
+                os.path.join("behaviors", "09-approval-tickets.md"): ("input", "canonical", "sha256"),
                 os.path.join("behaviors", "13-config-fingerprints.md"): ("key_hex", "input", "canonical", "hmac_b64url")}
 vector_count = 0
 for vf, keys in VECTOR_FILES.items():
@@ -468,21 +489,48 @@ for vf, keys in VECTOR_FILES.items():
             if v["hmac_b64url"] != want: fails[17].append(f"{where}: hmac_b64url differs; recomputed {want}")
         vector_count += 1
 
+# every ```vector block must sit in a file listed above, so none escapes recomputation
+for p in md_files:
+    if rel(p) not in VECTOR_FILES and re.search(r"^```vector", text[p], re.M):
+        fails[17].append(f"{rel(p)}: has a ```vector block but is not in VECTOR_FILES, so it is never recomputed")
+
+# ---------------------------------------------------------------- check 18: pinned revisions are current
+# The core interface map §6 pins each document of core (and of audit-chain) the
+# companion relies on, as `tree/path` | Document ID | Revision. A pin that differs
+# from the document's current Document Control means a CCR-BR (or CCR-AC) has not
+# been assessed under the coupling rule (process/change-control.md §7).
+REFS = os.path.dirname(CORE)
+sec6 = re.search(r"^## 6\..*?(?=^## 7\.)", map_text, re.M | re.S)
+pins = re.findall(r"^\|\s*`([^`]+)`\s*\|\s*([A-Z0-9-]+)\s*\|\s*([0-9.]+)\s*\|", sec6.group(0) if sec6 else "", re.M)
+if not pins: fails[18].append("appendices/core-interface-map.md §6: no pinned revision rows")
+for path, doc_id, rev in pins:
+    if not re.match(r"(core|audit-chain)/", path): fails[18].append(f"pin `{path}` does not name the core or audit-chain tree"); continue
+    tp = os.path.join(REFS, path)
+    if not os.path.exists(tp): fails[18].append(f"pin `{path}` names a missing document"); continue
+    dc = read(tp)
+    got_id = re.search(r"^>\s*\|\s*Document ID\s*\|\s*([^|]+?)\s*\|", dc, re.M)
+    got_rev = re.search(r"^>\s*\|\s*Revision\s*\|\s*([^|]+?)\s*\|", dc, re.M)
+    if not got_id or got_id.group(1) != doc_id: fails[18].append(f"pin `{path}`: Document ID {doc_id}, document says {got_id.group(1) if got_id else 'nothing'}")
+    if not got_rev or got_rev.group(1) != rev: fails[18].append(f"pin `{path}`: pinned Revision {rev}, current is {got_rev.group(1) if got_rev else 'unknown'}; assess the change under change control §7 and re-pin")
+pinned_paths = {p for p, _, _ in pins}
+for f in sorted(set(re.findall(r"\]\(\.\./\.\./(core/[^)#]+\.md)", map_text))):
+    if f not in pinned_paths: fails[18].append(f"core interface map links {f} but §6 does not pin its revision")
+
 # ---------------------------------------------------------------- report
 names = {1: "index.yaml registries", 2: "INV/ADR traceability and ADR status", 3: "URS/NFR traceability",
          4: "risks have controls and rows", 5: "allocations and defined identifiers", 6: "identifier hygiene",
          7: "behaviour structure", 8: "Document Control", 9: "planned paths", 10: "acceptance scenarios",
          11: "claims lint (strict)", 12: "links and anchors (into core too)", 13: "CCR registers (GX and core)",
          14: "core identifiers defined and mapped", 15: "core checker --strict", 16: "Regulatory wording",
-         17: "test vectors"}
+         17: "test vectors", 18: "pinned core revisions current"}
 print(f"references/gxp verification — implementation: {IMPL}")
 print("defined: " + ", ".join(f"{k} {len(v)}" for k, v in sorted(defs.items())))
 print(f"core identifiers cited: {len(cited_br)}; mapped: {len(mapped)}")
 total = 0
-for i in range(1, 18):
+for i in range(1, 19):
     f = fails[i] + (warns[i] if STRICT else [])
     status = "FAIL" if f else ("PLANNED" if i == 9 and planned_count else "PASS")
-    extra = f" ({planned_count} planned paths)" if i == 9 else (f" ({vector_count} vectors)" if i == 17 else "")
+    extra = f" ({planned_count} planned paths)" if i == 9 else (f" ({vector_count} vectors)" if i == 17 else (f" ({len(pins)} pins)" if i == 18 else ""))
     print(f"[{status:7}] {i:2}. {names[i]}{extra}")
     for x in f[:40]: print(f"           - {x}")
     if len(f) > 40: print(f"           … and {len(f) - 40} more")

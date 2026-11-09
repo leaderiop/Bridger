@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-URS                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): URS-GX-001 (no record refused for a condition the store could keep), URS-GX-003 (marked and colliding entries), URS-GX-005 (one sealing mechanism, possibly a sibling package), NFR-GX-002 (`@bridger/audit-chain` optional peer); §6 rows for files 21 and 22, INV-GX-013 withdrawn, INV-GX-016; gaps GX-G10 and GX-G11 (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -63,8 +63,11 @@ user's determination ([ADR-GX-027](./decisions/027-claims-and-non-claims.md),
 The QA lead needs every audit record core hands to the sink stored by an
 adapter of their choosing, and needs core to be told "stored" only when the
 adapter has committed it, so that a record core believes written is not lost
-in a buffer. A repeat of the same record must not create a second entry, and
-a different record must never overwrite a stored one.
+in a buffer. A repeat of the same record must not create a second entry, a
+different record must never overwrite a stored one, and no record core hands
+over may be refused for a reason the store could have kept it despite — a
+shape the companion does not know, a value it cannot canonicalise exactly, an
+identifier that collides — because a refused record stops the trail.
 
 ### URS-GX-002: Show that a trail adapter conforms
 
@@ -76,7 +79,8 @@ obtain a result per case that can go into an evidence pack.
 
 The QA lead needs to read a host's stored trail and be told of gaps,
 duplicates, disorder, entries whose text no longer matches their digest,
-records of an unknown schema, calls with a `requested` record and no terminal
+records of an unknown schema or not canonicalisable exactly, records stored
+under a colliding identifier, calls with a `requested` record and no terminal
 record, and records core reports as dropped — each as a named finding.
 
 ### URS-GX-004: Detect loss of the newest records
@@ -89,7 +93,8 @@ host wrote, which a sequence check alone cannot show.
 Where the risk warrants it, the QA lead needs to be able to turn on a
 mechanism that detects alteration, insertion, removal or reordering of
 sealed records up to the last verified anchor, against a party that cannot
-also rewrite the anchor store, with its limits stated.
+also rewrite the anchor store, with its limits stated. The mechanism may be a
+sibling Bridger package; the QA lead needs one, described in one way.
 
 ### URS-GX-006: Approve a change before it is made
 
@@ -168,7 +173,8 @@ byte-for-byte the same on every supported platform.
 
 The companion depends on `effect`, on `@bridger/core` within its declared
 range of one core minor line, and on the platform's own cryptography (SHA-256 and HMAC), and
-on nothing else at run time.
+on nothing else at run time, except `@bridger/audit-chain` as an optional peer
+dependency for those who turn sealing on.
 
 ### NFR-GX-003: Coverage
 
@@ -221,11 +227,11 @@ it satisfies in its `**Satisfies:**` line.
 
 | Requirement | Behaviours | Invariants | Core requirement extended |
 | ----------- | ---------- | ---------- | ------------------------- |
-| URS-GX-001 | [02](./behaviors/02-trail-store-port.md), [03](./behaviors/03-trail-sink.md) | INV-GX-006, INV-GX-007, INV-GX-008 | — |
+| URS-GX-001 | [02](./behaviors/02-trail-store-port.md), [03](./behaviors/03-trail-sink.md), [22](./behaviors/22-trail-status-and-gate.md) | INV-GX-006, INV-GX-007, INV-GX-008, INV-GX-016 | — |
 | URS-GX-002 | [04](./behaviors/04-conformance-suite.md), [19](./behaviors/19-testing-entry-point.md) | INV-GX-014 | URS-BR-025 |
 | URS-GX-003 | [05](./behaviors/05-checks-on-read.md) | INV-GX-009, INV-GX-012 | — |
 | URS-GX-004 | [06](./behaviors/06-high-water-marks-and-anchors.md) | INV-GX-009 | — |
-| URS-GX-005 | [07](./behaviors/07-optional-sealing.md) | INV-GX-013 | — |
+| URS-GX-005 | [21](./behaviors/21-sealing-through-audit-chain.md) (sealing by `@bridger/audit-chain`; 07 withdrawn) | — (INV-GX-013 withdrawn; audit-chain's INV-AC-001) | — |
 | URS-GX-006 | [08](./behaviors/08-approval-policy.md), [09](./behaviors/09-approval-tickets.md), [12](./behaviors/12-approval-gate.md) | INV-GX-003, INV-GX-011 | URS-BR-024 |
 | URS-GX-007 | [09](./behaviors/09-approval-tickets.md), [12](./behaviors/12-approval-gate.md) | INV-GX-002, INV-GX-003, INV-GX-012 | URS-BR-024 |
 | URS-GX-008 | [10](./behaviors/10-signature-capture-port.md), [11](./behaviors/11-signature-linking.md) | INV-GX-015 | — |
@@ -242,7 +248,7 @@ it satisfies in its `**Satisfies:**` line.
 | NFR-GX-003 | [20](./behaviors/20-required-acceptance-checks.md) | — | — |
 | NFR-GX-004 | [20](./behaviors/20-required-acceptance-checks.md) | — | — |
 | NFR-GX-005 | [13](./behaviors/13-config-fingerprints.md), [16](./behaviors/16-oq-evidence.md), [20](./behaviors/20-required-acceptance-checks.md); process: [PROC-GX-01](./process/requirement-id-scheme.md) §5, [PROC-GX-02](./process/definitions-of-done.md) gate D1 | — | — |
-| NFR-GX-006 | [05](./behaviors/05-checks-on-read.md), [07](./behaviors/07-optional-sealing.md), [18](./behaviors/18-archive-and-export.md) | — | — |
+| NFR-GX-006 | [05](./behaviors/05-checks-on-read.md), [18](./behaviors/18-archive-and-export.md), [21](./behaviors/21-sealing-through-audit-chain.md) | — | — |
 | NFR-GX-007 | [01](./behaviors/01-companion-boundary.md), [13](./behaviors/13-config-fingerprints.md), [14](./behaviors/14-fingerprint-keys.md) | INV-GX-005 | — |
 | NFR-GX-008 | [12](./behaviors/12-approval-gate.md) | INV-GX-011 | — |
 
@@ -259,3 +265,5 @@ it satisfies in its `**Satisfies:**` line.
 | GX-G7 | No review or search tool and no PQ, as for core ([ADR-BR-034](../core/decisions/034-gxp-companion-scope.md) non-claim 12). | Not planned |
 | GX-G8 | The checker is a copy of core's, adapted; a shared engine is deferred to a later CCR on both sides ([ADR-GX-028](./decisions/028-checker-copy-and-adapt.md)). | Deferred |
 | GX-G9 | No core release containing CCR-BR-014 exists yet, so the compatibility matrix has only a prospective row. | Open — [core interface map](./appendices/core-interface-map.md) §7 |
+| GX-G10 | Two anchor-like stores coexist: the companion's `AnchorStore` of high-water marks and `@bridger/audit-chain`'s `Anchor` and `ReceiptStore` for the chain. Renaming the companion's port (for example to `HighWaterStore`) was considered in CCR-GX-002 and deferred, because it changes an interface without changing behaviour. | Deferred — the glossary distinguishes the two |
+| GX-G11 | Core does not put `allowChildren`, `mandatoryInterceptions` or the manifest on any record, so the record-side link cannot show them; they are evidenced by the gate's consumption only ([BEH-GX-083](./behaviors/11-signature-linking.md)). | Open — a core request, recorded in core as gap G71 (CCR-BR-031) |

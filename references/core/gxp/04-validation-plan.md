@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GXP-04                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.6 (2026-11-08): Link into references/gxp/ turned into a plain-text citation; the companion Draft is recorded as not present in this repository (gap G35) (CCR-BR-016)<br>0.5 (2026-10-03): Companion described as specified in Draft (references/gxp/, CCR-GX-001), not implemented (gap G8 closed) (CCR-BR-015)<br>0.4 (2026-10-03): §5.1 checks 5–6 executable through `Host.controls` (BEH-BR-212); check 7 "fingerprinter wired as required" added; RSK-BR-024 added to the High rigour row; `ConfigFingerprinter` out of scope like the other consumer ports; `fingerprintTimeout` added to the revalidation defaults (CCR-BR-014)<br>0.3 (2026-10-03): Known-gaps list no longer cites the Effect 4.x items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-09): §4 rigour table extended from RSK-BR-024 to the whole register (RSK-BR-001–070) by the stated rule, and enforced by verifier check 4; §6 item 5 links the companion that produces the evidence (gap G35 closed) (CCR-BR-031)<br>0.6 (2026-11-08): Link into references/gxp/ turned into a plain-text citation; the companion Draft is recorded as not present in this repository (gap G35) (CCR-BR-016)<br>0.5 (2026-10-03): Companion described as specified in Draft (references/gxp/, CCR-GX-001), not implemented (gap G8 closed) (CCR-BR-015)<br>0.4 (2026-10-03): §5.1 checks 5–6 executable through `Host.controls` (BEH-BR-212); check 7 "fingerprinter wired as required" added; RSK-BR-024 added to the High rigour row; `ConfigFingerprinter` out of scope like the other consumer ports; `fingerprintTimeout` added to the revalidation defaults (CCR-BR-014)<br>0.3 (2026-10-03): Known-gaps list no longer cites the Effect 4.x items closed by CCR-BR-003 (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): RSK-BR-023 added to the High rigour row (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -53,12 +53,12 @@ Assurance activities are chosen by critical thinking about risk, following the F
 | **Medium** | Scripted unit tests of each behaviour named as a control, with assertions on observable outcomes (snapshots, errors, records, events) | Full evidence record (§6.1) per test |
 | **Low** | Unscripted testing — exploratory, ad hoc or error-guessing — recorded with who tested, when, against which version, what was exercised, the outcome and any defect raised | Summary record per session |
 
-Applied to the current register:
+Applied to the current register (RSK-BR-001 to RSK-BR-070). A risk's rigour follows from its initial scoring in the [risk assessment](./03-risk-assessment.md): High when its class or its priority is High, otherwise its class. The verifier (check 4) recomputes the level of every registered risk and fails when a risk is missing from this table or listed at another level, so a risk added to the register cannot go without a rigour level:
 
 | Rigour | Risks | Behaviour files mainly exercised |
 | ------ | ----- | -------------------------------- |
-| High | RSK-BR-001 to RSK-BR-006, RSK-BR-008 to RSK-BR-010, RSK-BR-012 to RSK-BR-020, RSK-BR-022 to RSK-BR-024 | [05](../behaviors/05-activation.md), [06](../behaviors/06-removal.md), [07](../behaviors/07-replacement-and-reactivation.md), [08](../behaviors/08-operation-legality.md), [09](../behaviors/09-leases.md), [10](../behaviors/10-runtime-failure-and-health.md), [11](../behaviors/11-configuration.md), [12](../behaviors/12-shutdown-and-hosting.md), [22](../behaviors/22-attributable-operations.md), [23](../behaviors/23-audit-sink-and-record.md), [24](../behaviors/24-time-ids-and-sequence.md), [25](../behaviors/25-operation-gate.md) |
-| Medium | RSK-BR-007, RSK-BR-011, RSK-BR-021 | [21](../behaviors/21-testing-host.md), [24](../behaviors/24-time-ids-and-sequence.md), [09](../behaviors/09-leases.md) |
+| High | RSK-BR-001 to RSK-BR-006, RSK-BR-008 to RSK-BR-010, RSK-BR-012 to RSK-BR-020, RSK-BR-022 to RSK-BR-052, RSK-BR-054 to RSK-BR-057, RSK-BR-059 to RSK-BR-062, RSK-BR-064, RSK-BR-066 to RSK-BR-070 | Every behaviour file, [01](../behaviors/01-plugin-definition.md) to [34](../behaviors/34-state-handoff.md); each risk's Controls row in the [risk assessment](./03-risk-assessment.md) names the behaviours to script |
+| Medium | RSK-BR-007, RSK-BR-011, RSK-BR-021, RSK-BR-053, RSK-BR-058, RSK-BR-063, RSK-BR-065 | [02](../behaviors/02-host-construction.md), [05](../behaviors/05-activation.md), [09](../behaviors/09-leases.md), [13](../behaviors/13-observability-and-diagnostics.md), [15](../behaviors/15-optional-and-reactive.md), [16](../behaviors/16-event-bus.md), [18](../behaviors/18-reconciliation-and-confluence.md), [21](../behaviors/21-testing-host.md), [22](../behaviors/22-attributable-operations.md), [23](../behaviors/23-audit-sink-and-record.md), [24](../behaviors/24-time-ids-and-sequence.md), [27](../behaviors/27-manifest-and-lazy-activation.md), [29](../behaviors/29-capability-grants-and-call-log.md), [30](../behaviors/30-operation-context-annotations.md) |
 | Low | None in the current register. Behaviours that control no listed risk and have no GxP impact may be verified at this level, unless they are among the required checks of BEH-BR-183 and BEH-BR-184, which are always scripted. | — |
 
 These are minimums. Every required acceptance check of BEH-BR-183 and BEH-BR-184 is scripted regardless of the table, and NFR-BR-008 (mutation score at least 80% on `packages/core` *(Planned)*) applies to the whole package.
@@ -128,7 +128,7 @@ Evidence follows [ADR-BR-035](../decisions/035-evidence-from-executed-tests.md):
    - executor: the CI job or the person who started the run, and the machine;
    - start and end times of the run;
    - the raw runner logs and the mutation report, attached unmodified.
-5. **Produced by the companion.** The generator that turns runner output into IQ/OQ evidence records belongs to the `@bridger/gxp` companion, which is specified only as a Draft (`references/gxp/`, CCR-GX-001; not present in this repository, [URS](../urs.md#7-known-gaps-and-open-items) gap G35) and not implemented. Until it exists, test runs (once there is code) produce runner output only, and nothing is presented as qualification evidence.
+5. **Produced by the companion.** The generator that turns runner output into IQ/OQ evidence records belongs to the `@bridger/gxp` companion, which is specified only as a Draft ([`references/gxp/`](../../gxp/README.md), CCR-GX-001 and CCR-GX-002) and not implemented. Until it exists, test runs (once there is code) produce runner output only, and nothing is presented as qualification evidence.
 
 ### §6.2 Acceptance criteria
 

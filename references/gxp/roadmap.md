@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ROADMAP                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Roadmap                                                      |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): G1 adds the sink's status and `trailGate` (22); G2 seals through `@bridger/audit-chain` (21; 07 withdrawn); G0 reproduces the vectors of file 03 (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -37,9 +37,9 @@ by risk: the trail first, because every later control relies on it.
 
 | Phase | Content | Behaviour files | Needs from core | Exit criterion |
 | ----- | ------- | --------------- | --------------- | -------------- |
-| G0 | Package skeleton, `GxpLayer.make` types, canonical form and digests with the published test vectors, testing entry point with marked fixtures | [01](./behaviors/01-companion-boundary.md), [19](./behaviors/19-testing-entry-point.md) | P1–P3 | Vectors of files 09 and 13 reproduced; a missing port is a compile error |
-| G1 | Trail store port, trail sink, conformance suite | [02](./behaviors/02-trail-store-port.md), [03](./behaviors/03-trail-sink.md), [04](./behaviors/04-conformance-suite.md) | P3, P5 (`TestHost`, `Fault`) | Suite passes on `memoryTrailStore` and fails, with the expected case numbers, on every `brokenTrailStore` variant |
-| G2 | Checks on read, high-water marks and anchors, optional sealing | [05](./behaviors/05-checks-on-read.md), [06](./behaviors/06-high-water-marks-and-anchors.md), [07](./behaviors/07-optional-sealing.md) | P3 (`Host.controls`, `CloseReport.auditLastSeq`) | Every finding kind produced by a constructed trail; memory bound held on a long trail |
+| G0 | Package skeleton, `GxpLayer.make` types, canonical form and digests with the published test vectors, testing entry point with marked fixtures | [01](./behaviors/01-companion-boundary.md), [19](./behaviors/19-testing-entry-point.md) | P1–P3 | Vectors of files 03, 09 and 13 reproduced; a missing port is a compile error |
+| G1 | Trail store port, trail sink, conformance suite, the sink's status and `trailGate` | [02](./behaviors/02-trail-store-port.md), [03](./behaviors/03-trail-sink.md), [04](./behaviors/04-conformance-suite.md), [22](./behaviors/22-trail-status-and-gate.md) | P3, P5 (`TestHost`, `Fault`) | Suite passes on `memoryTrailStore` and fails, with the expected case numbers, on every `brokenTrailStore` variant |
+| G2 | Checks on read, high-water marks and anchors, optional sealing through `@bridger/audit-chain` | [05](./behaviors/05-checks-on-read.md), [06](./behaviors/06-high-water-marks-and-anchors.md), [21](./behaviors/21-sealing-through-audit-chain.md) (07 withdrawn) | P3 (`Host.controls`, `CloseReport.auditLastSeq`); `@bridger/audit-chain` for sealing | Every finding kind produced by a constructed trail; memory bound held on a long trail |
 | G3 | Approval policy, tickets, signature capture port, linking, approval gate | [08](./behaviors/08-approval-policy.md)–[12](./behaviors/12-approval-gate.md) | P3 (gate, `definition` on records), P4 (`reconcile`) | Every refusal reason produced; replay, transfer and copied-signature cases refused |
 | G4 | Configuration fingerprints and keys | [13](./behaviors/13-config-fingerprints.md), [14](./behaviors/14-fingerprint-keys.md) | P3 (step 4a, `ConfigFingerprinter`) | Value-bound tickets allow only the approved value; rotation forces re-issue |
 | G5 | Installation checks, OQ evidence, evidence pack | [15](./behaviors/15-installation-checks.md), [16](./behaviors/16-oq-evidence.md), [17](./behaviors/17-evidence-pack.md) | P3, P5 | Evidence self-test on the known-bad corpus; two runs give the same pack digest |

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-04                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-028, 029: cases 8, 9 and 11 expect collision entries kept beside the primary ("stored-collision") instead of a "conflict" failure (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -198,7 +198,7 @@ every happy-path test and fails these two.
 
 ## BEH-GX-028: The numbered conformance cases and their pass conditions
 
-> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry), [INV-GX-012](../invariants.md#inv-gx-012-the-canonical-form-is-deterministic-across-platforms)
+> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry), [INV-GX-012](../invariants.md#inv-gx-012-the-canonical-form-is-deterministic-across-platforms)
 > **See:** [ADR-GX-006](../decisions/006-conformance-through-testhost.md), [ADR-GX-004](../decisions/004-append-only-trail-store.md)
 > **Satisfies:** [URS-GX-002](../urs.md#urs-gx-002-show-that-a-trail-adapter-conforms), [URS-GX-001](../urs.md#urs-gx-001-store-audit-records-with-honest-acknowledgement)
 > **Risk:** [RSK-GX-001](../gxp/03-risk-assessment.md#rsk-gx-001), [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002), [RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015)
@@ -212,11 +212,11 @@ every happy-path test and fails these two.
 | 4 | Retry after commit-then-hang | `faultyTrailStore` plans "commit-then-hang" for the first attempt of a call's `requested` record | the call fails with `AuditUnavailable` after 10 s of `TestClock`; the store holds the `requested` entry exactly once, followed by that call's `failed` (`AuditUnavailable`) entry ([BEH-BR-203](../../core/behaviors/23-audit-sink-and-record.md)); no other entry for the call |
 | 5 | Retry after commit-then-fail | "commit-then-fail" on the first attempt of a `requested` record | the call completes; the second attempt answers "already-stored"; the entry is stored once |
 | 6 | Retry after fail-before-commit | "fail-before-commit" on the first attempt | the call completes; the second attempt answers "stored"; the entry is stored once |
-| 7 | Retry after a defect | "die" on the first attempt | as case 6; the sink answered core with `AuditWriteFailed`, not a defect ([BEH-GX-019](./03-trail-sink.md#beh-gx-019-the-sink-acknowledges-only-stored-or-a-verified-already-stored-and-every-failure-is-auditwritefailed-without-record-content)) |
-| 8 | Conflicting content under one recordId | Append an entry, then an entry with the same `recordId`, a changed `reason` and recomputed digest | second append fails with `TrailWriteFailed` "conflict"; read-back returns the first entry byte-identical |
-| 9 | Conflicting entry at one sequence number | Append an entry, then one with another `recordId` at the same `(hostId, auditSeq)` | as case 8 |
+| 7 | Retry after a defect | "die" on the first attempt | as case 6; the sink answered core with `AuditWriteFailed`, not a defect ([BEH-GX-019](./03-trail-sink.md#beh-gx-019-the-sink-fails-a-write-only-when-the-store-did-not-store-the-record-and-every-failure-is-auditwritefailed-without-record-content)) |
+| 8 | Colliding content under one recordId | Append an entry, then an entry with the same `recordId`, a changed `reason` and recomputed digest; then the second entry again | second append answers "stored-collision", third "already-stored"; read-back returns the first entry byte-identical as primary, then the second once, with `collision` `{ reason: "record-id", with: <first digest> }`; `hosts` shows `count` 1 and `collisions` 1 |
+| 9 | Colliding entry at one sequence number | Append an entry, then one with another `recordId` at the same `(hostId, auditSeq)` | as case 8, with `collision.reason` "host-seq" |
 | 10 | Two hosts, one store | Two `TestHost`s with distinct `hostId`s write concurrently, `scale.records` calls each | `hosts` lists both with `firstSeq` 1, `lastSeq` = `count`; each host's `read` returns only its entries, contiguous from 1 |
-| 11 | Racing appends | `scale.writers` fibers append distinct entries at the same `(hostId, auditSeq)` at once, released together | exactly one append answers "stored"; every other fails "conflict"; one entry is stored |
+| 11 | Racing appends | `scale.writers` fibers append distinct entries at the same `(hostId, auditSeq)` at once, released together | exactly one append answers "stored" and every other "stored-collision"; one primary entry and `scale.writers` − 1 collision entries naming its digest are stored |
 | 12 | Reopen | After case 1's writes, close the store's scope and call `reopen` | the reopened store returns the same entries byte-identical; appending a stored entry again answers "already-stored" |
 | 13 | Unicode exactness | Calls whose `reason` contains an astral character, a combining sequence and its precomposed form in separate calls, U+2028, U+0000-escaped text and a 4,000-character string | every entry reads back byte-identical; the NFC and NFD reasons stay distinct entries with distinct digests |
 | 14 | No partial entries | For seeded random attempts, "fail-before-commit" or "die" | after each fault, `read` returns for that `recordId` either nothing or the whole entry with every field equal |
@@ -262,7 +262,9 @@ REQUIREMENT: Cases 4 to 7 and 14 MUST also check the host's side: the
 REQUIREMENT: Every case MUST end by running `checkTrailEntries` (BEH-GX-033)
              over everything the store holds and MUST fail when it reports any
              finding other than those the case expects. Cases 8, 9 and 11
-             expect none, because the conflicting entries were refused.
+             expect exactly one `collision` finding per collision entry
+             (BEH-GX-034) and the `duplicate` findings core's sequence check
+             reports for them, and nothing else.
 ```
 
 Checking the host as well as the store catches an adapter that stores

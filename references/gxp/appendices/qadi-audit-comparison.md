@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-APP-02                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Appendix                                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Encoding row and sealing bullet follow ADR-GX-030 and ADR-GX-029 (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -34,7 +34,7 @@ and no `QD` identifier is defined or relied on normatively here.
 | Every capability that needs storage, I/O, identity or crypto is a caller-supplied port | ADR-QD-056 | [ADR-GX-003](../decisions/003-ports-without-defaults.md) — and the companion goes further: decision ports have no default even in the main entry point's types ([BEH-GX-003](../behaviors/01-companion-boundary.md#beh-gx-003-no-port-that-stores-authenticates-signs-holds-keys-or-decides-has-a-default)) |
 | No shipped signature default, not even a no-op, because a no-op signature service is a false-compliance affordance | ADR-QD-056, BEH-QD-255 | [ADR-GX-016](../decisions/016-signature-port-and-manifestation.md): no default `SignatureCapture`; the testing fixture requires its decision function |
 | Re-authentication is invisible to the package and stays the implementer's | ADR-QD-056 | Kept, but made visible: the captured signature carries an attestation (`reauthenticated: true`, method, event, components) that the companion records and does not verify |
-| Encoding refuses rather than approximates a value with no safe representation | ADR-QD-056, BEH-QD-250 | The trail sink refuses an unknown `schemaVersion` or a record outside the canonical subset, and the canonical form admits integers only ([ADR-GX-005](../decisions/005-jcs-and-sha256.md)) |
+| Encoding refuses rather than approximates a value with no safe representation | ADR-QD-056, BEH-QD-250 | Outside the trail, canonicalisation refuses a value I-JSON cannot represent ([ADR-GX-005](../decisions/005-jcs-and-sha256.md)); the trail sink differs on purpose: it stores such a record with the escaped encoding and a mark, and an unknown `schemaVersion` with a mark, because a refused record stops core's trail, and a gate piece refuses operator changes instead ([ADR-GX-030](../decisions/030-sink-marks-and-gate-refuses.md)) |
 | Names chosen for the mechanism, not for what a reviewer might infer ("staging", not "write-ahead log") | ADR-QD-056, BEH-QD-254 | "Checks on read", "no findings of the checked kinds" and "seal verification" ([ADR-GX-007](../decisions/007-checks-never-claim-integrity.md)) |
 | Gap-and-duplicate detection named as such, with the explicit note that a party able to renumber stored rows passes it | BEH-QD-254 | Core's `verifyAuditSequence` has the same limit ([BEH-BR-215](../../core/behaviors/24-time-ids-and-sequence.md)); the companion's checks inherit it unless optional sealing and separately held anchors are wired |
 | Correctness from deterministic in-memory test layers that consumers can reuse | ADR-QD-056 | The testing entry point `@bridger/gxp/testing` ([ADR-GX-024](../decisions/024-fixtures-are-marked.md)), with fixtures marked so that installation checks refuse them |
@@ -62,8 +62,9 @@ here without one:
   ([ADR-GX-006](../decisions/006-conformance-through-testhost.md)).
 - **Detection of tail loss** against high-water marks held under separate
   custody ([ADR-GX-008](../decisions/008-high-water-anchors.md)), and **optional sealing**, a per-host
-  hash chain verified against separately held anchors
-  ([ADR-GX-009](../decisions/009-optional-sealing.md)). Qadi's sequence check, like core's, does not
+  hash chain verified against separately held anchors, specified by
+  `@bridger/audit-chain` and adopted by the companion
+  ([ADR-GX-029](../decisions/029-sealing-through-audit-chain.md)). Qadi's sequence check, like core's, does not
   detect a renumbered trail; neither does the companion without sealing.
 - **Linking a signature to the change it approved** (21 CFR 11.70), through a
   binding digest recomputed from the request and a single-use, compare-and-set

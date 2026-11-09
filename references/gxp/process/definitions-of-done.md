@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-PROC-02                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Procedure                                                    |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Gate D1 runs eighteen checks, including the pin-freshness check 18 (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 _Previous: [Requirement Identifier Scheme](./requirement-id-scheme.md)_
 
@@ -28,7 +28,7 @@ the package.
 
 | # | Command | Gate |
 | - | ------- | ---- |
-| D1 | `bash references/gxp/scripts/verify-traceability.sh --strict` | The companion specification is internally consistent (all seventeen checks of the [identifier scheme](./requirement-id-scheme.md) §5), and core's own gate D1 passes (check 15) |
+| D1 | `bash references/gxp/scripts/verify-traceability.sh --strict` | The companion specification is internally consistent (all eighteen checks of the [identifier scheme](./requirement-id-scheme.md) §5), and core's own gate D1 passes (check 15) |
 
 A pass means the documents agree with each other and with core's identifiers.
 It says nothing about whether the companion — which does not exist yet —

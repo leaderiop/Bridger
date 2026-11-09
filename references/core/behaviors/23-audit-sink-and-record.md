@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-23                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-08): BEH-BR-196 which records carry `sanitized: true`: the call's own records, and a system record only for a string replaced as it is written (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): BEH-BR-195 `auditDropped` on every record (G54), `sanitized` (G59), `requestedBy`, transitions "start-refused" and "unmount-requested", Settled (6); BEH-BR-196 their rules and the lone-surrogate replacement; BEH-BR-199 the two new system records and the correlation of a root record from the fiber (G58); BEH-BR-202 `auditDropped` stamped at numbering (CCR-BR-026); `lazy-idle`, `onBehalfOf` on root `lazy-triggered` records (CCR-BR-024); BEH-BR-195 `undoes`; BEH-BR-201 records of an atomic apply's undo (CCR-BR-025)<br>0.7 (2026-11-08): BEH-BR-197: paths of a `reconfigure` on a registration not yet loaded; BEH-BR-199: sub-scope child removal named (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-195 `trigger`, "lazy-triggered", state "dormant", failure phase "load" in BEH-BR-199 (CCR-BR-017); `onBehalfOf`, `annotations`, `annotationsOmitted`, none on system records (CCR-BR-018); "handoff" and "retireRealm", `target` of `retireRealm`, handoff records in BEH-BR-199 (CCR-BR-019); `schemaVersion` stays 1 on pre-release ground (Settled 5)<br>0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.10 (2026-11-09): BEH-BR-193: only an equal record under a stored `recordId` is an idempotent repeat; a different record under it is kept beside the first or refused, never dropped while reporting success (audit finding, raised by CCR-GX-002) (CCR-BR-031)<br>0.9 (2026-11-08): BEH-BR-196 which records carry `sanitized: true`: the call's own records, and a system record only for a string replaced as it is written (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): BEH-BR-195 `auditDropped` on every record (G54), `sanitized` (G59), `requestedBy`, transitions "start-refused" and "unmount-requested", Settled (6); BEH-BR-196 their rules and the lone-surrogate replacement; BEH-BR-199 the two new system records and the correlation of a root record from the fiber (G58); BEH-BR-202 `auditDropped` stamped at numbering (CCR-BR-026); `lazy-idle`, `onBehalfOf` on root `lazy-triggered` records (CCR-BR-024); BEH-BR-195 `undoes`; BEH-BR-201 records of an atomic apply's undo (CCR-BR-025)<br>0.7 (2026-11-08): BEH-BR-197: paths of a `reconfigure` on a registration not yet loaded; BEH-BR-199: sub-scope child removal named (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-195 `trigger`, "lazy-triggered", state "dormant", failure phase "load" in BEH-BR-199 (CCR-BR-017); `onBehalfOf`, `annotations`, `annotationsOmitted`, none on system records (CCR-BR-018); "handoff" and "retireRealm", `target` of `retireRealm`, handoff records in BEH-BR-199 (CCR-BR-019); `schemaVersion` stays 1 on pre-release ground (Settled 5)<br>0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -78,8 +78,12 @@ REQUIREMENT: The port MUST be write-only: one method that takes a record and
 ```
 
 ```
-REQUIREMENT: A sink MUST treat a write whose `recordId` it has already stored
-             as idempotent: it MUST succeed and MUST NOT store a second copy.
+REQUIREMENT: A sink MUST treat a write of a record equal to one it has
+             already stored under the same `recordId` as idempotent: it MUST
+             succeed and MUST NOT store a second copy. A write of a different
+             record under a `recordId` already stored MUST NOT be dropped
+             while the sink reports success: the sink MUST keep it beside the
+             first without displacing it, or fail with `AuditWriteFailed`.
              A sink SHOULD fail with `AuditWriteFailed` only when it did not
              store the record.
 ```
@@ -100,7 +104,13 @@ the consumer's behalf, and the consumer's validation must cover it.
 
 The idempotence obligation is what lets core retry a write whose outcome is
 unknown (BEH-BR-202): a write that timed out after reaching the store, then
-retried with the same `recordId`, leaves exactly one record.
+retried with the same `recordId`, leaves exactly one record. A retry hands
+the sink the same record, so only an equal record is a copy. A different
+record under a stored `recordId` can come only from an `IdGenerator` that
+repeats values; acknowledging it as already stored would lose a recorded
+change while the host reports success, so the sink keeps it, as the GxP
+companion's trail sink does (its BEH-GX-012, "stored-collision"), or refuses
+it, which latches the host (BEH-BR-202).
 
 ## BEH-BR-194: An unwired sink changes nothing, and nothing claims an audit exists
 

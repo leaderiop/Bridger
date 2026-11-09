@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-06                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-042, 048: `HighWaterMark.seal` withdrawn; the anchor store holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -93,7 +93,7 @@ different system with different administrators, which is its whole value.
 ## BEH-GX-042: A high-water mark records the host's last written sequence number and when it was read
 
 > **Invariant:** [INV-GX-005](../invariants.md#inv-gx-005-no-configuration-value-or-key-material-appears-in-any-companion-output)
-> **See:** [ADR-GX-008](../decisions/008-high-water-anchors.md), [ADR-GX-009](../decisions/009-optional-sealing.md), [ADR-BR-025](../../core/decisions/025-deterministic-time-and-ids.md)
+> **See:** [ADR-GX-008](../decisions/008-high-water-anchors.md), [ADR-GX-029](../decisions/029-sealing-through-audit-chain.md), [ADR-BR-025](../../core/decisions/025-deterministic-time-and-ids.md)
 > **Satisfies:** [URS-GX-004](../urs.md#urs-gx-004-detect-loss-of-the-newest-records)
 > **Risk:** [RSK-GX-003](../gxp/03-risk-assessment.md#rsk-gx-003), [RSK-GX-018](../gxp/03-risk-assessment.md#rsk-gx-018)
 > **Regulatory:** supports 21 CFR 11.10(e); ALCOA+ Contemporaneous
@@ -106,7 +106,7 @@ interface HighWaterMark {
   readonly lastWritten: number          // HostControls.auditPosition.lastWritten (at close: read after the flush)
   readonly at: string                   // from Clock, ISO-8601 UTC with ms
   readonly source: "periodic" | "close"
-  readonly seal?: string                // the seal of entry `lastWritten`, when sealing is on (07, BEH-GX-051)
+  // `seal` (revision 0.1) is withdrawn: the chain and its anchors are @bridger/audit-chain's (21)
 }
 ```
 
@@ -124,10 +124,11 @@ REQUIREMENT: `at` MUST be read from `Clock` when the position is read. A mark
 ```
 
 ```
-REQUIREMENT: `seal` MUST be present when the host's trail is sealed, and MUST
-             then be the seal of the stored entry at `lastWritten` as the sink
-             computed it (BEH-GX-022); it MUST be absent otherwise and when
-             `lastWritten` is 0.
+REQUIREMENT: A mark MUST NOT carry a seal, hash or link. With sealing on, the
+             host's highest mark is passed to audit-chain's verification as
+             the expected head of the host (BEH-GX-171); the `AnchorStore` of
+             this file holds high-water marks only and MUST NOT be used as
+             audit-chain's `Anchor` or `ReceiptStore`.
 ```
 
 A mark taken from the host, not from the store, is independent of the store:
@@ -346,7 +347,7 @@ REQUIREMENT: Documentation and reports MUST describe the marks as detecting
              that entries above the highest mark can be lost without
              detection, and that marks record positions only: an entry altered
              in place keeps its position and is detected, if at all, by the
-             digest checks of 05 or the seal verification of 07.
+             digest checks of 05 or the seal verification of 21.
 ```
 
 ```
@@ -356,9 +357,10 @@ REQUIREMENT: No output MAY describe a trail with no `tailLoss` finding as
 
 The marks make one precise claim possible — "the store holds every position
 up to N that the host reported writing" — and the findings carry it. With
-sealing on, the mark's `seal` turns the same position into an anchor that
-also pins content ([BEH-GX-052](./07-optional-sealing.md#beh-gx-052-verifyseals-recomputes-the-chain-and-compares-it-with-every-anchor)).
+sealing on, the same position becomes audit-chain's expected head, which lets
+seal verification report the removal of the newest anchored windows together
+with their receipts ([BEH-GX-171](./21-sealing-through-audit-chain.md#beh-gx-171-verifyseals-runs-audit-chains-verification-over-the-stored-entries-with-high-water-marks-as-expected-heads)).
 
 ---
 
-_Previous: [05 — Checks on Read](./05-checks-on-read.md)_ · _Next: [07 — Optional Sealing](./07-optional-sealing.md)_
+_Previous: [05 — Checks on Read](./05-checks-on-read.md)_ · _Next: [07 — Optional Sealing (withdrawn)](./07-optional-sealing.md)_

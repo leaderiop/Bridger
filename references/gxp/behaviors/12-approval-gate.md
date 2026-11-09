@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-12                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-089–096: the approval gate is the last piece of the companion's composed host gate, and a recorded refusal reason carries the prefix "approval: " (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -170,8 +170,11 @@ REQUIREMENT: At step 3 the gate MUST count only the signatures that pass
 REQUIREMENT: Every refusal MUST fail `authorize` with core's
              `OperationRejected`, with `operation` and `target` copied from
              the request and `reason` equal to the refusal reason's code
-             alone, so that core writes that code to the `rejected` record
-             (BEH-BR-220).
+             alone. When the gate is composed into the companion's host gate
+             (BEH-GX-178), core writes that code prefixed with the piece name,
+             "approval: <code>", to the `rejected` record (BEH-BR-220,
+             BEH-BR-321); every check that reads a refusal reason MUST accept
+             exactly that form.
 ```
 
 The order is the order of information: the policy decides whether a ticket

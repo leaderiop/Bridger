@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-006                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): link to INV-GX-006 updated for its new title (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -53,7 +53,7 @@ Core already ships a deterministic `TestHost` with steppable time and identifier
 ## References
 
 - Behaviours: [04 — Conformance suite](../behaviors/04-conformance-suite.md), [19 — Testing entry point](../behaviors/19-testing-entry-point.md)
-- Invariants: [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored)
+- Invariants: [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored)
 - Risks: [RSK-GX-001](../gxp/03-risk-assessment.md#rsk-gx-001), [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002)
 - Decisions: [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-GX-021](../decisions/021-oq-from-runner-output.md), [ADR-GX-022](../decisions/022-evidence-pack-format.md), [ADR-GX-025](../decisions/025-core-version-range.md)
 - Core: [ADR-BR-026](../../core/decisions/026-deterministic-test-host.md), [BEH-BR-177](../../core/behaviors/21-testing-host.md), [BEH-BR-179](../../core/behaviors/21-testing-host.md), [BEH-BR-180](../../core/behaviors/21-testing-host.md), [BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-204](../../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-205](../../core/behaviors/23-audit-sink-and-record.md)

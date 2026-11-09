@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-OVW                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Overview                                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Public surface re-baselined: `TrailEntry` marks, collision and audit-chain link; "stored-collision"; `TrailSinkStatus` and `trailGate`; `verifySeals` through `@bridger/audit-chain`; `GxpLayer.make` `trail.gate` and audit-chain sealing options (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -28,8 +28,11 @@ them:
 - a **trail store** contract, an `AuditSink` built on it, and a conformance
   suite that shows whether an adapter keeps the contract;
 - **checks on read** that report gaps, duplicates, disorder, digest
-  mismatches, missing terminal records, tail loss against high-water marks,
-  and — when optional sealing is on — seal-chain breaks;
+  mismatches, marked and colliding entries, missing terminal records, tail
+  loss against high-water marks, and — when optional sealing through
+  `@bridger/audit-chain` is on — chain breaks and anchor mismatches;
+- a **trail gate** piece that refuses operator changes while the sink reports
+  a condition of its own, so that the sink never refuses a record;
 - **approvals**: a policy, approval tickets signed before the call, and an
   `OperationGate` that checks the ticket, links each signature to the change
   it approved and enforces separation of duties;
@@ -55,7 +58,7 @@ implemented (`implementation: absent`).
 4. **Sign first, then call.** A human signs a ticket before the call; the gate
    only checks the ticket within `gateTimeout` ([ADR-GX-010](./decisions/010-sign-first-then-call.md)).
 5. **One canonical form.** RFC 8785 canonical JSON and SHA-256 for every digest,
-   binding and seal, with published test vectors ([ADR-GX-005](./decisions/005-jcs-and-sha256.md)).
+   binding and fingerprint input, with published test vectors ([ADR-GX-005](./decisions/005-jcs-and-sha256.md)).
 6. **Evidence from execution only.** Results come from runner output; gaps stay
    gaps ([ADR-GX-021](./decisions/021-oq-from-runner-output.md)).
 
@@ -81,7 +84,7 @@ and a behaviour file differ, the behaviour file governs.
 // 02 — Trail store port
 interface TrailStoreShape {
   readonly manifest: TrailStoreManifest
-  readonly append: (entry: TrailEntry) => Effect.Effect<"stored" | "already-stored", TrailWriteFailed>
+  readonly append: (entry: TrailEntry) => Effect.Effect<"stored" | "stored-collision" | "already-stored", TrailWriteFailed>
   readonly read: (q: { hostId: string; fromSeq?: number; toSeq?: number }) => Stream.Stream<TrailEntry, TrailReadFailed>
   readonly hosts: Effect.Effect<readonly HostExtent[], TrailReadFailed>
 }
@@ -90,7 +93,9 @@ interface TrailEntry {
   readonly record: AuditRecord              // core's record, schemaVersion 1
   readonly canonical: string                // RFC 8785 text, kept as written
   readonly digest: string                   // "sha256:" + hex(SHA-256(UTF-8(canonical)))
-  readonly seal?: SealEnvelope              // { v: 1, prev, seal }, only with sealing on (07)
+  readonly marks?: { schema?: "unsupported"; canonical?: "jcs-escaped" }   // set by the sink (03)
+  readonly collision?: { reason: "record-id" | "host-seq"; with: string }  // set by the store (02)
+  readonly link?: ChainLinkV1               // @bridger/audit-chain's link, only with sealing on (21)
 }
 
 // 06 — Anchor store port, under separate custody
@@ -154,12 +159,15 @@ class SignatureCapture extends Context.Service<SignatureCapture, SignatureCaptur
 class FingerprintKeyProvider extends Context.Service<FingerprintKeyProvider, FingerprintKeyProviderShape>()("@bridger/gxp/FingerprintKeyProvider") {}
 ```
 
-### Trail, checks, anchors and sealing
+### Trail, checks, anchors, sealing and the trail gate
 
 ```ts
 // illustrative — not type-checked
-// 03 — the AuditSink core calls; acknowledges only "stored" or a verified "already-stored"
-declare function trailSink(store: TrailStoreShape, options?: { sealing?: SealingOptions | "off" }): Layer.Layer<AuditSink>
+// 03 — the AuditSink core calls; stores and marks, fails only when the store did not store the record
+declare function trailSink(store: TrailStoreShape, options?: { sealing?: SealingOptions | "off" }): Layer.Layer<AuditSink | TrailSinkStatus>
+
+// 22 — a core gate piece over the sink's counts; composed with audit-chain's ChainGate and the approval gate
+declare const trailGate: (status: TrailSinkStatusShape, options: TrailGateOptions) => Effect.Effect<Gate<OperationRequest>, GxpLayerInvalid>
 
 // 04 — conformance suite, registered with the caller's test runner, driving the real core through TestHost
 declare function runTrailStoreConformance(
@@ -183,9 +191,9 @@ declare function recordHighWater(host: Host, anchors: AnchorStoreShape, schedule
 declare function checkHighWater(store: TrailStoreShape, anchors: AnchorStoreShape, options: { hostId: string }):
   Effect.Effect<CheckReport, TrailReadFailed | AnchorReadFailed>
 
-// 07 — seal verification (sealing is off by default)
-declare function verifySeals(store: TrailStoreShape, anchors: AnchorStoreShape, options: { hostId: string; pageSize?: number }):
-  Effect.Effect<CheckReport, TrailReadFailed | AnchorReadFailed>
+// 21 — seal verification through @bridger/audit-chain (sealing is off by default; import from @bridger/gxp/sealing)
+declare function verifySeals(store: TrailStoreShape, marks: AnchorStoreShape, sealing: VerifySealsInputs, options: { hostId: string; pageSize?: number }):
+  Effect.Effect<CheckReport & { chain: ChainReport }, TrailReadFailed | AnchorReadFailed | ReceiptStoreFailed>
 
 interface CheckReport {
   readonly format: "bridger-gx-check/1"
@@ -294,7 +302,7 @@ declare function readArchive(dir: string, options?: { scope?: string; policy?: A
 declare const GxpLayer: {
   make(options: {
     scope: string                           // deployment scope bound into every binding
-    trail: { store: TrailStoreShape; sealing: SealingOptions | "off" }
+    trail: { store: TrailStoreShape; sealing: SealingOptions | "off"; gate: TrailGateOptions | "not-used" }
     anchors: { store: AnchorStoreShape; schedule: HighWaterSchedule } | "not-used"
     approvals: { policy: ApprovalPolicy; tickets: TicketStoreShape; signatures: SignatureCaptureShape } | "not-used"
     fingerprints: { keys: FingerprintKeyProviderShape; eligibility: FingerprintEligibility } | "not-used"
@@ -310,7 +318,7 @@ core's [ADR-BR-008](../core/decisions/008-error-taxonomy.md).
 
 | Error | Raised by | Meaning |
 | ----- | --------- | ------- |
-| `TrailWriteFailed` / `TrailReadFailed` | trail store adapter | `reason`: unavailable, conflict, too-large, rejected; the sink answers core with `AuditWriteFailed` |
+| `TrailWriteFailed` / `TrailReadFailed` | trail store adapter | `reason`: unavailable, too-large, rejected ("conflict" withdrawn: a collision is stored); the sink answers core with `AuditWriteFailed` |
 | `AnchorWriteFailed` / `AnchorReadFailed` | anchor store adapter | Anchor store unavailable or refusing |
 | `TicketWriteFailed` / `TicketReadFailed` / `TicketVersionConflict` | ticket store adapter | Store failure, or a compare-and-set lost to a concurrent event |
 | `SignatureDeclined` / `SignatureCaptureFailed` | signature port | The signer declined, or the port failed; no signature is recorded |
@@ -364,7 +372,16 @@ const eligibility: FingerprintEligibility = {   // allow-list; a path not listed
 
 const gxp = GxpLayer.make({
   scope: "site-a",
-  trail: { store: pgTrailStore(db), sealing: { anchorEvery: { records: 1000, interval: "5 minutes" } } },
+  trail: {
+    store: pgTrailStore(db),
+    sealing: {                                            // @bridger/audit-chain, from @bridger/gxp/sealing
+      chain: { anchorEvery: { records: 1000, interval: "5 minutes" } },
+      anchoring: { anchor: rfc3161Anchor(tsa), receipts: pgReceiptStore(db2) },
+      gate: { maxUnanchoredAge: "4 hours", allow: ["remove", "disable"] }
+    },
+    gate: { refuseOn: { unsupportedSchema: true, nonCanonical: true, collisions: true, readbackMismatches: true },
+            allow: ["remove", "disable"] }
+  },
   anchors: { store: objectLockAnchorStore(bucket), schedule: { every: "1 minute" } },
   approvals: { policy, tickets: pgTicketStore(db), signatures: ssoSignatureCapture(sso) },
   fingerprints: { keys: kmsKeyProvider(kms), eligibility }

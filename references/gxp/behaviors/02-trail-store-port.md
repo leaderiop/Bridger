@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-02                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-009–012, 014, 015 (F-02): `append` answers "stored-collision" and keeps a colliding entry beside the primary instead of failing with "conflict" (reason withdrawn); idempotence on `recordId` and digest; `TrailEntry` gains `marks`, `collision` and audit-chain's `link`, `seal` withdrawn (C-09); `HostExtent.collisions` (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -21,7 +21,9 @@ Core hands each audit record to an `AuditSink` and keeps no copy
 survives a retry, a crash or a second host writing to the same database. This
 file defines the `TrailStore` port: the only interface through which the
 companion writes and reads stored records. It is append-only, idempotent on
-`recordId`, unique per host sequence number, and it never overwrites. The
+`recordId` and digest, holds one primary entry per `recordId` and per host
+sequence number, keeps a colliding entry beside the primary rather than
+refusing or dropping it, and never overwrites. The
 consumer supplies the implementation — a table, a log, an object store — and
 proves it behaves as specified with the conformance suite of
 [04 — Conformance Suite](./04-conformance-suite.md) ([ADR-GX-004](../decisions/004-append-only-trail-store.md),
@@ -53,7 +55,7 @@ through it are [05 — Checks on Read](./05-checks-on-read.md).
 interface TrailStoreShape {
   readonly manifest: TrailStoreManifest                                   // BEH-GX-016
   readonly append: (entry: TrailEntry) =>
-    Effect.Effect<"stored" | "already-stored", TrailWriteFailed>
+    Effect.Effect<"stored" | "stored-collision" | "already-stored", TrailWriteFailed>
   readonly read: (q: { readonly hostId: string; readonly fromSeq?: number; readonly toSeq?: number }) =>
     Stream.Stream<TrailEntry, TrailReadFailed>
   readonly hosts: Effect.Effect<readonly HostExtent[], TrailReadFailed>
@@ -64,11 +66,12 @@ interface HostExtent {
   readonly hostId: string
   readonly firstSeq: number        // lowest auditSeq stored for the host
   readonly lastSeq: number         // highest auditSeq stored for the host
-  readonly count: number           // number of entries stored for the host
+  readonly count: number           // number of primary entries stored for the host
+  readonly collisions: number      // number of collision entries stored for the host (BEH-GX-012)
 }
 
 class TrailWriteFailed extends Schema.TaggedError<TrailWriteFailed>()("TrailWriteFailed", {
-  reason: Schema.Literal("unavailable", "conflict", "too-large", "rejected"),
+  reason: Schema.Literal("unavailable", "too-large", "rejected"),     // "conflict" withdrawn (CCR-GX-002)
   message: Schema.String
 }) {}
 class TrailReadFailed extends Schema.TaggedError<TrailReadFailed>()("TrailReadFailed", {
@@ -125,7 +128,15 @@ interface TrailEntry {
   readonly record: AuditRecord       // as the store holds it (columns, a document, or parsed from `canonical`)
   readonly canonical: string         // RFC 8785 JCS text of the record, exactly as written
   readonly digest: string            // "sha256:" + hex(SHA-256(UTF-8(canonical)))
-  readonly seal?: SealEnvelope       // only when sealing is on (07 — Optional Sealing, BEH-GX-049)
+  readonly marks?: {                 // set by the sink (03 — Trail Sink, BEH-GX-018)
+    readonly schema?: "unsupported"          // schemaVersion or a field the supported schema does not know
+    readonly canonical?: "jcs-escaped"       // the record is not I-JSON; `canonical` is the escaped encoding
+  }
+  readonly collision?: {             // set by the store (BEH-GX-012); absent on a primary entry
+    readonly reason: "record-id" | "host-seq"
+    readonly with: string            // `digest` of the primary entry it collided with
+  }
+  readonly link?: ChainLinkV1        // only when sealing is on: @bridger/audit-chain's link (21, BEH-GX-170)
 }
 ```
 
@@ -154,9 +165,10 @@ REQUIREMENT: A store that keeps the record in a structured form as well MUST
 ```
 
 ```
-REQUIREMENT: The seal envelope MUST be stored and returned beside the record,
-             never inside it. Nothing in `canonical` or `digest` MAY depend on
-             `seal`.
+REQUIREMENT: `marks`, `collision` and `link` MUST be stored and returned
+             beside the record, never inside it, exactly as written. Nothing
+             in `canonical` or `digest` MAY depend on them. `collision` MUST
+             be set by the store and by nothing else.
 ```
 
 `canonical` is the original. The structured `record` exists so that a store
@@ -168,12 +180,12 @@ RFC 8785 implementation and get the same answer ([ADR-GX-023](../decisions/023-a
 **Settled here.** The entry repeats `hostId`, `auditSeq` and `recordId` at
 its top level. A store needs them as keys, and naming them in the port means
 an adapter never has to parse a record to enforce uniqueness
-([BEH-GX-012](#beh-gx-012-at-most-one-entry-per-recordid-and-per-host-sequence-number-a-conflict-never-overwrites)); the companion sets them from the record, and the checks
+([BEH-GX-012](#beh-gx-012-one-primary-entry-per-recordid-and-per-host-sequence-number-a-collision-is-kept-beside-it-never-over-it)); the companion sets them from the record, and the checks
 report any entry where they disagree as `canonicalMismatch`.
 
-## BEH-GX-011: append answers "stored" only after commit and is idempotent on recordId
+## BEH-GX-011: append answers "stored" only after commit and is idempotent on recordId and digest
 
-> **Invariant:** [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number)
+> **Invariant:** [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced)
 > **See:** [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-BR-030](../../core/decisions/030-audit-sink-port.md), [ADR-BR-031](../../core/decisions/031-audit-failure-policy.md)
 > **Satisfies:** [URS-GX-001](../urs.md#urs-gx-001-store-audit-records-with-honest-acknowledgement)
 > **Risk:** [RSK-GX-001](../gxp/03-risk-assessment.md#rsk-gx-001), [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002)
@@ -181,10 +193,10 @@ report any entry where they disagree as `canonicalMismatch`.
 
 | Situation at `append(e)` | Answer |
 | --- | --- |
-| No entry with `e.recordId` and none at `(e.hostId, e.auditSeq)` | commit `e`, then `"stored"` |
-| An entry with `e.recordId` exists and its `digest` equals `e.digest` | `"already-stored"`, nothing written |
-| An entry with `e.recordId` exists with a different `digest` | `TrailWriteFailed { reason: "conflict" }`, nothing written |
-| No entry with `e.recordId`, but one at `(e.hostId, e.auditSeq)` | `TrailWriteFailed { reason: "conflict" }`, nothing written |
+| No entry with `e.recordId` and none at `(e.hostId, e.auditSeq)` | commit `e` as the primary entry, then `"stored"` |
+| An entry (primary or collision) with `e.recordId` and `e.digest` exists | `"already-stored"`, nothing written |
+| A primary entry with `e.recordId` exists with a different `digest` | commit `e` as a collision entry, `collision.reason` "record-id", then `"stored-collision"` |
+| No entry with `e.recordId`, but a primary entry at `(e.hostId, e.auditSeq)` | commit `e` as a collision entry, `collision.reason` "host-seq", then `"stored-collision"` |
 | `e.canonical` exceeds `manifest.maxEntryBytes` | `TrailWriteFailed { reason: "too-large" }`, nothing written |
 | The store cannot decide (connection lost, timeout, server refusal) | `TrailWriteFailed { reason: "unavailable" }` or a defect; the entry may or may not have been committed |
 
@@ -197,7 +209,7 @@ REQUIREMENT: `append` MUST answer "stored" only after the entry has been
 ```
 REQUIREMENT: `append` of an entry whose `recordId` is already stored with an
              equal `digest` MUST answer "already-stored" and MUST NOT write a
-             second copy, change the stored entry, or change its seal.
+             second copy, change the stored entry, or change its `link`.
 ```
 
 ```
@@ -215,33 +227,37 @@ REQUIREMENT: The answer of `append` for a given entry MUST depend only on what
 
 Core retries a write whose outcome it does not know, with the same record in
 every field ([BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md)), and requires the sink to absorb a repeat
-([BEH-BR-193](../../core/behaviors/23-audit-sink-and-record.md)). Idempotence on `recordId` is what makes that safe: a write
-that reached the store before its connection dropped is retried, answered
-"already-stored", and leaves one entry. Comparing digests on the repeat is
-what stops idempotence from becoming a back door — a different record that
-reuses an identifier is a conflict, never a silent success.
+([BEH-BR-193](../../core/behaviors/23-audit-sink-and-record.md)). Idempotence on `recordId` and digest is what makes that safe: a
+write that reached the store before its connection dropped is retried,
+answered "already-stored", and leaves one entry. Comparing digests on the
+repeat is what stops idempotence from becoming a back door — a different
+record that reuses an identifier is stored as a collision and counted, never
+answered as a silent success and never dropped.
 
-## BEH-GX-012: At most one entry per recordId and per host sequence number; a conflict never overwrites
+## BEH-GX-012: One primary entry per recordId and per host sequence number; a collision is kept beside it, never over it
 
-> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry)
+> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry)
 > **See:** [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-BR-037](../../core/decisions/037-audit-sequence-separate-from-event-seq.md)
 > **Satisfies:** [URS-GX-001](../urs.md#urs-gx-001-store-audit-records-with-honest-acknowledgement), [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records)
 > **Risk:** [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002)
 > **Regulatory:** supports 21 CFR 11.10(e) ("shall not obscure previously recorded information"); EU GMP Annex 11 §9
 
 ```
-REQUIREMENT: A store MUST hold at most one entry per `recordId`, across all
-             hosts, and at most one entry per `(hostId, auditSeq)`. Both
-             constraints MUST hold under concurrent appends from any number of
-             writers.
+REQUIREMENT: A store MUST hold at most one primary entry per `recordId`,
+             across all hosts, and at most one primary entry per `(hostId,
+             auditSeq)`, and at most one entry of any kind per `(recordId,
+             digest)`. These constraints MUST hold under concurrent appends
+             from any number of writers.
 ```
 
 ```
-REQUIREMENT: An `append` that would break either constraint MUST fail with
-             `TrailWriteFailed { reason: "conflict" }` and MUST leave the
-             stored entry exactly as it was. No store MAY resolve a conflict
-             by keeping the newer entry, merging the two or renumbering
-             either.
+REQUIREMENT: An `append` of a different entry under a stored `recordId` or
+             `(hostId, auditSeq)` MUST store it as a collision entry, with
+             `collision` naming the reason and the primary's `digest`, and
+             answer "stored-collision". It MUST leave the primary entry
+             exactly as it was. No store MAY resolve a collision by keeping
+             the newer entry as primary, merging the two, renumbering either,
+             or dropping the newer one.
 ```
 
 ```
@@ -252,12 +268,16 @@ REQUIREMENT: The uniqueness MUST be enforced by the store itself (a unique
 ```
 
 Two hosts never share a `hostId` ([BEH-BR-016](../../core/behaviors/02-host-construction.md)), and one host numbers its
-records without gaps or repeats ([BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md)). A conflict therefore means
+records without gaps or repeats ([BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md)). A collision therefore means
 something outside core is wrong: two processes started with the same
 `hostId`, a restored backup replaying old records into a live table, or a
-record altered in transit. Each of these must be visible. Failing the append
-sets the host's latch and stops operator changes ([BEH-BR-205](../../core/behaviors/23-audit-sink-and-record.md)), which is
-the loud outcome the situation needs; overwriting would hide it.
+record altered in transit. Each of these must be visible, and none of them
+is a reason to stop recording. Revision 0.1 failed the append, which set the
+latch and then refused every retry of the same record for the life of the
+host — the newer record was never stored. Keeping it beside the primary
+stores both, the checks report the pair as `collision`
+([BEH-GX-034](./05-checks-on-read.md#beh-gx-034-checktrailentries-is-a-pure-check-over-entries-reusing-verifyauditsequence)), and `trailGate` refuses operator changes until the
+count has been looked at ([BEH-GX-177](./22-trail-status-and-gate.md#beh-gx-177-trailgate-refuses-operator-changes-while-the-sink-reports-a-condition-of-its-own)); overwriting would hide it.
 
 ## BEH-GX-013: The port offers no update and no delete
 
@@ -269,7 +289,7 @@ the loud outcome the situation needs; overwriting would hide it.
 
 ```
 REQUIREMENT: No companion API MAY update, replace or delete a stored entry,
-             its canonical text, its digest or its seal.
+             its canonical text, its digest, its marks, its collision or its link.
 ```
 
 ```
@@ -284,7 +304,7 @@ REQUIREMENT: Retention, archival removal and disposal of entries MUST happen
 REQUIREMENT: Documentation of the port MUST state that "append-only" describes
              the port and not the store: an administrator with direct access
              to the store can still change or remove entries, and only the
-             checks of 05 and the optional sealing of 07 can detect such a
+             checks of 05 and the optional sealing of 21 can detect such a
              change.
 ```
 
@@ -305,12 +325,13 @@ with the limits those files state.
 REQUIREMENT: `read({ hostId, fromSeq, toSeq })` MUST emit every stored entry
              of that host whose `auditSeq` lies in the inclusive range
              `[fromSeq ?? 1, toSeq ?? +infinity]`, in ascending `auditSeq`,
-             each exactly once.
+             each exactly once; at one `auditSeq` the primary entry first,
+             then its collision entries in the order they were stored.
 ```
 
 ```
-REQUIREMENT: An entry for which `append` has answered "stored" or
-             "already-stored" MUST be emitted by every `read` that starts
+REQUIREMENT: An entry for which `append` has answered "stored",
+             "stored-collision" or "already-stored" MUST be emitted by every `read` that starts
              after that answer and whose range includes it.
 ```
 
@@ -355,9 +376,10 @@ REQUIREMENT: `hosts` MUST return one `HostExtent` for every `hostId` with at
 ```
 
 ```
-REQUIREMENT: `firstSeq`, `lastSeq` and `count` MUST be the lowest `auditSeq`,
-             the highest `auditSeq` and the number of entries stored for the
-             host at a single point in time. The extent MUST NOT be estimated
+REQUIREMENT: `firstSeq`, `lastSeq`, `count` and `collisions` MUST be the
+             lowest `auditSeq`, the highest `auditSeq`, the number of primary
+             entries and the number of collision entries stored for the host
+             at a single point in time. The extent MUST NOT be estimated
              or cached across appends.
 ```
 
