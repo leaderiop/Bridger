@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-RISK                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Risk Assessment                                              |
-> | Change History | 0.2 (2026-11-08): RSK-SQ-001 and RSK-SQ-003 controls follow the supersession stream and the inbox conflict (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.3 (2026-11-09): RSK-SQ-001 and RSK-SQ-003 cover a whole-store re-bootstrap on a running host (handles of the old origin refused, old series read from the replaced store and superseded); scores unchanged (CCR-SQ-003)<br>0.2 (2026-11-08): RSK-SQ-001 and RSK-SQ-003 controls follow the supersession stream and the inbox conflict (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -27,9 +27,9 @@ specified, not implemented
 
 | Aspect | Assessment |
 | ------ | ---------- |
-| Failure mode | Two hosts write one series, or a host restored from backup continues its old series and reissues numbers. |
+| Failure mode | Two hosts write one series, or a host restored from backup continues its old series and reissues numbers, or a handle opened before a whole-store re-bootstrap keeps appending to its old series under the new origin. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | One owning origin (BEH-SQ-002); expected version per `next()` (BEH-SQ-004); incarnation in the identity and a supersession recorded in the new incarnation's stream (BEH-SQ-001, BEH-SQ-009); the receiving inbox's `EnvelopeConflict` for a missed bump (BEH-DB-004, BEH-SQ-013); INV-SQ-001, INV-SQ-004. |
+| Controls | One owning origin, checked against the bus's current origin at every call (BEH-SQ-002); expected version per `next()` (BEH-SQ-004); `SupersessionPending` until the step has committed after an origin change (BEH-SQ-009); incarnation in the identity and a supersession recorded in the new incarnation's stream (BEH-SQ-001, BEH-SQ-009); the receiving inbox's `EnvelopeConflict` for a missed bump (BEH-DB-004, BEH-SQ-013); INV-SQ-001, INV-SQ-004. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
 | Residual risk and acceptability | A restore whose incarnation was not raised, detected only by an inbox that still holds the first event ids; past its retention the reissued envelopes are absorbed as repeats and the reissued numbers stay on the restored host's documents only. Operator obligation (BEH-DB-004). |
 | Owner | Consumer + Companion |
@@ -53,9 +53,9 @@ specified, not implemented
 | ------ | ---------- |
 | Failure mode | Numbers issued after the last backup, never delivered, vanish with the host. |
 | Initial scoring | S 2 · P 2 · D 3 → class **Medium** (4) · priority **High** (6) |
-| Controls | Stated limit and `lastKnownOnly` supersession, written for every open series at the new incarnation's start, never in the old series (BEH-SQ-009, BEH-SQ-010); `receivedBeyondClosure` and the registry (BEH-SQ-013, BEH-SQ-014). |
+| Controls | Stated limit and `lastKnownOnly` supersession, written for every open series at the new incarnation's start and at every origin change, never in the old series; at a whole-store re-bootstrap the series are read from the replaced store, so a snapshot without them hides none (BEH-SQ-009, BEH-SQ-010); `receivedBeyondClosure` and the registry (BEH-SQ-013, BEH-SQ-014). |
 | Residual scoring | S 2 · P 2 · D 2 → class Medium (4) · priority Medium (4) |
-| Residual risk and acceptability | Acceptable with frequent delivery and backups sized by the consumer; numbers are never reused, so the records remain unique. |
+| Residual risk and acceptability | Acceptable with frequent delivery and backups sized by the consumer; numbers are never reused, so the records remain unique. A process that stops between the re-bootstrap read and the supersession leaves those series without a closure record (stated, BEH-SQ-009). |
 | Owner | Consumer |
 
 <a id="rsk-sq-004"></a>

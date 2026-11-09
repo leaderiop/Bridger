@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-01                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): Round-2 agent review (R4 F12, F26; R5-04/05, R5-06, R5-08) — `IncarnationSource`, raised by a whole-store re-bootstrap; downstream signature of an unraised restore stated; codec rotation through `decodes`; write order schema → downcast → codec; `PayloadUnreadable` under the subscription's `onUnreadable` ("park" or "halt") or read undecoded through `subscribeEnvelopes`, never dropped; codec markers pass through upcasters; erasure sentence narrowed to holders without another copy of the key (CCR-DB-003)<br>0.5 (2026-11-08): BEH-DB-008 cites URS-BR-059 (registered by core CCR-BR-027) instead of a proposal (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 21 and 25, CORE-DECISIONS-2 — BEH-DB-008 `PayloadCodec` and the no-personal-data guidance for annotations, actors, the call log and audit `reason`; `onBehalfOf` as `PrincipalRef.encode`; correlation from `CurrentCorrelation` and set for handlers through `CallerContext.serve` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — annotations carried as core `AnnotationEntry[]` under flow "wire" (BEH-BR-296), the deadline never carried; envelope-level stops for unknown formats and conflicts; check 6 and the incarnation rule restated as an operator obligation (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.7 (2026-11-09): Specification audit of 2026-11-09 — BEH-DB-001 states that every change of the encoded payload, an added optional field included, raises the version (C-11); BEH-DB-003 takes the stream from `publish`'s `options.stream` when given (F-05); BEH-DB-004 adds `DurableBus.origin` and `originChanges` and confines an origin change to a whole-store re-bootstrap (U-10); BEH-DB-005 takes `causationId` from `options.causationId` outside a handler (C-20) (CCR-DB-004)<br>0.6 (2026-11-08): Round-2 agent review (R4 F12, F26; R5-04/05, R5-06, R5-08) — `IncarnationSource`, raised by a whole-store re-bootstrap; downstream signature of an unraised restore stated; codec rotation through `decodes`; write order schema → downcast → codec; `PayloadUnreadable` under the subscription's `onUnreadable` ("park" or "halt") or read undecoded through `subscribeEnvelopes`, never dropped; codec markers pass through upcasters; erasure sentence narrowed to holders without another copy of the key (CCR-DB-003)<br>0.5 (2026-11-08): BEH-DB-008 cites URS-BR-059 (registered by core CCR-BR-027) instead of a proposal (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 21 and 25, CORE-DECISIONS-2 — BEH-DB-008 `PayloadCodec` and the no-personal-data guidance for annotations, actors, the call log and audit `reason`; `onBehalfOf` as `PrincipalRef.encode`; correlation from `CurrentCorrelation` and set for handlers through `CallerContext.serve` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — annotations carried as core `AnnotationEntry[]` under flow "wire" (BEH-BR-296), the deadline never carried; envelope-level stops for unknown formats and conflicts; check 6 and the incarnation rule restated as an operator obligation (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -71,6 +71,15 @@ REQUIREMENT: The schema MUST be an Effect Schema codec without service
 ```
 
 ```
+REQUIREMENT: Documentation MUST state the evolution rule of a declared
+             event: every change of the encoded payload, an added field
+             included whether optional or not, MUST raise `version` and add
+             the upcaster from the previous version (BEH-DB-028). `version`
+             MAY stay only for a change that leaves the encoding of every
+             value as it was.
+```
+
+```
 REQUIREMENT: Event ids are a namespace of this package, separate from core
              `EventKey` ids. Ids SHOULD follow `domain/action`; a change that
              cannot be upcast MUST take a new id.
@@ -79,7 +88,15 @@ REQUIREMENT: Event ids are a namespace of this package, separate from core
 **Settled here.** Upcasters work on the *encoded* form, one step at a time,
 so a v1 envelope stored years ago is read by running v1→v2→…→current and
 then decoding once with the current schema. Working on encoded data means
-old schemas need not be kept as code, only their transformations.
+old schemas need not be kept as code, only their transformations. An added
+optional field raises the version, unlike an additive change of a service
+contract within one major (core BEH-BR-230): an event is a record that
+older hosts keep and pass on. A reader at the old version that decodes the
+event ignores the new field, so a host that records or re-publishes what it
+decoded would drop the field without a trace; under a raised version the
+same reader halts or parks the envelope (BEH-DB-026), and a writer that
+must still publish the old version refuses a value the old version cannot
+carry (BEH-DB-031).
 
 ## BEH-DB-002: The envelope
 
@@ -148,9 +165,13 @@ REQUIREMENT: `onBehalfOf` MUST be `PrincipalRef.encode` of the publishing
 > **See:** [ADR-DB-004](../decisions/004-order-per-origin-stream-sequence.md)
 
 ```
-REQUIREMENT: The stream of an event MUST be `event.stream(payload)`, a string
-             computed by a pure function of the payload. Ordering MUST be
-             guaranteed only within one (origin, stream).
+REQUIREMENT: The stream of an envelope MUST be `options.stream` when the
+             caller of `publish` gives one (02, BEH-DB-009), and otherwise
+             `event.stream(payload)`, a string computed by a pure function
+             of the payload. A stream MUST be a non-empty string; an empty
+             one MUST fail `publish` with a defect naming the event id, and
+             nothing is written. Ordering MUST be guaranteed only within one
+             (origin, stream).
 ```
 
 ```
@@ -160,6 +181,10 @@ REQUIREMENT: An application that needs two event types ordered relative to
 
 Streams let unrelated flows proceed independently — a slow subscriber of
 `stock` does not hold back `sales` — while keeping order where it matters.
+The declared `stream` suits a stream that the payload names. `options.stream`
+serves a publisher that keeps its own ordering scope, such as an event-store
+stream or a number series: it publishes on that scope without copying the
+scope's id into every payload (event-store BEH-ES-028).
 
 ## BEH-DB-004: An origin is an incarnation, never reused
 
@@ -192,6 +217,11 @@ interface IncarnationSource {
   readonly raise: Effect.Effect<number, IncarnationUnavailable>   // persists current + 1 and returns it
 }
 // DurableBus.plugin options: incarnation: number | Context.Key<any, IncarnationSource>
+
+// DurableBus gains:
+//   origin: Effect.Effect<string>                 // the origin `publish` stamps now: node + "#" + incarnation
+//   originChanges: Stream.Stream<OriginChange>    // one element per switch (06, BEH-DB-048)
+interface OriginChange { readonly previous: string; readonly current: string }
 ```
 
 ```
@@ -203,6 +233,19 @@ REQUIREMENT: When the bus is given an `IncarnationSource`, it MUST read the
              incarnation in the replaced store and use the new origin for
              every later envelope. Without an `IncarnationSource`, a
              whole-store re-bootstrap MUST be refused (BEH-DB-048).
+```
+
+```
+REQUIREMENT: `DurableBus.origin` MUST return the origin that `publish`
+             stamps on the next envelope. While the bus runs, the origin
+             MUST change only through a whole-store re-bootstrap, while the
+             outbox is frozen (BEH-DB-048). When it changes, the bus MUST
+             emit one `OriginChange` on `originChanges` and report
+             `origin-changed { previous, current }` once the new
+             incarnation is recorded. A component that stamps the origin
+             or derives identifiers from it (the event-store and sequence
+             companions) MUST read `origin` at each use and MUST NOT keep it
+             across calls.
 ```
 
 ```
@@ -248,7 +291,9 @@ REQUIREMENT: `correlationId` MUST be the publishing fiber's
              `CurrentCorrelation` (core BEH-BR-187) when one is set, and a
              new identifier from the `IdGenerator` otherwise. When `publish` runs inside a subscription handler,
              `causationId` MUST be the handled envelope's `eventId` and
-             `correlationId` MUST be the handled envelope's.
+             `correlationId` MUST be the handled envelope's. Outside a
+             handler, `causationId` MUST be `options.causationId` (02,
+             BEH-DB-009) when given, and absent otherwise.
 ```
 
 This gives every chain of events one correlation and an explicit parent, so

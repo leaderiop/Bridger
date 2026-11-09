@@ -38,7 +38,7 @@ const PlannedTask = Model.compose(Task, [TaskPlanning])
 
 `Field.make` is the proposed fundamental constructor. `Priority` describes valid domain values. Storage describes their persistence; UI metadata describes presentation. `createDefault` is typed against the decoded schema type and validated when compiling the definition. It applies on creation only, never to an omitted update field.
 
-The earlier `Field.text({ values: [...], default: ... })` remains convenience syntax compiled to the same representation. It must not implement separate validation semantics. Its `default` maps to `createDefault`, which is a create-pipeline value only: it does **not** create a SQL `DEFAULT`. A database default exists only when a migration declares one explicitly (`sqlDefault` field option), and `default: …` in a frozen migration snapshot records the create default for documentation, not a column default. Trimming and other normalization compile into an explicit Effect codec before refinement checks; a field cannot silently normalize differently in the client and server.
+The earlier `Field.text({ values: [...], default: ... })` remains convenience syntax compiled to the same representation. It must not implement separate validation semantics. Its `default` maps to `createDefault`, which is a create-pipeline value only: it does **not** create a SQL `DEFAULT`. A database default exists only when a migration declares one explicitly (`sqlDefault` field option), and `default: …` in a frozen migration snapshot records the create default for documentation: it is neither a column default nor a backfill value. A migration that fills existing rows names the value in its explicit `backfill` entry ([ERP-MODELS.md](ERP-MODELS.md) §5). Trimming and other normalization compile into an explicit Effect codec before refinement checks; a field cannot silently normalize differently in the client and server.
 
 The first version supports deterministic value defaults. Time, actor, company and generated identity are server-owned derivations with explicit request/transaction context. Arbitrary Effectful defaults require a declared execution contract and do not become client code.
 
@@ -133,3 +133,5 @@ Checked against Effect v4 documentation (version-specific rc.112 pages and the c
 Examples remain design sketches until pinned Effect dependencies and implementation tests exist.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — a migration snapshot's `default` is not a backfill value; backfill comes from the migration's explicit `backfill` entry (E-10).

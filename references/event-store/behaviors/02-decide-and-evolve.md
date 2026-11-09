@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): BEH-ES-013 retries under an adapter savepoint, maps conflicts to `StoreContention`, gives commit-time conflicts to the transaction owner and adds `Aggregate.recordFact`; BEH-ES-015 stores the fact identifier in `factId`, never in `eventId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-ES-013: for `EventStore.receive`, a commit-time conflict reaches durable-bus as `CommitConflict`, which it retries in a new transaction (CCR-ES-003)<br>0.2 (2026-11-08): BEH-ES-013 retries under an adapter savepoint, maps conflicts to `StoreContention`, gives commit-time conflicts to the transaction owner and adds `Aggregate.recordFact`; BEH-ES-015 stores the fact identifier in `factId`, never in `eventId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -186,8 +186,10 @@ REQUIREMENT: On an adapter that declares `savepoints: false`, or that
              it, and on `WrongExpectedVersion` or `StoreContention` from the
              transaction runs a new one from the read, up to `retries`
              (default 3), then fails with `StoreContention { detected }`;
-             `EventStore.receive` relies on durable-bus, which retries a
-             failed handler transaction in a new transaction and halts the
+             `EventStore.receive` relies on durable-bus, whose inbox
+             transaction the adapter fails with `CommitConflict` for such a
+             conflict (BEH-ES-034), and which retries a failed handler and a
+             conflicting commit alike in a new transaction and halts the
              subscription after its attempts (BEH-ES-030, BEH-DB-021).
 ```
 

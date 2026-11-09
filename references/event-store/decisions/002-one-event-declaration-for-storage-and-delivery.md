@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-ADR-002                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): Context link to durable-bus BEH-DB-028 follows its current heading (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.3 (2026-11-09): Decision amended: every payload change raises the version, an added optional field included (audit finding C-11) (CCR-ES-003)<br>0.2 (2026-11-08): Context link to durable-bus BEH-DB-028 follows its current heading (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -23,7 +23,7 @@ Stored events are replayed for the life of a store; published events are deliver
 ## Decision
 
 - Every stored event is declared with durable-bus `DurableEvent.make` and registered with the store. Its version, `minVersion` and upcasters serve storage and delivery alike.
-- An optional payload field may be added within a version because decoding ignores unknown fields (core [BEH-BR-231](../../core/behaviors/26-versioned-contracts.md)); every other change raises the version with a pure upcaster.
+- Every change of the encoded payload raises the version with a pure upcaster, an added optional field included ([BEH-ES-025](../behaviors/04-versions-publication-and-chaining.md#beh-es-025-event-versions-follow-durable-bus-every-payload-change-raises-the-version), durable-bus BEH-DB-001). Unlike a contract within one major (core [BEH-BR-231](../../core/behaviors/26-versioned-contracts.md)), an event is kept and passed on by hosts that may run an older release; one that decodes and records or re-publishes the event would drop a field it does not know, while a raised version halts or parks it there. (Revised by CCR-ES-003; revision 0.1 let an optional field keep the version.)
 - Stored events are never rewritten to a newer version; upcasters for stored versions are kept for the life of the store.
 
 ## Alternatives considered

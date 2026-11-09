@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-OVW                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.2 (2026-11-08): API table adds `recordFact`, `receiveVerbatim` and `receiveOptions`; the worked example gives the `FactDecider` its required `factId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.3 (2026-11-09): API table: `EventStore` members, `publish.stream` signature, `receiveVerbatimOptions`; publication's delivery stream and attribution (CCR-ES-003)<br>0.2 (2026-11-08): API table adds `recordFact`, `receiveVerbatim` and `receiveOptions`; the worked example gives the `FactDecider` its required `factId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -43,7 +43,8 @@ outbox written in the same transaction as the events.
 - **versions** — events declared once with durable-bus `DurableEvent`, read
   through its upcasters;
 - **publication** — selected events handed to durable-bus `publish` inside the
-  append's transaction, so an event is published exactly when it is stored;
+  append's transaction, on their event-store stream and with the stored
+  event's attribution, so an event is published exactly when it is stored;
 - **chaining** (optional) — the stored events handed to audit-chain's
   `ChainSink<R>`, in their stored form, so that field encryption and
   crypto-shredding leave the chain verifiable.
@@ -70,7 +71,7 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
-| `EventStore` | service (contract) | The store, provided by the event-store plugin |
+| `EventStore` | service (contract, local) | The store, provided by the event-store plugin; members `register`, `append`, `read`, `readAll`, `hasFact`, `savepoint`, `checkpoints`, `snapshots`, which grants name ([behaviour 05](./behaviors/05-storage-port-and-acceptance.md), BEH-ES-038) |
 | `EventStore.register` | function | Register the `DurableEvent`s a store may hold |
 | `Stream.append(id, events, { expectedVersion, context? })` | function | Append in the caller's `StoreTransaction` |
 | `Stream.read(id, options?)` | function | Read a stream, upcast then decoded |
@@ -100,8 +101,8 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
-| `EventStore.register(event, { publish? })` | option | Which events go to the outbox, on which stream |
-| `EventStore.receive`, `EventStore.receiveVerbatim`, `EventStore.receiveOptions` | functions, constant | Record an envelope received through the inbox as a fact, decoded or byte for byte, in one transaction; the halting subscription options both require |
+| `EventStore.register(event, { publish? })` | option | Which events go to the outbox; on the event-store stream, or on `publish.stream(stream, event)` |
+| `EventStore.receive`, `EventStore.receiveVerbatim`, `EventStore.receiveOptions`, `EventStore.receiveVerbatimOptions` | functions, constants | Record an envelope received through the inbox as a fact, decoded (durable-bus `subscribe`) or byte for byte (`subscribeEnvelopes`), in one transaction; the halting subscription options each requires |
 | `EventStore.chain` | function | Follow stored events into a `ChainSink<StoredEvent>` |
 
 ### Storage — [behaviour 05](./behaviors/05-storage-port-and-acceptance.md)

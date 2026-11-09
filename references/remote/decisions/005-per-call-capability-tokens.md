@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-ADR-005                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — tokens carry core-encoded wire annotations, not labels; the core policy decides through the host's own capture; admission by actor in a companion `CallbackAdmission` with `CallbackDenied` (R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 (F-07): identity claims cross only when the link discloses them, default none; the earlier always-send reading recorded as a rejected alternative (CCR-RM-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — tokens carry core-encoded wire annotations, not labels; the core policy decides through the host's own capture; admission by actor in a companion `CallbackAdmission` with `CallbackDenied` (R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -31,6 +31,12 @@ BEH-BR-273–278), and an annotation bag on `OperationContext` (core behaviour
   the caller's "wire" annotations encoded by core, correlation, plugin ID,
   realm, version, digest, contract version, epoch, call ID, grant digest,
   issued, expires ≤ the call's deadline). The token dies when the call ends.
+- The token stays on the host. The `call` frame carries a copy of the link
+  claims (plugin ID, realm, version, contract version) and, of the identity
+  claims (actor, `onBehalfOf`, organisation, correlation), **only those the
+  link lists in `disclose`; the default is none** (CCR-RM-004). A link that
+  discloses is recorded as a data transfer to its peer (`LinkStatus`, the
+  session log, and the call log once core can carry it).
 - Tokens are minted and checked through a `TokenAuthority` port; the default
   is an in-process table of opaque references. Bridger implements no
   signature scheme.
@@ -53,6 +59,14 @@ BEH-BR-273–278), and an annotation bag on `OperationContext` (core behaviour
   deployment decisions ([ADR-BR-027](../../core/decisions/027-core-exclusions.md)).
 - **Policy only, no static grants.** Rejected: a link definition could not be
   read on its own to see what it may reach.
+- **Send every identity claim with every call** (revisions up to 0.3).
+  Rejected by CCR-RM-004: a guest or peer that receives user identities
+  becomes a processor of them, which is the application's decision per
+  link, as the MCP companion already treats it (BEH-MC-022); and the partner
+  documentation said a guest receives no user identity. Host-side controls
+  read the token and lose nothing.
+- **Keep sending them and change the documentation.** Rejected: it makes
+  every partner a processor of every caller's identity by default.
 
 ## Consequences
 
@@ -63,10 +77,12 @@ limited by both the definition and the application's policy.
 the guest); such work enters through a host plugin that calls the guest.
 
 **Trade-off accepted**: no guest-initiated work, for no ambient authority
-through Bridger.
+through Bridger. A guest that must know whom it serves gets that only when
+the integrator discloses it, link by link.
 
 ## References
 
 - Behaviours: [06](../behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-014](../behaviors/02-sessions-and-epochs.md), [BEH-RM-036](../behaviors/05-guest-serve.md)
-- Invariants: [INV-RM-007](../invariants.md#inv-rm-007-a-guest-reaches-only-granted-contracts-under-a-live-token)
+- Invariants: [INV-RM-007](../invariants.md#inv-rm-007-a-guest-reaches-only-granted-contracts-under-a-live-token), [INV-RM-012](../invariants.md#inv-rm-012-a-call-carries-no-identity-claim-its-link-did-not-disclose)
+- Claims on the wire: [BEH-RM-024](../behaviors/03-remote-calls.md); risk [RSK-RM-016](../risks.md#rsk-rm-016)
 - Core decisions: [ADR-BR-027](../../core/decisions/027-core-exclusions.md), [ADR-BR-033](../../core/decisions/033-no-config-values-in-audit.md)

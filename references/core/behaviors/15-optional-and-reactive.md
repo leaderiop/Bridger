@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-15                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-11-09): BEH-BR-130 a key is declared for the optional members only when listed in `optional`; BEH-BR-132 `whenAvailable` with an undeclared key never runs and warns once (U-13); BEH-BR-134 a failing `wrap` fails the run under `onFailure` (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -99,13 +99,28 @@ REQUIREMENT: Interceptions in scope for the consumer MUST apply to the
              returned service as they do to required services.
 ```
 
+```
+REQUIREMENT: A key is *declared* for `optional`, `useOptional` and
+             `whenAvailable` exactly when the definition lists it in
+             `optional`. A key listed only in `requires`, or in neither,
+             is undeclared for them. `optional` and `useOptional` called
+             with an undeclared key MUST return `None` — `useOptional`
+             without running `run` — and MUST log a warning naming the
+             undeclared `ServiceId`; `whenAvailable` with an undeclared key
+             is specified in BEH-BR-132.
+```
+
 **Settled here.** SPEC.md does not say what happens when `optional` or
 `useOptional` is called with a key the definition did not list in `optional`.
 Such a call returns `None` (for `useOptional`, without running the callback)
 and logs a warning naming the undeclared `ServiceId`. Granting an undeclared
 dependency would make `inspect` and the definition lie about what the plugin
 uses; failing would turn a declaration slip into a runtime failure of a
-plugin that was designed to work without the service.
+plugin that was designed to work without the service. A key in `requires`
+is not declared for these members (CCR-BR-032): the build already receives
+its service in its context, captured and held for the whole activation, so
+reaching it again through the optional route would add a second, differently
+leased path to one provider.
 
 ## BEH-BR-131: useOptional leases when present
 
@@ -173,6 +188,15 @@ REQUIREMENT: A registration MUST end when the plugin's activation scope
              closes.
 ```
 
+```
+REQUIREMENT: When any of `keys` is undeclared (BEH-BR-130) — listed only in
+             `requires`, or not listed at all — the registration MUST be
+             made and listed by `inspect` with `running: false`, MUST never
+             run `run` and MUST take no lease, and the host MUST log, once
+             at registration, a warning naming each undeclared `ServiceId`.
+             It MUST NOT fail the call, the build or the plugin.
+```
+
 `whenAvailable` is the reactive form (Cordis's `ctx.inject`): a plugin can
 light up a feature when its dependencies arrive and dim it when they leave,
 without itself going through `stopping`.
@@ -180,6 +204,13 @@ without itself going through `stopping`.
 **Settled here.** A registration without `options.name` is named
 `whenAvailable#n`, where `n` counts registrations in that activation from 1,
 so that `inspect` never shows an anonymous entry.
+
+**Settled here (CCR-BR-032).** An undeclared key gets the answer `optional`
+and `useOptional` give it (BEH-BR-130): the reactive form behaves as if the
+key were never available, and says why once. A registration error would
+fail the build of a plugin designed to work without the service, and the
+signature has no error to carry one; running anyway would make the
+definition and `inspect` misstate what the plugin uses.
 
 ## BEH-BR-133: A whenAvailable run is a dependent in removal ordering
 
@@ -240,6 +271,14 @@ REQUIREMENT: A failure of `run` MUST be handled by `options.onFailure` with
 ```
 REQUIREMENT: An interruption of `run` caused by a provider leaving, or by the
              activation scope closing, MUST NOT be treated as a failure.
+```
+
+```
+REQUIREMENT: An interception `wrap` that throws or dies when a run's
+             services are captured MUST fail that run before `run` starts,
+             with the lease released and the child scope closed, and the
+             failure MUST be handled by `options.onFailure` like a failure
+             of `run` (17 — Realms and Interception, BEH-BR-152).
 ```
 
 **Settled here.** `whenAvailable` options carry no `restart` schedule. Under

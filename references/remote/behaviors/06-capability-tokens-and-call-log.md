@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-06                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-RM-046 crossing and revocation entries carry the session epoch again, now that core types `epoch` as an opaque string (core BEH-BR-280, CCR-BR-027) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 23 and 25, CORE-DECISIONS-2 — `TokenClaims.org`; `correlationId` from `CurrentCorrelation` and set for callbacks through `CallerContext.serve` (G58 closed); callbacks carry `HostLink.reference`; crossings, refusals and revocations offered with core entry kinds through `Host.offerCallEntry`, callbacks with `onFailure` "refuse" (G43 closed) (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — token labels replaced by core-encoded wire annotations; callbacks deduplicated per parent call (INV-RM-010); the core `CapabilityPolicy` consulted only by the host's own capture, actor admission in a companion `CallbackAdmission`, error renamed `CallbackDenied`; callbacks run inside `CallerContext.serve`; annotations reach records only through core flows (R3-06, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): BEH-RM-046 inbound entries fall back to "link:" + `pluginId` when no `onBehalfOf` was disclosed; outbound entries name disclosed claims once core carries `CrossingInfo.disclosed`; BEH-RM-046 crossing entries carry `disclosed` unconditionally (core CCR-BR-033); BEH-RM-043 step 5 refuses a callback to a local contract, `CallbackDenied` reason "local-contract" (BEH-RM-007) (CCR-RM-004)<br>0.5 (2026-11-08): BEH-RM-046 crossing and revocation entries carry the session epoch again, now that core types `epoch` as an opaque string (core BEH-BR-280, CCR-BR-027) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 23 and 25, CORE-DECISIONS-2 — `TokenClaims.org`; `correlationId` from `CurrentCorrelation` and set for callbacks through `CallerContext.serve` (G58 closed); callbacks carry `HostLink.reference`; crossings, refusals and revocations offered with core entry kinds through `Host.offerCallEntry`, callbacks with `onFailure` "refuse" (G43 closed) (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — token labels replaced by core-encoded wire annotations; callbacks deduplicated per parent call (INV-RM-010); the core `CapabilityPolicy` consulted only by the host's own capture, actor admission in a companion `CallbackAdmission`, error renamed `CallbackDenied`; callbacks run inside `CallerContext.serve`; annotations reach records only through core flows (R3-06, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -145,7 +145,7 @@ unpredictability is not a security property this specification claims.
 // illustrative — not type-checked
 class CallbackDenied extends Schema.TaggedError<CallbackDenied>()("CallbackDenied", {
   link: Schema.String, contract: Schema.String, method: Schema.String,
-  reason: Schema.String          // "not-granted" | "invocation-ended" | the admission's reason
+  reason: Schema.String          // "not-granted" | "local-contract" | "invocation-ended" | the admission's reason
 }) {}
 // Context.Service "@bridger/remote/CallbackAdmission", optional, read by Remote.layer
 interface CallbackAdmission {
@@ -165,7 +165,10 @@ REQUIREMENT: The host end MUST handle a `callback` frame in this order, and
              4. the callback's `callId` has not been seen for this parent
                 call (else the duplicate is handled as BEH-RM-048 states);
              5. the contract and method are covered by the link's grants
-                (else `CallbackDenied { reason: "not-granted" }`);
+                (else `CallbackDenied { reason: "not-granted" }`), and the
+                provision the granted key resolves to is not a local
+                contract (else `CallbackDenied { reason: "local-contract" }`,
+                01, BEH-RM-007);
              6. when `Remote.layer` has a `CallbackAdmission`, it admits the
                 callback for the token's claims — actor, annotations,
                 principal — (else its `CallbackDenied`);
@@ -280,9 +283,11 @@ REQUIREMENT: A token's `correlationId` MUST be the calling fiber's
 // illustrative — not type-checked
 // entries are offered through Host.offerCallEntry (core BEH-BR-280); the fields Remote fills:
 //
-//   host-to-guest call      kind "crossing", crossing { direction: "outbound", link, peer?, epoch }
+//   host-to-guest call      kind "crossing", crossing { direction: "outbound", link, peer?, epoch, disclosed? }
 //   callback (admitted)     kind "crossing", crossing { direction: "inbound",  link, peer?, epoch }
-//   served call (BEH-RM-039) kind "crossing", crossing { direction: "inbound",  link, peer?, epoch }
+//   served call (BEH-RM-039) kind "crossing", crossing { direction: "inbound",  link, peer?, epoch, disclosed? }
+//   disclosed = the names of the identity claims that crossed with the call (03, BEH-RM-024; core BEH-BR-280);
+//               omitted when none crossed; never their values; a callback entry names none
 //   refused callback, refused served call, placement or budget refusal
 //                           kind "refusal",  refusal  { stage: "boundary", reason: <refusal tag> }
 //   boundary revocation     kind "revocation", revocation { link, epoch?, reason } (BEH-RM-014)
@@ -292,7 +297,8 @@ REQUIREMENT: A token's `correlationId` MUST be the calling fiber's
 //          RemoteTimeout, SessionLost, cancellation (outcome "unknown" or "not-executed") → "interrupted",
 //          errorTag the remote tag; a boundary refusal → "refused"
 // callId = the remote callId; inbound entries: consumer = { kind: "remote", principal: claims.onBehalfOf
-// (the PrincipalRef.encode string, recorded unchanged), host?: the peer's host id when the transport names one }
+// when present (the PrincipalRef.encode string, recorded unchanged), otherwise "link:" + claims.pluginId,
+// host?: the peer's host id when the transport names one }
 // epoch = the epoch string of the session or served connection that carried the call (BEH-RM-010, BEH-RM-039),
 // unchanged; core types it as an opaque string (BEH-BR-280, CCR-BR-027). A revocation carries it when a session was open
 ```
@@ -312,6 +318,18 @@ REQUIREMENT: When the core `CallLog` port is wired, the remote package MUST
              carry it when a session was open at the revocation. An offer
              that fails with `InvalidCallEntry` is a defect of this package
              and MUST be logged at error level.
+```
+
+```
+REQUIREMENT: An inbound entry's `consumer.principal` MUST be the
+             `onBehalfOf` the call or callback carried, when present, and
+             otherwise "link:" followed by the calling link's `pluginId`:
+             an identity claim is present only when the far end's link
+             discloses it (03, BEH-RM-024), and the entry MUST NOT invent
+             one. Every "crossing" entry MUST carry `disclosed` as 03,
+             BEH-RM-024 states; core checks the names (core BEH-BR-280), and
+             an entry it refuses for them with `InvalidCallEntry` is a
+             defect of this package, logged as above.
 ```
 
 ```

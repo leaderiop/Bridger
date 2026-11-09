@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-06                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-08): Check 10 covers first boot, the separate revocation trust root, self-revocation and envelope mismatch (round-2 agent review R3-02) (CCR-LD-003)<br>0.3 (2026-11-08): The loader plugin reads `buildTimeout` from `Host.controls` (G61 closed) and provides `StatementVerifier`; open question 2 answered (core alignment) (CCR-LD-003)<br>0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-09): Checks 5, 15 and 16 follow `PackageManifestMismatch`, the stamped manifest, the entry key, `Loader.lazy`'s refusal of guest entries and the link manifest; checks 25–30 are in file 09; `statementRules` carries the "first-party" rule (specification audit F-06, M-02, M-03, C-16); check 16: `stampRemote` refuses a non-guest manifest with `GuestEntryInvalid` (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Check 10 covers first boot, the separate revocation trust root, self-revocation and envelope mismatch (round-2 agent review R3-02) (CCR-LD-003)<br>0.3 (2026-11-08): The loader plugin reads `buildTimeout` from `Host.controls` (G61 closed) and provides `StatementVerifier`; open question 2 answered (core alignment) (CCR-LD-003)<br>0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -92,7 +92,8 @@ declare const LoaderPlugin: (options: LoaderOptions & {
   readonly verifiers: readonly SignatureVerifierShape[]
   readonly acceptance: AcceptanceRule
   readonly externals: ExternalModules
-  readonly statementRules?: StatementRules     // rules for statement types other than "package" (07, BEH-LD-051)
+  readonly statementRules?: StatementRules     // rules for statement types other than "package" (07, BEH-LD-051),
+                                               // "first-party" among them: without it nothing is loaded in-process (09, BEH-LD-065)
 }) => PluginDefinition</* requires */ [typeof RevocationSource, typeof AcceptedDigests],   // base services (02, BEH-LD-015)
                        /* provides */ [typeof Loader, typeof StatementVerifier], never, never>
 // Loader.layer, used before a host exists, takes `buildTimeout` explicitly (BEH-LD-046).
@@ -272,10 +273,17 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                 new version leaves the old digest in `resident`
                 (BEH-LD-012).
              5. Stamping and mismatch: the stamped copy carries the
-                manifest version and package digest; a declared digest, a
-                different id or different key lists fail with
-                `ManifestMismatch`; a manifest carrying `digest` is refused
-                (BEH-LD-007, BEH-LD-014).
+                manifest version, the package digest and the signed
+                manifest, which replaces a manifest the code declared; a
+                declared digest, a different id, or `requires`, `provides`
+                or `optional` that core's agreement check would refuse fail
+                with `PackageManifestMismatch`, never with core's
+                `ManifestMismatch` tag; a manifest carrying `digest` is
+                refused; a manifest without a decodable
+                `extensions["@bridger/loader"].entry`, or naming a file the
+                package lacks, is refused with `PackageMalformed` ("entry");
+                the definition is read from the export named there
+                (BEH-LD-001, BEH-LD-007, BEH-LD-014).
              6. `LoaderGate`: it is a core `Gate<OperationRequest>` built
                 before the host, composed with `Gate.all` and adapted with
                 `OperationGate.fromGate`; install and replace with an
@@ -334,7 +342,7 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                  signatures or a revoked digest is not contributed; an
                  ambiguous id and version is withdrawn; `resolve` picks the
                  highest acceptable version (BEH-LD-033–036).
-             15. Lazy: `Loader.lazy` builds the definition with
+             15. Lazy: for a first-party entry, `Loader.lazy` builds the definition with
                  `Plugin.lazy({ manifest, load, digest })`; its `meta.digest`
                  is the package digest before load; a trigger loads it and
                  core's digest comparison succeeds (the plugin becomes
@@ -345,10 +353,14 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                  the loader refuses construction when its timeouts do not
                  fit inside `buildTimeout` (BEH-LD-037, BEH-LD-038,
                  BEH-LD-046).
-             16. `fetchVerified` evaluates nothing and does not mark the
-                 digest resident; `stampRemote` stamps a proxy definition
-                 with the guest's version and digest and refuses a
-                 mismatched id (BEH-LD-039).
+             16. `fetchVerified` evaluates nothing, does not mark the
+                 digest resident and needs no "first-party" statement;
+                 `stampRemote` stamps a proxy definition with the guest's
+                 version and digest and its link manifest, refuses a
+                 manifest that is not a guest's with `GuestEntryInvalid`
+                 naming the field, and refuses a mismatched id or version
+                 with `PackageManifestMismatch` (BEH-LD-039, BEH-LD-068,
+                 BEH-LD-069).
 ```
 
 Each check corresponds to one acceptance scenario, REQ-LD-001 to REQ-LD-016,

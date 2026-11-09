@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-CM-006: the taint floor reads `readOnly` (exemption of declared reads, BEH-CM-016), and a batch reads `readOnly` and `long` (round-2 agent review A-05, A-09) (CCR-CM-003)<br>0.4 (2026-11-08): Id grammar admits mixed case and `_`, tag grammar `.` and `:`; typed metadata `permission`, `compensatedBy`, `costClass`, `readOnly`, `long` and `untrusted` output paths, all digested (BEH-CM-006); `HandlerContext` gains `idempotencyKey`, `enrichments` and `progress` (CCR-CM-003, round 2: recheck items 1, 2, 3, 7, 8)<br>0.3 (2026-11-08): Handler run as a served call with `CallerContext.serve`; `title`, `jsonSchema`, `externalAnnotations` on spec, descriptor and digest; `Annotations` type (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (ERP alignment) — `retryable`: tags of typed errors a retry may overturn, carried on the descriptor and digested, read only to keep them out of receipts (06, BEH-CM-041) (CCR-CM-004)<br>0.5 (2026-11-08): BEH-CM-006: the taint floor reads `readOnly` (exemption of declared reads, BEH-CM-016), and a batch reads `readOnly` and `long` (round-2 agent review A-05, A-09) (CCR-CM-003)<br>0.4 (2026-11-08): Id grammar admits mixed case and `_`, tag grammar `.` and `:`; typed metadata `permission`, `compensatedBy`, `costClass`, `readOnly`, `long` and `untrusted` output paths, all digested (BEH-CM-006); `HandlerContext` gains `idempotencyKey`, `enrichments` and `progress` (CCR-CM-003, round 2: recheck items 1, 2, 3, 7, 8)<br>0.3 (2026-11-08): Handler run as a served call with `CallerContext.serve`; `title`, `jsonSchema`, `externalAnnotations` on spec, descriptor and digest; `Annotations` type (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -57,6 +57,9 @@ interface CommandSpec<I, IE, O, OE, E, EE> {
   readonly costClass?: string                   // e.g. "free", "metered"; the application's vocabulary
   readonly readOnly?: boolean                   // default false; the author's declaration, not enforced
   readonly long?: boolean                       // default false; true: run as a task (07, BEH-CM-052)
+  // `_tag`s of typed errors a later attempt may not meet (a lock timeout, a conflict): never stored
+  // in a receipt (06, BEH-CM-041); carried on the descriptor and digested (BEH-CM-006).
+  readonly retryable?: ReadonlyArray<string>
 }
 
 interface Command<I, O, E, Long extends boolean = false> {   // Long: spec.long (07, BEH-CM-052)
@@ -280,6 +283,7 @@ interface CommandDescriptor {
   readonly costClass?: string                         // BEH-CM-006
   readonly readOnly: boolean                          // BEH-CM-006
   readonly long: boolean                              // BEH-CM-006
+  readonly retryable: ReadonlyArray<string>           // BEH-CM-006; sorted
   readonly untrustedOutput: ReadonlyArray<string>     // output paths marked untrusted (04, BEH-CM-030); sorted
   readonly digest: string                             // BEH-CM-005
 }
@@ -342,9 +346,10 @@ REQUIREMENT: `CommandDescriptor.digest` MUST be "sha256:" followed by the
              JSON of { id, title, description, tags, regulated, inputSchema,
              outputSchema, errorSchema, contract, externalAnnotations,
              permission, compensatedBy, costClass, readOnly, long,
-             untrustedOutput }, absent members omitted (`readOnly` and
-             `long` present only when true, `untrustedOutput` only when
-             non-empty). `owner` MUST NOT enter the digest.
+             retryable, untrustedOutput }, absent members omitted
+             (`readOnly` and `long` present only when true, `retryable`
+             and `untrustedOutput` only when non-empty). `owner` MUST NOT
+             enter the digest.
 ```
 
 ```
@@ -398,6 +403,17 @@ REQUIREMENT: `permission` and `costClass`, when present, MUST match the tag
              match the id grammar and MUST differ from the command's own
              id. Any other value MUST be rejected by `Command.make` as a
              defect. `readOnly` and `long` MUST default to false.
+```
+
+```
+REQUIREMENT: `retryable`, when present, MUST hold unique strings of 1 to
+             128 characters from U+0021 to U+007E, and MUST be empty when
+             the spec has no `error` schema; `Command.make` MUST reject any
+             other value as a defect. The package MUST carry it, sorted in
+             code-unit order, on the descriptor (BEH-CM-004) and in the
+             digest (BEH-CM-005), and MUST read it only to keep a listed
+             typed error out of a receipt (06, BEH-CM-041). A listed tag
+             that the `error` schema never produces matches nothing.
 ```
 
 ```

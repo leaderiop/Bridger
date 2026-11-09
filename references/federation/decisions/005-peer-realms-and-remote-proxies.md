@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-ADR-005                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — one peer realm per import (realms are immutable); imports one major each; links on the remote multiplexer, exports on `Remote.serve`; asserted actors as provenance (R3-01, R3-02, R3-18, R3-23) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.3 (2026-11-09): Decision bullet: imports disclose only what the signed manifest lists (CCR-FD-004)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — one peer realm per import (realms are immutable); imports one major each; links on the remote multiplexer, exports on `Remote.serve`; asserted actors as provenance (R3-01, R3-02, R3-18, R3-23) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -25,6 +25,7 @@ A host imports services from several peers; two peers may export the same contra
 - Each import of key K at major M from peer P gets its own realm `peer:P:K@M`, defined with `defineRealm` isolating exactly that key and retired with `retireRealm` once the import is removed; a realm never changes, as core requires (core BEH-BR-145) ([BEH-FD-022](../behaviors/03-links-and-skew-handshake.md#beh-fd-022-each-import-has-its-own-peer-realm)).
 - Each import is a remote proxy plugin of the remote companion, built with `Remote.define` for one contract major, with a mandatory timeout and no grants, installed by the federation reconcile; one proxy per (peer, key, major) ([BEH-FD-026](../behaviors/04-exports-and-imports.md#beh-fd-026-an-import-is-a-remote-proxy-plugin-installed-by-reconcile)).
 - A link is one physical connection split by the remote companion's multiplexer into a control endpoint, owned by this package, and one remote session per import; exports are served with the remote companion's `Remote.serve`, one core lease per call.
+- An import sends the peer only the identity claims its signed manifest entry lists in `disclose` — none by default — through the remote companion's `RemoteOptions.disclose` (remote BEH-RM-024, CCR-RM-004); the list is part of the import's definition digest, so changing it replaces the proxy ([BEH-FD-026](../behaviors/04-exports-and-imports.md#beh-fd-026-an-import-is-a-remote-proxy-plugin-installed-by-reconcile)).
 - A peer's assertions (its host id, its actor, its digests) are claims; authentication is the transport's. A served call runs as the peer's service actor, with the asserted actor recorded as provenance.
 
 ## Alternatives considered

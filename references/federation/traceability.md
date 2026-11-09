@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-TRACE                                             |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review — BEH-FD-048; REQ-FD-040–043; REQ-FD-016, 032–036, 038 restated; INV-FD-003, 010, 011 rows extended (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18–20 and 22 — BEH-FD-041–047, INV-FD-010–012, ADR-FD-009, REQ-FD-032–039 (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — REQ-FD-025–031; invariant scenarios updated (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-09): REQ-FD-044; REQ-FD-045 (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review — BEH-FD-048; REQ-FD-040–043; REQ-FD-016, 032–036, 038 restated; INV-FD-003, 010, 011 rows extended (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18–20 and 22 — BEH-FD-041–047, INV-FD-010–012, ADR-FD-009, REQ-FD-032–039 (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — REQ-FD-025–031; invariant scenarios updated (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -111,3 +111,5 @@ One scenario per required acceptance check of [BEH-FD-034](behaviors/05-testing-
 | REQ-FD-041 | 41. The blast-radius guard holds and releases a revision; list matches outside the scope reported `kill-unowned` | [BEH-FD-042](behaviors/06-kill-path-placement-and-skew.md) | Not run |
 | REQ-FD-042 | 42. A crash during or after install resumes from the persisted marker with links suspended | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md), [BEH-FD-048](behaviors/06-kill-path-placement-and-skew.md) | Not run |
 | REQ-FD-043 | 43. Blocked re-bootstraps back off on their own schedule and suspend no link | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
+| REQ-FD-044 | 44. Imports send only the identity claims the signed manifest discloses; a changed disclosure replaces the proxy; served calls without claims are attributed to the peer | [BEH-FD-023](behaviors/03-links-and-skew-handshake.md), [BEH-FD-026](behaviors/04-exports-and-imports.md) | Not run |
+| REQ-FD-045 | 45. A local contract in `contracts` fails the plugin's build before the store is read; nothing is applied, imported or served | [BEH-FD-009](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |

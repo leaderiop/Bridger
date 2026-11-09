@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-INV                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): INV-AG-001 scoped to commands not declared `readOnly` and retitled (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): INV-AG-007 added (untrusted output only inside an envelope) (CCR-AG-003, round 2: recheck item 8)<br>0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.6 (2026-11-09): INV-AG-008: a task never ends with its pending draft unreported; INV-AG-004 Related (audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): INV-AG-001 scoped to commands not declared `readOnly` and retitled (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): INV-AG-007 added (untrusted output only inside an envelope) (CCR-AG-003, round 2: recheck item 8)<br>0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -105,7 +105,7 @@ sees a finished task resume, and can detect missed transitions.
 **Verification** *(Planned)*: property test over generated event sequences
 against the transition table (acceptance checks 4 and 5).
 
-**Related**: BEH-AG-009, BEH-AG-010, BEH-AG-011, BEH-AG-013, BEH-AG-014, BEH-AG-030; ADR-AG-002.
+**Related**: BEH-AG-009, BEH-AG-010, BEH-AG-011, BEH-AG-013, BEH-AG-014, BEH-AG-016, BEH-AG-030; INV-AG-008; ADR-AG-002.
 
 ## INV-AG-005: Taint is monotone per session
 
@@ -159,3 +159,24 @@ instructions in the text.
 paths, an imported command and an oversized output (acceptance check 14).
 
 **Related**: BEH-AG-019, BEH-AG-023; command BEH-CM-030; ADR-AG-003.
+
+## INV-AG-008: A task never ends with its pending draft unreported
+
+A task that is cancelled or fails while `awaiting-approval` asks the
+application's draft flow to withdraw that draft before its terminal snapshot
+is published, and the terminal snapshot says what the flow answered:
+"withdrawn", "already-applied" or "not-withdrawn".
+
+**Source**: `packages/agent/src/AgentLoop.ts` *(Planned)* — the loop's end of
+task path, which calls the required `DraftWithdrawal` option.
+
+**Implication**: an approver is never left holding a draft whose task has
+ended without the application having been told, and an observer of the task
+sees whether the change can still happen. The package does not itself stop
+the draft from being applied; a "not-withdrawn" outcome means a person must
+act on it.
+
+**Verification** *(Planned)*: tests that cancel and fail a task in each state,
+with a withdrawal that answers, fails and times out (acceptance check 17).
+
+**Related**: BEH-AG-010, BEH-AG-012, BEH-AG-016; INV-AG-004; ADR-AG-002.

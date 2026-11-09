@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -90,7 +90,7 @@ interface KeyStore {
   readonly get: (subject: string) => Effect.Effect<SubjectKeys | Tombstone | undefined, KeyStoreUnavailable>
   readonly create: (subject: string, wrapped: WrappedKey) => Effect.Effect<void, KeyStoreUnavailable | KeyShredded>
   readonly addVersion: (subject: string, wrapped: WrappedKey) => Effect.Effect<void, KeyStoreUnavailable | KeyShredded>
-  readonly tombstone: (subject: string, t: Tombstone) => Effect.Effect<void, KeyStoreUnavailable>    // 03
+  readonly tombstone: (subject: string, t: Tombstone) => Effect.Effect<void, KeyStoreUnavailable>    // 03, BEH-KR-018: with its attribution
   readonly destroy: (subject: string) => Effect.Effect<void, KeyStoreUnavailable>                     // 03
   readonly markStep: (subject: string, shredId: string, step: ShredStep) => Effect.Effect<void, KeyStoreUnavailable>  // 03, BEH-KR-017
   readonly incompleteShreds: Effect.Effect<readonly Tombstone[], KeyStoreUnavailable>                 // tombstones with a pending step
@@ -110,6 +110,14 @@ REQUIREMENT: A `KeyStore` MUST store only wrapped keys, MUST make `create`
              (vacuum, compaction) and in what time. `tombstone`, when given a
              `KeyStore.transaction` in its environment, MUST write in that
              transaction; `markStep` MUST be committed to the store before it returns.
+```
+
+```
+REQUIREMENT: `tombstone` MUST store every field of the `Tombstone` it is
+             given, its `attribution` included (03, BEH-KR-018), and
+             `get` and `incompleteShreds` MUST return them unchanged. A
+             `KeyStore` MUST NOT change or remove any field of a stored
+             tombstone; `markStep` MUST change only its `steps`.
 ```
 
 ## BEH-KR-005: KeyWrapper — the key-encryption key stays outside the store
@@ -162,12 +170,25 @@ REQUIREMENT: Documentation MUST state the backup obligations: backups of the
 > **Invariant:** [INV-KR-001](../invariants.md#inv-kr-001-plaintext-of-a-selected-field-never-leaves-the-codec-unencrypted)
 
 ```
-REQUIREMENT: The `Keyring` service MUST be a core contract provided by a
-             plugin, so that `decrypt` and `shred` can be granted per
+REQUIREMENT: The `Keyring` service MUST be declared with core
+             `Contract.local` (core BEH-BR-225) listing its members `key`,
+             `encrypt`, `decrypt`, `shred`, `onShred` and `shredStatus`, and
+             provided by a plugin, so that `decrypt` and `shred` can be granted per
              plugin (BEH-BR-273) and a grant withdrawn through
              `CapabilityPolicy.changes` narrows live captures (BEH-BR-281).
              Arguments that reach the call log MUST be limited to subject,
              key id and member; plaintext and ciphertext MUST NOT.
+```
+
+```
+REQUIREMENT: The contract is local, and every major of `Keyring` MUST stay
+             local (core BEH-BR-225): `onShred` takes a callback and a
+             scope, and `decrypt` returns plaintext that the package keeps
+             off any wire it does not control. It MUST NOT be served to
+             another host, provided from a peer or turned into a wire
+             artifact; a boundary companion refuses it on `local` (core
+             BEH-BR-232). Keys stay in the local `KeyStore` (README, stated
+             limit 2); documentation MUST say so.
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-01                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-08): Open question 2 answered by the data-pack kind of file 08 (round 2: recheck item 12) (CCR-LD-003)<br>0.3 (2026-11-08): A package manifest carries no `digest`; the lazy definition carries the package digest beside it (core BEH-BR-244) (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-09): The entry file and export named in the reserved key `extensions["@bridger/loader"]` of core's manifest (M-03); the stamped definition carries the signed manifest (M-02); `ManifestMismatch` renamed `PackageManifestMismatch`, which also covers `optional` (C-16) (CCR-LD-004)<br>0.4 (2026-11-08): Open question 2 answered by the data-pack kind of file 08 (round 2: recheck item 12) (CCR-LD-003)<br>0.3 (2026-11-08): A package manifest carries no `digest`; the lazy definition carries the package digest beside it (core BEH-BR-244) (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -55,11 +55,28 @@ interface Package {
 }
 ```
 
+```ts
+// illustrative — not type-checked
+// The loader's reserved key in the manifest's `extensions` record, which core keeps
+// "namespaced by the companion that owns them" (core BEH-BR-241).
+const LoaderManifestExtension = Schema.Struct({
+  entry: Schema.Struct({
+    file: Schema.String,       // a path of the package's files, normalised as below
+    export: Schema.String      // the export holding the definition; "default" for a default export
+  })
+})
+// manifest.extensions["@bridger/loader"] : typeof LoaderManifestExtension.Encoded
+```
+
 ```
 REQUIREMENT: A package MUST consist of exactly three parts: the manifest
              bytes, one SBOM (format label and bytes), and a non-empty map of
-             files. The manifest MUST name the entry file, and the entry file
-             MUST be one of the package's files.
+             files. The manifest MUST name the entry file and its export in
+             `extensions["@bridger/loader"]`, decoded with
+             `LoaderManifestExtension`, and the entry file MUST be one of the
+             package's files. A manifest whose key is absent or does not
+             decode, or whose `entry.file` is not a file of the package, MUST
+             be refused at step 2 with `PackageMalformed` ("entry").
 ```
 
 ```
@@ -74,8 +91,18 @@ REQUIREMENT: File paths MUST be relative, "/"-separated and normalised: no
 REQUIREMENT: The manifest MUST be decoded with the manifest schema of 27 —
              Manifest and lazy activation (BEH-BR-241). The loader MUST NOT
              extend that schema; fields it needs that the schema does not
-             carry are a change request to core, not a private field.
+             carry are a change request to core, not a private field. The
+             key `extensions["@bridger/loader"]` is not an extension of the
+             schema: it is the companion-owned key core reserves for this
+             purpose. The loader MUST read no other key of `extensions`, and
+             core reads none (core BEH-BR-241).
 ```
+
+The entry is named inside the manifest, so it is signed with it and
+committed to by the package digest: a package cannot be re-pointed at another
+file or export after signing. Carrying it under the loader's key of the
+`extensions` record, which core keeps unchanged and never interprets, needs
+no core change; a reader that is not a loader ignores it.
 
 The three parts are what a reviewer approves when approving a release: what
 the package says about itself (manifest), what it is built from (SBOM), and
@@ -171,6 +198,7 @@ never silently re-interpreted.
 interface PackageRef {
   readonly source: PackageSource              // opaque to the loader; interpreted by a Fetcher adapter (02)
   readonly expect?: string                    // the package digest the caller requires
+  readonly firstParty?: readonly Signature[]  // signatures over the "first-party" statement (09, BEH-LD-065)
 }
 class DigestMismatch extends Schema.TaggedError<DigestMismatch>()("DigestMismatch", {
   expected: Schema.String,
@@ -274,8 +302,10 @@ ordering, not the policy.
 
 ```ts
 // illustrative — not type-checked
-class ManifestMismatch extends Schema.TaggedError<ManifestMismatch>()("ManifestMismatch", {
-  field: Schema.Literal("id", "version", "digest", "provides", "requires"),
+// Distinct from core's ManifestMismatch { id, field } (core BEH-BR-246), so that
+// `catchTag` tells a package check from core's lazy-load comparison.
+class PackageManifestMismatch extends Schema.TaggedError<PackageManifestMismatch>()("PackageManifestMismatch", {
+  field: Schema.Literal("id", "version", "digest", "provides", "requires", "optional"),
   manifest: Schema.String,
   definition: Schema.String
 }) {}
@@ -283,9 +313,12 @@ class ManifestMismatch extends Schema.TaggedError<ManifestMismatch>()("ManifestM
 
 ```
 REQUIREMENT: The loader MUST return a copy of the evaluated definition whose
-             `meta.version` is the manifest's version and whose
-             `meta.digest` is the package digest, with every other field
-             unchanged. It MUST NOT mutate the evaluated object.
+             `meta.version` is the manifest's version, whose `meta.digest` is
+             the package digest, and whose `manifest` is the package's
+             manifest as decoded at step 2 — the signed one — with every
+             other field unchanged. A `manifest` the evaluated definition
+             declares itself MUST be replaced, never merged. The loader MUST
+             NOT mutate the evaluated object.
 ```
 
 ```
@@ -300,7 +333,7 @@ REQUIREMENT: A package manifest MUST NOT carry `digest`: it is an input of
 ```
 REQUIREMENT: When the evaluated definition declares `meta.version`, it MUST
              equal the manifest's version. When it declares `meta.digest`,
-             the load MUST fail with `ManifestMismatch` ("digest"): a
+             the load MUST fail with `PackageManifestMismatch` ("digest"): a
              definition cannot know the digest of the package that contains
              it, so a declared value is a label set by someone other than the
              loader.
@@ -308,15 +341,24 @@ REQUIREMENT: When the evaluated definition declares `meta.version`, it MUST
 
 ```
 REQUIREMENT: The definition's `id` MUST equal the manifest's id, and its
-             declared `requires` and `provides` ServiceIds MUST equal the
-             manifest's, as 27 — Manifest and lazy activation
-             defines them. Any difference MUST fail the load with
-             `ManifestMismatch`.
+             declared `requires`, `provides` and `optional` MUST agree with
+             the manifest's as core compares an eager definition with its
+             manifest (core BEH-BR-242): the same `ServiceId`s and, for each
+             contract reference, the same version or range and method
+             names. Any difference MUST fail the load with
+             `PackageManifestMismatch` naming the first differing field.
 ```
 
 Stamping is the loader's whole contribution to core: from here on,
 `meta.digest` is not a label someone typed but the digest of the bytes that
-were verified and evaluated. Because the stamped definition carries both
+were verified and evaluated, and `manifest` is not what the code says about
+itself but what the signers signed. Core reads "the registered manifest" for
+`AccessPolicy.declaredOnly`, `Manifest.consentDiff` and the gate request
+(core BEH-BR-219, BEH-BR-243, BEH-BR-268); for an eager definition that
+manifest is whatever the definition carries, so a stamp that left it to the
+code would let the code declare its own permissions. Comparing exactly what
+core's agreement check compares means a stamped definition is never refused
+by core with `InvalidDefinition` for a mismatch the loader let through. Because the stamped definition carries both
 `version` and `digest`, `reconcile` treats two loads of the same package as
 the same definition (18 — Reconciliation, [BEH-BR-154](../../core/behaviors/18-reconciliation-and-confluence.md#beh-br-154-the-keyed-diff-and-the-action-sequence-of-one-entry)),
 so a desired list rebuilt from the loader on every sync is idempotent. Core
@@ -354,7 +396,11 @@ the digest even when declared optional (as an empty part), so the digest
 construction has one shape. (2) Sub-digests are hashed as text with the
 algorithm prefix, so that a digest of one algorithm can never collide with a
 digest of another inside the construction. (3) A definition that declares its
-own `meta.digest` is refused, not overwritten.
+own `meta.digest` is refused, not overwritten; a `manifest` it declares is
+replaced by the signed one. (4) The entry file and export are named in the
+reserved key `extensions["@bridger/loader"]`, so no core change is needed.
+(5) The loader's mismatch error is `PackageManifestMismatch`, distinct from
+core's `ManifestMismatch`.
 
 **Open.** (1) Whether a signed manifest field may carry the archive digest of
 an existing registry format (npm tarball integrity, OCI layer digest) so that

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-APP-01                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Appendix                                                     |
-> | Change History | 0.2 (2026-11-09): §§1–5 re-baselined against core through CCR-BR-031 (record fields, binding version 2 request fields, gate pieces, non-claim 5 naming audit-chain); rows for BEH-BR-248, 259, 260, 263, 292, 293, 313, 315, 321, 325 and ADR-BR-047; §6 pins every linked core document and the adopted audit-chain documents; §7 row requires CCR-BR-031; §8 coupling assessment of CCR-BR-015–031 (F-01, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-09): §1 BEH-BR-016 and BEH-BR-210 rows: identifier uniqueness across hosts sharing the trail store, packaged as IQ-22 and IQ-U10; §4 RSK-BR-007 row; §6 fifteen core documents re-pinned after CCR-BR-033; §7 row starts at the first core release that includes CCR-BR-033; §8 row for CCR-BR-033 and its heading extended; files 12 (0.9) and ADR-BR-008 (0.8) re-pinned, and the §8 row extended, after the review fixes folded into CCR-BR-033 (CCR-GX-004)<br>0.3 (2026-11-09): §6 thirteen core documents re-pinned after CCR-BR-032; §7 row starts at the first core release that includes CCR-BR-032; §8 row for CCR-BR-032 (answer: none) and its heading extended (CCR-GX-003)<br>0.2 (2026-11-09): §§1–5 re-baselined against core through CCR-BR-031 (record fields, binding version 2 request fields, gate pieces, non-claim 5 naming audit-chain); rows for BEH-BR-248, 259, 260, 263, 292, 293, 313, 315, 321, 325 and ADR-BR-047; §6 pins every linked core document and the adopted audit-chain documents; §7 row requires CCR-BR-031; §8 coupling assessment of CCR-BR-015–031 (F-01, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -38,7 +38,7 @@ documents that rely on the identifier; it is a guide, not a complete index.
 | --------------- | ------------- | ---------------------------- | ------- |
 | [BEH-BR-013](../../core/behaviors/02-host-construction.md) | The Host interface | `Host.controls` (CCR-BR-014): wiring of the audit, gate and fingerprinter ports, `attribution`, `auditTimeout`, `gateTimeout`, `fingerprintTimeout`, `idGenerator`, and `auditPosition.lastWritten`, readable after close | 06, 15 |
 | [BEH-BR-015](../../core/behaviors/02-host-construction.md) | Optional GxP ports are resolved once, at construction | The ports the companion provides are read once when the host is built, so `GxpLayer.make` is provided to `Bridger.layer` and never per operation | 01, 15 |
-| [BEH-BR-016](../../core/behaviors/02-host-construction.md) | Each host has a distinct hostId | `hostId` keys trail entries, collision entries, audit-chain links, anchors and high-water marks; two hosts never share a sequence | 02, 06, 21 |
+| [BEH-BR-016](../../core/behaviors/02-host-construction.md) | Each host has a distinct hostId | `hostId` keys trail entries, collision entries, audit-chain links, anchors and high-water marks; two hosts never share a sequence; its uniqueness across hosts sharing the trail store follows from BEH-BR-210 | 02, 06, 15, 21 |
 | [BEH-BR-103](../../core/behaviors/11-configuration.md) | Configuration values are never observable | Values reach the companion only through the `ConfigFingerprinter` port, never through records, requests, events or errors | 13, 14 |
 | [BEH-BR-106](../../core/behaviors/12-shutdown-and-hosting.md) | CloseReport reports every failure | `CloseReport.auditLastSeq` (CCR-BR-014) is the highest number the sink had accepted when the report was produced, before the shutdown's own terminal record (finding G34); it is only a lower bound for the close mark, which is read from `Host.controls` after the flush | 06 |
 | [BEH-BR-177](../../core/behaviors/21-testing-host.md) | TestHost is a Host with deterministic scheduling | Conformance and acceptance runs drive the production host path through `TestHost`, never a mock of core | 04, 19, 20 |
@@ -71,7 +71,7 @@ documents that rely on the identifier; it is a guide, not a complete index.
 | [BEH-BR-206](../../core/behaviors/23-audit-sink-and-record.md) | acknowledgeAuditDegraded | The deliberate policy rule for the latch acknowledgement, and the outage risk it carries | 08, 12 |
 | [BEH-BR-208](../../core/behaviors/23-audit-sink-and-record.md) | Core keeps no copy; storage, retention, durability and review are the consumer's | Storage belongs to the trail store adapter; review stays out of scope for both packages | 02, 18 |
 | [BEH-BR-209](../../core/behaviors/24-time-ids-and-sequence.md) | Every timestamp comes from Clock | `signedAt`, ticket events and window checks use the same `Clock` service | 09, 10 |
-| [BEH-BR-210](../../core/behaviors/24-time-ids-and-sequence.md) | Every identifier comes from IdGenerator | `recordId` is the idempotency key of `append` | 02 |
+| [BEH-BR-210](../../core/behaviors/24-time-ids-and-sequence.md) | Every identifier comes from IdGenerator | `recordId` is the idempotency key of `append`; every value is unique within the host and across hosts sharing the trail store, which IQ-22 and IQ-U10 package as core's installation check 8; a repeat that still occurs is stored as a collision, never over the primary (BEH-GX-012) | 02, 15 |
 | [BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md) | auditSeq starts at 1 per host and is contiguous | Uniqueness per (hostId, auditSeq); the high-water mark compares against it | 02, 05, 06 |
 | [BEH-BR-213](../../core/behaviors/24-time-ids-and-sequence.md) | A failed write does not consume its number | A retried record keeps its number, so a repeat append is the same entry | 02, 03 |
 | [BEH-BR-215](../../core/behaviors/24-time-ids-and-sequence.md) | verifyAuditSequence detects gaps, duplicates and disorder — and nothing more | The checks on read are built over it and add their own finding kinds | 05 |
@@ -132,6 +132,7 @@ documents that rely on the identifier; it is a guide, not a complete index.
 | --------------- | ------------- | ---------------------------- | ------- |
 | [RSK-BR-004](../../core/gxp/03-risk-assessment.md#rsk-br-004) | Unaudited lifecycle change | Core's control; the trail store must not reopen it by acknowledging early | 03 |
 | [RSK-BR-006](../../core/gxp/03-risk-assessment.md#rsk-br-006) | Undetected audit gap | Its companion residual is answered by checks on read, high-water anchors and, when on, sealing through `@bridger/audit-chain` | 05, 06, 21 |
+| [RSK-BR-007](../../core/gxp/03-risk-assessment.md#rsk-br-007) | Non-reproducible or wrong time, or colliding identifiers | Its installation controls, checks 5 and 8 of core's §5.1, are packaged as IQ-05, IQ-22 and IQ-U10 | 15 |
 | [RSK-BR-008](../../core/gxp/03-risk-assessment.md#rsk-br-008) | Secret leaks into logs or audit | Fingerprints and keys must not reopen it | 13, 14 |
 | [RSK-BR-014](../../core/gxp/03-risk-assessment.md#rsk-br-014) | Approval bypass through the raw Host | Owner Core, residual Consumer + Companion; the approval gate carries the companion half | 12 |
 | [RSK-BR-017](../../core/gxp/03-risk-assessment.md#rsk-br-017) | Unverified dynamically loaded code | Installation checks record package identity and version pins; verification of loaded code stays with the consumer | 15 |
@@ -154,7 +155,7 @@ documents that rely on the identifier; it is a guide, not a complete index.
 ## 6. Core and audit-chain document revisions relied on
 
 The companion is specified against these revisions of core documents and of
-the `@bridger/audit-chain` documents it adopts (CCR-BR-014 to CCR-BR-031
+the `@bridger/audit-chain` documents it adopts (CCR-BR-014 to CCR-BR-033
 assessed in §8; audit-chain through CCR-AC-003). Every core document this map
 links is pinned. A later revision of any of them is assessed under the
 coupling rule ([change control](../process/change-control.md) §7) before it is
@@ -163,27 +164,27 @@ current Document Control.
 
 | Document | Document ID | Revision |
 | -------- | ----------- | -------- |
-| `core/README.md` | BRIDGER-00 | 0.26 |
-| `core/behaviors/02-host-construction.md` | BRIDGER-BEH-02 | 0.7 |
-| `core/behaviors/11-configuration.md` | BRIDGER-BEH-11 | 0.6 |
-| `core/behaviors/12-shutdown-and-hosting.md` | BRIDGER-BEH-12 | 0.7 |
-| `core/behaviors/21-testing-host.md` | BRIDGER-BEH-21 | 0.17 |
-| `core/behaviors/22-attributable-operations.md` | BRIDGER-BEH-22 | 0.9 |
-| `core/behaviors/23-audit-sink-and-record.md` | BRIDGER-BEH-23 | 0.10 |
-| `core/behaviors/24-time-ids-and-sequence.md` | BRIDGER-BEH-24 | 0.5 |
+| `core/README.md` | BRIDGER-00 | 0.28 |
+| `core/behaviors/02-host-construction.md` | BRIDGER-BEH-02 | 0.9 |
+| `core/behaviors/11-configuration.md` | BRIDGER-BEH-11 | 0.7 |
+| `core/behaviors/12-shutdown-and-hosting.md` | BRIDGER-BEH-12 | 0.9 |
+| `core/behaviors/21-testing-host.md` | BRIDGER-BEH-21 | 0.19 |
+| `core/behaviors/22-attributable-operations.md` | BRIDGER-BEH-22 | 0.11 |
+| `core/behaviors/23-audit-sink-and-record.md` | BRIDGER-BEH-23 | 0.12 |
+| `core/behaviors/24-time-ids-and-sequence.md` | BRIDGER-BEH-24 | 0.6 |
 | `core/behaviors/25-operation-gate.md` | BRIDGER-BEH-25 | 0.8 |
-| `core/behaviors/27-manifest-and-lazy-activation.md` | BRIDGER-BEH-27 | 0.8 |
-| `core/behaviors/28-plugin-principal-and-mandatory-policy.md` | BRIDGER-BEH-28 | 0.4 |
-| `core/behaviors/30-operation-context-annotations.md` | BRIDGER-BEH-30 | 0.3 |
-| `core/behaviors/32-generic-gate-and-plan.md` | BRIDGER-BEH-32 | 0.6 |
-| `core/invariants.md` | BRIDGER-INV | 0.11 |
+| `core/behaviors/27-manifest-and-lazy-activation.md` | BRIDGER-BEH-27 | 0.10 |
+| `core/behaviors/28-plugin-principal-and-mandatory-policy.md` | BRIDGER-BEH-28 | 0.6 |
+| `core/behaviors/30-operation-context-annotations.md` | BRIDGER-BEH-30 | 0.4 |
+| `core/behaviors/32-generic-gate-and-plan.md` | BRIDGER-BEH-32 | 0.7 |
+| `core/invariants.md` | BRIDGER-INV | 0.13 |
 | `core/urs.md` | BRIDGER-URS | 0.24 |
-| `core/traceability.md` | BRIDGER-TRACE | 0.16 |
+| `core/traceability.md` | BRIDGER-TRACE | 0.18 |
 | `core/gxp/01-regulatory-scope.md` | BRIDGER-GXP-01 | 0.5 |
-| `core/gxp/02-compliance-matrix.md` | BRIDGER-GXP-02 | 0.9 |
-| `core/gxp/03-risk-assessment.md` | BRIDGER-GXP-03 | 0.14 |
-| `core/gxp/04-validation-plan.md` | BRIDGER-GXP-04 | 0.7 |
-| `core/decisions/008-error-taxonomy.md` | BRIDGER-ADR-008 | 0.6 |
+| `core/gxp/02-compliance-matrix.md` | BRIDGER-GXP-02 | 0.10 |
+| `core/gxp/03-risk-assessment.md` | BRIDGER-GXP-03 | 0.16 |
+| `core/gxp/04-validation-plan.md` | BRIDGER-GXP-04 | 0.8 |
+| `core/decisions/008-error-taxonomy.md` | BRIDGER-ADR-008 | 0.8 |
 | `core/decisions/023-desired-state-reconcile.md` | BRIDGER-ADR-023 | 0.3 |
 | `core/decisions/025-deterministic-time-and-ids.md` | BRIDGER-ADR-025 | 0.1 |
 | `core/decisions/026-deterministic-test-host.md` | BRIDGER-ADR-026 | 0.2 |
@@ -215,7 +216,7 @@ released, so the matrix holds one prospective row.
 
 | `@bridger/gxp` | `@bridger/core` | Audit `schemaVersion` | Core changes required | Status |
 | -------------- | --------------- | --------------------- | --------------------- | ------ |
-| 0.1.x (unreleased) | one minor line (`>=X.Y.Z <X.(Y+1).0`) starting at the first release that includes CCR-BR-031 | 1 | CCR-BR-014: `ConfigFingerprinter`, `Host.controls`, `CloseReport.auditLastSeq`, `AuditRecord.definition`; CCR-BR-015–031 as assessed in §8, among them `Gate<Req>` and `Gate.all` (32) and the record fields of the pre-release rule | Prospective — neither package exists |
+| 0.1.x (unreleased) | one minor line (`>=X.Y.Z <X.(Y+1).0`) starting at the first release that includes CCR-BR-033 | 1 | CCR-BR-014: `ConfigFingerprinter`, `Host.controls`, `CloseReport.auditLastSeq`, `AuditRecord.definition`; CCR-BR-015–033 as assessed in §8, among them `Gate<Req>` and `Gate.all` (32) and the record fields of the pre-release rule | Prospective — neither package exists |
 
 ```
 REQUIREMENT: Each released version of `@bridger/gxp` MUST have exactly one
@@ -235,15 +236,16 @@ REQUIREMENT: A core release that changes `schemaVersion`, or any identifier of
 shape: an added record field changes every digest computed after it, and an
 open range would let a core upgrade change bindings and seals silently.
 
-## 8. Coupling assessment of CCR-BR-015 to CCR-BR-031
+## 8. Coupling assessment of CCR-BR-015 to CCR-BR-033
 
 CCR-GX-001 was specified against core with CCR-BR-014 applied. The core
 records below were made without a `CCR-GX` assessing them (finding F-01 of the
 specification audit of 2026-11-09); CCR-GX-002 assesses them here, as change
-control §7 requires. "None" means no identifier of §§1–5 changed in a way the
-companion relies on.
+control §7 requires. A later core record is assessed by the `CCR-GX` named
+at the start of its answer. "None" means no identifier of §§1–5 changed in a
+way the companion relies on.
 
-| Core record | What changed that the companion relies on | Companion answer (CCR-GX-002) |
+| Core record | What changed that the companion relies on | Companion answer (CCR-GX-002 unless named) |
 | ----------- | ----------------------------------------- | ----------------------------- |
 | CCR-BR-015 | Links from core to this Draft; G8 closed | None; the links are core's |
 | CCR-BR-016 | ADR-BR-039 restored as Proposed; the companion cited as "not present" | None for §§1–5; the citation repaired by CCR-BR-031 |
@@ -262,6 +264,8 @@ companion relies on.
 | CCR-BR-029 | Round-2 review resolutions; no record field added | None |
 | CCR-BR-030 | Prototype third-pass resolutions | None beyond the rows above |
 | CCR-BR-031 | ADR-BR-034 non-claim 5 names `@bridger/audit-chain`; companion links restored; BEH-BR-193 (and `memoryAuditSink`, BEH-BR-181): only an equal record under a stored `recordId` is an idempotent repeat, a different one is kept beside the first or refused; gap G71 opened for the request fields of GX-G11 | Non-claims follow revision 0.7 of ADR-BR-034 (ADR-GX-027); this map re-pinned; check 18 added; BEH-BR-193 as amended is the rule the trail store's "stored-collision" already follows (BEH-GX-012), and audit-chain's BEH-AC-006 follows it too (CCR-AC-004); GX-G11 cites core gap G71 |
+| CCR-BR-032 | BEH-BR-013 made the single source of host signatures (`restart` and `reconfigure` take `HandoffCallOptions`; `reconcile` adds `ApplyRolledBack`, `PartialApply`; `defineRealm` adds `InvalidRealm`), `Host.controls` unchanged; BEH-BR-106 unchanged; core file 12 now defines the shutdown destination and the final snapshot, published before the `CloseReport` and so before `CloseReport.auditLastSeq` is read; BEH-BR-199: a mount record's `after.state` may be "starting" (an existing value; no field added, `schemaVersion` stays 1); BEH-BR-183, BEH-BR-184: checks 4, 8, 9, 24, 26, 27, 51 and 103 amended, check numbering and checks 55–58 unchanged; ADR-BR-008: `InvalidRealm` added, `InstallError` and `reconcile` unions aligned; no change to attribution, the audit sequence, the gate, the latch or any record field | CCR-GX-003: None. The companion reads `Host.controls` and `CloseReport.auditLastSeq`, both unchanged; it stores a mount record whatever its `after.state`, so a `starting` value needs no change on read; it cites check numbers, not their text; `InvalidRealm` is a core error of `defineRealm`, which the companion does not call. Re-pinned: core README 0.27, files 02 (0.8), 11 (0.7), 12 (0.8), 21 (0.18), 22 (0.10), 23 (0.11), 27 (0.9), 28 (0.5), invariants 0.12, traceability 0.17, risk assessment 0.15, ADR-BR-008 0.7 |
+| CCR-BR-033 | BEH-BR-210: every `IdGenerator` value MUST be unique within the host and across every host whose outputs reach a common store (a conforming design is unique by construction or has at least 122 random bits per value, as the default has; core checks no repeat); BEH-BR-016 follows for `hostId`; BEH-BR-193: a different record under a stored `recordId` is a breach of that requirement, the keep-or-refuse rule unchanged; core's validation plan §5.1 adds installation check 8 (design review and an executed draw for a provided generator); RSK-BR-007 retitled, scores unchanged; acceptance check 114 added, numbering of checks 1–113 and checks 55–58 unchanged; files 22, 28 and 30: the handoff's export, upgrade and import are system work with `Actor.unattributed`, empty annotations and the stop's correlation; 27: the registered manifest defined, a loaded definition breaking file 01's definition rules fails phase "load"; 32: plan rejections name concrete tags; compliance matrix: recording a crypto-shred allocated to `@bridger/keyring`; review fixes folded in: under shutdown a plugin whose build is still queued is unregistered without a stop step and gets no `system-stop` (core file 12; BEH-BR-199), a conforming generator is unique by construction or has at least 122 random bits per value (BEH-BR-210), ADR-BR-008's `InvalidDefinition` row adds `enable` and a failed `load`; no record field, `schemaVersion`, attribution rule, audit sequence, gate or `Host.controls` field changed | CCR-GX-004: installation check 8 packaged — IQ-22, a probe drawing from the consumer's per-host generator instances given in `idDraw`, and IQ-U10, the design review listed as not executed (BEH-GX-113, 114, 116; ADR-GX-020; check 26); the trail store's "stored-collision" (BEH-GX-012) already keeps a repeated `recordId` beside the primary, which BEH-BR-193 now names a breach, so no change on read; the handoff's system records are stored as handed over; core file 27 now names which manifest is registered but does not change the `manifest` a request's `definition` carries, which binding version 2 digests (BEH-GX-065); the companion does not call `Host.plan`; the crypto-shred row allocates nothing to the companion; a queued build that writes no `system-stop` leaves no record to pair and its registration ends with the shutdown's `requested` record, which the trail stores as handed over; IQ-22's "not-applicable" reason names the default's random bound; ADR-BR-008's change concerns a core error the companion neither raises nor maps. Re-pinned: core README 0.28, files 02 (0.9), 12 (0.9), 21 (0.19), 22 (0.11), 23 (0.12), 24 (0.6), 27 (0.10), 28 (0.6), 30 (0.4), 32 (0.7), invariants 0.13, traceability 0.18, compliance matrix 0.10, risk assessment 0.16, validation plan 0.8, ADR-BR-008 0.8 |
 
 Finding C-08 (a `superseded` record's `causationId` names the superseding
 call's `requested` record, not its own, so the companion's pairing on read

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-OVW                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Server options `maxResultBytes` and `maxStructuredBytes` (round-2 agent review A-07) (CCR-MC-003)<br>0.4 (2026-11-08): Resources, trusted sessions, listing record and `resources` option in the API surface; worked example shows the inbound taint (CCR-MC-003, round 2: recheck items 6, 9)<br>0.3 (2026-11-08): Branded `Plugin` return types; per-call pin; external mark; plan store options (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.6 (2026-11-09): `McpClient.import` options `reconnect`, `handshakeTimeout`, `disclose`; import described as a link; API rows `McpClient.layer` and `McpClientStatus` (independent review) (CCR-MC-004)<br>0.5 (2026-11-08): Server options `maxResultBytes` and `maxStructuredBytes` (round-2 agent review A-07) (CCR-MC-003)<br>0.4 (2026-11-08): Resources, trusted sessions, listing record and `resources` option in the API surface; worked example shows the inbound taint (CCR-MC-003, round 2: recheck items 6, 9)<br>0.3 (2026-11-08): Branded `Plugin` return types; per-call pin; external mark; plan store options (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -55,7 +55,8 @@ regulated command is, approval rules, and every product meaning of a tool.
 | `resources/templates/list`, `resources/read` → `Commands.dispatch` | protocol | [BEH-MC-007](./behaviors/01-server.md#beh-mc-007-read-models-are-served-as-resources-each-read-a-dispatch) |
 | `tools/call` → `Commands.dispatch` | protocol | [BEH-MC-004](./behaviors/01-server.md#beh-mc-004-toolscall-is-a-command-dispatch), [BEH-MC-005](./behaviors/01-server.md#beh-mc-005-outcomes-map-to-results-and-errors-one-way) |
 | list-changed notifications | protocol | [BEH-MC-009](./behaviors/02-list-changed.md#beh-mc-009-the-server-advertises-listchanged-and-serves-subscriptionslisten)–[BEH-MC-013](./behaviors/02-list-changed.md#beh-mc-013-a-session-subscription-ends-with-its-session) |
-| `McpClient.import(options)` | plugin definition (remote proxy) | [BEH-MC-017](./behaviors/03-client-import.md#beh-mc-017-an-import-is-a-remote-proxy-plugin) |
+| `McpClient.import(options)` | plugin definition (a remote link; commands on its session child) | [BEH-MC-017](./behaviors/03-client-import.md#beh-mc-017-an-import-is-a-link-whose-session-child-carries-the-imported-commands) |
+| `McpClient.layer`, `McpClientStatus`, `McpImportStatus` | layer, base service, type | [BEH-MC-017](./behaviors/03-client-import.md#beh-mc-017-an-import-is-a-link-whose-session-child-carries-the-imported-commands) |
 | `JsonSchemaValidator` | port | [BEH-MC-019](./behaviors/03-client-import.md#beh-mc-019-input-is-checked-against-the-external-json-schema-before-it-leaves) |
 | `HostTools.plugin(options)` | plugin definition | [BEH-MC-025](./behaviors/04-host-tools.md#beh-mc-025-host-tools-are-commands-contributed-by-one-plugin) |
 | `DefinitionResolver` | port | [BEH-MC-028](./behaviors/04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing) |
@@ -79,13 +80,16 @@ declare const McpServer: {
 
 declare const McpClient: {
   import(options: {
-    readonly id: string                                   // proxy plugin id
+    readonly id: string                                   // link plugin id
     readonly transport: McpClientTransport
     readonly prefix: string                               // command id prefix, e.g. "docs"
     readonly realm?: string
     readonly timeout?: Duration.Input                     // per call, default 30 seconds; never "forever"
     readonly map?: (tool: ExternalTool) => ImportMapping  // tags, regulated, include/exclude; default: include, tags ["external"]
-  }): Plugin<[CommandCatalog, JsonSchemaValidator, Bridger.Host], [], never>
+    readonly reconnect?: Schedule.Schedule<unknown, unknown>  // as remote's; the session runs in the background
+    readonly handshakeTimeout?: Duration.Input            // connect + initialize + first tools/list, default 10 seconds
+    readonly disclose?: readonly ("actor" | "onBehalfOf" | "correlationId")[]  // identity sent in _meta; default none
+  }): Plugin<[CommandCatalog, JsonSchemaValidator, Bridger.Host], [], never>   // active at once; commands on a session child
 }
 
 declare const HostTools: {

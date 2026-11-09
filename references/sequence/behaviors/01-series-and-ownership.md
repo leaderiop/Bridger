@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-SQ-002 loses the foreign-writer exception (a restore no longer writes in the old series, BEH-SQ-009); BEH-SQ-003 adds `WrongExpectedVersion` to `open` and `close` (CCR-SQ-002)<br>0.2 (2026-11-08): BEH-SQ-001, 004 and 005 cite URS-BR-057 (registered by core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-002 checks the origin against durable-bus `DurableBus.origin` at every `open`, `next` and `close`, so a handle of an earlier origin writes nothing (`NotOwner { origin, current }`) (U-10); BEH-SQ-003 defines the `Sequence` members `open`, `next` and `close` and makes `Series` a handle over them, adding `SupersessionPending` (M-05, U-10); BEH-SQ-008 makes grants name those members and states that the contract is local (M-05) ; BEH-SQ-008 declares `Sequence` with core `Contract.local` (core CCR-BR-033) (CCR-SQ-003)<br>0.3 (2026-11-08): BEH-SQ-002 loses the foreign-writer exception (a restore no longer writes in the old series, BEH-SQ-009); BEH-SQ-003 adds `WrongExpectedVersion` to `open` and `close` (CCR-SQ-002)<br>0.2 (2026-11-08): BEH-SQ-001, 004 and 005 cite URS-BR-057 (registered by core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -57,11 +57,16 @@ which is what makes numbers after a restore distinct from numbers before it
 > **Risk:** [RSK-SQ-001](../risks.md#rsk-sq-001)
 
 ```
-REQUIREMENT: `Series.open(origin, name)` MUST fail with `NotOwner { origin,
-             configured }` unless `origin` equals this host's configured
-             durable-bus origin. There is no exception: a later incarnation
-             of the same node records the supersession of an old series in
-             its own stream, never in the old series (BEH-SQ-009).
+REQUIREMENT: `open`, `next` and `close` (BEH-SQ-003) MUST read the
+             durable-bus origin at each call (`DurableBus.origin`,
+             durable-bus BEH-DB-004) and MUST fail with `NotOwner { origin,
+             current }`, writing nothing, unless the series' origin equals
+             it. A `Series` handle opened before the origin changed — a
+             whole-store re-bootstrap on a running host (durable-bus
+             BEH-DB-048) — is therefore refused from then on and never
+             appends to its old stream. There is no exception: a later
+             incarnation of the same node records the supersession of an old
+             series in its own stream, never in the old series (BEH-SQ-009).
 ```
 
 ```
@@ -76,22 +81,41 @@ REQUIREMENT: The package MUST NOT offer an authority-side `next()`: an
 
 ```ts
 // illustrative — not type-checked
+type SeriesError = NotOwner | SupersessionPending | WrongExpectedVersion | AppendError
+// The members of the Sequence contract (BEH-SQ-008); each takes one request. The plugin appends through
+// the EventStore it captured itself, so a caller needs only the StoreTransaction.
+interface SequenceShape {
+  readonly open: (r: { origin: string; name: string }) =>
+    Effect.Effect<{ readonly key: SeriesKey; readonly seriesId: string }, SeriesError | SeriesNameInvalid | LoadError, StoreTransaction>
+  readonly next: (r: { key: SeriesKey; subject?: { stream: string; eventId?: string }; context?: OperationContext }) =>
+    Effect.Effect<{ readonly seriesId: string; readonly number: number }, SeriesError | SeriesClosed, StoreTransaction>
+  readonly close: (r: { key: SeriesKey; reason: string }) =>
+    Effect.Effect<{ readonly last: number }, SeriesError | SeriesClosed, StoreTransaction>
+}
+// A handle over those members, bound to the Sequence service its opener resolved; it holds no capability of its own.
 interface Series {
   readonly key: SeriesKey
   readonly seriesId: string
-  readonly next: (options?: { subject?: { stream: string; eventId?: string }; context?: OperationContext }) =>
-    Effect.Effect<{ readonly seriesId: string; readonly number: number }, SeriesClosed | WrongExpectedVersion | AppendError,
-                  EventStore | StoreTransaction>
-  readonly close: (reason: string) =>
-    Effect.Effect<{ readonly last: number }, SeriesClosed | WrongExpectedVersion | AppendError, EventStore | StoreTransaction>
+  readonly next: (options?: { subject?: { stream: string; eventId?: string }; context?: OperationContext }) =>   // Sequence.next
+    Effect.Effect<{ readonly seriesId: string; readonly number: number }, SeriesError | SeriesClosed, StoreTransaction>
+  readonly close: (reason: string) =>                                                                          // Sequence.close
+    Effect.Effect<{ readonly last: number }, SeriesError | SeriesClosed, StoreTransaction>
 }
 declare const Series: {
-  readonly open: (origin: string, name: string) =>
-    Effect.Effect<Series, NotOwner | SeriesNameInvalid | WrongExpectedVersion | LoadError | AppendError,
-                  Sequence | EventStore | StoreTransaction>
+  readonly open: (origin: string, name: string) =>                                                             // Sequence.open
+    Effect.Effect<Series, SeriesError | SeriesNameInvalid | LoadError, Sequence | StoreTransaction>
 }
+class SupersessionPending extends Schema.TaggedError<SupersessionPending>()("SupersessionPending", { origin: Schema.String }) {}  // BEH-SQ-009
 // AppendError, LoadError and WrongExpectedVersion are event-store's (BEH-ES-003, BEH-ES-006);
 // WrongExpectedVersion is not a member of AppendError and is listed wherever an append states an expected version
+```
+
+```
+REQUIREMENT: `Series.open` MUST call `Sequence.open`, and the handle's `next`
+             and `close` MUST call `Sequence.next` and `Sequence.close` on the
+             `Sequence` service its opener resolved, so that a grant on the
+             members (BEH-SQ-008) decides every call made through a handle.
+             A handle MUST hold no store access of its own.
 ```
 
 ```
@@ -187,9 +211,25 @@ REQUIREMENT: Series events MUST be stored through the event store, so that
 ```
 
 ```
-REQUIREMENT: The `Sequence` service MUST be a core contract provided by a
-             plugin, so that grants on `next` and `close` apply per method
-             (core BEH-BR-273).
+REQUIREMENT: The `Sequence` service MUST be declared with core
+             `Contract.local` (core BEH-BR-225) listing the members `open`,
+             `next` and `close` of BEH-SQ-003, and provided by a plugin,
+             so that a grant names the members it allows
+             (`Grant.of(Sequence, { methods })`, core BEH-BR-273) — a
+             plugin may be allowed to issue numbers and not to close a
+             series. The plugin MUST append through its own capture of the
+             `EventStore` contract (event-store BEH-ES-038).
+```
+
+```
+REQUIREMENT: The contract is local: every member runs in the caller's
+             `StoreTransaction`, which cannot cross a host, so it has no
+             member codecs, and every major of `Sequence` MUST stay local
+             (core BEH-BR-225). It MUST NOT be served to another host,
+             provided from a peer or turned into a wire artifact; a
+             boundary companion refuses it on `local` (core BEH-BR-232).
+             Documentation MUST say so; an authority never issues numbers
+             for another host (BEH-SQ-002).
 ```
 
 **Settled here.** (1) The incarnation is part of a series' identity

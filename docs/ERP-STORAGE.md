@@ -16,8 +16,8 @@ The ERP core is **dialect-neutral**. It never emits dialect SQL directly. Every 
 | Modules | Modules never write SQL. They use `Records` and the query IR. A module declares the storage capabilities it needs in its manifest (`storage.requires`, [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §3); the manager refuses to install it on an adapter that lacks them. |
 | Isolation | One physical database per deployment, tenant column on every business table (shared schema). Database-per-tenant is a later adapter mode with its own migration ledger. |
 | Tenant identity | The tenant ID is the awthaq organization ID ([ERP-IDENTITY.md](ERP-IDENTITY.md)). |
-| One commit point | Business rows, audit, outbox and command receipt commit in one transaction (§9). |
-| Source of truth | **Row-as-truth CRUD.** The current business row is the source of truth; `create`, `update` and `delete` change it in place on the server, and audit and outbox entries are side records of that change (§9, §11, §12). **This conflicts with event-sourced, offline-first write paths**, where an append-only log of facts written locally (often offline) is the truth, rows are derived projections, and an authority orders and re-checks facts later. Such systems should not adopt this write path; they belong on [`@bridger/durable-bus`](../references/durable-bus/README.md) and the planned `@bridger/event-store` companion (planned, not yet drafted). |
+| One commit point | Business rows, audit, outbox and the completion of a successful command receipt commit in one transaction (§9); the receipt claim commits before it, in its own short transaction (§10). |
+| Source of truth | **Row-as-truth CRUD.** The current business row is the source of truth; `create`, `update` and `delete` change it in place on the server, and audit and outbox entries are side records of that change (§9, §11, §12). **This conflicts with event-sourced, offline-first write paths**, where an append-only log of facts written locally (often offline) is the truth, rows are derived projections, and an authority orders and re-checks facts later. Such systems should not adopt this write path; they belong on [`@bridger/durable-bus`](../references/durable-bus/README.md) and the [`@bridger/event-store`](../references/event-store/README.md) companion (a Draft, like the others). |
 | Moving dialects | Not an adapter feature. Changing a deployment's dialect is an export/import project; the catalog, journals and receipts are per-database state. |
 | Authentication storage | awthaq's SQL layer currently supports PostgreSQL and SQLite only. A deployment on another ERP dialect runs awthaq on a separate PostgreSQL or SQLite database, without a shared transaction ([ERP-IDENTITY.md](ERP-IDENTITY.md) §2). |
 
@@ -39,7 +39,8 @@ flowchart TB
     Planner --> Catalog
     Adapter --> Render[Dialect renderer + error classifier]
     Adapter --> DB[(Database)]
-    Tx --> Receipts[(Command receipts)]
+    Gateway -->|claim, release| Receipts[(Command receipts)]
+    Tx -->|complete| Receipts
     Tx --> Audit[(Audit)]
     Tx --> Outbox[(Outbox)]
     Outbox --> Worker[Delivery worker]
@@ -61,7 +62,7 @@ flowchart TB
 | DDL planner | `plan`, `apply`, `resume`, `status` | Serialized schema changes per physical model. |
 | Write path | `insert`, `patch`, `remove` | Portable scoped statements with revision compare. |
 | Read path | `list`, `get` | Explicit column lists, cursors, predicate composition. |
-| Receipts | `reserve`, `complete` | Idempotency and retained results. |
+| Receipts | The command `CommandReceipts` port: `claim`, `complete`, `release`, `void` | Idempotency and retained outcomes; the contract is [`@bridger/command`](../references/command/README.md) BEH-CM-041 (§10). |
 | Outbox | Adapter implementation of the durable-bus `OutboxStore` and `InboxStore` ports | Event handoff after commit; the contract is [`@bridger/durable-bus`](../references/durable-bus/README.md) (§12). The earlier `append`, `lease`, `settle` interface is superseded. |
 
 ## 3. The storage adapter contract
@@ -85,7 +86,7 @@ interface StorageAdapter {
   /** Named, cross-process mutual exclusion; native when available, table-based otherwise. */
   readonly lock: (name: string, options: { readonly wait: Duration; readonly held?: "transaction" | "session" }) =>   // "transaction" (default) requires Tx; "session" pins a connection for the Scope (leader election, long-lived locks)
     Effect.Effect<void, LockTimeout | StorageError, Scope.Scope>   // lock held for the Scope
-  /** Claims up to `limit` ready rows from a queue-shaped table (§12). */
+  /** Claims up to `limit` due rows of the job queue under a lease ([ERP-BUSINESS.md](ERP-BUSINESS.md) §3). */
   readonly claim: (q: ClaimQuery) => Effect.Effect<readonly Row[], StorageError, Tx>
   readonly classify: (cause: unknown) => StorageErrorKind    // §14
   readonly now: Effect.Effect<Instant>                       // database clock when needed
@@ -94,7 +95,7 @@ interface StorageAdapter {
 Storage.make({ adapter, pool?, rls?, ddlRole? }): Effect.Effect<Storage, StorageError, Scope.Scope>
 ```
 
-`Tx` is a Context service carrying the current transaction. Repositories and the Records pipeline never open their own transaction; they require `Tx`. The adapter is typically a thin layer over Effect's `SqlClient` for the chosen driver, so drivers and pooling are reused.
+`Tx` is a Context service carrying the current transaction. Repositories and the Records pipeline never open their own transaction; they require `Tx`. Every transaction the transaction service opens also provides durable-bus's `StoreTransaction` ([BEH-DB-009](../references/durable-bus/behaviors/02-transactional-outbox.md)) over the same connection, so `DurableBus.publish`, the command receipts port (§10) and the business writes share one commit. Conversely, `Storage.transaction` run in a fiber that already holds a `StoreTransaction` (a durable-bus subscription handler, BEH-DB-020) joins that transaction instead of opening one, and provides `Tx` over it. The adapter is typically a thin layer over Effect's `SqlClient` for the chosen driver, so drivers and pooling are reused.
 
 Default isolation is read committed with explicit row predicates and a revision compare. Operations needing stronger guarantees (posting, number sequences) either request `serializable` where the adapter provides it or take a named lock. A retried transaction re-runs only database work; external calls never run inside a retried transaction ([ERP-BUSINESS.md](ERP-BUSINESS.md) §6).
 
@@ -108,7 +109,7 @@ Default isolation is read committed with explicit row predicates and a revision 
 | `rowLocking` | Exclusive row read inside a transaction (the "load for update" step) | **Required** | Cannot be certified. |
 | `namedLock` | Native cross-process named lock | Optional | Table-based lock (`bridger_locks`, claimed with a unique-row insert plus a lease and heartbeat) provided by `@bridger/erp-storage`. |
 | `returning` | Statement returns the written row | Optional | Re-read the row by key in the same transaction. |
-| `skipLocked` | Lease queue rows without blocking others | Optional | Optimistic claim: update `state`, `leased_by`, `leased_until` where the row is still claimable, and keep rows whose update touched them. |
+| `skipLocked` | Claim job-queue rows without blocking others | Optional | Optimistic claim of the job queue ([ERP-BUSINESS.md](ERP-BUSINESS.md) §3): update the lease columns where the row is still claimable, and keep rows whose update touched them. |
 | `transactionalDdl` | DDL participates in transactions | Optional | Steps run one DDL at a time with journal-before and journal-after; recovery adopts a half-applied step (§7). |
 | `onlineIndex` | Index build without blocking writes | Optional | Fence the model during index creation. |
 | `partialIndex` | Index with a predicate | Optional | Full index. |
@@ -145,7 +146,7 @@ Because some dialects treat the empty string as null, the platform uses the sent
 | | Tier 1 (production) | Tier 2 (development/test) |
 | --- | --- | --- |
 | Functional suite (CRUD, scope, policy, receipts, outbox, audit, catalog) | Required | Required |
-| Concurrency suite (revision races, idempotency races, lease races of the table-based named lock; outbox delivery races are durable-bus checks) | Required | Skipped where the engine is single-writer; skip list published |
+| Concurrency suite (revision races, receipt claim races, lease races of the table-based named lock and of the job-queue claim; outbox delivery races are durable-bus checks) | Required | Skipped where the engine is single-writer; skip list published |
 | Crash suite (planner steps, install journal, outbox port obligations under durable-bus redelivery) | Required | Required where feasible |
 | Differential suite (memory interpreter vs rendered SQL) | Required | Required |
 | Capabilities | Must include all required ones and `namedLock` (native or fallback certified) | May lack `exactDecimal`, `serializable` |
@@ -276,7 +277,7 @@ The catalog is durable metadata about physical storage. It is written by the DDL
 | `bridger_migration_journal` | `(module_id, migration_id)` | checksum, state, current step, last error, applied-at. One row set per physical database. |
 | `bridger_tenant_activation` | `(tenant_id, extension_id)` | extension version, phase (`pending`, `backfilling`, `fenced`, `ready`, `disabled`), progress cursor, ready-at. |
 | Other platform tables | — | Defined with their features: `bridger_external_ids`, `bridger_data_migrations`, `bridger_sequences`, `bridger_settings`, `bridger_translations` ([ERP-RECORDS.md](ERP-RECORDS.md) §12); `bridger_companies`, `bridger_grants`, `bridger_session_context` ([ERP-IDENTITY.md](ERP-IDENTITY.md)); module, artifact and journal tables ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md)). |
-| `bridger_dialect_info` | single row | dialect name, adapter version, capabilities seen at creation, catalog schema version. A mismatch with the running adapter stops startup (`DialectMismatch`). |
+| `bridger_dialect_info` | single row | dialect name, adapter version, capabilities seen at creation, catalog schema version, the durable-bus incarnation the database was created under, which decides the `{series}` marker ([ERP-RECORDS.md](ERP-RECORDS.md) §8). A mismatch with the running adapter stops startup (`DialectMismatch`). |
 
 ### Name allocation
 
@@ -327,7 +328,7 @@ Rules:
 4. **Transaction policy.** With `transactionalDdl`, a step and its journal update commit together. Without it (several dialects), the step is a single DDL statement bracketed by the journal rows; on `resume` the planner inspects the physical object (`describe`) and **adopts** it if it matches the plan (type, nullability), otherwise fails with `SchemaDrift`. Index builds use the `onlineIndex` form when available, otherwise the model is fenced during the build. An interrupted concurrent build can leave an invalid index (PostgreSQL); `resume` detects it through introspection, drops it and rebuilds.
 5. **Expand then contract.** Module migrations are additive: `add-column` is nullable, constraints are added unvalidated then validated where the dialect supports it, and dropping or retyping a column is rejected (`DestructiveStepRejected`). Destructive changes happen only through a reviewed contract plan (§7a).
 6. **Cross-tenant safety.** A plan that adds a constraint is accepted only if it is valid for every tenant row and every retained generation ([ERP-MODELS.md](ERP-MODELS.md) §5): extension-only uniqueness, restrictive FKs and triggers are rejected unless the owner declared a persistent invariant. Partial-index-based uniqueness is allowed only when `partialIndex` exists.
-7. **Backfill.** Tenant-level backfills are separate steps recorded in `bridger_tenant_activation`: batches by primary-key cursor, each in its own short transaction, with a final fenced catch-up (writes to the affected tenant and model are refused with `ModelFenced` for the catch-up only).
+7. **Backfill.** The value of a `backfill` step comes from the migration's explicit `backfill` entry ([ERP-MODELS.md](ERP-MODELS.md) §5), never from a field's create default. Tenant-level backfills are separate steps recorded in `bridger_tenant_activation`: batches by primary-key cursor, each in its own short transaction, with a final fenced catch-up (writes to the affected tenant and model are refused with `ModelFenced` for the catch-up only).
 8. **Failure after DDL.** DDL committed but catalog or activation not recorded: the next `apply` sees a `running` journal row, uses `describe`, and adopts or fails with `SchemaDrift`.
 9. **DDL privilege.** DDL runs under the `ddlRole` connection when the dialect separates roles; the application role has no DDL rights where the adapter can arrange it.
 
@@ -383,7 +384,7 @@ Outcome handling:
 
 | Rows affected | Meaning | Resolution |
 | --- | --- | --- |
-| 1 | Success | If the adapter lacks `returning`, re-read the row by key in the same transaction. Continue to audit, outbox and receipt. |
+| 1 | Success | If the adapter lacks `returning`, re-read the row by key in the same transaction. Continue to audit and outbox; the command package completes the receipt after the handler returns (§10). |
 | 0 | Missing, out of scope, denied by row policy, or revision mismatch | A second query, `SELECT revision … WHERE id AND scope AND rowPredicate`, runs **only when the first affected 0**: no row → `RecordNotFound`; visible row with a different revision → `RevisionConflict`. Rows the caller cannot see always produce `RecordNotFound`, so existence is not leaked. |
 
 Other rules:
@@ -395,34 +396,95 @@ Other rules:
 - **Nested writes** from a custom command reuse the same `Tx`.
 - Reserved columns cannot appear in a `set` list; this is checked before the statement is built.
 
-## 10. Idempotency receipts
+## 10. Idempotency receipts: the `CommandReceipts` port
+
+> **Governed by [`@bridger/command`](../references/command/README.md)** ([06 — Receipts, wrappers and breakers](../references/command/behaviors/06-receipts-wrappers-and-breakers.md), BEH-CM-041 and BEH-CM-042). This section is the ERP's implementation of the `CommandReceipts` port that the application passes in `CommandCatalogOptions.receipts`; where it and BEH-CM-041 disagree, BEH-CM-041 governs. Withdrawn on 2026-11-09 (E-01): the reservation inside the command transaction, waiting on another request's uncommitted reservation, the receipt identity (tenant, company, actor, command, key), and the rule that a rolled-back transaction leaves no receipt. Also withdrawn after command CCR-CM-004: a port that reads the tenant and company from the dispatching fiber, and conditions a retry can clear carried as defects.
+
+The command package decides when the port is called and what each answer means; the port only stores receipts. The ERP lists its transaction wrapper first in `handlerWrappers` (BEH-CM-042), so the transaction encloses the handler and the completion of a successful receipt. The ERP passes these catalog options (BEH-CM-011, BEH-CM-041):
+
+```ts
+// illustrative — not type-checked
+CommandCatalogOptions({
+  receipts: ErpCommandReceipts,                       // this section
+  receiptPartition: (request) =>                      // pure; the gate's request; throws without the annotation
+    Option.match(request.annotations.get(ErpAnnotations.Scope), {
+      onNone: () => { throw new Error("ErpAnnotations.Scope missing") },
+      onSome: ({ tenantId, companyId }) => `${tenantId}/${companyId}`,   // companyId '*' for a tenant-scoped command
+    }),
+  receiptContext: [StoreTransaction],                 // durable-bus; see "Dispatch from a subscriber"
+  handlerWrappers: [erpTransaction, /* audit, … */],  // erpTransaction.provides = [Tx, StoreTransaction]
+  receiptGrace: "60 seconds",
+})
+
+// core 30 (BEH-BR-289): the key's owner declares its flows once.
+const ErpAnnotations = {
+  Scope: Annotation.key<{ readonly tenantId: string; readonly companyId: string }>("bridger-erp/scope", {
+    schema: Schema.Struct({ tenantId: Schema.String, companyId: Schema.String }),
+    combine: (current, _incoming) => current,         // a dispatch never changes the scope it runs in
+    monotonic: true,                                  // no API can replace or remove it
+    flows: ["gate", "audit"],
+  }),
+}
+```
+
+`ErpAnnotations.Scope` is declared with flows `"gate"` and `"audit"` (core [30 — Operation context annotations](../references/core/behaviors/30-operation-context-annotations.md), BEH-BR-289), so it reaches `CommandRequest.annotations`. **Every ERP dispatch site** runs its dispatch under `Annotation.add(ErpAnnotations.Scope, scope)` for the tenant and company it serves: the gateway, from the request context it resolved ([ERP-IDENTITY.md](ERP-IDENTITY.md) §3); a durable-bus subscription handler, from the event's `tenantId` and `companyId` ([ERP-BUSINESS.md](ERP-BUSINESS.md) §2); the job runner, from the job row's `tenant_id` and `company_id` (ERP-BUSINESS §3); a workflow activity, from its instance's tenant and company (ERP-BUSINESS §4). A handler's nested dispatch inherits the annotation from its fiber. The key is monotonic and its `combine` keeps the current value, so nothing inside a dispatch can move it to another tenant or company; work for another tenant or company is enqueued as a job, which the job runner dispatches under that job's scope. Tenant and company IDs follow the ID rule of [ERP-IDENTITY.md](ERP-IDENTITY.md) §4 (1 to 63 characters from `[A-Za-z0-9._-]`), so a partition is always within the 128 printable characters BEH-CM-041 allows. A dispatch without the annotation is a defect of its dispatch site: `receiptPartition` throws and the package ends it with `CommandRefused { reason: "receipts-unavailable" }` without a claim.
+
+The port never reads fiber-local state. Every call receives `services` (BEH-CM-041), and the port uses a transaction only when it finds one there: the durable-bus `StoreTransaction`, which the ERP transaction service provides over the same connection as `Tx` (§3.1, §12). Without one, the port runs the operation in its own short transaction.
+
+### Scope
+
+BEH-CM-041 scopes a receipt by (partition, command, key) and compares the actor first. The ERP's partition is `<tenantId>/<companyId>`, computed by `receiptPartition` above, with `'*'` as the company of a tenant-scoped command. The port splits the claim's or ticket's `partition` at the `/` into `tenant_id` and `company_id`, so the row key below is exactly (partition, command, key). A partition behaves as a separate receipt store. A key used in tenant A says nothing about tenant B, and a key reused in another company of the same tenant runs as a new request instead of replaying the first company's outcome. Inside a partition the package's rules apply unchanged: another actor's claim fails with `IdempotencyConflict { reason: "actor-differs" }` whatever its input; the same actor with other input gets `input-differs`; the same input after an upgrade changed the command's definition gets `definition-differs`; a task and a value never share a key (`mode-differs`). A partition the port cannot split fails the claim with `ReceiptsUnavailable`, so dispatch ends with `CommandRefused { reason: "receipts-unavailable" }` and no handler runs.
 
 Portable definition (abstract types, §5):
 
 ```text
 bridger_command_receipts
-  tenant_id    id          not null
-  company_id   id          not null      -- '*' when the command is tenant-scoped
-  actor_id     id          not null
-  command_id   text        not null      -- stable operation ID, e.g. todo.task.create
-  client_key   text        not null
-  input_hash   binary      not null      -- SHA-256 of canonical encoded input
-  contract_ref text        not null      -- apiVersion + artifact digest at execution time
-  status       text        not null      -- 'reserved' | 'succeeded'
-  result       json        null          -- encoded public result, present when succeeded
-  created_at   instant     not null
-  expires_at   instant     not null
-  PRIMARY KEY (tenant_id, company_id, actor_id, command_id, client_key)
+  tenant_id        id        not null      -- ReceiptClaim.partition, before the '/'
+  company_id       id        not null      -- after the '/'; '*' when the command is tenant-scoped
+  command_id       text      not null      -- ReceiptClaim.command, e.g. todo.task.create
+  client_key       text      not null      -- ReceiptClaim.key: 1 to 128 characters (BEH-CM-041)
+  token            id        not null      -- ReceiptTicket.token of the current claim (UUIDv7)
+  state            text      not null      -- 'in-flight' | 'completed'
+  actor_id         id        not null      -- ReceiptClaim.actorId
+  input_digest     text      not null      -- ReceiptClaim.inputDigest
+  digest           text      not null      -- ReceiptClaim.digest, the dispatch digest (BEH-CM-005)
+  task_id          text      null          -- ReceiptClaim.taskId, when the dispatch runs as a task
+  correlation_id   text      not null
+  claim_expires_at instant   null          -- ReceiptClaim.expiresAt; null under a "forever" timeout
+  outcome_tag      text      null          -- 'Success' | 'Failure' once completed
+  outcome          json      null          -- the encoded output or the encoded typed error
+  claimed_at       instant   not null
+  completed_at     instant   null
+  retain_until     instant   null          -- completed_at plus the retention period (§13)
+  PRIMARY KEY (tenant_id, company_id, command_id, client_key)
 ```
 
-Flow inside the command transaction:
+### Port operations
 
-1. Insert the row with `status = 'reserved'`. If the dialect offers a conflict-ignoring insert, use it; otherwise insert and classify the unique-violation error. Concurrent identical keys serialize on the unique index.
-2. If the insert conflicted: read the row. Different `input_hash` → `IdempotencyConflict`. `succeeded` → authorize against **current** policy, then return the stored result. `reserved` can only be seen from another transaction that has not committed; the reader waits on the row lock (`rowLocking`) until it commits or rolls back (rolled back → the insert is retried).
-3. After the writes succeed, set `status = 'succeeded'` and store the encoded result.
-4. A rolled-back transaction leaves no receipt, so a `RevisionConflict` is retryable with the same key.
+| Operation | When the package calls it (BEH-CM-041) | Transaction | What the adapter does |
+| --- | --- | --- | --- |
+| `claim` | Dispatch step 6, after the gate and the before-hooks (BEH-CM-009) | The `StoreTransaction` in `services` when there is one (a subscriber's inbox transaction); otherwise its own short transaction at read committed, committed before the command transaction opens | (1) Read the row by key with a plain, non-locking read. (2) No row: conflict-ignoring insert of an `in-flight` row with a new token; inserted: answer `Fresh`; not inserted (another claim committed it first): go back to (1). (3) A live row (`in-flight` before `claim_expires_at`, or `completed` before `retain_until`): answer `InFlight` or `Completed` with its committed actor, digests, task id and outcome, writing nothing, and let the package decide the reason. A completion still uncommitted in another request's transaction is not visible, so that row answers `InFlight`. (4) An expired row: take it over with `UPDATE … SET token = <new>, state = 'in-flight', <claim fields> WHERE <partition, command, key> AND token = <token read> AND <still expired>`; one row: answer `Fresh`; zero rows (another claim took it, or a late completion committed): go back to (1). After three rounds without an answer the claim fails with `ReceiptsUnavailable`. |
+| `complete` with a `Success` | Innermost, inside every handler wrapper | The `StoreTransaction` in `services`: the package adds the services of the keys the wrappers list in `provides` (BEH-CM-042), and the ERP transaction wrapper declares `provides: [Tx, StoreTransaction]`, so this is the command transaction it opened (or joined). Without one in `services` the port fails with `ReceiptsUnavailable`: a success receipt is never committed apart from its business write | `UPDATE … SET state = 'completed', outcome_tag, outcome, completed_at, retain_until WHERE <partition, command, key> AND token = <ticket token> AND state = 'in-flight'`. Zero rows (the claim expired and another claim took the row) fails with `ReceiptsUnavailable`; the package then fails the dispatch with `CommandWrapperFailed { wrapper: "receipts" }` inside the transaction, which rolls back. |
+| `complete` with a `Failure` | After the wrapper chain returned a typed error not listed in `retryable`, outside every wrapper | The `StoreTransaction` in `services` when there is one; otherwise its own short transaction (the command transaction has already rolled back) | The same statement. |
+| `release` | Every other end of a fresh claim: breaker or admission refusal (BEH-CM-044), a typed error listed in `retryable`, timeout, revoked lease, wrapper failure or defect (also after `complete` returned), interruption | As `claim`; run uninterruptibly by the package | `DELETE … WHERE <partition, command, key> AND token = <ticket token>`, whether the row is `in-flight` or `completed`. Zero rows is a no-op: a superseded ticket is ignored. `release` has no error channel (BEH-CM-041): a storage failure is logged with the ticket and counted in the receipts metrics, and the key stays `in-flight` until `claim_expires_at` (or until `receipts.clearInFlight`). |
+| `void` | A batch rollback or a compensation undid the receipt's effect (command [07](../references/command/behaviors/07-batches-and-long-commands.md), BEH-CM-050) | As `claim` | The same delete; a ticket the port no longer knows is a no-op. |
 
-Retention: `expires_at` defaults to 24 hours after creation, configurable. A cleanup job deletes expired rows in batches (§13). A request whose key has expired is treated as new; clients must not reuse keys beyond the retention window. Results are stored in public encoded form (never sensitive fields).
+A storage failure of `claim`, `complete` or `void` is `ReceiptsUnavailable`; `release` reports none (above). The statements are portable IR statements (§4); a conflict-ignoring insert is used where the dialect has one.
+
+**Why the claim reads without locking.** The completion of a `Success` updates the row inside the command transaction and holds its row lock until that transaction ends. A locking read, or an insert that checks the unique index against a row being updated, would make a duplicate wait for that transaction. The plain read sees only committed state at read committed (§3.1), so a duplicate answers `InFlight` at once, and the claim writes only to an absent or expired row. Each dialect must make that read non-blocking: PostgreSQL and MySQL/InnoDB read committed do; SQL Server, where read committed snapshot isolation may be off (§3.5), reads the claim's row under snapshot isolation or requires read committed snapshot on, which the adapter checks at startup. Two waits remain and are bounded by short transactions: an insert can wait for a concurrent claim's own short transaction, and the takeover of an expired row can wait for a late completion of the expired ticket that is still committing. On a single-writer adapter (SQLite, Tier 2) every write, the claim included, waits for the current writer.
+
+### What this means for callers
+
+- **A claim is refused while its key is running, never awaited.** Concurrent identical requests meet only on the unique index, inside the short claim transaction: one gets `Fresh`, and each of the others gets `InFlight`, which the package turns into `IdempotencyConflict { reason: "in-flight" }`. The caller retries later with the same key. No request waits on another request's command transaction (the bounded exceptions are stated under the operations table).
+- **A success commits with the business write.** The completion of a `Success` runs inside the command transaction, so it commits or rolls back with the business rows, the audit row and the durable-bus envelopes (§9, §11, §12). If the transaction rolls back after `complete` returned (a later statement, an outer wrapper or the commit itself fails), the package releases the claim, and a retry with the same key runs the handler again.
+- **A typed failure is stored and replayed.** A handler's typed error, as declared by the command's `error` schema and not listed in its `retryable`, is completed as a `Failure`. A retry with the same key returns the same error, marked as replayed, without running the handler: a `RevisionConflict`, `ConstraintViolation`, `UniqueViolation`, `ReferenceInvalid`, `ReferenceInUse`, `RecordNotFound` or field-level `Forbidden` comes back unchanged. The client reloads and submits a new intent with a new key ([ERP-BROWSER.md](ERP-BROWSER.md) §6).
+- **A condition a retry can clear is a `retryable` typed error, never a stored one.** `@bridger/erp` adds the platform's retryable errors to the `error` schema of every command it builds (`Model.serve` and `Command.contract`) and lists their tags in the command's `retryable` (BEH-CM-001; the list is digested): `ModelFenced`, `ExtensionUnavailable`, `LockTimeout`, `HookTimeout` and `SerializationConflict` (a serialization or commit conflict left after the transaction service's own retries). An author who declares another such condition lists it too; declaring one outside `retryable` is a review error, because a stored `Failure` answers every retry with the same key. These errors release the claim, the transaction rolls back, dispatch returns the error unchanged and the gateway maps it to its public error (§14), and a retry with the same key runs again. A storage outage is not a typed error: the transaction wrapper fails, the package reports `CommandWrapperFailed`, and the claim is released. `ModuleUnavailable` is raised by the gateway before dispatch and never reaches a receipt.
+- **A repeat is judged again before an outcome is returned.** The claim runs after the gate, so the current permissions are checked on every repeat, and a stored outcome goes only to the same actor in the same tenant and company. Row policies are not evaluated again against a stored outcome. Outcomes are stored in public encoded form and never hold fields marked sensitive.
+- **A crash between claim and completion** leaves the key `in-flight` until `claim_expires_at`: the claim time plus the dispatch's effective timeout plus `receiptGrace` (60 seconds by default). Until then a repeat gets `in-flight`; after it, a new claim takes the row with a new token, and a late `complete` from the stopped dispatch fails because its token no longer matches. Under a `"forever"` timeout the row has no expiry and stays `in-flight` until an administrator clears it (`receipts.clearInFlight`, [ERP-OPERATIONS.md](ERP-OPERATIONS.md) §8). The expiry is compared with the claiming node's `Clock`, so node clocks must agree to well within `receiptGrace`.
+- **Dispatch from a subscriber.** A durable-bus subscription handler runs inside the inbox's `StoreTransaction` (BEH-DB-020). When it dispatches a command, it passes the key `${subscription}:${envelope.eventId}` (with a suffix fixed in its code when it dispatches the same command more than once for one envelope). `StoreTransaction` is in `receiptContext`, so the claim, the completion and any release go through the inbox transaction, and the ERP transaction wrapper finds that transaction in the fiber (`Effect.serviceOption(StoreTransaction)`) and provides it, with `Tx` over it, to the handler instead of opening its own (§3.1). The domain write, the receipt and the inbox cursor commit or roll back together: a rolled-back delivery (a `CommitConflict` or a failed attempt, BEH-DB-021) leaves no receipt, so its retry claims `Fresh`.
+- **Not exactly once.** A completed receipt never runs its handler again ([INV-CM-007](../references/command/invariants.md#inv-cm-007-a-completed-receipt-never-runs-its-handler-again)). The success receipt and the business write are atomic only because the port writes the completion through the `StoreTransaction` it receives in `services`, which is the transaction the wrapper opened or joined. Effects outside the database follow [ERP-BUSINESS.md](ERP-BUSINESS.md) §6.
+
+Retention: a completed receipt is kept until `retain_until`, by default 24 hours after completion, configurable. A cleanup job deletes rows past it in batches (§13). A claim that meets such a row treats it as absent, so a key reused after the retention period runs as a new request; clients must not reuse keys beyond it.
 
 ## 11. Audit
 
@@ -466,7 +528,7 @@ Application predicates are the primary control. Where the adapter provides `rowL
 What the ERP application still layers on top (proposed, not implemented):
 
 - **The storage adapter implements the ports.** Each ERP storage adapter implements durable-bus's `OutboxStore` and `InboxStore` ports over its own tables; durable-bus embeds no SQL (BEH-DB-012). The table layout is the adapter's, as long as it meets the port obligations, and it is checked by the adapter conformance suite (§3.4).
-- **One commit point.** A command publishes through `DurableBus.publish` inside the command's transaction (BEH-DB-009, BEH-DB-010), so an event exists if and only if the business change committed, together with the audit row and the receipt (§9).
+- **One commit point.** A command publishes through `DurableBus.publish` inside the command's transaction (BEH-DB-009, BEH-DB-010), so an event exists if and only if the business change committed, together with the audit row and the completion of a successful receipt (§9, §10).
 - **Tenant and ordering key map to the stream.** The ERP chooses the durable-bus stream from the tenant and, when an event declares one, its ordering key, so the only guaranteed order — per origin and stream (BEH-DB-033) — gives per-tenant, per-key order. The exact stream naming is open.
 - **Business identity.** The stable per-business-fact key the ERP used as `dedupe_key` becomes part of the event payload; durable-bus deduplicates by envelope position, and a subscriber that must not repeat a business effect still checks that key itself (BEH-DB-024).
 - **External effects.** Payment, mail and other external effects do not run in the command transaction. A command records an *intent* event; an integration subscriber performs the call and records the outcome, with its own reconciliation ([ERP-BUSINESS.md](ERP-BUSINESS.md)).
@@ -477,7 +539,7 @@ What the ERP application still layers on top (proposed, not implemented):
 
 | Data | Default retention | Mechanism |
 | --- | --- | --- |
-| Command receipts | `expires_at` (24 h) | Batched delete by a scheduled job. |
+| Command receipts | `retain_until`: 24 h after completion (§10) | Batched delete of completed receipts past `retain_until` by a scheduled job; an `in-flight` row is never deleted by retention, only taken over after `claim_expires_at` (§10). |
 | Outbox, acknowledged | 7 days (ERP setting) | Batched delete of acknowledged envelopes only (BEH-DB-014); parked envelopes are kept until released ([durable-bus 03](../references/durable-bus/behaviors/03-delivery-and-inbox.md)). |
 | Audit | Deployment-configured (no default purge) | Purge under a separate maintenance role with its own audit record. |
 | Sessions, auth audit | awthaq `Retention` | Owned by awthaq. |
@@ -494,12 +556,14 @@ Purge jobs delete in bounded batches by key cursor, are idempotent, and record c
 | `StorageError` | Pool, connection, timeout | `InternalError` with correlation ID. |
 | `UniqueViolation` | Unique constraint | `InvalidInput` with the field path when declared, otherwise `InternalError`. |
 | `ForeignKeyViolation` | Foreign key | `InvalidInput` or `InternalError` depending on whether the relation is declared. |
-| `SerializationFailure`, `Deadlock` | Concurrency conflicts | Retried by the transaction service (database work only), then `InternalError`. |
-| `LockTimeout` | Named lock wait | Retryable internal error. |
-| `RevisionConflict`, `RecordNotFound`, `IdempotencyConflict` | Write path / receipts | As in [ERP-SPEC.md](ERP-SPEC.md) §10. |
-| `ModelFenced` | Backfill catch-up | `ModuleUnavailable` (retryable). |
+| `SerializationFailure`, `Deadlock` | Concurrency conflicts | Retried by the transaction service (database work only), then the typed `SerializationConflict`, listed in every ERP command's `retryable` (§10); public `InternalError`, retryable with the same key. |
+| `LockTimeout` | Named lock wait | Typed, listed in `retryable` (§10); public `InternalError`, retryable with the same key. |
+| `RevisionConflict`, `RecordNotFound`, `IdempotencyConflict` | Write path / receipts | As in [ERP-SPEC.md](ERP-SPEC.md) §10; `IdempotencyConflict` carries the reason of BEH-CM-041. |
+| `ReceiptsUnavailable` | Receipt port storage failure (§10) | Dispatch ends with `CommandRefused { reason: "receipts-unavailable" }` at the claim, or `CommandWrapperFailed { wrapper: "receipts" }` at completion; public `InternalError`, retryable with the same key. |
+| `ModelFenced` | Backfill catch-up | Typed, listed in `retryable` (§10); public `ModuleUnavailable`, retryable with the same key. |
 | `StorageCapabilityMissing`, `DialectMismatch` | Startup validation | Administrative error; the process does not start or the module does not install. |
 | `MigrationFailed`, `MigrationChecksumMismatch`, `SchemaDrift`, `DestructiveStepRejected`, `PlanRejected` | Planner | Administrative errors with durable status. |
+| `BackfillRequired` | Module compilation: a migration adds a field the extension declares `required` without a `backfill` entry ([ERP-MODELS.md](ERP-MODELS.md) §5) | Administrative error; the module does not install, and no DDL runs. |
 
 ## 15. Acceptance checks
 
@@ -508,7 +572,14 @@ These are the checks every adapter must pass (the **conformance suite**), run ag
 - Two concurrent updates at one revision: exactly one succeeds in one statement; the other gets `RevisionConflict` only when the row is visible to its caller.
 - A row owned by Bob, targeted by Alice's ID: `RecordNotFound`, same timing class as a missing ID.
 - The executed statement for a list contains the tenant, company and policy predicates in one parameterized statement and an explicit column list (checked on the rendered statement for each dialect).
-- Race 50 identical idempotency requests: one row, one receipt, 49 identical results; one with different input: `IdempotencyConflict`.
+- Race 50 identical requests (same actor, command, key and input) on a new key: the handler runs once; there is one business row, one audit row and one completed receipt; each of the other 49 either fails with `IdempotencyConflict { reason: "in-flight" }` or returns the stored outcome marked as replayed, and none waits on the first request's command transaction (on adapters other than single-writer ones). A repeat after completion returns the stored outcome.
+- Reuse of one key: other input gives `input-differs`; another actor gives `actor-differs` whatever its input; the same key in another tenant or company runs as a new request.
+- A handler that fails with `RevisionConflict` stores the failure: a retry with the same key returns the same `RevisionConflict` without running the handler; a new key runs it.
+- A fault at commit after `complete` returned: no business row and no completed receipt remain, the claim is released, and a retry with the same key runs the handler.
+- A `ModelFenced` during a backfill catch-up releases the claim and stores nothing; a retry with the same key after the catch-up succeeds. The same holds for `LockTimeout`, `HookTimeout` and `SerializationConflict`, and the review check rejects a command that declares such an error outside `retryable`.
+- A subscription handler dispatches a command with the key `${subscription}:${eventId}`; a fault at the inbox commit leaves no business row, no receipt and no cursor advance, and the redelivery claims `Fresh` and commits all three together.
+- The same key in two partitions (two tenants, or two companies of one tenant) names two receipts; a `release` or `complete` of one never touches the other.
+- Kill the process after a claim commits and before completion: the key answers `in-flight` until `claim_expires_at`, then a new claim runs the handler; a late `complete` of the old ticket fails and leaves the new claim intact.
 - Kill the process after a DDL step commits but before the journal write: `resume` adopts the object once; no duplicate column or lost value (with and without `transactionalDdl`).
 - Two plugins adding columns to one table concurrently: the planner serializes; both columns exist; catalog names are unique and within `maxIdentifierBytes`.
 - Name allocation: two fields whose truncated names collide get distinct stable names; restart preserves them; a changed identifier limit renames nothing.
@@ -536,3 +607,5 @@ These are design acceptance scenarios, not tests already executed.
 | 9 | Driver availability per dialect | **Packages exist.** Effect publishes `@effect/sql-pg`, `@effect/sql-mysql2`, `@effect/sql-mssql`, `@effect/sql-sqlite-node` and `@effect/sql-libsql` (all at 4.0.0 on npm on 2026-10-02; to be re-checked against the Effect 4.1 target of the 2026-11-08 revision). Behavioral readiness of each (pooling, transactions, error codes) is still verified at certification. |
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions; `bridger_event_handled` removed from the platform-table list, as §12 withdraws it (R5-20, R5-22).
+
+Change log: 2026-11-09, audit fixes — §10 rewritten as the ERP's implementation of the command `CommandReceipts` port (BEH-CM-041): receipts scoped by (partition, command, key) with the partition `<tenant>/<company>` computed by `receiptPartition` from the gate's request and the actor compared first; every port call receives `services` and writes through the `StoreTransaction` it finds there, otherwise in its own short transaction (command CCR-CM-004); the claim refused while in flight instead of awaited; typed failures stored and replayed, except the platform's `retryable` errors (`ModelFenced`, `ExtensionUnavailable`, `LockTimeout`, `HookTimeout`, `SerializationConflict`), which release the claim; a dispatch from a subscription joins the inbox transaction with the key `${subscription}:${eventId}`; claim expiry and superseded tickets; §1, §2, §9, §12–§15 follow, and §15 replaces the 50-request race check with the BEH-CM-041 outcome (E-01). §1 links the event-store companion instead of calling it "planned, not yet drafted"; the adapter's `claim` and the `skipLocked` fallback now point at the job queue of ERP-BUSINESS §3, not at the withdrawn outbox leases (E-05). §6 records the durable-bus incarnation the database was created under, which decides the `{series}` marker of sequences (E-06). §7 rule 7 takes the backfill value from the migration's explicit `backfill` entry (E-10). Review fixes: `ErpAnnotations.Scope` is declared with core's `Annotation.key` (flows gate and audit, monotonic) and added by every dispatch site, not only the gateway; the transaction wrapper provides `Tx` and `StoreTransaction`, which §3.1 defines; the claim reads without locking and takes over an expired row with a token-guarded update, so a duplicate never waits for a command transaction; `release` reports no error and a failed one leaves the key in flight until expiry (E-01). §14 lists `BackfillRequired` (E-10).

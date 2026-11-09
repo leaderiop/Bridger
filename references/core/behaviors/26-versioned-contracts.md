@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-26                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
+> | Change History | 0.7 (2026-11-09): BEH-BR-225 a *local* contract, `Contract.local(Key, { version, members })`: members without codecs, `local` and `descriptor.local` true, every other rule of this file unchanged, never served, proxied or derived across a host boundary, locality fixed per major; BEH-BR-231 and BEH-BR-234 do not apply to it; BEH-BR-232 a companion refuses a local contract at a boundary (requested by event-store CCR-ES-003 and sequence CCR-SQ-003); the signature of `Contract.local` rejects a `members` list that omits an own key (`MissingMembers`), the example is a self-contained shape, and `Contract.local` is pure like `Contract.make` (CCR-BR-033)<br>0.6 (2026-11-09): BEH-BR-228 a `replace` that leaves the plugin disabled forms no registered pair; pairs checked at `enable` (U-07) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
 
 ---
 
@@ -73,6 +73,24 @@ const Audit = Contract.make(AuditKey, {
   }
 })
 
+// A local contract: members that run only in the caller's process — they take a transaction
+// from the caller's environment, take an effect as argument, or are objects of functions —
+// declared by name, without codecs (CCR-BR-033).
+interface LedgerShape {
+  readonly post: (entry: Entry) => Effect.Effect<void, LedgerRejected, LedgerTransaction>       // needs the caller's transaction
+  readonly within: <A, E>(effect: Effect.Effect<A, E, LedgerTransaction>) =>
+    Effect.Effect<A, E | LedgerUnavailable, LedgerTransaction>                                   // takes an effect
+  readonly cursors: { readonly get: (name: string) => Effect.Effect<number>
+                      readonly put: (name: string, at: number) => Effect.Effect<void> }          // an object of functions
+}
+class LedgerKey extends Context.Service<LedgerKey, LedgerShape>()("example/Ledger@1") {}
+const Ledger = Contract.local(LedgerKey, {
+  version: "1.0.0",
+  members: ["post", "within", "cursors"]                       // every own key of LedgerShape; omitting one is a compile error
+})
+
+interface LocalMember { readonly local: true }
+
 interface MethodSpec {
   readonly payload: Schema.Codec<any, any>
   readonly success: Schema.Codec<any, any>
@@ -81,12 +99,14 @@ interface MethodSpec {
   readonly timeout?: Duration.Input                    // default bound of one remote call (BEH-BR-234); never enforced by core
 }
 
-interface Contract<Self, Shape, M extends Record<string, MethodSpec>> extends Context.Key<Self, Shape> {
+interface Contract<Self, Shape, M extends Record<string, MethodSpec> | Record<string, LocalMember>>
+    extends Context.Key<Self, Shape> {
   // key: string — inherited from Context.Key: the ServiceId, "example/Audit@2" (CCR-BR-028)
   readonly serviceKey: Context.Key<Self, Shape>        // the Key passed to Contract.make
   readonly name: string                                // "example/Audit"
   readonly version: ContractVersion                    // "2.3.0"
-  readonly methods: M
+  readonly methods: M                                  // MethodSpec per method; LocalMember per member when local
+  readonly local: boolean                              // true exactly for Contract.local
   readonly descriptor: ContractDescriptor
   range(range: string): ContractRequirement<Self, Shape>        // BEH-BR-227
 }
@@ -95,10 +115,26 @@ interface ContractDescriptor {                         // plain data; JSON-seria
   readonly serviceId: ServiceId                        // "example/Audit@2"
   readonly name: string
   readonly version: ContractVersion
-  readonly methods: readonly string[]                  // method names, sorted by code unit
+  readonly methods: readonly string[]                  // method (or member) names, sorted by code unit
   readonly timeouts: readonly { readonly method: string; readonly millis: number }[]
-                                                       // declared method timeouts, sorted by method (BEH-BR-234)
+                                                       // declared method timeouts, sorted by method (BEH-BR-234); [] when local
+  readonly local: boolean                              // the contract's `local`
 }
+
+declare const Contract: {
+  make<Self, Shape, M extends Record<string, MethodSpec>>(key: Context.Key<Self, Shape>,
+    options: { readonly version: string; readonly methods: M }): Contract<Self, Shape, M>
+  local<Self, Shape, const N extends readonly (keyof Shape & string)[]>(key: Context.Key<Self, Shape>,
+    options: { readonly version: string; readonly members: N & Exhaustive<Shape, N> }): Contract<Self, Shape, Record<N[number], LocalMember>>
+  // ...
+}
+
+// Unknown names are rejected by N's constraint; an omitted own key leaves `MissingMembers` to satisfy,
+// which no array literal does, so the compile error names the missing keys.
+type Exhaustive<Shape, N extends readonly PropertyKey[]> =
+  [Exclude<keyof Shape & string, N[number]>] extends [never] ? unknown
+    : MissingMembers<Exclude<keyof Shape & string, N[number]>>
+interface MissingMembers<K extends string> { readonly missingMembers: K }
 ```
 
 ```
@@ -131,8 +167,9 @@ REQUIREMENT: The type of `Contract.make` MUST reject, as a compile error, a
 ```
 
 ```
-REQUIREMENT: `Contract.make` and `Contract.method` MUST be pure: they MUST
-             NOT perform effects, register the contract anywhere or throw.
+REQUIREMENT: `Contract.make`, `Contract.local` and `Contract.method` MUST
+             be pure: they MUST NOT perform effects, register the contract
+             anywhere or throw.
              A contract whose `ServiceId` lacks the `@<major>` suffix, whose
              suffix differs from the major of `version`, whose `version`
              breaks the grammar of BEH-BR-226, or whose `methods` is empty,
@@ -143,10 +180,56 @@ REQUIREMENT: `Contract.make` and `Contract.method` MUST be pure: they MUST
 ```
 
 ```
+REQUIREMENT: `Contract.local(Key, { version, members })` MUST return a
+             *local* contract: a `Contract` whose `local` is true, whose
+             `methods` holds one `LocalMember` per listed name, and whose
+             `descriptor` has `local` true, the sorted member names as
+             `methods` and no `timeouts`. `Contract.make` MUST give `local`
+             false. The type of `Contract.local` MUST reject, as a compile
+             error, a `members` list that names a key absent from the
+             service shape or omits an own key of it, so that every member
+             of the shape is listed. The validity rules of `Contract.make`
+             apply — `ServiceId` suffix, major, version grammar, a
+             non-empty list — and a list that names one member twice MUST
+             also make the contract invalid.
+```
+
+```
+REQUIREMENT: Every rule of this file other than those that read codecs or
+             timeouts MUST apply to a local contract unchanged: versions and
+             ranges (BEH-BR-226), references (BEH-BR-227), the pair check by
+             member names (BEH-BR-228, BEH-BR-229), add-only evolution of
+             member names (BEH-BR-230), registries (BEH-BR-233), and grants
+             by member name (29 — Capability Grants and Call Log,
+             BEH-BR-273). BEH-BR-231 and BEH-BR-234 MUST NOT apply: a local
+             contract has no codecs and no remote call to bound.
+```
+
+```
+REQUIREMENT: A local contract MUST NOT cross a host boundary. Core crosses
+             none itself. Documentation of `Contract.local` MUST state that
+             no companion may serve a local contract to another host,
+             provide it from a peer (a remote, federation or MCP proxy), or
+             derive a wire artifact from it (an `RpcGroup`, a JSON Schema, a
+             generated client); a companion that would MUST refuse when the
+             contract object it is given, or its `descriptor`, has `local`
+             true (BEH-BR-232).
+```
+
+```
+REQUIREMENT: A contract's locality MUST be fixed per major: every version of
+             one `ServiceId` MUST be declared local, or every version not.
+             Changing locality MUST take a new major. Core does not compare
+             the locality of two contract objects, which a manifest's
+             contract reference does not carry; a companion at a boundary
+             MUST read `local` on every contract object it is given.
+```
+
+```
 REQUIREMENT: `descriptor` MUST be derived from the contract alone and MUST
              be plain data: the `ServiceId`, the name, the version, the
-             sorted method names and the declared method timeouts
-             (BEH-BR-234). It MUST NOT contain a schema, a key object or a
+             sorted method names, the declared method timeouts
+             (BEH-BR-234) and `local`. It MUST NOT contain a schema, a key object or a
              function.
 ```
 
@@ -167,10 +250,21 @@ and a contract is a core type every plugin author depends on; companions
 derive an `RpcGroup` from a contract (BEH-BR-232). (2) An invalid contract
 does not throw at import — a plugin entry has no import-time side effects
 (BEH-BR-008) — and is refused at the first operation that would register it,
-as any other definition error is (BEH-BR-018). (3) A contract describes
-request/response and streaming methods only. A service with other members
-(synchronous getters, `SubscriptionRef`s) stays a plain key. (4) The key
-passed to `Contract.make` is `serviceKey`, not `key` (CCR-BR-028). Revision
+as any other definition error is (BEH-BR-018). (3) A contract made with
+`Contract.make` describes request/response and streaming methods only. A
+service with other members (synchronous getters, `SubscriptionRef`s) stays a
+plain key, or, when it never crosses a host, is a local contract (5). (4) The key
+passed to `Contract.make` is `serviceKey`, not `key` (CCR-BR-028). (5) A local
+contract is declared by member names alone (CCR-BR-033). The event store and
+sequence companions provide services whose members run in the caller's
+`StoreTransaction` or take an effect as argument; such a member has no wire
+form, so a `MethodSpec` for it would be a codec nobody could honour, and a
+plain key would lose the version check and the member-level grants those
+companions need. Declaring the members by name keeps every in-process rule,
+and the `local` flag gives the boundary companions one fact to refuse on.
+Locality is per major rather than per member: a service with one local member
+cannot be served across a host whole, and a grant or a client that crossed
+with the other members would present a service missing one. Revision
 0.3 declared `key: Context.Key` on a type that extends `Context.Key`, whose
 `key` is the `ServiceId` string that `Context.add` and `Context.get` read;
 the two cannot both hold (host-core prototype finding G-P1).
@@ -366,7 +460,10 @@ REQUIREMENT: `install`, `replace` and `enable` MUST fail with
              register nothing when it fails. An `install` with
              `disabled: true` (03 — Installation, BEH-BR-023) forms no
              registered pair, so it MUST NOT fail with
-             `IncompatibleContract`; its pairs are checked at `enable`.
+             `IncompatibleContract`; nor does a `replace` that leaves the
+             plugin disabled (07 — Replacement and Reactivation,
+             BEH-BR-050). Their pairs are checked at `enable`
+             (BEH-BR-062).
 ```
 
 ```
@@ -611,7 +708,8 @@ REQUIREMENT: Whatever registers a provision of a contract at version V —
              v with the same major as V and v ≥ V (the range
              `>= V < (major+1).0.0`, built with `Contract.satisfies`); it
              MUST NOT provide it, nor fail the host's checks, for any other
-             peer.
+             peer. A proxy, server or generator MUST NOT be built for a local
+             contract (BEH-BR-225).
 ```
 
 ```

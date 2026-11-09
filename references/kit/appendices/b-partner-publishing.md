@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-APP-B                                             |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Informative appendix (companion)                             |
-> | Change History | 0.2 (2026-11-08): `publish` and `countersign` examples pass the application's rules and a revocation source; what `publish` prints without them (round-2 agent review R3-12, R3-13) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-003)                 |
+> | Change History | 0.3 (2026-11-09): §1 and §5: a partner package is a guest entry reached through `LoaderRemote.link`, fetched and verified at each session, never `Loader.lazy`; identity disclosed only by the application's opt-in; §2 guest-shaped manifest with `requested.capabilities` and the entry key; §6 `GuestEntryInvalid`, `NotFirstParty` (F-06, F-07, C-19, M-03); §1 and §7: a guest runs outside the host's runtime in the deployment's bundle runtime, possibly a worker thread of the same process; first-party is the application's decision (independent review) (CCR-KT-004)<br>0.2 (2026-11-08): `publish` and `countersign` examples pass the application's rules and a revocation source; what `publish` prints without them (round-2 agent review R3-12, R3-13) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-003)                 |
 
 ---
 
@@ -30,10 +30,23 @@ this appendix starts where that one ends.
 
 ## 1. What the host will check, and who decides
 
-A host that runs partner code fetches it with the loader's `fetchVerified` and
-runs it out of process behind the remote companion
-([loader BEH-LD-039](../../loader/behaviors/05-catalog-and-lazy-loading.md)).
-Before any of that, the loader checks:
+A host never evaluates your code in its own runtime unless the application
+decides to. Your package reaches a host as a catalog entry whose trust class
+is "guest": it carries no "first-party" statement, and only the application's
+own "first-party" rule decides whose signature on such a statement counts —
+you cannot add one that a host accepts. An application can sign one for your
+package, and then it is evaluated in the host's runtime; that is its decision
+and its responsibility, not yours
+([loader BEH-LD-065, BEH-LD-066](../../loader/behaviors/09-trust-class-and-guest-links.md)). The loader's `Loader.lazy` refuses
+such an entry with `NotFirstParty` (BEH-LD-067). The host instead builds a
+remote link from your entry with `LoaderRemote.link`, which fetches and
+verifies your bundle with the loader's `fetchVerified` at each session attempt
+and hands it to the bundle runtime the deployment chose, which runs it
+outside the host's runtime — in a worker thread of the host's own process
+with `@bridger/worker`, which confines nothing beyond a separate heap, or in
+an isolate or another process with the other adapters (remote BEH-RM-053)
+(BEH-LD-068; [loader BEH-LD-039](../../loader/behaviors/05-catalog-and-lazy-loading.md)).
+At each of those fetches, the loader checks:
 
 | Check | Who decides | Behaviour |
 | ----- | ----------- | --------- |
@@ -42,6 +55,8 @@ Before any of that, the loader checks:
 | Your manifest's `publisher` is a name your key is configured for | The application's trust configuration (`TrustedSigner.publishers`) | BEH-LD-053 |
 | No revocation covers the digest, the statement or your key | The application's revocation channel | BEH-LD-052 |
 | The application's own predicates (SBOM, requested permissions, egress) | The application | BEH-LD-006 |
+| Your manifest has the guest shape: one `provides` contract, nothing in `requires`, `optional`, `activation`, `contributions` or `listens` | Fixed construction (`LoaderRemote.link`) | BEH-LD-068 |
+| Which of your `requested.capabilities` callbacks are granted, and whether user identity is disclosed to your process | The application, in the link's options (`grants`, `disclose`) | remote BEH-RM-043, BEH-RM-024 |
 
 You do not choose the policy and cannot lower it. Ask the application owner for
 three things before you start: the publisher name your key will be configured
@@ -59,17 +74,26 @@ export default {
     id: "acme.label-printer",
     version: "1.4.0",
     publisher: "Acme Devices",                 // must match your configured publisher name (BEH-LD-053)
-    requested: { egress: [{ host: "labels.acme.example", purpose: "printing" }] }
+    provides: [{ serviceId: "acme/LabelPrinter@1", version: "1.2.0", methods: ["print"] }],   // exactly one contract (guest shape, BEH-LD-068)
+    requested: {
+      egress: [{ host: "labels.acme.example", purpose: "printing" }],
+      capabilities: [{ serviceId: "example/Clock@1", methods: ["now"] }]   // callbacks you ask for; a request is not a grant
+    }
+    // no requires, optional, activation, contributions or listens
   }
 }
 ```
 
 `bridger pack` runs `bridger check`, builds the manifest, one SBOM and the
 files, and computes the digest with the loader's own function; the same
-sources give byte-identical packages (BEH-KT-029). The manifest it emits
-declares your hook contributions with their roles and targets, and the events
-you listen to, so that the host can compare what your code registers with what
-you signed (BEH-KT-029; core BEH-BR-241, BEH-BR-268).
+sources give byte-identical packages (BEH-KT-029). It writes the module and
+export your bundle starts from into `extensions["@bridger/loader"].entry`,
+which is how a host's bundle runtime finds it (BEH-KT-029; loader BEH-LD-001).
+A partner template's manifest must have the guest shape; `pack` refuses
+anything else and names the field, as a host would refuse it with
+`GuestEntryInvalid` (BEH-KT-029, BEH-KT-036). Your callback clients are
+generated from `requested.capabilities`; the host decides which it grants
+(BEH-KT-035).
 
 ## 3. Sign: `bridger publish`
 
@@ -122,8 +146,13 @@ Run `bridger publish` again (or with `--partial` earlier, then upload the
 countersigned signatures). The registry adapter receives the package and its
 signatures (`PublishTarget.upload`). From there the application's catalog
 verifies the entry without fetching your code (BEH-LD-034), shows your
-publisher name only if it is bound to a verified signer (BEH-LD-053), and a
-host fetches and runs your bundle out of process when it is installed.
+publisher name only if it is bound to a verified signer (BEH-LD-053), and
+gives it the trust class "guest" (BEH-LD-066). A host that installs the link
+fetches and verifies your bundle each time a session opens, and runs it out
+of process; a revocation or a policy change takes effect at the next session
+(BEH-LD-068). Your process receives no user identity unless the application
+configured the link to disclose some claims, which it records on its side as
+a data transfer (BEH-KT-034; remote BEH-RM-024).
 
 ## 6. When something is refused
 
@@ -134,6 +163,8 @@ host fetches and runs your bundle out of process when it is installed.
 | `Revoked` / `StatementRevoked` | The digest, the statement or a key it depended on is revoked | Publish a new version; if your key is revoked, sign with a new configured key |
 | `SigningFailed` | Your signer adapter failed; nothing was added | Fix the adapter's access; the package is unchanged |
 | `DigestMismatch` | The bytes changed after the digest was computed | Re-run `bridger pack`; never edit a packed package |
+| `GuestEntryInvalid` | Your manifest is not guest-shaped (the reason names the field) | Declare exactly one `provides` contract and move callbacks to `requested.capabilities`; re-run `bridger pack` |
+| `NotFirstParty` | A host tried to load your package in process | Nothing on your side: the host must reach your package through `LoaderRemote.link` |
 
 The error catalog gives the fix for each tag
 ([07 — Error catalog](../behaviors/07-error-catalog.md)).
@@ -141,8 +172,9 @@ The error catalog gives the fix for each tag
 ## 7. What this does not promise
 
 A signed, accepted package is a package the required signers vouched for; it
-is not reviewed for safety by Bridger, and running it out of process is a
-deployment property, not a sandbox the kit provides (README, honest-claims
+is not reviewed for safety by Bridger, and where it runs — and whether
+anything confines it there — is a deployment property, not a sandbox the kit
+provides (README, honest-claims
 rule). A data pack you publish follows the same steps with
 `bridger countersign` accepting data packs (BEH-KT-032); its readers are told
 when it is stale and decide what to do (BEH-LD-060).

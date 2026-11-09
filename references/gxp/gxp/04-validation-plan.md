@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GXP-04                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.2 (2026-11-09): RSK-GX-023 in the High rigour row; files 21 and 22 in place of 07; scenarios REQ-GX-001–047 (BEH-GX-153–169); a change of the adopted `@bridger/audit-chain` version is a revalidation trigger (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-09): §6.1 core's installation checks include identifier uniqueness of a provided generator (IQ-22 draw, IQ-U10 design review) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): RSK-GX-023 in the High rigour row; files 21 and 22 in place of 07; scenarios REQ-GX-001–047 (BEH-GX-153–169); a change of the adopted `@bridger/audit-chain` version is a revalidation trigger (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -120,10 +120,10 @@ The companion is specified to turn executed checks and executed tests into evide
 
 `runInstallationChecks` ([15 — Installation checks](../behaviors/15-installation-checks.md), BEH-GX-113–120) executes, in the user's assembled host:
 
-- **core's installation checks** of [core validation plan](../../core/gxp/04-validation-plan.md) §5.1, now executable through the read-only `Host.controls` ([BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md)): package identity, export resolution, the Effect pin, audit wiring, identifier source, attribution and gate settings, fingerprinter wiring;
+- **core's installation checks** of [core validation plan](../../core/gxp/04-validation-plan.md) §5.1, now executable through the read-only `Host.controls` ([BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md)): package identity, export resolution, the Effect pin, audit wiring, identifier source, attribution and gate settings, fingerprinter wiring, and the uniqueness of a provided identifier generator by a draw across the consumer's per-host instances (a probe);
 - **the companion's checks**: package identity and installed-file digests; the installed core version and supported `schemaVersion`s against the compiled compatibility row ([ADR-GX-025](../decisions/025-core-version-range.md)); every section of `GxpLayer.make` wired as declared; no fixture marker, `test:` key id or scripted capture on any wired port ([ADR-GX-024](../decisions/024-fixtures-are-marked.md)); trail, anchor and ticket stores reachable and the key provider answering with a current key id; the policy and eligibility digests; a finite `gateTimeout` exceeding the gate's attached deadline by at least 1 second; the approval gate attached to this host; the signature port's manifest; a recent high-water mark.
 
-Each result is `pass`, `fail`, `not-applicable` or `not-executed`, and is marked **proof** (follows from data that does not change while the installation is unchanged) or **probe** (an external answer at one moment, with its time) ([ADR-GX-020](../decisions/020-iq-proof-and-probe.md)). What no code can observe — anchor-store custody, alias resolution in the identity system, entropy of eligible values, the re-authentication behind signatures — is listed as `not-executed` with the reason "not observable from code; Consumer obligation". The normative list and numbering are in file 15.
+Each result is `pass`, `fail`, `not-applicable` or `not-executed`, and is marked **proof** (follows from data that does not change while the installation is unchanged) or **probe** (an external answer at one moment, with its time) ([ADR-GX-020](../decisions/020-iq-proof-and-probe.md)). What no code can observe — anchor-store custody, alias resolution in the identity system, entropy of eligible values, the design of a provided identifier generator, the re-authentication behind signatures — is listed as `not-executed` with the reason "not observable from code; Consumer obligation". The normative list and numbering are in file 15.
 
 ### §6.2 Operational evidence (feeding OQ)
 

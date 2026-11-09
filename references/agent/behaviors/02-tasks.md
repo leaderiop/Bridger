@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): BEH-AG-011 open question restated: command tasks keep records through the command companion's `CommandTaskStore`, agent runs stay in memory; BEH-AG-015 keyed repeats and lost command tasks (round-2 agent review A-08, A-09) (CCR-AG-003)<br>0.3 (2026-11-08): `awaiting-approval` carries every drafted command; approval of a batch draft resumes with one outcome per command, all or none; BEH-AG-015 command tasks of long commands: the loop's wait, the herdr and MCP bridges (CCR-AG-003, round 2: recheck items 5, 7)<br>0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.5 (2026-11-09): BEH-AG-016: a task that ends while awaiting approval reports its draft through the loop's required `DraftWithdrawal` option, and the terminal snapshot carries the outcome; BEH-AG-009, 010 and 012 amended (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): BEH-AG-011 open question restated: command tasks keep records through the command companion's `CommandTaskStore`, agent runs stay in memory; BEH-AG-015 keyed repeats and lost command tasks (round-2 agent review A-08, A-09) (CCR-AG-003)<br>0.3 (2026-11-08): `awaiting-approval` carries every drafted command; approval of a batch draft resumes with one outcome per command, all or none; BEH-AG-015 command tasks of long commands: the loop's wait, the herdr and MCP bridges (CCR-AG-003, round 2: recheck items 5, 7)<br>0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -25,7 +25,7 @@ core's pattern for plugin state: a discriminated snapshot, monotone revisions,
 a state feed that may skip intermediate states
 ([ADR-BR-014](../../core/decisions/014-discriminated-plugin-snapshot.md),
 [ADR-BR-007](../../core/decisions/007-observation-primitives.md)). This file
-owns BEH-AG-009–016 and uses BEH-AG-009–015; 016 is reserved.
+owns BEH-AG-009–016 and uses all eight.
 
 Planned source: `packages/agent/src/Tasks.ts`, `packages/agent/src/bridges/Herdr.ts`,
 `packages/agent/src/bridges/McpTasks.ts` *(Planned)*.
@@ -53,9 +53,14 @@ type TaskSnapshot = TaskBase & (
   | { readonly state: "awaiting-approval"; readonly draftId: string; readonly commands: ReadonlyArray<string> }   // one, or every command of a batch draft
   | { readonly state: "stale"; readonly draftId: string; readonly reason: "expected-version" }
   | { readonly state: "done"; readonly answer?: string }
-  | { readonly state: "failed"; readonly error: { readonly _tag: string; readonly message: string } }
-  | { readonly state: "cancelled"; readonly by: Actor }
+  | { readonly state: "failed"; readonly error: { readonly _tag: string; readonly message: string }; readonly draft?: DraftReport }
+  | { readonly state: "cancelled"; readonly by: Actor; readonly draft?: DraftReport }
 )
+// present only when the task ended while awaiting approval (BEH-AG-016)
+interface DraftReport {
+  readonly draftId: string
+  readonly outcome: "withdrawn" | "already-applied" | "not-withdrawn"
+}
 ```
 
 ```
@@ -128,13 +133,16 @@ REQUIREMENT: A refused draft MUST return the task to `working` so the loop
 ```
 REQUIREMENT: `cancel` MUST interrupt the running turn, await its
              finalizers (releasing the pinned toolset, budget reservations
-             and any subagent realms, 04 — Subagents), and only then publish
-             `cancelled`.
+             and any subagent realms, 04 — Subagents), report a pending
+             draft for withdrawal when the task was `awaiting-approval`
+             ([BEH-AG-016](#beh-ag-016-a-task-that-ends-while-awaiting-approval-reports-its-draft-for-withdrawal)),
+             and only then publish `cancelled`.
 ```
 
 Like core's legality table, the table is total, so no concurrent event leaves
 a task in an undefined state. A late approval for a cancelled task is refused
-with `TaskNotResumable`; it does not revive the task.
+with `TaskNotResumable`; it does not revive the task, and the draft it
+approves was reported for withdrawal when the task ended (BEH-AG-016).
 
 **Settled here.** Cancelling a terminal task succeeds as a no-op, as
 `remove` of an absent plugin's handle does not, because the caller's intent
@@ -253,7 +261,9 @@ REQUIREMENT: When the application's `Draft.check` (core BEH-BR-316) finds
 ```
 REQUIREMENT: The package MUST NOT approve, store or apply drafts itself. It
              MUST only react to the outcomes reported to it by the
-             application's draft flow (core file 32).
+             application's draft flow (core file 32), and MUST report a
+             pending draft to that flow when the task ends without it
+             ([BEH-AG-016](#beh-ag-016-a-task-that-ends-while-awaiting-approval-reports-its-draft-for-withdrawal)).
 ```
 
 A turn that waits for a person holds nothing: the pin is released, so the
@@ -426,6 +436,93 @@ the command is still running and the command continues on its own.
 **Open.** How a later turn learns that a command it started has finished:
 v0.1 relies on the application to post the outcome into the session (a user
 or system message); a built-in "await task" tool is a candidate.
+
+## BEH-AG-016: A task that ends while awaiting approval reports its draft for withdrawal
+
+> **Invariant:** [INV-AG-008](../invariants.md#inv-ag-008-a-task-never-ends-with-its-pending-draft-unreported), [INV-AG-004](../invariants.md#inv-ag-004-task-terminal-states-are-sticky-and-revisions-never-regress)
+> **See:** [ADR-AG-002](../decisions/002-task-snapshot-is-a-state-feed.md)
+> **Core seam:** [32 — Generic gate and plan](../../core/behaviors/32-generic-gate-and-plan.md), [command — Dispatch](../../command/behaviors/02-dispatch.md)
+
+```ts
+// illustrative — not type-checked
+// The application's draft flow, as the loop needs it when a task ends with a draft pending.
+interface DraftWithdrawal {
+  readonly withdraw: (request: {
+    readonly draftId: string
+    readonly taskId: string
+    readonly commands: ReadonlyArray<string>          // the command ids of the awaiting-approval snapshot
+    readonly by: Actor                                // the actor of the cancel; the task's actor when it failed
+    readonly reason: "task-cancelled" | "task-failed"
+  }) => Effect.Effect<"withdrawn" | "already-applied", DraftWithdrawalFailed>
+  readonly timeout?: Duration.Input                   // default 10 seconds
+}
+declare const DraftWithdrawal: {
+  // for an application whose gates never defer a tool call: withdraw is never expected to run
+  readonly none: DraftWithdrawal
+}
+class DraftWithdrawalFailed extends Schema.TaggedError<DraftWithdrawalFailed>()("DraftWithdrawalFailed", {
+  draftId: Schema.String,
+  message: Schema.String
+}) {}
+
+AgentLoop.plugin({ draftWithdrawal: myApprovalStore.withdrawal, maxSteps: 20 })   // draftWithdrawal is required
+```
+
+```
+REQUIREMENT: `AgentLoop.plugin` MUST require a `draftWithdrawal` option and
+             MUST NOT supply a default. Any provider of `AgentLoop` that can
+             publish `awaiting-approval` MUST be constructed with one.
+             `DraftWithdrawal.none` MUST be an explicit value whose
+             `withdraw` fails with `DraftWithdrawalFailed { message:
+             "no draft withdrawal configured" }`.
+```
+
+```
+REQUIREMENT: When a task leaves `awaiting-approval` for `cancelled` or
+             `failed`, the loop MUST, after the finalizers of BEH-AG-010
+             and before publishing the terminal snapshot, call
+             `draftWithdrawal.withdraw` once with the snapshot's `draftId`
+             and `commands`, the task id, `by` and `reason`. The call MUST
+             be bounded by `timeout` and MUST NOT be interrupted before it
+             ends or times out.
+```
+
+```
+REQUIREMENT: The terminal snapshot MUST carry `draft: { draftId, outcome }`,
+             where `outcome` is the answer of `withdraw`, or
+             "not-withdrawn" when it failed or timed out. A
+             "not-withdrawn" outcome MUST be logged at error level with the
+             draft id and the failure's tag, and MUST NOT change the
+             terminal state. A task that ends from any other state MUST
+             NOT carry `draft` and MUST NOT call `withdraw`.
+```
+
+```
+REQUIREMENT: Documentation MUST state that the package neither withdraws nor
+             refuses a draft itself: `withdraw` asks the application's draft
+             flow to stop the draft from being applied, and the outcome
+             reports what that flow answered. "already-applied" means the
+             change was made before the task ended; "not-withdrawn" means
+             the draft may still be applied and a person must act on it.
+             BEH-AG-012's rule holds: the package MUST NOT approve, store
+             or apply drafts.
+```
+
+A cancelled task cannot take a late approval (BEH-AG-010), but the draft it
+was waiting on lives in the application's approval store, outside the task.
+Without a report, an approver could still apply a change that no task is
+waiting for and no observer would connect to the cancellation. The loop
+cannot remove the draft itself — it stores none — so it tells the party that
+holds it, and the terminal snapshot says what that party answered.
+
+**Settled here.** (1) The port is a required option of the loop, not a sixth
+service key: BEH-AG-001 fixes the five keys, and the withdrawal belongs with
+the application's approval store that `TaintGuard.drafts` already receives
+(03, BEH-AG-020). (2) It is required, with `none` as an explicit choice,
+because a default that does nothing would reproduce the gap silently. (3) The
+alternative — every draft flow checking the task's state before applying —
+couples the approval store to the agent package for every draft, agent or
+not; reporting at the end of the task keeps the dependency one way.
 
 ---
 

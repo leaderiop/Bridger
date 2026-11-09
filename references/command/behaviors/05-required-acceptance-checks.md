@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -134,7 +134,19 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  failure after `complete`; an `InFlight` claim past
                  `expiresAt` is taken over and the superseded ticket's
                  `complete` fails; a nested dispatch without a key logs
-                 no outer key; the gate is consulted again on a repeat.
+                 no outer key; the gate is consulted again on a repeat;
+                 one key in two partitions names two receipts, and an
+                 invalid or throwing `receiptPartition` refuses with
+                 "receipts-unavailable"; each port call receives only the
+                 `receiptContext` keys of the dispatching fiber, and a
+                 `Success` completion also the wrapper chain's services; a
+                 dispatch from a durable-bus subscription handler whose
+                 transaction wrapper joins the inbox's `StoreTransaction`
+                 leaves no receipt after a rolled-back delivery
+                 (`TestStore.conflictAtCommit`, durable-bus) and its retry
+                 claims `Fresh`; a typed error listed in `retryable` is
+                 released, never stored, and the next claim runs the
+                 handler again.
              15. Wrappers, call log and breaker: wrappers apply outermost
                  first, fixed at layer build, `applies` filters them, only
                  `provides` keys reach the handler, a wrapper cannot turn a
@@ -183,10 +195,26 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
              18. Metadata and envelope: id and tag grammars (mixed case,
                  `.`, `:`; case-only duplicates refused); typed metadata on
                  descriptors, requests, hook targets and digests;
+                 `retryable` validated, sorted on the descriptor and
+                 digested only when non-empty;
                  untrusted output paths computed and digested, never in the
                  schema; the envelope replaces untrusted values in document
                  order, caps its size deterministically and never splits a
                  surrogate pair.
+             19. Admissions: fixed at layer build with unique names;
+                 consulted after the claim and the breaker, in order, only
+                 where `applies` holds; never consulted for a replayed
+                 outcome or a repeated keyed task; `Refuse` ends with
+                 `CommandRefused` and its reason, an invalid reason, a
+                 dying or slow `admit` with "admission-unavailable"; a
+                 refusal releases a fresh claim, returns a probe slot,
+                 settles earlier admissions `NotRun`, is not counted by
+                 a breaker and is offered as a "refusal" entry; `settle`
+                 is called once, uninterruptibly, after step 7 and outside
+                 the wrappers, with the outcome mapping of BEH-CM-015 or
+                 `NotRun`, and its scope closes after it; a failing
+                 `settle` changes nothing; batch items and tasks are
+                 settled as BEH-CM-049, BEH-CM-050 and BEH-CM-052 state.
 ```
 
 | REQ | Check | Behaviours | Status |
@@ -209,6 +237,7 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
 | REQ-CM-016 | 16. Batches | [BEH-CM-049](./07-batches-and-long-commands.md#beh-cm-049-a-batch-is-admitted-whole-before-any-handler-runs), [BEH-CM-050](./07-batches-and-long-commands.md#beh-cm-050-items-run-in-order-and-a-failure-undoes-the-items-before-it), [BEH-CM-051](./07-batches-and-long-commands.md#beh-cm-051-a-batch-draft-is-approved-all-or-none-and-a-stale-draft-is-re-planned) | Not run |
 | REQ-CM-017 | 17. Long commands and tasks | [BEH-CM-052](./07-batches-and-long-commands.md#beh-cm-052-a-long-command-runs-as-a-task), [BEH-CM-053](./07-batches-and-long-commands.md#beh-cm-053-progress-await-and-cancel-of-a-command-task), [BEH-CM-054](./07-batches-and-long-commands.md#beh-cm-054-task-records-are-kept-through-a-store-port-and-a-task-cut-off-by-a-restart-is-reported-lost) | Not run |
 | REQ-CM-018 | 18. Typed metadata and the model-facing envelope | [BEH-CM-001](./01-command-definition.md#beh-cm-001-a-command-is-a-value-with-an-id-and-schemas), [BEH-CM-006](./01-command-definition.md#beh-cm-006-typed-metadata-is-carried-digested-and-read-by-the-application), [BEH-CM-030](./04-json-schema-projection.md#beh-cm-030-untrusted-output-fields-and-the-envelope-a-model-reads-them-in) | Not run |
+| REQ-CM-019 | 19. Admission policies | [BEH-CM-044](./06-receipts-wrappers-and-breakers.md#beh-cm-044-admission-policies-are-fixed-when-the-catalog-layer-is-built), [BEH-CM-009](./02-dispatch.md#beh-cm-009-one-dispatch-path-in-a-fixed-order) | Not run |
 
 Every `BEH-CM` identifier of this companion appears in at least one row;
 BEH-CM-033 is this list itself.

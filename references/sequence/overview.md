@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-OVW                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.2 (2026-11-08): Restore closure in the new incarnation's stream; `SeriesSuperseded` and decoded `verifySeries` inputs; limit 3 states the inbox conflict (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.3 (2026-11-09): API table: the `Sequence` members and the local contract; worked example reads the origin from `DurableBus.origin`; limit 5 and the application's duty for series it keeps outside the package: the durable-bus incarnation is the only restore epoch, and no generic one is offered (ERP alignment) (CCR-SQ-003)<br>0.2 (2026-11-08): Restore closure in the new incarnation's stream; `SeriesSuperseded` and decoded `verifySeries` inputs; limit 3 states the inbox conflict (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -38,7 +38,9 @@ specifies the alternative:
   starts, every open series under the old incarnation is closed as superseded
   by an event in the new incarnation's own stream (the old series is never
   written again), and numbering restarts
-  under a new series id, so no number is ever issued twice under one id;
+  under a new series id, so no number is ever issued twice under one id; a
+  whole-store re-bootstrap on a running host does the same at once, and
+  refuses every handle of the old origin;
 - a series may be **chained** through audit-chain's `ChainSink<R>`.
 
 ## Package boundary
@@ -60,8 +62,8 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose | Behaviour |
 | ------ | ---- | ------- | --------- |
-| `Sequence` | service (contract) | Provided by the sequence plugin | [01](./behaviors/01-series-and-ownership.md) |
-| `Series.open(origin, name)` | function | Open (or create) the series this host owns | [01](./behaviors/01-series-and-ownership.md) |
+| `Sequence` | service (contract, local) | Provided by the sequence plugin; members `open`, `next`, `close`, which grants name | [01](./behaviors/01-series-and-ownership.md) |
+| `Series.open(origin, name)` | function | Open (or create) the series this host owns; a handle over the `Sequence` members | [01](./behaviors/01-series-and-ownership.md) |
 | `Series#next(options?)` | member | Reserve the next number in the caller's transaction | [01](./behaviors/01-series-and-ownership.md) |
 | `Series#close(reason)` | member | Close the series | [01](./behaviors/01-series-and-ownership.md) |
 | `SeriesOpened`, `NumberIssued`, `SeriesClosed` | events | The package's own `DurableEvent`s | [01](./behaviors/01-series-and-ownership.md) |
@@ -77,10 +79,12 @@ All signatures are illustrative until code exists.
 // illustrative — not type-checked
 import { Series } from "@bridger/sequence"
 import { Stream } from "@bridger/event-store"
+import { DurableBus } from "@bridger/durable-bus"
 
 const issueDocument = (doc: DocumentDraft) =>
   adapter.transaction(Effect.gen(function* () {
-    const series = yield* Series.open(yield* Origin.current, "documents")    // this host's origin only
+    const bus = yield* DurableBus
+    const series = yield* Series.open(yield* bus.origin, "documents")        // this host's current origin only
     const { number } = yield* series.next({ subject: { stream: `doc-${doc.id}` } })
     yield* Stream.append(`doc-${doc.id}`, [DocumentIssued.of({ ...doc, number })], { expectedVersion: "no-stream" })
     return number                                    // printed only after the transaction commits
@@ -106,7 +110,15 @@ business number series and the package does not reuse it.
 - Number formats and their rendering (ADR-SQ-004).
 - Which records take a number from which series, and never handing a number
   out before commit.
-- Raising the incarnation after a restore (operator obligation).
+- Raising the incarnation after a restore (operator obligation), or wiring
+  durable-bus's `IncarnationSource`, which keeps it outside the store's
+  backups (durable-bus BEH-DB-004).
+- For a number series it keeps outside this package (its own counter rows):
+  taking the series identity from the current durable-bus origin, read at
+  each use, and closing its open series of lower incarnations when it
+  starts and on every `originChanges` element, as BEH-SQ-009 does for the
+  package's series — or keeping, and checking at start, a restore epoch of
+  its own outside the store's backups.
 - What the authority does with a finding (review, a report to a regulator,
   a correction event).
 
@@ -122,6 +134,15 @@ business number series and the package does not reuse it.
    resends without recording them (BEH-SQ-013, durable-bus BEH-DB-004).
 4. Verification covers what the authority received; delivery is in order per
    stream, so "received through n" is a lower bound, not the series' end.
+5. The package's restore epoch is the incarnation of the durable-bus origin:
+   it is part of every series' identity, an `IncarnationSource` keeps it
+   outside the store's backups, and the bus refuses to start when the
+   configured incarnation is lower than the one the store recorded
+   (durable-bus BEH-DB-004). The package offers no second, generic restore
+   epoch for series it does not keep: a second counter with the same meaning
+   could disagree with the incarnation, and numbers would then be reissued
+   under one of them. A series the application keeps itself is protected
+   against a restore only by what the application does (above).
 
 ---
 

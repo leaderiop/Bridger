@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1, F2) — `SignedManifest` is the loader's `SignedStatement` ("host-manifest", id JCS([authority, host]), version the decimal revision, loader `Signature` shape) verified by exactly the loader's call, with the envelope checked against the decoded manifest; revocation lists no longer verified here; a newer manifest held behind a re-bootstrap records pending kills; every apply subtracts pending kills and passes `Revocation.filterDesired`; the last applied manifest's bytes are recorded (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18 and 20, CORE-DECISIONS-2 — verification through the loader's `SignaturePolicy.verify({ statementType: "host-manifest" })`; kill entries are no longer the only kill path (BEH-FD-041); `residency` on imports, exports and peers; `mandatoryInterceptions` and `allowChildren` carried as manifest data; `atomic` off by default with `PartialApply` reported; core reconcile order and G65 stated (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.6 (2026-11-09): `ManifestImport.disclose` (BEH-FD-001) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1, F2) — `SignedManifest` is the loader's `SignedStatement` ("host-manifest", id JCS([authority, host]), version the decimal revision, loader `Signature` shape) verified by exactly the loader's call, with the envelope checked against the decoded manifest; revocation lists no longer verified here; a newer manifest held behind a re-bootstrap records pending kills; every apply subtracts pending kills and passes `Revocation.filterDesired`; the last applied manifest's bytes are recorded (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18 and 20, CORE-DECISIONS-2 — verification through the loader's `SignaturePolicy.verify({ statementType: "host-manifest" })`; kill entries are no longer the only kill path (BEH-FD-041); `residency` on imports, exports and peers; `mandatoryInterceptions` and `allowChildren` carried as manifest data; `atomic` off by default with `PartialApply` reported; core reconcile order and G65 stated (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -73,7 +73,8 @@ interface ManifestExport { readonly key: string; readonly version: number; reado
 interface ManifestImport { readonly key: string; readonly from: string
                            readonly version: string                  // the provision's version V; one import = one major (BEH-FD-020)
                            readonly realm?: string; readonly timeout?: string
-                           readonly residency?: string }             // label the imported calls carry (BEH-FD-045)      // 04
+                           readonly residency?: string               // label the imported calls carry (BEH-FD-045)      // 04
+                           readonly disclose?: readonly string[] }   // identity claims sent to the peer; default none (BEH-FD-026)
 type KillEntry =
   | { readonly digest: string; readonly reason: string }
   | { readonly id: string; readonly realm?: string; readonly reason: string }

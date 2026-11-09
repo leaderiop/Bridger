@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-24                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-09): BEH-BR-210 every value an `IdGenerator` returns is unique within its host and across every host whose identified outputs reach a common store; a provided generator carries that obligation, the default meets it with high probability only, and the testing counter within one `TestHost` (F-03); the requirement states what a conforming design is — unique by construction, or at least 122 bits per value drawn independently and uniformly from a cryptographically secure source — so that the default conforms (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -113,8 +113,33 @@ REQUIREMENT: Ordering counters that are not identifiers —
 ```
 
 ```
+REQUIREMENT: Every value `IdGenerator.next` returns MUST be a non-empty
+             string, and the generator MUST be designed so that the value
+             differs from every other value it returned to the same host,
+             and from every value returned to any other host whose audit
+             records, call-log entries or other identified outputs reach a
+             common store. A design meets this requirement when it is
+             either unique by construction (for example a prefix unique per
+             host and assigned outside the hosts, followed by a counter that
+             survives restarts) or random with at least 122 bits per value
+             drawn independently and uniformly from a cryptographically
+             secure source, which bounds the probability of any repeat
+             among 2^36 values in one store below 2^-50. The default
+             (`crypto.randomUUID`, a version 4 UUID with 122 such bits)
+             meets it by the second rule. This covers each identifier core
+             draws from the generator — the `hostId`, every `recordId`,
+             every generated `correlationId`, and the `callId`,
+             `dispatchId` and realm segment defaults of 29, 31 and 33 — and
+             is an obligation on whoever provides the generator.
+             Documentation of `IdGenerator` MUST state it, and MUST state
+             that the default meets it by the random bound.
+```
+
+```
 REQUIREMENT: Core MUST NOT assume anything of an identifier beyond being a
-             non-empty string, and MUST NOT parse it.
+             non-empty string, and MUST NOT parse it. Core MUST NOT check
+             identifiers for repeats: it keeps no history of the values it
+             drew.
 ```
 
 `TestHost` substitutes a counter (`test-1`, `test-2`, ...;
@@ -123,9 +148,32 @@ executed test are identical on every run. A consumer whose validation needs a
 particular format — a ULID for sortability, a prefix per site — supplies its
 own generator without changing core.
 
-**Settled here.** The service shape (`next: Effect<string>`) and the
+Uniqueness is what the identifiers are for. Two hosts with one `hostId`
+cannot be told apart in a shared store (BEH-BR-016); two records with one
+`recordId` turn the sink's idempotence, which lets core retry a write whose
+outcome is unknown (BEH-BR-193, BEH-BR-202), into a collision the sink must
+keep or refuse; one generated `correlationId` on two unrelated calls joins
+their chains for a reviewer. The scope is the store, not the process: hosts
+in different processes that write to one audit store must not repeat each
+other's values, and hosts that never meet in any store may.
+
+**Settled here.** (1) The service shape (`next: Effect<string>`) and the
 `serviceOption`-with-default reading are fixed here; the default keeps hosts
-that never heard of `IdGenerator` working unchanged.
+that never heard of `IdGenerator` working unchanged. (2) Uniqueness is the
+generator's obligation, not a check core makes (CCR-BR-033). Detecting a
+repeat would need every value ever drawn, by every host sharing the store,
+which a host does not have. The requirement is therefore stated on the
+design, with two ways to meet it, so that it can be reviewed: by
+construction, or by a random bound that makes a repeat negligible — 122
+random bits per value, the bits of a version 4 UUID, keep the chance of any
+repeat among 2^36 values (about 69 billion) below 2^-50. The default meets
+it by that bound; a repeat is negligible, not impossible, and core does not
+detect one. A provided generator must meet it by design — for example a prefix that is unique per
+host and assigned outside the host, followed by a counter or random part —
+and a regulated user verifies that design at installation
+([validation plan](../gxp/04-validation-plan.md) §5.1, check 8). A sink
+still never drops a record under a repeated `recordId` (BEH-BR-193), so a
+generator that breaks the rule loses no record silently.
 
 ## BEH-BR-211: Ambient time and randomness are prohibited in core
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-OVW                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Round-2 agent review — API rows for `OutboxSettlement`, `IncarnationSource`, `HistoryReader`/`HistoryAccess`, `Withheld`, `subscribeEnvelopes`, reader versions; errors `OutboxFrozen`, `IncarnationUnavailable` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 19–22 and 24 — API rows and errors for the codec, outbox settle, writers-last options and version reports; access through `AccessPolicy.ask` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `HistorySource`, `follow`, `acceptGap`, `releaseStream`, `resume`; new error tags; annotations under flow "wire" (BEH-BR-296) (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — `publish` options, `origin`, `originChanges` and `onStoreSwap` in the API table; `CommitConflict` in the error table (CCR-DB-004)<br>0.5 (2026-11-08): Round-2 agent review — API rows for `OutboxSettlement`, `IncarnationSource`, `HistoryReader`/`HistoryAccess`, `Withheld`, `subscribeEnvelopes`, reader versions; errors `OutboxFrozen`, `IncarnationUnavailable` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 19–22 and 24 — API rows and errors for the codec, outbox settle, writers-last options and version reports; access through `AccessPolicy.ask` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `HistorySource`, `follow`, `acceptGap`, `releaseStream`, `resume`; new error tags; annotations under flow "wire" (BEH-BR-296) (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -70,7 +70,9 @@ All signatures are illustrative until code exists.
 | ------ | ---- | ------- | --------- |
 | `DurableEvent.make`, `DurableEvent` | function, type | Declare a versioned event | [01](./behaviors/01-events-and-envelope.md) |
 | `Envelope`, `Hlc` | types | What travels | [01](./behaviors/01-events-and-envelope.md), [05](./behaviors/05-order-and-clocks.md) |
-| `DurableBus` | service `@bridger/durable-bus/DurableBus` | `publish`, `subscribe`, `receive`, `status`, `resume`, `unpark`, `releaseStream`, `acceptGap` | [02](./behaviors/02-transactional-outbox.md), [03](./behaviors/03-delivery-and-inbox.md) |
+| `DurableBus` | service `@bridger/durable-bus/DurableBus` | `publish` (with `PublishOptions`: `stream`, `causationId`), `subscribe`, `receive`, `status`, `resume`, `unpark`, `releaseStream`, `acceptGap` | [02](./behaviors/02-transactional-outbox.md), [03](./behaviors/03-delivery-and-inbox.md) |
+| `DurableBus.origin`, `DurableBus.originChanges`, `OriginChange` | effect, stream, type | The origin `publish` stamps now, and each switch to a new origin | [01](./behaviors/01-events-and-envelope.md) |
+| `DurableBus.onStoreSwap` | function | A participant that reads the store about to be replaced by a whole-store install | [06](./behaviors/06-replay-and-snapshots.md) |
 | `StoreTransaction` | service | The caller's open transaction, provided by the storage adapter | [02](./behaviors/02-transactional-outbox.md) |
 | `OutboxStore`, `InboxStore` | ports | Storage obligations, implemented by adapters | [02](./behaviors/02-transactional-outbox.md), [03](./behaviors/03-delivery-and-inbox.md), [07](./behaviors/07-core-bus-and-adapters.md) |
 | `DeliveryTransport` | port | Push path: sends a batch to a destination and returns its acknowledgement | [03](./behaviors/03-delivery-and-inbox.md) |
@@ -93,6 +95,7 @@ All signatures are illustrative until code exists.
 | --- | ----------- |
 | `EncodeFailed { type, issue }` | The payload does not encode with the event's schema |
 | `OutboxWriteFailed { cause }` | The adapter could not write in the caller's transaction (the caller's transaction fails with it) |
+| `CommitConflict { reason }` | The engine refused an inbox transaction's commit because of a concurrent transaction; the attempt is retried (`receive` fails and the sender resends) |
 | `DeliveryFailed { destination, cause }` | A batch could not be delivered; retried by the relay |
 | `EnvelopeConflict { origin, stream, sequence }` | One (origin, stream, sequence) seen with two different event ids |
 | `UnknownEventVersion { type, version }` | An envelope's version is newer than the receiver knows, or older than its upcasters reach |

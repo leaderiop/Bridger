@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 — `publish` takes `PublishOptions` (`stream`, `causationId`), which change nothing but the envelope's stream and causation (F-05, C-20) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -37,10 +37,14 @@ Planned source: `packages/durable-bus/src/Outbox.ts` *(Planned)*.
 class StoreTransaction extends Context.Service<StoreTransaction, { readonly handle: unknown }>()(
   "@bridger/durable-bus/StoreTransaction") {}
 
+interface PublishOptions {
+  readonly stream?: string        // 01, BEH-DB-003: the envelope's stream, in place of event.stream(payload)
+  readonly causationId?: string   // 01, BEH-DB-005: used outside a subscription handler only
+}
 interface DurableBus {
-  readonly publish: <A, I>(event: DurableEvent<A, I>, payload: A) =>
+  readonly publish: <A, I>(event: DurableEvent<A, I>, payload: A, options?: PublishOptions) =>
     Effect.Effect<Envelope, PublishError, StoreTransaction>
-  // subscribe, receive, status: 03, 06
+  // subscribe, receive, status: 03, 06; origin, originChanges: 01; onStoreSwap: 06
 }
 type PublishError =
   | EncodeFailed            // schema encoding (this behaviour)
@@ -62,6 +66,13 @@ REQUIREMENT: `publish` MUST require `StoreTransaction` in its environment, so
 REQUIREMENT: `publish` MUST encode the payload with the event schema at its
              current `version` before writing; `EncodeFailed` MUST write
              nothing.
+```
+
+```
+REQUIREMENT: `options` MUST change nothing but the envelope's `stream`
+             (BEH-DB-003) and `causationId` (BEH-DB-005). Order, sequence
+             allocation, routes, access checks and placement MUST apply to
+             the stream `publish` chose exactly as to a declared one.
 ```
 
 ```

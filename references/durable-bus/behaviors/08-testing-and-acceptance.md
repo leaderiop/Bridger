@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-08                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F13, F16, F22, F25, F26, F27; R5-04/05, R5-13) — checks 31, 33–35, 37, 38 restated; checks 39–41 added (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — checks 31–38 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — checks 6, 8, 13, 15, 17, 20, 21, 24, 25 and 27 restated; checks 28–30 added (receiver regression, two parking levels, history pulls) (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 — `TestStore.conflictAtCommit`; checks 42–44 added (publish options, commit conflicts, origin changes and store-swap participants) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F13, F16, F22, F25, F26, F27; R5-04/05, R5-13) — checks 31, 33–35, 37, 38 restated; checks 39–41 added (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — checks 31–38 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — checks 6, 8, 13, 15, 17, 20, 21, 24, 25 and 27 restated; checks 28–30 added (receiver regression, two parking levels, history pulls) (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -36,6 +36,7 @@ Planned source: `packages/durable-bus/src/testing/TestStore.ts`,
 interface TestStore {           // an in-memory adapter meeting BEH-DB-054 (1–6)
   readonly layer: Layer.Layer<StoreTransaction | OutboxStore | InboxStore>
   readonly crashBeforeCommit: Effect.Effect<void>   // next commit fails as if the process died
+  readonly conflictAtCommit: Effect.Effect<void>    // next commit fails with CommitConflict, nothing committed (BEH-DB-054)
   readonly restoreFrom: (snapshot: TestStoreSnapshot) => Effect.Effect<void>   // simulate a restored backup
   readonly dump: Effect.Effect<TestStoreSnapshot>
 }
@@ -108,6 +109,9 @@ REQUIREMENT: An implementation MUST pass the checks below with `TestStore`
 39. A whole-store re-bootstrap without an `IncarnationSource` is refused with "no-incarnation-source"; with one, `publish` fails with `OutboxFrozen` from the end of the first drain phase until the settlement's scope closes, the install raises the incarnation, and envelopes published afterwards carry the new origin and are accepted by a receiver that acknowledged the old one (BEH-DB-004, BEH-DB-048).
 40. A `HistorySource` built for a reader returns, in place of an envelope the reader's route does not offer or the `HistoryAccess` denies, a `Withheld` marker with the matching reason, counted per reader; with `access` "open" only placement is checked; a failing `decide` is a denial (BEH-DB-047).
 41. Every `publish` error (`EncodeFailed`, `DowncastRefused`, `PayloadEncodeFailed`, `AccessRefused`, `OutboxFrozen`, `OutboxWriteFailed`, `Unattributed`) writes nothing and, left unhandled, rolls back the caller's own write in the same transaction (BEH-DB-009, BEH-DB-031).
+42. `publish` with `options.stream` writes the envelope on that stream, numbered in that stream's own sequence, and without it on `event.stream(payload)`; an empty stream is a defect and writes nothing; `options.causationId` sets the causation outside a handler, and inside one the handled envelope's `eventId` is used (BEH-DB-003, BEH-DB-005, BEH-DB-009).
+43. A handler attempt whose commit fails with `CommitConflict` (`TestStore.conflictAtCommit`) commits nothing and is retried in a new transaction; when the attempts end on a conflict the (origin, stream) halts under either `onPoison` and nothing is parked; a conflict in `receive` stores and acknowledges nothing (BEH-DB-018, BEH-DB-021, BEH-DB-054).
+44. `DurableBus.origin` returns the origin of the next envelope; a whole-store install runs every `onStoreSwap` participant's `prepare` on the store being replaced, before `run` and while `publish` fails with `OutboxFrozen`; a failing `prepare` fails the install with "prepare-failed" and raises nothing; after the raise, `originChanges` emits one `OriginChange` and `origin` returns the new origin (BEH-DB-004, BEH-DB-048).
 
 ---
 

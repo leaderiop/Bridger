@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-05                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -97,6 +97,18 @@ REQUIREMENT: The `StoreTransaction` provided by `EventStoreAdapter.transaction`
              an adapter for this package.
 ```
 
+```
+REQUIREMENT: An adapter that detects conflicts only at commit
+             (`conflictsDetectedAt: "commit"`, BEH-ES-033) MUST report such a
+             conflict as `WrongExpectedVersion { actual: "unknown" }` from
+             `EventStoreAdapter.transaction` (BEH-ES-004) and as durable-bus
+             `CommitConflict` from the durable-bus `InboxStore.transaction`
+             of the same deployment (durable-bus BEH-DB-018, BEH-DB-054),
+             never as `StoreUnavailable`: the inbox's combinator has no
+             event-store error, and the bus retries a `CommitConflict` in a
+             new transaction (BEH-DB-021).
+```
+
 ## BEH-ES-035: SQLite adapter obligations (terminal)
 
 > **See:** [ADR-ES-006](../decisions/006-storage-through-a-port.md)
@@ -159,7 +171,11 @@ REQUIREMENT: The testing entry point MUST export `EventStoreConformance`, a
              order under concurrent commits with a follower running (no skip,
              BEH-ES-008); `hasFact` inside a transaction; a conflict inside
              `savepoint` leaving the transaction usable and the re-read
-             seeing the conflicting commit; the declared `capabilities`; no
+             seeing the conflicting commit; under `conflictsDetectedAt:
+             "commit"`, a commit-time conflict reported as
+             `WrongExpectedVersion { actual: "unknown" }` by `transaction`
+             and as `CommitConflict` by the inbox transaction (BEH-ES-034);
+             the declared `capabilities`; no
              update or delete path. Passing the suite is evidence about the adapter
              tested, on the engine and settings tested, and about nothing
              else.
@@ -170,12 +186,60 @@ REQUIREMENT: The testing entry point MUST export `EventStoreConformance`, a
 > **Core seam:** [26 — Versioned Contracts](../../core/behaviors/26-versioned-contracts.md) (BEH-BR-225), [27 — Manifest and Lazy Activation](../../core/behaviors/27-manifest-and-lazy-activation.md) (BEH-BR-244, BEH-BR-251), [28 — Plugin Principal and Mandatory Policy](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md) (BEH-BR-269), [29 — Capability Grants and Call Log](../../core/behaviors/29-capability-grants-and-call-log.md) (BEH-BR-273)
 > **Satisfies:** [URS-BR-029](../../core/urs.md#urs-br-029-evolve-a-service-contract-without-breaking-its-consumers)
 
+```ts
+// illustrative — not type-checked
+// The members of the local EventStore contract (core BEH-BR-225, `Contract.local`): `register`, `append`, `read`,
+// `readAll` and `hasFact` take one request; `savepoint` takes an effect; `checkpoints` and `snapshots` are objects of functions.
+interface EventStoreShape {
+  readonly register: (r: { event: DurableEvent<any, any>; options?: RegisterOptions<any> }) => Effect.Effect<void, DuplicateEventType>
+  readonly append: (r: { stream: string; events: readonly unknown[]; options: AppendOptions }) =>
+    Effect.Effect<AppendResult, WrongExpectedVersion | AppendError, StoreTransaction>
+  readonly read: (r: { stream: string; options?: ReadOptions }) => Stream.Stream<ReadEvent<unknown>, LoadError>
+  readonly readAll: (r: { after: number; limit: number; types?: readonly string[] }) =>      // store-wide, by position (BEH-ES-008)
+    Effect.Effect<readonly StoredEvent[], StoreUnavailable | AccessRefused>
+  readonly hasFact: (r: { stream: string; factId: string }) => Effect.Effect<boolean, StoreUnavailable, StoreTransaction>
+  readonly savepoint: <A, E>(effect: Effect.Effect<A, E, StoreTransaction>) =>            // BEH-ES-013, BEH-ES-033
+    Effect.Effect<A, E | StoreUnavailable, StoreTransaction>
+  readonly checkpoints: { readonly get: (name: string) => Effect.Effect<Checkpoint | undefined, StoreUnavailable>
+                          readonly put: (c: Checkpoint) => Effect.Effect<void, StoreWriteFailed, StoreTransaction> }
+  readonly snapshots: { readonly latest: (stream: string, stateVersion: number) => Effect.Effect<StoredSnapshot | undefined, StoreUnavailable>
+                        readonly put: (s: StoredSnapshot) => Effect.Effect<void, StoreWriteFailed> }
+}
+```
+
+| Helper (01–04) | Members it calls |
+| -------------- | ---------------- |
+| `EventStore.register` | `register` |
+| `Stream.append`; `Aggregate.handle`, `Aggregate.run` | `read` (loads), `append` |
+| `Stream.read` | `read` |
+| `Aggregate.record`, `Aggregate.recordFact`, `EventStore.receive` | `read`, `append`, `hasFact`, `savepoint` |
+| `EventStore.receiveVerbatim` | `append`, `hasFact` |
+| `Projections.follow`, `Projections.rebuild`, `EventStore.chain` | `readAll`, `checkpoints` |
+| `Snapshots.policy` | `snapshots` |
+
 ```
 REQUIREMENT: The `EventStore` service MUST be declared with core
-             `Contract.make` (version 1.0 in this revision) and provided by a
-             plugin, so that dependents state a version range and grants
-             apply per method (BEH-BR-273). Followers MUST run in that
-             plugin's scope.
+             `Contract.local` (core BEH-BR-225; version 1.0 in this
+             revision) listing the members above, and provided by a plugin, so that dependents state a
+             version range and a grant names the members it allows
+             (`Grant.of(EventStore, { methods })`, core BEH-BR-273). Every
+             helper of files 01–04 MUST reach the store only through these
+             members of the `EventStore` service in its environment, as the
+             table states, so that a capture narrowed by a grant refuses
+             every helper that needs a member the grant omits. Followers
+             MUST run in that plugin's scope.
+```
+
+```
+REQUIREMENT: The contract is local: `append`, `hasFact`, `savepoint` and
+             `checkpoints.put` run in the caller's `StoreTransaction`,
+             `savepoint` takes an effect, and `snapshots` and `checkpoints`
+             are objects of functions; none crosses a host. The contract
+             therefore has no member codecs, and every major of
+             `EventStore` MUST stay local (core BEH-BR-225). It MUST NOT be
+             served to another host, provided from a peer or turned into a
+             wire artifact; a boundary companion refuses it on `local`
+             (core BEH-BR-232). Documentation MUST say so.
 ```
 
 ```
@@ -216,7 +280,7 @@ REQUIREMENT: The testing entry point MUST export `memoryEventStore` (an
 ```
 REQUIREMENT: The package's test suite MUST contain at least one test for
              each of the following (planned acceptance scenarios
-             REQ-ES-001–016, traceability §2):
+             REQ-ES-001–017, traceability §2):
              1. Registration: unregistered and duplicate types refused
                 (BEH-ES-001).
              2. Stored form: fields, Clock and IdGenerator sources, no
@@ -231,7 +295,13 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
              5. Reads: upcast then decode; an unknown version stops the
                 read (BEH-ES-006, BEH-ES-026).
              6. Attribution: actor, `CurrentCorrelation`, `onBehalfOf`,
-                wire annotations; `Unattributed` writes nothing (BEH-ES-007).
+                wire annotations; `Unattributed` writes nothing; an append
+                given a `context` stores that context's actor and its
+                envelope carries the same actor, correlation and annotations;
+                without any correlation set, the stored event and its
+                envelope share one drawn identifier; an append after a
+                whole-store re-bootstrap stores the new origin
+                (BEH-ES-007, BEH-ES-028).
              7. Deciders: `decide` without services; `handle` never
                 retries; `run` re-reads and re-decides on conflict; a
                 refused command appends nothing (BEH-ES-009–012, BEH-ES-016).
@@ -242,7 +312,9 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 under a savepoint and succeed, and past `retries` fail with
                 `StoreContention` with the caller's other writes intact; a
                 commit-time conflict is retried by `recordFact` in a new
-                transaction (BEH-ES-013–015).
+                transaction, and in `receive`'s inbox transaction by
+                durable-bus after `CommitConflict` (BEH-ES-013–015,
+                BEH-ES-030, BEH-ES-034).
              9. Followers: checkpoint and writes in one transaction; a
                 failing projection halts without advancing (BEH-ES-019,
                 BEH-ES-020).
@@ -251,21 +323,30 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  `Snapshots.verify` (BEH-ES-023, BEH-ES-024).
              12. Upcaster retention refusal (BEH-ES-025, BEH-ES-027).
              13. Publication: envelope `eventId` equals stored `eventId`;
-                 a re-published received fact keeps its `factId` and gets a
-                 new `eventId`; unpublished types never reach the outbox
-                 (BEH-ES-028, BEH-ES-029).
+                 the envelope is on the event-store stream, or on the stream
+                 `publish.stream` names; a re-published received fact keeps
+                 its `factId` and its origin and gets a new `eventId`, and its
+                 envelope carries this host's origin; unpublished types never
+                 reach the outbox (BEH-ES-028, BEH-ES-029, BEH-ES-030).
              14. Receipt: inbox mark and recorded fact commit together;
                  causation set; a late fact about a subject shredded at the
                  receiver is recorded with `Shredded` markers; on a host
                  without the subject's key the subscription halts under
                  `receiveOptions` and parks nothing; `receiveVerbatim`
-                 records the payload and codec byte for byte without a key
-                 (BEH-ES-030).
+                 under `subscribeEnvelopes` with `receiveVerbatimOptions`
+                 records the payload, codec and annotations byte for byte
+                 without a key (BEH-ES-030).
              15. Chaining and codec: the chain receives the stored form only
                  and its links do not depend on `position`; a shredded field
                  does not fail a read (BEH-ES-031, BEH-ES-032).
              16. Adapters: the conformance suite on SQLite and on Postgres,
-                 including no skip under concurrent commits (BEH-ES-033–039).
+                 including no skip under concurrent commits and a commit-time
+                 conflict reported to both combinators (BEH-ES-033–039).
+             17. Grants: a capture of `EventStore` granted `read` only
+                 refuses `Stream.append` and `Aggregate.record`, one granted
+                 `readAll` and `checkpoints` runs a follower, and no helper
+                 reaches the adapter except through the members
+                 (BEH-ES-038).
 ```
 
 **Settled here.** (1) Constraints of the engine, not package memory, enforce

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-ES-003 `AppendError` gains the durable-bus `publish` errors `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (durable-bus BEH-DB-009) (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-002 adds `factId` and states one rule for `eventId` (never a fact id or a received id); BEH-ES-003 defines `AppendError` (with `PayloadEncodeFailed`) and `LoadError` once (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-001, 002, 003 and 005 cite URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-002 `StoredEvent.codec`; BEH-ES-002 and BEH-ES-006 cite the `PayloadCodec` of durable-bus BEH-DB-008 (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-001 `publish.stream` takes the event-store stream and the event (F-05); BEH-ES-007 serves an append's `context` over the whole append, publication included, draws one correlation for the stored event and its envelope, and reads the origin from durable-bus `DurableBus.origin` at each append (C-20, U-10) (CCR-ES-003)<br>0.5 (2026-11-08): BEH-ES-003 `AppendError` gains the durable-bus `publish` errors `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (durable-bus BEH-DB-009) (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-002 adds `factId` and states one rule for `eventId` (never a fact id or a received id); BEH-ES-003 defines `AppendError` (with `PayloadEncodeFailed`) and `LoadError` once (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-001, 002, 003 and 005 cite URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-002 `StoredEvent.codec`; BEH-ES-002 and BEH-ES-006 cite the `PayloadCodec` of durable-bus BEH-DB-008 (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -42,7 +42,8 @@ Planned source: `packages/event-store/src/Stream.ts`,
 ```ts
 // illustrative — not type-checked
 interface RegisterOptions<A> {
-  readonly publish?: boolean | { readonly stream?: (stored: StoredEvent, event: A) => string }   // 04, BEH-ES-028
+  // true: publish on the event-store stream; `stream` maps (event-store stream, event) to another delivery stream
+  readonly publish?: boolean | { readonly stream?: (stream: string, event: A) => string }   // 04, BEH-ES-028
 }
 declare const EventStore: {
   readonly register: <A, I>(event: DurableEvent<A, I>, options?: RegisterOptions<A>) => Effect.Effect<void, DuplicateEventType>
@@ -90,7 +91,7 @@ interface StoredEvent {
   readonly payload: unknown                   // encoded at `version`, after the PayloadCodec (04, BEH-ES-032)
   readonly codec?: string                     // the PayloadCodec's id; absent for the identity codec (durable-bus BEH-DB-008)
   readonly recordedAt: string                 // Clock, ISO 8601; informational
-  readonly origin: string                     // durable-bus origin, node#incarnation (BEH-DB-004)
+  readonly origin: string                     // durable-bus origin, node#incarnation (BEH-DB-004); BEH-ES-007
   readonly actor: Actor                       // BEH-ES-007
   readonly onBehalfOf?: string                // PrincipalRef.encode (core BEH-BR-280)
   readonly correlationId: string
@@ -292,31 +293,51 @@ without one event yields a state the stream never had.
 > **Satisfies:** [URS-BR-054](../../core/urs.md#urs-br-054-follow-one-request-through-everything-it-causes), [URS-BR-035](../../core/urs.md#urs-br-035-carry-labels-such-as-taint-provenance-and-deadline-across-calls)
 
 ```
-REQUIREMENT: The stored `actor` MUST be resolved as core resolves the actor
-             of a call (BEH-BR-187): the `context` of the append, else the
-             calling fiber's context. An append with no resolvable actor
-             MUST fail with durable-bus `Unattributed` and write nothing.
+REQUIREMENT: An append MUST resolve its context once and take every
+             attribution field from it. When the append is given a
+             `context`, the store MUST run the whole append — the stored
+             attribution and the `publish` of BEH-ES-028 alike — inside
+             `CallerContext.serve(context)` (core BEH-BR-292); otherwise it
+             runs in the calling fiber's context. The stored `actor` MUST be
+             the actor of that context, resolved as core resolves the actor
+             of a call (BEH-BR-187). An append with no resolvable actor MUST
+             fail with durable-bus `Unattributed` and write nothing.
 ```
 
 ```
-REQUIREMENT: `correlationId` MUST be the append's `context.correlationId`
-             when supplied, else the calling fiber's `CurrentCorrelation`,
-             else a new identifier from `IdGenerator`. `onBehalfOf` MUST be
-             the calling plugin's principal, encoded with
-             `PrincipalRef.encode` (BEH-BR-280), when the append runs under a
-             plugin principal (BEH-BR-259).
+REQUIREMENT: `correlationId` MUST be the `CurrentCorrelation` of that
+             context. When none is set, the store MUST draw one identifier
+             from `IdGenerator` and serve it as `CurrentCorrelation` for the
+             rest of the append, so that the stored events and their
+             envelopes carry the same one. `onBehalfOf` MUST be the calling
+             plugin's principal, encoded with `PrincipalRef.encode`
+             (BEH-BR-280), when the append runs under a plugin principal
+             (BEH-BR-259).
+```
+
+```
+REQUIREMENT: `origin` MUST be the durable-bus origin `DurableBus.origin`
+             returns during the append (durable-bus BEH-DB-004), and for a
+             published event the returned envelope's, which is the same.
+             The store MUST NOT keep an origin across appends, so that an
+             append after a whole-store re-bootstrap carries the new
+             origin. A recorded received fact keeps the fact's origin
+             instead (BEH-ES-030).
 ```
 
 ```
 REQUIREMENT: `annotations` and `annotationsOmitted` MUST be the
-             `Annotations.encode` of the calling fiber's annotations filtered
-             to flow "wire" (BEH-BR-292, BEH-BR-296). The store MUST NOT
-             interpret an annotation.
+             `Annotations.encode` of that context's annotations filtered to
+             flow "wire" (BEH-BR-292, BEH-BR-296), and for a published event
+             the returned envelope's (BEH-ES-028), which also apply the bus's
+             `carry` option. The store MUST NOT interpret an annotation.
 ```
 
 The actor stored on an event is a claim of the host that wrote it, as it is on
 an envelope (ADR-DB-008): it is what the writer said, not an authenticated
-identity. The package stores no free-text reason; personal data in actors and
+identity. Serving the append's context over the whole append is what keeps a
+stored event and its envelope on one actor: durable-bus takes the actor from
+the publishing fiber (BEH-DB-006), and the served context is that fiber's. The package stores no free-text reason; personal data in actors and
 annotations is the application's to avoid (the keyring companion's guidance).
 
 ## BEH-ES-008: The store-wide position never goes back for a reader

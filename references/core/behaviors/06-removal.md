@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-06                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -67,8 +67,13 @@ REQUIREMENT: Dependents of the removed plugin MUST remain installed, except
              its children, which MUST be removed (14 — Children and Groups,
              BEH-BR-125). Each other dependent that was `starting` or
              `active` MUST end `waiting` with the lost keys in
-             `missingServiceIds`; `waiting`, `failed` and `disabled`
-             dependents MUST keep their state.
+             `missingServiceIds`, except where its own stop ends otherwise:
+             a stale build that failed is recorded `failed`
+             (05 — Activation, BEH-BR-039), and a cleanup that fails ends
+             `failed` with phase "cleanup" (BEH-BR-046). `dormant`,
+             `waiting`, `failed` and `disabled` dependents MUST keep their
+             state; a `stopping` dependent ends as 08 — Operation Legality,
+             BEH-BR-079, gives.
 ```
 
 ```
@@ -176,9 +181,17 @@ REQUIREMENT: Stops of independent subtrees MAY run concurrently, without
 REQUIREMENT: Each dependent stopped because its provider is leaving MUST
              show `stopping` with `reason` "dependency-loss", and MUST then
              go to `waiting`, or to `starting` when a replacement provider
-             is already available (07 — Replacement and Reactivation). A
-             child of the leaving provider MUST instead be removed, whatever
-             services it holds (14 — Children and Groups, BEH-BR-125).
+             is already available (07 — Replacement and Reactivation),
+             except where its stop ends otherwise: a stale build that
+             failed is recorded `failed` (05 — Activation, BEH-BR-039), a
+             cleanup that fails ends `failed` with phase "cleanup"
+             (BEH-BR-046), and a move into `starting` that a wired
+             `RefusalList` refuses ends `disabled` with reason
+             "refused-digest" (05 — Activation, BEH-BR-033). A child of the
+             leaving provider MUST instead be removed, whatever services it
+             holds (14 — Children and Groups, BEH-BR-125). Under shutdown
+             every such stop ends "gone" instead (12 — Shutdown and
+             Hosting, BEH-BR-105).
 ```
 
 Closing a provider first would leave each dependent holding a captured

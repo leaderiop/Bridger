@@ -37,11 +37,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### InvalidDefinition
 
-*error* · origin: core · raised by: `install`, `replace`
+*error; error (cause)* · origin: core · raised by: `install`, `replace`, `enable`; as the cause of a lazy plugin's failure in phase "load"
 
-- **Cause.** The definition is malformed (`reason`): bad id, duplicate key, key both required and provided.
-- **Example.** A hand-written definition with `id: ""`.
-- **Fix.** Use `definePlugin`, which reports most of these at compile time.
+- **Cause.** The definition is malformed (`id`, `reason`): bad id, duplicate key, key both required and provided, an invalid contract, or a manifest that does not agree with it (`reason` begins "manifest:"). For a lazy plugin, the loaded definition broke a rule that a manifest cannot carry — `volatile`, `health` or `handoff` — so the plugin is `failed` with phase "load" and the loaded definition is discarded (core BEH-BR-246, BEH-BR-346).
+- **Example.** A hand-written definition with `id: ""`; a lazily loaded definition whose `handoff` has an empty `version`.
+- **Fix.** Use `definePlugin`, which reports most of these at compile time. For a load failure, fix the loaded definition, then `replace` or `retry`.
 
 ### UnknownRealm
 
@@ -202,6 +202,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** The realm already exists.
 - **Example.** `defineRealm("tenant-a")` called twice.
 - **Fix.** Define each realm once.
+
+### InvalidRealm
+
+*error* · origin: core · raised by: `defineRealm`, and through it `Realm.ephemeral`
+
+- **Cause.** The realm's `isolate` lists a host-owned key, `Bridger.Host` or `Bridger.Events`. `reason` names the key. Nothing is registered.
+- **Example.** `defineRealm("tenant-a", { isolate: [Bridger.Events] })`.
+- **Fix.** Remove the host-owned key from `isolate`. Every realm resolves the one host and the one event bus.
 
 ### DuplicateContribution
 
@@ -678,6 +686,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A restored origin reusing sequences without a new incarnation.
 - **Fix.** Investigate the origin; give a restored store a new incarnation.
 
+### CommitConflict
+
+*error* · origin: event-delivery/03 · raised by: `InboxStore.transaction`, `DurableBus.receive`
+
+- **Cause.** The engine refused the commit because a concurrent transaction conflicted with it (`reason`). A handler attempt is retried in a new transaction under `maxAttempts`; when the attempts end on a conflict, the (origin, stream) halts and nothing is parked. A `receive` stores and acknowledges nothing, and the sender resends.
+- **Example.** A serialization failure at commit on the inbox tables.
+- **Fix.** None for a single conflict. For repeated ones, reduce contention on the inbox tables. Adapters must report a commit conflict as `CommitConflict`, never as `StoreUnavailable`.
+
 ### UnknownEventVersion
 
 *error* · origin: event-delivery/01 · raised by: inbox decode
@@ -709,6 +725,30 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** A subscriber's cursor predates the source's retained history.
 - **Example.** A subscriber offline longer than the replay horizon.
 - **Fix.** Re-bootstrap the subscriber from a snapshot.
+
+### SnapshotFailed
+
+*error* · origin: event-delivery/06 (BEH-DB-044, BEH-DB-048) · raised by: `SnapshotProvider.restore`; `OutboxSettlement.install`
+
+- **Cause.** The snapshot could not be installed (`reason`): "outbox-touched" — the restore or an in-store install changed an outbox envelope or the highest outbox sequence, so the transaction rolled back; "prepare-failed" — a participant registered with `DurableBus.onStoreSwap` failed its `prepare` before a whole-store install, so nothing was replaced or raised; or the application's `SnapshotProvider` failed with its own reason.
+- **Example.** A snapshot restore that truncates the outbox table.
+- **Fix.** Install snapshots that leave the outbox alone; fix the failing store-swap participant and run the install again.
+
+### MalformedBatch
+
+*error* · origin: event-delivery/03 (BEH-DB-018) · raised by: `DurableBus.receive`
+
+- **Cause.** A received batch holds an element whose `origin`, `stream` or `sequence` does not decode (`destination`); nothing is stored and the relay treats it as `DeliveryFailed`.
+- **Example.** A sender built against another envelope layout.
+- **Fix.** Fix the sending side; the batch is resent as a whole.
+
+### UnknownEnvelopeFormat
+
+*error* · origin: event-delivery/01 (BEH-DB-002) · raised by: inbox
+
+- **Cause.** An element's `envelope` format is not 1 while its origin, stream and sequence decode (`origin`, `stream`, `sequence`, `envelope`); that (origin, stream) stops at the inbox.
+- **Example.** A newer sender writing envelope format 2.
+- **Fix.** Upgrade the receiver, then release the stream.
 
 ### ClockSkewExceeded
 
@@ -742,13 +782,13 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A package altered after signing.
 - **Fix.** Do not load it; obtain the published package.
 
-### ManifestMismatch (loader)
+### PackageManifestMismatch
 
-*error* · origin: loader/01 · raised by: package checks
+*error* · origin: loader/01 · raised by: package checks, `Loader.stampRemote`
 
-- **Cause.** The package's manifest disagrees with what the catalog or definition declares (distinct from core's `ManifestMismatch`).
+- **Cause.** The package's manifest disagrees with the evaluated definition, or a proxy's id or version disagrees with the guest manifest (`field`, `manifest`, `definition`). Renamed from the loader's `ManifestMismatch`, so that `catchTag` tells it apart from core's `ManifestMismatch`.
 - **Example.** A catalog entry pointing at a different build.
-- **Fix.** Republish a consistent package.
+- **Fix.** Republish a consistent package, or build the proxy from the guest's manifest.
 
 ### PackageRefused
 
@@ -854,11 +894,19 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** The ledger store is unreachable.
 - **Fix.** Restore the ledger.
 
+### LedgerUnavailable
+
+*port-error* · origin: entitlement/03 (BEH-EN-022) · raised by: `BudgetLedger.reserve`, `commit`, `release`
+
+- **Cause.** The application's budget ledger failed; `onLedgerUnavailable` decides: "refuse" fails the reservation with `BudgetUnavailable`, "local" accounts in process and counts the reservation "unreconciled"; essential reservations succeed under both.
+- **Example.** The ledger database is down during a reservation.
+- **Fix.** Restore the ledger; review reservations counted "unreconciled".
+
 ### CallbackDenied
 
 *error* · origin: remote/06 · raised by: guest callbacks
 
-- **Cause.** The callback was refused at the host boundary (`link`, `contract`, `method`, `reason`: not-granted, invocation-ended, or the admission's reason); nothing was resolved.
+- **Cause.** The callback was refused at the host boundary (`link`, `contract`, `method`, `reason`: not-granted, local-contract, invocation-ended, or the admission's reason); nothing was resolved.
 - **Example.** A guest calls back a contract its call token does not grant.
 - **Fix.** Make the callback within the call, or ask the integrator for a grant or an admission rule that covers it.
 
@@ -901,6 +949,22 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** No verified entry satisfies the id and range, or two entries share an id and version with different digests ("ambiguous").
 - **Example.** Resolving `example/greeter` at `^2` when only 1.x entries are verified.
 - **Fix.** Publish a matching version, or remove the duplicate entry from the feed.
+
+### NotFirstParty
+
+*error* · origin: loader/09 · raised by: `Loader.lazy`
+
+- **Cause.** The verified catalog entry is not marked first-party (`id`, `version`, `digest`): no "first-party" statement for its digest is accepted, so its code may not be evaluated in the host's process.
+- **Example.** An application passes a partner's catalog entry to `Loader.lazy`.
+- **Fix.** Run it as a guest with `LoaderRemote.link`. Mark it first-party (`bridger countersign --statement first-party`) only if it is the application's own code.
+
+### GuestEntryInvalid
+
+*error* · origin: loader/09 · raised by: `LoaderRemote.link`, `Loader.stampRemote`
+
+- **Cause.** The guest manifest does not have the guest shape, or its one `provides` reference does not match the link's contract (`id`, `reason` names the first offending field).
+- **Example.** A partner manifest that declares its callbacks in `requires`.
+- **Fix.** Republish the guest with one `provides` reference to the served contract, callbacks in `requested.capabilities`, and empty `requires`, `optional`, `activation`, `contributions` and `listens`; or link it with the contract it provides.
 
 ### EntitlementConfigError
 
@@ -962,7 +1026,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: command/02 · raised by: dispatch
 
-- **Cause.** The effective gate (`CommandGate` and its wrappers) refused (`reason`), or the taint floor withheld an automatic allow of a command not declared `readOnly` with no draft source wired (`reason` "tainted-session"), or a gate or draft source failed ("gate-defect", "gate-timeout"), or the receipt store failed ("receipts-unavailable"), or a batch draft or version reader is missing ("no-batch-draft-source", "no-version-reader"), or a `long` command was put in `Commands.batch` ("long-in-batch", command BEH-CM-049).
+- **Cause.** The effective gate (`CommandGate` and its wrappers) refused (`reason`), or the taint floor withheld an automatic allow of a command not declared `readOnly` with no draft source wired (`reason` "tainted-session"), or a gate or draft source failed ("gate-defect", "gate-timeout"), or the receipt store failed, or `receiptPartition` threw or returned an invalid partition ("receipts-unavailable", command BEH-CM-041), or a batch draft or version reader is missing ("no-batch-draft-source", "no-version-reader"), or a `long` command was put in `Commands.batch` ("long-in-batch", command BEH-CM-049), or an admission policy refused (`reason` chosen by the policy, for example "budget-exhausted"), or its `admit` died, exceeded `gateTimeout` or returned an empty, over-long or non-printable reason ("admission-unavailable", command BEH-CM-044).
 - **Example.** An unapproved regulated command; a tainted agent call on a catalog built without `drafts`.
 - **Fix.** Obtain the approval the gate requires.
 
@@ -1117,6 +1181,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** No requested state was reached within the timeout (`taskId`, `last`); the task is unaffected.
 - **Example.** Awaiting `awaiting-approval` for 30 seconds on a long research turn.
 - **Fix.** Await again, or raise the timeout.
+
+### DraftWithdrawalFailed
+
+*port-error* · origin: agent/02 · raised by: `DraftWithdrawal.withdraw`
+
+- **Cause.** The application's draft flow could not withdraw the pending draft of a task that ended while awaiting approval (`draftId`, `message`). The task still ends; its terminal snapshot says "not-withdrawn" and the loop logs it at error level.
+- **Example.** The approval store is unreachable when a person cancels the task; or the loop was built with `DraftWithdrawal.none`.
+- **Fix.** Withdraw the draft in the approval store by hand before anyone approves it; then fix the draft flow.
 
 ### TaintDraftStoreError
 
@@ -1334,6 +1406,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A plugin whose manifest says `residency: "eu"` behind a transport that offers only `"us"`
 - **Fix.** Use a transport, route or inbox that offers the label, or correct the manifest; the label is compared as a string and proves nothing about where code runs.
 
+### LocalContractRefused
+
+*error* · origin: remote/01 (also federation/02, kit/03, kit/05) · raised by: `Remote.define` (link build), `Remote.serve`, `Guest.serve`, `Federation.plugin` (build), `Conformance.verify`, `bridger sdk generate`
+
+- **Cause.** A local contract (core `Contract.local`) was given where it would cross a host boundary (`serviceId`, `site`). Nothing is opened, served, sent or written. A guest callback to one is refused as `CallbackDenied` "local-contract".
+- **Example.** `Remote.define(EventStore, …)`, where `EventStore` was made with `Contract.local`.
+- **Fix.** Use the contract in-process only. To cross a boundary, declare a `Contract.make` contract under a new major (core BEH-BR-225).
+
 ### RemoteBudgetExceeded
 
 *error* · origin: remote/09 · raised by: calls through a link
@@ -1464,13 +1544,37 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A read model's unique index rejects a row.
 - **Fix.** Fix the projection or its table; the follower resumes from the checkpoint.
 
+### EvolveFailed
+
+*defect* · origin: event-store/02 (BEH-ES-010) · raised by: loading a stream, `Aggregate.handle`, `Aggregate.run`
+
+- **Cause.** `evolve` threw or died on a stored event (`stream`, `streamVersion`, `type`); the load fails, never skipping the event or returning partial state.
+- **Example.** An `evolve` that throws on an event type it does not expect.
+- **Fix.** Make `evolve` pure and total: a stored event happened and must fold.
+
+### UpcasterRemoved
+
+*error* · origin: event-store/04 (BEH-ES-027) · raised by: registering a `DurableEvent` with the store
+
+- **Cause.** The event's `minVersion` is above the lowest version still stored for its type (`type`, `storedFrom`, `minVersion`).
+- **Example.** A release drops the 1→2 upcaster while version-1 events are still stored.
+- **Fix.** Keep the upcaster for as long as events at that version are stored.
+
 ### NotOwner
 
-*error* · origin: sequence/01 · raised by: `Series.open`
+*error* · origin: sequence/01 · raised by: `Sequence.open`, `next`, `close` (and the `Series` handle over them)
 
-- **Cause.** The origin is not this host's configured origin (`origin`, `configured`); only closure of a superseded series by a later incarnation is allowed.
-- **Example.** A host opens a series of another terminal.
-- **Fix.** Open series only for the host's own origin.
+- **Cause.** The series' origin is not the durable bus's current origin (`origin`, `current`). Nothing is written, and there is no exception.
+- **Example.** A host opens a series of another terminal; a handle opened before a whole-store re-bootstrap calls `next`.
+- **Fix.** Open series only for the host's own origin; after a re-bootstrap, open the series again under the new origin.
+
+### SupersessionPending
+
+*error* · origin: sequence/01 (BEH-SQ-009) · raised by: `Sequence.open`, `next`, `close`
+
+- **Cause.** The durable-bus origin changed and the supersession step for it has not committed yet (`origin`). Nothing is written.
+- **Example.** A call right after a whole-store re-bootstrap.
+- **Fix.** Retry. The step is retried with backoff until it commits.
 
 ### SeriesNameInvalid
 
@@ -1511,6 +1615,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** The subject id is not 1–128 characters of `[A-Za-z0-9._:/-]` (`reason`).
 - **Example.** A subject id containing a name with spaces.
 - **Fix.** Use an opaque id; the subject id stays readable after a shred.
+
+### ShredUnattributed
+
+*error* · origin: keyring/03 (BEH-KR-017) · raised by: `Keyring.shred`
+
+- **Cause.** The shred's resolved actor is `Actor.unattributed`, `Actor.system`, a "bridger:" actor or blank (`subject`). Nothing is written, whatever core's `attribution.require` says.
+- **Example.** A shred run from a background job with no actor.
+- **Fix.** Run the shred under an attributed actor.
 
 ### DecryptFailed
 
@@ -1653,3 +1765,5 @@ Change log: 2026-11-08, round 2 — entries for the core tags `PolicyMismatch`, 
 Change log: 2026-11-08, round-2 agent review — entries `RevocationListMalformed`, `TaskStoreUnavailable`, `TaskLost`; `IdempotencyConflict` ("definition-differs", "mode-differs"), `CommandRefused` ("long-in-batch") and the taint-floor wording of `CommandRefused`/`CommandDeferred` (commands not declared `readOnly`) updated; `PackageRefused` (data-pack "rollback" and "equivocation"), `SignatureRejected` ("revocation-list" verified only by the revocation source), `Revoked` (statement-digest revocation) and `SeriesConfigInvalid` ("resume-and-continue", "resume-mismatch") updated (CCR-BR-029).
 
 Change log: 2026-11-08, round-2 integration — entries `OutboxFrozen` and `IncarnationUnavailable`; `RebootstrapBlocked` gains "kept-needs-in-store" and "no-incarnation-source"; `RevocationListStale` raised on an `offer` answer `NotNewer`; a note on the federation status events `revocation-rejected`, `kill-held`, `rebootstrap-revision-mismatch` and remote `WireExit.InProgress` (CCR-BR-029).
+
+Change log: 2026-11-09, audit — the loader's `ManifestMismatch` renamed `PackageManifestMismatch`; entries `NotFirstParty`, `GuestEntryInvalid` (CCR-KT-004), `DraftWithdrawalFailed` (CCR-AG-004) and `InvalidRealm` (core's CCR-BR-032, entry under CCR-KT-004); entries `CommitConflict` (CCR-DB-004), `SupersessionPending` (CCR-SQ-003) and `ShredUnattributed` (CCR-KR-003), `NotOwner` aligned and `CommandRefused` admission refusals and `receiptPartition` failures (CCR-CM-004), entries under CCR-KT-004; entries `SnapshotFailed`, `MalformedBatch`, `UnknownEnvelopeFormat`, `EvolveFailed`, `UpcasterRemoved` and `LedgerUnavailable`, missing before this audit (CCR-KT-004); `InvalidDefinition` raised by `enable` and as a phase "load" cause, entry `LocalContractRefused` and `CallbackDenied` reason "local-contract" (core CCR-BR-033, entries under CCR-KT-004).

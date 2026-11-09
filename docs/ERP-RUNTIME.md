@@ -1,6 +1,6 @@
 # Bridger ERP: how the ERP runs on the Bridger core
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Names, interfaces and numbers below are proposed. This document joins the generic runtime in [SPEC.md](SPEC.md) (`Host`, scoped leases, `Generation`) to the ERP contracts in [ERP-SPEC.md](ERP-SPEC.md), [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) and [ERP-STORAGE.md](ERP-STORAGE.md). It **supersedes** the earlier statements that the ERP keeps one Bridger Host per tenant. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target).
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Names, interfaces and numbers below are proposed. This document joins the generic runtime of the [core reference](../references/core/README.md) (`Host`, [scoped leases](../references/core/behaviors/09-leases.md), [`Generation`](../references/core/behaviors/20-generation.md)) to the ERP contracts in [ERP-SPEC.md](ERP-SPEC.md), [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) and [ERP-STORAGE.md](ERP-STORAGE.md). It **supersedes** the earlier statements that the ERP keeps one Bridger Host per tenant. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target).
 
 > **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
@@ -10,7 +10,7 @@ Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-
 | --- | --- |
 | Hosts | **One Bridger `Host` per process.** There is no host per tenant. |
 | Module code | A module is activated **once per process and dependency closure**, as one Bridger plugin, and shared by every tenant that uses that closure. Module code is tenant-independent: tenant, company and actor arrive in the request context at call time and are never captured in `build`. |
-| Tenant state | Each tenant has a small immutable **tenant generation** held in a `Generation` ([SPEC.md](SPEC.md)). Generations are created lazily, evicted when idle, and share their compiled registry with other tenants that have the same module set. |
+| Tenant state | Each tenant has a small immutable **tenant generation** held in a `Generation` (core [20 — Generation](../references/core/behaviors/20-generation.md)). Generations are created lazily, evicted when idle, and share their compiled registry with other tenants that have the same module set. |
 | Lifetime coupling | A tenant generation holds **scoped leases** (`Host.lease`) on the module activations it references, so a module cannot close while a generation that uses it is current or still draining. |
 | Reclaiming code | Module activations that no generation references are removed after an idle grace period. Module code that was imported stays in memory until restart (Node limitation, [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §5). |
 
@@ -50,7 +50,7 @@ flowchart TB
 
 ### Platform plugins
 
-Ordinary Bridger plugins installed at start-up in dependency order: storage (provides the `Storage` adapter), identity (awthaq assembly), artifact store and loader, workers, and the **coordinator** (provides the `ErpCoordinator` service used by the gateway and Module Manager). They use the process-level `config` mechanism of the core ([SPEC.md](SPEC.md), "Configuration and metadata").
+Ordinary Bridger plugins installed at start-up in dependency order: storage (provides the `Storage` adapter), identity (awthaq assembly), artifact store and loader, workers, and the **coordinator** (provides the `ErpCoordinator` service used by the gateway and Module Manager). They use the process-level `config` mechanism of the core (core [11 — Configuration](../references/core/behaviors/11-configuration.md), BEH-BR-097–104).
 
 ### Module activations
 
@@ -162,20 +162,20 @@ Because only generation leases are taken per request, no per-request work touche
 - **On demand.** An activation is installed when a generation needs a closure that is not resident. `ensure` for a tenant also forces activation so the receipt is truthful ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §7).
 - **Reference counting.** The coordinator counts, per activation, the generations that hold leases on it, including retired generations still draining. When the count reaches zero it starts an idle timer (`moduleIdleGrace`, default 10 minutes). If still zero at expiry it calls `host.remove(activationId)`; the core waits for leases (none) and closes the scope. A new demand re-installs it (its imported code is already loaded, so this is cheap).
 - **Upgrade per tenant.** A tenant moving from closure `c1` to `c2` gets a new activation `c2` installed alongside `c1`, a new generation published, and `c1` reclaimed when the last generation using it is gone. Tenants therefore upgrade independently and a rollout can be staged by tenant.
-- **Disable per tenant.** A new generation without the module is published; the activation is reclaimed if no other tenant uses it.
+- **Disable per tenant.** A new generation without the module is published and the old one drains with a bound (BEH-BR-173), which releases that tenant's leases on the activation. Disable never closes the activation itself, because other tenants may share it. The activation is reclaimed by the reference count above, once no generation of any tenant and no running workflow references it; running workflows of the disabled module drain for at most `workflowDisableGrace` and are then suspended (§7a rule 5).
 - **Runtime failure of an activation** (core `failed`, phase `runtime`): the coordinator observes the host's events, republishes affected tenant generations **without** that module and without modules that depend on it (after drain), marks the module `failed` in the observed state, and raises an alert. `retry` re-activates it and republishes. Operations of the excluded modules return `ModuleUnavailable`; other modules of the tenant keep working.
 - **Activation fails to build** (phase `build`): tenants requiring it cannot enable it (`ActivationFailed` on `ensure`). A tenant already enabled keeps its current generation if the new closure fails.
-- **Forced removal** (`force: true`) is reserved for artifact revocation quarantine ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §9) and shutdown ([SPEC.md](SPEC.md), "Shutdown").
+- **Forced removal** (`force: true`) is reserved for artifact revocation quarantine ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §9) and shutdown (core [12 — Shutdown and hosting](../references/core/behaviors/12-shutdown-and-hosting.md), BEH-BR-105–107; forced revocation, BEH-BR-086).
 
 ## 7a. Coordination rules with the core
 
-These rules close the gaps between the coordinator and the core's semantics ([SPEC.md](SPEC.md)).
+These rules close the gaps between the coordinator and the core's semantics ([core behaviors](../references/core/behaviors/index.yaml)).
 
-1. **Reacting to module failure.** The coordinator subscribes to `Host.events` and reacts to `runtime-failure` and to `state-changed` into `stopping`, not to the final `failed` state. It republishes affected tenant generations without the module and its dependents, then closes the old generation scopes, which releases the leases the failing activation is waiting on. If the coordinator is slow, the core's drain limit then revokes the remaining leases ([SPEC.md](SPEC.md), "Runtime failure and health").
+1. **Reacting to module failure.** The coordinator subscribes to `Host.events` and reacts to `runtime-failure` and to `state-changed` into `stopping`, not to the final `failed` state. It republishes affected tenant generations without the module and its dependents, then closes the old generation scopes, which releases the leases the failing activation is waiting on. If the coordinator is slow, the core's drain limit then revokes the remaining leases (core [10 — Runtime failure and health](../references/core/behaviors/10-runtime-failure-and-health.md), BEH-BR-094, BEH-BR-095).
 2. **Shutdown order.** `Erp.make` registers the coordinator's shutdown **after** the host is created, so it runs first: it closes admission on every resident generation, awaits their drain, closes their scopes (releasing all module leases), then lets `Host.shutdown` stop plugins. Module activations therefore stop with no leases held.
 3. **Single-flight activation.** `ensureActivation(closure)` is serialized per closure by a mutex, and the reference count is incremented **before** the coordinator decides to install or remove. If `host.install` fails with `DuplicatePlugin`, or a lease with `ServiceUnavailable`, because a removal is in flight, the coordinator awaits that removal (through `changes`) and installs again. Idle-grace removal re-checks the count under the same mutex.
 4. **Awaiting activation.** The coordinator never calls `awaitIdle` (it would wait on unrelated builds and can fail with `WouldDeadlock`). It waits for one specific plugin to reach `active` or `failed` through `Host.changes`. Lease-holding generation scopes are owned by a dedicated supervisor fiber; `install`, `remove` and `replace` are issued from the coordinator's own fiber, which holds no lease context.
-5. **Running workflows keep their module.** A workflow instance that is `running` holds a reference on its module closure (counted like a generation); a `suspended` instance holds none and re-activates the closure on resume ([ERP-BUSINESS.md](ERP-BUSINESS.md) §4, §5). A module therefore cannot be reclaimed under live workflows, and disabling a module for a tenant lets existing instances run to completion or suspension per §5.
+5. **Running workflows keep their module.** A workflow instance that is `running` holds a reference on its module closure (counted like a generation); a `suspended` instance holds none and re-activates the closure on resume ([ERP-BUSINESS.md](ERP-BUSINESS.md) §4, §5). A module therefore cannot be reclaimed under running workflows. Disabling a module for a tenant lets its running instances continue for at most `workflowDisableGrace`; the engine then suspends the ones still running, which drops their references, so a disabled module's activation is never held longer than the larger of that grace and the generation drain, plus `moduleIdleGrace` (ERP-BUSINESS §4).
 6. **Seeds and data migrations run against a staged value.** The `data` install phase builds a private, unpublished `TenantGeneration` with its own scoped leases and runs the system `Records` against it. After the phase completes, the real generation is built and published; the private value is discarded ([ERP-RECORDS.md](ERP-RECORDS.md) §6).
 
 ## 8. Scaling model
@@ -215,6 +215,8 @@ Each node has its own Host, activations and generation cache; the database holds
 | "Loader → Tenant Bridger Host" ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §2) | Loader → process host (module activations). |
 | Install procedure step "runtime" ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §7) | Ensure the module activation exists, then build and publish the tenant generation (§5). |
 | "Hosts may be cached/evicted" ([ERP-SPEC.md](ERP-SPEC.md) §5) | Generations are evictable by policy (§8). |
+| "`modules.disable` closes activation scopes" ([ERP-SPEC.md](ERP-SPEC.md) §5 and §6, [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §7, [ERP-TODO-WALKTHROUGH.md](ERP-TODO-WALKTHROUGH.md) §11) | Disable publishes a tenant generation without the module and drains the old one; the activation is shared and is reclaimed only by the reference count (§7). Those documents now say so. |
+| "Disabling a module lets running workflows drain" with no bound ([ERP-BUSINESS.md](ERP-BUSINESS.md) §4) | Running workflows drain for at most `workflowDisableGrace`, then are suspended and release the activation (§7a rule 5). |
 
 ## 11. Acceptance checks
 
@@ -223,6 +225,8 @@ Each node has its own Host, activations and generation cache; the database holds
 - Enabling a module for tenant A does not affect an in-flight request of tenant B or A's other modules.
 - An incompatible change closes admission for that tenant only, drains, publishes, reopens.
 - An activation unreferenced for `moduleIdleGrace` is removed; a new request re-activates it without reloading code.
+- Tenants A and B share an activation; disabling the module for A leaves B's in-flight and new requests served by the same activation, and A's operations return `ModuleUnavailable`.
+- Disabling a module with a running workflow returns before the workflow ends; after `workflowDisableGrace` the workflow is suspended and, if no other tenant uses the closure, the activation is removed after `moduleIdleGrace`.
 - A runtime failure of one module removes it (and its dependents) from affected generations and leaves other modules serving.
 - Loading 2,000 evicted tenants in a burst respects `tenantLoadConcurrency` and does not exceed the pool.
 - Evicting a tenant and reloading it yields the same registry key and behavior; durable state is unchanged.
@@ -241,3 +245,5 @@ These are design acceptance scenarios, not tests already executed.
 | 4 | Cross-tenant module state | **Not allowed.** Module activations hold no tenant data; module-level caches may hold only tenant-independent data (compiled artifacts, regexes). |
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §7 and §10: disable drains the tenant's generation and never closes a shared activation; §10 records which documents changed (E-02). §7a rule 5 bounds running workflows on disable by `workflowDisableGrace`, then suspends them (E-09). Citations of the superseded SPEC.md point to the core reference behaviors (E-04).

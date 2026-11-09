@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-05                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): BEH-BR-033 a wired `RefusalList` is consulted before a plugin enters `starting`, and a refused start lands in `disabled` (CCR-BR-026)<br>0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-11-09): BEH-BR-039 a build that imports handed-off state is decided stale before the import and is committed once the import begins (34, BEH-BR-349) (U-02); BEH-BR-034 a build queued when shutdown begins is cancelled and its plugin unregistered without a stop step (BEH-BR-105) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-033 a `waiting` plugin does not start once shutdown has begun; BEH-BR-034 no build begins and queued builds are cancelled under shutdown; BEH-BR-039 shutdown is a target change whose stale build is discarded (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-033 a wired `RefusalList` is consulted before a plugin enters `starting`, and a refused start lands in `disabled` (CCR-BR-026)<br>0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -75,8 +75,9 @@ REQUIREMENT: A plugin MUST NOT begin its build before every key in its
 ```
 REQUIREMENT: A `waiting` plugin whose last missing requirement becomes
              available MUST move to `starting` by itself, in the same
-             revision. This is a normal start; it MUST NOT be treated or
-             reported as a retry.
+             revision, unless shutdown has begun (12 — Shutdown and
+             Hosting, BEH-BR-105). This is a normal start; it MUST NOT be
+             treated or reported as a retry.
 ```
 
 ```
@@ -116,7 +117,9 @@ rather than started (CCR-BR-026). A plugin that
 REQUIREMENT: A plugin MUST be ready to build when it is `starting`, its
              requirements are available (BEH-BR-033), and no operation is
              pending on it. Ready plugins MUST begin their builds in FIFO
-             order of becoming ready.
+             order of becoming ready. Once shutdown has begun a build MUST NOT
+             begin, and a queued build is cancelled, its plugin unregistered
+             without a stop step (12 — Shutdown and Hosting, BEH-BR-105).
 ```
 
 ```
@@ -363,9 +366,14 @@ deduplicating the package — is the application's
 ```
 REQUIREMENT: When the plugin's target changes while its build is running —
              an operation (remove, replace, restart, reconfigure, disable)
-             is applied to it, or one of its captured providers begins to
-             stop — the host MUST let the build settle, MUST NOT interrupt
-             it for that reason, and MUST NOT publish its result.
+             is applied to it, one of its captured providers begins to
+             stop, or shutdown begins — the host MUST let the build settle,
+             MUST NOT interrupt it for that reason, and MUST NOT publish its
+             result. For a build that receives handed-off state, "while its
+             build is running" ends when the host begins the handoff steps:
+             staleness is decided before them, and a change during them,
+             other than shutdown, applies after the build step has ended
+             (34 — State Handoff, BEH-BR-349).
 ```
 
 ```
@@ -375,9 +383,11 @@ REQUIREMENT: Once the stale build has settled, the host MUST close its
 ```
 
 ```
-REQUIREMENT: When the target change was an operator operation, the stale
-             build's outcome, success or failure, MUST be discarded and the
-             operation MUST proceed. When the target change was the loss of
+REQUIREMENT: When the target change was an operator operation or shutdown,
+             the stale build's outcome, success or failure, MUST be
+             discarded and the operation or shutdown MUST proceed; under
+             shutdown the plugin MUST end "gone" (12 — Shutdown and
+             Hosting, BEH-BR-105). When the target change was the loss of
              a captured provider, a stale build that failed MUST be recorded
              as `failed`, and one that succeeded MUST be discarded and the
              plugin MUST go to `waiting`.
@@ -390,7 +400,9 @@ REQUIREMENT: When both happened while the build ran — an operator operation
              success or failure, MUST be discarded, and the operation MUST
              proceed, subject to the cascade rules of 08 — Operation
              Legality (BEH-BR-079), so that any build it then starts does
-             not capture the stopping provider.
+             not capture the stopping provider. Once shutdown has begun,
+             shutdown decides in the same way, whatever else changed the
+             target.
 ```
 
 A build captured its providers at its start (BEH-BR-035); if one of them is

@@ -5,29 +5,31 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-06                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Resolutions of the round-2 agent review (A-02, A-04, A-09, A-10, A-13, A-14): receipts compare actor first, carry the dispatch digest (`definition-differs`) and a task id (`mode-differs`; a repeat of a task returns its `CommandTaskRef`); `void` for undone batch items; a `Failure` is completed outside the wrappers, a claim is released when the wrapper chain does not end with the completed outcome, and an in-flight claim expires; one flow list for the key annotation and no inherited key in nested dispatches; a probe slot not used is returned (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — idempotency key and `CommandReceipts`, handler wrappers, breaker per command or provider (CCR-CM-003, round 2: recheck items 1, 4, 10) |
+> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-CM-041: the receipt scope gains an application-computed `partition`; every port call receives `services` (the dispatching fiber's `receiptContext` keys, and for a `Success` the wrapper chain's services), so a transaction reaches the port by context and never by fiber-local state; a dispatch from a durable-bus subscription handler joins the inbox's `StoreTransaction` with a key derived from the envelope's `eventId` (M-04); a typed error listed in the command's `retryable` is released, never stored (ERP alignment of the same audit); new BEH-CM-044, admission policies fixed in the catalog layer, consulted at step 6 and settled after step 7 (C-10); BEH-CM-043 returns the probe slot of a dispatch refused by an admission (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-02, A-04, A-09, A-10, A-13, A-14): receipts compare actor first, carry the dispatch digest (`definition-differs`) and a task id (`mode-differs`; a repeat of a task returns its `CommandTaskRef`); `void` for undone batch items; a `Failure` is completed outside the wrappers, a claim is released when the wrapper chain does not end with the completed outcome, and an in-flight claim expires; one flow list for the key annotation and no inherited key in nested dispatches; a probe slot not used is returned (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — idempotency key and `CommandReceipts`, handler wrappers, breaker per command or provider (CCR-CM-003, round 2: recheck items 1, 4, 10) |
 
 ---
 
 Agents, MCP clients, HTTP clients and job runners retry. A dispatch path that
 every caller takes is the right place to recognise a retry, to wrap the
-handler in the application's transaction, and to stop calling a handler that
-keeps failing. This file adds three things to steps 6 and 7 of dispatch
+handler in the application's transaction, to stop calling a handler that
+keeps failing, and to admit a dispatch against a limited resource such as a
+budget. This file adds four things to steps 6 and 7 of dispatch
 ([02 — Dispatch](./02-dispatch.md), BEH-CM-009): an idempotency key backed by
-a receipts port, handler wrappers fixed when the catalog layer is built, and
-a circuit breaker per command or per providing plugin. This file owns
-BEH-CM-041–048 and uses BEH-CM-041–043; 044–048 are reserved.
+a receipts port, handler wrappers fixed when the catalog layer is built, a
+circuit breaker per command or per providing plugin, and admission policies
+fixed when the catalog layer is built. This file owns BEH-CM-041–048 and
+uses BEH-CM-041–044; 045–048 are reserved.
 
 Planned source: `packages/command/src/Receipts.ts`,
-`packages/command/src/Wrappers.ts`, `packages/command/src/Breaker.ts`
-*(Planned)*.
+`packages/command/src/Wrappers.ts`, `packages/command/src/Breaker.ts`,
+`packages/command/src/Admission.ts` *(Planned)*.
 
 ## BEH-CM-041: An idempotency key returns the stored outcome of a completed dispatch
 
@@ -38,16 +40,23 @@ Planned source: `packages/command/src/Receipts.ts`,
 ```ts
 // illustrative — not type-checked
 // The port: supplied by the application in CommandCatalogOptions.receipts (02, BEH-CM-011).
+// Every call receives `services`: the only way a transaction or other context reaches the port.
 interface CommandReceipts {
-  readonly claim: (claim: ReceiptClaim) => Effect.Effect<ReceiptState, ReceiptsUnavailable>
-  readonly complete: (ticket: ReceiptTicket, outcome: StoredOutcome) => Effect.Effect<void, ReceiptsUnavailable>
-  readonly release: (ticket: ReceiptTicket, reason: string) => Effect.Effect<void>
+  readonly claim: (claim: ReceiptClaim, services: Context.Context<never>) => Effect.Effect<ReceiptState, ReceiptsUnavailable>
+  readonly complete: (ticket: ReceiptTicket, outcome: StoredOutcome, services: Context.Context<never>) =>
+    Effect.Effect<void, ReceiptsUnavailable>
+  readonly release: (ticket: ReceiptTicket, reason: string, services: Context.Context<never>) => Effect.Effect<void>
   // The receipt's effect was undone (a batch rollback or compensation, 07, BEH-CM-050): forget it,
-  // so that the next claim for (command, key) answers Fresh. A ticket the port no longer knows is a no-op.
-  readonly void: (ticket: ReceiptTicket, reason: "rolled-back" | "compensated") => Effect.Effect<void, ReceiptsUnavailable>
+  // so that the next claim for (partition, command, key) answers Fresh. A ticket the port no longer knows is a no-op.
+  readonly void: (ticket: ReceiptTicket, reason: "rolled-back" | "compensated", services: Context.Context<never>) =>
+    Effect.Effect<void, ReceiptsUnavailable>
 }
+// CommandCatalogOptions (02, BEH-CM-011) gains, fixed when the layer is built:
+//   receiptPartition?: (request: CommandRequest) => string        // pure; default: every request in partition ""
+//   receiptContext?: ReadonlyArray<Context.Key<any, any>>          // keys of the dispatching fiber the port receives
 interface ReceiptClaim {
-  readonly command: string            // the receipt scope is (command, key)
+  readonly partition: string          // the receipt scope is (partition, command, key)
+  readonly command: string
   readonly key: string
   readonly inputDigest: string        // BEH-CM-011
   readonly digest: string             // the dispatch digest, BEH-CM-005
@@ -62,10 +71,10 @@ type ReceiptState =
       readonly taskId?: string; readonly outcome: StoredOutcome }
   | { readonly _tag: "InFlight"; readonly inputDigest: string; readonly digest: string; readonly actorId: string
       readonly taskId?: string }
-interface ReceiptTicket { readonly command: string; readonly key: string; readonly token: string }
+interface ReceiptTicket { readonly partition: string; readonly command: string; readonly key: string; readonly token: string }
 type StoredOutcome =
   | { readonly _tag: "Success"; readonly output: Json }        // the encoded output
-  | { readonly _tag: "Failure"; readonly error: Json }         // the encoded typed error (the command's `error` schema)
+  | { readonly _tag: "Failure"; readonly error: Json }         // the encoded typed error, not listed in `retryable`
 class ReceiptsUnavailable extends Schema.TaggedError<ReceiptsUnavailable>()("ReceiptsUnavailable", { message: Schema.String }) {}
 
 // The label every call the handler makes carries to core's call log (flow "callLog" only; the gate
@@ -135,6 +144,85 @@ REQUIREMENT: With a key and a port, step 6 MUST call `claim` exactly once
 ```
 
 ```
+REQUIREMENT: The receipt scope MUST be (partition, command, key). Before
+             the claim, step 6 MUST compute `partition` once, as the value
+             `CommandCatalogOptions.receiptPartition` returns for the
+             gate's request (BEH-CM-011), or "" when the option is absent,
+             and MUST carry it in the claim and in every ticket. A
+             partition MUST have at most 128 characters, each from U+0021
+             to U+007E; another value, or a function that throws, MUST end
+             the dispatch with `CommandRefused { id, reason:
+             "receipts-unavailable" }` and claim nothing. Within one
+             partition the comparisons above apply unchanged. Documentation
+             MUST state that an application whose keys can repeat across
+             tenants, companies or other boundaries MUST derive the
+             partition from the request (its actor or its "gate"
+             annotations), so that one key in two partitions names two
+             receipts and a claim never answers with another partition's
+             outcome.
+```
+
+```
+REQUIREMENT: Every call of the port MUST receive `services`, built as
+             follows, and no other key:
+             - `claim`, `release`, `void` and the completion of a
+               `Failure`: the dispatching fiber's context restricted to the
+               keys listed in `CommandCatalogOptions.receiptContext` (a key
+               the fiber lacks is left out; an empty context when the
+               option is absent).
+             - the completion of a `Success`: that context with the
+               services the wrapper chain hands to the handler (the keys in
+               the applying wrappers' `provides`, BEH-CM-042) added over
+               it, so that a transaction a wrapper opens reaches the port.
+             - a call made from a task's fiber (07, BEH-CM-052): only the
+               wrapper chain's services for a `Success`, and an empty
+               context otherwise. The `receiptContext` keys are read in the
+               caller's fiber for the claim only, because the caller's
+               transaction may end before the task does.
+             The package MUST NOT rely on fiber-local state, or on the
+             port's own environment, to carry a transaction to the port:
+             the port MUST find a transaction only in the `services` it
+             receives. Documentation MUST state that the receipt joins a
+             transaction only when the port writes it through a
+             transaction found in `services`.
+```
+
+```
+REQUIREMENT: Documentation MUST show a dispatch from a durable-bus
+             subscription handler (durable-bus BEH-DB-020), whose handler
+             runs inside the inbox's `StoreTransaction`: the application
+             lists `StoreTransaction` in `receiptContext`; its transaction
+             wrapper looks for a `StoreTransaction` in the dispatching
+             fiber (`Effect.serviceOption`) and, when it finds one,
+             provides that transaction to the handler instead of opening
+             its own; the port writes the claim, the completion and any
+             release through it. The domain write, the receipt and the
+             inbox's cursor then commit or roll back together, and a
+             rolled-back delivery (a `CommitConflict` or a failed attempt,
+             durable-bus BEH-DB-021) leaves no receipt behind, so its
+             retry claims `Fresh`. The idempotency key MUST be derived from
+             the envelope, as `${subscription}:${envelope.eventId}`, with
+             a further suffix fixed by the handler's code when it
+             dispatches the same command more than once for one envelope.
+```
+
+```
+REQUIREMENT: A `Failure` MUST be stored only for a handler's typed error
+             whose `_tag` is not listed in the command's `retryable`
+             (BEH-CM-001). A typed error whose tag is listed MUST release
+             the claim, MUST NOT be stored and MUST reach the caller
+             unchanged; so does every other end that is not a stored
+             outcome (the release rule below). Documentation MUST state
+             the classification: a condition that a later attempt may not
+             meet — a lock or statement timeout, a serialization, fencing
+             or commit conflict, a storage outage — is either a typed error
+             listed in `retryable`, or reaches the package as a defect or a
+             wrapper failure; it MUST NOT be declared as a typed error left
+             out of `retryable`, because a stored `Failure` is returned to
+             every retry with the same key.
+```
+
+```
 REQUIREMENT: For a `Fresh` claim, the package MUST complete the receipt
              once the handler returned and its output or typed error was
              encoded. A `Success` MUST be completed inside the handler
@@ -152,8 +240,9 @@ REQUIREMENT: For a `Fresh` claim, the package MUST complete the receipt
 ```
 REQUIREMENT: The package MUST call `release` with the error's tag,
              uninterruptibly, on every end of a fresh claim other than
-             the outcome it completed: `CommandBreakerOpen` at step 6;
-             `CommandTimeout`, `LeaseRevoked`, `ContributionUnavailable`,
+             the outcome it completed: `CommandBreakerOpen` or an
+             admission's `CommandRefused` at step 6 (BEH-CM-044); a typed
+             error listed in `retryable`; `CommandTimeout`, `LeaseRevoked`, `ContributionUnavailable`,
              `ToolChanged`, a wrapper failure or a defect at step 7, also
              when it happens after `complete` returned (the wrapper chain
              then did not end with the completed outcome, and a
@@ -214,10 +303,18 @@ replaces the outer one. (5) `CommandAnnotations.IdempotencyKey` has one
 flow list, `["callLog"]`; the gate and the hooks read the key from the
 request. (6) A receipt whose effect a batch undid is voided (07,
 BEH-CM-050), so that a retry of the batch runs the item again instead of
-replaying an effect that no longer exists.
+replaying an effect that no longer exists. (7) The partition is the application's, computed from the request, because
+the package does not know what a tenant or a company is; a port cannot
+compute it from its own environment, which is empty. (8) `retryable` is part
+of the command's definition and its digest (BEH-CM-005): which failures a
+retry may overturn is a property of the command, not of a deployment.
+(9) Context reaches the port explicitly, as with the handler (BEH-CM-042):
+an implicit fiber-bound transaction would join a receipt to whatever
+transaction happens to enclose the dispatch, including one the application
+did not mean to share.
 
-**Open.** Whether the port should also scope receipts by actor (command,
-actor, key), which would remove even the "key in use" signal of
+**Open.** Whether the port should also scope receipts by actor (partition,
+command, actor, key), which would remove even the "key in use" signal of
 "actor-differs" at the cost of letting two actors run the same key; v0.1
 keeps one scope and compares the actor first. Whether the package should ship an in-memory `CommandReceipts` for
 tests only (as core ships a call-log fixture); v0.1 leaves it to
@@ -364,10 +461,10 @@ REQUIREMENT: With `breaker` other than "off" (the default), the catalog MUST
              uncounted outcome closes it and clears its count, a counted
              error reopens it — while concurrent dispatches meet
              `CommandBreakerOpen`. A probe slot taken at step 6 by a
-             dispatch that then does not reach step 7 (a batch that ends
-             before the item runs, 07, BEH-CM-049; an interruption) MUST be
-             returned: the breaker stays "half-open" and the next dispatch
-             probes.
+             dispatch that then does not reach step 7 (a refusal by an
+             admission, BEH-CM-044; a batch that ends before the item
+             runs, 07, BEH-CM-049; an interruption) MUST be returned: the
+             breaker stays "half-open" and the next dispatch probes.
 ```
 
 ```
@@ -411,6 +508,126 @@ refuses most inputs is healthy.
 **Open.** Per-command breaker options (a different window for one command)
 are not offered in v0.1; an application that needs them uses scope "command"
 with the strictest common values.
+
+## BEH-CM-044: Admission policies are fixed when the catalog layer is built
+
+> **Invariant:** [INV-CM-001](../invariants.md#inv-cm-001-the-catalog-runs-a-handler-only-through-dispatch)
+> **See:** [ADR-CM-006](../decisions/006-receipts-and-wrappers-are-fixed-in-the-catalog-layer.md), [ADR-CM-002](../decisions/002-catalog-not-rules.md)
+> **Core seam:** [22 — Attributable operations](../../core/behaviors/22-attributable-operations.md), [29 — Capability grants and call log](../../core/behaviors/29-capability-grants-and-call-log.md)
+
+```ts
+// illustrative — not type-checked
+// CommandCatalogOptions (02, BEH-CM-011) gains: admissions?: ReadonlyArray<CommandAdmission>
+interface CommandAdmission {
+  readonly name: string
+  readonly applies?: (descriptor: CommandDescriptor) => boolean           // pure; default: every command
+  // Consulted at step 6. The scope stays open until `settle` has returned.
+  readonly admit: (request: CommandRequest) => Effect.Effect<AdmissionDecision, never, Scope.Scope>
+}
+type AdmissionDecision =
+  | { readonly _tag: "Admit"; readonly settle: (outcome: AdmissionOutcome) => Effect.Effect<void> }
+  | { readonly _tag: "Refuse"; readonly reason: string }       // e.g. "budget-exhausted"
+type AdmissionOutcome =
+  | { readonly _tag: "NotRun" }                                // the handler was never called
+  | { readonly _tag: "Ran"; readonly outcome: "success" | "failure" | "defect" | "interrupted"
+      readonly errorTag?: string }                             // the mapping of BEH-CM-015
+
+// An application's per-command budget over the entitlement companion (entitlement BEH-EN-023),
+// built where the Budget service is in hand; the reservation lives in the admission's scope.
+const budgetAdmission = (budget: BudgetShape): CommandAdmission => ({
+  name: "budget",
+  applies: (d) => d.costClass === "metered",
+  admit: (request) =>
+    budget.reserve({ labels: { command: request.command }, unit: "calls" }, 1).pipe(
+      Effect.map((reservation): AdmissionDecision => ({ _tag: "Admit", settle: (o) =>
+        o._tag === "Ran" && o.outcome === "success" ? Effect.asVoid(reservation.commit(1)) : reservation.release })),
+      Effect.catchTag("BudgetExhausted", () => Effect.succeed({ _tag: "Refuse", reason: "budget-exhausted" } as const)),
+      Effect.catchTag("BudgetUnavailable", () => Effect.succeed({ _tag: "Refuse", reason: "budget-unavailable" } as const)))
+})
+```
+
+```
+REQUIREMENT: `admissions` MUST be read once, when the catalog layer is
+             built, and MUST NOT change afterwards; the package MUST NOT
+             offer any API through which a plugin adds, removes or
+             reorders an admission. Admission names MUST be non-empty and
+             unique; a violation MUST fail the layer with a defect naming
+             the admission.
+```
+
+```
+REQUIREMENT: Step 6 MUST consult the admissions after the receipt claim and
+             the breaker, in the order listed, keeping only those whose
+             `applies` returns true for the descriptor, each with the
+             gate's request (BEH-CM-011). A dispatch that ends at the claim
+             with a stored outcome or a task handle consults none. Each
+             `admit` MUST run in the dispatching fiber, with the dispatch's
+             `CurrentCorrelation`, the resolved actor and annotations
+             served as for the handler, no plugin principal, and a scope of
+             its own, bounded by `gateTimeout`.
+```
+
+```
+REQUIREMENT: A `Refuse` MUST end the dispatch with `CommandRefused { id,
+             reason }`. A reason that is empty, longer than 128 characters
+             or has a character outside U+0021 to U+007E, and an `admit`
+             that dies or exceeds `gateTimeout`, MUST end the dispatch with
+             `CommandRefused { id, reason: "admission-unavailable" }`. On
+             either end the package MUST settle every admission already
+             admitted for this dispatch with `NotRun`, release a fresh
+             receipt claim (BEH-CM-041) and return a probe slot
+             (BEH-CM-043). A refusal by an admission MUST NOT be counted by
+             a breaker and MUST be offered to the call log as a refusal
+             (02, BEH-CM-015).
+```
+
+```
+REQUIREMENT: For every admission that admitted, the package MUST call
+             `settle` exactly once, uninterruptibly, after step 7 ended and
+             after the receipt was completed or released, outside every
+             handler wrapper, and before step 8; and MUST then close the
+             admission's scope. The outcome MUST be `Ran` with the outcome
+             and error tag that BEH-CM-015 maps for the call log when the
+             handler was called, and `NotRun` when step 7 ended before the
+             handler was called or never began. For a task (07,
+             BEH-CM-052) `settle` MUST run in the task's fiber when the task
+             ends, and the scope MUST stay open until then. A `settle` that
+             dies or exceeds `gateTimeout` MUST be logged at warning level
+             and MUST NOT change the dispatch outcome, which is already
+             decided.
+```
+
+```
+REQUIREMENT: The package MUST NOT ship an admission, MUST NOT read
+             `costClass` or `permission` to admit or refuse (BEH-CM-006),
+             and MUST NOT describe an admission as a guarantee that a
+             limit is never exceeded; that property is the application's
+             policy and store.
+```
+
+A budget, a rate limit or a quota is consulted before the handler runs and
+must learn afterwards whether the reserved amount was used. The gate cannot
+do it: it decides allow, refuse or defer, is consulted for every item of a
+batch before any claim, and has no hook that runs after the handler. A
+handler wrapper cannot do it either: its failure is `CommandWrapperFailed`,
+which a breaker may count, and it runs inside the dispatch timeout and the
+application's transaction. An admission is a policy with a reservation and
+a settlement, fixed by the code that builds the application, like the gate
+wrappers and the handler wrappers.
+
+**Settled here.** (1) Admissions come after the receipt claim, so a replayed
+outcome is never charged twice, and after the breaker, so an open breaker
+consumes nothing. (2) A refusal is `CommandRefused`, a boundary refusal like
+the gate's: a caller tells a budget refusal from a permission refusal by the
+reason, and nothing about it is a failure of the command or of a plugin.
+(3) `settle` runs outside the handler wrappers, so a transaction wrapper
+that rolls back does not roll back the settlement, and a settlement that
+fails cannot change an outcome already decided. (4) The undo of a batch item
+(07, BEH-CM-050) is a dispatch of its own and is admitted on its own.
+
+**Open.** Whether a settlement that fails should be retried by the package
+or left to the application's store (v0.1 logs it); whether an admission may
+also defer (a draft for a budget increase) instead of refusing.
 
 ---
 

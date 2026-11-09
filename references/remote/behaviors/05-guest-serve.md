@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F20) — a duplicate of a running call is answered `InProgress` instead of dropped; a `DedupeStore` claim runs after the epoch, duplicate, in-flight and deadline checks (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 20 and 23, CORE-DECISIONS-2 — per-call duplicate check across invocations through a `DedupeStore`; served calls set `CurrentCorrelation` and `HostLink.reference`; residency refusal before any lease (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): `GuestContext.claims` carries identity claims only when the link discloses them; `Remote.serve` accepts calls without them; `Guest.serve` and `Remote.serve` fail with `LocalContractRefused` for a local contract (BEH-RM-007, core CCR-BR-033) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — a duplicate of a running call is answered `InProgress` instead of dropped; a `DedupeStore` claim runs after the epoch, duplicate, in-flight and deadline checks (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 20 and 23, CORE-DECISIONS-2 — per-call duplicate check across invocations through a `DedupeStore`; served calls set `CurrentCorrelation` and `HostLink.reference`; residency refusal before any lease (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -45,7 +45,7 @@ Guest.serve<C extends Contract.Any, G extends readonly Contract.Any[] = []>(
     readonly grants?: G                     // contracts this guest expects to be granted
     readonly maxInFlight?: number
   }
-): Effect.Effect<never, GuestTransportError, Scope.Scope>
+): Effect.Effect<never, GuestTransportError | LocalContractRefused, Scope.Scope>   // LocalContractRefused: 01, BEH-RM-007
 
 type Guest.Handlers<C, G> = {
   readonly [M in MethodsOf<C>]: (input: InputOf<C, M>, ctx: GuestContext<G>) =>
@@ -54,7 +54,7 @@ type Guest.Handlers<C, G> = {
 interface GuestContext<G> {
   readonly clients: ClientsOf<G>            // granted contracts only (BEH-RM-036)
   readonly call: { readonly callId: string; readonly epoch: string; readonly remaining: Duration.Duration }
-  readonly claims: WireClaims               // copy of the token's public claims (BEH-RM-024); grants nothing
+  readonly claims: WireClaims               // link claims, plus the identity claims the link discloses (BEH-RM-024); grants nothing
   readonly annotations: Annotations         // decoded wire annotations (BEH-RM-024, core BEH-BR-296)
   readonly rejectedAnnotations: readonly string[]   // ids `Annotations.decode` left out
 }
@@ -73,6 +73,13 @@ REQUIREMENT: Each handler's input and its success or typed failure MUST be
              decoded and encoded with the contract's codecs at the agreed
              version (BEH-RM-004). A handler's typed failure MUST reach the
              host as that failure with `outcome: "executed"`.
+```
+
+```
+REQUIREMENT: Documentation of `GuestContext` MUST state that `claims`
+             carries no actor, principal, organisation or correlation id
+             unless the integrator's link discloses it (03, BEH-RM-024), and
+             that a handler MUST work without them.
 ```
 
 ```
@@ -265,7 +272,7 @@ Remote.serve<C extends Contract.Any>(
     readonly annotationKeys?: readonly AnnotationKey<any>[]   // keys decoded besides core's (core BEH-BR-296)
     readonly maxInFlight?: number                // default 64
   }
-): Effect.Effect<never, GuestTransportError, Scope.Scope | Bridger.Host>
+): Effect.Effect<never, GuestTransportError | LocalContractRefused, Scope.Scope | Bridger.Host>   // 01, BEH-RM-007
 // runs in the calling fiber's plugin context: its principal is the consumer of every capture (core 28)
 ```
 
@@ -306,10 +313,12 @@ REQUIREMENT: The provider's method MUST run inside
              `CallerContext.serve(ctx)` (core BEH-BR-292), where `ctx` is
              `options.context` applied to the call's epoch, its `claims`
              and its annotations decoded with `Annotations.decode` (core
-             BEH-BR-296). The actor the far end asserts in `claims.actor`
-             MUST NOT become the served call's actor by default: it is a
-             claim, and a consumer that trusts its transport's
-             authentication MAY map it through `options.context`.
+             BEH-BR-296). The actor the far end asserts in `claims.actor`,
+             when its link discloses one, MUST NOT become the served call's
+             actor by default: it is a claim, and a consumer that trusts its
+             transport's authentication MAY map it through
+             `options.context`. `options.context` MUST accept a call whose
+             `claims` carry no identity claim (03, BEH-RM-024).
 ```
 
 ```

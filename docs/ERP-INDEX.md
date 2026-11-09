@@ -10,7 +10,7 @@ Added 2026-11-08 (reconciliation of the ERP documents with the specification tre
 
 | ERP concept | Appears in | Now governed by | What remains in the ERP documents |
 | --- | --- | --- | --- |
-| `Command.contract` / `Command.implement` and the Operation Gateway | [ERP-SPEC.md](ERP-SPEC.md) §2, §4, §8; [ERP-TODO-WALKTHROUGH.md](ERP-TODO-WALKTHROUGH.md); [ERP-RECORDS.md](ERP-RECORDS.md) §2 | [`@bridger/command`](../references/command/README.md): [01 — Command definition](../references/command/behaviors/01-command-definition.md) (BEH-CM-001–005), [02 — Dispatch](../references/command/behaviors/02-dispatch.md) (BEH-CM-009–016), [06 — Receipts, wrappers and breakers](../references/command/behaviors/06-receipts-wrappers-and-breakers.md) (BEH-CM-041–043) | The gateway is an application adapter over the one command dispatch path. The ERP-specific steps around the handler (transaction, audit, outbox) are handler wrappers (BEH-CM-042) and idempotency receipts (BEH-CM-041) configured by the application. |
+| `Command.contract` / `Command.implement` and the Operation Gateway | [ERP-SPEC.md](ERP-SPEC.md) §2, §4, §8; [ERP-TODO-WALKTHROUGH.md](ERP-TODO-WALKTHROUGH.md); [ERP-RECORDS.md](ERP-RECORDS.md) §2 | [`@bridger/command`](../references/command/README.md): [01 — Command definition](../references/command/behaviors/01-command-definition.md) (BEH-CM-001–005), [02 — Dispatch](../references/command/behaviors/02-dispatch.md) (BEH-CM-009–016), [06 — Receipts, wrappers and breakers](../references/command/behaviors/06-receipts-wrappers-and-breakers.md) (BEH-CM-041–043) | The gateway is an application adapter over the one command dispatch path. The ERP-specific steps around the handler (transaction, audit, outbox) are handler wrappers (BEH-CM-042) and idempotency receipts (BEH-CM-041) configured by the application. [ERP-STORAGE.md](ERP-STORAGE.md) §10 is the ERP's implementation of the `CommandReceipts` port. |
 | `ModuleManifest` and the single Ed25519 publisher signature | [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §3–§5, §9 | Core [27 — Manifest and lazy activation](../references/core/behaviors/27-manifest-and-lazy-activation.md) (BEH-BR-241–249); [`@bridger/loader`](../references/loader/README.md) [03 — Signature policy](../references/loader/behaviors/03-signature-policy.md) (BEH-LD-017–024), N-of-M with no default ([ADR-LD-003](../references/loader/decisions/003-n-of-m-signature-policy-with-no-default.md)) | ERP-only manifest fields (models, migrations, storage capabilities, UI artifacts) as an extension of the core manifest. |
 | `apiVersion` | [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §3, §9, §12; [ERP-SPEC.md](ERP-SPEC.md) | Core [26 — Versioned contracts](../references/core/behaviors/26-versioned-contracts.md) (BEH-BR-225–232) | The tenant-version window, restated over contract majors. |
 | Record hooks and `ApprovalRequired` | [ERP-RECORDS.md](ERP-RECORDS.md) §3.3; [ERP-BUSINESS.md](ERP-BUSINESS.md) §4, §15 | Core [31 — Hook points](../references/core/behaviors/31-hook-points.md) (BEH-BR-297–308); core [32 — Generic gate and plan](../references/core/behaviors/32-generic-gate-and-plan.md) (`Defer` with a draft, BEH-BR-313–321); command gate (BEH-CM-011) | Which hooks and approval rules a model declares, approval tasks and their storage. |
@@ -19,14 +19,14 @@ Added 2026-11-08 (reconciliation of the ERP documents with the specification tre
 | ERP outbox (leases, retries, dead letters, handled-keys table) | [ERP-STORAGE.md](ERP-STORAGE.md) §12; [ERP-BUSINESS.md](ERP-BUSINESS.md) §2; [ERP-SPEC.md](ERP-SPEC.md) §4; [ERP-OPERATIONS.md](ERP-OPERATIONS.md) §3–§4 | [`@bridger/durable-bus`](../references/durable-bus/README.md) (all behaviours, including the storage-adapter obligations BEH-DB-054 and BEH-DB-055) | The adapter's implementation of the durable-bus storage ports, the tenant-to-stream mapping and the admin surface (ERP-STORAGE §12). |
 | Multi-node rollout | [ERP-OPERATIONS.md](ERP-OPERATIONS.md) §3; [ERP-RUNTIME.md](ERP-RUNTIME.md) §9 | [`@bridger/federation`](../references/federation/README.md) (host manifest, BEH-FD-001–008; sync and offline, BEH-FD-009–016) | Per-node schema single-flight against the shared database. |
 | Audit | [ERP-STORAGE.md](ERP-STORAGE.md) §11; [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §9 | Core [22 — Attributable operations](../references/core/behaviors/22-attributable-operations.md), [23 — Audit sink and record](../references/core/behaviors/23-audit-sink-and-record.md), [24 — Time, identifiers and sequence](../references/core/behaviors/24-time-ids-and-sequence.md) (BEH-BR-185–216); [`@bridger/audit-chain`](../references/audit-chain/README.md) (all behaviours, including the generic `ChainSink<R>` of [04](../references/audit-chain/behaviors/04-generic-chain.md)) | The ERP business audit table as one consumer-owned store, and its field-level change records. |
-| Sequences | [ERP-RECORDS.md](ERP-RECORDS.md) §8 | [`@bridger/sequence`](../references/sequence/README.md) for per-host series on offline or multi-host deployments: one owning origin per series, numbers reserved in the local transaction, a new series per incarnation after a restore, verification at the authority | The ERP's server-side design (a central row lock, a rollback giving the number back, formats and period resets) stays a valid application choice for deployments with one shared database; formats are the application's in both (ADR-SQ-004). |
-| Generic runtime ([SPEC.md](SPEC.md)) | All ERP documents | [`references/core/`](../references/core/README.md) | Nothing; SPEC.md is kept as design history. |
+| Sequences | [ERP-RECORDS.md](ERP-RECORDS.md) §8 | [`@bridger/sequence`](../references/sequence/README.md) for per-host series on offline or multi-host deployments: one owning origin per series, numbers reserved in the local transaction, a new series per incarnation after a restore, verification at the authority | The ERP's server-side design (a central row lock, a rollback giving the number back, formats and period resets) stays a valid application choice for deployments with one shared database; formats are the application's in both (ADR-SQ-004). Its series is the durable-bus incarnation, the only restore epoch (sequence overview, limit 5): after a restore it closes the open series of a lower incarnation and continues in a new one, as ADR-SQ-003 does ([ERP-RECORDS.md](ERP-RECORDS.md) §8). |
+| Generic runtime (the former single-file specification) | All ERP documents | [`references/core/`](../references/core/README.md); the [migration map](../references/core/appendices/spec-md-migration-map.md) says where each former section went | Nothing. ERP documents cite core behaviours, not the former file, which is kept only as design history. |
 
 An event-sourced domain layer is specified by [`@bridger/event-store`](../references/event-store/README.md) (streams, deciders, offline facts, projections), with [`@bridger/sequence`](../references/sequence/README.md) for per-host number series and [`@bridger/keyring`](../references/keyring/README.md) for per-subject field encryption and shredding. No ERP document describes them; the ERP's row-as-truth write path is not built on them.
 
 ## Reading order
 
-1. [references/core/](../references/core/README.md): the normative generic plugin runtime. [SPEC.md](SPEC.md) is superseded and kept as design history.
+1. [references/core/](../references/core/README.md): the normative generic plugin runtime. It supersedes the former single-file specification, which is kept as design history; the [migration map](../references/core/appendices/spec-md-migration-map.md) relates the two.
 2. [ERP-TODO-WALKTHROUGH.md](ERP-TODO-WALKTHROUGH.md): the author experience, end to end.
 3. [ERP-SPEC.md](ERP-SPEC.md): core ERP contracts, packages, execution, lifecycle.
 4. [ERP-ACCESS.md](ERP-ACCESS.md): permissions and policies with `@qadi/core`.
@@ -48,15 +48,15 @@ An event-sourced domain layer is specified by [`@bridger/event-store`](../refere
 
 | Package | Kind | Status | Specified in |
 | --- | --- | --- | --- |
-| `@bridger/core` | Generic plugin runtime | Draft specification | [references/core/](../references/core/README.md) (supersedes [SPEC.md](SPEC.md)) |
+| `@bridger/core` | Generic plugin runtime | Draft specification | [references/core/](../references/core/README.md) |
 | `@bridger/react`, `@bridger/foldkit` | UI adapters over core | Proposed | [REACT-API.md](REACT-API.md), [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md), [FOLDKIT-API.md](FOLDKIT-API.md) |
 | `@bridger/erp/contracts` | Browser-safe model/command/permission contracts | Proposed | [ERP-SPEC.md](ERP-SPEC.md) |
 | `@bridger/erp` | Server: Module, Model.serve, Records, Erp | Proposed | [ERP-SPEC.md](ERP-SPEC.md) |
-| `@bridger/erp/ui`, `@bridger/erp/client` | Browser-safe UI descriptors and client | Proposed | [ERP-SPEC.md](ERP-SPEC.md), [ERP-BROWSER.md](ERP-BROWSER.md) |
+| `@bridger/erp/ui`, `@bridger/erp/client` | Browser-safe UI descriptors and client | Proposed | [ERP-SPEC.md](ERP-SPEC.md) (`ErpClient` and the wire format in §5), [ERP-BROWSER.md](ERP-BROWSER.md) |
 | `@bridger/qadi` | Wrapper over `@qadi/core` | Proposed | [ERP-ACCESS.md](ERP-ACCESS.md), [ERP-IDENTITY.md](ERP-IDENTITY.md) |
 | `@bridger/erp-storage` | Adapter interface, capabilities, statement/DDL IR, planner, conformance suite | Proposed | [ERP-STORAGE.md](ERP-STORAGE.md) |
 | `@bridger/erp-postgres` (reference), `-sqlite` (Tier 2), `-mysql`, `-mssql`, … | Dialect adapters, delivered in that order | Proposed | [ERP-STORAGE.md](ERP-STORAGE.md) |
-| `@bridger/erp-node` | HTTP hosting, identity adapter, loader | Proposed | [ERP-IDENTITY.md](ERP-IDENTITY.md), [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) |
+| `@bridger/erp-node` | HTTP hosting, identity adapter, loader | Proposed | [ERP-SPEC.md](ERP-SPEC.md) §5 (`ErpNode`, wire format), [ERP-IDENTITY.md](ERP-IDENTITY.md), [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) |
 | `@bridger/erp-ui` | Framework-neutral UI core (state machines, stores, conformance) | Proposed | [ERP-BROWSER.md](ERP-BROWSER.md) |
 | `@bridger/erp-foldkit`, `@bridger/erp-react` | Renderers for the ERP UI, one per deployment, on `@bridger/foldkit` / `@bridger/react` | Proposed | [ERP-BROWSER.md](ERP-BROWSER.md) |
 | `@bridger/erp-testkit`, `bridger` CLI | Developer tooling | Proposed | [ERP-DX.md](ERP-DX.md) |
@@ -100,7 +100,7 @@ flowchart TB
 | Tenant generation | The small immutable per-tenant registry value that references module activations; swapped atomically. Superseded in part by core realm families (see the supersession table). |
 | System subject | The permission-limited identity a module uses for seeds, jobs and subscribers. Superseded in part by the core plugin principal and capability grants (see the supersession table). |
 | Intent | One user action with one idempotency key. |
-| Receipt | Stored result of an idempotent command. |
+| Receipt | The record of one idempotency key for one command: in flight while its first request runs, then completed with the stored outcome, success or typed failure (BEH-CM-041; [ERP-STORAGE.md](ERP-STORAGE.md) §10). |
 | Outbox | Events committed with the business change. Governed by `@bridger/durable-bus` (see the supersession table). |
 
 ## Status by area
@@ -109,7 +109,7 @@ flowchart TB
 
 | Area | State | Blocking items before implementation |
 | --- | --- | --- |
-| Core runtime (`Host`, leases, `Generation`, supervision, shutdown, testing) | Designed, operation semantics and failure handling specified in [SPEC.md](SPEC.md) | Superseded: [SPEC.md](SPEC.md) is replaced by [references/core/](../references/core/README.md), a Draft with its own open items ([roadmap](../references/core/roadmap.md)). |
+| Core runtime (`Host`, leases, `Generation`, supervision, shutdown, testing) | Draft specification in [references/core/](../references/core/README.md) | Its own open items ([roadmap](../references/core/roadmap.md)). The former single-file specification is design history only ([migration map](../references/core/appendices/spec-md-migration-map.md)). |
 | ERP runtime (shared activations, tenant generations, scaling) | Designed ([ERP-RUNTIME.md](ERP-RUNTIME.md)) | Prototype lease chain and eviction; tune defaults. |
 | Records and model logic (hooks, relations, queries, seeds, services, sequences, settings, money, translations) | Designed ([ERP-RECORDS.md](ERP-RECORDS.md)) | Prototype the write pipeline and relation/aggregate rendering on two dialects. |
 | Model, schema, extension | Designed | Pin Effect Schema/Model import paths and type-check examples. |
@@ -125,3 +125,5 @@ flowchart TB
 | Implementation | **None** | Start with the Todo vertical slice ([ERP-DX.md](ERP-DX.md) §4). |
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions; supersession table: command row cites BEH-CM-041–043 (no longer an open item), durable-bus and audit-chain rows cite the companions without stale ranges, new "Sequences (ERP-RECORDS §8)" row; closing paragraph names the three event-sourcing companions (R5-20, R5-21).
+
+Change log: 2026-11-09, audit fixes — supersession table: the command row names ERP-STORAGE §10 as the `CommandReceipts` implementation (E-01); the sequences row records series closing after a restore (E-06); the generic-runtime row, reading order, package map and status table cite the core reference and its migration map instead of SPEC.md (E-04). Package map cites ERP-SPEC §5 for `ErpNode` and `ErpClient` (E-07). Glossary: receipt (E-01).

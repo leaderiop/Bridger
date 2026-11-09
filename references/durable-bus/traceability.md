@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-TRACE                                             |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review — REQ-DB-039–041; REQ-DB-031, 033, 034, 037, 038 restated; INV-DB-006, 009, 011 rows extended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — BEH-DB-008, 016, 031, 032, 048, INV-DB-009–011, ADR-DB-009, REQ-DB-031–038 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — BEH-DB-047; REQ-DB-028–030; check texts aligned with BEH-DB-058 (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 — REQ-DB-042–044; INV-DB-002, 004, 005 and 009 rows extended (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-DB-039–041; REQ-DB-031, 033, 034, 037, 038 restated; INV-DB-006, 009, 011 rows extended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — BEH-DB-008, 016, 031, 032, 048, INV-DB-009–011, ADR-DB-009, REQ-DB-031–038 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — BEH-DB-047; REQ-DB-028–030; check texts aligned with BEH-DB-058 (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -38,14 +38,14 @@ requirements and risks are registered in the core `urs.md` and
 | Invariant | Behaviours | Decisions | Scenarios |
 | --- | --- | --- | --- |
 | [INV-DB-001](invariants.md#inv-db-001-an-envelope-is-in-the-outbox-exactly-when-its-transaction-committed) | BEH-DB-009, 010, 054 | ADR-DB-002 | REQ-DB-003, 004, 027 |
-| [INV-DB-002](invariants.md#inv-db-002-sequence-is-contiguous-per-origin-and-stream) | BEH-DB-002, 004, 011 | ADR-DB-004 | REQ-DB-004, 005, 006 |
+| [INV-DB-002](invariants.md#inv-db-002-sequence-is-contiguous-per-origin-and-stream) | BEH-DB-002, 003, 004, 011 | ADR-DB-004 | REQ-DB-004, 005, 006, 042, 044 |
 | [INV-DB-003](invariants.md#inv-db-003-an-envelope-is-acknowledged-only-after-the-receiver-committed-it) | BEH-DB-017, 019, 052 | ADR-DB-003 | REQ-DB-009, 010, 027 |
-| [INV-DB-004](invariants.md#inv-db-004-an-inbox-records-each-envelope-processed-at-most-once-per-subscription) | BEH-DB-015, 018, 020 | ADR-DB-003 | REQ-DB-009, 011 |
-| [INV-DB-005](invariants.md#inv-db-005-handlers-see-each-stream-in-sequence-without-skipping) | BEH-DB-018, 020, 022, 033 | ADR-DB-004 | REQ-DB-009, 015, 029 |
+| [INV-DB-004](invariants.md#inv-db-004-an-inbox-records-each-envelope-processed-at-most-once-per-subscription) | BEH-DB-015, 018, 020, 021 | ADR-DB-003 | REQ-DB-009, 011, 043 |
+| [INV-DB-005](invariants.md#inv-db-005-handlers-see-each-stream-in-sequence-without-skipping) | BEH-DB-018, 020, 021, 022, 033 | ADR-DB-004 | REQ-DB-009, 015, 029, 043 |
 | [INV-DB-006](invariants.md#inv-db-006-no-envelope-is-dropped-silently) | BEH-DB-008, 014, 016, 018, 019, 022, 026, 044, 045, 047 | ADR-DB-005, ADR-DB-006 | REQ-DB-013, 014, 024, 025, 028, 029, 031, 038, 040 |
 | [INV-DB-007](invariants.md#inv-db-007-hlc-timestamps-issued-by-a-node-strictly-increase) | BEH-DB-034, 035 | ADR-DB-004 | REQ-DB-017, 018 |
 | [INV-DB-008](invariants.md#inv-db-008-in-flight-delivery-is-bounded-by-the-receivers-credit) | BEH-DB-041, 042, 047 | ADR-DB-006 | REQ-DB-021, 022, 023, 030 |
-| [INV-DB-009](invariants.md#inv-db-009-no-snapshot-restore-removes-an-unacknowledged-outbox-envelope) | BEH-DB-004, 044, 048 | ADR-DB-006 | REQ-DB-033, 034, 039 |
+| [INV-DB-009](invariants.md#inv-db-009-no-snapshot-restore-removes-an-unacknowledged-outbox-envelope) | BEH-DB-004, 044, 048 | ADR-DB-006 | REQ-DB-033, 034, 039, 044 |
 | [INV-DB-010](invariants.md#inv-db-010-a-payload-reaches-storage-and-the-wire-only-through-the-payload-codec) | BEH-DB-008 | ADR-DB-008 | REQ-DB-031 |
 | [INV-DB-011](invariants.md#inv-db-011-no-envelope-is-delivered-to-a-subscriber-the-access-policy-denied) | BEH-DB-047, 053 | ADR-DB-001 | REQ-DB-035, 040 |
 
@@ -110,3 +110,6 @@ One scenario per required acceptance check of [BEH-DB-058](behaviors/08-testing-
 | REQ-DB-039 | 39. A whole-store re-bootstrap freezes the outbox and raises the incarnation | [BEH-DB-004](behaviors/01-events-and-envelope.md), [BEH-DB-048](behaviors/06-replay-and-snapshots.md) | Not run |
 | REQ-DB-040 | 40. A `HistorySource` checks placement and access per reader and withholds what it refuses | [BEH-DB-047](behaviors/06-replay-and-snapshots.md) | Not run |
 | REQ-DB-041 | 41. Every `publish` error writes nothing and rolls back the caller's write if unhandled | [BEH-DB-009](behaviors/02-transactional-outbox.md), [BEH-DB-031](behaviors/04-versions-and-upcasters.md) | Not run |
+| REQ-DB-042 | 42. `publish` options: a given stream (own sequence), an empty one refused as a defect, causation outside a handler | [BEH-DB-003](behaviors/01-events-and-envelope.md), [BEH-DB-005](behaviors/01-events-and-envelope.md), [BEH-DB-009](behaviors/02-transactional-outbox.md) | Not run |
+| REQ-DB-043 | 43. A commit conflict is retried in a new transaction and, when the attempts end on one, halts without parking; `receive` stores nothing on a conflict | [BEH-DB-018](behaviors/03-delivery-and-inbox.md), [BEH-DB-021](behaviors/03-delivery-and-inbox.md), [BEH-DB-054](behaviors/07-core-bus-and-adapters.md) | Not run |
+| REQ-DB-044 | 44. `origin` and `originChanges`; store-swap participants run before a whole-store install, and a failing one stops it | [BEH-DB-004](behaviors/01-events-and-envelope.md), [BEH-DB-048](behaviors/06-replay-and-snapshots.md) | Not run |

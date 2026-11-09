@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Notifications from the view's `changes` feed; re-sync waits for the removal's drain (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.3 (2026-11-09): Re-sync acts on the current session child and stops when its session ends (BEH-MC-012) (CCR-MC-004)<br>0.2 (2026-11-08): Notifications from the view's `changes` feed; re-sync waits for the removal's drain (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -139,8 +139,9 @@ specified; the coalescing above already bounds traffic to transport speed.
 ```
 REQUIREMENT: When an external server imported by `McpClient.import`
              (03 — Client import) sends a list-changed notification, the
-             proxy MUST re-list its tools and apply the difference to its
-             contributions: remove the contributions of tools that left,
+             import MUST re-list its tools on that session and apply the
+             difference to the contributions of that session's child
+             (BEH-MC-017): remove the contributions of tools that left,
              add contributions for tools that arrived, and replace — remove
              then add — a contribution whose descriptor digest would change
              (input or output schema, title, description or external
@@ -161,10 +162,19 @@ REQUIREMENT: A replace MUST await the end of the removal — the old entry
 ```
 
 ```
-REQUIREMENT: The re-synchronization MUST be serialized per proxy, and the
+REQUIREMENT: The re-synchronization MUST be serialized per import, and the
              commands it changes MUST reach served sessions only through the
              ordinary path: catalog change, toolset republication, then
              BEH-MC-010.
+```
+
+```
+REQUIREMENT: A re-synchronization belongs to the session that announced the
+             change. When that session ends, its pending and running
+             re-synchronizations MUST stop, and the session child's
+             withdrawal removes every imported command; the next session
+             starts from its own first `tools/list`. A notification that
+             arrives under another session's epoch MUST be discarded.
 ```
 
 A removal waits for in-flight calls under the registry's drain rule
@@ -172,7 +182,10 @@ A removal waits for in-flight calls under the registry's drain rule
 registry's `drainTimeout`; while it waits, the tool is absent from the
 catalog, which is the honest state.
 
-**Settled here.** A changed tool is removed then added, never mutated in
+**Settled here.** (1) A re-sync acts only on the current session child
+(CCR-MC-004): the commands exist only while a session does, so a re-sync
+that outlived its session would add commands no session can serve.
+(2) A changed tool is removed then added, never mutated in
 place: the registry has no in-place update, and a changed definition gets a
 new descriptor digest, so a pinned turn that listed the old one fails with
 `ToolChanged` rather than calling the new one under the old description.

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-12                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-09): BEH-BR-105 a `starting` plugin whose build has not begun is unregistered without a stop step when shutdown begins, like a `waiting` one, and gets no record of its own; every plugin shutdown moves through `stopping` gets its `system-stop` record (review of CCR-BR-032) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-105 once shutdown begins no plugin enters `starting` and no build or load begins, queued builds are cancelled, every stop ends "gone" (or `failed(cleanup)`), plugins with nothing to stop are unregistered in the first revision, Settled note; BEH-BR-109 the final snapshot defined (U-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -50,17 +50,70 @@ REQUIREMENT: The whole shutdown MUST be bounded by `options.timeout`, default
 ```
 
 ```
-REQUIREMENT: Plugins with nothing to stop — `disabled`, `waiting`, and
-             `failed` plugins whose scope is already closed — MUST be
-             skipped by the stop sequence.
+REQUIREMENT: From the revision in which shutdown begins, a plugin MUST NOT
+             enter `starting` and a build or `load` MUST NOT begin: a
+             `waiting` plugin MUST NOT move to `starting` when its
+             requirements become available (05 — Activation, BEH-BR-033),
+             a build slot MUST NOT be granted (BEH-BR-034), a lazy trigger
+             MUST NOT apply (27 — Manifest and Lazy Activation,
+             BEH-BR-245), and a stop MUST NOT end in `starting`, `waiting`,
+             `disabled` or `dormant`.
 ```
 
 ```
-REQUIREMENT: `dormant` plugins (lazy registrations whose code was never
-             loaded) MUST be unregistered without a stop step and MUST
-             appear in no `CloseReport` list
-             ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
-             BEH-BR-247).
+REQUIREMENT: The destination of every stop under shutdown MUST be "gone":
+             when the stop completes, the plugin MUST be unregistered as
+             `remove` unregisters it (06 — Removal, BEH-BR-041), and a
+             `plugin-removed` event MUST be emitted. A stop whose cleanup
+             fails MUST instead end in `failed` with phase "cleanup"
+             (BEH-BR-046) and stay registered. This MUST hold for a stop
+             that shutdown begins and for every stop it takes over or
+             resumes, whatever that stop's reason and earlier destination:
+             an operator operation's, a dependency-loss stop, a runtime
+             failure's, an idle return's and a child's.
+```
+
+```
+REQUIREMENT: In the revision in which shutdown begins, the host MUST:
+             - move every `active` plugin to `stopping`, hiding its
+               providers from new consumers (06 — Removal, BEH-BR-042) —
+               a plugin whose operator operation has a transition step in
+               flight once that step has settled (08 — Operation Legality,
+               BEH-BR-075);
+             - cancel every queued build: a `starting` plugin whose build
+               has not begun holds no scope and runs no finalizer, so it
+               MUST be unregistered without a stop step, as below
+               (04 — States and Snapshots, BEH-BR-026; 05 — Activation,
+               BEH-BR-035 moves such a plugin without a stop step too);
+             - give every `stopping` entry `reason` "shutdown" and `next`
+               "gone" (04 — States and Snapshots, BEH-BR-027);
+             - unregister, without a stop step, every plugin with nothing
+               to stop — `dormant`, `waiting`, `disabled`, `failed` with
+               any phase other than "cleanup", and `starting` with its
+               build not begun — emitting a `plugin-removed` event for
+               each.
+```
+
+```
+REQUIREMENT: A build or `load` running when shutdown begins MUST settle,
+             bounded by `buildTimeout` (05 — Activation, BEH-BR-040), and
+             MUST NOT be interrupted for shutdown. Its outcome, success or
+             failure, MUST be discarded and never published
+             (05 — Activation, BEH-BR-039); the plugin MUST then close what
+             the build opened through `stopping`, with `reason` "shutdown"
+             and `next` "gone".
+```
+
+```
+REQUIREMENT: A plugin unregistered without a stop step MUST appear in no
+             `CloseReport` list and MUST get no system record of its own,
+             since no stop settles for it (23 — Audit Sink and Record,
+             BEH-BR-199): the shutdown's `requested` record ends every
+             such registration. Every plugin that shutdown moves through
+             `stopping` gets the `system-stop` record of BEH-BR-199 when
+             its stop settles. A plugin already `failed` with
+             phase "cleanup" when shutdown begins MUST stay registered and
+             appear in `CloseReport.failed` (BEH-BR-106).
 ```
 
 ```
@@ -125,6 +178,28 @@ The SPEC states the per-plugin rules for removal; shutdown is the same
 dependents-first stop applied to the whole graph, so a provider is still
 usable from its dependents' finalizers during shutdown exactly as during a
 removal ([06 — Removal](./06-removal.md)).
+
+**Settled here (CCR-BR-032).** Before CCR-BR-032 the snapshot union pointed
+at "the destination of shutdown's stop", and this behaviour never named it;
+nothing stopped a `waiting` plugin from starting during shutdown when a
+build that was running settled, or a queued build from beginning. A
+`starting` plugin whose build is still queued is treated like a `waiting`
+one — unregistered without a stop step and without a record of its own —
+rather than passed through `stopping`, because it holds no scope, and a
+stop that closes nothing would write a `system-stop` record for a stop that
+never ran. The
+destination is "gone", the one end that needs no further operation on a
+host that refuses every operation: a stop under shutdown ends as a removal
+does, and a stop whose cleanup fails ends as a removal's does, in
+`failed(cleanup)`, so the leak stays visible in the final snapshot
+(BEH-BR-109) as well as in the report. No plugin starts once shutdown has
+begun, so no build can capture a provider that is about to close and no
+`waiting` plugin outlives its providers by starting against them. Plugins
+with nothing to stop are unregistered in the first revision: they hold no
+scope, nothing depends on them, and leaving them registered would show
+`waiting` or `disabled` plugins that can never change again. A build already
+running is not interrupted, for the reason BEH-BR-039 gives for any stale
+build: its scope's finalizers stay in a known state.
 
 **Settled here.** Because shutdown runs in the host's fibers, a `shutdown`
 called from inside a lease callback does not deadlock on its own lease: the
@@ -347,9 +422,23 @@ REQUIREMENT: A `shutdown` call made after shutdown has completed MUST return
 ```
 
 ```
-REQUIREMENT: `changes` MUST end when the host closes. `events` MUST emit
-             `closed` and then end. `snapshot()` MUST keep returning the
-             final snapshot.
+REQUIREMENT: The final snapshot MUST be the last revision the host
+             publishes: the revision in which the last stop under shutdown
+             settles, or, when shutdown has nothing to stop, the revision
+             in which it begins (BEH-BR-105). The host MUST publish it
+             before it produces the `CloseReport`, and MUST publish no
+             revision after it. Its `plugins` MUST hold exactly the plugins
+             in `failed` with phase "cleanup" — each listed in
+             `CloseReport.failed` with cause "cleanup" (BEH-BR-106) — and
+             no other plugin, and its `availableServiceIds` lists MUST NOT
+             name a service provided by a plugin.
+```
+
+```
+REQUIREMENT: `changes` MUST emit the final snapshot and then end when the
+             host closes. `events` MUST emit `closed`, after every
+             `plugin-removed` event of the shutdown, and then end.
+             `snapshot()` MUST keep returning the final snapshot.
 ```
 
 SPEC.md's signatures for `awaitIdle` and `inspect` omitted `HostClosed`;

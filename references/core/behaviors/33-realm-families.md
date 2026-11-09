@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-33                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-BR-337 "/" reserved as the narrowing delimiter, `isWithin` specified for ids that keep it, a Settled paragraph (host-core prototype finding G-P8; actor half of gap G47) (CCR-BR-028)<br>0.2 (2026-11-08): eviction and teardown prune through `reconcile` with `pruneDrain`/`pruneForce`; a per-realm turn serialises `retireRealm` with registrations into the realm; eviction outcomes on the family's own `events` stream, not the host feed; `family.use` aligned with `Host.useAll`; duplicate family ids a documented precondition (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.5 (2026-11-09): BEH-BR-331 a member is ready when every plugin is `active`, `dormant` or disabled by an operator; a plugin disabled "refused-digest" fails the member ("rejected"); after `activationTimeout` the member stays "creating", the next `use` waits again without a host call, and BEH-BR-333 lets idle eviction evict it (U-03); BEH-BR-336 `EphemeralRealm.use` is `Host.useAll` with the realm, with its callback shape and error union (C-15); acceptance row REQ-BR-084 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-336 `Realm.ephemeral` adds `InvalidRealm` from `defineRealm` (C-02) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-337 "/" reserved as the narrowing delimiter, `isWithin` specified for ids that keep it, a Settled paragraph (host-core prototype finding G-P8; actor half of gap G47) (CCR-BR-028)<br>0.2 (2026-11-08): eviction and teardown prune through `reconcile` with `pruneDrain`/`pruneForce`; a per-realm turn serialises `retireRealm` with registrations into the realm; eviction outcomes on the family's own `events` stream, not the host feed; `family.use` aligned with `Host.useAll`; duplicate family ids a documented precondition (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -212,17 +212,46 @@ REQUIREMENT: When `defineRealm` fails, or the reconcile fails or reports
 
 ```
 REQUIREMENT: After the reconcile, creation MUST wait, bounded by
-             `activationTimeout`, until every plugin of the member is
-             `active`. A plugin that ends `failed` MUST mark the member
-             "failed" (`reason: "failed"`); expiry MUST fail the waiting
-             calls with `reason: "activation-timeout"` and leave the member
-             as it is.
+             `activationTimeout`, until the member is *ready*: every plugin
+             of the member is `active`, `dormant` (a lazy plugin nothing has
+             triggered, 27 — Manifest and Lazy Activation, BEH-BR-244), or
+             `disabled` by an operator (its entry's `disabled: true`, or an
+             operator's `disable`; no `reason`). The member is then "ready".
+             A plugin that ends `failed` MUST mark the member "failed"
+             (`reason: "failed"`); a plugin that ends `disabled` with reason
+             "refused-digest" (28 — Plugin Principal and Mandatory Policy,
+             BEH-BR-267) MUST mark it "failed" (`reason: "rejected"`).
+```
+
+```
+REQUIREMENT: When `activationTimeout` expires first, the waiting calls MUST
+             fail with `reason: "activation-timeout"`, and the member MUST
+             stay "creating": the family MUST make no host call for it, and
+             its plugins continue as the host moves them. The next `use` of
+             the key MUST NOT create the member again; it MUST wait again
+             for readiness, bounded by `activationTimeout`, with the same
+             outcomes, and concurrent `use` calls MUST share that wait.
+             `family.evict` and `family.reset` MAY be called on such a
+             member, and idle eviction applies to it (BEH-BR-333).
 ```
 
 ```
 REQUIREMENT: Creation MUST NOT run for a key that is not used. The family
              MUST NOT create members ahead of use.
 ```
+
+Readiness counts what the member's plugins can reach on their own. A lazy
+plugin stays `dormant` until a trigger applies, and a read never triggers
+(BEH-BR-245), so a `use` through the family does not wake it either: a key it
+provides answers `ServiceUnavailable` as through `Host.useAll`, and a caller
+that wants it loaded calls `wake`. A plugin the entry lists as disabled is
+where its owner wants it. A plugin the `RefusalList` disabled will not start
+until the list changes, which is a refusal of the member as a reconcile
+rejection is. An expiry, by contrast, says only that the member was slow:
+its plugins may still be building or waiting for a provider, and nothing
+failed, so the member is neither marked "failed" (which would need a reset,
+BEH-BR-334) nor created again (which would issue a second reconcile for no
+change); the next `use` waits for it again (CCR-BR-033).
 
 Using `reconcile` with a scope per member reuses ownership (BEH-BR-155): the
 family prunes only what it installed for that key, an operator's hand-installed
@@ -268,8 +297,10 @@ therefore still protected, even though the family did not see it.
 > **Risk:** [RSK-BR-034](../gxp/03-risk-assessment.md#rsk-br-034), [RSK-BR-015](../gxp/03-risk-assessment.md#rsk-br-015)
 
 ```
-REQUIREMENT: When `idleEvict` is set and a "ready" member has had no holder
-             for `idleEvict.after`, the family MUST evict it: mark it
+REQUIREMENT: When `idleEvict` is set and a "ready" member, or a "creating"
+             member whose wait expired (BEH-BR-331) and that no call is
+             waiting on, has had no holder for `idleEvict.after`, the family
+             MUST evict it: mark it
              "evicting", call `reconcile([], { scope: family:${id}/${K},
              prune: true, pruneDrain: idleEvict.drain, pruneForce: false })`
              with `options.context` (`pruneDrain` defaulting to
@@ -445,9 +476,10 @@ interface EphemeralRealm {
   readonly realm: string                          // `ephemeral/${segment}`
   readonly context: OperationContext              // { actor: Actor.narrow(owner.actor, segment), correlationId: owner's }
   readonly use: <A, E, R, Keys extends readonly Context.Key<any, any>[]>(
-    keys: Keys, run: (...services: ServicesOf<Keys>) => Effect.Effect<A, E, R>,
+    keys: Keys, run: (services: ServicesOf<Keys>) => Effect.Effect<A, E, R>,   // as Host.useAll (09)
     options?: { readonly timeout?: Duration.Input }) =>
-    Effect.Effect<A, E | ServiceUnavailable | LeaseRevoked | LeaseTimeout, R>
+    Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout
+      | ResolutionRefused, R>
 }
 
 declare const Realm: {
@@ -459,7 +491,7 @@ declare const Realm: {
     readonly drain?: Duration.Input               // default BridgerOptions.drainTimeout
     readonly activationTimeout?: Duration.Input   // default 30 seconds
   }): Effect.Effect<EphemeralRealm,
-      DuplicateRealm | FamilyMemberUnavailable | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected,
+      InvalidRealm | DuplicateRealm | FamilyMemberUnavailable | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected,
       Scope.Scope>
 }
 ```
@@ -467,8 +499,11 @@ declare const Realm: {
 ```
 REQUIREMENT: `Realm.ephemeral` MUST define the realm `ephemeral/${segment}`,
              reconcile `plugins` into it under the scope
-             `ephemeral:${segment}`, and wait for activation as BEH-BR-331
-             specifies, all with `options.context`. A failure at any step
+             `ephemeral:${segment}`, and wait, bounded by
+             `activationTimeout`, until its plugins are ready as BEH-BR-331
+             defines readiness, all with `options.context`. A failure at any
+             step — an expiry of that wait included, failing with
+             `FamilyMemberUnavailable { reason: "activation-timeout" }` —
              MUST undo the steps already taken, in reverse order, before the
              effect fails.
 ```
@@ -480,6 +515,14 @@ REQUIREMENT: When the caller's scope closes, the ephemeral realm MUST be
              then, at the limit, the same with `pruneForce: true`, reporting
              each forced plugin; then `retireRealm`. A plugin `failed` with phase "cleanup" MUST be
              removed as BEH-BR-047 allows, and retirement MUST follow.
+```
+
+```
+REQUIREMENT: `EphemeralRealm.use(keys, run, options)` MUST be
+             `Host.useAll(keys, run, { ...options, realm })` with the
+             ephemeral realm, with the same callback shape and error union
+             (02 — Host Construction, BEH-BR-013; 09 — Leases); after the
+             realm is retired it fails with `UnknownRealm`.
 ```
 
 ```
@@ -617,9 +660,9 @@ scenario once code exists; none has run.
 
 | Scenario | Check | Behaviours |
 | --- | --- | --- |
-| REQ-BR-084 | A family creates a member once per key on first use through attributed, gated, audited `defineRealm` and `reconcile`; concurrent uses share one creation; invalid keys and changed options are refused; a failed member is not recreated until reset | BEH-BR-329, BEH-BR-330, BEH-BR-331, BEH-BR-334 |
+| REQ-BR-084 | A family creates a member once per key on first use through attributed, gated, audited `defineRealm` and `reconcile`; concurrent uses share one creation; invalid keys and changed options are refused; a member is ready when every plugin is `active`, `dormant` or disabled by an operator, and a "refused-digest" plugin fails it; after the activation timeout the member stays "creating", the next use waits again without a host call, and idle eviction can evict it; a failed member is not recreated until reset | BEH-BR-329, BEH-BR-330, BEH-BR-331, BEH-BR-333, BEH-BR-334 |
 | REQ-BR-085 | Idle eviction prunes with drain and never forces: a held host lease makes it time out and leaves the member parked, retried at the next check; a use during eviction waits and recreates; `retireRealm` refuses a non-empty realm and "default", retires an empty one in one revision, and allows redefinition | BEH-BR-332, BEH-BR-333, BEH-BR-335, BEH-BR-338 |
-| REQ-BR-086 | `Realm.ephemeral` defines, installs and activates under the owner's context, undoes on failure, tears down at scope close (forcing only at the limit, reported) and retires its realm; `Actor.narrow` returns the documented value at every depth, refuses invalid input and reserved actors, and is recorded as any actor; `Actor.isWithin` recognises the actor itself and every narrowing of it, and nothing else, among ids that keep the delimiter rule | BEH-BR-336, BEH-BR-337 |
+| REQ-BR-086 | `Realm.ephemeral` defines, installs and activates under the owner's context, undoes on failure (an expired readiness wait included), its `use` behaves as `Host.useAll` with the realm, tears down at scope close (forcing only at the limit, reported) and retires its realm; `Actor.narrow` returns the documented value at every depth, refuses invalid input and reserved actors, and is recorded as any actor; `Actor.isWithin` recognises the actor itself and every narrowing of it, and nothing else, among ids that keep the delimiter rule | BEH-BR-336, BEH-BR-337 |
 
 ---
 

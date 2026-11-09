@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-07                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Resolutions of the round-2 agent review (A-01, A-02, A-03, A-08, A-09, A-11, A-15, A-16): batch admission in three phases, so that no receipt claim or probe slot is taken before every item passed the gate, the floor and the hooks; receipts of undone items voided and replayed items never compensated; each item's request carries its planned compensation, bound by digest in the batch draft and approval, and compensations of an approved batch carry an `ApprovalRef` derived from it; the floor drafts nothing for an item of a batch; `long` items refused in a batch; a repeated keyed task returns its handle; BEH-CM-054 `CommandTaskStore` port, in memory by default, with lost tasks reported (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — batch dispatch admitted whole, run in order and undone by compensation; batch drafts approved all or none and re-planned when stale; long commands run as tasks with progress, await and cancel (CCR-CM-003, round 2: recheck items 5, 7) |
+> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 (C-10) — phase C of batch admission consults the admission policies per item; items that never run, and items admitted before a phase-C failure, are settled `NotRun`; a task settles its admissions when it ends (BEH-CM-044) (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-01, A-02, A-03, A-08, A-09, A-11, A-15, A-16): batch admission in three phases, so that no receipt claim or probe slot is taken before every item passed the gate, the floor and the hooks; receipts of undone items voided and replayed items never compensated; each item's request carries its planned compensation, bound by digest in the batch draft and approval, and compensations of an approved batch carry an `ApprovalRef` derived from it; the floor drafts nothing for an item of a batch; `long` items refused in a batch; a repeated keyed task returns its handle; BEH-CM-054 `CommandTaskStore` port, in memory by default, with lost tasks reported (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — batch dispatch admitted whole, run in order and undone by compensation; batch drafts approved all or none and re-planned when stale; long commands run as tasks with progress, await and cancel (CCR-CM-003, round 2: recheck items 5, 7) |
 
 ---
 
@@ -72,7 +72,8 @@ REQUIREMENT: `Commands.batch` MUST take a `batchId` from the host's
              (B) only when phase A ended with no rejection and no
                  deferral, step 5 (before-hooks) for every item;
              (C) only when phase B ended with no veto, step 6 (receipt
-                 claim and breaker) for every item.
+                 claim, breaker and admission policies, BEH-CM-044) for
+                 every item.
              Each item's `CommandRequest` MUST carry `batch: { batchId,
              index, size }` and, when its descriptor names `compensatedBy`,
              `compensation` (BEH-CM-050). The effective gate MUST be
@@ -96,8 +97,9 @@ REQUIREMENT: The first item that fails a step of 1–6 with any error other
              `CommandBatchRejected { batchId, index, error }`; no later item
              MUST be admitted, and no handler MUST run. A failure at
              phase C MUST release every fresh receipt claim already taken
-             by the earlier items (BEH-CM-041) and return every breaker
-             probe slot they took (BEH-CM-043).
+             by the earlier items (BEH-CM-041), return every breaker
+             probe slot they took (BEH-CM-043) and settle every admission
+             that admitted them with `NotRun` (BEH-CM-044).
 ```
 
 ```
@@ -185,8 +187,10 @@ REQUIREMENT: When an item's descriptor names `compensatedBy`, phase A MUST
 
 ```
 REQUIREMENT: When item k fails at step 7, no item after k MUST run, and each
-             item after k MUST have its fresh receipt claim released and
-             its breaker probe slot returned (BEH-CM-041, BEH-CM-043). When an
+             item after k MUST have its fresh receipt claim released, its
+             breaker probe slot returned and its admissions settled with
+             `NotRun` (BEH-CM-041, BEH-CM-043, BEH-CM-044); each item that
+             ran is settled after its own step 7. When an
              applying batch wrapper declares `atomic: true`, the package
              MUST treat every item before k as undone by that wrapper and
              MUST end with `CommandBatchRolledBack` listing them with `by:
@@ -450,7 +454,9 @@ REQUIREMENT: `Command.make` MUST reject as a defect a spec with `long: true`
              `running` with a `taskId` from the host's `IdGenerator`, fork
              steps 7 and 8 into the catalog layer's scope with the
              dispatch's served context and `CurrentCorrelation`, and return
-             the `CommandTaskRef`. With an idempotency key, the `taskId`
+             the `CommandTaskRef`. The admissions that admitted at step 6
+             MUST be settled in the task's fiber when the task ends, and
+             their scopes MUST stay open until then (BEH-CM-044). With an idempotency key, the `taskId`
              MUST be taken before step 6 and sent in the claim, so that a
              repeat with the same key, actor, input and digest returns the
              same `CommandTaskRef`, running or terminal, and creates no

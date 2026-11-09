@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-02                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F23, F28) — the wire version is negotiated per session (`hello` lists N and N−1, `welcome` picks the highest common), which is writers last without a fleet condition; `RemoteOptions.wireVersions`; the revocation entry carries `epoch` when a session was open (stale parenthesis removed) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 25 — a revocation unmounts the session child with `Plugin.Runtime.unmount` and `requestedBy` (core G57 closed), offers a "revocation" entry through `Host.offerCallEntry` (G43 closed), and cites `RefusalList` for starts (G60 closed); recheck item 22 — the `wire` version follows the N/N−1, writers-last rule (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — accepted range bounded by core BEH-BR-232; `hello` carries the epoch and `welcome` must echo it; revocations held for the life of `Remote.layer`, re-read from the revocation source at start, and recorded in the companion's own status (R3-04, R3-07, R3-08, R3-12, R3-13) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (M-06): BEH-RM-014 reads the loader's `RevokedDigests` view, so signer and statement revocations refuse at the boundary at once, and the limit without the view is stated; BEH-RM-013 session end reason "mount-refused" (U-11); BEH-RM-014 consults the `RevokedDigests` view live at each session attempt and on each change, and never copies its answers into the permanent revocation list; BEH-RM-013 a link ended "revoked" by the view resumes when the view stops refusing it (independent review) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F23, F28) — the wire version is negotiated per session (`hello` lists N and N−1, `welcome` picks the highest common), which is writers last without a fleet condition; `RemoteOptions.wireVersions`; the revocation entry carries `epoch` when a session was open (stale parenthesis removed) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 25 — a revocation unmounts the session child with `Plugin.Runtime.unmount` and `requestedBy` (core G57 closed), offers a "revocation" entry through `Host.offerCallEntry` (G43 closed), and cites `RefusalList` for starts (G60 closed); recheck item 22 — the `wire` version follows the N/N−1, writers-last rule (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — accepted range bounded by core BEH-BR-232; `hello` carries the epoch and `welcome` must echo it; revocations held for the life of `Remote.layer`, re-read from the revocation source at start, and recorded in the companion's own status (R3-04, R3-07, R3-08, R3-12, R3-13) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -215,6 +215,7 @@ type SessionEnd =
   | { readonly reason: "envelope-undecodable" }    // BEH-RM-004
   | { readonly reason: "guest-reset" }             // the far end refused with "stale-epoch" or "incompatible-contract" (04)
   | { readonly reason: "revoked"; readonly by: string }   // BEH-RM-014
+  | { readonly reason: "mount-refused"; readonly tag: string }   // the session child's mount failed (01, BEH-RM-002)
   | { readonly reason: "stopping" }                // the session child or the link is stopping
 ```
 
@@ -229,7 +230,15 @@ REQUIREMENT: A session MUST end at the first of the reasons above, decided by
 REQUIREMENT: When a session ends for any reason other than "stopping", the
              link MUST withdraw the session child as
              04 — Heartbeat and Partition specifies, and then, unless the
-             reason is "revoked", resume connecting on its schedule.
+             reason is "revoked" or "mount-refused", resume connecting on its
+             schedule. After "mount-refused" the link has reported a runtime
+             failure (01, BEH-RM-002) and opens no further session. After
+             "revoked" it opens no session while a revocation matches it
+             (BEH-RM-014): a selector given to `revoke` matches for the life
+             of `Remote.layer`, while an answer of the loader's
+             `RevokedDigests` view matches only for as long as the view
+             gives it, and once it no longer does the link resumes
+             connecting on its schedule.
 ```
 
 ## BEH-RM-014: Revocation refuses at the boundary at once
@@ -280,6 +289,32 @@ REQUIREMENT: Persistence of a revocation across a process restart MUST be
 ```
 
 ```
+REQUIREMENT: When the loader companion's `RevokedDigests` view is wired
+             ([BEH-LD-070](../../loader/behaviors/09-trust-class-and-guest-links.md)),
+             `Remote.layer` MUST read it at its start, before any link opens
+             a session, and every link MUST consult the view live: at each
+             session attempt it MUST call `refused` for its `meta.digest`
+             and open no session while `refused` answers, and on each
+             revision the view publishes on `changes` it MUST call `refused`
+             again. A link with an open session for which `refused` now
+             answers — by digest, by statement digest, by signer, or
+             "verification-unknown" — MUST at once refuse calls and
+             callbacks with `RemoteRevoked` and end its session with reason
+             "revoked", as a `revoke` does, recording the view's `by` and
+             `reason` in `LinkStatus.revoked` (under the revocation
+             source's actor) and in the "revocation" call-log entry.
+             A view answer MUST NOT be added to `RemoteBoundary.revoked` or
+             kept once the view stops giving it: an answer can end — a
+             "verification-unknown" digest whose `AcceptedDigests` record
+             arrives — and the link then resumes connecting on its schedule
+             (BEH-RM-013). Without the view, only the digests the
+             revocation source lists reach the boundary, and documentation
+             MUST state that a signer or statement revocation then reaches
+             a running link only through the kill switch's removal of the
+             link (loader BEH-LD-029).
+```
+
+```
 REQUIREMENT: Revocation MUST NOT be a host mutation: it MUST NOT install,
              remove or change the state of any plugin other than through the
              session child's withdrawal. Removing the revoked link is a
@@ -322,7 +357,12 @@ the core's ordering — dependents first, bounded drain — and its approval
 rules. When the loader companion's revocation source is wired
 ([references/loader/](../../loader/README.md)), `Remote.layer` subscribes to
 it and calls `revoke` for each digest it names, with the revocation source's
-actor.
+actor. A revocation list names digests and signers; which package digests a
+revoked signer or a revoked statement takes down is known only from the
+loader's verification records, so `Remote.layer` reads that answer from the
+loader's `RevokedDigests` view rather than recomputing it — the same view
+that backs core's `RefusalList`, so the boundary and the start refusal agree
+on every digest.
 
 The session child's unmount after a revocation is attributed: core's
 `Plugin.Runtime.unmount` writes `requestedBy` beside `Actor.system`, so the

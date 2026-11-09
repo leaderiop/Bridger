@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-049                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): Alternative "Hand off on restart and reconfigure too" adopted as an opt-in (BEH-BR-353) (CCR-BR-025)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
+> | Change History | 0.3 (2026-11-09): Amended to follow BEH-BR-346, 347, 350, 351 and 353: scope includes `restart` and a restarting `reconfigure` under `alsoOn`; export as the stop's final step, in the step that closes the scope (and, for a `replace`, swaps the definition); a `restart` or `reconfigure` superseding the new build keeps the value; the record is caused by the attempting call's `requested` record (C-14, U-02) (CCR-BR-033)<br>0.2 (2026-11-08): Alternative "Hand off on restart and reconfigure too" adopted as an opt-in (BEH-BR-353) (CCR-BR-025)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
 
 ---
 
@@ -25,11 +25,11 @@ Erlang's `code_change(OldVsn, State, Extra)` is the reference design: the runnin
 ## Decision
 
 - **Declaration.** A definition may declare `handoff: { version, schema, export, import, accepts?, upgrade? }`. `export` and `import` require only the definition's own provided services. `accepts` and `upgrade` play the role of `code_change`, owned by the new version.
-- **Scope.** A handoff is attempted only for a `replace` of an `active` plugin whose old and new definitions both declare one. No other stop hands off, and neither does a replace whose new definition is lazy and lands in `dormant` ([27 — Manifest and lazy activation](../behaviors/27-manifest-and-lazy-activation.md)).
-- **Order unchanged.** Dependents stop and leases drain. Then `export` runs and its value is encoded with the old schema, before the scope closes and in the same step as the swap. The new build runs. Then upgrade, decode with the new schema (unknown fields ignored) and `import` run before publication. Each step is bounded by `handoffTimeout` (default 5 seconds).
+- **Scope.** A handoff is attempted for a `replace` of an `active` plugin whose old and new definitions both declare one, and — since CCR-BR-025, as an opt-in — for a `restart` or a restarting `reconfigure` of an `active` plugin whose definition declares `alsoOn` for it, unless the call passes `cold: true` ([34 — State handoff](../behaviors/34-state-handoff.md), BEH-BR-353). No other stop hands off, and neither does a replace whose new definition is lazy and lands in `dormant` ([27 — Manifest and lazy activation](../behaviors/27-manifest-and-lazy-activation.md)).
+- **Order unchanged.** Dependents stop and leases drain. Then `export` runs and its value is encoded with the old schema, as the stop's final step: before the scope begins to close, in the transition step that closes it and, for a `replace`, swaps the definition (BEH-BR-347). The new build runs. Then upgrade, decode with the new schema (unknown fields ignored) and `import` run before publication. Each step is bounded by `handoffTimeout` (default 5 seconds).
 - **Held state.** The host holds only the encoded value and old version, in memory, between export and import. It is never written to a record, event, log, snapshot or error, and is dropped as soon as it is imported or abandoned.
-- **Failure.** An export, upgrade or decode failure, or an unaccepted version, gives a cold start: the new activation is published without the state. An import failure fails the activation (phase `activation`), because the import may have been partly applied. There is no retry and no cold restart. The handoff is abandoned when the new build fails, the plugin waits, is stopped, or shutdown begins.
-- **Audit.** Each attempt yields one system record with `operation: "handoff"`, caused by the replace's `requested` record and written before `system-start`. It has no `error` when the state was imported, and a loss tag (`HandoffExportFailed`, `HandoffVersionUnaccepted`, `HandoffUpgradeFailed`, `HandoffDecodeFailed`, `HandoffImportFailed`, `HandoffAbandoned`) when it was lost. `SystemTransition` gains `"handoff"`. Host events `handoff-imported` and `handoff-lost` mirror the record.
+- **Failure.** An export, upgrade or decode failure, or an unaccepted version, gives a cold start: the new activation is published without the state. An import failure fails the activation (phase `activation`), because the import may have been partly applied. There is no retry and no cold restart. The handoff is abandoned when the held value can no longer reach an import into a build that will be published: the new build fails, the plugin waits, is removed, disabled or replaced again before publication, or shutdown begins. A `restart` or `reconfigure` that supersedes the new build does not abandon it: that build is discarded without the value, which stays held for the next build (BEH-BR-351).
+- **Audit.** Each attempt yields one system record with `operation: "handoff"`, caused by the `requested` record of the `replace`, `restart` or `reconfigure` that attempted it — kept when a later call supersedes the build — and written before `system-start` (BEH-BR-350, BEH-BR-351). It has no `error` when the state was imported, and a loss tag (`HandoffExportFailed`, `HandoffVersionUnaccepted`, `HandoffUpgradeFailed`, `HandoffDecodeFailed`, `HandoffImportFailed`, `HandoffAbandoned`) when it was lost. `SystemTransition` gains `"handoff"`. Host events `handoff-imported` and `handoff-lost` mirror the record.
 
 ## Alternatives considered
 

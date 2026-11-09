@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-34                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-BR-353 handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `alsoOn`, `cold` call option, none on a volatile-only `reconfigure` (gap G44); BEH-BR-346 and 350 extended to those operations and to the undo `replace` of an atomic apply; BEH-BR-352 the previous definition kept for an atomic apply's undo; acceptance check 103 (CCR-BR-025)<br>0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.5 (2026-11-09): Examples use `Plugin.define` (C-15); BEH-BR-347 export as the stop's final step of any handing-off operation (C-14); export under the old activation's principal and import and upgrade under the new one's, each with an empty annotation bag and the correlation of its stop or build (U-04); BEH-BR-346 a lazy registration's old side is its loaded definition, whose `handoff` is checked at load (U-05); BEH-BR-349 the value is imported only into a build that will be published, a stale build receives nothing and a target change during the import waits for publication; BEH-BR-351 a `restart` or `reconfigure` that supersedes the new build keeps the value held for the next build (U-02); acceptance rows REQ-BR-087 and 088 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-353 `PluginHandle.restart` takes `HandoffCallOptions`; BEH-BR-013 named as the source of every signature (C-01) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-353 handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `alsoOn`, `cold` call option, none on a volatile-only `reconfigure` (gap G44); BEH-BR-346 and 350 extended to those operations and to the undo `replace` of an atomic apply; BEH-BR-352 the previous definition kept for an atomic apply's undo; acceptance check 103 (CCR-BR-025)<br>0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -68,7 +68,7 @@ interface Handoff<S, Encoded, Provided> {
 }
 class HandoffError extends Schema.TaggedError<HandoffError>()("HandoffError", { message: Schema.String }) {}
 
-const counter = Plugin.make({
+const counter = Plugin.define({
   id: "metrics/counter",
   provides: [Counter],
   build: CounterLive,
@@ -142,6 +142,19 @@ REQUIREMENT: No other stop — `remove`, `disable`, a `restart` or
 ```
 
 ```
+REQUIREMENT: For a registration made from a lazy definition (27 — Manifest
+             and Lazy Activation, BEH-BR-244), the old side of a handoff
+             MUST be the loaded definition's `handoff`, and only while that
+             definition is loaded: a registration not yet loaded, or whose
+             loaded definition an idle return released (BEH-BR-252), has no
+             old side and MUST NOT hand off. A `LazyPluginDefinition`
+             declares no `handoff` of its own. A loaded definition's
+             `handoff` MUST be checked against BEH-BR-345 when it is loaded,
+             and one that breaks it fails the load (27, BEH-BR-246), so an
+             invalid declaration never becomes the old side.
+```
+
+```
 REQUIREMENT: Handoff MUST NOT change the stop-then-start order of
              BEH-BR-049: the old activation MUST stop, dependents first,
              before the new definition is swapped in and built; the two
@@ -151,6 +164,9 @@ REQUIREMENT: Handoff MUST NOT change the stop-then-start order of
 
 Limiting handoff to `replace` keeps it the answer to one question — "carry
 my state to the new code" — and keeps every other stop exactly as it is.
+A lazy registration declares only a manifest until it loads, so `install` and
+`replace` of it cannot see a `handoff`; the declaration that runs is the
+loaded one, and the load is where it is checked (CCR-BR-033).
 `restart` and `reconfigure` run the same definition, and hand off only when
 the definition asks for it (BEH-BR-353); a plugin that wants its state
 across a process restart is asking for persistence, which is its own store's
@@ -172,11 +188,14 @@ interface BridgerOptions {
 ```
 
 ```
-REQUIREMENT: In the stop of a `replace` that attempts a handoff, the host
-             MUST run the old definition's `export` after the dependents
-             have stopped and the old activation's leases have drained (or
-             been revoked under `force`), and before its scope begins to
-             close, in the same transition step as the swap.
+REQUIREMENT: In the stop of an operation that attempts a handoff — a
+             `replace`, or a `restart` or `reconfigure` that BEH-BR-353
+             admits — the host MUST run the old definition's `export` after
+             the dependents have stopped and the old activation's leases
+             have drained (or been revoked under `force`), and before its
+             scope begins to close, as the stop's final step: in the same
+             transition step that closes the scope and, for a `replace`,
+             swaps the definition.
 ```
 
 ```
@@ -189,17 +208,24 @@ REQUIREMENT: The exported value MUST be encoded with the old definition's
 ```
 REQUIREMENT: When `export` fails, dies, times out or produces a value that
              does not encode, the host MUST drop the handoff, MUST continue
-             the stop — scope close, swap and new build — as if no handoff
+             the stop — scope close, the swap of a `replace`, and new build — as if no handoff
              had been declared, and MUST record the loss (BEH-BR-350). An
              export failure MUST NOT fail the `replace`, the stop or the old
              activation.
 ```
 
 ```
-REQUIREMENT: `export` MUST run with `@bridger/core/CurrentActor` set to
-             `Actor.unattributed` and the plugin's ID in
-             `@bridger/core/HeldPlugins`, as a finalizer does (BEH-BR-187,
-             BEH-BR-088).
+REQUIREMENT: `export` MUST run as a finalizer of the old activation does,
+             whatever the fiber of the call that caused the stop carries:
+             under the old activation's principal (28 — Plugin Principal and
+             Mandatory Policy, BEH-BR-258), with
+             `@bridger/core/CurrentActor` set to `Actor.unattributed`
+             (22 — Attributable Operations, BEH-BR-187),
+             `@bridger/core/CurrentAnnotations` set to `Annotations.empty`
+             (30 — Operation Context Annotations, BEH-BR-292),
+             `@bridger/core/CurrentCorrelation` set to the correlation of
+             the stop it runs in (BEH-BR-187), and the plugin's ID in
+             `@bridger/core/HeldPlugins` (BEH-BR-088).
 ```
 
 Exporting after the drain means the state is quiescent: no admitted call is
@@ -212,7 +238,12 @@ resumes and its drain completes.
 activation is already unavailable to new consumers, and a stop that waited
 on a broken export would trade a lost cache for an outage. (2) Under
 `force`, the export sees the state as the interrupted calls left it; the
-plugin's `import` decides whether that is usable.
+plugin's `import` decides whether that is usable. (3) The export runs inside
+an operator's call, but it is the plugin's code run for the plugin, like a
+finalizer, so it takes the plugin's principal and an empty annotation bag,
+never the caller's identity or labels; only the correlation follows the
+call, as a finalizer's does, so that a host call the export makes belongs to
+the change that caused it (CCR-BR-033).
 
 ## BEH-BR-348: The held state is never observable, and is released at once
 
@@ -251,8 +282,41 @@ the next and goes nowhere else.
 > **Risk:** [RSK-BR-035](../gxp/03-risk-assessment.md#rsk-br-035)
 
 ```
-REQUIREMENT: When the new build succeeds and a held value exists, the host
-             MUST, before publishing the new activation (BEH-BR-037):
+REQUIREMENT: The held value MUST be imported only into a build that will be
+             published. When the new build settles, the host MUST first
+             decide whether it is stale (05 — Activation, BEH-BR-039). A
+             stale build MUST NOT receive the value: it MUST be discarded as
+             BEH-BR-039 requires, without `upgrade`, decoding or `import`,
+             and the value MUST stay held for the next build of the
+             registration, unless the change that made the build stale
+             abandons the handoff (BEH-BR-351).
+```
+
+```
+REQUIREMENT: Once the host has begun the steps below for a build that is not
+             stale, that build MUST be published or fail as this behaviour
+             says: the steps are the last part of its build step, and a
+             change of the plugin's target while they run — an operator
+             call, a captured provider beginning to stop — MUST NOT make it
+             stale. An operator call that reaches its linearization point
+             while they run MUST wait, before its intent is recorded, until
+             the build step has ended, and MUST then be decided by
+             BEH-BR-071 against the state the plugin landed in (`active`, or
+             `failed` when the import failed), as a call that meets a
+             running system stop is (08 — Operation Legality, BEH-BR-073);
+             the wait is before the intent, so interrupting the caller
+             during it ends the call as BEH-BR-067 says. A cascade waits for
+             the build step as for any build (BEH-BR-079) and then stops the
+             plugin. Shutdown is the one exception: a build whose steps are
+             running when shutdown begins settles and is discarded (12 —
+             Shutdown and Hosting, BEH-BR-105), and the handoff is
+             abandoned.
+```
+
+```
+REQUIREMENT: When the new build succeeds, is not stale and a held value
+             exists, the host MUST, before publishing the new activation
+             (BEH-BR-037):
              - when the old `version` is not the new `version`: run the new
                definition's `upgrade` if the old version is in `accepts`,
                or abandon the handoff if it is not or `upgrade` is absent;
@@ -278,9 +342,13 @@ REQUIREMENT: When `import` fails, dies or times out, the activation MUST
 ```
 
 ```
-REQUIREMENT: `import` MUST run with `@bridger/core/CurrentActor` set to
-             `Actor.unattributed` and the plugin's ID in
-             `@bridger/core/HeldPlugins`, as the build does.
+REQUIREMENT: `upgrade` and `import` MUST run as the new activation's build
+             does: under the new activation's principal (28, BEH-BR-258),
+             with `@bridger/core/CurrentActor` set to `Actor.unattributed`,
+             `@bridger/core/CurrentAnnotations` set to `Annotations.empty`,
+             `@bridger/core/CurrentCorrelation` set to the build's
+             correlation (22, BEH-BR-187; 30, BEH-BR-292), and the plugin's
+             ID in `@bridger/core/HeldPlugins`.
 ```
 
 Decoding failure leads to a cold start because nothing has been applied yet:
@@ -291,10 +359,24 @@ approved. Failing it is the conservative reading, and
 [ADR-BR-005](../decisions/005-failure-is-sticky.md) then applies: an
 operator's `retry` starts it again — cold, because the held value is gone.
 
-**Settled here.** Unknown fields are ignored when decoding, so that a newer
+**Settled here.** (1) Unknown fields are ignored when decoding, so that a newer
 old version exporting an extra field does not force a cold start on a
 version that does not need it; this is the add-only evolution rule of
 [26 — Versioned Contracts](./26-versioned-contracts.md) applied to state.
+(2) Staleness is decided before the import, and the import then commits the
+build (CCR-BR-033). Revision 0.4 ran the import "before publishing" and
+dropped the value "as soon as the import completes", so a build superseded
+after it settled could import the state and then be discarded, losing it.
+Deciding first means a superseded build never sees the value. Committing the
+build once the import begins is the other half: an import may already have
+written part of the state into the new services, so discarding that build
+would lose the state as surely. A call that arrives during the import waits
+for a bounded time (`handoffTimeout` for each step) and then applies to the
+published activation, exactly as it would had it arrived a moment later; a
+provider that begins to stop meanwhile is still open, because its own stop
+waits for this dependent's (06 — Removal, BEH-BR-043), so publishing the
+build exposes no closed service. Shutdown discards instead, because nothing
+may start once it has begun (BEH-BR-105).
 
 ## BEH-BR-350: A lost handoff is recorded
 
@@ -365,11 +447,25 @@ gives; after a release, the new value would need a new `schemaVersion`.
 
 ```
 REQUIREMENT: The handoff MUST be abandoned, with tag `HandoffAbandoned`,
-             when the held value cannot reach an import: the new build
-             fails or times out; the new definition's requirements are
-             missing, so the plugin enters `waiting`; the plugin is
-             removed, disabled, replaced again or stopped before the new
-             activation is published; or shutdown begins.
+             when the held value can no longer reach an import into a build
+             that will be published: the new build fails or times out; the
+             new definition's requirements are missing, so the plugin
+             enters `waiting`; the plugin is removed, disabled or replaced
+             again before the new activation is published; or shutdown
+             begins.
+```
+
+```
+REQUIREMENT: A `restart` or `reconfigure` that supersedes the new build
+             (08 — Operation Legality, BEH-BR-071, row `starting`) MUST NOT
+             abandon the handoff: the superseded build MUST be discarded
+             without the value (BEH-BR-349), the value MUST stay held, and
+             the next build of the registration MUST receive it under
+             BEH-BR-349. The handoff keeps its one record, written for the
+             build that imports or loses it, with the `causationId` of the
+             call that attempted it (BEH-BR-350). The superseding call
+             attempts no handoff of its own: the plugin was not `active`
+             when it began (BEH-BR-346, BEH-BR-353).
 ```
 
 ```
@@ -395,8 +491,12 @@ REQUIREMENT: `TestHost` MUST let a test fail, delay or hang `export`,
 ```
 
 A held value waits for exactly one thing — the next successful build of the
-new definition — and is dropped, with a record, by anything that means that
-build will not be published. Holding it until the plugin's requirements
+new definition that will be published — and is dropped, with a record, by
+anything that means no such build will come. A `restart` or `reconfigure`
+of the plugin while it is `starting` is not such a thing: it discards the
+build in flight and builds the same registration again, and the value goes
+to that build (CCR-BR-033; revision 0.4 listed neither, leaving a superseded
+build free to consume the value). Holding it until the plugin's requirements
 return would make the state outlive the replacement by an unbounded time,
 and a later start from it would not be the start the replace caused.
 
@@ -446,9 +546,11 @@ previous version cold, because nothing was kept for it.
 // illustrative — not type-checked
 interface HandoffCallOptions { readonly cold?: boolean }        // default false: hand off when admitted
 // restart(ref, options?: RemoveOptions & HandoffCallOptions)            (07, BEH-BR-058)
+// PluginHandle.restart(options?: RemoveOptions & HandoffCallOptions)   (07, BEH-BR-059)
+// every signature: 02 — Host Construction, BEH-BR-013
 // reconfigure(ref, config?, options?: OperationOptions & HandoffCallOptions)   (11, BEH-BR-101)
 
-const sessions = Plugin.make({
+const sessions = Plugin.define({
   id: "pos/sessions",
   provides: [Sessions],
   build: SessionsLive,
@@ -528,8 +630,8 @@ scenario once code exists; none has run.
 
 | Scenario | Check | Behaviours |
 | --- | --- | --- |
-| REQ-BR-087 | A replace of an active plugin with handoff on both sides exports after the drain and before scope close, upgrades through `accepts`/`upgrade`, imports before publication, and writes one `handoff` record before `system-start`; no other operation or state hands off; keys are never provided twice; the held value appears in no record, event, log, snapshot or error | BEH-BR-345, BEH-BR-346, BEH-BR-347, BEH-BR-348, BEH-BR-349 |
-| REQ-BR-088 | Export failure, unaccepted version, upgrade or decode failure each give a cold start with the matching loss record and event; import failure fails the activation with no retry; new-build failure, `waiting`, removal and shutdown abandon the handoff with a record; a cascade-ended parked replace, and a replace into `dormant`, export nothing and write no record | BEH-BR-347, BEH-BR-349, BEH-BR-350, BEH-BR-351, BEH-BR-352 |
+| REQ-BR-087 | A replace of an active plugin with handoff on both sides — or a `restart` or restarting `reconfigure` under `alsoOn` — exports after the drain and before scope close, as the stop's final step, under the old activation's principal; upgrades through `accepts`/`upgrade` and imports before publication under the new activation's principal, each step with `Actor.unattributed` and an empty annotation bag whatever the caller carries; and writes one `handoff` record before `system-start`; no other operation or state hands off; a lazy registration hands off only from its loaded definition, and a loaded definition with an invalid `handoff` fails phase "load"; keys are never provided twice; the held value appears in no record, event, log, snapshot or error | BEH-BR-345, BEH-BR-346, BEH-BR-347, BEH-BR-348, BEH-BR-349 |
+| REQ-BR-088 | Export failure, unaccepted version, upgrade or decode failure each give a cold start with the matching loss record and event; import failure fails the activation with no retry; new-build failure, `waiting`, removal and shutdown abandon the handoff with a record; a `restart` or `reconfigure` that supersedes the new build discards it without importing and the next build imports the value, with one record caused by the original call; an operator call arriving during the import waits and is decided against the published or failed plugin; a cascade-ended parked replace, and a replace into `dormant`, export nothing and write no record | BEH-BR-347, BEH-BR-349, BEH-BR-350, BEH-BR-351, BEH-BR-352 |
 | REQ-BR-103 | With `alsoOn`, an active plugin's `restart` and restarting `reconfigure` export after the drain and import into the new activation (built with the new configuration) with one `handoff` record caused by that call; `cold: true`, an unlisted operation, a non-active plugin, its dependents and a volatile-only `reconfigure` hand nothing off and write no record; loss paths as for replace | BEH-BR-346, BEH-BR-350, BEH-BR-353 |
 
 ---

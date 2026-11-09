@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.3 (2026-11-09): BEH-SQ-019 adds a `rebootstrap` fixture; BEH-SQ-020 check 1 covers handles of an earlier origin, checks 11 (re-bootstrap on a running host) and 12 (grants on the `Sequence` members) added (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -53,7 +53,9 @@ REQUIREMENT: The package MUST keep series only as event-store streams and
 REQUIREMENT: The testing entry point MUST export `memorySequence` (over
              event-store `memoryEventStore`), a `restore` fixture that rolls a
              store back to an earlier copy and raises or keeps the
-             incarnation, and `assertNotHandedOutBeforeCommit`, which fails
+             incarnation, a `rebootstrap` fixture that runs a durable-bus
+             whole-store install over memory stores on a running host, and
+             `assertNotHandedOutBeforeCommit`, which fails
              a test when a number is observed by a probe before its
              transaction commits.
 ```
@@ -67,9 +69,10 @@ REQUIREMENT: The testing entry point MUST export `memorySequence` (over
 ```
 REQUIREMENT: The package's test suite MUST contain at least one test for
              each of the following (planned acceptance scenarios
-             REQ-SQ-001–010, traceability §2):
+             REQ-SQ-001–012, traceability §2):
              1. Identity and ownership: name grammar; `NotOwner` for another
-                origin; no authority-side `next()` (BEH-SQ-001, BEH-SQ-002).
+                origin, at `open`, `next` and `close`; no authority-side
+                `next()` (BEH-SQ-001, BEH-SQ-002).
              2. Open: created once, resumed without writing (BEH-SQ-003).
              3. Reservation: number, `NumberIssued` and the application's
                 event commit together; rollback frees the number; two
@@ -98,6 +101,20 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 a host id (BEH-SQ-016).
              10. Formats and storage: integers only; no storage port; no
                  cache read by `next()` (BEH-SQ-017, BEH-SQ-018).
+             11. Re-bootstrap on a running host: after a whole-store install
+                 (`rebootstrap` fixture) whose snapshot holds none of this
+                 node's series, a handle opened before it fails `next` and
+                 `close` with `NotOwner` and writes nothing; calls under the
+                 new origin fail with `SupersessionPending` until the step
+                 commits; every series open in the replaced store is
+                 superseded once, with its highest number and
+                 `lastKnownOnly: false`; a series also present in the
+                 snapshot is not superseded twice; a name reopened writes
+                 `previous` (BEH-SQ-002, BEH-SQ-009, BEH-SQ-010).
+             12. Grants: a capture of `Sequence` granted `open` and `next`
+                 issues numbers through a `Series` handle and is refused
+                 `close`; the plugin appends through its own `EventStore`
+                 capture (BEH-SQ-003, BEH-SQ-008).
 ```
 
 **Settled here.** (1) Integers only (BEH-SQ-017). (2) The event store is the

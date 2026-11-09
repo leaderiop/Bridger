@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Runtime Invariants                                           |
-> | Change History | 0.2 (2026-11-08): INV-KT-007 covers `countersign` and the loader's `StatementSigner` (round 2: recheck items 11, 17) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.3 (2026-11-09): INV-KT-006: identity claims reach a handler only when the host's link discloses them (F-07) (CCR-KT-004)<br>0.2 (2026-11-08): INV-KT-007 covers `countersign` and the loader's `StatementSigner` (round 2: recheck items 11, 17) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -108,7 +108,9 @@ case and must turn the run into a failure.
 ## INV-KT-006: A partner handler sees only plain data
 
 A Promise SDK handler receives a checked, JSON-compatible payload and a
-`CallContext`; never a host object, key, actor, token or configuration value.
+`CallContext`; never a host object, key, token or configuration value, and an
+identity claim (actor, principal, organisation, correlation) only when the
+host's link discloses it, as a description that grants nothing.
 What it throws leaves the guest only as a declared error or a fixed-text
 undeclared failure.
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-17                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-BR-145 `RealmOptions.mandatory`, BEH-BR-151 mandatory interceptions never replaced, composed outside, and applied to `Host.use` (CCR-BR-018); BEH-BR-145 a realm may be retired while empty by `retireRealm` (CCR-BR-019)<br>0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-11-09): BEH-BR-145 `defineRealm` refuses a realm that isolates a host-owned key with `InvalidRealm`, Settled (3); BEH-BR-146 Settled (2) a plugin in an isolating realm may provide a base key (C-02); BEH-BR-152 the outcome of a failing `wrap` on an optional or reactive capture, Settled note (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-145 `RealmOptions.mandatory`, BEH-BR-151 mandatory interceptions never replaced, composed outside, and applied to `Host.use` (CCR-BR-018); BEH-BR-145 a realm may be retired while empty by `retireRealm` (CCR-BR-019)<br>0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -50,10 +50,13 @@ interface Host {
   defineRealm(id: string, options: RealmOptions, operation?: OperationOptions):
     Effect.Effect<
       void,
-      | DuplicateRealm | HostClosed
+      | InvalidRealm | DuplicateRealm | HostClosed
       | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected
     >
 }
+
+class InvalidRealm extends Schema.TaggedError<InvalidRealm>()("InvalidRealm",
+  { id: Schema.String, reason: Schema.String }) {}               // reason names the offending ServiceId
 
 host.defineRealm("tenant-a", { isolate: [Database] })
 host.install(repository, { realm: "tenant-a" })
@@ -73,6 +76,16 @@ REQUIREMENT: `defineRealm(id, options)` MUST register a realm with the given
 ```
 
 ```
+REQUIREMENT: `defineRealm` MUST fail with `InvalidRealm { id, reason }`,
+             registering nothing, when `options.isolate` lists a host-owned
+             key — `Bridger.Host` or `Bridger.Events` (02 — Host
+             Construction, BEH-BR-012) — with `reason` naming its
+             `ServiceId`. When both errors apply, `InvalidRealm` MUST be
+             reported, as `InvalidDefinition` precedes `DuplicatePlugin` for
+             `install` (03 — Installation, BEH-BR-018).
+```
+
+```
 REQUIREMENT: A realm's `isolate`, `interceptors` and `mandatory` MUST be
              fixed when it is defined. No operation changes a realm. A realm
              lives until its host closes or until `retireRealm` retires it
@@ -83,8 +96,8 @@ REQUIREMENT: A realm's `isolate`, `interceptors` and `mandatory` MUST be
 ```
 REQUIREMENT: `defineRealm` is a mutating host operation. It MUST follow the
              call order of BEH-BR-188 (attribution, latch, validation, gate,
-             audit) like every other mutating operation; `DuplicateRealm` is
-             its validation step.
+             audit) like every other mutating operation; `InvalidRealm` and
+             `DuplicateRealm` are its validation step.
 ```
 
 A realm only decides *which provider a key resolves to*. It has no
@@ -103,7 +116,10 @@ value whoever defines it.
 like any existing id; SPEC.md says only that the default realm "always
 exists". (2) Realm definitions are immutable; SPEC.md gives no operation that
 changes one, and an operation that silently re-resolved every installed
-plugin would be a lifecycle change nobody asked for.
+plugin would be a lifecycle change nobody asked for. (3) A realm cannot
+isolate the host or its bus (CCR-BR-032): plugins of every realm share one
+host scope and one event bus (BEH-BR-150, INV-BR-020), and a realm that
+isolated either would let a plugin installed in it provide its own.
 
 ## BEH-BR-146: A key resolves inside a realm only when the realm isolates it
 
@@ -154,7 +170,13 @@ two realms **that isolate its keys**": without isolation, the second install
 collides with the first in the default slot (`DuplicateProvider`). (2) A
 realm may isolate a key that is also a base service; inside that realm the
 base service is invisible. This is how a tenant realm gets its own
-`Database` while the default realm keeps the application's.
+`Database` while the default realm keeps the application's: a plugin
+installed in that realm provides `Database` into the realm's own slot, and
+the base rule of 02 — Host Construction, BEH-BR-012, which forbids a plugin
+to provide a base key, applies only where the key resolves in the default
+realm's scope (CCR-BR-032). The host-owned keys `Bridger.Host` and
+`Bridger.Events` are the exception: no realm may isolate them
+(BEH-BR-145).
 
 ## BEH-BR-147: Plugin ids and provider slots are unique per realm
 
@@ -395,9 +417,26 @@ REQUIREMENT: A wrapper MUST be created per consumer. It MUST NOT be shared
 ```
 
 ```
-REQUIREMENT: A `wrap` that throws or dies MUST fail the consumer's
-             activation with phase `activation`; the consumer MUST NOT be
-             published and the provider MUST be unaffected.
+REQUIREMENT: A `wrap` that throws or dies on a capture made at activation —
+             a required key — MUST fail the consumer's activation with phase
+             `activation`; the consumer MUST NOT be published and the
+             provider MUST be unaffected.
+```
+
+```
+REQUIREMENT: A `wrap` that throws or dies on an optional or reactive
+             capture (BEH-BR-151) MUST NOT deliver the service, wrapped or
+             not, and MUST leave the provider and the consumer's state
+             unaffected:
+             - `Plugin.Runtime.optional` MUST die with the wrap's defect;
+             - `useOptional` MUST release its lease, MUST NOT run `run`,
+               and MUST die with the wrap's defect;
+             - a `whenAvailable` run MUST fail before `run` starts, with its
+               lease released and its child scope closed, and the failure
+               MUST be handled by the registration's `onFailure` policy
+               (15 — Optional and Reactive Dependencies, BEH-BR-134).
+             A capture made by code the consumer's `build` runs fails that
+             build as any defect in it does.
 ```
 
 ```
@@ -418,6 +457,16 @@ the consumer's activation (phase `activation`) is the conservative choice: a
 consumer that would otherwise receive an unwrapped service has lost the
 decoration its configuration asked for (perhaps a rate limit), and running it
 anyway would hide that.
+
+**Settled here (CCR-BR-032).** The rule above could not apply to a capture
+made after activation, when the consumer is already `active`; such a
+capture had no outcome. It now fails the call that made it, as the same
+failure of a mandatory wrap fails `Host.use` (28 — Plugin Principal and
+Mandatory Policy, BEH-BR-262): a throwing `wrap` is a programming defect,
+so it is a defect of the call, not a typed error every caller of `optional`
+would have to handle, and the service is never handed over without the
+decoration its configuration asked for. A `whenAvailable` run has no caller,
+so its failure goes to the policy the registration chose.
 
 ---
 

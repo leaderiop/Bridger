@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-020                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): References: hook points for policied dispatch (ADR-BR-046), the bus unchanged (CCR-BR-019); listeners run under their owner's principal and a wired access policy (CCR-BR-018); the companion `@bridger/durable-bus` is a separate contract (CCR-BR-021)<br>0.2 (2026-10-03): Listeners run with `CurrentActor` reset (BEH-BR-144) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-09): The bus is a host-owned base service: no realm can isolate it (C-02) (CCR-BR-032)<br>0.3 (2026-11-08): References: hook points for policied dispatch (ADR-BR-046), the bus unchanged (CCR-BR-019); listeners run under their owner's principal and a wired access policy (CCR-BR-018); the companion `@bridger/durable-bus` is a separate contract (CCR-BR-021)<br>0.2 (2026-10-03): Listeners run with `CurrentActor` reset (BEH-BR-144) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -23,7 +23,7 @@ Cordis, the parity reference ([ADR-BR-010](../decisions/010-cordis-parity.md)), 
 
 ## Decision
 
-The core provides a typed event bus as a **base service**, `Bridger.Events` (identifier `@bridger/core/Events`), supplied by `Bridger.layer`. Plugins list it in `requires` like any other service; because it is a base service, no plugin can replace it.
+The core provides a typed event bus as a **base service**, `Bridger.Events` (identifier `@bridger/core/Events`), supplied by `Bridger.layer`. Plugins list it in `requires` like any other service; because it is a host-owned base service, no plugin can replace it and no realm can isolate it, so every realm shares the one bus ([02 — Host construction](../behaviors/02-host-construction.md), BEH-BR-012; CCR-BR-032).
 
 ```ts
 // illustrative — not type-checked

@@ -21,10 +21,12 @@ SDK connects them to the product.
 ```
 
 The product installs a *link plugin* (from the remote companion) that stands
-in for you inside the host. Calls travel over a transport to your process.
-Your code never runs inside the product's host process. Whether your process
-is confined, and how, is decided by whoever deploys it — the SDK does not
-isolate anything by itself.
+in for you inside the host. Calls travel over a transport to your code. Your
+code is never evaluated in the product host's own runtime: it runs where the
+deployment puts it — another process, a service, an isolate, or a worker
+thread inside the host's own process. Whether it is confined there, and how,
+is decided by whoever deploys it; the SDK does not isolate anything by
+itself.
 
 ## 1. Generate the SDK
 
@@ -75,21 +77,41 @@ What the SDK does around your function:
 - **`ctx.signal`** aborts when the caller gives up or times out;
   `ctx.deadlineMs` says how long you have.
 
-You receive no host objects, user identities, tokens or configuration of the
-product.
+You receive no host objects, tokens or configuration of the product. By
+default you receive no user identity either: `ctx.claims` is empty. The
+product may configure its link to disclose some claims — the actor, the
+principal it acts for, the organisation, the correlation id — and then
+`ctx.claims` holds exactly those. That is the product's choice, and the
+product records it as a data transfer to you. Claims are descriptions: they
+grant you nothing, and your code must not treat them as proof of who is
+calling.
 
 ## 3. Calling back into the product
 
-If the contract package declares that your code may use another contract (for
-example a clock or a rate table), a client is generated for it:
+If your manifest asks to call another contract back (for example a clock or a
+rate table), list it in `requested.capabilities`; a client is generated for
+each entry, with the methods you listed:
 
 ```ts
 // type-checked: not yet (implementation absent)
 const { now } = await ctx.client(ClockClient).now({})
 ```
 
-Each call goes back through the link plugin and is subject to whatever access
-the product has granted you. A contract you did not declare has no client.
+Each call goes back through the link plugin. A request is not a grant: the
+product decides which of your requests its link grants, and a call it has not
+granted fails with `CallbackDenied` (reason "not-granted"). A contract you did
+not request has no client. Your manifest declares no `requires`: your code is
+never a dependent inside the product's host.
+
+Your package has the guest shape — it provides exactly one contract and
+declares no `requires`, `optional`, `activation`, `contributions` or
+`listens` — and `bridger pack` refuses anything else. You cannot mark it
+first-party: a host evaluates a package in its own runtime only if the
+application's release authority signs a "first-party" statement for it,
+which is the application's decision. Without one, the host fetches and
+verifies your bundle each time a session opens and runs it outside its own
+runtime, in the bundle runtime the deployment chose
+([partner publishing guide](../../references/kit/appendices/b-partner-publishing.md)).
 
 ## 4. Test against the published suite
 
@@ -138,3 +160,7 @@ the same fix text next to every failure.
 [Partner publishing guide](../../references/kit/appendices/b-partner-publishing.md) — pack, publish, countersign and what a host checks.
 
 Change log: 2026-11-08, round 2 — section "If you ship a user interface" (sandboxed iframe through `SandboxedSlot`); section "Publishing your package" links the partner publishing guide (CCR-BR-027).
+
+Change log: 2026-11-09, independent review — "How your code is reached" and §3 no longer claim your code never runs in the host's process: it is never evaluated in the host's runtime, and may run in a worker thread of that process; first-party is the application's decision (CCR-KT-004).
+
+Change log: 2026-11-09, `ctx.claims` holds only the claims the product's link discloses, none by default; callbacks come from `requested.capabilities` and a request is not a grant; guest-shaped packages are never marked first-party (CCR-KT-004).

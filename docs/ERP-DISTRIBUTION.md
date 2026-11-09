@@ -1,6 +1,6 @@
 # Bridger ERP: module distribution, loading and the durable Module Manager
 
-Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Package names, tables, manifest fields and signatures are proposed. Platform facts (Node ESM loading, Effect `Scope`/`Layer`) are cited from the [knowledge catalog](knowledge/README.md) entries E02–E10, E12, A12–A13, A28–A29, B02, B04, F16 and were not executed. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). This document refines [ERP-SPEC.md](ERP-SPEC.md) §5–6 and uses core's `Generation` ([SPEC.md](SPEC.md)).
+Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-02. Package names, tables, manifest fields and signatures are proposed. Platform facts (Node ESM loading, Effect `Scope`/`Layer`) are cited from the [knowledge catalog](knowledge/README.md) entries E02–E10, E12, A12–A13, A28–A29, B02, B04, F16 and were not executed. Policy: all packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). This document refines [ERP-SPEC.md](ERP-SPEC.md) §5–6 and uses core's `Generation` (core [20 — Generation](../references/core/behaviors/20-generation.md)).
 
 > **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
@@ -169,7 +169,7 @@ An entry must not perform work at import. The build enforces what it can:
 - A static scan rejects top-level calls to known side-effect APIs (`fetch`, `fs`, `child_process`, timers, `process.on`).
 - A dry evaluation in the publish pipeline loads the entry with stubs and fails if any stub is touched.
 
-This is a safety net, not a guarantee; runtime work belongs in scoped `build` effects and in Layers ([SPEC.md](SPEC.md)).
+This is a safety net, not a guarantee; runtime work belongs in scoped `build` effects and in Layers (core [BEH-BR-008](../references/core/behaviors/01-plugin-definition.md#beh-br-008-a-plugin-entry-has-no-import-time-side-effects), [ADR-BR-002](../references/core/decisions/002-plugin-build-is-a-layer.md)).
 
 ## 7. Durable Module Manager
 
@@ -236,7 +236,7 @@ stateDiagram-v2
     installing --> active: all phases done
     installing --> failed: phase fails
     active --> disabling: disable
-    disabling --> disabled: drained and scopes closed
+    disabling --> disabled: tenant generation drained
     disabling --> failed: cleanup fails
     disabled --> installing: ensure same artifact
     active --> upgrading: upgrade
@@ -275,14 +275,14 @@ Each phase writes `running` before work and `done` after in the same transaction
 | `schema/done`, `data` not done | Resume seeds, `onEnable` and data migrations from their cursors; each is idempotent. |
 | `data/done`, `catalog` not done | Re-run catalog/backfill resume from the tenant cursor. |
 | `runtime` or `ui` not done | Rebuild the registry from durable state and publish; no duplicate migration runs. |
-| `disabling` | Continue toward the durable desired state (disabled) and close scopes. |
+| `disabling` | Continue toward the durable desired state (disabled): publish a tenant generation without the module if none is published, drain the old one, record `disabled`. Activations are not closed here ([ERP-RUNTIME.md](ERP-RUNTIME.md) §7). |
 | `failed` | Stay failed until `resume`; status shows the phase and cause. |
 
 Startup order: platform migrations → verify artifact store reachability → `recover()` for every tenant in dependency order → open admission module by module → mark the node ready. Admission for a module stays closed until its phase is `active` on this node.
 
 ### `disable`, `upgrade`, `status`
 
-- **`disable(tenant, module, { cascade? })`** writes desired `disabled` first (so a crash resumes toward it), then publishes a generation without the module, awaits the old generation's `drained`, closes activation scopes, records `disabled`. Dependents active without `cascade` → `DependentsActive`. Data, migrations, receipts and audit remain.
+- **`disable(tenant, module, { cascade? })`** writes desired `disabled` first (so a crash resumes toward it), then publishes a tenant generation without the module, drains the old one with a bound (`retired.drain({ timeout, force })`, core BEH-BR-173, BEH-BR-174) and closes that generation's scope, which releases this tenant's leases on the module activation, then records `disabled`. It does not close the activation: activations are shared by every tenant on the same closure and are reclaimed only by the coordinator's reference count after `moduleIdleGrace` ([ERP-RUNTIME.md](ERP-RUNTIME.md) §7). Running workflows of the module are suspended at `workflowDisableGrace` ([ERP-BUSINESS.md](ERP-BUSINESS.md) §4); `disable` does not wait for them. Dependents active without `cascade` → `DependentsActive`. Data, migrations, receipts and audit remain.
 - **`upgrade(tenant, module, targetArtifact)`**: requires the target to be approved and its `platform` and `schema.compatible` windows to include the current schema version or the plan to expand it. Runs the contract compatibility check below, then the install procedure with a controlled generation switch. Incompatible behavior changes use `closeAdmission` → drain → `publish` → `reopenAdmission` ([ERP-MODELS.md](ERP-MODELS.md) §4). No automatic schema rollback: a failed activation leaves expanded schema and the previous runtime generation active.
 - **`status`** reads the durable rows only; it never waits.
 
@@ -340,7 +340,7 @@ All are administrative errors returned with durable status; none are accepted fr
 - Re-publishing a different digest for an existing `(module, version)` fails.
 - Kill the process after `schema/done`: restart completes without rerunning migrations and without a falsely active module.
 - `ensure` returns a receipt only after the generation is published and the UI catalog revision is live.
-- Disable with an in-flight command: the command settles before activation scopes close; later requests get `ModuleUnavailable`.
+- Disable with an in-flight command: the command settles before the old tenant generation finishes draining; later requests of that tenant get `ModuleUnavailable`; another tenant using the same activation keeps being served.
 - Upgrade that breaks a dependent's contract is refused; a compatible upgrade switches generation without mixing validators and storage mappings.
 - A revoked artifact cannot be newly installed; a running instance is quarantined per policy.
 - Inline module is refused in production mode.
@@ -361,3 +361,5 @@ These are design acceptance scenarios, not tests already executed.
 **Status (2026-11-08): open items remain.** The decisions above date from October 2026 and do not mean the document is complete. Open: re-expressing the manifest, signing, revocation and approval log over core 27, `@bridger/loader` and `@bridger/audit-chain` (see the notes in §3–§5 and §9 and the [supersession table](ERP-INDEX.md#supersession-table)); replacing `apiVersion` with contract majors (core 26); and the prototype of loader verification and shared-dependency resolution listed in [ERP-INDEX.md](ERP-INDEX.md). Nothing here is implemented.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §7: `disable` drains the tenant generation and releases that tenant's leases; it no longer closes activation scopes other tenants share; the state diagram, recovery table and acceptance check follow (E-02). Citations of the superseded SPEC.md point to core 20, BEH-BR-008 and ADR-BR-002 (E-04).

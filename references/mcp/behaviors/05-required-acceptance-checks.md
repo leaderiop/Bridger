@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-05                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.5 (2026-11-09): Checks 8, 9 and 10 follow the import as a link: session child, background handshake, `SessionLost` outcomes, disclosure; check 15 and REQ-MC-015: no contract object, local contracts, call-log `disclosed` (core CCR-BR-033); check 9: `McpClientStatus` and no session after a refused mount (independent review) (CCR-MC-004)<br>0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -76,15 +76,26 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 coalesce for a slow session without delaying others, and are
                 not sent for an unchanged fingerprint.
              8. An imported server's list change adds, removes and replaces
-                contributions serially, a replace waiting for the removal's
-                drain; subscriptions end with the session and the shared
+                the session child's contributions serially, a replace
+                waiting for the removal's drain; a re-sync stops when its
+                session ends; subscriptions end with the session and the shared
                 toolset is released after the last session; the server
                 holds a view and cannot publish.
-             9. Import: id normalization and collision exclusion; build
-                failure on a failed initialize; calls bounded by dispatch's
-                timeout with cancellation sent; a lost session fails calls
-                with a declared `RemoteUnavailable`, without retry;
-                a stale-epoch response is discarded.
+             9. Import: id normalization and collision exclusion; the
+                import is `active` with an unreachable server and opens
+                nothing in its build; a failed initialize or first
+                `tools/list` is reported in `McpClientStatus` with its stage
+                and retried on the schedule, never a build failure; commands
+                mount with the session child and are withdrawn when the
+                session ends, and the import reconnects; a refused child
+                mount ends the session, is reported "mount-refused" and
+                opens no further session; calls
+                bounded by dispatch's timeout with cancellation sent; a
+                call in flight on a lost session fails with `SessionLost`,
+                outcome "unknown" once sent and "not-executed" if never
+                sent, and a call after the session ended with
+                `RemoteUnavailable`, without retry; a stale-epoch response
+                is discarded.
              10. Import: input refused by the external schema never leaves;
                  an uncompilable schema, another dialect or a non-object
                  root excludes the tool; the descriptor's schemas are the
@@ -95,7 +106,9 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  annotations
                  carried as `externalAnnotations` change no tag, flag or
                  gate input; title and descriptions bounded and digested;
-                 identity not forwarded.
+                 no identity forwarded with `disclose` empty; each
+                 disclosed claim, and only those, in `_meta` under
+                 "bridger/claims", with the claim names in status and log.
              11. Host tools: `snapshot` and `inspect` return no
                  configuration value (secret-canary test); `inspect` of an
                  unknown plugin is `UnknownPlugin` and without `id` iterates
@@ -127,6 +140,15 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  decides (and with no gate), and are deferred or refused
                  under `taintFloor.readOnly: "floor"`; a trusted session's
                  calls are judged by the gate alone.
+             15. Local contracts: no exported function of the package has a
+                 parameter typed as a contract (type-level test); a command
+                 whose handler uses a service under a local contract is
+                 listed and called as a tool whose schemas are the
+                 command's alone, and the service's `ServiceId` and members
+                 appear nowhere on the wire (BEH-MC-001); an import's
+                 call-log entry names in `disclosed` exactly the claims
+                 sent with the call, and omits it when none was
+                 (BEH-MC-022).
 ```
 
 | REQ | Check | Behaviours | Status |
@@ -139,12 +161,13 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
 | REQ-MC-006 | 6. No wider surface than the catalog | [BEH-MC-006](./01-server.md#beh-mc-006-the-server-never-widens-what-the-command-companion-allows) | Not run |
 | REQ-MC-007 | 7. List-changed notifications | [BEH-MC-009](./02-list-changed.md#beh-mc-009-the-server-advertises-listchanged-and-serves-subscriptionslisten), [BEH-MC-010](./02-list-changed.md#beh-mc-010-a-notification-follows-a-toolset-publication-whose-content-changed), [BEH-MC-011](./02-list-changed.md#beh-mc-011-notifications-coalesce-and-never-regress) | Not run |
 | REQ-MC-008 | 8. Import re-sync; subscription lifetime | [BEH-MC-012](./02-list-changed.md#beh-mc-012-an-imported-servers-list-change-re-synchronizes-its-contributions), [BEH-MC-013](./02-list-changed.md#beh-mc-013-a-session-subscription-ends-with-its-session) | Not run |
-| REQ-MC-009 | 9. Import as a proxy; timeouts; no retry; epochs | [BEH-MC-017](./03-client-import.md#beh-mc-017-an-import-is-a-remote-proxy-plugin), [BEH-MC-018](./03-client-import.md#beh-mc-018-an-imported-call-is-a-lease-on-the-proxy-and-always-has-a-timeout) | Not run |
-| REQ-MC-010 | 10. Import: schemas, taint, untrusted annotations, no identity | [BEH-MC-019](./03-client-import.md#beh-mc-019-input-is-checked-against-the-external-json-schema-before-it-leaves), [BEH-MC-020](./03-client-import.md#beh-mc-020-imported-commands-are-always-marked-external-and-consumers-taint-by-descriptor), [BEH-MC-021](./03-client-import.md#beh-mc-021-external-annotations-and-descriptions-are-data-never-policy), [BEH-MC-022](./03-client-import.md#beh-mc-022-the-proxy-never-forwards-the-hosts-identity-or-annotations) | Not run |
+| REQ-MC-009 | 9. Import as a link; session child; timeouts; call outcomes; no retry; epochs | [BEH-MC-017](./03-client-import.md#beh-mc-017-an-import-is-a-link-whose-session-child-carries-the-imported-commands), [BEH-MC-018](./03-client-import.md#beh-mc-018-an-imported-call-is-a-lease-on-the-proxy-and-always-has-a-timeout) | Not run |
+| REQ-MC-010 | 10. Import: schemas, taint, untrusted annotations, identity only as disclosed | [BEH-MC-019](./03-client-import.md#beh-mc-019-input-is-checked-against-the-external-json-schema-before-it-leaves), [BEH-MC-020](./03-client-import.md#beh-mc-020-imported-commands-are-always-marked-external-and-consumers-taint-by-descriptor), [BEH-MC-021](./03-client-import.md#beh-mc-021-external-annotations-and-descriptions-are-data-never-policy), [BEH-MC-022](./03-client-import.md#beh-mc-022-the-proxy-forwards-no-identity-unless-the-import-discloses-it-and-never-annotations) | Not run |
 | REQ-MC-011 | 11. Host reads and plan change nothing and expose no values | [BEH-MC-025](./04-host-tools.md#beh-mc-025-host-tools-are-commands-contributed-by-one-plugin), [BEH-MC-026](./04-host-tools.md#beh-mc-026-snapshot-returns-the-host-snapshot-which-carries-no-configuration-values), [BEH-MC-027](./04-host-tools.md#beh-mc-027-inspect-returns-names-and-counts-only), [BEH-MC-028](./04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing) | Not run |
 | REQ-MC-012 | 12. Apply through both gates; stale plans refused | [BEH-MC-029](./04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates), [BEH-MC-030](./04-host-tools.md#beh-mc-030-host-tools-write-nothing-core-does-not-already-write) | Not run |
 | REQ-MC-013 | 13. Resources as projections of read-only commands | [BEH-MC-007](./01-server.md#beh-mc-007-read-models-are-served-as-resources-each-read-a-dispatch) | Not run |
 | REQ-MC-014 | 14. Inbound taint reaches the taint floor | [BEH-MC-002](./01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application), [BEH-MC-004](./01-server.md#beh-mc-004-toolscall-is-a-command-dispatch) | Not run |
+| REQ-MC-015 | 15. No contract object accepted; a local contract never crosses; disclosed claims named in the call log | [BEH-MC-001](./01-server.md#beh-mc-001-the-mcp-server-is-an-ordinary-plugin), [BEH-MC-022](./03-client-import.md#beh-mc-022-the-proxy-forwards-no-identity-unless-the-import-discloses-it-and-never-annotations) | Not run |
 
 Every `BEH-MC` identifier of this companion appears in at least one row;
 BEH-MC-033 is this list itself.

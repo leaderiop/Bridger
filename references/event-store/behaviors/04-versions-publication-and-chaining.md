@@ -5,19 +5,19 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-04                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-ES-028 fails the append on every durable-bus `publish` error, including `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-028 states that idempotency rests on `factId`; BEH-ES-030 records received facts with `decider.factId`, requires halting subscription options, states the key precondition, and adds `receiveVerbatim`; BEH-ES-031 hashes the stored event without `position` and requires JSON payloads; BEH-ES-032 stores an existing `Shredded` marker without a key (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-028 cites URS-BR-056 and BEH-ES-032 URS-BR-059 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-032 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape, codec id stored, one encode for published events, read order and failures); BEH-ES-028 lists `PayloadEncodeFailed` (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-025: every change of the encoded payload raises the version, an added optional field included (C-11; heading changed, old anchor kept); BEH-ES-028 passes the delivery stream and causation to durable-bus `publish` and takes the published event's attribution from the returned envelope (F-05, C-20); BEH-ES-030 cites durable-bus BEH-DB-020 for both subscription forms, adds `receiveVerbatimOptions`, drops the interim rule for encrypted types, leaves commit-time conflicts to durable-bus `CommitConflict` and states which origin a re-published fact carries (C-12, C-18, C-20) (CCR-ES-003)<br>0.5 (2026-11-08): BEH-ES-028 fails the append on every durable-bus `publish` error, including `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-028 states that idempotency rests on `factId`; BEH-ES-030 records received facts with `decider.factId`, requires halting subscription options, states the key precondition, and adds `receiveVerbatim`; BEH-ES-031 hashes the stored event without `position` and requires JSON payloads; BEH-ES-032 stores an existing `Shredded` marker without a key (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-028 cites URS-BR-056 and BEH-ES-032 URS-BR-059 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-032 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape, codec id stored, one encode for published events, read order and failures); BEH-ES-028 lists `PayloadEncodeFailed` (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
 This file specifies how stored events evolve (durable-bus versions and
-upcasters, core 26 rules for additive changes), how they are published
+upcasters; every payload change raises the version), how they are published
 through the durable-bus outbox in the append's transaction, how envelopes
 received from other hosts are recorded, and how stored events are optionally
 chained (audit-chain `ChainSink<R>`) and field-encrypted (durable-bus
@@ -26,11 +26,13 @@ chained (audit-chain `ChainSink<R>`) and field-encrypted (durable-bus
 Planned source: `packages/event-store/src/Publish.ts`,
 `packages/event-store/src/Chain.ts` *(Planned)*.
 
-## BEH-ES-025: Event versions follow durable-bus; additive changes follow core 26
+## BEH-ES-025: Event versions follow durable-bus; every payload change raises the version
+
+<a id="beh-es-025-event-versions-follow-durable-bus-additive-changes-follow-core-26"></a>
 
 > **See:** [ADR-ES-002](../decisions/002-one-event-declaration-for-storage-and-delivery.md)
-> **Core seam:** [26 — Versioned Contracts](../../core/behaviors/26-versioned-contracts.md) (BEH-BR-230, BEH-BR-231)
-> **Depends on:** [BEH-DB-027](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-027-upcasters-are-pure), [BEH-DB-030](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-030-encoding-uses-the-current-version-only)
+> **Core seam:** [26 — Versioned Contracts](../../core/behaviors/26-versioned-contracts.md) (BEH-BR-230, BEH-BR-231, by contrast)
+> **Depends on:** [BEH-DB-001](../../durable-bus/behaviors/01-events-and-envelope.md#beh-db-001-durableeventmake-declares-a-versioned-event), [BEH-DB-027](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-027-upcasters-are-pure), [BEH-DB-030](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-030-encoding-uses-the-current-version-only)
 > **Satisfies:** [URS-BR-029](../../core/urs.md#urs-br-029-evolve-a-service-contract-without-breaking-its-consumers)
 > **Risk:** [RSK-ES-005](../risks.md#rsk-es-005)
 
@@ -42,12 +44,24 @@ REQUIREMENT: The store MUST encode new events at the current `version` only
 ```
 
 ```
-REQUIREMENT: Documentation MUST state the evolution rule: adding an
-             optional payload field MAY keep the version, because decoding
-             ignores unknown fields (core BEH-BR-231) as contract evolution
-             does within a major (core BEH-BR-230); every other change MUST
-             raise the version and add a pure upcaster from the previous one.
+REQUIREMENT: Documentation MUST state the evolution rule of durable-bus
+             BEH-DB-001: every change of an event's encoded payload, an added
+             field included whether optional or not, MUST raise the version
+             and add a pure upcaster from the previous one. The version MAY
+             stay only for a change that leaves the encoding of every value
+             as it was.
 ```
+
+The rule is stricter than contract evolution within one major (core
+BEH-BR-230, BEH-BR-231), where an added optional field keeps the version.
+A stored event is read by every later release and, when published, by hosts
+that may run an older one. Such a host decodes the event and ignores the
+field it does not know; if it records the fact (BEH-ES-030) or publishes the
+event again, the field is gone without a trace. Under a raised version the
+same host halts or parks the envelope until it is upgraded (durable-bus
+BEH-DB-026), a writer still publishing the old version refuses a value the
+old version cannot carry (BEH-DB-031), and every stored event states the
+version its payload was written at.
 
 ## BEH-ES-026: An unreadable version stops a load and halts a projection
 
@@ -80,17 +94,31 @@ durable-bus reasons about (BEH-DB-029).
 
 > **Invariant:** [INV-ES-002](../invariants.md#inv-es-002-an-append-and-its-outbox-entries-commit-together-or-not-at-all)
 > **See:** [ADR-ES-003](../decisions/003-append-in-the-callers-transaction-with-the-outbox.md)
-> **Depends on:** [BEH-DB-009](../../durable-bus/behaviors/02-transactional-outbox.md#beh-db-009-publish-runs-inside-the-callers-transaction), [BEH-DB-010](../../durable-bus/behaviors/02-transactional-outbox.md#beh-db-010-the-envelope-exists-exactly-when-the-transaction-commits)
+> **Depends on:** [BEH-DB-003](../../durable-bus/behaviors/01-events-and-envelope.md#beh-db-003-streams), [BEH-DB-005](../../durable-bus/behaviors/01-events-and-envelope.md#beh-db-005-correlation-and-causation), [BEH-DB-009](../../durable-bus/behaviors/02-transactional-outbox.md#beh-db-009-publish-runs-inside-the-callers-transaction), [BEH-DB-010](../../durable-bus/behaviors/02-transactional-outbox.md#beh-db-010-the-envelope-exists-exactly-when-the-transaction-commits)
 > **Satisfies:** [URS-BR-043](../../core/urs.md#urs-br-043-deliver-business-events-across-hosts-and-outages-without-loss-or-duplication-of-effect), [URS-BR-056](../../core/urs.md#urs-br-056-keep-event-sourced-business-streams-with-the-outbox-in-one-transaction)
 > **Risk:** [RSK-ES-003](../risks.md#rsk-es-003)
 
 ```
 REQUIREMENT: For each appended event whose type was registered with
-             `publish`, `append` MUST call durable-bus `publish` with the
-             same `StoreTransaction`, in stream-version order, and MUST store
-             the event with `eventId` equal to the returned envelope's
-             `eventId`. The delivery stream MUST be the event-store stream
-             unless `publish.stream` names another.
+             `publish`, `append` MUST call durable-bus `publish(event,
+             payload, { stream, causationId })` with the same
+             `StoreTransaction`, in stream-version order, where `stream` is
+             the delivery stream — the event-store stream of the append, or
+             `publish.stream(stream, event)` when the registration gives one
+             (BEH-ES-001) — and `causationId` is the append's. It MUST NOT
+             rely on the stream the `DurableEvent` declares.
+```
+
+```
+REQUIREMENT: `publish` MUST run under the context the append resolved
+             (BEH-ES-007). The store MUST then take the stored event's
+             `eventId`, `actor`, `onBehalfOf`, `correlationId`,
+             `causationId`, `annotations` and `annotationsOmitted` from the
+             returned envelope, so that a stored event and its envelope
+             never disagree; inside a durable-bus subscription handler the
+             envelope's causation is the handled envelope's `eventId`
+             (durable-bus BEH-DB-005). Its `origin` follows BEH-ES-007, and
+             BEH-ES-030 for a recorded received fact.
 ```
 
 ```
@@ -103,7 +131,12 @@ REQUIREMENT: Any error of `publish` (`EncodeFailed`, `PayloadEncodeFailed`,
 ```
 
 Sharing `eventId` between the stored event and its envelope lets a reviewer
-match the two and gives the receiver a stable `causationId`. The idempotency
+match the two and gives the receiver a stable `causationId`; sharing the
+attribution fields means that the match shows one actor, one correlation and
+one set of annotations. The delivery stream defaults to the event-store
+stream, so a receiver sees the stream's events in stream-version order per
+origin, which the sequence companion relies on for a series (sequence
+BEH-SQ-011). The idempotency
 of a received fact rests on its `factId`, not on the envelope's `eventId`
 (BEH-ES-015): an event that records a received fact and is published again
 gets a new envelope `eventId` and keeps the fact's `factId`.
@@ -135,8 +168,9 @@ declare const EventStore: {
   // verbatim: the payload is stored as received, never decoded or re-encoded
   readonly receiveVerbatim: (options?: { readonly stream?: (envelope: Envelope) => string }) =>
     (envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction>
-  // the subscription options both handlers require (durable-bus BEH-DB-020, BEH-DB-021)
-  readonly receiveOptions: { readonly onPoison: "halt"; readonly onUnreadable: "halt" }
+  // the subscription options each handler requires (durable-bus BEH-DB-020, BEH-DB-021)
+  readonly receiveOptions: { readonly onPoison: "halt"; readonly onUnreadable: "halt" }   // DurableBus.subscribe
+  readonly receiveVerbatimOptions: { readonly onPoison: "halt" }                         // DurableBus.subscribeEnvelopes
 }
 ```
 
@@ -146,32 +180,53 @@ REQUIREMENT: `EventStore.receive(decider, toFact)` MUST return a durable-bus
              turns the decoded event into a fact and calls `Aggregate.record`
              (fact identifier `decider.factId(fact)`, BEH-ES-015), so that the
              inbox mark, the recorded events and their own outbox entries
-             commit together. A `StoreContention` or a commit-time
-             `WrongExpectedVersion` MUST fail the handler, so that durable-bus
-             rolls the inbox transaction back and retries in a new one
-             (BEH-DB-021).
+             commit together. A `StoreContention` from `record` MUST fail
+             the handler, so that durable-bus rolls the inbox transaction
+             back and retries in a new one (BEH-DB-021). A conflict the
+             adapter detects only at commit happens after the handler has
+             returned and is not the handler's: the adapter fails the inbox
+             transaction with durable-bus `CommitConflict` (BEH-ES-034), and
+             durable-bus retries it in a new transaction and halts the
+             subscription when the attempts end on it (BEH-DB-021).
 ```
 
 ```
-REQUIREMENT: A subscription whose handler comes from `receive` or
-             `receiveVerbatim` MUST be registered with
-             `EventStore.receiveOptions`: `onPoison: "halt"`, so that a fact
-             whose handler keeps failing halts its (origin, stream) and is
-             never parked past, and `onUnreadable: "halt"`, so that a
-             `PayloadUnreadable` halts it too instead of parking the fact
-             (durable-bus option requested of the delivery companion in this
-             revision; until it exists, such a subscription MUST NOT carry
-             encrypted event types under `receive`). The package cannot see
-             how a handler is registered; documentation MUST state the rule,
-             and the acceptance checks exercise it (BEH-ES-040).
+REQUIREMENT: A handler from `receive` MUST be registered with durable-bus
+             `subscribe` and `EventStore.receiveOptions`: `onPoison: "halt"`,
+             so that a fact whose handler keeps failing halts its (origin,
+             stream) and is never parked past, and `onUnreadable: "halt"`,
+             so that a `PayloadUnreadable` halts it too instead of parking
+             the fact (durable-bus BEH-DB-020). A handler from
+             `receiveVerbatim` MUST be registered with durable-bus
+             `subscribeEnvelopes` and `EventStore.receiveVerbatimOptions`
+             (`onPoison: "halt"`); that form never decodes, so it never
+             meets `PayloadUnreadable` and takes no `onUnreadable`
+             (BEH-DB-020). The package cannot see how a handler is
+             registered; documentation MUST state the rule, and the
+             acceptance checks exercise it (BEH-ES-040).
 ```
 
 ```
 REQUIREMENT: The stored events of a received fact MUST keep the envelope's
-             `origin`, `actor`, `correlationId` and annotations, and MUST set
-             `causationId` to the envelope's `eventId`. Their `eventId`s
-             follow BEH-ES-002: fresh, or those of the envelopes this store
+             `origin` and MUST set `causationId` to the envelope's `eventId`.
+             Their `actor` and `correlationId` MUST be the envelope's, and
+             their annotations the handler's served annotations: the
+             envelope's accepted entries with the provenance entry naming
+             it (durable-bus BEH-DB-006, BEH-DB-007), which is what
+             BEH-ES-007 resolves inside the handler. Their `eventId`s follow
+             BEH-ES-002: fresh, or those of the envelopes this store
              publishes when the types are registered with `publish`.
+```
+
+```
+REQUIREMENT: When the type of a recorded fact is registered with `publish`,
+             the stored event MUST keep the fact's `origin` while its new
+             envelope carries this host's origin (BEH-ES-028). Documentation
+             MUST state the two meanings: the stored `origin` names the host
+             where the fact happened, and an envelope's `origin` names the
+             host that issued its sequence (durable-bus BEH-DB-004); the
+             envelope's `causationId` links it to the envelope the fact
+             arrived in.
 ```
 
 ```
@@ -190,16 +245,18 @@ REQUIREMENT: Recording a decoded fact MUST NOT fail because a field of it is
 
 ```
 REQUIREMENT: `EventStore.receiveVerbatim(options?)` MUST return a handler for
-             a durable-bus subscription that delivers envelopes without
-             decoding them (requested of the delivery companion in this
-             revision). In the handler's `StoreTransaction` it MUST append
+             a durable-bus `subscribeEnvelopes` subscription, which delivers
+             envelopes without decoding them (durable-bus BEH-DB-020). In
+             the handler's `StoreTransaction` it MUST append
              one stored event to `options.stream(envelope)`, default
              "rx:" + origin + ":" + stream, with the next stream version,
              whose `type` and `version` are the envelope's, whose `payload`
              and `codec` are the envelope's byte for byte, whose `factId` is
              the envelope's `eventId` (so a redelivery is "already-recorded",
-             BEH-ES-015) and whose `origin`, `actor`, `correlationId`,
-             annotations and `causationId` follow the rule above. It MUST NOT
+             BEH-ES-015), whose `origin`, `actor`, `correlationId`,
+             `annotations` and `annotationsOmitted` are the envelope's as
+             received, and whose `causationId` is the envelope's `eventId`.
+             It MUST NOT
              call the `PayloadCodec`, an upcaster or a schema, MUST require the
              type to be registered, and MUST NOT publish the event
              (BEH-ES-029).
@@ -313,8 +370,9 @@ REQUIREMENT: On read, the store MUST call `decode({ type, version, stream,
              does not match, a `PayloadDecodeFailed` and a
              `PayloadUnreadable` MUST end the read with `DecodeFailed`
              naming the tag, under the halting rule of BEH-ES-020; unlike
-             the bus, which parks a `PayloadUnreadable` per subscription,
-             the store never skips an event. A codec whose output depends
+             a bus subscription, which parks a `PayloadUnreadable` unless
+             its `onUnreadable` is "halt" (durable-bus BEH-DB-020), the store
+             never skips an event. A codec whose output depends
              on `stream` MUST NOT be used with `publish.stream` naming
              another stream; the keyring's codec does not depend on it.
 ```
@@ -327,6 +385,10 @@ inbox's transaction, decoded or verbatim, and a fact is halted on, never
 parked or dropped (BEH-ES-030, revision 0.4). (5) Chains see only the stored form
 (BEH-ES-031, BEH-ES-032). (6) Stored payloads use the bus's `PayloadCodec` as BEH-DB-008 states it,
 and a published event's payload is encoded once (BEH-ES-032, revision 0.2).
+(7) A published event is published on its event-store stream unless the
+registration names another, and its stored attribution is its envelope's
+(BEH-ES-028, revision 0.6). (8) Every payload change raises the version
+(BEH-ES-025, revision 0.6).
 
 **Open.** (1) Whether a payload made unreadable on purpose should let a
 projection pass the event instead of halting; with the keyring codec a

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-08): Steps 4 and 5 run through `SignaturePolicy.verify` with the publisher binding; system starts of revoked digests refused by core's `RefusalList` backed by the loader (G60 closed); undo requests judged as the operation they issue (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-09): Step 4 also verifies the "first-party" statement, so no package is evaluated in the host's process without it (F-06); the entry is read from `extensions["@bridger/loader"]` (M-03); `PackageManifestMismatch` and `StatementRevoked` in `LoadError` (C-16); guest wording (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Steps 4 and 5 run through `SignaturePolicy.verify` with the publisher binding; system starts of revoked digests refused by core's `RefusalList` backed by the loader (G60 closed); undo requests judged as the operation they issue (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -33,8 +33,9 @@ BEH-LD-009–016 and uses all eight.
 > runs in the host's process with the host's authority: the loader is **not
 > a sandbox** and cannot take back what code does or reclaim it from memory
 > ([06 — Limits and Acceptance](./06-limits-and-acceptance.md)). Code that is
-> not first-party is fetched by the loader and run out of process
-> (05, BEH-LD-039), never evaluated here.
+> not first-party is fetched by the loader and run outside the host's runtime
+> (05, BEH-LD-039; 09, BEH-LD-068), never evaluated here: `load` evaluates
+> only a package whose "first-party" statement is accepted (09, BEH-LD-065).
 
 Planned source: `packages/loader/src/Loader.ts`,
 `packages/loader/src/Fetcher.ts`, `packages/loader/src/Evaluator.ts`
@@ -65,9 +66,11 @@ REQUIREMENT: `load` MUST run these steps in this order, and each step MUST
              4. evaluate the signature policy (03 — Signature Policy) and
                 the publisher binding, through `SignaturePolicy.verify`
                 with `statementType: "package"` (07, BEH-LD-050,
-                BEH-LD-053);
+                BEH-LD-053), and then the "first-party" statement through
+                `SignaturePolicy.verify` with `statementType:
+                "first-party"` (09, BEH-LD-065);
              5. check the current revocation set (04 — Revocation and Kill
-                Switch, BEH-LD-027), within the same `verify` call;
+                Switch, BEH-LD-027), within each of those `verify` calls;
              6. run the application's predicates (01, BEH-LD-006);
              7. evaluate the entry file (BEH-LD-011);
              8. extract and check the definition, and stamp it (BEH-LD-014,
@@ -271,13 +274,15 @@ interface LoadedPlugin {
 }
 type LoadError =
   | FetchFailed | PackageMalformed | UnsupportedDigestAlgorithm | DigestMismatch
-  | SignatureRejected | PublisherMismatch | Revoked | RevocationUnavailable | RevocationStale
-  | PackageRefused | EvaluationFailed | NotAPluginDefinition | ManifestMismatch | LoadLogFailed
+  | SignatureRejected | PublisherMismatch | Revoked | StatementRevoked | RevocationUnavailable | RevocationStale
+  | PackageRefused | EvaluationFailed | NotAPluginDefinition | PackageManifestMismatch | LoadLogFailed
+// StatementRevoked: the "first-party" statement revoked by its statement digest or a signer (09, BEH-LD-065)
 ```
 
 ```
-REQUIREMENT: The definition MUST be read from the export the manifest names
-             for the entry file. A missing export, or a value that is not a
+REQUIREMENT: The definition MUST be read from the export that the manifest's
+             `extensions["@bridger/loader"].entry` names for the entry file
+             (01, BEH-LD-001). A missing export, or a value that is not a
              `PluginDefinition` as core defines it (01 — Plugin definition),
              MUST fail with `NotAPluginDefinition`.
 ```

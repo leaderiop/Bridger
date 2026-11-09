@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-20                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -222,11 +222,17 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
                  list does not admit and a malformed fingerprint (BEH-GX-108,
                  BEH-GX-110).
              26. `runInstallationChecks` on a `GxpTestHost` reports IQ-01 to
-                 IQ-21 and IQ-U1 to IQ-U9 in order, with IQ-10, IQ-11 and
+                 IQ-22 and IQ-U1 to IQ-U10 in order, with IQ-10, IQ-11 and
                  IQ-15 failing because fixtures are wired, and the
                  `Host.controls` snapshot recorded; on a host with
                  `gateTimeout: "forever"` and an explicit gate deadline,
-                 IQ-19 fails (BEH-GX-113 to BEH-GX-120; REQ-BR-057).
+                 IQ-19 fails; on a host reporting `idGenerator` "provided",
+                 IQ-22 is "not-executed" without `idDraw`, fails with the
+                 first repeated value when `idDraw.generators` holds the
+                 `IdGenerator` services of two `TestHost.counterIdGenerator`
+                 layers built with one prefix, and passes with two distinct
+                 prefixes (BEH-GX-113 to
+                 BEH-GX-120; REQ-BR-057; core BEH-BR-210).
              27. `collectOqEvidence` gives the exact outcome of every item of
                  the known-bad corpus; `buildEvidencePack` run twice on the
                  same inputs and `generatedAt` gives byte-identical packs
