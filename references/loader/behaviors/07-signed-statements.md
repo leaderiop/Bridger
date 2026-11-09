@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-07                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.3 (2026-11-09): "first-party" reserved for in-process eligibility (file 09, F-06); `Revocation.refusalList` built over the `RevokedDigests` view (M-06) (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -53,7 +53,7 @@ Planned source: `packages/loader/src/Statement.ts`,
 ```ts
 // illustrative — not type-checked
 // Built-in statement types; any other non-empty string names an application's own type.
-type StatementType = "package" | "host-manifest" | "data-pack" | "licence" | "revocation-list" | "chain-bundle" | (string & {})
+type StatementType = "package" | "first-party" | "host-manifest" | "data-pack" | "licence" | "revocation-list" | "chain-bundle" | (string & {})
 
 interface Statement {
   readonly type: "bridger-statement-v1"
@@ -99,10 +99,12 @@ REQUIREMENT: `statementType` MUST be part of the signed bytes. A signature
 ```
 
 ```
-REQUIREMENT: The types "package", "host-manifest", "data-pack", "licence",
-             "revocation-list" and "chain-bundle" are reserved with the
-             meanings of this specification: "package" for 01 — Package and
-             Digest, "data-pack" for 08 — Data Packs, "revocation-list" for
+REQUIREMENT: The types "package", "first-party", "host-manifest",
+             "data-pack", "licence", "revocation-list" and "chain-bundle" are
+             reserved with the meanings of this specification: "package" for
+             01 — Package and Digest, "first-party" for the in-process
+             eligibility of a package (09, BEH-LD-065), "data-pack" for 08 —
+             Data Packs, "revocation-list" for
              04 (BEH-LD-026), "host-manifest" for the federation companion's
              desired-state manifests, "licence" for licence tokens read by an
              entitlement adapter, "chain-bundle" for the audit-chain
@@ -120,6 +122,7 @@ REQUIREMENT: Every signer and every verifier of a reserved type MUST build
              | type            | subject                                   | id                                         | version                       |
              | --------------- | ----------------------------------------- | ------------------------------------------ | ----------------------------- |
              | package         | { digest }: package digest (01, BEH-LD-002) | manifest `id`                            | manifest `version`            |
+             | first-party     | { digest }: package digest (01, BEH-LD-002) | manifest `id`                            | manifest `version`            |
              | data-pack       | { digest }: data-pack digest (08, BEH-LD-058) | manifest `id`                          | manifest `version`            |
              | host-manifest   | { bytes }: the manifest payload as signed | JCS of the JSON array [authority, host]    | revision (decimal, see below) |
              | revocation-list | { bytes }: the list payload as signed (04, BEH-LD-026) | the list's `issuer`           | revision (decimal, see below) |
@@ -321,6 +324,7 @@ type StatementRules = { readonly package?: AcceptanceRule } & { readonly [statem
 const rules: StatementRules = {
   package: releasePolicy,                                   // publisher + independent reviewer
   "host-manifest": SignaturePolicy.signed(fleetPolicy),     // two of three fleet operators
+  "first-party": SignaturePolicy.signed(inHousePolicy),     // the application's own release authority (09, BEH-LD-065)
   "data-pack": SignaturePolicy.signed(dataPolicy),          // the data publisher's key
   licence: SignaturePolicy.signed(licencePolicy)            // the licensing service's key
 }
@@ -616,11 +620,14 @@ statement the loader accepted about any bytes by one field.
 // illustrative — not type-checked
 declare const Revocation: {
   // ... filterDesired, check
-  // Core's RefusalList (BEH-BR-267) backed by the loader's revocation set.
-  readonly refusalList: Layer.Layer<RefusalList, RevocationUnavailable, RevocationSource | AcceptedDigests>
+  // Core's RefusalList (BEH-BR-267) backed by the loader's revocation set, read through the
+  // RevokedDigests view (09, BEH-LD-070), which the remote boundary also reads.
+  readonly refusalList: Layer.Layer<RefusalList, never, RevokedDigests>
 }
 // Wiring: built before the host with the other shared services and handed over as a Context base.
-const shared = yield* Layer.build(Layer.provideMerge(Revocation.refusalList, Layer.merge(AcceptedDigests.layer, revocations)))
+const shared = yield* Layer.build(
+  Layer.provideMerge(Revocation.refusalList,
+    Layer.provideMerge(RevokedDigests.layer, Layer.merge(AcceptedDigests.layer, revocations))))
 ```
 
 ```
@@ -642,12 +649,12 @@ REQUIREMENT: `Revocation.refusalList` MUST provide core's `RefusalList`
 ```
 
 ```
-REQUIREMENT: `refused` MUST be synchronous and pure, as core requires: the
-             layer MUST compute the set of refused digests when a
-             revocation set arrives (on `RevocationSource.changes`) and
-             when `AcceptedDigests` changes, and `refused` MUST only read
-             that precomputed set. It MUST NOT read the source, the store
-             or `Clock` inside `refused`.
+REQUIREMENT: `refused` MUST be synchronous and pure, as core requires: it
+             MUST answer from the `RevokedDigests` view (09, BEH-LD-070),
+             which computes the set of refused digests when a revocation set
+             arrives and when `AcceptedDigests` changes. It MUST NOT read the
+             source, the store or `Clock` inside `refused`, and the loader
+             MUST NOT compute the refused set a second time for it.
 ```
 
 ```
@@ -659,11 +666,12 @@ REQUIREMENT: When a signer is revoked and a digest submitted to `refused`
 ```
 
 ```
-REQUIREMENT: Building the layer MUST read the current set (which loads and
+REQUIREMENT: The layer MUST require the `RevokedDigests` view, whose
+             construction reads the current set (which loads and
              re-verifies the last saved list first, 04, BEH-LD-026) and
-             MUST fail with `RevocationUnavailable` when there is none, so
-             that a host is never built with a refusal list that has not
-             yet heard of earlier revocations. Documentation MUST state
+             fails with `RevocationUnavailable` when there is none (09,
+             BEH-LD-070), so that a host is never built with a refusal list
+             that has not yet heard of earlier revocations. Documentation MUST state
              that `maxAge` governs new loads only: an old set does not
              refuse the start of a digest it does not list.
 ```
@@ -695,7 +703,8 @@ type; readers re-check from records with `Revocation.check`. (5) A manifest's
 `publisher` is accepted only when a verified signer is configured for it. (6)
 Signatures sit outside every digest; countersigning appends a signer entry;
 signing goes through an adapter the loader never sees inside. (7) The
-revocation set backs core's `RefusalList`, statement digests included. (8)
+revocation set backs core's `RefusalList`, statement digests included,
+through the one `RevokedDigests` view (09, BEH-LD-070). (8)
 Each reserved type has one fixed subject, `id` and `version` convention and one
 call shape; a `SignedStatement` carries the payload as signed, and readers
 compare the decoded id and version with the envelope's. (9) Revocation lists

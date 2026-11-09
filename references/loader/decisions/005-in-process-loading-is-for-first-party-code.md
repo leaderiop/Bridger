@@ -1,29 +1,30 @@
-# ADR-LD-005: In-process loading is for first-party code; other code is fetched for out-of-process guests
+# ADR-LD-005: In-process loading is for first-party code; other code is fetched for guests run outside the host's runtime
 
 > **Document Control**
 >
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-ADR-005                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.2 (2026-11-09): Carried through by ADR-LD-008: in-process eligibility is the signed "first-party" statement, and catalog guests reach the host through `LoaderRemote.link` (specification audit F-06); title and guest wording: outside the host's runtime, not necessarily out of process (independent review) (CCR-LD-004)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
 ## Context
 
-Core runs plugins in the host's process and states that realms are not isolation ([ADR-BR-019](../../core/decisions/019-realms-are-resolution-namespaces.md)) and that it provides no sandbox ([ADR-BR-027](../../core/decisions/027-core-exclusions.md)). A loader that verifies signatures can make it tempting to evaluate a partner's signed code next to the host, as if a signature were containment. The architecture review that led to this companion fixed the rule that third-party code never runs in-process: it runs out of process behind a proxy plugin (references/remote/).
+Core runs plugins in the host's process and states that realms are not isolation ([ADR-BR-019](../../core/decisions/019-realms-are-resolution-namespaces.md)) and that it provides no sandbox ([ADR-BR-027](../../core/decisions/027-core-exclusions.md)). A loader that verifies signatures can make it tempting to evaluate a partner's signed code next to the host, as if a signature were containment. The architecture review that led to this companion fixed the rule that third-party code never runs in-process: it runs as a guest behind a proxy plugin (references/remote/), never evaluated in the host's runtime — which does not by itself put it in another operating-system process (remote BEH-RM-053).
 
 ## Decision
 
 - `Loader.load` evaluates code in the host's process and is documented as being for the application's own first-party and system plugins ([06 — Limits and Acceptance](../behaviors/06-limits-and-acceptance.md), BEH-LD-041).
-- `Loader.fetchVerified` runs the same verification and returns bytes without evaluating them, for `@bridger/remote` to run as a guest out of process ([05 — Catalog and Lazy Loading](../behaviors/05-catalog-and-lazy-loading.md), BEH-LD-039).
+- `Loader.fetchVerified` runs the same verification and returns bytes without evaluating them, for `@bridger/remote` to run as a guest outside the host's runtime, in the bundle runtime the deployment chose ([05 — Catalog and Lazy Loading](../behaviors/05-catalog-and-lazy-loading.md), BEH-LD-039).
+- Which code is first-party is itself a signed, revocable statement, and a catalog entry that is not marked first-party reaches the host only as a remote link; [ADR-LD-008](./008-in-process-eligibility-is-a-signed-statement.md) carries this decision through ([09 — Trust Class and Guest Links](../behaviors/09-trust-class-and-guest-links.md), BEH-LD-065–070).
 - The loader states its limits: no reclamation of evaluated code, one evaluation per digest per process, no control of code fetched at run time, and resident revoked code reported until restart (BEH-LD-012, BEH-LD-031, BEH-LD-042).
 
 ## Alternatives considered

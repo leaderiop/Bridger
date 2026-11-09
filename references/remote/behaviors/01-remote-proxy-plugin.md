@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-01                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): Round-2 agent review (R4 F20, F23) — `hello.wire` lists the versions an end speaks and `welcome.wire` names the agreed one; `WireExit.InProgress` for a duplicate copy of a running call (CCR-RM-003)<br>0.5 (2026-11-08): BEH-RM-002 the session child provides the contract itself instead of `contract.key`, which core now defines as the `ServiceId` string (core BEH-BR-225, CCR-BR-028) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 20 and CORE-DECISIONS-2 — `RemoteOptions.methodTimeouts` (shortens the contract descriptor timeouts) and `RemoteOptions.residency`; `WireClaims` gains `org` and `correlationId`, `onBehalfOf` is `PrincipalRef.encode`; refusal reasons "placement-refused" and "budget-exceeded" (CCR-RM-003)<br>0.3 (2026-11-08): `meta` stamping points to the loader's `Loader.stampRemote` (BEH-LD-039) (CCR-RM-002); resolutions of the agent review of 2026-11-08 — default `accepts` per core BEH-BR-232; missing options; `hello` carries the epoch; `call` carries `remaining`, `version`, wire annotations and claims; `welcome` carries `maxInFlight`; per-call refusals in `WireExit` (R3-04, R3-07, R3-10, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-09): Specification audit of 2026-11-09 (F-07, U-11, M-02): `RemoteOptions.disclose` and `LinkStatus.disclosed`; `RemoteOptions.manifest` carried unchanged and required to agree with the link; every mount failure of the session child (`ChildNotAllowed` included) ends the session, is not retried and is reported; a link needs `allowChildren`; BEH-RM-007 added: a local contract is refused by `Remote.define` (link build), `Remote.serve`, `Guest.serve` and callback grants with `LocalContractRefused` or `CallbackDenied` "local-contract" (core CCR-BR-033) (CCR-RM-004)<br>0.6 (2026-11-08): Round-2 agent review (R4 F20, F23) — `hello.wire` lists the versions an end speaks and `welcome.wire` names the agreed one; `WireExit.InProgress` for a duplicate copy of a running call (CCR-RM-003)<br>0.5 (2026-11-08): BEH-RM-002 the session child provides the contract itself instead of `contract.key`, which core now defines as the `ServiceId` string (core BEH-BR-225, CCR-BR-028) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 20 and CORE-DECISIONS-2 — `RemoteOptions.methodTimeouts` (shortens the contract descriptor timeouts) and `RemoteOptions.residency`; `WireClaims` gains `org` and `correlationId`, `onBehalfOf` is `PrincipalRef.encode`; refusal reasons "placement-refused" and "budget-exceeded" (CCR-RM-003)<br>0.3 (2026-11-08): `meta` stamping points to the loader's `Loader.stampRemote` (BEH-LD-039) (CCR-RM-002); resolutions of the agent review of 2026-11-08 — default `accepts` per core BEH-BR-232; missing options; `hello` carries the epoch; `call` carries `remaining`, `version`, wire annotations and claims; `welcome` carries `maxInFlight`; per-call refusals in `WireExit` (R3-04, R3-07, R3-10, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -24,7 +24,7 @@ local plugin: `Remote.define` returns a **link** plugin, the link mounts one
 the contract's service. Sessions and epochs are in
 [02](./02-sessions-and-epochs.md), calls in [03](./03-remote-calls.md),
 partitions in [04](./04-heartbeat-and-partition.md). This file owns
-BEH-RM-001–008 and uses BEH-RM-001–006; BEH-RM-007–008 are reserved.
+BEH-RM-001–008 and uses BEH-RM-001–007; BEH-RM-008 is reserved.
 
 Planned source: `packages/remote/src/Remote.ts`, `packages/remote/src/Link.ts`
 *(Planned)*.
@@ -65,7 +65,10 @@ interface RemoteOptions<R extends Keys> {
   readonly maxInFlight?: number             // 03; default 64
   readonly tokenTtl?: Duration.Input        // 06; default 30 seconds
   readonly meta?: PluginDefinition["meta"]  // copied to the link; version and digest of the guest bundle are stamped by Loader.stampRemote (BEH-LD-039)
+  readonly manifest?: PluginManifest        // copied to the link; must agree with it (core BEH-BR-242); see below
+  readonly disclose?: readonly DisclosedClaim[]   // 03, BEH-RM-024; identity claims sent to the peer; default none
 }
+type DisclosedClaim = "actor" | "onBehalfOf" | "org" | "correlationId"
 ```
 
 ```
@@ -74,6 +77,19 @@ REQUIREMENT: `Remote.define` MUST return a `PluginDefinition` produced by the
              `requires` equal to `options.requires` (default empty), and
              `provides` empty. It MUST NOT return a wrapper, subclass or
              host extension.
+```
+
+```
+REQUIREMENT: When `options.manifest` is given, the link definition MUST
+             carry it unchanged as its `manifest` (core BEH-BR-242), and it
+             MUST agree with the link: `id` equal to `options.id`,
+             `provides` empty, and `requires` naming exactly the keys of
+             `options.requires`. `Remote.define` MUST NOT derive, re-encode
+             or complete a manifest itself. A manifest built from a guest
+             bundle's signed manifest is the loader companion's
+             ([BEH-LD-069](../../loader/behaviors/09-trust-class-and-guest-links.md));
+             core then decodes and compares it at `install` like any eager
+             definition's manifest.
 ```
 
 ```
@@ -100,7 +116,7 @@ line in the core. A loader or a federation manifest that resolves to
 name a guest bundle are not computed by this package: the loader companion's
 `Loader.stampRemote` copies them from a bundle it verified onto the returned
 definition
-([BEH-LD-039](../../loader/behaviors/05-catalog-and-lazy-loading.md#beh-ld-039-guest-bundles-are-fetched-and-verified-here-and-run-out-of-process)).
+([BEH-LD-039](../../loader/behaviors/05-catalog-and-lazy-loading.md#beh-ld-039-guest-bundles-are-fetched-and-verified-here-and-run-outside-the-hosts-runtime)).
 Whether the guest then runs those bytes is the transport's obligation
 ([07](./07-transports-and-adapters.md)).
 
@@ -152,20 +168,39 @@ REQUIREMENT: At most one session child of a link MUST be registered at any
 ```
 
 ```
-REQUIREMENT: When the mount fails with `DuplicateProvider` (another plugin
-             took the contract's slot while the link was withdrawn), the link
-             MUST end the session, MUST NOT retry the mount, and MUST call
-             `Plugin.Runtime.reportFailure` with a message naming the
-             conflicting `ServiceId`, so that the conflict is visible as the
-             link's runtime failure.
+REQUIREMENT: When the mount fails for any reason — `DuplicateProvider`
+             (another plugin took the contract's slot while the link was
+             withdrawn), `ChildNotAllowed` (core BEH-BR-263: the link's
+             effective `allowChildren` is false, or a wired `AccessPolicy`
+             denied the `child` request), or any other error of
+             `Plugin.Runtime.install` — the link MUST end the session with
+             reason "mount-refused" (02, BEH-RM-013), MUST NOT retry the
+             mount, MUST record the error's tag in
+             `LinkStatus.lastRefusal` with `session` "refused", and MUST
+             call `Plugin.Runtime.reportFailure` with a message naming the
+             tag (and, for `DuplicateProvider`, the conflicting
+             `ServiceId`), so that the condition is visible as the link's
+             runtime failure.
+```
+
+```
+REQUIREMENT: Documentation MUST state that a link mounts a child for every
+             session, so it needs an effective `allowChildren` of true
+             (core BEH-BR-263), and, where an `AccessPolicy` is wired, a
+             policy that allows its `child` request for "session". A link
+             installed otherwise becomes `failed` at its first established
+             session, never `active` with nothing provided.
 ```
 
 Because the child is an ordinary plugin (BEH-BR-122), consumers resolve the
 contract's key to it, lease it, depend on it and see it in snapshots with
 `parentId` set to the link. Its provider slot is held only while it is
-registered; that is the cost of withdrawal, recorded as the last requirement:
-an operator who installs a local provider of the same key during a partition
-has made a configuration decision the link must not override.
+registered; that is the cost of withdrawal: an operator who installs a local
+provider of the same key during a partition has made a configuration
+decision the link must not override. A refused mount is never retried
+because no retry can change the answer: the slot's owner, the link's
+`allowChildren` and the access policy all change only through an operator
+call, after which the operator retries the link.
 
 ## BEH-RM-003: The link's build opens nothing that waits on the peer
 
@@ -245,10 +280,12 @@ type WireRefusal =
   | "placement-refused" | "budget-exceeded"                               // 09 (BEH-RM-069, BEH-RM-066)
 interface WireAnnotations { readonly entries: readonly AnnotationEntry[]; readonly omitted: readonly string[] }   // core BEH-BR-289, BEH-BR-296
 interface WireClaims {                                                    // a copy of public claims of the token (06); never authority
-  readonly actor: Actor
+  // identity claims: each present only when the link discloses it (RemoteOptions.disclose) and the token has it (03, BEH-RM-024)
+  readonly actor?: Actor
   readonly onBehalfOf?: string                // PrincipalRef.encode of the caller's principal (core BEH-BR-280)
   readonly org?: string                       // opaque organisation claim (09, BEH-RM-065)
   readonly correlationId?: string             // the caller's CurrentCorrelation (core BEH-BR-187)
+  // link claims: always present
   readonly pluginId: string; readonly realm: string
   readonly version?: string; readonly contractVersion: string
 }
@@ -348,6 +385,7 @@ interface LinkStatus {
   readonly lastEnd?: SessionEnd["reason"]   // 02
   readonly withdrawals: number              // 04, BEH-RM-029
   readonly revoked?: { readonly by: string; readonly reason?: string; readonly at: number }   // BEH-RM-014; actor id only
+  readonly disclosed: readonly DisclosedClaim[]   // claim names this link sends to the peer (03, BEH-RM-024); never values
 }
 ```
 
@@ -367,6 +405,73 @@ REQUIREMENT: `LinkStatus` MUST carry no payload, token value or
 **Settled here.** `RemoteStatus` is optional: a host without `Remote.layer`
 runs links unchanged, with session condition visible only through the
 session child's presence in snapshots.
+
+## BEH-RM-007: A local contract is never proxied, served or granted across the boundary
+
+> **See:** [ADR-RM-001](../decisions/001-remote-plugin-is-a-local-proxy.md)
+> **Core seam:** [26 — Versioned contracts](../../core/behaviors/26-versioned-contracts.md) (BEH-BR-225, BEH-BR-232)
+
+```ts
+// illustrative — not type-checked
+class LocalContractRefused extends Schema.TaggedError<LocalContractRefused>()("LocalContractRefused", {
+  serviceId: Schema.String,   // the local contract's ServiceId
+  site: Schema.String         // where it was refused: "define" | "serve" | "guest-serve" | "guest-grant";
+                              // companions that reuse the error name their own sites
+}) {}
+```
+
+```
+REQUIREMENT: The contract parameters of `Remote.define`, `Remote.serve`
+             and `Guest.serve`, and the elements of `Guest.serve`'s
+             `grants`, MUST be typed so that a local contract
+             (`Contract.local`, core BEH-BR-225) is a compile error. A
+             contract can also reach them untyped — from a loader, a
+             federation host or a cast — so each MUST also read `local` on
+             every contract object it is given (core BEH-BR-232), before it
+             derives a wire schema (BEH-RM-004) or opens anything.
+```
+
+```
+REQUIREMENT: `Remote.define` given a contract whose `local` is true MUST
+             return a definition whose build fails with
+             `LocalContractRefused { serviceId, site: "define" }`, so that
+             `install` leaves the link `failed` with that tag, no wire
+             schema is derived and no session ever opens. `Remote.define`
+             itself MUST stay inert (BEH-RM-001).
+```
+
+```
+REQUIREMENT: `Remote.serve` given a local contract MUST fail at once with
+             `LocalContractRefused` (site "serve"), and `Guest.serve` given
+             a local contract, or a local contract in `grants`, MUST fail
+             at once with it (site "guest-serve" or "guest-grant"), before
+             either accepts a connection.
+```
+
+```
+REQUIREMENT: A link's `grants` are keys, so their locality is known only
+             from the provision a key resolves to. At each session open the
+             link MUST read the `ContractDescriptor` of the provision each
+             granted key resolves to in the link's realm
+             (`PluginInspection.contracts.provides`, core BEH-BR-232) and
+             MUST leave out of `hello` every grant whose descriptor has
+             `local` true, logging it at warning level with the link ID and
+             the `ServiceId`. A callback whose granted key resolves to a
+             local contract — including a key that had no provider when
+             the session opened — MUST be refused at step 5 of BEH-RM-043
+             with `CallbackDenied { reason: "local-contract" }`, before its
+             payload is decoded and before any lease.
+```
+
+**Settled here.** A local contract has no codecs and no wire form, and core
+forbids it to cross a host boundary (core BEH-BR-225, BEH-BR-232). Refusing
+when the link is built and when a serving end starts, rather than at the
+first call, makes the mistake visible at `install` as a `failed` link with a
+tag, before any dependent waits on a provision that could never serve.
+Grants name keys, whose provisions can come and go, so they are checked
+where the provision is known: at each session open and at each callback.
+Locality is fixed per major (core BEH-BR-225), so a key refused once stays
+refused for that `ServiceId`.
 
 ---
 

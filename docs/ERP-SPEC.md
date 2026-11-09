@@ -4,7 +4,7 @@ Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-
 
 > **Status banner (2026-11-08): example application, not normative.** This document describes an example ERP application built on Bridger with a server CRUD design: a database row is the source of truth and one server transaction commits each write. It is **not normative** for `@bridger/core` or any companion package, and it is **not the domain layer for local-first or event-sourced systems**; its row-as-truth write path conflicts with event-sourced, offline-first write paths. Such systems build on the [core specification](../references/core/README.md) and the companion specs ([command](../references/command/README.md), [durable-bus](../references/durable-bus/README.md), [federation](../references/federation/README.md), [loader](../references/loader/README.md), [audit-chain](../references/audit-chain/README.md)), and on the event-sourcing companions ([event-store](../references/event-store/README.md), [sequence](../references/sequence/README.md), [keyring](../references/keyring/README.md); Drafts like the others). Where this document and a spec disagree, the spec governs; the [supersession table](ERP-INDEX.md#supersession-table) maps each ERP concept to the spec that now governs it. Nothing here is implemented.
 
-Read [the complete Todo walkthrough](ERP-TODO-WALKTHROUGH.md) first to see the author experience. Permissions and policies are specified in [ERP-ACCESS.md](ERP-ACCESS.md). [Odoo core research](knowledge/ODOO-CORE.md) records the source evidence behind this proposal. The existing [Bridger core spec](SPEC.md) remains the generic plugin runtime. Area specifications: [storage](ERP-STORAGE.md), [identity and tenants](ERP-IDENTITY.md), [module distribution](ERP-DISTRIBUTION.md), [browser shell](ERP-BROWSER.md), [business platform services](ERP-BUSINESS.md), [operations](ERP-OPERATIONS.md), [developer experience](ERP-DX.md); see the [index](ERP-INDEX.md). Authentication is provided by awthaq ([ERP-IDENTITY.md](ERP-IDENTITY.md)); where this document and an area specification differ, the area specification is more detailed.
+Read [the complete Todo walkthrough](ERP-TODO-WALKTHROUGH.md) first to see the author experience. Permissions and policies are specified in [ERP-ACCESS.md](ERP-ACCESS.md). [Odoo core research](knowledge/ODOO-CORE.md) records the source evidence behind this proposal. The generic plugin runtime is the [core specification](../references/core/README.md); the earlier `SPEC.md` is superseded and kept only as design history. Area specifications: [storage](ERP-STORAGE.md), [identity and tenants](ERP-IDENTITY.md), [module distribution](ERP-DISTRIBUTION.md), [browser shell](ERP-BROWSER.md), [business platform services](ERP-BUSINESS.md), [operations](ERP-OPERATIONS.md), [developer experience](ERP-DX.md); see the [index](ERP-INDEX.md). Authentication is provided by awthaq ([ERP-IDENTITY.md](ERP-IDENTITY.md)); where this document and an area specification differ, the area specification is more detailed.
 
 ## 1. What the framework provides
 
@@ -51,7 +51,9 @@ flowchart TB
     Models --> Records
     Records --> Tx[Database Transaction]
     Tx --> DB[(Business records and audit)]
-    Tx --> Outbox[(Outbox and command receipts)]
+    Execute --> Receipts[(Command receipts)]
+    Tx --> Receipts
+    Tx --> Outbox[(Outbox)]
     Outbox --> Jobs[Integration and workflow workers]
     Installer --> DB
 ```
@@ -63,7 +65,7 @@ flowchart TB
 | Operation Gateway | `query` and `command` | Decode input, authenticate, check enabled generation, authorize, lease, execute, encode results and correlate diagnostics. |
 | Records | `list`, `get`, `create`, `update`, `delete` | Scope filters, field rules, parameterized queries, optimistic concurrency and standard record metadata. |
 | Policy (`@bridger/qadi` over `@qadi/core`) | Permission tokens, qadi policies, request subject | Operation gates, row predicates compiled to SQL, field projection and consistent enforcement across all entry points. Tenant/company scope is added by Records and is not a plugin policy. See [ERP-ACCESS.md](ERP-ACCESS.md). |
-| Transaction | Execute one command unit | Record mutation, command receipt, audit and outbox share one SQL transaction. |
+| Transaction | Execute one command unit | Record mutation, audit, outbox and the completion of a successful command receipt share one SQL transaction; the receipt claim commits before it ([ERP-STORAGE.md](ERP-STORAGE.md) §10). |
 | UI Catalog | Authorized descriptors and revision changes | Available navigation/screens and compatible UI artifacts; no live server values enter the catalog. |
 
 > **Superseded in part (2026-11-08).** The Operation Gateway and the `Command.contract` / `Command.implement` model are governed by [`@bridger/command`](../references/command/README.md) ([02 — Dispatch](../references/command/behaviors/02-dispatch.md)); the outbox in the Transaction row by [`@bridger/durable-bus`](../references/durable-bus/README.md); the Module Manager's multi-node rollout by [`@bridger/federation`](../references/federation/README.md); per-tenant registry generations by core [33 — Realm families](../references/core/behaviors/33-realm-families.md). See the [supersession table](ERP-INDEX.md#supersession-table).
@@ -150,11 +152,11 @@ Models contribute their standard operation references automatically. `ui` attach
 
 `version` identifies immutable code/schema packaging. `apiVersion` identifies the client operation contract. `dependsOn` declares ERP module version dependencies, whereas generic Bridger `requires` declares live Effect service dependencies. The ERP compiler translates the former into the necessary registry/activation dependencies without conflating the two.
 
-Definitions are validated before publication: duplicate IDs, incompatible fields, missing permissions, unresolved references, dependency cycles and invalid operation result schemas fail activation. Publication changes one registry generation; partially registered routes or screens are not visible. The ERP coordinator builds the complete next registry as an immutable value, then publishes it with core's [`Generation`](SPEC.md) helper: new calls get the new value atomically, calls already admitted finish under the old one, and `closeAdmission` plus the retired value's `drained` effect give the close-drain-switch sequence for incompatible changes. A plugin whose validators or handlers an old generation references is removed only after that generation has drained.
+Definitions are validated before publication: duplicate IDs, incompatible fields, missing permissions, unresolved references, dependency cycles and invalid operation result schemas fail activation. Publication changes one registry generation; partially registered routes or screens are not visible. The ERP coordinator builds the complete next registry as an immutable value, then publishes it with core's [`Generation`](../references/core/behaviors/20-generation.md) helper (BEH-BR-169–176): new calls get the new value atomically (BEH-BR-170), calls already admitted finish under the old one (BEH-BR-172), and `closeAdmission` (BEH-BR-171) plus the retired value's bounded `drain` (BEH-BR-173, BEH-BR-174) give the close-drain-switch sequence for incompatible changes. A plugin whose validators or handlers an old generation references is removed only after that generation has drained.
 
 ## 4. Request execution and transactions
 
-> **Row-as-truth write path.** This section keeps the server CRUD model: the business row is the source of truth and one server transaction commits the row, its audit entry, its outbox entry and its receipt. **This conflicts with event-sourced, offline-first write paths**, where facts are appended locally (often offline), rows are derived projections and an authority orders and re-checks facts later. Such systems should not use this path; see the status banner. The gateway steps below are governed by [`@bridger/command`](../references/command/README.md) and the outbox by [`@bridger/durable-bus`](../references/durable-bus/README.md).
+> **Row-as-truth write path.** This section keeps the server CRUD model: the business row is the source of truth and one server transaction commits the row, its audit entry, its outbox entry and the completion of its receipt. **This conflicts with event-sourced, offline-first write paths**, where facts are appended locally (often offline), rows are derived projections and an authority orders and re-checks facts later. Such systems should not use this path; see the status banner. The gateway steps below are governed by [`@bridger/command`](../references/command/README.md) and the outbox by [`@bridger/durable-bus`](../references/durable-bus/README.md).
 
 ```mermaid
 sequenceDiagram
@@ -167,20 +169,21 @@ sequenceDiagram
     UI->>API: create task with command ID and idempotency key
     API->>API: authenticate and validate selected tenant and company
     API->>Host: acquire lease on the tenant's current registry generation
-    API->>Policy: check operation permission
-    API->>DB: begin transaction
-    API->>DB: reserve scoped idempotency key and validate input hash
+    API->>Policy: gate: check operation permission
+    API->>DB: claim the receipt for (tenant/company partition, command, key) in its own short transaction
+    API->>DB: begin transaction (transaction wrapper)
     API->>Policy: apply record and field rules
-    API->>DB: insert task and audit and outbox and receipt
+    API->>DB: insert task and audit and outbox
+    API->>DB: complete the receipt with the encoded result
     API->>DB: commit
     API->>Host: release lease after cleanup
     API-->>UI: typed created row
     UI->>UI: result Message updates Model
 ```
 
-The database adapter serializes concurrent uses of the same idempotency key with a unique receipt identity. The identity includes tenant, company, actor, stable command ID and client key. Repeating the same request returns its retained result; reusing the key with different input is `IdempotencyConflict`. A retry of a recorded success is authorized against current policy before its result is disclosed. The receipt records the original contract and artifact version so upgrades do not silently reinterpret it. Receipt retention and expired-key behavior must be configured.
+Idempotency follows the command companion ([BEH-CM-041](../references/command/behaviors/06-receipts-wrappers-and-breakers.md)): the key travels as `DispatchOptions.idempotencyKey`, and the application supplies the `CommandReceipts` port that [ERP-STORAGE.md](ERP-STORAGE.md) §10 implements. The claim is made at dispatch step 6, after the gate and the before-hooks, in its own short transaction. A repeat is therefore always judged again under current permissions, and a request whose key is still running is refused with `IdempotencyConflict { reason: "in-flight" }` instead of waiting. Receipts are scoped by (partition, command, key); the application's `receiptPartition` returns `<tenant>/<company>` from the scope annotation every ERP dispatch site adds to the request (the gateway, a subscription handler, the job runner, a workflow activity), and every call of the port receives the services it may use, including the transaction to write through, instead of reading fiber-local state (ERP-STORAGE §10). Another actor's use of the key, other input, or another definition of the command (after an upgrade) fails with `IdempotencyConflict` naming the reason. A completed receipt returns its stored outcome, the success or the typed error, marked as replayed, without running the handler. Receipt retention and the in-flight expiry must be configured (ERP-STORAGE §10, §13).
 
-Each write command has one SQL commit point. Standard writes include actor/company metadata, an audit record, and a durable model-change outbox entry. Failure before commit rolls them back together. Success-before-response network failure is resolved by retrying the same key. A rolled-back revision conflict is not a committed receipt; a deliberately new command uses a new key.
+Each write command has one SQL commit point. The transaction wrapper, first in `handlerWrappers` ([BEH-CM-042](../references/command/behaviors/06-receipts-wrappers-and-breakers.md)), opens it; the business rows with their actor and company metadata, the audit record, the durable-bus envelopes and the completion of a successful receipt commit in it together. Failure before commit rolls them back, and the package releases the claim, so a retry with the same key runs again. Success-before-response network failure is resolved by retrying the same key. A typed failure such as a revision conflict is a stored outcome: a retry with the same key returns it again, and a deliberately new attempt uses a new key. Typed errors a retry may clear (`ModelFenced`, `ExtensionUnavailable`, `LockTimeout`, `HookTimeout`, `SerializationConflict`) are listed in every ERP command's `retryable` ([BEH-CM-001](../references/command/behaviors/01-command-definition.md)): they release the claim and are never stored. A command dispatched by a durable-bus subscription handler joins the inbox transaction, with the key `${subscription}:${eventId}`, so its receipt commits or rolls back with the delivery (ERP-STORAGE §10).
 
 Queries are read-only, permission-filtered and bounded. Their cursor is opaque and tied to scope, ordering and filter shape. The default list order is `createdAt` descending and then `id`; pagination is a live view unless the caller explicitly requests a snapshot export. `nextCursor` is null at the end.
 
@@ -195,14 +198,17 @@ const storage = yield* Postgres.make({ url: databaseUrl }) // any StorageAdapter
 const erp = yield* Erp.make({ storage, loader: ErpNode.moduleLoader() })
 
 yield* erp.tenants.ensure({ id: "demo", name: "Demo" })
-yield* erp.companies.ensure({ tenantId: "demo", id: "main", name: "Main" })
+yield* erp.companies.ensure({
+  tenantId: "demo", id: "main", name: "Main",
+  timezone: "Europe/Paris", defaultLocale: "en", functionalCurrency: "EUR",
+})
 yield* erp.modules.ensure({ tenantId: "demo", module: TodoModule })
 yield* erp.access.grantRole({
   tenantId: "demo", actorId: "alice", role: "todo.user", companyIds: ["main"],
 })
 ```
 
-`Erp.make` is scoped and owns an ERP coordinator and the process's single Bridger Host, with module activations shared across tenants and one registry `Generation` per tenant ([ERP-RUNTIME.md](ERP-RUNTIME.md)). Administrative methods above are server composition interfaces, not automatically exposed public RPC methods. The HTTP adapter creates a restricted operation gateway. An admin UI needs separately authorized management commands.
+`companies.ensure` takes every value `bridger_companies` requires; none of the timezone, default locale and functional currency has a silent default ([ERP-IDENTITY.md](ERP-IDENTITY.md) §4, §7). `Erp.make` is scoped and owns an ERP coordinator and the process's single Bridger Host, with module activations shared across tenants and one registry `Generation` per tenant ([ERP-RUNTIME.md](ERP-RUNTIME.md)). Administrative methods above are server composition interfaces, not automatically exposed public RPC methods. The HTTP adapter creates a restricted operation gateway. An admin UI needs separately authorized management commands.
 
 `ensure` is idempotent for an already-active identical artifact/version. A different artifact under the same version fails; a different version requires explicit `upgrade`. It returns an installation receipt only when the local tenant generation is ready; on a multi-node deployment it additionally waits for the cluster acknowledgements defined in [ERP-RUNTIME.md](ERP-RUNTIME.md) §9 and [ERP-OPERATIONS.md](ERP-OPERATIONS.md) §3 (a timeout reports lagging nodes as `RolloutIncomplete` and the change continues). Missing module dependencies or failed migrations are typed errors with a durable status entry; an install receipt never means merely "definition recorded". This deliberately differs from generic `Host.install`, which can leave a plugin waiting.
 
@@ -214,7 +220,7 @@ All methods return Effects with typed errors; installation receipts include tena
 | Operation | Input | Completion guarantee |
 | --- | --- | --- |
 | `modules.ensure` | `tenantId` and exactly one of `module` or `artifact` | Requested module is active in the local runtime; identical active installation is reused. |
-| `modules.disable` | `tenantId`, `moduleId`, optional `cascade` | Admission closed, admitted server calls settled, activation scopes closed; durable data retained. Default cascade is false. |
+| `modules.disable` | `tenantId`, `moduleId`, optional `cascade` | A tenant generation without the module published; admitted server calls of the retired generation settled (bounded drain); that generation's scope closed, releasing the tenant's leases on the module activation; durable data retained. The activation itself closes only when no tenant generation and no running workflow uses it ([ERP-RUNTIME.md](ERP-RUNTIME.md) §7). Default cascade is false. |
 | `modules.upgrade` | `tenantId`, `moduleId`, approved target `artifact` | Compatibility and migration plan applied, target generation active; shared database schema constraints apply to all affected tenants. |
 | `modules.status` | `tenantId`, `moduleId` | Current durable desired/observed state, phase, version, generation and failure details; does not wait for activation. |
 
@@ -225,6 +231,131 @@ The inline `{ module: TodoModule }` form is convenient for source-defined local 
 The reference design uses one Bridger Host per process. Module code is activated once per dependency closure and shared by tenants; each tenant has a small evictable registry generation that owns its active module set ([ERP-RUNTIME.md](ERP-RUNTIME.md)). Request actor, selected company and authorization state are immutable Effect context values per request, never mutable globals on a module activation. Tenant generations may be evicted while durable desired state remains in the database. In-process trusted code has process privileges; the host layout is resource organization, not a security sandbox.
 
 Many tenants share one process host and one physical database. The schema migration ledger is per physical database and module; enablement is per tenant. Initial table creation happens once, and enabling another tenant does not rerun it. An upgrade must account for every enabled tenant's compatible code/schema window. Database-per-tenant storage adapters use separate migration ledgers.
+
+### HTTP hosting, the gateway wire format and the typed client
+
+`@bridger/erp-node` hosts the gateway and `@bridger/erp/client` calls it. The signatures below are the ones the [Todo walkthrough](ERP-TODO-WALKTHROUGH.md) §7–§9 uses (proposed, not type-checked):
+
+```ts
+declare const ErpNode: {
+  /** The verifying artifact loader passed to Erp.make (ERP-DISTRIBUTION.md §5). */
+  readonly moduleLoader: (options?: ModuleLoaderOptions) => ModuleLoader
+  /** The /erp routes (session, catalog, query, command, artifacts) for an application's own router (ERP-IDENTITY.md §8). */
+  readonly routes: (options: { readonly erp: Erp; readonly identity: Layer.Layer<Identity, never, any> }) => HttpRouterMiddleware
+  /** Binds the socket and serves /erp, the static shell and the health endpoints until interrupted; it never succeeds. */
+  readonly serve: (options: ServeOptions) => Effect.Effect<never, ServeError, Scope.Scope>
+  /** Runs a program as the process: handles SIGTERM and SIGINT with the shutdown order of ERP-OPERATIONS.md §3 and sets the exit code. */
+  readonly runMain: <E>(program: Effect.Effect<unknown, E>) => void
+}
+// ModuleLoader: ERP-DISTRIBUTION.md §5.
+interface ModuleLoaderOptions {
+  readonly directory?: string          // where verified artifacts are materialized; default "<app>/.bridger/artifacts"
+}
+// Adds the /erp routes to an Effect HttpRouter, in the pipe form ERP-IDENTITY.md §8 uses;
+// the exact router type is pinned with the Effect 4 release.
+type HttpRouterMiddleware = <E, R>(router: HttpRouter.HttpRouter<E, R>) => HttpRouter.HttpRouter<E, R>
+interface ServeOptions {
+  readonly erp: Erp
+  readonly host: string
+  readonly port: number
+  readonly identity: Layer.Layer<Identity, never, any>   // Identity.awthaq(...) or Identity.development(...), ERP-IDENTITY.md §3
+  readonly assets?: { readonly directory: string }        // the built shell, served for paths outside /erp, /auth and /api
+  readonly shutdownGrace?: Duration.Input                 // default 30 seconds
+}
+// ServeError: the socket cannot be bound, or the options are unsafe (Identity.development off loopback,
+// production mode with a development identity), checked before binding.
+
+declare const ErpClient: {
+  /** Pure: no request is made until an operation runs. */
+  readonly make: (options: { readonly baseUrl: string; readonly credentials?: "include" | "same-origin" | "omit"
+                             readonly fetch?: typeof globalThis.fetch }) => ErpClient
+}
+interface ErpClient {
+  readonly session: Effect.Effect<SessionSummary, ErpClientError>
+  readonly selectCompany: (companyId: string) => Effect.Effect<SessionSummary, ErpClientError>
+  readonly catalog: Effect.Effect<Catalog, ErpClientError>                               // ERP-BROWSER.md §4
+  readonly query: <I, O, E>(ref: QueryRef<I, O, E>, input: I) => Effect.Effect<O, E | ErpClientError>
+  readonly command: <I, O, E>(ref: CommandRef<I, O, E>, input: I,
+                              options: { readonly idempotencyKey: string }) => Effect.Effect<O, E | ErpClientError>
+}
+// The contract objects of @bridger/erp/contracts (e.g. Task.commands.create, Task.queries.list); ERP-BROWSER.md §4
+// carries the same id, apiVersion and digest as OperationRef.
+interface QueryRef<I, O, E> {
+  readonly id: string
+  readonly apiVersion: string
+  readonly input: Schema.Codec<I, unknown>
+  readonly output: Schema.Codec<O, unknown>
+  readonly error: Schema.Codec<E, unknown>
+}
+interface CommandRef<I, O, E> extends QueryRef<I, O, E> {
+  readonly digest: string              // the command digest (BEH-CM-005), sent as expectDigest
+}
+interface SessionSummary {             // GET /erp/session, ERP-IDENTITY.md §4
+  readonly actor: { readonly id: string; readonly displayName: string }
+  readonly tenantId: string
+  readonly companyId: string | null    // the selected company
+  readonly companies: ReadonlyArray<{ readonly id: string; readonly name: string }>   // companies the actor holds grants in
+  readonly generation: number          // the context generation
+}
+type ErpClientError =
+  | Unauthenticated | Forbidden | ContextRequired | ContextChanged | ModuleUnavailable | ContractMismatch
+  | IdempotencyConflict | InternalError
+  | TransportError          // no definitive answer (network failure, timeout): ambiguous, retry with the same key
+```
+
+The client reads `GET /erp/session` before its first operation, keeps the context generation it was given, and sends it on every query and command; `selectCompany` replaces it. With cookie sessions it uses `@awthaq/client`'s CSRF middleware. A typed error of the operation (`E`) is decoded with the operation's error schema; `replayed` is not surfaced as a different result.
+
+**Command request.** `POST /erp/command`:
+
+| Part | Content |
+| --- | --- |
+| `Idempotency-Key` header | Required for every command at this gateway (an ERP choice; dispatch itself allows none). 1 to 128 characters from U+0021 to U+007E, as BEH-CM-041 requires; passed to dispatch as `idempotencyKey`. A missing key is `InvalidInput`; a malformed one fails at dispatch step 2 and is mapped to `InvalidInput`. |
+| `X-Bridger-Context-Generation` header | The client's context generation ([ERP-IDENTITY.md](ERP-IDENTITY.md) §4). |
+| `x-csrf-token` header | Cookie sessions only ([ERP-IDENTITY.md](ERP-IDENTITY.md) §8). |
+| Body | `{ "operation": "todo.task.create", "apiVersion": "1", "expectDigest": "sha256:…", "input": { … } }`. `expectDigest` is optional: the command digest the catalog showed, checked at dispatch step 1 ([BEH-CM-009](../references/command/behaviors/02-dispatch.md)). Actor, tenant and company are never read from the body. |
+
+**Query request.** `POST /erp/query` with the same headers except `Idempotency-Key`, and the body `{ "operation", "apiVersion", "input" }`.
+
+**Response.** Every response is JSON with the context generation it was produced under and the correlation id:
+
+```json
+{ "ok": true,  "output": { }, "replayed": false, "generation": 4, "correlation": "…" }
+{ "ok": false, "error": { "_tag": "RevisionConflict" }, "replayed": true, "retryable": false, "generation": 4, "correlation": "…" }
+```
+
+`retryable` appears on every failed command response. It is `true` exactly when no outcome was stored for the key and the same request, with the same key, may succeed later: the claim was never made (`ModuleUnavailable`, an `InternalError` from a platform refusal) or was released (the public forms of the `retryable` typed errors and every `InternalError` that ended a claimed dispatch), or the key is still running (`IdempotencyConflict` with reason `in-flight`). It is `false` for a stored outcome (`replayed: true`, or a typed failure being stored now) and for every answer that needs new input or a new intent. The client retries a `retryable` answer with the same key ([ERP-BROWSER.md](ERP-BROWSER.md) §6).
+
+`replayed` appears on command responses only and is true when a stored receipt supplied the outcome (`CommandOutcome.replayed`, BEH-CM-041). A replayed failure keeps the status of the original.
+
+| Status | `error._tag` |
+| --- | --- |
+| 200 | Success (`ok: true`), replayed or not. |
+| 400 | `InvalidInput`, `InvalidQuery`, `ConstraintViolation`, `ReferenceInvalid`, `ReferenceInUse`, `ContextRequired`; a malformed body or key. |
+| 401 | `Unauthenticated`. |
+| 403 | `Forbidden`; a CSRF failure. |
+| 404 | `RecordNotFound`. |
+| 409 | `RevisionConflict`, `IdempotencyConflict` (with `reason`), `ContextChanged`, `ContractMismatch`. |
+| 503 | `ModuleUnavailable`, with `Retry-After`. |
+| 202 | `ApprovalRequired` with the draft id: the dispatch was deferred for approval (`CommandDeferred`). |
+| 500 | `InternalError`, with the correlation id and no cause. |
+
+The gateway maps the command companion's dispatch errors ([02 — Dispatch](../references/command/behaviors/02-dispatch.md)) to these tags; no dispatch error reaches the wire under its own name:
+
+| Dispatch error | Public tag (status) |
+| --- | --- |
+| `CommandNotFound` | `ModuleUnavailable` (503) when the operation's module is not in the tenant's generation; otherwise `ContractMismatch` (409) |
+| `CommandInputInvalid` | `InvalidInput` (400) |
+| `ToolChanged` (the `expectDigest` check at step 1), `ToolNotInToolset` | `ContractMismatch` (409) |
+| `CommandDeferred` | `ApprovalRequired` (202) |
+| `ApprovalMismatch`, `CommandDraftStale` | `ApprovalInvalidated` (409, [ERP-BUSINESS.md](ERP-BUSINESS.md) §15) |
+| `CommandVetoed` with cause `"veto"` or `"denied-policy"` | `Forbidden` (403), with the veto code or policy reason in public form |
+| `CommandVetoed` with any other cause (a hook failed, timed out, or could not run) | `InternalError` (500), `retryable: true` |
+| `CommandRefused` from the gate's `Refuse` (BEH-CM-011; the ERP gate's reasons start with `access-denied`) or with reason `"tainted-session"` | `Forbidden` (403), `retryable: false` |
+| `CommandRefused` with a platform reason (`"receipts-unavailable"`, `"gate-defect"`, `"admission-unavailable"`) | `InternalError` (500), `retryable: true`. The ERP configures no admission policy (BEH-CM-044), so no command is refused for a budget |
+| `IdempotencyConflict` | `IdempotencyConflict` (409) with `reason` |
+| `CommandBreakerOpen`, `CommandTimeout`, `CommandWrapperFailed`, `ContributionUnavailable`, `LeaseRevoked`, `CommandOutputInvalid` | `InternalError` (500), `retryable: true` |
+
+A gate denial is `Forbidden`, as [ERP-ACCESS.md](ERP-ACCESS.md) §6 maps it.
 
 ## 6. Durable installation versus runtime activation
 
@@ -244,7 +375,7 @@ stateDiagram-v2
     failed --> installing: explicit resume after diagnosis
 ```
 
-The state machine belongs to the ERP Module Manager. Generic plugin state still follows [SPEC.md](SPEC.md). Durable status also stores phase, artifact digest, schema version, runtime generation and the underlying cause; it must distinguish migrated-but-not-active from a migration failure.
+The state machine belongs to the ERP Module Manager. Generic plugin state still follows core [04 — States and snapshots](../references/core/behaviors/04-states-and-snapshots.md) (BEH-BR-025–026). Durable status also stores phase, artifact digest, schema version, runtime generation and the underlying cause; it must distinguish migrated-but-not-active from a migration failure.
 
 An install follows this order:
 
@@ -257,7 +388,7 @@ An install follows this order:
 
 SQL migration commit and runtime activation cannot be one database transaction. A failure after migration leaves durable recovery state and no falsely active module. Retrying can reuse the completed migration ledger.
 
-`disable` closes admission on the module's generation before waiting for server leases: it publishes a registry generation without the module, then awaits the retired generation's `drained` effect, then closes the module's activation scopes. It stops dependents or returns `DependentsActive` unless a reviewed cascade was requested. It unpublishes contributions and closes activation scopes. Rows, migrations, command receipts and audit history remain. There is no destructive `uninstall` shortcut in this proposal; data purge is a separate administrative workflow.
+`disable` acts on one tenant. It publishes a tenant generation without the module, so new calls of that tenant no longer reach it, then drains the retired generation with a bound (`retired.drain({ timeout, force })`, BEH-BR-173, BEH-BR-174) and closes that generation's scope, which releases the tenant's leases on the module activation. It does not close the activation: activations are shared by every tenant that uses the same closure, and the coordinator reclaims one only when no generation and no running workflow references it, after `moduleIdleGrace` ([ERP-RUNTIME.md](ERP-RUNTIME.md) §7). Running workflows of the module are suspended at `workflowDisableGrace` ([ERP-BUSINESS.md](ERP-BUSINESS.md) §4). `disable` stops dependents or returns `DependentsActive` unless a reviewed cascade was requested. Rows, migrations, command receipts and audit history remain. There is no destructive `uninstall` shortcut in this proposal; data purge is a separate administrative workflow.
 
 UI catalog changes notify browsers. A remote browser does not hold a permanent server lease and cannot block disable forever. Stale browser calls fail with `ModuleUnavailable` or `ContractMismatch`. A browser's own local plugin host coordinates its local widgets and resources; custom-widget unmount completion matters for those local resources. Disconnected clients reconcile the latest catalog before submitting new work.
 
@@ -357,7 +488,7 @@ Computed fields declare dependencies and recomputation plans. Relation definitio
 | `InvalidInput` | Schema or field validation failed | Show field errors and preserve input. |
 | `RecordNotFound` | No row visible in the authorized scope | Refresh or show missing. |
 | `RevisionConflict` | Authorized row changed since the supplied revision | Reload and let the user reconcile. |
-| `IdempotencyConflict` | One retained key used for different input | Correct client intent/key handling. |
+| `IdempotencyConflict` | The key is in use for this command by another actor, with other input or for another definition, or its first request is still running (`reason`, BEH-CM-041) | `in-flight`: retry later with the same key. Otherwise correct client intent/key handling. |
 | `ContextRequired` / `ContextChanged` | No company selected for a company-scoped call, or the call carried an older context generation | Select a company or reload the session; resubmit as a new intent ([ERP-IDENTITY.md](ERP-IDENTITY.md) §4). |
 | `ConstraintViolation` / `ReferenceInvalid` / `ReferenceInUse` / `InvalidQuery` | Application constraint, reference rule or query validation failed ([ERP-RECORDS.md](ERP-RECORDS.md) §13) | Show field errors and preserve input. |
 | `ModuleUnavailable` | Disabled, stopping or failed generation | Refresh catalog and preserve unsent input. |
@@ -390,8 +521,10 @@ The details are design choices, not a compatibility layer. Odoo has online modul
 - Exercise two actors and two companies; owner and company filtering must hold for queries and writes.
 - Race identical idempotency keys and competing record revisions.
 - Fail after migration commit but before activation; ensure the next run recovers without duplicate migration.
-- Disable with an in-flight command; the admitted transaction settles before the server activation closes.
+- Disable with an in-flight command; the admitted transaction settles before the tenant's generation releases its lease on the module activation, and another tenant using the same activation keeps working.
 - A stale or disconnected browser cannot keep a server generation alive or bypass current policy.
 - Render diagrams and type-check illustrative programs when implementation prototypes are authorized. At this stage, verification is document consistency and source review.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §2, §4 and §10: idempotency follows the command companion's receipt port (BEH-CM-041, BEH-CM-042): the claim is taken in its own transaction after the gate, a success completes inside the command transaction, and a concurrent duplicate is refused, not awaited; receipts are scoped by (partition, command, key) through `receiptPartition`, port calls receive `services`, platform errors a retry may clear are `retryable` and never stored, and a subscriber's dispatch joins the inbox transaction (command CCR-CM-004) (E-01). Review fixes: §5 defines `QueryRef`, `CommandRef`, `SessionSummary`, `ModuleLoaderOptions` and `HttpRouterMiddleware`, adds `retryable` to failed command responses, and maps every dispatch error of the command companion to a public tag and status (E-01, E-07). §5 and §6: `modules.disable` drains the tenant generation and leaves activation to ERP-RUNTIME §7, instead of closing activation scopes other tenants share (E-02). Generation and state citations point to the core reference instead of the superseded SPEC.md (E-04). §5 defines `ErpNode`, `ErpClient` and the HTTP wire format, and the `companies.ensure` example passes every required company field (E-07).

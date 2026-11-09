@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-09                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-08): BEH-BR-087: a deadline shortens only a given per-call timeout, never `lease`; BEH-BR-088: `HeldPlugins` provided only with a holder's set (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-087 lease wait shortened by `Annotation.Deadline` (CCR-BR-018); BEH-BR-088 `HeldPlugins` exported for companions (CCR-BR-020)<br>0.6 (2026-10-02): Builds and finalizers carry HeldPlugins (forks they await too, not fibers forked into the activation scope); WouldDeadlock rechecked at linearization and raised by `retry`/`enable`; DrainTimeout `id`/`target`, `leases` 0 while waiting on a build; one parking rule; no-caller cascades revoke (CCR-BR-008)<br>0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-09): BEH-BR-081–083 the unions of `use`, `useAll` and `lease` add `ResolutionRefused`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-087: a deadline shortens only a given per-call timeout, never `lease`; BEH-BR-088: `HeldPlugins` provided only with a holder's set (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-087 lease wait shortened by `Annotation.Deadline` (CCR-BR-018); BEH-BR-088 `HeldPlugins` exported for companions (CCR-BR-020)<br>0.6 (2026-10-02): Builds and finalizers carry HeldPlugins (forks they await too, not fibers forked into the activation scope); WouldDeadlock rechecked at linearization and raised by `retry`/`enable`; DrainTimeout `id`/`target`, `leases` 0 while waiting on a build; one parking rule; no-caller cascades revoke (CCR-BR-008)<br>0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -43,7 +43,8 @@ interface Host {
     key: Context.Key<any, Service>,
     run: (service: Service) => Effect.Effect<A, E, R>,
     options?: { readonly timeout?: Duration.Input; readonly realm?: string }
-  ): Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout, R>
+  ): Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout
+      | ResolutionRefused, R>                                    // ResolutionRefused: 29, BEH-BR-274
   // useAll and lease: see BEH-BR-082 and BEH-BR-083
 }
 ```
@@ -119,7 +120,8 @@ useAll<Keys extends readonly Context.Key<any, any>[], A, E, R>(
   keys: Keys,
   run: (services: ServicesOf<Keys>) => Effect.Effect<A, E, R>,
   options?: { readonly timeout?: Duration.Input; readonly realm?: string }
-): Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout, R>
+): Effect.Effect<A, E | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout
+    | ResolutionRefused, R>                                      // ResolutionRefused: 29, BEH-BR-274
 
 type ServicesOf<Keys extends readonly Context.Key<any, any>[]> =
   { readonly [I in keyof Keys]: Keys[I] extends Context.Key<any, infer S> ? S : never }
@@ -173,7 +175,8 @@ positions.
 lease<Keys extends readonly Context.Key<any, any>[]>(
   keys: Keys,
   options?: { readonly realm?: string }
-): Effect.Effect<ServicesOf<Keys>, ServiceUnavailable | UnknownRealm, Scope.Scope>
+): Effect.Effect<ServicesOf<Keys>, ServiceUnavailable | UnknownRealm | ResolutionRefused,
+    Scope.Scope>                                                 // ResolutionRefused: 29, BEH-BR-274
 
 // use and useAll are defined in terms of it:
 //   Effect.scoped(lease(keys)), then Effect.forkChild for the callback, then join —

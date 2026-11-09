@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-07                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-09): BEH-BR-050 and BEH-BR-061 a `replace` that leaves the plugin disabled runs the disabled-install checks only and reserves nothing (U-07); BEH-BR-051 and BEH-BR-061 dependents end `waiting` except where their own stop ends otherwise (C-17); BEH-BR-059 `PluginHandle.restart` takes `HandoffCallOptions` (C-01); BEH-BR-062 every `enable` re-check listed in BEH-BR-018's order, with its place in the call order (U-08); BEH-BR-060 shutdown unregisters a disabled plugin when it begins (U-01) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -108,6 +108,22 @@ REQUIREMENT: `replace` MUST check the new definition with the `install`
 ```
 
 ```
+REQUIREMENT: A `replace` that leaves the plugin `disabled` — the plugin is
+             disabled by an operator (BEH-BR-061; 08 — Operation Legality,
+             BEH-BR-071) — MUST instead run only the checks of a disabled
+             installation, `InvalidDefinition` and `IncompatibleEngine`, in
+             the order of BEH-BR-018 (03 — Installation, BEH-BR-023), MUST
+             NOT reserve a provider slot or a dependency edge for either
+             definition, and MUST defer `DuplicateProvider`,
+             `DependencyCycle` and `IncompatibleContract` to `enable`
+             (BEH-BR-062). A `replace` of a plugin disabled with reason
+             "refused-digest" that the `RefusalList` does not refuse leaves
+             it able to start, so it MUST run every `install` check and
+             reserve as the next requirement states (28 — Plugin Principal
+             and Mandatory Policy, BEH-BR-267).
+```
+
+```
 REQUIREMENT: A definition that fails a check MUST fail the call with
              `ReplaceError { id, cause }`, where `cause` is the
              `InstallError`, and MUST leave the running plugin, its
@@ -118,7 +134,9 @@ REQUIREMENT: A definition that fails a check MUST fail the call with
 REQUIREMENT: From the moment a replace is accepted until it completes or
              its intent is ended (08 — Operation Legality, BEH-BR-080), the
              host MUST reserve both the old and the new definition's provider
-             slots and dependency edges, so that a concurrent `install`,
+             slots and dependency edges — except for a `replace` that leaves
+             the plugin `disabled`, which reserves nothing — so that a
+             concurrent `install`,
              `enable` or `replace` that would conflict with either fails its
              own checks. A parked `replace` (BEH-BR-074) MUST keep its
              reservations while it is parked.
@@ -158,7 +176,8 @@ so that no slot stays held for a definition that will never be registered.
 REQUIREMENT: A key the old definition provided and the new one does not
              MUST become unavailable when the swap is applied: each of its
              dependents MUST end `waiting` with that key in
-             `missingServiceIds`.
+             `missingServiceIds`, except where the dependent's own stop
+             ends otherwise, as 06 — Removal, BEH-BR-041, states.
 ```
 
 ```
@@ -413,7 +432,7 @@ resource the old activation held may still be held.
 // illustrative — not type-checked
 interface PluginHandle {
   // ...
-  readonly restart: (options?: RemoveOptions) => Effect.Effect<void,
+  readonly restart: (options?: RemoveOptions & HandoffCallOptions) => Effect.Effect<void,   // HandoffCallOptions: 34, BEH-BR-353
     | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock | HostClosed
     | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
 }
@@ -421,8 +440,10 @@ interface PluginHandle {
 
 ```
 REQUIREMENT: `PluginHandle.restart` MUST be a function taking
-             `RemoveOptions` (which extend `OperationOptions`) and MUST have
-             exactly the error union, legality, completion point and audit
+             `RemoveOptions & HandoffCallOptions` (`RemoveOptions` extend
+             `OperationOptions`), exactly the options of `Host.restart`
+             (02 — Host Construction, BEH-BR-013), and MUST have exactly the
+             error union, legality, completion point, handoff and audit
              behaviour of `Host.restart` for the handle's installation.
 ```
 
@@ -467,8 +488,10 @@ REQUIREMENT: `disable` MUST, by state:
 ```
 
 ```
-REQUIREMENT: A disabled plugin MUST be skipped by shutdown reports, since
-             there is nothing to stop (12 — Shutdown and Hosting).
+REQUIREMENT: A disabled plugin MUST be skipped by shutdown's stop sequence
+             and reports, since there is nothing to stop; shutdown
+             unregisters it in the revision in which it begins
+             (12 — Shutdown and Hosting, BEH-BR-105).
 ```
 
 Disabling is for "not now, but keep it": a feature switched off without losing
@@ -484,7 +507,9 @@ record of the call makes attributable.
 ```
 REQUIREMENT: A `disabled` plugin MUST publish nothing, MUST NOT occupy a
              provider slot, and MUST NOT contribute edges to cycle
-             detection. Its former dependents MUST end `waiting`.
+             detection. Its former dependents MUST end `waiting`, except
+             where a dependent's own stop ends otherwise, as 06 — Removal,
+             BEH-BR-041, states.
 ```
 
 ```
@@ -495,7 +520,10 @@ REQUIREMENT: Another plugin MAY provide a key the disabled plugin provides
 ```
 REQUIREMENT: `reconfigure` of a disabled plugin MUST store or clear the
              override for the next `enable` and MUST NOT start it.
-             `replace` of a disabled plugin MUST keep it disabled.
+             `replace` of a disabled plugin MUST keep it disabled, with the
+             checks and without the reservations of BEH-BR-050 (except a
+             plugin disabled with reason "refused-digest", 28 — Plugin
+             Principal and Mandatory Policy, BEH-BR-267).
 ```
 
 Freeing the slot is what makes disable useful for switching implementations:
@@ -517,10 +545,25 @@ enable(ref: PluginRef, options?: OperationOptions):
 
 ```
 REQUIREMENT: `enable` of a `disabled` plugin MUST check its definition
-             against the installed set with the `DuplicateProvider` and
-             `DependencyCycle` checks of 03 — Installation. On failure it
-             MUST fail with that `InstallError` and leave the plugin
-             `disabled` and unchanged.
+             against the installed set, excluding itself, with every
+             `install` check that does not concern its identity, in the
+             order of 03 — Installation, BEH-BR-018: `InvalidDefinition`
+             (manifest agreement, 27 — Manifest and Lazy Activation,
+             BEH-BR-242), `IncompatibleEngine` (BEH-BR-242),
+             `DuplicateProvider` (BEH-BR-019), `DependencyCycle`
+             (BEH-BR-020) and `IncompatibleContract` (26 — Versioned
+             Contracts, BEH-BR-228). When more than one would fail it MUST
+             report the first. On failure it MUST fail with that
+             `InstallError` and leave the plugin `disabled` and unchanged.
+```
+
+```
+REQUIREMENT: These checks MUST run at step 4 of the call order
+             (22 — Attributable Operations, BEH-BR-188) — after
+             `HostClosed`, `UnknownPlugin` and the attribution and latch
+             checks, before the refusal list (step 4b) and the gate — and
+             again at the linearization point against the installed set of
+             that moment (08 — Operation Legality, BEH-BR-065).
 ```
 
 ```
@@ -547,6 +590,19 @@ REQUIREMENT: `enable` on a `stopping` plugin whose system stop is parked
              plugin MUST fail with `WouldDeadlock` instead of waiting
              (09 — Leases, BEH-BR-088).
 ```
+
+**Settled here (CCR-BR-032).** Revision 0.5 named only `DuplicateProvider`
+and `DependencyCycle`, while files 26 and 27 also made `enable` fail with
+`IncompatibleContract`, `IncompatibleEngine` and `InvalidDefinition`, and no
+order was stated, so the error reported for a definition that broke two
+checks was not determined. `enable` now runs the `install` checks other than
+`UnknownRealm` and `DuplicatePlugin`, which concern an identity the
+registration already holds, in `install`'s order. `InvalidDefinition` and
+`IncompatibleEngine` cannot fail for a definition that passed them at
+`install` or at a `replace` that left it disabled (03 — Installation,
+BEH-BR-023), since neither the definition nor `Bridger.version` changes
+while it is disabled; they are listed so that every route that names them
+holds and the order is one order.
 
 A competing provider may have appeared while the plugin was disabled — that is
 what disabling permits. Enabling over it would create two providers of one

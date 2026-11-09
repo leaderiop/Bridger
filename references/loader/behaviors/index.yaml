@@ -34,3 +34,7 @@ entries:
     id: "BRIDGER-LD-BEH-08"
     title: "Data packs"
     range: "BEH-LD-057..064"
+  - file: "09-trust-class-and-guest-links.md"
+    id: "BRIDGER-LD-BEH-09"
+    title: "Trust class and guest links"
+    range: "BEH-LD-065..072"

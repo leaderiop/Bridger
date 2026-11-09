@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-RISK                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Risk Assessment                                              |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.2 (2026-11-09): RSK-KR-006 added: a shred that leaves no attributable, reasoned record (M-01) (CCR-KR-003)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -81,6 +81,18 @@ specified, not implemented
 | Residual scoring | S 3 · P 1 · D 3 → class Medium (3) · priority High (6) |
 | Residual risk and acceptability | Undetectable by design; bounded by the consumer's key custody. Stated in every receipt. |
 | Owner | Consumer |
+
+<a id="rsk-kr-006"></a>
+### RSK-KR-006: A shred leaves no attributable, reasoned record
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | A shred makes fields of retained records unreadable, and nothing on the shredding host or on a receiving host says who asked for it, on whose behalf, when, why or from which host; or it was made under a reserved or anonymous actor. |
+| Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
+| Controls | A shred by a reserved or blank actor is refused with `ShredUnattributed` (BEH-KR-017); the tombstone keeps actor, `onBehalfOf`, correlation, reason and origin, written once with step 1 and never changed by the `KeyStore` (BEH-KR-004, BEH-KR-018); the notice carries reason and time under the shred's context, and receiving hosts keep the origin's attribution as a claim (BEH-KR-020); the receipt exposes it (BEH-KR-017). |
+| Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority High (6) |
+| Residual risk and acceptability | The tombstone lives in the consumer's `KeyStore`, is not a core audit record and is not protected against change or deletion by the store's administrators; a received actor is the origin's claim. Owned by the consumer, who writes shreds to its own audit trail where it must. |
+| Owner | Companion + Consumer |
 
 ---
 

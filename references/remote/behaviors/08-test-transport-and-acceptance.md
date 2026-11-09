@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-08                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09: check 34 amended (`org` on the wire only when disclosed); checks 45–48 added — disclosure, mount refusal, `Transport.fromBundle`, the loader's `RevokedDigests` view and the link manifest; check 48 covers the call-log `disclosed` names; check 49 local contracts (BEH-RM-007) (core CCR-BR-033); check 48: view answers are consulted live and never kept (independent review) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -292,8 +292,9 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  them into the receiving fiber; a callback's mutating call
                  records the token's actor, the link as `onBehalfOf`, and
                  the "audit" keys.
-             34. With `OrgOf` provided, a token and the `call` claims carry
-                 `org`; without it neither does; `org` never appears in
+             34. With `OrgOf` provided, a token carries `org`, and the
+                 `call` claims carry it only when the link discloses "org";
+                 without `OrgOf` neither does; `org` never appears in
                  `RemoteStatus` (BEH-RM-065).
              35. A `PrincipalBudget` refusal fails the call with
                  `RemoteBudgetExceeded` before any frame and offers one
@@ -362,6 +363,53 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
              44. A multiplexed endpoint given residency labels reports
                  them in its profile, and a link over it is placed against
                  them (BEH-RM-056, BEH-RM-068).
+             45. Disclosure: a link without `disclose` sends `call` claims
+                 with no actor, `onBehalfOf`, `org` or `correlationId`
+                 while its tokens keep them on the host; a link disclosing
+                 a subset sends exactly that subset, lists it in
+                 `LinkStatus.disclosed` and logs it at each session open
+                 without values; a guest and `Remote.serve` handle calls
+                 without identity claims, and a served call's inbound
+                 entry names "link:" + `pluginId` as principal (BEH-RM-024,
+                 BEH-RM-039, BEH-RM-046, INV-RM-012).
+             46. Mount refusal: with the link installed under
+                 `allowChildren: false`, or an `AccessPolicy` denying its
+                 `child` request, the first handshake ends the session
+                 "mount-refused", the mount is not retried, `LinkStatus`
+                 shows the `ChildNotAllowed` tag and the link becomes
+                 `failed` through `reportFailure`; `DuplicateProvider`
+                 behaves the same and names the `ServiceId` (BEH-RM-002,
+                 BEH-RM-013).
+             47. `Transport.fromBundle`: each `open` runs `acquire` again
+                 and starts the guest from the given files at `entry`; a
+                 failing `acquire` fails `open` and the link retries on its
+                 schedule without failing its build; changing the source
+                 after `acquire` does not change what runs; a
+                 `BundleRuntime` of each adapter that offers one passes
+                 this check against the real runtime (BEH-RM-072).
+             48. With the loader's `RevokedDigests` view wired, a signer
+                 revocation and a statement-digest revocation that the view
+                 maps to a link's `meta.digest` end its session "revoked"
+                 at once and refuse later sessions while the view refuses
+                 it; a "verification-unknown" answer that the view later
+                 drops lets the link connect again, and no view answer
+                 appears in `RemoteBoundary.revoked`; a link's
+                 `options.manifest` is carried unchanged and a manifest
+                 that does not agree with the link fails `install` with
+                 core's `InvalidDefinition` (BEH-RM-014, BEH-RM-001); each
+                 "crossing" entry names in `disclosed` exactly the identity
+                 claims that crossed with the call, in the fixed order, and
+                 omits it when none did (BEH-RM-024, BEH-RM-046).
+             49. Local contracts: `Remote.define` of a local contract passed
+                 untyped returns a definition whose `install` leaves the
+                 link `failed` with `LocalContractRefused` (site "define")
+                 and opens no session; `Remote.serve` and `Guest.serve` of
+                 a local contract, or with one in `grants`, fail at once
+                 with it and accept no connection; a granted key whose
+                 provision is local is left out of `hello`, and a callback
+                 for it is refused "local-contract" before decoding; each
+                 entry point rejects a local contract at compile time
+                 (BEH-RM-007).
 ```
 
 A check that is listed here and has no executed test is a gap in the

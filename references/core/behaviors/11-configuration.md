@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-11                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): BEH-BR-101 `reconfigure` takes `HandoffCallOptions`; handoff on a restarting reconfigure when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.5 (2026-11-08): `reconfigure` on any registration not yet loaded recorded as `install` with `config` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-097 decode after load and BEH-BR-101 raw value stored for an unloaded lazy registration; BEH-BR-104 manifest agrees with `version` and `digest` (CCR-BR-017); BEH-BR-104 points to the loader companion (CCR-BR-021)<br>0.3 (2026-10-03): BEH-BR-103 values may leave core only to the optional `ConfigFingerprinter` port at step 4a of BEH-BR-188; `configChange: { paths, fingerprints? }`; Settled paragraph (CCR-BR-014)<br>0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-09): BEH-BR-101 the `reconfigure` union adds `ConfigFingerprintUnavailable`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-101 `reconfigure` takes `HandoffCallOptions`; handoff on a restarting reconfigure when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.5 (2026-11-08): `reconfigure` on any registration not yet loaded recorded as `install` with `config` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-097 decode after load and BEH-BR-101 raw value stored for an unloaded lazy registration; BEH-BR-104 manifest agrees with `version` and `digest` (CCR-BR-017); BEH-BR-104 points to the loader companion (CCR-BR-021)<br>0.3 (2026-10-03): BEH-BR-103 values may leave core only to the optional `ConfigFingerprinter` port at step 4a of BEH-BR-188; `configChange: { paths, fingerprints? }`; Settled paragraph (CCR-BR-014)<br>0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -209,8 +209,9 @@ a correct name into nothing at all.
 ```ts
 reconfigure(ref: PluginRef, config?: unknown, options?: OperationOptions & HandoffCallOptions):   // HandoffCallOptions: 34, BEH-BR-353
   Effect.Effect<void,
-    | UnknownPlugin | ConfigInvalid | Conflict | Superseded | DrainTimeout | WouldDeadlock | CleanupError | HostClosed
-    | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
+    | UnknownPlugin | ConfigInvalid | ConfigFingerprintUnavailable | Conflict | Superseded | DrainTimeout
+    | WouldDeadlock | CleanupError | HostClosed
+    | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>   // ConfigFingerprintUnavailable: 22, BEH-BR-188, step 4a
 ```
 
 ```

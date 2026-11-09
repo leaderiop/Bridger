@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-09                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
+> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
 
 ---
 
@@ -21,9 +21,10 @@ are not yet stated by files 01–08: which organisation a call is made for,
 how much a principal may consume there, how a per-call runtime that spreads
 invocations over a pool keeps the at-most-once rule, and whether the place
 is one where the call's data may go at all. This file also names two
-adapters: a `postMessage` transport for code in a sandboxed browser frame,
-and a Workers for Platforms adapter. This file owns BEH-RM-065–072 and uses
-BEH-RM-065–071; BEH-RM-072 is reserved.
+adapters — a `postMessage` transport for code in a sandboxed browser frame,
+and a Workers for Platforms adapter — and the bundle transport through which
+a guest is started from bytes the loader companion verified. This file owns
+BEH-RM-065–072 and uses all eight.
 
 Planned source: `packages/remote/src/Placement.ts`,
 `packages/remote/src/Budget.ts`, `packages/remote/src/Dedupe.ts`,
@@ -57,26 +58,30 @@ interface OrgOf {
 
 ```
 REQUIREMENT: When `OrgOf` is provided to `Remote.layer`, the link MUST set
-             `TokenClaims.org` and `WireClaims.org` at mint to the value it
-             returns for the calling fiber, and MUST omit both when it
-             returns `None` or is not provided. A throw MUST be treated as
-             `None` and logged at error level.
+             `TokenClaims.org` at mint to the value it returns for the
+             calling fiber, and MUST omit it when it returns `None` or is
+             not provided. A throw MUST be treated as `None` and logged at
+             error level. `WireClaims.org` MUST be set to the same value
+             only when the link lists "org" in `RemoteOptions.disclose`
+             (03, BEH-RM-024); otherwise the organisation stays on the host,
+             where the budget and the callback admission read it from the
+             token.
 ```
 
 ```
 REQUIREMENT: The remote package MUST NOT parse, compare or authorize on
              `org` itself. It MUST pass it to the `PrincipalBudget`
-             (BEH-RM-066), to `CallbackAdmission` (06) and to the guest
-             through `GuestContext.claims`, and MUST NOT place it in
-             `RemoteStatus`, a metric label or a host event.
+             (BEH-RM-066) and to `CallbackAdmission` (06), to the guest
+             through `GuestContext.claims` only when disclosed, and MUST NOT
+             place it in `RemoteStatus`, a metric label or a host event.
 ```
 
 **Settled here.** Bridger has no tenant concept; the claim is a string the
 application chooses — a tenant, an account, a partner — so that a guest
 pool serving several organisations can keep their work apart in its own
 storage, and a budget can count per organisation. Taking it from a port
-rather than from an annotation keeps it off the wire unless the application
-asks for it. The claim is a description: a guest that trusts it trusts the
+rather than from an annotation, and sending it only when the link discloses
+it, keeps it off the wire unless the application asks for it. The claim is a description: a guest that trusts it trusts the
 host that minted the token, as for every claim (BEH-RM-024).
 
 ## BEH-RM-066: Per-principal budgets for call rate, CPU time and egress
@@ -554,6 +559,86 @@ ahead of time under a name rather than loaded from bytes per request. Its
 per-invocation limits are the runtime's bound on one call, which a
 `PrincipalBudget` cannot give. The limit names and values are the
 provider's and may change; the adapter reads them from configuration.
+
+## BEH-RM-072: Transport.fromBundle starts a guest from bytes it is given
+
+> **See:** [ADR-RM-006](../decisions/006-isolation-comes-from-the-host.md), [ADR-RM-001](../decisions/001-remote-plugin-is-a-local-proxy.md)
+> **Satisfies:** [URS-BR-041](../../core/urs.md#urs-br-041-use-plugin-code-that-runs-outside-the-host-process), [URS-BR-020](../../core/urs.md#urs-br-020-load-plugin-definitions-dynamically-while-running)
+> **Risk:** [RSK-RM-005](../risks.md#rsk-rm-005), [RSK-RM-003](../risks.md#rsk-rm-003)
+
+```ts
+// illustrative — not type-checked
+interface GuestBundle {
+  readonly digest: string                         // the package digest the bytes were verified under, opaque here
+  readonly files: ReadonlyMap<string, Uint8Array> // path → content, as verified
+  readonly entry: { readonly file: string; readonly export: string }   // the guest's entry, one of `files`
+}
+interface BundleRuntime {                         // offered by an adapter that can start a guest from bytes
+  readonly profile: TransportProfile
+  readonly start: (bundle: GuestBundle) => Effect.Effect<Connection, TransportError, Scope.Scope>
+}
+declare const Transport: {
+  // ... multiplex (07, BEH-RM-056), postMessage (BEH-RM-070)
+  readonly fromBundle: (runtime: BundleRuntime, acquire: Effect.Effect<GuestBundle, TransportError>) => Transport
+}
+```
+
+```
+REQUIREMENT: `Transport.fromBundle` MUST return a `Transport` whose
+             `profile` is `runtime.profile` and whose `open` runs `acquire`
+             and then `runtime.start` with the bundle `acquire` returned,
+             afresh on every call of `open`: no bundle MUST be cached from
+             one session attempt to the next. A failure of either MUST fail
+             `open` with its `TransportError`, so that the link reports it
+             and retries on its own schedule (02, BEH-RM-012); `open` MUST
+             NOT fail the link's build.
+```
+
+```
+REQUIREMENT: `runtime.start` MUST start the guest from the bytes of the
+             `GuestBundle` it is given, held in memory or passed to the
+             runtime directly, and MUST NOT read the guest's code again from
+             a source, a URL or a path that another principal can write
+             between `acquire` and evaluation. Module resolution in the
+             guest MUST be closed to the bundle's own `files` and the guest
+             runtime the adapter supplies; the guest MUST be started at
+             `entry`. This is the remote side of the loader companion's
+             hand-over: the loader verifies the bytes and hands them over
+             ([BEH-LD-039](../../loader/behaviors/05-catalog-and-lazy-loading.md),
+             [BEH-LD-068](../../loader/behaviors/09-trust-class-and-guest-links.md)),
+             and an adapter's `BundleRuntime` is where the obligation that
+             the guest runs exactly those bytes lives.
+```
+
+```
+REQUIREMENT: The adapters that can start a guest from bytes —
+             `@bridger/worker`, `@bridger/worker-loader` and
+             `@bridger/workerd` — MAY offer a `BundleRuntime`; one that does
+             MUST meet the adapter obligations of BEH-RM-052 for it and MUST
+             pass the bundle conformance cases of BEH-RM-061 (check 47).
+             `@bridger/workers-for-platforms` deploys scripts ahead of time
+             under a name (BEH-RM-071) and MUST NOT offer one.
+```
+
+```
+REQUIREMENT: The remote package MUST NOT verify a `GuestBundle`: `digest`
+             is carried for logs and status only. Documentation MUST state
+             that `fromBundle` checks no signature and no digest, that
+             verification is `acquire`'s (for example the loader companion's
+             `fetchVerified`), and that starting a guest from verified bytes
+             isolates nothing: confinement is the runtime's and the
+             deployment's (07, BEH-RM-053).
+```
+
+**Settled here.** (1) The bundle is acquired at each session attempt, not
+when the link is defined, so the link's definition stays inert (BEH-RM-001),
+a desired list of guest links reconciles without fetching code, and every
+new session runs on bytes checked against the current trust configuration
+and revocation set. (2) A fetch or a verification refusal is a failed
+`open`, which is an availability condition for dependents, not a sticky
+failure of the link: the link keeps trying on its schedule, and a revoked
+digest is refused before `open` is called by the boundary check of
+BEH-RM-014.
 
 ---
 

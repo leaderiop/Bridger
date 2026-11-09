@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-08                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Checks 25–27 and REQ-KT-025–027 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.3 (2026-11-09): Check 28 and REQ-KT-028: disclosed claims, callback clients from `requested.capabilities`, the loader entry key, guest-shaped partner manifests, first-party countersigning (F-06, F-07, C-19, M-03); check 29 and REQ-KT-029: local contracts (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Checks 25–27 and REQ-KT-025–027 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -110,6 +110,27 @@ REQUIREMENT: The kit test suite MUST contain at least one test for each of
                 by name and unknown tags raw; `PluginTest` re-exports core's
                 `scriptedRefusalList` and `memoryCallLog`; `dev --cold`
                 skips a declared handoff.
+             28. Guest packages and identity: a handler's
+                `CallContext.claims` is empty when the link discloses
+                nothing and holds exactly the disclosed claims otherwise;
+                callback clients exist only for `requested.capabilities`
+                (with the listed methods) and none for `requires`; an
+                ungranted requested capability is refused "not-granted";
+                every emitted manifest names its entry in
+                `extensions["@bridger/loader"].entry`; `pack` refuses a
+                partner manifest without the guest shape, naming the field;
+                `countersign --statement first-party` appends a first-party
+                signature and never a package signature, and the default
+                adds no first-party signature.
+             29. Local contracts: `bridger sdk generate` of a local contract
+                fails with `LocalContractRefused` (site "sdk-generate") and
+                writes nothing; `Conformance.verify` of a local contract's
+                suite against an HTTP subject, or with generated cases built
+                untyped, fails with it before running a case or sending
+                anything; the same suite's author cases run against a
+                plugin subject; `Conformance.suite` and `Conformance.http`
+                reject a local contract's generated cases and the contract
+                at compile time (BEH-KT-017, BEH-KT-020, BEH-KT-033).
 ```
 
 ## Acceptance scenario traceability
@@ -143,6 +164,8 @@ REQUIREMENT: The kit test suite MUST contain at least one test for each of
 | REQ-KT-025 | 25. publish and countersign sign the loader's signing input through a signer adapter, never see keys, change no digest, report what remains; manifests carry roles, targets and listens | [BEH-KT-029](./04-cli.md#beh-kt-029-pack-builds-a-loader-package-and-nothing-else), [BEH-KT-030](./04-cli.md#beh-kt-030-publish-delegates-signing-to-the-loader-and-holds-no-key), [BEH-KT-032](./04-cli.md#beh-kt-032-countersign-adds-a-second-signer-entry-without-changing-the-package) | Not run |
 | REQ-KT-026 | 26. verify-chain runs `verifyBundle` offline with pinned roots and prints what was checked, with no overall verdict | [BEH-KT-047](./06-devtools-inspector.md#beh-kt-047-verify-chain-checks-a-verification-bundle-offline-and-prints-what-was-checked) | Not run |
 | REQ-KT-027 | 27. Inspector renders the core states and events of CCR-BR-024–026; core fixtures re-exported; dev --cold | [BEH-KT-045](./06-devtools-inspector.md#beh-kt-045-the-timeline-is-the-event-feed-with-gaps-shown), [BEH-KT-013](./02-plugin-test.md#beh-kt-013-faults-and-stepping-stay-cores), [BEH-KT-026](./04-cli.md#beh-kt-026-dev-reloads-changed-plugins-with-replace-on-a-host-it-owns) | Not run |
+| REQ-KT-028 | 28. Disclosed claims only; callback clients from `requested.capabilities`; entry key; guest-shaped partner manifests; first-party countersigning | [BEH-KT-034](./05-promise-sdk.md#beh-kt-034-serve-wraps-handlers-for-the-remote-companions-guest-runtime), [BEH-KT-035](./05-promise-sdk.md#beh-kt-035-calls-back-to-the-host-use-granted-contracts-only), [BEH-KT-036](./05-promise-sdk.md#beh-kt-036-a-partner-package-carries-its-manifest-and-conformance-run), [BEH-KT-029](./04-cli.md#beh-kt-029-pack-builds-a-loader-package-and-nothing-else), [BEH-KT-032](./04-cli.md#beh-kt-032-countersign-adds-a-second-signer-entry-without-changing-the-package) | Not run |
+| REQ-KT-029 | 29. A local contract gets no SDK, no generated cases and no wire subject; author cases run in-process | [BEH-KT-017](./03-conformance-kits.md#beh-kt-017-a-suite-belongs-to-one-contract-version), [BEH-KT-020](./03-conformance-kits.md#beh-kt-020-an-http-subject-is-reached-through-the-remote-companions-binding), [BEH-KT-033](./05-promise-sdk.md#beh-kt-033-the-sdk-is-generated-from-one-contract-version) | Not run |
 
 ---
 

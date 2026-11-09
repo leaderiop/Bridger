@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-07                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F16, F27) — the delivery check's `origin` documented as `node#incarnation` for every envelope, local ones included, with policies told to match the `node` part (aligned with core BEH-BR-269 as amended by CCR-BR-029); out-of-host readers are checked by the serving side's `HistoryAccess` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck item 24, CORE-DECISIONS-2 — BEH-DB-053 rewritten on core `AccessPolicy.ask` (publish, subscribe, and every delivery with `origin`), `AccessRefused`, denied deliveries parked; `listens` and `declaredOnly`; G55 closed; core held-event note (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — no self-lease in `publish`; callers keep the bus up through core's own rules; adapter properties cover the saved receipt clock, retention and inbox-level stops (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-DB-054 property 1: a commit the engine refuses for a conflict fails `transaction` with `CommitConflict`, never with `StoreUnavailable`; BEH-DB-056 exercises it (CCR-DB-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F16, F27) — the delivery check's `origin` documented as `node#incarnation` for every envelope, local ones included, with policies told to match the `node` part (aligned with core BEH-BR-269 as amended by CCR-BR-029); out-of-host readers are checked by the serving side's `HistoryAccess` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck item 24, CORE-DECISIONS-2 — BEH-DB-053 rewritten on core `AccessPolicy.ask` (publish, subscribe, and every delivery with `origin`), `AccessRefused`, denied deliveries parked; `listens` and `declaredOnly`; G55 closed; core held-event note (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — no self-lease in `publish`; callers keep the bus up through core's own rules; adapter properties cover the saved receipt clock, retention and inbox-level stops (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -204,7 +204,11 @@ REQUIREMENT: A storage adapter MUST provide `StoreTransaction`,
              MUST document how it meets each:
              1. The application's writes, the outbox append, the inbox
                 store, the cursor advance and the snapshot restore of one
-                `transaction(effect)` commit atomically or not at all.
+                `transaction(effect)` commit atomically or not at all. A
+                commit the engine refuses because of a concurrent
+                transaction fails `transaction` with `CommitConflict`
+                (BEH-DB-018), never with `StoreUnavailable` or a defect, so
+                that the bus can tell contention from an outage.
              2. Committed sequences per (origin, stream) are unique and
                 contiguous; concurrent appenders serialize.
              3. (origin, stream, sequence) and `eventId` are unique per
@@ -266,8 +270,10 @@ REQUIREMENT: The package MUST export, from its testing entry point, a
              conformance suite that exercises each property of BEH-DB-054
              (1–6) against a given adapter, including concurrent appenders,
              rollback after append, process termination between append and
-             commit (where the adapter's test harness can simulate it), and
-             duplicate inserts.
+             commit (where the adapter's test harness can simulate it),
+             duplicate inserts, and a conflict at commit reported as
+             `CommitConflict` with nothing committed (where the engine can
+             refuse a commit for a conflict).
 ```
 
 ```

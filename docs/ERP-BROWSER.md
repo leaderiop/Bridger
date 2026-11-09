@@ -13,7 +13,7 @@ The ERP browser UI is **framework-neutral at its core and renders with either Fo
 | Typed client | `@bridger/erp/client` | HTTP access to the operation gateway (session, catalog, query, command), CSRF handling. Already framework-neutral. |
 | **UI core** | `@bridger/erp-ui` (new) | Everything except drawing: session and catalog stores, **pure state machines** for navigation, list, form and settings, the filter model, intent and idempotency keys, context-generation handling, error mapping, widget descriptors, formatting and i18n, and the UI conformance fixtures. No dependency on FoldKit or React. |
 | Renderers | `@bridger/erp-foldkit`, `@bridger/erp-react` | Draw the built-in views and widgets and run the UI core's effects. Built on the Bridger browser adapters [`@bridger/foldkit`](FOLDKIT-API.md) and [`@bridger/react`](REACT-API.md). |
-| Browser plugin host | `@bridger/core` in the browser | Hosts **UI plugins** (custom widgets and view renderers) with the same lifecycle, lease and drain rules as server plugins ([SPEC.md](SPEC.md)). |
+| Browser plugin host | `@bridger/core` in the browser | Hosts **UI plugins** (custom widgets and view renderers) with the same lifecycle, lease and drain rules as server plugins (core [04 — States](../references/core/behaviors/04-states-and-snapshots.md), [06 — Removal](../references/core/behaviors/06-removal.md), [09 — Leases](../references/core/behaviors/09-leases.md)). |
 
 | Concern | Decision |
 | --- | --- |
@@ -55,7 +55,7 @@ flowchart TB
 | --- | --- | --- |
 | UI core machines | `Machine<S, E, F>`: `init`, `update` | All UI state transitions, as data (§3). |
 | Effect runner | `run(effect) → Effect<event>` | Executing the core's effect descriptors against `ErpClient`; one per renderer. |
-| Widget registries | `FieldWidgets`, `ViewRenderers` (`ContributionRegistry` from [SPEC.md](SPEC.md)) | Mapping widget IDs and view kinds to framework components, including UI plugins' contributions. |
+| Widget registries | `FieldWidgets`, `ViewRenderers` (`ContributionRegistry`, core [19 — Contribution registry](../references/core/behaviors/19-contribution-registry.md), BEH-BR-161–168) | Mapping widget IDs and view kinds to framework components, including UI plugins' contributions. |
 | Browser host | `Host` from `@bridger/core` | Lifecycle of UI plugins. |
 
 ## 3. The UI core: pure machines and effect descriptors
@@ -125,6 +125,12 @@ interface CatalogModel {
   readonly operations: { list: OperationRef; get: OperationRef; create?: OperationRef; update?: OperationRef; delete?: OperationRef }
 }
 
+interface OperationRef {
+  readonly id: string                       // operation ID, e.g. todo.task.create
+  readonly apiVersion: string               // contract version the catalog was built from
+  readonly digest?: string                  // command digest; sent as expectDigest (ERP-SPEC.md §5)
+}
+
 type LocalizedText = string | Readonly<Record<string, string>> // locale -> text
 ```
 
@@ -175,9 +181,11 @@ stateDiagram-v2
     invalid --> editing: input changed
     editing --> submitting: Save (new intent ID)
     submitting --> succeeded: command ok
-    submitting --> failed: InvalidInput / Forbidden / ModuleUnavailable
+    submitting --> failed: InvalidInput / Forbidden / ContractMismatch
     submitting --> conflict: RevisionConflict
     submitting --> ambiguous: timeout / network error
+    submitting --> ambiguous: IdempotencyConflict in-flight
+    submitting --> ambiguous: retryable: true
     ambiguous --> submitting: retry with same intent ID
     conflict --> editing: reload record, user reconciles
     failed --> editing: user edits (new intent on next Save)
@@ -185,7 +193,9 @@ stateDiagram-v2
 ```
 
 - **Intent and idempotency key.** The key is generated when the user first presses Save (`crypto.randomUUID()`), stored in the form machine's state and reused for every transport retry of the same input. Editing the input after a failure creates a new intent.
-- **Ambiguous results.** A network failure or timeout after sending is *ambiguous* ([ERP-SPEC.md](ERP-SPEC.md) §10), not a failure: the UI shows "saving…", retries with the original key, and only reports failure after a definitive server answer.
+- **Ambiguous results.** A network failure or timeout after sending is *ambiguous* ([ERP-SPEC.md](ERP-SPEC.md) §10), not a failure: the UI shows "saving…", retries with the original key, and only reports failure after a definitive server answer. `IdempotencyConflict` with reason `in-flight` means the first request with this key is still running: the form stays `ambiguous` and retries later with the same key. A response marked `replayed` is the original answer and is handled exactly as if it had arrived the first time.
+- **Retryable answers keep the intent.** A failed command response with `retryable: true` ([ERP-SPEC.md](ERP-SPEC.md) §5) stored no outcome: `ModuleUnavailable`, `InternalError` (from a released claim or a platform refusal) and `IdempotencyConflict` with reason `in-flight`. The form stays `ambiguous` and retries with the same key, with backoff, for a bounded number of attempts (after a `ModuleUnavailable` it first refreshes the catalog); when the attempts run out it shows the error and a Retry action that still reuses the key.
+- **New intent after a definitive answer.** Every other answer is definitive and ends the intent: success, a replayed outcome, a typed failure (`retryable: false`), or `IdempotencyConflict` for another reason (`input-differs`, `actor-differs`, `definition-differs`). The next Save generates a new key; a key is never reused after a definitive answer.
 - **Errors.** `InvalidInput` field paths (including `extensions[<id>][<field>]`) attach to the matching inputs. `Forbidden` shows a denial and does not retry. `RevisionConflict` reloads the record and presents the user's values beside the current ones. `ModuleUnavailable` / `ContractMismatch` refresh the catalog and preserve unsent input. `InternalError` shows the correlation ID.
 - **Optimistic updates** are not applied: the list updates from the server result to keep revisions authoritative.
 
@@ -235,7 +245,7 @@ A UI plugin's `build` registers contributions in the host's registries and retur
 FieldWidgets.add("money", {
   descriptor: { id: "money", valueSchema, supports: ["decimal", "money"] },     // neutral, used by UI core
   react:   (props: WidgetProps) => ReactNode,                                    // React entries
-  foldkit: { element, toWidget, fromWidget },                                    // FoldKit entries (Ports)
+  foldkit: { element, flags, props, value, toWidget, fromWidget },               // FoldKit entries (FOLDKIT-API.md)
 })
 ViewRenderers.add("kanban", { descriptorSchema, react: …, foldkit: … })
 
@@ -244,7 +254,7 @@ interface WidgetProps { value: unknown; onChange(v: unknown): void; readOnly: bo
 
 In React deployments a UI plugin may also contribute to the extension points of [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) (`Routes`, `MainMenu`, `Commands`, and slots opened by built-in views); its manifest lists them in `contributes` (for example `route:/app/reports`, `slot:erp/record.actions`).
 
-Widgets exchange only schema-validated data with the form machine; the form machine, not the widget, owns validity, errors, pending state and idempotency. The shell's machines and Message/event types are never modified at run time.
+A FoldKit widget's Port messages (`Value`, `Props`, `Shutdown` in; `Ready`, `Changed`, `Closed` out) and its mount and unmount order are specified in [FOLDKIT-API.md](FOLDKIT-API.md#plugin-contributed-foldkit-widgets). Widgets exchange only schema-validated data with the form machine; the form machine, not the widget, owns validity, errors, pending state and idempotency. The shell's machines and Message/event types are never modified at run time.
 
 ## 9. Teardown through the core's lease rules
 
@@ -273,7 +283,7 @@ sequenceDiagram
 2. **Removal.** A catalog revision that removes the plugin, or a module disable or upgrade, makes the shell call `host.remove(pluginId, { drain })`. The host refuses new leases and publishes the plugin as `stopping` on `Host.changes`; it waits for leases **before** it closes the plugin's activation scope, and the registries withdraw its contributions only when that scope closes (BEH-BR-167).
 3. **Unmount on `stopping`, not on the registry.** The renderer unmounts affected instances as soon as `Host.changes` shows the plugin no longer `active`, or when the entry leaves the registry view, whichever comes first. Waiting for the registry notification would hold the owner lease until the drain limit and force every removal. The form machine keeps the last value so the generic widget can take over.
    - **React:** the boundary releases its holds after React's parent-to-child cleanup pass and the service calls those cleanups started ([REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5.1, step 6), so StrictMode's double mount neither leaks nor releases early.
-   - **FoldKit:** the embedded runtime receives `Shutdown` on its Port, finalizes, replies `Closed`; the renderer then disposes the `EmbedHandle` and releases the holds. FoldKit disposal is not an awaitable barrier ([FOLDKIT-API.md](FOLDKIT-API.md)), so `Closed` is the barrier; the holds are released on `Closed` or at the drain limit.
+   - **FoldKit:** the embedded runtime receives `Shutdown` on its Port, finalizes, replies `Closed`; the renderer awaits the calls the widget started, disposes the `EmbedHandle` and releases the holds last. FoldKit disposal is not an awaitable barrier, so `Closed` is the barrier; at the drain limit the renderer disposes without it ([FOLDKIT-API.md](FOLDKIT-API.md#plugin-contributed-foldkit-widgets), "Unmount").
 4. **Drain limit.** `@bridger/erp-react` sets both limits to 5 seconds (`createBridgerClient({ host: { drainTimeout }, ui: { drainTimeout } })`, [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5.3); `@bridger/react` and the core default to 30 seconds. If instances do not unmount within it, `force` interrupts their hold fibers (a `lease-revoked` host event, BEH-BR-086), the generic widget replaces them, and a `ForcedTeardown` diagnostic is reported for administrators. The UI never blocks on a plugin.
 5. **Server disable never waits for browsers.** Browsers hold no server leases; stale calls fail with `ModuleUnavailable` or `ContractMismatch`, the shell refreshes the catalog, and the process above runs locally.
 
@@ -319,8 +329,10 @@ These are design acceptance scenarios, not tests already executed.
 | 5 | Sign-in screens | **Fixed components per method type** (password, OAuth/OIDC, passkey later), shown according to `GET /erp/session/methods`, a Bridger endpoint that reports the methods enabled in the awthaq configuration. No generated forms. |
 | 6 | Renderer choice | **Per deployment, FoldKit or React,** on one shared UI core; both must pass the UI conformance suite (§11). |
 | 7 | UI plugin teardown | **Core leases and drain** (§9), not a custom handshake. Slot entries use the same rules through `PluginBoundary` ([REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md) §5). |
-| 8 | Slots and shell contributions in FoldKit | **Open.** The extension point tokens are framework-neutral; [FOLDKIT-API.md](FOLDKIT-API.md) has no rendering model for them yet. Until it does, FoldKit deployments extend through widgets and view renderers only, and the conformance suite (§11) covers slots in React only. |
+| 8 | Slots and shell contributions in FoldKit | **Open.** The extension point tokens are framework-neutral; [FOLDKIT-API.md](FOLDKIT-API.md) has no rendering model for them yet. Until it does, FoldKit deployments extend through widgets and view renderers only (mounted and torn down per [FOLDKIT-API.md](FOLDKIT-API.md#plugin-contributed-foldkit-widgets); a view renderer's data messages are still open), and the conformance suite (§11) covers slots in React only. |
 
 One open item remains (8).
 
 Change log: 2026-11-08, round-2 agent review fixes — §9 rewritten to the mount and teardown rule of REACT-UI-PLUGINS §5 (owner lease on keys plus registry hold; unmount when the plugin leaves `active`, before the registry withdraws its entries; release after React's cleanup pass; 5 s for both limits set by `@bridger/erp-react`); the pre-fix order (unmount on registry withdrawal, lease "on the plugin") is withdrawn. REACT-API.md's round-2 change log had claimed this alignment before §9 itself was changed (R5-11); status banner links the event-store, sequence and keyring companions (R5-20).
+
+Change log: 2026-11-09, audit fixes — §6: `IdempotencyConflict` with reason `in-flight` keeps the form ambiguous and retries with the same key; a replayed answer is treated as the original; any other definitive answer starts a new intent; answers marked `retryable: true` (no stored outcome) keep the intent and retry with the same key (E-01). §4 defines `OperationRef` (E-01). §8 and §9 cite the FoldKit widget contract now specified in FOLDKIT-API.md (E-08). Citations of the superseded SPEC.md point to core 04, 06, 09 and 19 (E-04).

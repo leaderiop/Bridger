@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-06                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Checks 7, 15 and 16 follow the round-2 agent review: declared reads from a tainted session, steps with long calls not batched, compensations covered by the batch approval, `Started` by descriptor (CCR-AG-003)<br>0.3 (2026-11-08): Checks 3, 5 and 10 extended; checks 13–16 for model families, batches, envelopes and command tasks (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): Checks 3, 5, 7 and 9 aligned with the taint floor, `ResumeInput` and subagent attribution (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.5 (2026-11-09): Check 17 and REQ-AG-017: draft withdrawal when a task ends awaiting approval (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Checks 7, 15 and 16 follow the round-2 agent review: declared reads from a tainted session, steps with long calls not batched, compensations covered by the batch approval, `Started` by descriptor (CCR-AG-003)<br>0.3 (2026-11-08): Checks 3, 5 and 10 extended; checks 13–16 for model families, batches, envelopes and command tasks (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): Checks 3, 5, 7 and 9 aligned with the taint floor, `ResumeInput` and subagent attribution (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -120,6 +120,16 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  "running" without cancelling; the herdr and MCP bridges map
                  command tasks by their table, only for the observer's
                  actor, and MCP `tasks/cancel` cancels the command task.
+             17. Draft withdrawal: `AgentLoop.plugin` cannot be built
+                 without `draftWithdrawal`; cancelling or failing a task in
+                 `awaiting-approval` calls `withdraw` once, after the
+                 finalizers and before the terminal snapshot, with the
+                 draft id, commands, task id, actor and reason; the terminal
+                 snapshot carries the answer, or "not-withdrawn" (logged at
+                 error) on failure, timeout or `DraftWithdrawal.none`; an
+                 interrupt during the call does not cut it short; a task
+                 ending from any other state calls nothing and carries no
+                 `draft`.
 ```
 
 | REQ | Check | Behaviours | Status |
@@ -140,6 +150,7 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
 | REQ-AG-014 | 14. Tool results as envelopes | [BEH-AG-023](./03-taint-and-provenance.md#beh-ag-023-tool-results-reach-the-model-only-as-size-capped-envelopes), [BEH-AG-019](./03-taint-and-provenance.md#beh-ag-019-sources-of-taint) | Not run |
 | REQ-AG-015 | 15. Batches of tool calls | [BEH-AG-008](./01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch), [BEH-AG-012](./02-tasks.md#beh-ag-012-awaiting-approval-follows-a-gate-defer-and-stale-follows-a-stale-draft), [BEH-AG-020](./03-taint-and-provenance.md#beh-ag-020-a-tainted-session-is-never-auto-allowed-a-change) | Not run |
 | REQ-AG-016 | 16. Command tasks in the loop and bridges | [BEH-AG-015](./02-tasks.md#beh-ag-015-command-tasks-in-the-bridges) | Not run |
+| REQ-AG-017 | 17. Draft withdrawal when a task ends awaiting approval | [BEH-AG-016](./02-tasks.md#beh-ag-016-a-task-that-ends-while-awaiting-approval-reports-its-draft-for-withdrawal), [BEH-AG-010](./02-tasks.md#beh-ag-010-the-transition-table) | Not run |
 
 Every `BEH-AG` identifier of this companion appears in at least one row;
 BEH-AG-041 is this list itself.

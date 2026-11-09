@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-009 runs the supersession step again when the durable-bus origin changes on a running host, takes the old series from the store being replaced through a durable-bus store-swap participant, refuses calls under the new origin with `SupersessionPending` until the step has committed, and states what a re-bootstrap snapshot may hold (U-10); `lastKnownOnly` is false for series read from the live store at a re-bootstrap (BEH-SQ-009, BEH-SQ-010, BEH-SQ-012); BEH-SQ-011 publishes on the event-store stream by event-store's default (F-05) (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -28,7 +28,7 @@ Planned source: `packages/sequence/src/Incarnation.ts`,
 
 > **Invariant:** [INV-SQ-004](../invariants.md#inv-sq-004-only-the-owning-origin-writes-a-series)
 > **See:** [ADR-SQ-003](../decisions/003-a-restore-closes-the-old-series.md)
-> **Depends on:** [BEH-DB-004](../../durable-bus/behaviors/01-events-and-envelope.md#beh-db-004-an-origin-is-an-incarnation-never-reused), [BEH-ES-019](../../event-store/behaviors/03-projections-and-snapshots.md#beh-es-019-async-projections-follow-positions-with-a-checkpoint-in-the-same-transaction)
+> **Depends on:** [BEH-DB-004](../../durable-bus/behaviors/01-events-and-envelope.md#beh-db-004-an-origin-is-an-incarnation-never-reused), [BEH-DB-048](../../durable-bus/behaviors/06-replay-and-snapshots.md#beh-db-048-before-a-snapshot-the-outbox-is-pushed-or-kept-and-the-install-goes-through-the-bus), [BEH-ES-019](../../event-store/behaviors/03-projections-and-snapshots.md#beh-es-019-async-projections-follow-positions-with-a-checkpoint-in-the-same-transaction)
 > **Risk:** [RSK-SQ-001](../risks.md#rsk-sq-001), [RSK-SQ-003](../risks.md#rsk-sq-003)
 
 ```ts
@@ -36,8 +36,9 @@ Planned source: `packages/sequence/src/Incarnation.ts`,
 // incarnation stream = "sqi:" + node + ":" + incarnation   (one per incarnation; never a series stream)
 interface SeriesSuperseded {
   readonly seriesId: string           // the old series, e.g. "till-3#1/documents"
-  readonly lastKnown: number          // highest number of that series in the restored store (0 when none)
-  readonly lastKnownOnly: true        // numbers issued after the backup are not known here (BEH-SQ-010)
+  readonly lastKnown: number          // highest number of that series the new incarnation knows (0 when none)
+  readonly lastKnownOnly: boolean     // true: numbers issued after the backup are not known here (BEH-SQ-010);
+                                      // false: read from the live store at a re-bootstrap, nothing after it
   readonly by: string                 // the new origin, node + "#" + incarnation
 }
 ```
@@ -45,7 +46,7 @@ interface SeriesSuperseded {
 ```
 REQUIREMENT: When the `Sequence` plugin starts, and before `Series.open`
              serves any call, it MUST find every series of this node under a
-             lower incarnation than the configured one that is neither
+             lower incarnation than the current one that is neither
              closed (a `SeriesClosed` in its own stream) nor already
              superseded (a `SeriesSuperseded` in any incarnation stream of
              this node), and MUST append, in one transaction, one
@@ -57,7 +58,41 @@ REQUIREMENT: When the `Sequence` plugin starts, and before `Series.open`
              BEH-ES-019; adapter `readAll` with `types`, BEH-ES-033), and
              counted by their `NumberIssued` events; documentation MUST state
              that this read is proportional to the number of series, not of
-             numbers, and runs once per start.
+             numbers, and runs once per start and once per origin change.
+             A series found this way carries `lastKnownOnly: true`.
+```
+
+```
+REQUIREMENT: The plugin MUST run the same step whenever the durable-bus origin
+             changes while it runs (`originChanges`, durable-bus BEH-DB-004),
+             which only a whole-store re-bootstrap does (BEH-DB-048). For that
+             case it MUST register a store-swap participant
+             (`DurableBus.onStoreSwap`) whose `prepare` reads, from the store
+             about to be replaced, every series of this node that is neither
+             closed nor superseded and its highest number; the step after the
+             change MUST supersede those series too, with `lastKnownOnly:
+             false`, because the store was frozen and drained when it was read
+             and no number can follow it. A series is superseded once,
+             whichever way it was found. Until the step has committed for the
+             current origin, `open`, `next` and `close` under that origin MUST
+             fail with `SupersessionPending { origin }` and write nothing; the
+             step runs in the plugin's own transaction and is retried with
+             backoff until it commits.
+```
+
+```
+REQUIREMENT: Documentation MUST state what a whole-store re-bootstrap
+             snapshot may hold. It MAY hold series streams of this node's
+             earlier incarnations, copied as stored; the step supersedes the
+             open ones like any other, and the package never writes in them.
+             It MAY hold series of other nodes, which the package never
+             writes. The package MUST NOT rely on it to hold this node's
+             series: the participant reads them from the store being replaced.
+             Documentation MUST also state the limit of that read: what it
+             found lives in the plugin's memory until the step commits, so a
+             process that stops in between leaves those series without a
+             `SeriesSuperseded`, and the authority then sees them end without
+             a closure.
 ```
 
 ```
@@ -66,8 +101,9 @@ REQUIREMENT: The package MUST NOT append to a series stream of another
              ends where the restored store ends, so no stream version of it
              is ever written twice and a chain over it (BEH-SQ-016) never
              forks. When `Series.open(origin, name)` creates a series whose
-             name also exists under a lower incarnation, it MUST write
-             `previous: { seriesId, lastKnown }` in `SeriesOpened`; the
+             name also exists under a lower incarnation — as a series stream
+             in the store or in a `SeriesSuperseded` of this node — it MUST
+             write `previous: { seriesId, lastKnown }` in `SeriesOpened`; the
              supersession itself is the `SeriesSuperseded` of the start step.
 ```
 
@@ -77,6 +113,15 @@ REQUIREMENT: Documentation MUST state that raising the incarnation after a
              (BEH-DB-004), and that the package cannot detect a restore whose
              incarnation was not raised.
 ```
+
+A whole-store re-bootstrap is the one case where the origin changes while the
+plugin runs and where the new store need not hold the old series at all: the
+snapshot comes from another host. Reading the old store through the bus's
+store-swap participant, while it is frozen and drained, is what lets the new
+incarnation close series it cannot see, and with exact numbers, since every
+envelope was pushed before the read. Refusing handles of the old origin
+(BEH-SQ-002) and calls under the new origin until the step commits keeps any
+number from being issued in between.
 
 Recording the supersession in the new incarnation's own stream keeps every
 stream single-writer: the old series is written only by its origin, and the
@@ -95,8 +140,9 @@ arrive in order on their own (origin, stream).
 REQUIREMENT: Documentation and the verification report MUST state that
              numbers issued after the backup a host was restored from, and
              never received by the authority, cannot be found from the
-             series: a `SeriesSuperseded` carries `lastKnownOnly: true`,
-             and the authority's report MUST show both its `lastKnown` and
+             series: a `SeriesSuperseded` written after a restore carries
+             `lastKnownOnly: true`, and the authority's report MUST show both
+             its `lastKnown` and
              the highest number it received in the old series, and flag
              `receivedBeyondClosure` when the latter is higher.
 ```
@@ -113,8 +159,10 @@ authority until it surfaces.
 ```
 REQUIREMENT: `SeriesOpened`, `NumberIssued`, `SeriesClosed` and
              `SeriesSuperseded` MUST be registered with the event store with
-             `publish`, each on the stream it was appended to (the series
-             stream or the incarnation stream), so that the authority
+             `publish: true`, so that each is published on the stream it was
+             appended to (the series stream or the incarnation stream; the
+             default delivery stream of event-store BEH-ES-028), and so that
+             the authority
              receives them in order per origin and stream. The authority MUST
              record them with event-store `EventStore.receive` (a fact,
              never rejected). Series event types MUST NOT be listed in a
@@ -147,7 +195,7 @@ type SeriesEventInput =
   | { readonly type: "SeriesOpened"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly previous?: { seriesId: string; lastKnown: number } }
   | { readonly type: "NumberIssued"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly number: number }
   | { readonly type: "SeriesClosed"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly last: number; readonly reason: string }
-  | { readonly type: "SeriesSuperseded"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly lastKnown: number }
+  | { readonly type: "SeriesSuperseded"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly lastKnown: number; readonly lastKnownOnly: boolean }
   | { readonly type: "SeriesRetired"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly reason: string }
 declare const verifySeries: (events: readonly SeriesEventInput[]) => SeriesReport
 declare const SeriesEventInput: { readonly of: (read: ReadEvent<unknown>) => SeriesEventInput | undefined }  // takes eventId and origin from the StoredEvent
@@ -236,8 +284,9 @@ REQUIREMENT: `Series.chainSpec(key)` MUST return event-store
 ```
 
 **Settled here.** (1) A new incarnation closes every open series of lower
-incarnations when the plugin starts, by events in its own incarnation stream,
-and never writes in an old series (BEH-SQ-009). (2) The lost tail is
+incarnations when the plugin starts or the origin changes under it, by events
+in its own incarnation stream, and never writes in an old series
+(BEH-SQ-009). (2) The lost tail is
 stated, never hidden (BEH-SQ-010). (3) `verifySeries` is pure, total, without
 an overall verdict (BEH-SQ-012). (4) Authorities never write in a host's
 series (BEH-SQ-015).

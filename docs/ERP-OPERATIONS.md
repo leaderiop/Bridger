@@ -122,7 +122,7 @@ One-process Todo needs none of this; it is the multi-replica requirement noted a
 | Secrets and publisher public keys | Secret manager backup; public keys also in the database. | |
 | Alchemy state | Provider state backup, separate. | Retention is not a backup. |
 
-Post-restore procedure: stop admission; run schema drift check ([ERP-STORAGE.md](ERP-STORAGE.md) §7); `recover()` journals; **raise the durable-bus origin incarnation** of every restored node before its relay restarts ([BEH-DB-004](../references/durable-bus/behaviors/01-events-and-envelope.md#beh-db-004-an-origin-is-an-incarnation-never-reused): without it, receivers stop the restored streams with `EnvelopeConflict`, and once their inbox retention has passed they absorb the reissued envelopes as repeats without recording them). The number can be raised by hand, or kept by a wired `IncarnationSource` (same behaviour), which stores it outside the database's backups so a restore cannot roll it back; clear job leases (jobs stay ERP-owned); run reconciliation for integration intents in `unknown` ([ERP-BUSINESS.md](ERP-BUSINESS.md) §6) because the restored database may predate external effects that did happen; reindex search; reopen admission. Documented RPO/RTO targets are deployment choices; defaults proposed: RPO ≤ 5 min, RTO ≤ 1 h.
+Post-restore procedure: stop admission; run schema drift check ([ERP-STORAGE.md](ERP-STORAGE.md) §7); `recover()` journals; **raise the durable-bus origin incarnation** of every restored node before its relay restarts ([BEH-DB-004](../references/durable-bus/behaviors/01-events-and-envelope.md#beh-db-004-an-origin-is-an-incarnation-never-reused): without it, receivers stop the restored streams with `EnvelopeConflict`, and once their inbox retention has passed they absorb the reissued envelopes as repeats without recording them). The number can be raised by hand, or kept by a wired `IncarnationSource` (same behaviour), which stores it outside the database's backups so a restore cannot roll it back; the same raised incarnation is the ERP's only restore epoch: at the first start every open document-number series of a lower incarnation is closed and later numbers continue in a new series instead of reissuing numbers the lost interval already used ([ERP-RECORDS.md](ERP-RECORDS.md) §8; numbers issued in the lost interval are known only from documents sent out, and the closed series records the last number the restored database knew); clear job leases (jobs stay ERP-owned, [ERP-BUSINESS.md](ERP-BUSINESS.md) §3); run reconciliation for integration intents in `unknown` ([ERP-BUSINESS.md](ERP-BUSINESS.md) §6) because the restored database may predate external effects that did happen; reindex search; reopen admission. Documented RPO/RTO targets are deployment choices; defaults proposed: RPO ≤ 5 min, RTO ≤ 1 h.
 
 ## 7. Retention, purge and anonymization
 
@@ -140,18 +140,19 @@ Administration uses the same operation pipeline (authorized management commands,
 | Companies and grants | Companies, members, role grants, effective permissions ("why denied" via qadi trace) | `companies.*`, `grants.*`, `members.*` |
 | Modules | Desired vs observed phase per tenant and node, journal, failures, resident versions | `modules.ensure/disable/upgrade/status`, `resume` |
 | Artifacts | Candidates, manifest diff, permissions/contract review, approvals, revocation, publisher keys | `artifacts.approve/revoke`, `keys.*` |
-| Receipts | Search by key/command, expiry, retention state | read-only + `receipts.purgeExpired` |
-| Outbox and jobs | Depth, oldest age, dead items with replay | `outbox.replay`, `jobs.retry/cancel` |
+| Receipts | Search by key/command, state (in flight or completed), claim expiry, retention state ([ERP-STORAGE.md](ERP-STORAGE.md) §10) | `receipts.purgeExpired`; `receipts.clearInFlight` releases an in-flight claim whose request is known to have stopped, with a reason, before `claim_expires_at` |
+| Durable bus | Relay backlog and oldest pending age per stream, halted subscriptions, parked envelopes, stopped streams ([durable-bus 03](../references/durable-bus/behaviors/03-delivery-and-inbox.md)) | `bus.resume` (BEH-DB-021), `bus.unpark` (BEH-DB-022), `bus.releaseStream`; each calls the durable-bus operation of the same name and is attributed to the acting administrator |
+| Jobs | Queue depth and latency, `dead` jobs with their last error ([ERP-BUSINESS.md](ERP-BUSINESS.md) §3) | `jobs.retry/cancel` |
 | Workflows | Instances by state, pinned versions, suspended items | `workflows.resume/terminate` |
 | Integrations | Connector health, unknown intents, reconciliation | `integrations.reconcile` |
 | Audit and sessions | Search audit, active sessions, impersonation with reason/expiry | awthaq admin |
 | System | Readiness, resident versions, migration lock, worker lag | read-only |
 
-Destructive actions require a reason, are audited, and honor the impersonation restriction. Dangerous actions (revoke artifact, release parked envelopes ([durable-bus 03](../references/durable-bus/behaviors/03-delivery-and-inbox.md), BEH-DB-022), terminate workflows) require a second confirmation step in the UI and appear in the audit with before/after state.
+Destructive actions require a reason, are audited, and honor the impersonation restriction. Dangerous actions (revoke artifact, clear an in-flight receipt, release parked envelopes or a stopped stream ([durable-bus 03](../references/durable-bus/behaviors/03-delivery-and-inbox.md), BEH-DB-022), terminate workflows) require a second confirmation step in the UI and appear in the audit with before/after state.
 
 ## 9. Configuration
 
-A typed configuration schema (`Config`) is validated at startup; the process refuses to start on invalid or unsafe values (e.g. `Identity.development` outside loopback in development mode, missing CSRF secret, production with inline modules, retention shorter than the minimum). Categories: database, object storage, session and CSRF secrets, allowed origins, tenant host resolution, mail/SMS providers, rate limits, retention, shutdown grace, approvals required, `maxResidentVersions`, telemetry exporter, locale pack defaults. Per-tenant overrides live in the database and are cached with revision-based invalidation.
+A typed configuration schema (`Config`) is validated at startup; the process refuses to start on invalid or unsafe values (e.g. `Identity.development` outside loopback in development mode, missing CSRF secret, production with inline modules, retention shorter than the minimum). Categories: database, object storage, session and CSRF secrets, allowed origins, tenant host resolution, mail/SMS providers, rate limits, retention, shutdown grace, approvals required, `maxResidentVersions`, `moduleIdleGrace` and `workflowDisableGrace` (default 10 minutes, [ERP-BUSINESS.md](ERP-BUSINESS.md) §4), the durable-bus `IncarnationSource` (one for the whole deployment, kept in a parameter store outside the database's backups, so every node runs the same incarnation; [ERP-RECORDS.md](ERP-RECORDS.md) §8), telemetry exporter, locale pack defaults. Per-tenant overrides live in the database and are cached with revision-based invalidation.
 
 ## 10. Errors
 
@@ -161,15 +162,18 @@ A typed configuration schema (`Config`) is validated at startup; the process ref
 | `NodeNotReady` | A node refused admission because recovery or reconciliation is incomplete. |
 | `StartupConfigInvalid` | Startup validation failed. |
 | `RestoreReconciliationRequired` | Post-restore checks not completed; admission refused. |
+| `IncarnationBehind` | A node allocated a document number while running an older incarnation than the database has seen; restart it with the current incarnation ([ERP-RECORDS.md](ERP-RECORDS.md) §8). |
+
 
 ## 11. Acceptance checks
 
 - Deploy twice concurrently: only one node runs platform migrations; the other waits and proceeds.
 - Disable a module on a 3-node deployment with an in-flight command on node 2: the command settles, nodes acknowledge, `disable` returns after all live nodes report the new generation; a dead node is reported, not waited on.
-- Kill -9 a node mid-outbox-delivery and mid-migration: no lost or duplicated business effect; the next node completes the work.
+- Kill -9 a node mid-relay-delivery, mid-job and mid-migration: the relay resends unacknowledged envelopes and the receivers' inboxes ignore repeats (BEH-DB-017, BEH-DB-018); the job is claimed again after its lease expires ([ERP-BUSINESS.md](ERP-BUSINESS.md) §3); no business effect is lost or applied twice by a database-only handler.
 - SIGTERM drains requests and workers within `shutdownGrace`; readiness is red before admission stops.
 - `alchemy` destroy of a stage leaves the database and blob store (retained).
 - Restore a backup to a test environment: reconciliation reports unknown integration intents and the system refuses admission until it completes.
+- Issue invoices, restore a backup taken before them, raise the incarnation and issue again: no invoice number is issued twice; the old series is closed with reason `superseded-by-restore`. Starting with an incarnation lower than the recorded one is refused by the durable bus (BEH-DB-004).
 - No metric label contains a tenant or actor ID; logs never contain `Redacted` values.
 - An anonymized preview database contains no real emails or secrets.
 - The admin screen for a grant shows a qadi trace explaining a denial without exposing policy source to non-admins.
@@ -192,3 +196,5 @@ Only item 1 remains open and needs input from you.
 Change log: 2026-11-08, round-2 agent review fixes — §6 post-restore procedure: "re-evaluate outbox leases" (a withdrawn model) replaced by raising the durable-bus origin incarnation before relays restart (BEH-DB-004), job leases kept; §3 startup and shutdown start and stop the durable-bus relay instead of outbox workers and outbox leasing; §8 "replay dead letters" replaced by releasing parked envelopes (BEH-DB-022) (R5-12); status banner links the event-store, sequence and keyring companions (R5-20).
 
 Change log: 2026-11-08, round-2 integration (CCR-BR-029) — §6 post-restore procedure names the durable-bus `IncarnationSource` (BEH-DB-004), which keeps the incarnation number outside the database's backups, as an alternative to raising it by hand.
+
+Change log: 2026-11-09, audit fixes — §6, §9, §10 and §11: after a restore the raised durable-bus incarnation, the only restore epoch (sequence CCR-SQ-003), closes open sequence series so a restore does not reissue invoice numbers; one deployment-wide `IncarnationSource`; `IncarnationBehind` (E-06). §8 splits the withdrawn "outbox dead items with replay" row into durable-bus operations (resume, unpark, release a stream) and the ERP job queue's `dead` jobs, and adds `receipts.clearInFlight`; §11 describes a killed node in durable-bus terms (E-05, E-01). §9 names `workflowDisableGrace` (E-09). The error for a node on an older incarnation is `IncarnationBehind`, so it does not share a name with the sequence companion's `SeriesSuperseded` event (E-06).

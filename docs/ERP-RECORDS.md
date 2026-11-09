@@ -37,7 +37,7 @@ interface Records {
     Effect.Effect<Row<M>, WriteError | RecordNotFound | RevisionConflict, RecordsEnv>
 
   readonly delete: <M extends AnyModel>(model: M, input: { id: string; expectedRevision: number }) =>
-    Effect.Effect<{ id: string }, RecordNotFound | RevisionConflict | ReferenceInUse | Forbidden | HookFailed | HookTimeout | HookDepthExceeded | ModelFenced | ExtensionUnavailable, RecordsEnv>
+    Effect.Effect<{ id: string }, RecordNotFound | RevisionConflict | ReferenceInUse | Forbidden | HookFailed | HookTimeout | HookDepthExceeded | ModelFenced | ExtensionUnavailable | LockTimeout | SerializationConflict, RecordsEnv>
 
   readonly exists: (model: AnyModel, id: string) => Effect.Effect<boolean, Forbidden, RecordsEnv>
 
@@ -55,6 +55,10 @@ interface Records {
 
 type WriteError = InvalidInput | Forbidden | ConstraintViolation | UniqueViolation | ReferenceInvalid
                 | HookFailed | HookTimeout | HookDepthExceeded | ExtensionUnavailable | ModelFenced
+                | LockTimeout | SerializationConflict
+// Retryable: ModelFenced, ExtensionUnavailable, LockTimeout, HookTimeout and SerializationConflict are
+// listed in the `retryable` of every command @bridger/erp builds; they release the receipt claim and are
+// never stored (ERP-STORAGE.md §10, command BEH-CM-041).
 
 interface ReadOptions<M> {
   readonly projection?: Projection<M>          // base, or a Model.compose projection
@@ -85,7 +89,7 @@ interface WriteOptions { readonly projection?: Projection<AnyModel>; readonly lo
 5. Resolve and validate **references** (§4).
 6. Compute **stored computed fields** in dependency order (§3.2).
 7. Evaluate **constraints** on the merged record (§3.1).
-8. Persist (scope, row policy, revision compare), standard audit, standard model events, receipt.
+8. Persist (scope, row policy, revision compare), standard audit, standard model events. The command package completes the receipt after the handler returns ([ERP-STORAGE.md](ERP-STORAGE.md) §10).
 9. **`after` hooks** in order; events emitted by hooks go to the outbox.
 
 `delete` runs: gate, `lock`, `beforeDelete` hooks, reference checks (`restrict`/`cascade`/`setNull`, §4), delete, audit/outbox, `afterDelete` hooks.
@@ -174,7 +178,7 @@ lines: Model.hasMany(OrderLine, "order")                       // inverse side: 
 - **Scope compatibility.** A reference never crosses tenants. A company-scoped record may reference a company-scoped target only in the same company, and a tenant-scoped target from any of its companies. Records enforces this; the database enforces the tenant part with a composite foreign key `(tenant_id, target_id)` where the dialect supports it.
 - **Authorization.** On create and update, the target must be visible to the caller under the target model's read policy. Otherwise the write fails with `ReferenceInvalid { field }` using the same generic message as a nonexistent target (no existence leak).
 - **Declared dependency.** A reference to another module's model requires that module in `dependsOn` (checked at module compile time).
-- **Delete behavior.** \1 The error is generic and names no referencing rows, so it does not reveal records the caller cannot read. `setNull` requires an optional field. `cascade` is allowed only when both models belong to the **same module**; it deletes dependents inside the same transaction as the system subject of that module, audited, and is rejected at compile time across modules (use `restrict` or `setNull` plus an event).
+- **Delete behavior.** `onDelete` is declared on every reference field; `restrict` is the default. Under `restrict`, deleting a target fails with `ReferenceInUse` while any row in the tenant still references it, including rows the caller cannot read, rows in other companies and rows of a module now disabled for the tenant. The check runs inside the delete's transaction, after the target row is locked, as one existence query per referencing field. A delete racing a new reference is refused by the composite foreign key where one backs the reference; where none does ([ERP-MODELS.md](ERP-MODELS.md) §6), the reference check of a create or update locks the target row (`rowLocking`), so the two serialize. The error is generic and names no referencing rows, so it does not reveal records the caller cannot read. `setNull` requires an optional field. `cascade` is allowed only when both models belong to the **same module**; it deletes dependents inside the same transaction as the system subject of that module, audited, and is rejected at compile time across modules (use `restrict` or `setNull` plus an event).
 - **Disabled target module.** Stored ids remain and the foreign key remains; `expand` and relation-path filters fail with `ModuleUnavailable`; plain reads return the id.
 - **Inverse relations** (`hasMany`) have no column; they are read through `Records.related` or `expand`. Many-to-many uses an owned join model ([ERP-MODELS.md](ERP-MODELS.md) §6).
 
@@ -210,7 +214,7 @@ interface ListQuery<M> {
 
 This replaces the equality-only `filter` of the first `list` sketch in [ERP-SPEC.md](ERP-SPEC.md) §3; the operation reference `Model.queries.list` takes `ListQuery`.
 
-- **Allowed fields.** Only fields marked filterable/sortable in the contract are accepted (`Field.make(schema, { filter: true | ops[], sort: boolean })`; scalar fields default to true, long text defaults to `contains` only when also `searchable`). Unauthorized or non-filterable fields give `InvalidQuery`.
+- **Allowed fields.** Only fields marked filterable/sortable in the contract are accepted (`Field.make(schema, { filter: true | ops[], sort: boolean })`; scalar fields default to true, long text defaults to `contains` only when also `searchable`). An unknown field, a field the caller may not read and a field not declared filterable or sortable all give the same `InvalidQuery { reason: "field-not-allowed", path }`, so the error never tells a caller whether a field it cannot read exists. The same rule applies to `search.fields`, to `Records.related` and to aggregates.
 - **Operators.** Comparison operators apply to numbers, decimals, dates and instants; text operators are case-insensitive by default, escape their wildcards, and use binary or collated comparison per the adapter's declared behavior. Instants are compared as UTC; date-only fields compare as dates.
 - **Search.** `search.text` runs over the fields marked `searchable` (or the supplied subset): native full text when the adapter has `fullText`, otherwise case-insensitive `contains` OR-ed over at most 5 fields. Results are always re-authorized as rows; no index result bypasses scope or policy ([ERP-BUSINESS.md](ERP-BUSINESS.md) §8).
 - **Indexes.** Migrations create indexes for fields declared `indexed: true`. A statement timeout (default 10 seconds) and the page limit bound unindexed queries; slow queries are reported in metrics.
@@ -229,7 +233,7 @@ interface AggregateDef<M> {
 }
 ```
 
-- The row policy is applied before aggregation (as SQL predicates); every field used in `groupBy`, `measures` and `where` must be readable/filterable by the caller, otherwise `Forbidden`.
+- The row policy is applied before aggregation (as SQL predicates); every field used in `groupBy`, `measures` and `where` must be readable and filterable by the caller, otherwise `InvalidQuery { reason: "field-not-allowed" }`, the same error a list gives. `Forbidden` on `aggregate` means only that the operation itself is not permitted.
 - `sum` and `avg` apply to numeric and decimal fields; on decimals they require the adapter capability `exactDecimal`, else `CapabilityMissing` ([ERP-STORAGE.md](ERP-STORAGE.md) §3.2).
 - Date buckets of instants use the company's timezone; date-only fields bucket as dates.
 - Aggregates are for reports and dashboards; large exports use jobs ([ERP-BUSINESS.md](ERP-BUSINESS.md) §10).
@@ -303,18 +307,22 @@ const { priority } = yield* Services.call(NextPriority, { taskId })
 // contract
 export const InvoiceNumber = Sequence.define("sales.invoice-number", {
   scope: "company",
-  format: "INV/{yyyy}/{seq:6}",       // tokens: {yyyy} {yy} {mm} {seq:n} {company}
-  reset: "year",                      // "never" | "year" | "month"
+  format: "INV/{yyyy}/{series}{seq:6}", // tokens: {yyyy} {yy} {mm} {seq:n} {company} {series}
+  reset: "year",                        // "never" | "year" | "month" | Sequence.fiscalYear(<service contract>)
   gapless: true,
 })
 // in a command or hook
 const number = yield* Sequences.next(InvoiceNumber, { date: invoice.date })
 ```
 
-- State: `bridger_sequences (tenant_id, company_id, sequence_id, period, next_value)`. `period` is derived from the supplied date in the company's fiscal calendar/timezone (`reset`).
+- State: `bridger_sequences (tenant_id, company_id, sequence_id, period, incarnation, next_value, closed_at, closed_reason, last_known)`, keyed by the first five columns. One row per sequence and period is open at a time: the one of the current incarnation.
+- **Periods.** `period` is derived from the supplied date read as a company-local date (the company's timezone, §11). `"year"` and `"month"` are the **calendar** year and month of that date. A fiscal year is not platform data (§15): a sequence that resets per fiscal year declares `reset: Sequence.fiscalYear(FiscalYearOf)`, naming a service contract (§7) whose input is `{ companyId, date }` and whose output is `{ id, label }`, and its module must list the module that implements that contract in `dependsOn`; otherwise module compilation fails. With a fiscal-year reset, `{yyyy}` and `{yy}` render the fiscal year's `label`. A sequence never changes from calendar to fiscal periods because another module was enabled.
 - **Gapless** sequences allocate inside the caller's transaction by locking the sequence row (`rowLocking`) and incrementing it, so a rollback gives the number back; concurrent allocations on one sequence serialize. They require the adapter capability `rowLocking` and are documented as a throughput limit.
 - **Non-gapless** sequences may allocate blocks outside the caller's transaction for throughput; numbers can have gaps after rollbacks.
 - The assigned number is stored in an ordinary field with a unique index; the command's idempotency receipt returns the same number on retry (a retried command does not consume another).
+- **Series and restores.** There is no ERP restore epoch. The series is the **incarnation of the durable-bus origin** ([BEH-DB-004](../references/durable-bus/behaviors/01-events-and-envelope.md#beh-db-004-an-origin-is-an-incarnation-never-reused)): the number after the `#` in `DurableBus.origin` (`node#incarnation`), read at each allocation and never kept across calls. It is the only restore epoch of the deployment, as the sequence companion states for every series (`@bridger/sequence` overview, limit 5): a wired `IncarnationSource` keeps it outside the database's backups, the operator raises it after every restore ([ERP-OPERATIONS.md](ERP-OPERATIONS.md) §6), and the bus refuses to start when the configured incarnation is lower than the one the database recorded. The ERP wires one `IncarnationSource` for the whole deployment, so every node on one database runs the same incarnation.
+- **Closing old series.** `bridger_sequences` rows are keyed by their `incarnation`. When a node starts, and again on every element of `DurableBus.originChanges`, the platform closes every open row whose incarnation is lower than the current one, in one audited transaction, with `closed_reason = "superseded-by-restore"` and `last_known = next_value - 1`. An allocation also closes, in its own transaction, an open row of a lower incarnation for the same sequence and period that it finds, so no allocation depends on the start-up step having run. Later allocations open a row under the current incarnation, starting at 1. A closed row is never written again. An allocation that finds an open row of a **higher** incarnation fails with `IncarnationBehind`: the node runs an older incarnation than the database has seen and must be restarted with the current one. This follows `@bridger/sequence` [ADR-SQ-003](../references/sequence/decisions/003-a-restore-closes-the-old-series.md): a restore closes the old series and numbering restarts under a new series identity.
+- **`{series}`** renders nothing for the deployment's initial incarnation (recorded in `bridger_dialect_info` when the database is created, and therefore the same in every backup) and `S<n>-` for any other incarnation n (for example `INV/2026/S2-000001`). It depends only on the incarnation, never on which rows the database still holds, so a restore to a point before a period's first number cannot render a lost number again. Every format must contain it, and module compilation rejects one that does not. Numbers issued after the backup and lost with the restore stay unknown to the restored database; only documents sent outside it can show them (the limit `@bridger/sequence` states in BEH-SQ-010). A restore without a raised incarnation is not detected and reissues numbers (sequence overview, limit 3). Whether a locale accepts a new series within a period is a question for its locale pack ([ERP-BUSINESS.md](ERP-BUSINESS.md) §13); this document makes no such judgement.
 - Format tokens are a closed set; a bad format fails at module compilation.
 
 ## 9. Settings
@@ -347,7 +355,7 @@ currency: Field.reference(Model.ref("bridger.currency"), { required: true, onDel
 ```
 
 - Decimals travel as **strings** (never JSON numbers) and are decoded as `BigDecimal`. A value with more digits than `scale` is `InvalidInput`; storage is `decimal(precision, scale)` ([ERP-STORAGE.md](ERP-STORAGE.md) §5).
-- `Field.money` is a decimal bound to a currency, taken from a sibling field of the same record or fixed. The currency's decimal places (from the platform `bridger.currency` model: code, decimals, symbol) set the default scale and the rounding unit.
+- `Field.money` is a decimal bound to a currency, taken from a sibling field of the same record or fixed. The currency's decimal places (from the platform `bridger.currency` model: code, decimals, symbol) set the default scale and the rounding unit. `bridger.currency` is the only owner of currency reference data: domain modules reference it and never define their own currency model; accounting owns exchange rates, not currencies ([ERP-BUSINESS.md](ERP-BUSINESS.md) §14).
 - `Money` helpers: `Money.of(amount, currency)`, `add`/`subtract` (different currencies fail with `CurrencyMismatch`), `multiply(by, rounding)`, `allocate(total, ratios)` (distributes without losing minor units), `convert(money, to, rate, rounding)` (the **caller supplies the rate**; the platform owns no exchange-rate data).
 - Each company has a `functional_currency` ([ERP-IDENTITY.md](ERP-IDENTITY.md) §4). Rounding stage and mode are declared by the owning domain module; the platform default is half-even at the currency's decimals.
 - SQL sums and averages of decimals need the adapter capability `exactDecimal`; without it they fail with `CapabilityMissing` and modules that depend on them refuse to install ([ERP-STORAGE.md](ERP-STORAGE.md) §3.2).
@@ -386,19 +394,22 @@ currency: Field.reference(Model.ref("bridger.currency"), { required: true, onDel
 | `CurrencyMismatch` | Mixed-currency arithmetic | Domain error (`InvalidInput` when from user data). |
 | `ModuleUnavailable` | Service or relation target module disabled | Retryable after catalog refresh. |
 | `SeedFailed`, `DataMigrationFailed` | Install phase `data` failed | Administrative status with resume. |
+| `IncarnationBehind` | An allocation found an open sequence row of a higher incarnation than the node's (§8) | `InternalError` and an operations alert; the node must be restarted with the current incarnation. |
 
 ## 14. Acceptance checks
 
-- A constraint violation aborts the command, leaves no row, receipt, audit or outbox entry, and reports the offending input paths.
+- A constraint violation aborts the command, leaves no row, audit or outbox entry, and reports the offending input paths; its receipt stores the failure, so a retry with the same key returns the same `ConstraintViolation` ([ERP-STORAGE.md](ERP-STORAGE.md) §10).
 - Stored computed fields are recomputed in dependency order and cycles fail module compilation.
 - A `before` hook cannot set a reserved field; a hook recursion beyond the depth limit fails the command; a hook that exceeds its budget aborts it.
 - A reference to a row the caller cannot read is indistinguishable from a missing reference; `restrict` blocks deletion; cross-module `cascade` fails compilation.
 - A relation-path filter excludes rows whose target is invisible to the caller.
 - Filter and sort on non-filterable fields are rejected; a list above the page limit is rejected; cursors from another filter are rejected.
-- An aggregate over a field the caller cannot read is `Forbidden`; decimal sums fail with `CapabilityMissing` on adapters without exact decimal.
+- An aggregate or a list filter over a field the caller cannot read gives the same `InvalidQuery` as one over a field that does not exist; decimal sums fail with `CapabilityMissing` on adapters without exact decimal.
 - Seeds are idempotent; `update-unmodified` leaves a user-edited seeded record untouched; a crashed data migration resumes from its cursor and never runs twice.
 - A service call checks the callee permission against the caller; calling a module that is not a declared dependency fails compilation.
 - Gapless sequences give no gaps after rollbacks under concurrent load; a retried command returns the same number.
+- A `reset: "year"` sequence starts a new period on 1 January of the company-local calendar; a fiscal-year sequence whose module does not depend on the provider of its service contract fails compilation; a format without `{series}` fails compilation.
+- After a restore with a raised incarnation, every open sequence row of a lower incarnation is closed with its last known number, at start and on `originChanges`, and the next number carries the new `{series}` marker; no rendered number repeats one issued before the restore point, also when the backup predates the period's first number. A node left on the old incarnation fails its allocation with `IncarnationBehind` and issues nothing.
 - Settings secrets never leave the server unmasked; a stale settings write returns `RevisionConflict`.
 - Money arithmetic across currencies fails; `allocate` preserves the total exactly.
 - A translated field resolves with the fallback chain; writing a translation bumps the revision.
@@ -414,7 +425,9 @@ These are design acceptance scenarios, not tests already executed.
 | 2 | Aggregates over child rows as computed fields | **Not in the first release;** use child hooks (§3.2). |
 | 3 | Cross-module cascade | **Rejected;** use restrict or setNull plus events (§4). |
 | 4 | Filter/sort on translated values | **Source locale only** in the first release (§11). |
-| 5 | Exchange rates and fiscal calendars | **Not platform data.** Money conversion takes a caller-supplied rate; fiscal calendars belong to the accounting domain. |
+| 5 | Currencies, exchange rates and fiscal calendars | **Currencies are platform data** (`bridger.currency`, §10), with one owner. **Exchange rates and fiscal calendars are not:** money conversion takes a caller-supplied rate, and fiscal calendars belong to the accounting domain, reached by sequences only through a declared service contract (§8). |
 | 6 | Rich view definition language | **Deferred** ([ERP-BROWSER.md](ERP-BROWSER.md) §13). |
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §4 restores the `restrict` rule lost to a find-and-replace leftover: `restrict` is the default and blocks a delete with `ReferenceInUse` while any row in the tenant references the target, visible to the caller or not (E-03). §3 and §14: the receipt is completed by the command package and stores typed failures; §2 lists the platform errors every ERP command declares `retryable`, which are never stored (E-01). §8: a restore closes the open sequence series and later numbers carry a `{series}` marker; the series is the durable-bus incarnation, the only restore epoch (sequence CCR-SQ-003, limit 5), and rows of a lower incarnation are closed at start and on `originChanges`, following ADR-SQ-003 (E-06); `reset: "year"` is the calendar year and a fiscal year needs an explicit `Sequence.fiscalYear` service contract (E-12). §5: an unauthorized filter, sort or aggregate field gives the same `InvalidQuery` as an unknown one (E-11). §10 and §15: `bridger.currency` is the single owner of currency data (E-12). The error for a node on an older incarnation is `IncarnationBehind`, so it does not share a name with the sequence companion's `SeriesSuperseded` event (E-06).

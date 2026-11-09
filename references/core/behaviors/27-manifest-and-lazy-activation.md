@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-27                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-08): BEH-BR-251 a load and build that succeed for a stop that waited are discarded and drop the held event "ended" (prototype finding G-P19); BEH-BR-252 a trigger kept during an idle return is not listed in `WakeReport.triggered` (G-P22); BEH-BR-250 a link without `hostId` counts as `HostLink.none` at a hook point (G-P20) (CCR-BR-030)<br>0.7 (2026-11-08): BEH-BR-250 declarations also reported "idling" (idle return under way) and "refused" (disabled by the `RefusalList`), `HostLink.hostId`, the link is no longer called harmless (agent review R1-03, R1-04, R1-06); BEH-BR-251 drop reason when a removal waits for a running load (G-P14); BEH-BR-252 idle conditions limited to what the host observes (G-P17) (CCR-BR-029)<br>0.6 (2026-11-08): BEH-BR-241 `range` and `version` of a required reference appear together (prototype finding G-P5); BEH-BR-243 shapes of `methods` going from a list to absent and of an egress `purpose` change (G-P6); BEH-BR-252 Settled (4), loaded or not is history for confluence (G-P7) (CCR-BR-028)<br>0.5 (2026-11-08): BEH-BR-241 note: the loader companion binds `publisher` to a configured signer (`PublisherMismatch`, loader BEH-LD-053); core's reading unchanged (CCR-BR-027)<br>0.4 (2026-11-08): manifest `listens`; BEH-BR-246 Settled cites `AccessPolicy.declaredOnly`; BEH-BR-245 refused starts are not triggered (CCR-BR-026)<br>0.3 (2026-11-08): manifest `contributions` entries carry an optional hook `role` and `target`; `Host.declaredContributions` and the `HostLink` reference (BEH-BR-250); an `OnEvent` wake holds its triggering event for the woken plugin's listeners (BEH-BR-251, amends BEH-BR-245); `Plugin.lazy` `idle` returns an idle loaded plugin to `dormant` through a normal drain (BEH-BR-252, closes URS gap G37); the root `lazy-triggered` record of a `wake` or a dispatch carries the caller's principal as `onBehalfOf` (BEH-BR-253, closes URS gap G39); checks 92, 96 and 97 (CCR-BR-024)<br>0.2 (2026-11-08): a lazy definition's identity digest is supplied to `Plugin.lazy` beside the manifest (a signed manifest cannot carry its own package's digest); manifest `digest` compared only when present; a loaded definition's own manifest ignored; contract references with a version require `methods`; manifest decoding first within the `InvalidDefinition` check; `reconfigure` on any registration not yet loaded is treated like `install` with `config`; `wake` takes no `OperationContext`; checks 62–66 (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
+> | Change History | 0.10 (2026-11-09): BEH-BR-242 the registered manifest of an eager definition is the `manifest` it carries when it is installed or replaced; a definition stamped by the loader companion carries the signed package manifest, which core does not verify (M-02, core side); BEH-BR-246 a loaded definition that breaks a rule of BEH-BR-003, an invalid `handoff` among them, fails the load with `InvalidDefinition` (U-05) (CCR-BR-033)<br>0.9 (2026-11-09): BEH-BR-252 an operator operation during an idle return waits for it and is decided against `dormant`, under BEH-BR-073 (C-06) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-251 a load and build that succeed for a stop that waited are discarded and drop the held event "ended" (prototype finding G-P19); BEH-BR-252 a trigger kept during an idle return is not listed in `WakeReport.triggered` (G-P22); BEH-BR-250 a link without `hostId` counts as `HostLink.none` at a hook point (G-P20) (CCR-BR-030)<br>0.7 (2026-11-08): BEH-BR-250 declarations also reported "idling" (idle return under way) and "refused" (disabled by the `RefusalList`), `HostLink.hostId`, the link is no longer called harmless (agent review R1-03, R1-04, R1-06); BEH-BR-251 drop reason when a removal waits for a running load (G-P14); BEH-BR-252 idle conditions limited to what the host observes (G-P17) (CCR-BR-029)<br>0.6 (2026-11-08): BEH-BR-241 `range` and `version` of a required reference appear together (prototype finding G-P5); BEH-BR-243 shapes of `methods` going from a list to absent and of an egress `purpose` change (G-P6); BEH-BR-252 Settled (4), loaded or not is history for confluence (G-P7) (CCR-BR-028)<br>0.5 (2026-11-08): BEH-BR-241 note: the loader companion binds `publisher` to a configured signer (`PublisherMismatch`, loader BEH-LD-053); core's reading unchanged (CCR-BR-027)<br>0.4 (2026-11-08): manifest `listens`; BEH-BR-246 Settled cites `AccessPolicy.declaredOnly`; BEH-BR-245 refused starts are not triggered (CCR-BR-026)<br>0.3 (2026-11-08): manifest `contributions` entries carry an optional hook `role` and `target`; `Host.declaredContributions` and the `HostLink` reference (BEH-BR-250); an `OnEvent` wake holds its triggering event for the woken plugin's listeners (BEH-BR-251, amends BEH-BR-245); `Plugin.lazy` `idle` returns an idle loaded plugin to `dormant` through a normal drain (BEH-BR-252, closes URS gap G37); the root `lazy-triggered` record of a `wake` or a dispatch carries the caller's principal as `onBehalfOf` (BEH-BR-253, closes URS gap G39); checks 92, 96 and 97 (CCR-BR-024)<br>0.2 (2026-11-08): a lazy definition's identity digest is supplied to `Plugin.lazy` beside the manifest (a signed manifest cannot carry its own package's digest); manifest `digest` compared only when present; a loaded definition's own manifest ignored; contract references with a version require `methods`; manifest decoding first within the `InvalidDefinition` check; `reconfigure` on any registration not yet loaded is treated like `install` with `config`; `wake` takes no `OperationContext`; checks 62–66 (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
 
 ---
 
@@ -232,6 +232,19 @@ REQUIREMENT: For an eager definition that carries a `manifest`, `install`,
 ```
 
 ```
+REQUIREMENT: The *registered manifest* of a registration MUST be, for an
+             eager definition, the `manifest` the definition carries when
+             it is installed or replaced — none when it carries none —
+             and, for a lazy definition, the lazy definition's
+             `manifest`. It MUST stay fixed until the registration's
+             definition is next replaced; `restart`, `reconfigure`,
+             `disable`, `enable` and a load MUST NOT change it. Every rule
+             that reads "the registered manifest" — the gate request
+             (25, BEH-BR-219), `consentDiff` (BEH-BR-243), `declared` on
+             access requests (28, BEH-BR-268) — MUST read this one.
+```
+
+```
 REQUIREMENT: When `engines["@bridger/core"]` is present, `install`,
              `replace` and `enable` MUST fail with `IncompatibleEngine`
              unless `Contract.satisfies(Bridger.version, range)` is true.
@@ -259,7 +272,20 @@ A manifest that disagreed with its own definition would let a consent
 screen, a gate or a reconcile decide about one plugin while the host ran
 another. For an eager definition both are present, so the check is
 immediate; for a lazy one the definition does not exist yet, and the same
-comparison is made when it is loaded (BEH-BR-246). `engines` is checked by
+comparison is made when it is loaded (BEH-BR-246).
+
+Core reads a manifest; it does not know who wrote it. An eager definition's
+manifest is whatever object its `manifest` field holds, so for code that
+declares its own manifest the registered manifest is the code's claim about
+itself. The loader companion closes that gap for the code it loads: it
+returns the evaluated definition with `manifest` set to the package's
+signed manifest, replacing any the code declared
+([`references/loader/`](../../loader/README.md), BEH-LD-007), so for a
+loader-stamped eager definition the registered manifest is the signed one,
+and the agreement check above compares the code with what was signed. Core
+verifies no signature and cannot tell a stamped manifest from a declared
+one; a deployment that requires signed manifests refuses definitions the
+loader did not stamp at its gate (loader BEH-LD-015). `engines` is checked by
 core only for core itself: other engines (`node`, a companion, a browser)
 are checked by whoever knows their versions.
 
@@ -603,7 +629,19 @@ REQUIREMENT: When `load` fails, dies or exceeds `buildTimeout`, the plugin
 ```
 
 ```
-REQUIREMENT: When `load` succeeds, before configuration is decoded, the host
+REQUIREMENT: When `load` succeeds, the loaded definition MUST first pass the
+             rules of BEH-BR-003 (01 — Plugin Definition), which a manifest
+             cannot carry and `install` could not check — among them the
+             `volatile`, `health` and `handoff` rules (34 — State Handoff,
+             BEH-BR-345). A loaded definition that breaks one MUST make the
+             plugin `failed` with phase "load" and an `InvalidDefinition
+             { id, reason }` cause, `reason` naming the rule as `install`
+             would, and MUST be discarded; nothing MUST be published.
+```
+
+```
+REQUIREMENT: When `load` succeeds and the rules above hold, before
+             configuration is decoded, the host
              MUST compare the loaded definition with the registered manifest
              as BEH-BR-242 compares an eager definition with its manifest,
              except for the digest: the loaded definition's `meta.digest`
@@ -1150,7 +1188,9 @@ REQUIREMENT: A trigger that applies while the plugin is `stopping` with
              host-core prototype finding G-P22). An
              operator operation that reaches the plugin during the idle
              return MUST follow the `stopping` row of 08 — Operation
-             Legality (BEH-BR-071), as for any system stop.
+             Legality (BEH-BR-071): it waits for the idle return to settle
+             and is then decided against `dormant`, as BEH-BR-073 states
+             for every system stop.
 ```
 
 ```

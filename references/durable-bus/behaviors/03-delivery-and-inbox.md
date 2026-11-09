@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-03                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F13; R5-04/05) — the inbox stores a `Withheld` marker at its sequence and advances the watermark and every cursor without a handler call; subscriptions gain `onUnreadable` ("park", "halt") and `subscribeEnvelopes` delivers stored envelopes undecoded, so an unreadable fact is halted on or recorded as received, never parked away (FX-NEW N1) (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — `PlacementRefused` added as an inbox-level stop (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `send` returns `Ack` only, `Ack.retryAfter`; receiver regression detected and repaired or reported; attributed `acceptGap`; inbox-level stops separated from subscription-level parks and halts; duplicate check bounded by the inbox's retention; handler receipt (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 (C-12) — `InboxStore.transaction` and `receive` fail with the new `CommitConflict` when the engine refuses a commit for a conflict; a handler attempt that ends in `CommitConflict` is retried in a new transaction and, when the attempts end on one, halts its (origin, stream) without parking (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13; R5-04/05) — the inbox stores a `Withheld` marker at its sequence and advances the watermark and every cursor without a handler call; subscriptions gain `onUnreadable` ("park", "halt") and `subscribeEnvelopes` delivers stored envelopes undecoded, so an unreadable fact is halted on or recorded as received, never parked away (FX-NEW N1) (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — `PlacementRefused` added as an inbox-level stop (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `send` returns `Ack` only, `Ack.retryAfter`; receiver regression detected and repaired or reported; attributed `acceptGap`; inbox-level stops separated from subscription-level parks and halts; duplicate check bounded by the inbox's retention; handler receipt (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -96,14 +96,18 @@ interface InboxStore {
     Effect.Effect<{ readonly envelopes: readonly Envelope[]; readonly oldest?: number }, StoreUnavailable>   // HistorySource, 06
   readonly cursor: (tx: StoreTransaction["Service"], subscription: string, origin: string, stream: string) => Effect.Effect<number, StoreUnavailable>
   readonly advance: (tx: StoreTransaction["Service"], subscription: string, origin: string, stream: string, to: number) => Effect.Effect<void, StoreUnavailable>
-  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) => Effect.Effect<A, E | StoreUnavailable, R>
+  // the commit itself may fail with CommitConflict (below); E is the effect's own error
+  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) => Effect.Effect<A, E | StoreUnavailable | CommitConflict, R>
 }
+// The engine refused the commit because a concurrent transaction conflicted with it: a serialization
+// failure, or a conflict that a store sharing the transaction detects only at commit (event-store BEH-ES-034).
+class CommitConflict extends Schema.TaggedError<CommitConflict>()("CommitConflict", { reason: Schema.String }) {}
 
 interface GapRecord { readonly origin: string; readonly stream: string; readonly from: number; readonly through: number;
                      readonly actor: Actor; readonly reason: string; readonly at: string }
 type StopReason = "UnknownEnvelopeFormat" | "EnvelopeConflict" | "PlacementRefused"   // the last: BEH-DB-016
 
-// DurableBus.receive(batch): Effect<Ack, StoreUnavailable | MalformedBatch>  — called by the transport's serving side
+// DurableBus.receive(batch): Effect<Ack, StoreUnavailable | CommitConflict | MalformedBatch>  — called by the transport's serving side
 ```
 
 ```
@@ -139,7 +143,9 @@ REQUIREMENT: `receive` MUST first decode every element's `origin`, `stream`
 ```
 REQUIREMENT: The acknowledgement MUST be computed from the watermarks after
              the inbox transaction committed, and MUST NOT be returned if it
-             did not commit.
+             did not commit. When the commit fails with `CommitConflict`,
+             `receive` MUST fail with it, having stored and acknowledged
+             nothing; the sender resends the batch (BEH-DB-017).
 ```
 
 **Settled here.** The inbox stores only contiguous envelopes and keeps no
@@ -299,6 +305,18 @@ REQUIREMENT: When a handler fails or dies, its transaction MUST roll back
 ```
 
 ```
+REQUIREMENT: A handler call whose transaction fails to commit with
+             `CommitConflict` (BEH-DB-018) MUST be treated as a failed
+             attempt: nothing of it is committed, the cursor is unchanged,
+             and the call MUST be retried in a new transaction under the
+             same backoff, counted against `maxAttempts`. When the attempts
+             end on a `CommitConflict`, the subscription MUST halt that
+             (origin, stream) with reason `CommitConflict` whatever its
+             `onPoison`, and MUST NOT park the envelope; `resume` retries
+             it.
+```
+
+```
 REQUIREMENT: After `maxAttempts`, or at once for an envelope that cannot be
              read (BEH-DB-020), with `onPoison: "halt"` (the default) the
              subscription MUST stop processing that (origin, stream) with
@@ -321,7 +339,10 @@ REQUIREMENT: A halted (origin, stream) of a subscription MUST be retried from
 projection that assumed order: an envelope at a version the reader does not
 know yet stops its stream until the reader is upgraded, and then is
 processed in order. Parking is available for subscriptions whose events are
-independent, and is visible and reversible (BEH-DB-022).
+independent, and is visible and reversible (BEH-DB-022). A commit conflict
+is never parked: it is contention between transactions, says nothing about
+the envelope, and a later attempt normally commits; the handler cannot see
+it, because the commit happens after the handler has returned.
 
 ## BEH-DB-022: Parked envelopes are visible and can be released
 

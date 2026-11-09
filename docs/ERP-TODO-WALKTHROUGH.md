@@ -218,6 +218,9 @@ const main = Effect.scoped(Effect.gen(function* () {
   yield* erp.tenants.ensure({ id: "demo", name: "Demo" })
   yield* erp.companies.ensure({
     tenantId: "demo", id: "main", name: "Main",
+    timezone: "Europe/Paris",       // company-local dates (ERP-RECORDS.md §8)
+    defaultLocale: "en",
+    functionalCurrency: "EUR",      // a code of bridger.currency (ERP-RECORDS.md §10)
   })
   yield* erp.modules.ensure({ tenantId: "demo", module: TodoModule })
   yield* erp.access.grantRole({
@@ -247,7 +250,9 @@ This demo reasserts its module installation and role grant on every startup, so 
 
 `Postgres.make` (the reference storage adapter; another dialect uses its own adapter constructor) acquires a scoped pool. `Erp.make` prepares the ERP platform's own schema through its migration mechanism and constructs the coordinator. `modules.ensure` performs the Todo migration and waits for active publication before serving requests.
 
-`ErpNode.serve` is a long-lived Effect; it does not return immediately after binding the socket. `runMain` owns process signals, stops admission and drains/interrupts server work before closing the surrounding scope. This is a proposed adapter contract, not an existing package method.
+`companies.ensure` takes every column the company row requires: time zone, default locale and functional currency have no defaults ([ERP-IDENTITY.md](ERP-IDENTITY.md) §4).
+
+`ErpNode.serve` is a long-lived Effect; it does not return immediately after binding the socket. `runMain` owns process signals, stops admission and drains/interrupts server work before closing the surrounding scope. Both are specified, with `ErpNode.moduleLoader`, in [ERP-SPEC.md](ERP-SPEC.md) §5 ("HTTP hosting, the gateway wire format and the typed client"); they are proposed and do not exist as packages yet.
 
 ## 8. Start the FoldKit shell
 
@@ -284,7 +289,7 @@ createRoot(container).render(
 )
 ```
 
-Proposed HTTP mapping used by these adapters and `ErpClient`:
+Proposed HTTP mapping used by these adapters and `ErpClient`. Request and response bodies, headers (including `Idempotency-Key`) and status codes are specified in [ERP-SPEC.md](ERP-SPEC.md) §5 ("HTTP hosting, the gateway wire format and the typed client"):
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -294,7 +299,7 @@ Proposed HTTP mapping used by these adapters and `ErpClient`:
 | `GET /erp/catalog` | Return a permission-filtered snapshot of available modules, public model schemas and UI descriptors. |
 | `GET /erp/catalog/changes` | Follow catalog invalidation/revision notifications; reconnect fetches a fresh snapshot. |
 | `POST /erp/query` | Execute a declared query by operation ID, API version and validated input. |
-| `POST /erp/command` | Execute a declared command with a scoped idempotency key. |
+| `POST /erp/command` | Execute a declared command; the idempotency key travels in the `Idempotency-Key` header. |
 
 Administrative `ensure`, role grants and migrations are not exposed through these endpoints automatically. Cookie-based deployment uses awthaq's `Host` cookie mode and signed double-submit CSRF ([ERP-IDENTITY.md](ERP-IDENTITY.md) §8); requests never trust a browser-provided actor, tenant or company ID. Catalog and shell behavior are specified in [ERP-BROWSER.md](ERP-BROWSER.md).
 
@@ -375,7 +380,7 @@ Effect.runPromise(example).then(console.log).catch(console.error)
 
 The IDs are generated once for this logical sequence. A transport retry uses the same key; starting a genuinely new sequence generates a new `intent`. The generated shell manages these keys itself. This example creates and deletes one task; create a second task and leave it undeleted when demonstrating disable/re-enable persistence.
 
-Client methods return Effects with typed transport/domain errors. `Task.Row` includes the revision needed for the next update. The client cannot call an undeclared method or select an arbitrary model table by name through the gateway.
+`ErpClient.make` and the `command` and `query` signatures are those of [ERP-SPEC.md](ERP-SPEC.md) §5. Client methods return Effects with typed transport/domain errors. `Task.Row` includes the revision needed for the next update. The client cannot call an undeclared method or select an arbitrary model table by name through the gateway.
 
 ## 10. Optional custom command
 
@@ -446,19 +451,18 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     Admin->>DB: persist disable intent
-    Admin->>Host: disable todo
-    Host->>Host: close admission for new Todo operations
+    Admin->>Host: publish demo's generation without todo
     Host-->>UI: catalog invalidated
     UI->>UI: hide Tasks and dispose local screen state
-    Host->>Calls: await admitted calls and finalizers
+    Host->>Calls: drain the retired generation (bounded)
     Calls-->>Host: settled
-    Host->>Host: close activation and unregister descriptors
+    Host->>Host: close the retired generation's scope (releases demo's leases on the activation)
     Admin->>DB: record disable completion
     Note over DB: Remaining task rows and schema are retained
     Host-->>Admin: disable complete
 ```
 
-The coordinator records disable intent durably before changing admission; the final database step records completion. A server crash during the process resumes toward that desired state. Browsers can disconnect without blocking server disable. Subsequent requests from stale screens are rejected. Re-enable publishes a new generation and reloads existing data under the current policy.
+The coordinator records disable intent durably before changing admission; the final database step records completion. Disable does not close the Todo activation: other tenants on the same closure may still use it, and the coordinator removes it only when no generation and no running workflow references it, after `moduleIdleGrace` ([ERP-RUNTIME.md](ERP-RUNTIME.md) §7). A server crash during the process resumes toward that desired state. Browsers can disconnect without blocking server disable. Subsequent requests from stale screens are rejected. Re-enable publishes a new generation and reloads existing data under the current policy.
 
 ## 12. What the framework does for this small plugin
 
@@ -482,8 +486,9 @@ The coordinator records disable intent durably before changing admission; the fi
 | Alice switches to another authorized company | Main tasks do not appear; pending responses from Main cannot fill the new screen. |
 | Two edits use revision 1 | One can advance to revision 2; the other receives `RevisionConflict`. |
 | A create response is lost after commit | Retry with the same input/key returns the original task, not a duplicate. |
-| One key is reused with a different title | `IdempotencyConflict`; no second write. |
-| Todo is disabled while a create is admitted | The admitted command settles before activation cleanup; new calls are rejected. |
+| One key is reused with a different title | `IdempotencyConflict` with reason `input-differs`; no second write. |
+| The same create is sent twice at once with one key | One runs; the other gets `IdempotencyConflict` with reason `in-flight` without waiting, and a later retry with the key returns the stored task marked as replayed. |
+| Todo is disabled while a create is admitted | The admitted command settles before the retired generation finishes draining; new calls of the demo tenant get `ModuleUnavailable`; another tenant using Todo is not affected. |
 | Todo is re-enabled | Remaining records return under the same actor/company rules. |
 | Initial migration succeeds but activation fails | Status records the failure; retry skips the completed migration and attempts activation. |
 | A browser is offline during disable | Server disable completes; browser reconciles the latest catalog on reconnect. |
@@ -495,3 +500,5 @@ These are reviewable behavior requirements, not tests already run. The walkthrou
 The [Planning extension example](ERP-MODELS.md) adds priority to the same Task table. It shows `Model.extend`, typed composition, extension migrations, tenant activation and shared write validation. The simple Todo plugin above remains unchanged.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §7 passes every required company field to `companies.ensure`; §7–§9 cite ERP-SPEC §5 for `ErpNode`, `ErpClient` and the HTTP wire format (E-07). §11 and §13: disable drains the tenant's generation and leaves the shared activation to the coordinator (E-02); §13 adds the in-flight duplicate case (E-01).

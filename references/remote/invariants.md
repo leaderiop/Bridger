@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-INV                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Runtime Invariants                                           |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F14, F19, F20) — INV-RM-009 holds within the `DedupeStore` retention, duplicates of a running call answered `InProgress`; INV-RM-011 includes the calling fiber's label, checked before sending (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — INV-RM-009 holds across per-call invocations with a `DedupeStore`; INV-RM-011 (residency placement) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 (F-07): INV-RM-012 added — a call carries no identity claim its link did not disclose (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F19, F20) — INV-RM-009 holds within the `DedupeStore` retention, duplicates of a running call answered `InProgress`; INV-RM-011 includes the calling fiber's label, checked before sending (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — INV-RM-009 holds across per-call invocations with a `DedupeStore`; INV-RM-011 (residency placement) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -323,6 +323,32 @@ it says nothing about where the far end really runs
 **Verification** *(Planned)*: checks 37 and 38 of BEH-RM-061.
 
 **Related**: [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md), [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md), [ADR-RM-010](decisions/010-placement-labels-compared-at-the-boundary.md).
+
+---
+
+## INV-RM-012: A call carries no identity claim its link did not disclose
+
+A `call` frame carries the actor, the principal (`onBehalfOf`), the
+organisation and the correlation id of its caller only when its link lists
+that claim in `RemoteOptions.disclose`; a link built without the option sends
+none of them. The link claims (`pluginId`, realm, version, contract version)
+and the "wire"-flow annotations are not identity claims and are unaffected.
+
+**Source**: `packages/remote/src/Call.ts` *(Planned)* — `WireClaims` is built
+from the token's claims filtered by the link's `disclose` list at mint; the
+token itself keeps every claim on the host (BEH-RM-024, BEH-RM-041).
+
+**Implication**: a guest or a peer host learns who is calling only when the
+integrator decided so for that link, and the decision is visible in
+`LinkStatus.disclosed` and in the session log. Host-side controls that read
+identity — `CallbackAdmission`, `PrincipalBudget`, the `CallLog` — read the
+token, so they keep working without disclosure.
+
+**Verification** *(Planned)*: check 45 of BEH-RM-061 — frame-log assertions
+that no identity claim crosses without `disclose`, and that exactly the
+disclosed subset crosses with it.
+
+**Related**: [BEH-RM-024](behaviors/03-remote-calls.md), [BEH-RM-065](behaviors/09-placement-budgets-and-adapters.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md), [ADR-RM-005](decisions/005-per-call-capability-tokens.md), [RSK-RM-016](risks.md#rsk-rm-016).
 
 ---
 

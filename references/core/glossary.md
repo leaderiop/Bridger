@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.9 (2026-11-08): Companion terms of round 2: receipt, listing record, model-facing envelope, signed statement, data pack, revocation list, kill-only apply, chain series, verification bundle, residency label, writers last, payload codec, expected version, fact, number series, crypto-shredding; entry owner and `HoldRevoked` (CCR-BR-027)<br>0.8 (2026-11-08): Hook point entry: phases, targets, breaker per plugin, declarations; declared contribution, HostLink, held event, idle return, denied-policy (CCR-BR-024); atomic apply, undo action, PartialApply, mandatory catalog, contract registry, Selector range (CCR-BR-025); refusal list, CurrentCorrelation, call-log failure policy, attributed unmount, call-log entry kinds (CCR-BR-026)<br>0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.11 (2026-11-09): Contract: local contract (`Contract.local`); realm family: a ready member; state handoff: `restart` and `reconfigure` under `alsoOn`, and a superseded build (U-02, U-03; local contracts); system stop names the idle return of a lazy plugin (BEH-BR-252, BEH-BR-073) (CCR-BR-033)<br>0.10 (2026-11-09): Base service: replaceable only in a realm that isolates its key; host-owned keys (C-02) (CCR-BR-032)<br>0.9 (2026-11-08): Companion terms of round 2: receipt, listing record, model-facing envelope, signed statement, data pack, revocation list, kill-only apply, chain series, verification bundle, residency label, writers last, payload codec, expected version, fact, number series, crypto-shredding; entry owner and `HoldRevoked` (CCR-BR-027)<br>0.8 (2026-11-08): Hook point entry: phases, targets, breaker per plugin, declarations; declared contribution, HostLink, held event, idle return, denied-policy (CCR-BR-024); atomic apply, undo action, PartialApply, mandatory catalog, contract registry, Selector range (CCR-BR-025); refusal list, CurrentCorrelation, call-log failure policy, attributed unmount, call-log entry kinds (CCR-BR-026)<br>0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -46,7 +46,10 @@ it is a **dependent** of that provider.
 ### Base service
 
 A service supplied when the host is constructed, outside any plugin. It belongs
-to the default realm and cannot be replaced by a plugin.
+to the default realm and cannot be replaced by a plugin there; a realm that
+isolates its key may hold its own provider of it. The **host-owned keys**
+`Bridger.Host` and `Bridger.Events` are base services of every realm: no
+plugin provides them and no realm isolates them.
 
 ### Activation
 
@@ -104,8 +107,9 @@ reports it as `pending`.
 ### System transition, system stop
 
 A transition no operator call asked for: an automatic start, a
-dependency-loss or runtime-failure stop, a child mount or removal by its
-parent, or shutdown's stops. A **system stop** is such a stop; it is audited as
+dependency-loss or runtime-failure stop, the idle return of a lazy plugin to
+`dormant` (BEH-BR-252), a child mount or removal by its parent, or shutdown's
+stops (BEH-BR-073). A **system stop** is such a stop; it is audited as
 a system record attributed to `Actor.system`, never gated.
 
 ### Cascade, cascade root, cascading call
@@ -196,7 +200,9 @@ description of its methods in Effect Schema, made by `Contract.make`; its
 `ServiceId` ends in `@<major>`. A **contract reference** is a contract, a
 range requirement on it (`contract.range("^2.1")`) or a provision of a lower
 version of it (`Contract.at`), used in `requires`, `provides` or `optional`
-([26](./behaviors/26-versioned-contracts.md)).
+([26](./behaviors/26-versioned-contracts.md)). A **local contract**, made by
+`Contract.local`, names its members without Schemas, for a service that runs
+only in the caller's process; it never crosses a host (BEH-BR-225).
 
 ### Contract range, compatible pair
 
@@ -383,7 +389,8 @@ A `ContributionRegistry` made with a `contract`: each contribution declares
 
 A **realm family** creates realms per key on first use and retires them when
 idle, through public operations; an **ephemeral realm** is bound to a scope.
-Neither is tenancy or separation. A **narrowed actor** (`Actor.narrow`,
+A member is **ready** when every plugin in it is `active`, `dormant` or
+disabled by an operator. Neither is tenancy or separation. A **narrowed actor** (`Actor.narrow`,
 `parent/segment`) is a label conferring nothing; `Actor.isWithin` recognises
 it. **Retirement** (`Host.retireRealm`) removes only an empty realm
 ([33](./behaviors/33-realm-families.md)).
@@ -391,7 +398,9 @@ it. **Retirement** (`Host.retireRealm`) removes only an empty realm
 ### State handoff
 
 Transfer of an active plugin's in-memory state from the old to the new
-definition during `replace`; a cold start is recorded when it fails
+definition during `replace`, or across a `restart` or restarting
+`reconfigure` the definition lists in `alsoOn`, into the next build that will
+be published; a cold start is recorded when it fails
 ([34](./behaviors/34-state-handoff.md)).
 
 ## Observation

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-08): INV-BR-046 covers idling and refused declarations, `HostLink.none` and failed reads, and states its scope (forged links, gap G64); INV-BR-052 retitled to Effect members with the residual named (CCR-BR-029)<br>0.10 (2026-11-08): INV-BR-046–047; INV-BR-040 and INV-BR-032 amended (CCR-BR-024); INV-BR-048–049 (CCR-BR-025); INV-BR-050–052 (CCR-BR-026)<br>0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.13 (2026-11-09): INV-BR-024 generated identifiers are unique within their host and across hosts sharing a store, an obligation on the generator that core does not check (F-03); INV-BR-004 the staleness of a build that imports handed-off state is decided before the import (U-02); INV-BR-045 covers `restart` and `reconfigure` under `alsoOn`, the stop's final step, and a superseded build that leaves the value held (C-14, U-02) (CCR-BR-033)<br>0.12 (2026-11-09): INV-BR-018 the final snapshot holds exactly the `failed(cleanup)` plugins of the report (U-01); INV-BR-020 verification: no realm isolates the host or its bus (C-02) (CCR-BR-032)<br>0.11 (2026-11-08): INV-BR-046 covers idling and refused declarations, `HostLink.none` and failed reads, and states its scope (forged links, gap G64); INV-BR-052 retitled to Effect members with the residual named (CCR-BR-029)<br>0.10 (2026-11-08): INV-BR-046–047; INV-BR-040 and INV-BR-032 amended (CCR-BR-024); INV-BR-048–049 (CCR-BR-025); INV-BR-050–052 (CCR-BR-026)<br>0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -146,7 +146,10 @@ lease observes a mixture of two published values.
 
 A build whose plugin's target changed while it ran — an operation applied to
 the plugin, or one of its captured providers beginning to stop — is allowed
-to settle and its result is never published.
+to settle and its result is never published. For a build that receives
+handed-off state, it runs until the host begins the import; from then on it
+is committed to publication or failure, and a later change applies to what
+it lands in (BEH-BR-349).
 
 **Source**: `packages/core/src/Lifecycle.ts` *(Planned)* — every activation
 carries an attempt token; the publication step compares it with the plugin's
@@ -167,7 +170,7 @@ a build open, apply each of `remove`, `replace`, `restart`, `reconfigure` and
 stale result is never `active`; a property test over generated interleavings
 of builds and operations.
 
-**Related**: [BEH-BR-039](behaviors/05-activation.md), [ADR-BR-004](decisions/004-replace-is-stop-then-start.md), [ADR-BR-013](decisions/013-total-operation-legality.md).
+**Related**: [BEH-BR-039](behaviors/05-activation.md), [BEH-BR-349](behaviors/34-state-handoff.md), [ADR-BR-004](decisions/004-replace-is-stop-then-start.md), [ADR-BR-013](decisions/013-total-operation-legality.md).
 
 ---
 
@@ -648,7 +651,9 @@ BEH-BR-184).
 
 Every cleanup failure and every drain that overran its limit during shutdown,
 and every plugin already `failed` with phase "cleanup" when shutdown began,
-appears in the `CloseReport`.
+appears in the `CloseReport`; and the final snapshot holds exactly the
+plugins the report lists as `failed` with cause "cleanup", every other plugin
+having been unregistered (CCR-BR-032).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — `shutdown` collects the
 outcome of every plugin's stop into `CloseReport.failed` (with `cause`
@@ -667,9 +672,10 @@ known before shutdown is reported again rather than assumed resolved.
 `Fault.holdLease` on several plugins, asserting each appears in `failed` with
 the right `cause`; a property test asserting the number of `failed` entries
 equals the number of injected cleanup and drain failures, on both the
-explicit and the scope-close path.
+explicit and the scope-close path, and that the plugins of the final
+snapshot are exactly those listed with cause "cleanup".
 
-**Related**: [BEH-BR-075](behaviors/08-operation-legality.md), [BEH-BR-106](behaviors/12-shutdown-and-hosting.md), [BEH-BR-108](behaviors/12-shutdown-and-hosting.md), [ADR-BR-009](decisions/009-managedruntime-hosting.md), [ADR-BR-005](decisions/005-failure-is-sticky.md).
+**Related**: [BEH-BR-075](behaviors/08-operation-legality.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-106](behaviors/12-shutdown-and-hosting.md), [BEH-BR-108](behaviors/12-shutdown-and-hosting.md), [BEH-BR-109](behaviors/12-shutdown-and-hosting.md), [ADR-BR-009](decisions/009-managedruntime-hosting.md), [ADR-BR-005](decisions/005-failure-is-sticky.md).
 
 ---
 
@@ -723,10 +729,13 @@ than implying a boundary that does not exist.
 
 **Verification** *(Planned)*: scenarios showing a key isolated in a realm
 never resolves outside it, and showing that plugins in two realms exchange
-events and share base services; a documentation check that the API reference
-and guides do not describe realms as a security boundary.
+events and share base services; a scenario showing that `defineRealm`
+refuses to isolate `Bridger.Host` or `Bridger.Events` with `InvalidRealm`,
+so that no realm can hold a second host or bus (CCR-BR-032); a documentation
+check that the API reference and guides do not describe realms as a
+security boundary.
 
-**Related**: [BEH-BR-145](behaviors/17-realms-and-interception.md), [BEH-BR-146](behaviors/17-realms-and-interception.md), [BEH-BR-150](behaviors/17-realms-and-interception.md), [ADR-BR-019](decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-027](decisions/027-core-exclusions.md).
+**Related**: [BEH-BR-012](behaviors/02-host-construction.md), [BEH-BR-137](behaviors/16-event-bus.md), [BEH-BR-145](behaviors/17-realms-and-interception.md), [BEH-BR-146](behaviors/17-realms-and-interception.md), [BEH-BR-150](behaviors/17-realms-and-interception.md), [ADR-BR-019](decisions/019-realms-are-resolution-namespaces.md), [ADR-BR-027](decisions/027-core-exclusions.md).
 
 ---
 
@@ -860,7 +869,9 @@ alteration it must not detect.
 ## INV-BR-024: Time and identifiers come only from services
 
 Every time core reads comes from Effect's `Clock`, and every identifier core
-creates comes from the `IdGenerator` service.
+creates comes from the `IdGenerator` service, whose values are unique within
+their host and across every host whose outputs reach a common store — an
+obligation on the generator, which core states and does not check.
 
 **Source**: `packages/core/src/IdGenerator.ts` *(Planned)* — the
 `@bridger/core/IdGenerator` service, read with `Effect.serviceOption` at
@@ -877,7 +888,10 @@ argument-less `new Date()` outside the default `IdGenerator`.
 
 **Implication**: two runs of the same script on the test host produce the
 same timestamps, identifiers and records, so a lifecycle — and its audit
-trail — can be reproduced exactly
+trail — can be reproduced exactly, and in production no two hosts, records
+or generated correlations sharing a store carry one identifier unless the
+generator breaks its obligation, which the sink's keep-or-refuse rule then
+makes visible (BEH-BR-193)
 ([RSK-BR-007](gxp/03-risk-assessment.md#rsk-br-007)). The static check is a
 drift guard against the ordinary form of ambient time and randomness; being
 textual, it cannot see an aliased or indexed call, and is not described as
@@ -887,9 +901,11 @@ proof.
 scenario running one operation script twice on fresh test hosts and asserting
 byte-identical snapshots, events and audit records; a scenario asserting
 `AuditRecord.timestamp` follows `TestClock` exactly in ISO-8601 UTC with
-milliseconds.
+milliseconds; acceptance check 114 for the uniqueness of the default and
+counter generators; for a provided generator, installation check 8 of the
+validation plan §5.1.
 
-**Related**: [BEH-BR-016](behaviors/02-host-construction.md), [BEH-BR-120](behaviors/13-observability-and-diagnostics.md), [BEH-BR-179](behaviors/21-testing-host.md), [BEH-BR-195](behaviors/23-audit-sink-and-record.md), [BEH-BR-209](behaviors/24-time-ids-and-sequence.md), [BEH-BR-210](behaviors/24-time-ids-and-sequence.md), [BEH-BR-211](behaviors/24-time-ids-and-sequence.md), [ADR-BR-025](decisions/025-deterministic-time-and-ids.md), [ADR-BR-026](decisions/026-deterministic-test-host.md).
+**Related**: [BEH-BR-016](behaviors/02-host-construction.md), [BEH-BR-120](behaviors/13-observability-and-diagnostics.md), [BEH-BR-179](behaviors/21-testing-host.md), [BEH-BR-193](behaviors/23-audit-sink-and-record.md), [BEH-BR-195](behaviors/23-audit-sink-and-record.md), [BEH-BR-209](behaviors/24-time-ids-and-sequence.md), [BEH-BR-210](behaviors/24-time-ids-and-sequence.md), [BEH-BR-211](behaviors/24-time-ids-and-sequence.md), [ADR-BR-025](decisions/025-deterministic-time-and-ids.md), [ADR-BR-026](decisions/026-deterministic-test-host.md).
 
 ---
 
@@ -1518,23 +1534,28 @@ use/evict histories; check 85.
 
 ## INV-BR-045: Handed-off state is never observable, and its loss is recorded
 
-State exported during a `replace` is held only in memory between export and
-import, appears in no record, event, log, snapshot, inspection or error, is
-dropped once imported or abandoned, and every attempt yields exactly one
-`handoff` record (with a sink wired) saying whether it was imported.
+State exported during a `replace`, or during a `restart` or restarting
+`reconfigure` whose definition lists it in `alsoOn`, as the stop's final
+step, is held only in memory until it is imported into a build that will be
+published, appears in no record, event, log, snapshot, inspection or error,
+outlives a build that a `restart` or `reconfigure` supersedes without being
+given to it, is dropped once imported or abandoned, and every attempt yields
+exactly one `handoff` record (with a sink wired) saying whether it was
+imported.
 
 **Source**: `packages/core/src/Handoff.ts` *(Planned)* — the held value is
-private to the replace's transition; the record writer receives only the
-outcome tag and a core-written message.
+private to the handing-off operation's transition and the builds that
+follow it; the record writer receives only the outcome tag and a
+core-written message.
 
 **Implication**: an upgrade that silently forgot its state is impossible to
 miss in the trail, and state never leaks through the observation surfaces.
 
 **Verification** *(Planned)*: scenarios with every loss path asserting one
 record before `system-start`; a scan of records, events, logs and snapshots
-for a sentinel value placed in the state; check 87 and 88.
+for a sentinel value placed in the state; checks 87, 88 and 103.
 
-**Related**: [BEH-BR-348](behaviors/34-state-handoff.md), [BEH-BR-350](behaviors/34-state-handoff.md), [BEH-BR-351](behaviors/34-state-handoff.md), [ADR-BR-049](decisions/049-state-handoff-on-replace.md).
+**Related**: [BEH-BR-348](behaviors/34-state-handoff.md), [BEH-BR-349](behaviors/34-state-handoff.md), [BEH-BR-350](behaviors/34-state-handoff.md), [BEH-BR-351](behaviors/34-state-handoff.md), [BEH-BR-353](behaviors/34-state-handoff.md), [ADR-BR-049](decisions/049-state-handoff-on-replace.md).
 
 ---
 

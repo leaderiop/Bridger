@@ -111,7 +111,7 @@ SUMMARY = {
  23: "Each fingerprint failure carries its fixed tag and core fails the call before the gate, writing no record",
  24: "`proposeFingerprints` equals the call's fingerprints; after rotation earlier tickets are refused and listed as stale",
  25: "`matchesFingerprint` answers match, no-match and key-retired-unavailable, and refuses inadmissible input",
- 26: "`runInstallationChecks` reports every IQ item in order, failing on wired fixtures and an unbounded `gateTimeout`",
+ 26: "`runInstallationChecks` reports every IQ item in order, failing on wired fixtures, an unbounded `gateTimeout` and a repeated identifier in the IQ-22 draw",
  27: "`collectOqEvidence` is exact on the known-bad corpus; packs reproduce byte for byte; `diffPacks` shows lost coverage",
  28: "Archives keep the stored canonical bytes; `readArchive` finds an edited line from its own run",
  29: "Peer dependencies only; core never imports the companion; the main entry point exports no port implementation and no policy",
@@ -207,13 +207,13 @@ out.append("\n".join([
     "# Traceability", "", "> **Document Control**", ">",
     "> | Property       | Value                                                        |",
     "> | -------------- | ------------------------------------------------------------ |",
-    dc("Document ID", "BRIDGER-GX-TRACE"), dc("Revision", "0.2"),
+    dc("Document ID", "BRIDGER-GX-TRACE"), dc("Revision", "0.3"),
     dc("Effective Date", "— (pending approval)"), dc("Status", "Draft"),
     dc("Author", "Bridger Engineering"),
     dc("Reviewed by", "— (no independent reviewer yet; see PROC-GX-03 §5)"),
     dc("Approved by", "— (pending; single maintainer, see PROC-GX-03 §5)"),
     dc("Classification", "Traceability Matrix"),
-    dc("Change History", "0.2 (2026-11-09): Regenerated for CCR-GX-002: behaviours 169–179 (files 20, 21, 22), BEH-GX-049–056 and INV-GX-013 withdrawn, INV-GX-016, ADR-GX-029 and ADR-GX-030, RSK-GX-023, acceptance scenarios REQ-GX-043–047 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)"),
+    dc("Change History", "0.3 (2026-11-09): REQ-GX-026 text: IQ-22, a repeated identifier in the draw (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Regenerated for CCR-GX-002: behaviours 169–179 (files 20, 21, 22), BEH-GX-049–056 and INV-GX-013 withdrawn, INV-GX-016, ADR-GX-029 and ADR-GX-030, RSK-GX-023, acceptance scenarios REQ-GX-043–047 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)"),
 ]))
 out.append('''
 ---

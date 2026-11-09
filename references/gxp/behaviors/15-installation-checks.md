@@ -5,20 +5,20 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-15                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
 Installation evidence answers one question: is what was specified installed
 and wired as intended, in this environment? Core's validation plan lists
-seven installation checks for a host and leaves them for the companion to
+eight installation checks for a host and leaves them for the companion to
 package ([core gxp/04](../../core/gxp/04-validation-plan.md) §5.1); since CCR-BR-014 most of them can be read from
 the host's read-only `Host.controls` ([BEH-BR-013](../../core/behaviors/02-host-construction.md)). This file specifies
 `runInstallationChecks`: the numbered checks, core's and the companion's, what
@@ -60,6 +60,10 @@ declare function runInstallationChecks(
     readonly packageRoot: string                     // the application directory module resolution starts from
     readonly lockfile: string                        // the lockfile the installation was made from
     readonly provenance?: { readonly verifiedBy: string; readonly attestationDigest: string }   // when the registry provides one
+    readonly idDraw?: {                              // core #8 (b), for IQ-22 (BEH-GX-116)
+      readonly generators: readonly IdGeneratorShape[] // IdGenerator service values (core BEH-BR-210), one per host whose outputs reach a common store, each built as that host's is in production
+      readonly count: number                         // values drawn from each, at least one host's draws between restarts
+    }
   }
 ): Effect.Effect<IqReport>                           // never fails: a check that cannot run is "not-executed"
 ```
@@ -87,6 +91,7 @@ declare function runInstallationChecks(
 | IQ-19 | `gateTimeout` is finite and exceeds the gate's attached deadline by at least 1 second | companion | proof |
 | IQ-20 | The approval gate is attached to this host | companion | proof |
 | IQ-21 | The high-water recorder's `status` reports no consecutive failures; its `lastMarked` is recorded | companion | probe |
+| IQ-22 | Where `Host.controls.idGenerator` is "provided", a draw of `idDraw.count` values from each generator of `idDraw` finds no value repeated within or across them | core #8 (b) | probe |
 
 ```
 REQUIREMENT: `runInstallationChecks` MUST produce exactly one result for each
@@ -151,6 +156,7 @@ interface IqResult {
 | IQ-U7 | The entropy asserted for each eligible "high" path | "not observable from code; Consumer obligation" |
 | IQ-U8 | Key generation, custody, rotation schedule and retention | "not observable from code; Consumer obligation" |
 | IQ-U9 | Durability, backup and restore of every store | "not observable from code; Consumer obligation" |
+| IQ-U10 | The design of a provided `IdGenerator`: every value unique within the host and across every host whose outputs reach a common store (core #8 (a), BEH-BR-210) | "not observable from code; Consumer obligation" |
 
 ```
 REQUIREMENT: "pass" MUST mean that the check ran and every observed value
@@ -169,7 +175,7 @@ REQUIREMENT: The items of the second table MUST always be listed with outcome
 ```
 
 ```
-REQUIREMENT: Every "fail", and every "not-executed" result of IQ-01 to IQ-21,
+REQUIREMENT: Every "fail", and every "not-executed" result of IQ-01 to IQ-22,
              MUST also be recorded as a deviation in the evidence pack
              (BEH-GX-133). A "not-applicable" result MUST NOT be recorded as
              a deviation, but its reason MUST be shown in every rendering.
@@ -218,7 +224,7 @@ next to it, which stays true for as long as nobody changes the installation.
 Watching the stores continuously is monitoring, which is the consumer's
 operational concern; the companion offers the probe, once, as IQ records it.
 
-## BEH-GX-116: Core's seven installation checks run through Host.controls against the consumer's declared requirements
+## BEH-GX-116: Core's eight installation checks run through Host.controls against the consumer's declared requirements
 
 > **See:** [ADR-GX-020](../decisions/020-iq-proof-and-probe.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)
 > **Satisfies:** [URS-GX-013](../urs.md#urs-gx-013-produce-installation-evidence), [URS-BR-025](../../core/urs.md)
@@ -267,9 +273,43 @@ REQUIREMENT: IQ-07 MUST pass only when, with `expected.fingerprinter` equal
              @bridger/gxp; review it under RSK-BR-024".
 ```
 
-Core's checks 4 to 7 examine the user's assembly, not the library, because
+```
+REQUIREMENT: IQ-22 MUST be decided by the `idGenerator` value that
+             `host.controls()` reports. When it is "default", IQ-22 MUST be
+             "not-applicable" with the reason "core's default generator;
+             122 random bits per value (BEH-BR-210)". When it
+             is "provided" and `idDraw` is absent, has no generator, or has
+             a `count` below 1, IQ-22 MUST be "not-executed" with the
+             reason "no generator instances supplied (core gxp/04 §5.1
+             #8 (b))". Otherwise it MUST draw `count` values from each
+             generator of `idDraw` through `next`, and MUST pass only when
+             every drawn value is distinct from every other, within one
+             generator and across generators; else it MUST "fail".
+             `expected` MUST carry the number of generators and `count`;
+             `observed` the number of values drawn, the number of repeated
+             values and the first repeated value.
+```
+
+```
+REQUIREMENT: IQ-22 MUST call only the generators in `idDraw`, never the
+             host's own `IdGenerator`, and MUST NOT write a drawn value
+             anywhere but its own result. A pass MUST be rendered as "no
+             repeat in this draw", never as proof of uniqueness; the
+             generator's design stays IQ-U10.
+```
+
+Core's check 8 has two parts, and only one of them is code. The design
+review — does the generator, by construction, give every host sharing a
+store values no other draw returns — is the consumer's (IQ-U10). The draw
+catches the misassembly a review of the design does not: two hosts given
+one prefix, a counter that restarts from 1. It is a probe, because a
+random generator may answer differently on the next run, and it uses the
+consumer's own instances, one per host of the deployment, because the
+companion sees one host and the collision it looks for is between hosts.
+
+Core's checks 4 to 8 examine the user's assembly, not the library, because
 they are the points through which its controls take effect or are bypassed
-([core gxp/04](../../core/gxp/04-validation-plan.md) §5.1). `Host.controls` makes them executable without
+([core gxp/04](../../core/gxp/04-validation-plan.md) §5.1). `Host.controls` makes checks 4 to 7 executable without
 inspecting source code: the host reports what it was built with, and the
 check compares that with what the consumer declared it must be. The
 declaration is the consumer's, made under their own risk assessment; the
@@ -401,7 +441,7 @@ interface IqReport {
   readonly hostId: string
   readonly runAt: string                              // from Clock
   readonly controls: HostControls                     // the snapshot every core check was derived from
-  readonly results: readonly IqResult[]               // IQ-01 … IQ-21, then IQ-U1 … IQ-U9
+  readonly results: readonly IqResult[]               // IQ-01 … IQ-22, then IQ-U1 … IQ-U10
   readonly statement: string
 }
 ```

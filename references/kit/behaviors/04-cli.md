@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-04                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): `publish` takes `--signer`; without the deployment's rules it prints "policy unknown" and runs no verification, with them it needs an explicit revocation source or `--revocation unbounded` and writes no `LoadLog`; `verify-chain` synopsis gains `--verifier`, `--profile` and `--expect-head`, and exit code 4 (round-2 agent review R3-10–R3-13) (CCR-KT-003)<br>0.4 (2026-11-08): `publish` signs through the loader's `Statement.signingInput` and `StatementSigner` and reports with `SignaturePolicy.verify` (G56 closed for the kit); BEH-KT-032 `countersign`; `verify-chain` listed (06); manifests carry `role`, `target`, `listens`; `dev --cold`, non-atomic reloads and G65 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.3 (2026-11-08): `dev` digests aligned with core's lazy and manifest digest rules (CCR-KT-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.6 (2026-11-09): BEH-KT-029: `pack` writes the entry in `extensions["@bridger/loader"].entry` and refuses a partner manifest without the guest shape (M-03, F-06); BEH-KT-032: `countersign --statement first-party` signs the loader's "first-party" statement (F-06) (CCR-KT-004)<br>0.5 (2026-11-08): `publish` takes `--signer`; without the deployment's rules it prints "policy unknown" and runs no verification, with them it needs an explicit revocation source or `--revocation unbounded` and writes no `LoadLog`; `verify-chain` synopsis gains `--verifier`, `--profile` and `--expect-head`, and exit code 4 (round-2 agent review R3-10–R3-13) (CCR-KT-003)<br>0.4 (2026-11-08): `publish` signs through the loader's `Statement.signingInput` and `StatementSigner` and reports with `SignaturePolicy.verify` (G56 closed for the kit); BEH-KT-032 `countersign`; `verify-chain` listed (06); manifests carry `role`, `target`, `listens`; `dev --cold`, non-atomic reloads and G65 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.3 (2026-11-08): `dev` digests aligned with core's lazy and manifest digest rules (CCR-KT-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -30,7 +30,7 @@ bridger test   [--conformance] [--reporter <name>]
 bridger check  [--contracts-only]
 bridger pack   [--out <dir>]
 bridger publish <package> --target <name> [--signer <adapter>] [--rules <file>] [--revocation <file>|unbounded] [--partial]
-bridger countersign <package> [--signer <adapter>] [--rules <file>] [--revocation <file>|unbounded]
+bridger countersign <package> [--statement package|first-party] [--signer <adapter>] [--rules <file>] [--revocation <file>|unbounded]
 bridger verify-chain <bundle> [--trust-roots <file>] [--verifier <module>]... [--profile <name>=<module>]... [--expect-head <seriesId>=<seq>[:<hash>]]... [--json]
 bridger inspect [--json] [--entry <module>] [<plugin>]
 bridger sdk generate <contract-package> [--out <dir>]
@@ -259,6 +259,31 @@ REQUIREMENT: The manifest `pack` emits, and the one `check` compares, MUST
 ```
 
 ```
+REQUIREMENT: Every plugin manifest `pack` emits MUST name the package's
+             entry in the loader's reserved key
+             `extensions["@bridger/loader"].entry` — `{ file, export }`,
+             the entry file's path in the package and the name of the
+             export holding the definition (loader
+             [BEH-LD-001](../../loader/behaviors/01-package-and-digest.md#beh-ld-001-a-package-is-a-manifest-an-sbom-and-a-set-of-files)) —
+             and `pack` MUST refuse to build when the file is not one of the
+             package's files. The kit MUST NOT write any other key under
+             `extensions["@bridger/loader"]`.
+```
+
+```
+REQUIREMENT: For a package made from the `partner` template, the manifest
+             `pack` emits MUST have the guest shape of the loader companion
+             ([BEH-LD-068](../../loader/behaviors/09-trust-class-and-guest-links.md)):
+             exactly one `provides` reference to the contract it serves,
+             empty `requires`, `optional`, `activation`, `contributions` and
+             `listens`, and its callbacks in `requested.capabilities`
+             (05, BEH-KT-035). `pack` MUST refuse a partner package whose
+             manifest does not have that shape, naming the field, so that a
+             partner learns at build time what a host's
+             `LoaderRemote.link` would refuse with `GuestEntryInvalid`.
+```
+
+```
 REQUIREMENT: `pack` MUST be reproducible: the same sources, lockfile and kit
              version MUST give byte-identical packages (sorted paths, fixed
              timestamps, normalised line endings).
@@ -384,6 +409,23 @@ REQUIREMENT: After appending, `countersign` MUST call
 REQUIREMENT: `countersign` MUST also accept a data pack (loader 08), with
              `statementType` "data-pack" and the data-pack digest
              (BEH-LD-058), under the same rules.
+```
+
+```
+REQUIREMENT: With `--statement first-party`, `countersign` MUST sign the
+             loader's "first-party" statement about the package — the
+             recomputed package digest, the manifest's id and version
+             ([BEH-LD-065](../../loader/behaviors/09-trust-class-and-guest-links.md)) —
+             through the same signing step, MUST append the signature to the
+             package's first-party signatures (the catalog entry's
+             `firstParty`), never to its package signatures, and MUST then
+             verify both statements and print each result: the package
+             statement first, since a first-party mark on a package the
+             "package" rule refuses marks nothing. Documentation MUST state
+             that this is the application's own release authority marking
+             its own code for evaluation in the host's process, that a
+             partner never runs it, and that the default `--statement
+             package` never adds a first-party signature.
 ```
 
 Countersigning is the second half of double signing: a reviewer who did not

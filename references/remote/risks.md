@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-RISK                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Risk Assessment                                              |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F17, F18, F19) — RSK-RM-001 residual for copies past the `DedupeStore` retention; RSK-RM-015 controls and residual for the "opaque" frame mode and host-realm scripts (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — RSK-RM-001 controls and residual with the `DedupeStore`; RSK-RM-013 controlled by attributed unmount (core G57 closed); RSK-RM-014 (residency labels) and RSK-RM-015 (browser frames) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — RSK-RM-001 residual raised for per-call transports and controls extended to callbacks; RSK-RM-012 (dependents' finalizers after a session loss) and RSK-RM-013 (revocation not linked in the core audit trail) added (R3-05, R3-06, R3-09, R3-12) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 (F-07): RSK-RM-016 added — identity disclosed to a peer without a recorded decision; RSK-RM-016 controls gain the call-log `disclosed` names and the residual is restated now that core carries them (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F17, F18, F19) — RSK-RM-001 residual for copies past the `DedupeStore` retention; RSK-RM-015 controls and residual for the "opaque" frame mode and host-realm scripts (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — RSK-RM-001 controls and residual with the `DedupeStore`; RSK-RM-013 controlled by attributed unmount (core G57 closed); RSK-RM-014 (residency labels) and RSK-RM-015 (browser frames) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — RSK-RM-001 residual raised for per-call transports and controls extended to callbacks; RSK-RM-012 (dependents' finalizers after a session loss) and RSK-RM-013 (revocation not linked in the core audit trail) added (R3-05, R3-06, R3-09, R3-12) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -203,6 +203,18 @@ integration of these risks into the core register is proposed in CCR-RM-001.
 | Controls | Exact `targetOrigin` and `allowedOrigins`, "*" refused as an option, source checked as the parent; in the "opaque" mode a `sandbox` without `allow-same-origin` required, the `ready` message checked by `event.source` and a one-time nonce, the port posted once to that window; one transferred port per connection, no further `window.postMessage` frames (BEH-RM-070); one session and epoch per frame; documentation of the `sandbox` configuration the separation depends on. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
 | Residual risk and acceptability | The frame's `sandbox`, origin and content security policy are the consumer's. In the "opaque" mode, a document that replaced the frame's document between `ready` and the handshake would receive the port; the peer on the port is untrusted in every mode. Scripts in the host page's own realm are inside the trust boundary. Acceptable with the documented configuration. |
+| Owner | Companion + Consumer |
+
+<a id="rsk-rm-016"></a>
+### RSK-RM-016: Identity disclosed to a peer without a recorded decision
+
+| Aspect | Assessment |
+| ------ | ---------- |
+| Failure mode | Every remote call sends the caller's actor, principal, organisation and correlation id to the guest or peer, which becomes a processor of that personal data without the application having decided so; or a link discloses identity and nobody can later tell which links did. |
+| Initial scoring | S 2 · P 3 · D 3 → class **High** (6) · priority **High** (9) |
+| Controls | Identity claims sent only when the link lists them in `RemoteOptions.disclose`, default none (BEH-RM-024, INV-RM-012); `org` on the wire only when disclosed (BEH-RM-065); a disclosing link listed in `LinkStatus.disclosed` and logged at each session open (BEH-RM-006, BEH-RM-024); host-side controls read the token, not the frame (BEH-RM-041, BEH-RM-043, BEH-RM-066); the federation companion's imports disclose only what the signed host manifest lists (federation BEH-FD-026); every call-log crossing entry names the identity claims that crossed with the call, never their values (BEH-RM-024, BEH-RM-046; core BEH-BR-280). |
+| Residual scoring | S 2 · P 1 · D 2 → class Low (2) · priority Low (2) |
+| Residual risk and acceptability | The per-call record of which claims crossed exists only where the application wires a core `CallLog` port; without one, the record is the link's configuration and its session log. Personal data inside payloads is the contract's and the application's, and no option of this package controls it. Acceptable with the stated limits. |
 | Owner | Companion + Consumer |
 
 ---

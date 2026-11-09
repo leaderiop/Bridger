@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-02                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): Resolutions of the round-2 agent review (A-03, A-05, A-11, A-12, A-13, A-16): the taint floor exempts commands declared `readOnly` (option `taintFloor.readOnly: "floor"` removes the exemption), drafts nothing for batch items and compensations; `CommandRequest.compensation`, `ApprovalRef.compensationOf`; dispatch by string id typed `unknown`; step 7 ends without a handler call offered as "refusal"; one flow list for the key annotation; `IdempotencyConflict` reasons `definition-differs`, `mode-differs`; options `receiptGrace`, `tasks.store` (CCR-CM-003)<br>0.5 (2026-11-08): BEH-CM-015 executed and replayed dispatches offered as call-log kind "dispatch" with core `DispatchInfo` (core G66 closed by CCR-BR-027); outcome mapping; Settled (3) (CCR-CM-003)<br>0.4 (2026-11-08): Steps 6 and 7 split into admission (breaker, receipt) and run (handler wrappers, handler, encode, receipt completion); `idempotencyKey` and `expectDigest` options; correlation from core `CurrentCorrelation`, `DispatchCorrelation` withdrawn; `CommandRequest` carries the typed metadata and the key; command hook points use core 31's phases, targets and policy, with the catalog's `hooks` options and `attach`; `CommandVetoed` gains `cause`; refusals offered to the call log as entries of kind "refusal", dispatch entries pending a core kind; errors `IdempotencyConflict`, `CommandBreakerOpen` (CCR-CM-003, round 2: recheck items 1, 2, 3, 4, 6, 10)<br>0.3 (2026-11-08): BEH-CM-016 taint floor; gate wrappers and draft source in catalog options; `ApprovalRef.inputDigest` and `ApprovalMismatch`; no reliance on mandatory interceptions; correlation through `DispatchCorrelation`; `onBehalfOf` as fiber principal (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.7 (2026-11-09): Specification audit of 2026-11-09 — step 6 consults the admission policies after the claim and the breaker, and step 8 settles them first (BEH-CM-044, C-10); options `admissions`, `receiptPartition` and `receiptContext` (06, BEH-CM-041, M-04 and the ERP alignment) (CCR-CM-004)<br>0.6 (2026-11-08): Resolutions of the round-2 agent review (A-03, A-05, A-11, A-12, A-13, A-16): the taint floor exempts commands declared `readOnly` (option `taintFloor.readOnly: "floor"` removes the exemption), drafts nothing for batch items and compensations; `CommandRequest.compensation`, `ApprovalRef.compensationOf`; dispatch by string id typed `unknown`; step 7 ends without a handler call offered as "refusal"; one flow list for the key annotation; `IdempotencyConflict` reasons `definition-differs`, `mode-differs`; options `receiptGrace`, `tasks.store` (CCR-CM-003)<br>0.5 (2026-11-08): BEH-CM-015 executed and replayed dispatches offered as call-log kind "dispatch" with core `DispatchInfo` (core G66 closed by CCR-BR-027); outcome mapping; Settled (3) (CCR-CM-003)<br>0.4 (2026-11-08): Steps 6 and 7 split into admission (breaker, receipt) and run (handler wrappers, handler, encode, receipt completion); `idempotencyKey` and `expectDigest` options; correlation from core `CurrentCorrelation`, `DispatchCorrelation` withdrawn; `CommandRequest` carries the typed metadata and the key; command hook points use core 31's phases, targets and policy, with the catalog's `hooks` options and `attach`; `CommandVetoed` gains `cause`; refusals offered to the call log as entries of kind "refusal", dispatch entries pending a core kind; errors `IdempotencyConflict`, `CommandBreakerOpen` (CCR-CM-003, round 2: recheck items 1, 2, 3, 4, 6, 10)<br>0.3 (2026-11-08): BEH-CM-016 taint floor; gate wrappers and draft source in catalog options; `ApprovalRef.inputDigest` and `ApprovalMismatch`; no reliance on mandatory interceptions; correlation through `DispatchCorrelation`; `onBehalfOf` as fiber principal (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -85,7 +85,9 @@ REQUIREMENT: `Commands.dispatch` MUST perform these steps in this order, and
                 actor, input and digest ends the dispatch with its stored
                 outcome, or its task handle, and skips step 7); then the
                 breaker (BEH-CM-043, `CommandBreakerOpen`, which releases
-                a fresh claim).
+                a fresh claim); then the admission policies (BEH-CM-044,
+                `CommandRefused`, which releases a fresh claim and returns
+                a probe slot).
              7. Run under a lease on the entry, bounded by the dispatch
                 timeout (BEH-CM-013), inside the handler wrappers
                 (BEH-CM-042): the handler, the encoding of its output with
@@ -94,8 +96,10 @@ REQUIREMENT: `Commands.dispatch` MUST perform these steps in this order, and
                 `ToolChanged`, `LeaseRevoked`, `CommandTimeout`,
                 `CommandOutputInvalid`, `CommandWrapperFailed`, or the
                 handler's typed error.
-             8. After-hooks and the call-log report (BEH-CM-012,
-                BEH-CM-015), which MUST NOT change the outcome.
+             8. The settlement of every admission that admitted
+                (BEH-CM-044), then after-hooks and the call-log report
+                (BEH-CM-012, BEH-CM-015); none of them MUST change the
+                outcome.
 ```
 
 ```
@@ -274,6 +278,9 @@ interface CommandCatalogOptions {
   readonly breaker?: CommandBreakerOptions | "off"      // 06, BEH-CM-043; default "off"
   readonly versions?: (key: string) => Effect.Effect<Option.Option<string>>   // 07, BEH-CM-051: Draft.check's reader
   readonly receiptGrace?: Duration.Input                // 06, BEH-CM-041: added to a claim's expiry; default 60 seconds
+  readonly receiptPartition?: (request: CommandRequest) => string   // 06, BEH-CM-041: receipt scope; default ""
+  readonly receiptContext?: ReadonlyArray<Context.Key<any, any>>    // 06, BEH-CM-041: dispatching-fiber keys the port receives
+  readonly admissions?: ReadonlyArray<CommandAdmission>             // 06, BEH-CM-044: consulted at step 6, settled at step 8
   readonly tasks?: { readonly retain?: number; readonly store?: CommandTaskStore }   // 07, BEH-CM-052, BEH-CM-054
   readonly taintFloor?: { readonly readOnly?: "exempt" | "floor" }   // BEH-CM-016; default "exempt"; can only tighten
 }

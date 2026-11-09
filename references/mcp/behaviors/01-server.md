@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-01                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-06, A-07, A-17): what a default (tainted) session can do — declared reads and resources on the gate's decision, writes only through an approval the client never applies; the model-facing text of a result rendered through `Command.envelope` with `maxResultBytes`, `structuredContent` capped by `maxStructuredBytes`; command tasks are MCP tasks when negotiated, a deferred call never; a long command awaited with `timeout: "forever"` (CCR-MC-003)<br>0.3 (2026-11-08): Inbound sessions tainted unless the application's resolver marks them trusted (BEH-MC-002); the session's listing record and `expectDigest` refuse a call whose definition changed since it was listed, `ToolChanged` mapped (BEH-MC-003–005); `readOnlyHint` from the descriptor; idempotency key from `_meta`; long commands as tasks; new outcomes mapped; MCP resources as projections of read-only commands (BEH-MC-006, BEH-MC-007) (CCR-MC-003, round 2: recheck items 1, 6, 7, 9; X7, X8)<br>0.2 (2026-11-08): `tools/call` pins per call and passes the toolset; deferred direct calls are `isError` results; `onBehalfOf` wording; `Annotations` type (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.5 (2026-11-09): BEH-MC-001 no entry point takes a contract object, so a local contract (core `Contract.local`) never crosses through this package (core CCR-BR-033) (CCR-MC-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-06, A-07, A-17): what a default (tainted) session can do — declared reads and resources on the gate's decision, writes only through an approval the client never applies; the model-facing text of a result rendered through `Command.envelope` with `maxResultBytes`, `structuredContent` capped by `maxStructuredBytes`; command tasks are MCP tasks when negotiated, a deferred call never; a long command awaited with `timeout: "forever"` (CCR-MC-003)<br>0.3 (2026-11-08): Inbound sessions tainted unless the application's resolver marks them trusted (BEH-MC-002); the session's listing record and `expectDigest` refuse a call whose definition changed since it was listed, `ToolChanged` mapped (BEH-MC-003–005); `readOnlyHint` from the descriptor; idempotency key from `_meta`; long commands as tasks; new outcomes mapped; MCP resources as projections of read-only commands (BEH-MC-006, BEH-MC-007) (CCR-MC-003, round 2: recheck items 1, 6, 7, 9; X7, X8)<br>0.2 (2026-11-08): `tools/call` pins per call and passes the toolset; deferred direct calls are `isError` results; `onBehalfOf` wording; `Annotations` type (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -70,6 +70,20 @@ REQUIREMENT: Removing, restarting or replacing the server plugin MUST end
 REQUIREMENT: The server MUST keep no list of tools of its own. Every tool it
              lists and every tool it calls MUST come from a `Toolset` of the
              command catalog.
+```
+
+```
+REQUIREMENT: No entry point of this package — the server, an import, the
+             host tools — MUST accept a service contract object (core
+             BEH-BR-225). The server projects commands to tools and
+             resources from their own schemas (command 04), and an import
+             contributes commands built from the external server's schemas
+             (03). A service under a local contract (`Contract.local`, core
+             BEH-BR-232) therefore never crosses through this package: a
+             command whose handler uses one runs inside the host, and only
+             the command's own input and output reach the client.
+             Documentation MUST state this, and MUST state that exposing
+             such a service to MCP takes a command written for it.
 ```
 
 A server that is a plugin inherits everything the host already says about

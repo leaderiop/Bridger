@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-08                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.3 (2026-11-09): Footer links file 09 (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -538,4 +538,4 @@ overlap, for data whose old and new versions are both valid for a period.
 
 ---
 
-_Previous: [07 — Signed Statements](./07-signed-statements.md)_ · _Next: [Invariants](../invariants.md)_
+_Previous: [07 — Signed Statements](./07-signed-statements.md)_ · _Next: [09 — Trust Class and Guest Links](./09-trust-class-and-guest-links.md)_

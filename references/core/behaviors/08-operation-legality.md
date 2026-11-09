@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.12 (2026-11-09): BEH-BR-071 `starting` row: a `restart` or `reconfigure` that supersedes a build keeps a held handoff value for the next build, and a call that arrives while a build imports handed-off state waits for the build step and is decided against the state it lands in (U-02) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-073 covers every system stop, the idle return of a lazy plugin (reason "idle", `next` "dormant") named (C-06); BEH-BR-075 every stop under shutdown ends "gone" or `failed(cleanup)` and nothing starts; BEH-BR-080 a resumed stop under shutdown unregisters the plugin (U-01) (CCR-BR-032)<br>0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -427,7 +427,7 @@ requirement availability (07 — Replacement and Reactivation, BEH-BR-057);
 | **unknown** | registers → `dormant`, `waiting`, `starting` or `disabled` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` |
 | **dormant** | `DuplicatePlugin` | unregisters at once; nothing was loaded | swap → `dormant` (lazy) or starting/waiting (eager); triggers re-applied | no-op | stores or clears the raw override; not decoded until load | no-op | → `disabled` | no-op |
 | **waiting** | `DuplicatePlugin` | unregisters at once | swap → starting/waiting | no-op | stores or clears the override; nothing to restart | no-op | → `disabled` | no-op |
-| **starting** | `DuplicatePlugin` | build settles, result discarded → gone | supersedes the target: build settles, discarded; swap → starting/waiting | no-op | override stored; build settles, discarded; builds again | supersedes the build: it settles, discarded; builds again | build settles, discarded → `disabled` | no-op |
+| **starting** | `DuplicatePlugin` | build settles, result discarded → gone | supersedes the target: build settles, discarded; swap → starting/waiting | no-op | override stored; build settles, discarded; builds again (a held handoff value stays held) | supersedes the build: it settles, discarded; builds again (a held handoff value stays held) | build settles, discarded → `disabled` | no-op |
 | **active** | `DuplicatePlugin` | stop → gone | stop, swap → starting/waiting | no-op | stop → starting/waiting; volatile-only: in place, no state change | stop → starting/waiting | stop → `disabled` | no-op |
 | **stopping** | `DuplicatePlugin` | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 |
 | **failed** (load, build, activation, runtime) | `DuplicatePlugin` | unregisters | swap → starting/waiting | → starting/waiting | → starting/waiting | as `retry` → starting/waiting | → `disabled` | no-op |
@@ -455,9 +455,26 @@ REQUIREMENT: Every cell of this table and of BEH-BR-072 MUST be an
              acceptance check of the core (21 — Testing Host).
 ```
 
+```
+REQUIREMENT: While a build of a plugin imports handed-off state (34 — State
+             Handoff, BEH-BR-349), an operator call that reaches its
+             linearization point MUST NOT be decided by the `starting` row:
+             it MUST wait, before its intent is recorded, until the build
+             step has ended, and MUST then be decided by this table against
+             the state the plugin landed in — `active`, or `failed` when the
+             import failed — as BEH-BR-073 decides a call that meets a
+             running system stop.
+```
+
 A `starting` plugin "with a build running" and one still queued behave the
 same in this table, except that a queued plugin has no build to settle and its
-transition step completes at once. A `stopping` plugin is decided by
+transition step completes at once. A build whose result is discarded keeps
+nothing of a handoff: a value handed off by the `replace`, `restart` or
+`reconfigure` that started the plugin stays held for the build that follows,
+and is abandoned only by a change after which no build of the registration
+will be published (34 — State Handoff, BEH-BR-351). Once a build has begun
+importing that value it is committed to publication or failure, so the
+`starting` row no longer applies to it (CCR-BR-033). A `stopping` plugin is decided by
 BEH-BR-072 while an operator operation is in flight (parked or not, and
 including a call that resumed a parked system stop), by
 BEH-BR-073 while a system stop runs or is parked, and by BEH-BR-074 and
@@ -577,9 +594,12 @@ operation and records its own outcome.
 
 ```
 REQUIREMENT: When an operator call reaches its linearization point while the
-             plugin is `stopping` because of a running system stop —
-             `reason` "dependency-loss" or "runtime-failure", not parked —
-             with no operator operation in flight, the call MUST wait,
+             plugin is `stopping` because of a running system stop — any
+             stop the host began without an operator operation: `reason`
+             "dependency-loss" or "runtime-failure", or "idle" with `next`
+             "dormant" for the idle return of a lazy plugin (27 — Manifest
+             and Lazy Activation, BEH-BR-252); not parked — with no
+             operator operation in flight, the call MUST wait,
              before its intent is recorded, until that stop has settled, and
              MUST then be decided by BEH-BR-071 against the state the plugin
              landed in. The wait is before the intent: interrupting the
@@ -609,8 +629,8 @@ REQUIREMENT: When an operator call reaches its linearization point while the
 ```
 
 A system stop has no caller to receive `Superseded` and a destination that is
-a fact about the world — the provider is gone, the plugin did fail — not a
-request. Letting it finish and then applying the operator's call to the
+a fact about the world — the provider is gone, the plugin did fail, the
+plugin was idle — not a request. Letting it finish and then applying the operator's call to the
 result keeps both honest: a `retry` issued during a runtime failure retries
 the recorded failure, a `remove` issued during a dependency loss removes the
 `waiting` plugin, and a plugin whose stop ended in phase "cleanup" refuses
@@ -642,7 +662,12 @@ because it revokes on expiry. That holds only where no caller exists to be
 told `DrainTimeout`. A dependency-loss stop under an operator's cascade
 drains under the operator's options, and revoking there would apply a
 `force` the operator never passed (BEH-BR-086), so it parks instead
-(CCR-BR-008). The five operations that resume it — `remove`, `replace`,
+(CCR-BR-008). An idle return has no caller either: it drains under
+`BridgerOptions.drainTimeout` and revokes on expiry, so it never parks and
+always settles by itself; until CCR-BR-032 it was named only in file 27, and
+this behaviour, which covered dependency-loss and runtime-failure stops,
+left a call that met it without a rule. The five operations that resume a
+parked stop — `remove`, `replace`,
 `restart`, `disable`, `reconfigure` — each stop a running plugin, so
 finishing a stop is part of what they ask for. `retry` and `enable` ask only
 to start a plugin that is not running; letting them resume a stuck drain
@@ -836,6 +861,14 @@ REQUIREMENT: An operation in flight when shutdown starts MUST have its
              plugin, and the operation's caller MUST complete with
              `HostClosed` unless its caller had already received its
              terminal outcome — including a call that parked.
+```
+
+```
+REQUIREMENT: A stop that shutdown takes over or resumes, and every stop it
+             begins, MUST end "gone", or in `failed` with phase "cleanup"
+             when its cleanup fails, whatever its earlier destination; a
+             plugin MUST NOT enter `starting` once shutdown has begun
+             (12 — Shutdown and Hosting, BEH-BR-105).
 ```
 
 ```
@@ -1187,7 +1220,9 @@ REQUIREMENT: When the parked stop was an operator operation's, its intent
              "dependency-loss" ("shutdown" under shutdown), D MUST land
              where a dependency-loss stop leads (`waiting`, or `starting`
              when another provider is available) — or, when D is a child of
-             P, D MUST be removed when its stop completes (BEH-BR-079) — and
+             P, D MUST be removed when its stop completes (BEH-BR-079); under
+             shutdown D MUST be unregistered when its stop completes
+             (12 — Shutdown and Hosting, BEH-BR-105) — and
              the parked operation's remaining actions — unregistering,
              disabling, swapping the definition, rebuilding — MUST NOT run.
 ```

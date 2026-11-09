@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GLOSSARY                                          |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Glossary                                                     |
-> | Change History | 0.2 (2026-11-09): Trail entry, marked entry, collision entry, trail gate; anchor store holds high-water marks only; sealing and seal verification are `@bridger/audit-chain`'s; canonical domain I-JSON (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-09): Installation checks: core's eight checks (IQ-01 to IQ-07, IQ-22 and IQ-U10) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Trail entry, marked entry, collision entry, trail gate; anchor store holds high-water marks only; sealing and seal verification are `@bridger/audit-chain`'s; canonical domain I-JSON (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -277,8 +277,9 @@ current. After rotation such a ticket must be re-issued.
 ### Installation checks (IQ)
 
 `runInstallationChecks`: checks of a running installation, including core's
-seven installation checks (IQ-01 to IQ-07, those on wiring read through
-`Host.controls`) and the companion's own. Each result is pass, fail, not-applicable or not-executed, and is marked
+eight installation checks (IQ-01 to IQ-07 and IQ-22, those on wiring read
+through `Host.controls`, IQ-22 a draw from the consumer's identifier
+generators, and the design review of the eighth listed as IQ-U10) and the companion's own. Each result is pass, fail, not-applicable or not-executed, and is marked
 **proof** (established from the installation itself) or **probe** (an
 observation at one moment, such as reachability)
 ([ADR-GX-020](./decisions/020-iq-proof-and-probe.md)).

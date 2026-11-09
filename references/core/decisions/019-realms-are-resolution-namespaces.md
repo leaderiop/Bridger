@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-019                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amended by ADR-BR-043 and ADR-BR-048 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): Mandatory interceptions also apply to `Host.use`, `useAll` and `lease` and compose outside ordinary ones (CCR-BR-018); an empty realm may be retired (CCR-BR-019)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-09): Resolution rule: an isolating realm may provide a base key; the host-owned keys cannot be isolated (`InvalidRealm`); amendment recorded (C-02) (CCR-BR-032)<br>0.3 (2026-11-08): Mandatory interceptions also apply to `Host.use`, `useAll` and `lease` and compose outside ordinary ones (CCR-BR-018); an empty realm may be retired (CCR-BR-019)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -26,7 +26,7 @@ The same mechanism invites a dangerous reading. A word like "realm" or "isolate"
 **A realm is a named service-resolution namespace and nothing more.**
 
 - `defineRealm(id, { isolate, interceptors })` creates a realm; `DuplicateRealm` if it exists. The `"default"` realm always exists. Installing into an undefined realm fails with `UnknownRealm`. Realms live as long as the host unless retired while empty ([ADR-BR-048](../decisions/048-realm-families-and-retirement.md)); their plugins are removed individually.
-- **Resolution rule.** A plugin installed in realm *R* resolves each required or optional key as follows: if the key is in *R*'s `isolate` list, only providers installed in *R* count; otherwise providers in the default realm count. Isolated keys never leak out of *R*. Base services belong to the default realm.
+- **Resolution rule.** A plugin installed in realm *R* resolves each required or optional key as follows: if the key is in *R*'s `isolate` list, only providers installed in *R* count; otherwise providers in the default realm count. Isolated keys never leak out of *R*. Base services belong to the default realm: a realm that isolates a key the base also provides gets its own provider slot for it, which a plugin installed in the realm may fill, and the base service is invisible there. The host-owned keys `Bridger.Host` and `Bridger.Events` cannot be isolated (`InvalidRealm`), so that every realm resolves the one host and the one bus.
 - **Per-realm uniqueness.** Plugin IDs are unique per realm, and so are provider slots for isolated keys; dependency-cycle and `DuplicateProvider` checks run per resolution scope. The same definition can therefore be installed in two realms that isolate its provided keys.
 - **Addressing.** Plugin-addressed operations take a `PluginRef` (`string` for the default realm, or `{ id, realm }`); `use`, `useAll` and `lease` take a `realm` option. Snapshots record each plugin's `realm`; `HostSnapshot.realms` lists each realm's isolated keys and available service IDs.
 - **Interception.** An `Interception<S>` (`{ key, wrap(service, consumer) }`), set by `InstallOptions.intercept`, by the realm, or inherited from a parent plugin, makes the consumer receive `wrap(service, { pluginId, realm })` when its provider is captured. It is applied once per activation and cannot see other consumers. Leases stay on the provider, not on the wrapper.
@@ -58,6 +58,10 @@ The same mechanism invites a dangerous reading. A word like "realm" or "isolate"
 
 - Mandatory interceptions ([ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)) also apply to `Host.use`, `useAll` and `lease`, and compose outside ordinary interceptions.
 - Realm families and ephemeral realms are realms; an empty realm can be retired, which decides nothing about plugins ([ADR-BR-048](../decisions/048-realm-families-and-retirement.md)).
+
+**Amendments (2026-11-09, CCR-BR-032)**:
+
+- The rule that a plugin may not provide a base key applies only where the key resolves in the default realm's scope; a realm that isolates a base key may hold its own provider of it ([02 — Host construction](../behaviors/02-host-construction.md), BEH-BR-012), as the resolution rule above already implied. The host and its event bus cannot be isolated: `defineRealm` refuses such a realm with `InvalidRealm` ([17 — Realms and interception](../behaviors/17-realms-and-interception.md), BEH-BR-145), so a realm can never hold a second host or bus.
 
 ## References
 

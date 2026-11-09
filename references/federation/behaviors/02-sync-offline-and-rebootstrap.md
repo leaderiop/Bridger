@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-09): BEH-FD-009 `contracts` rejects a local contract at compile time, and one passed untyped fails the plugin's build with the remote companion's `LocalContractRefused` before the store is read (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -43,7 +43,8 @@ interface FederationOptions {
   readonly source: Context.Key<any, ManifestSource>
   readonly store: Context.Key<any, ManifestStore>
   readonly resolver: Context.Key<any, PluginResolver>
-  readonly contracts: readonly Contract.Any[]          // contracts this host can import or export, by name and major (BEH-FD-020)
+  readonly contracts: readonly Contract.Any[]          // contracts this host can import or export, by name and major (BEH-FD-020);
+                                                       // typed to reject a local contract (core Contract.local), see below
   readonly dialer?: Context.Key<any, LinkDialer>       // required when the manifest names imports
   readonly listener?: Context.Key<any, LinkListener>   // required when the manifest names exports
   readonly reporter?: Context.Key<any, StatusReporter>
@@ -99,6 +100,22 @@ REQUIREMENT: `Federation.plugin` MUST return an ordinary plugin definition
 ```
 
 ```
+REQUIREMENT: `FederationOptions.contracts` MUST be typed so that a local
+             contract (`Contract.local`, core BEH-BR-225) is a compile
+             error. A contract object in it whose `local` is true MUST make
+             the plugin's build fail with the remote companion's
+             `LocalContractRefused { serviceId, site:
+             "federation-contracts" }` (remote BEH-RM-007) before the build
+             reads the `ManifestStore`, so that `install` leaves the plugin
+             `failed` with that tag and nothing is applied, imported or
+             served. A local contract must not cross a host boundary (core
+             BEH-BR-232), and every contract in `contracts` exists to cross
+             one; a manifest entry can therefore never name a local
+             contract: its (key, major) finds no contract and is dropped
+             "unknown-contract" (03, BEH-FD-020).
+```
+
+```
 REQUIREMENT: The plugin's build MUST NOT call the `ManifestSource`, the
              `LinkDialer` or any other network port, and MUST NOT call
              `reconcile`. It MUST only read the `ManifestStore`, verify, and
@@ -120,7 +137,10 @@ never waits on a peer. Treating source outages as status rather than failure
 keeps the plugin `active` — failure is sticky in core
 ([ADR-BR-005](../../core/decisions/005-failure-is-sticky.md)) and a sticky
 failure for a routine outage would need an operator to `retry` every
-terminal after every outage.
+terminal after every outage. A local contract in `contracts` is the
+opposite case: a fault in the application's own code, the same on every
+start, which no manifest can repair. Failing the build makes it visible at
+`install` instead of as imports that never appear.
 
 ## BEH-FD-010: Boot applies the highest verified manifest, else the boot bundle
 

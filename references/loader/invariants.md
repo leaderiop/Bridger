@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.4 (2026-11-09): INV-LD-009 (no package is evaluated in the host's process without an accepted first-party statement); INV-LD-001 and INV-LD-004 cite file 09 (specification audit F-06, M-06); INV-LD-009 guest wording (independent review) (CCR-LD-004)<br>0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -26,8 +26,8 @@ written and executed ([ADR-BR-035](../core/decisions/035-evidence-from-executed-
 
 No byte of a package reaches an evaluator, a module loader, `eval`,
 `Function`, `import()` or `require` before the digest comparison, the
-acceptance rule, the revocation check and the application's predicates have
-all succeeded for that package.
+acceptance rule, the "first-party" rule (BEH-LD-065), the revocation check and
+the application's predicates have all succeeded for that package.
 
 **Source**: `packages/loader/src/Loader.ts` *(Planned)* — the pipeline is one
 sequential `Effect.gen` whose evaluator call is reachable only after the
@@ -41,7 +41,7 @@ record.
 recording evaluator, each step failing in turn; a type-level test that
 `EvaluatorShape.evaluate` accepts only `VerifiedPackage`.
 
-**Related**: [BEH-LD-004](behaviors/01-package-and-digest.md), [BEH-LD-009](behaviors/02-load-pipeline.md), [BEH-LD-013](behaviors/02-load-pipeline.md), [BEH-LD-024](behaviors/03-signature-policy.md), [BEH-LD-037](behaviors/05-catalog-and-lazy-loading.md), [ADR-LD-001](decisions/001-verify-before-evaluate.md).
+**Related**: [BEH-LD-004](behaviors/01-package-and-digest.md), [BEH-LD-009](behaviors/02-load-pipeline.md), [BEH-LD-013](behaviors/02-load-pipeline.md), [BEH-LD-024](behaviors/03-signature-policy.md), [BEH-LD-037](behaviors/05-catalog-and-lazy-loading.md), [BEH-LD-065](behaviors/09-trust-class-and-guest-links.md), [ADR-LD-001](decisions/001-verify-before-evaluate.md).
 
 ---
 
@@ -99,12 +99,16 @@ pipeline and `Catalog.verifyEntry` read the current set; stale or
 unavailable sets refuse.
 
 **Implication**: the kill switch also holds for code that has not been loaded
-yet, including lazy plugins whose trigger fires after the revocation.
+yet, including lazy plugins whose trigger fires after the revocation, and
+guest links, whose every session fetches and verifies again (BEH-LD-068). The
+package digests revoked by digest, statement digest or signer are computed
+once, in the `RevokedDigests` view (BEH-LD-070), which the remote boundary
+reads.
 
 **Verification** *(Planned)*: acceptance checks 11, 13, 14 and 15 of
 BEH-LD-048.
 
-**Related**: [BEH-LD-027](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-030](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-034](behaviors/05-catalog-and-lazy-loading.md), [ADR-LD-004](decisions/004-revocation-acts-through-desired-state.md).
+**Related**: [BEH-LD-027](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-030](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-034](behaviors/05-catalog-and-lazy-loading.md), [BEH-LD-068](behaviors/09-trust-class-and-guest-links.md), [BEH-LD-070](behaviors/09-trust-class-and-guest-links.md), [ADR-LD-004](decisions/004-revocation-acts-through-desired-state.md).
 
 ---
 
@@ -191,3 +195,30 @@ types.
 **Verification** *(Planned)*: acceptance checks 17 and 18 of BEH-LD-064.
 
 **Related**: [BEH-LD-049](behaviors/07-signed-statements.md), [BEH-LD-050](behaviors/07-signed-statements.md), [BEH-LD-051](behaviors/07-signed-statements.md), [BEH-LD-054](behaviors/07-signed-statements.md), [ADR-LD-006](decisions/006-one-verification-step-for-every-signed-statement.md).
+
+---
+
+## INV-LD-009: No package is evaluated in the host process without an accepted first-party statement
+
+Every package the loader evaluates in the host's process — through `load` or
+through the `load` of a definition built by `Loader.lazy` — had, at that load,
+both its "package" statement and its "first-party" statement accepted by
+`SignaturePolicy.verify` under the current rules and revocation set. A package
+whose "first-party" statement is absent, unsatisfied or revoked is never
+evaluated by the loader; it may only be fetched with `fetchVerified` and run
+as a guest, outside the host's runtime.
+
+**Source**: `packages/loader/src/Loader.ts` and `packages/loader/src/Trust.ts`
+*(Planned)* — step 4 of the pipeline makes the two `verify` calls in order and
+no path to the evaluator skips the second; `Loader.lazy` builds no definition
+for a guest entry; `fetchVerified` has no evaluator.
+
+**Implication**: in-process evaluation is always an explicit, signed and
+revocable decision of the application's release authority, never a
+consequence of a partner's package being listed in a catalog or accepted by
+the "package" rule. It says nothing about what in-process code does once
+evaluated ([BEH-LD-041](behaviors/06-limits-and-acceptance.md)).
+
+**Verification** *(Planned)*: acceptance checks 25 and 27 of BEH-LD-071.
+
+**Related**: [BEH-LD-009](behaviors/02-load-pipeline.md), [BEH-LD-065](behaviors/09-trust-class-and-guest-links.md), [BEH-LD-067](behaviors/09-trust-class-and-guest-links.md), [ADR-LD-005](decisions/005-in-process-loading-is-for-first-party-code.md), [ADR-LD-008](decisions/008-in-process-eligibility-is-a-signed-statement.md).

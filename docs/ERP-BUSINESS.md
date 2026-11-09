@@ -6,14 +6,14 @@ Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-
 
 ## 1. Decision
 
-Business capability is delivered by **modules** on top of platform services. The platform defines *how* events, jobs, workflows, integrations, attachments, search, reports, notifications, imports and APIs behave; modules define *what* they do. Domain modules (accounting, tax, stock, sales, purchasing) are specified here at the contract level only: invariants, events and \1(§14). Detailed domain designs need target country, industry and company-size decisions (B16) and are separate documents.
+Business capability is delivered by **modules** on top of platform services. The platform defines *how* events, jobs, workflows, integrations, attachments, search, reports, notifications, imports and APIs behave; modules define *what* they do. Domain modules (accounting, tax, stock, sales, purchasing) are specified here at the contract level only: the models each domain owns, the events it emits and consumes, its invariants and the extension points every domain exposes (§14). Detailed domain designs need target country, industry and company-size decisions (B16) and are separate documents.
 
 Four lifetimes stay separate ([knowledge/ARCHITECTURE.md](knowledge/ARCHITECTURE.md)): infrastructure, runtime activation, durable execution and business data. Disabling a module must not delete its data or cancel durable executions it owns (§5).
 
 ```mermaid
 flowchart TB
     Cmd[Command transaction] -->|rows + audit + outbox + receipt| DB[(Database)]
-    DB --> Outbox[Outbox worker]
+    DB --> Outbox[Durable-bus relay]
     Outbox --> Subs[Event subscribers]
     Subs --> Jobs[Job queue]
     Subs --> Wf[Workflows]
@@ -51,7 +51,7 @@ Module.define({ events: [TaskCreated], subscribers: [IndexTask] /* … */ })
 ```
 
 - Standard model events (`created`, `updated`, `deleted`) are emitted by `Records` for every model; custom events are emitted by commands with `ctx.emit(event, payload)`, which appends to the outbox in the same transaction.
-- Payload schemas are public contracts. Subscribers decode with the **event's declared version**, so delivery does not require the emitting module's code to remain loaded ([ERP-MODELS.md](ERP-MODELS.md) §4). Adding optional fields is compatible; removing or retyping a field requires a new version, and the emitter keeps emitting the old version until all subscribers declare support.
+- Payload schemas are public contracts. Subscribers decode with the **event's declared version**, so delivery does not require the emitting module's code to remain loaded ([ERP-MODELS.md](ERP-MODELS.md) §4). Every change of the encoded payload, an added optional field included, raises the event's version and adds the upcaster from the previous version ([BEH-DB-001](../references/durable-bus/behaviors/01-events-and-envelope.md#beh-db-001-durableeventmake-declares-a-versioned-event)); only a change that leaves the encoding of every value as it was may keep the version. A subscriber that meets a version it does not know halts or parks the envelope instead of dropping data ([BEH-DB-026](../references/durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-026-unknown-versions-are-parked-not-dropped)). A module publishes the new version only when every subscriber in scope reads it; until then it may publish N−1 through a declared downcast, which refuses a value N−1 cannot carry ([BEH-DB-030](../references/durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-030-encoding-uses-the-current-version-only), [BEH-DB-031](../references/durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-031-one-skew-rule-for-events-writers-last-where-readers-cannot-go-first)). A change that cannot be upcast takes a new event type. The standard `created`, `updated` and `deleted` events carry the model's base row, so a base-model change that alters its encoding raises their version too; extension fields are not part of that payload.
 - Payloads omit values of fields marked sensitive; subscribers needing them read through `Records` under their own authorization.
 
 ### Subscribers
@@ -81,10 +81,27 @@ Job.define("search.reindex", {
 JobSchedule.define("todo.cleanup", { cron: "0 3 * * *", timezone: "tenant", job: Cleanup, input: () => ({}) })
 ```
 
-- **Durable queue.** Enqueue is a row in `bridger_jobs` (id, tenant, job id, input, state, attempt, run-at, lease, last error) written in the caller's transaction, so a job exists if and only if its cause committed. Workers claim rows through the storage adapter's `claim` operation (native skip-locked leasing where available, otherwise the optimistic claim; [ERP-STORAGE.md](ERP-STORAGE.md) §3.2). `effect/persistence` `PersistedQueue` may carry fan-out but is not exactly-once; the job table is the source of truth.
+- **Durable queue.** Enqueue is a row in `bridger_jobs` written in the caller's transaction, so a job exists if and only if its cause committed. `effect/persistence` `PersistedQueue` may carry fan-out but is not exactly once; the job table is the source of truth. The job queue is ERP-owned and is not part of the durable-bus outbox, whose leases and retries this document does not define ([ERP-STORAGE.md](ERP-STORAGE.md) §12).
+
+```text
+bridger_jobs
+  id                id        primary key   -- UUIDv7
+  tenant_id         id        not null
+  company_id        id        not null      -- '*' for a tenant-level job
+  job_id            text      not null      -- e.g. search.reindex
+  input             json      not null
+  state             text      not null      -- 'ready' | 'running' | 'succeeded' | 'dead' | 'cancelled'
+  attempt           integer   not null      -- 0 before the first run
+  run_at            instant   not null      -- earliest start; backoff moves it forward
+  lease_owner       text      null          -- worker id while 'running'
+  lease_expires_at  instant   null          -- database clock (adapter `now`)
+  last_error        json      null
+```
+
+- **Claiming.** A worker claims up to `limit` rows through the storage adapter's `claim` ([ERP-STORAGE.md](ERP-STORAGE.md) §3.1), in one short transaction. A row is claimable when it is `ready` with `run_at` reached, or `running` with `lease_expires_at` passed (its worker stopped). With the `skipLocked` capability the adapter selects claimable rows with skip-locked row locks and sets `state = 'running'`, `lease_owner`, `lease_expires_at = now + lease` and `attempt = attempt + 1`. Without it, the claim is optimistic: the same update guarded by the state and lease values just read, keeping only the rows whose update touched one row. Lease times come from the database clock ([ERP-RECORDS.md](ERP-RECORDS.md) §11). A worker renews its lease while the job runs; a job whose lease expired may run again on another worker, which is why handlers are idempotent (below). The worker that finishes a job updates it only if `lease_owner` is still its own.
 - **Scheduling.** A single scheduler per deployment (leader chosen by the storage adapter's named lock) enqueues due schedule entries. An in-memory `Schedule` alone is not durable; missed runs after downtime follow a declared policy (`catchUp: "all" | "latest" | "skip"`).
-- **Fairness.** `PartitionedSemaphore` gives per-tenant concurrency inside one process; the global limit is enforced by the lease query across processes.
-- **Idempotency and timeouts.** Job handlers must be idempotent (at-least-once). A job timed out is retried; exhausted retries move to `dead` with the last error, visible and replayable in the admin surface ([ERP-OPERATIONS.md](ERP-OPERATIONS.md) §8).
+- **Fairness.** `PartitionedSemaphore` gives per-tenant concurrency inside one process; the global limit is enforced by the claim query across processes.
+- **Idempotency and timeouts.** Job handlers must be idempotent (at least once). A job that fails or times out returns to `ready` with `run_at` moved by its `retry` schedule; when the schedule is exhausted it moves to `dead` with the last error, visible in the admin surface and retried there with `jobs.retry` ([ERP-OPERATIONS.md](ERP-OPERATIONS.md) §8). `dead` is a state of the ERP job queue only; durable-bus envelopes are halted or parked, never dead ([BEH-DB-021](../references/durable-bus/behaviors/03-delivery-and-inbox.md), BEH-DB-022).
 - Jobs run with a tenant (and optional company) context and a system subject; the job declares the permissions it needs, reviewed at approval ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §3).
 
 ## 4. Workflows and approvals
@@ -105,7 +122,10 @@ Platform contracts:
 
 - **Engine storage** is the ERP database through the storage adapter (workflow instances, activity results, timers). Workflow input includes tenant and company; the engine namespaces by tenant.
 - **Activities** wrap each side effect. An activity has a recorded result; the crash window *between performing an external effect and recording it* remains: external activities must carry an idempotency key or support reconciliation (§6).
-- **Versioning (B10).** A workflow definition belongs to the module version that registered it. Running instances are **pinned** to the definition version they started on. Disabling or upgrading a module does not cancel running instances: the engine keeps the old definition loaded (resident artifact, [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §5) until its last instance finishes, or the administrator explicitly migrates or terminates them. A module with live workflows cannot be removed; `disable` stops *starting* new instances and leaves running ones draining, reported in `modules.status`.
+- **Versioning (B10).** A workflow definition belongs to the module version that registered it. Running instances are **pinned** to the definition version they started on, and neither upgrade nor disable cancels them.
+  - **Upgrade.** New instances use the new definition. Pinned instances keep running on the old one; the engine keeps the old closure resident (resident artifact, [ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §5) until the last of them finishes or the administrator migrates or terminates them.
+  - **Disable.** One rule, the one of §5: no new instance starts; running instances drain for at most `workflowDisableGrace` (default 10 minutes); at the grace the engine suspends each one still running, with state `suspended-module-disabled`. Suspending interrupts the instance's fiber: an activity in flight is not recorded and runs again on resume, which is why activities carry an idempotency key or support reconciliation (above). A suspended instance holds no reference on the module's activation ([ERP-RUNTIME.md](ERP-RUNTIME.md) §7a), so a running workflow never keeps a disabled module's activation past the grace. `disable` returns when the tenant generation has drained and does not wait for the grace; `modules.status` reports the instances still draining and those suspended.
+  - A module with running or suspended workflows cannot be retired (§5).
 - **Compensation is not rollback.** Compensation covers top-level workflow effects only; completed business actions are corrected by new documents (e.g. credit notes), not undone by finalizers.
 - **Approvals** are a platform workflow pattern:
 
@@ -131,8 +151,8 @@ ApprovalPolicy.define("sales.order", {
 
 | Event | Effect on durable work |
 | --- | --- |
-| Module `disable` | No new jobs/workflows/subscriber leases start for it; running ones drain up to a configured grace; remaining ones are suspended with state `suspended-module-disabled`. |
-| Module `enable` (same or newer compatible artifact) | Suspended work resumes; subscribers resume from their outbox cursor. |
+| Module `disable` | No new jobs, workflow instances or subscriber deliveries start for it in that tenant; running jobs and workflow instances drain for at most `workflowDisableGrace`; those still running are then suspended with state `suspended-module-disabled` and hold no reference on the module's activation (§4). |
+| Module `enable` (same or newer compatible artifact) | Suspended work resumes, each workflow instance on its pinned definition, re-activating that closure if needed; subscribers resume from their inbox cursor ([BEH-DB-023](../references/durable-bus/behaviors/03-delivery-and-inbox.md)). |
 | Upgrade | In-flight workflows stay pinned (§4); new instances use the new definition. |
 | Retire (no compatible artifact exists) | Administrator must drain, migrate or terminate remaining work explicitly; the manager refuses to retire otherwise. |
 
@@ -187,7 +207,7 @@ interface SearchIndex {                              // port: adapter full-text 
 Built on `effect/http-api` (E40, E41).
 
 - Public API under `/api/v1/...` with generated OpenAPI per tenant and principal: models and operations that modules mark `api: { expose: true }`. Authentication via awthaq API keys or OAuth bearer tokens (`ApiKeyPrincipal`, `ServicePrincipal`; [ERP-IDENTITY.md](ERP-IDENTITY.md)). API scopes map to permissions; scopes can only narrow a principal's grants.
-- **Dynamic registration seam.** Routes are not added to a running server one by one. The API surface is part of the immutable registry generation ([SPEC.md](SPEC.md) `Generation`); a published generation swaps the route table atomically. Route collisions (same method and path from two modules) fail compilation; removal drains in-flight requests through the generation lease. The OpenAPI document is derived from the same generation.
+- **Dynamic registration seam.** Routes are not added to a running server one by one. The API surface is part of the immutable registry generation (core [20 — Generation](../references/core/behaviors/20-generation.md)); a published generation swaps the route table atomically (BEH-BR-170). Route collisions (same method and path from two modules) fail compilation; removal drains in-flight requests through the generation lease. The OpenAPI document is derived from the same generation.
 - Pagination, error shapes and idempotency headers mirror the operation gateway; list endpoints are bounded.
 - Rate limits per principal and tenant (awthaq `RateLimiter` port); request/response size limits; versioning by path with a deprecation policy per operation.
 
@@ -229,7 +249,7 @@ Notification.define("todo.assigned", {
 
 ## 13. Locale and compliance extension points
 
-A **locale pack** is a module declaring: fiscal calendar and period rules, number and date formats, currencies and rounding rules, chart-of-accounts templates, tax regime tables, legal document numbering rules, mandatory reports and e-invoicing formats. Packs are selected per company at company creation (not changed silently afterwards). The platform supplies the extension contracts; the content of any pack, and its legal correctness, is outside this document and requires domain validation. Sage Intacct and SAP S/4HANA evidence in the catalogs is product-scope reference, not entitlement.
+A **locale pack** is a module declaring: fiscal calendar and period rules (data for the accounting domain's fiscal calendar, §14), number and date formats, currency rounding rules and any missing currency rows (seeded into the platform's `bridger.currency`, never a currency model of its own; [ERP-RECORDS.md](ERP-RECORDS.md) §10), chart-of-accounts templates, tax regime tables, legal document numbering rules, mandatory reports and e-invoicing formats. Packs are selected per company at company creation (not changed silently afterwards). The platform supplies the extension contracts; the content of any pack, and its legal correctness, is outside this document and requires domain validation. Sage Intacct and SAP S/4HANA evidence in the catalogs is product-scope reference, not entitlement.
 
 ## 14. Domain capability contracts
 
@@ -237,10 +257,10 @@ Each domain module declares models, commands, events and invariants through the 
 
 | Domain | Owns (models, indicative) | Emits | Consumes | Contract-level invariants |
 | --- | --- | --- | --- | --- |
-| Accounting | Ledger, account, journal, journal line, period, currency, rate | `acct.journal.posted`, `acct.period.closed` | Sales/purchasing/stock posting requests | Entries balance per currency; posted entries are immutable (corrections are reversal entries); closed periods reject postings; amounts are `BigDecimal` with explicit scale and a declared rounding stage; a post is atomic with its sequence number allocation. |
+| Accounting | Ledger, account, journal, journal line, period, fiscal calendar, exchange rate (currencies are the platform's `bridger.currency`, [ERP-RECORDS.md](ERP-RECORDS.md) §10) | `acct.journal.posted`, `acct.period.closed` | Sales/purchasing/stock posting requests | Entries balance per currency; posted entries are immutable (corrections are reversal entries); closed periods reject postings; amounts are `BigDecimal` with explicit scale and a declared rounding stage; a post is atomic with its sequence number allocation. |
 | Tax | Tax code, rule, jurisdiction, return | `tax.calculated`, `tax.return.filed` | Sales/purchasing lines | Rules are versioned with effective dates; a calculation result is stored with the rule version used; reconciliation to ledger must hold. |
 | Stock | Item, location, lot/serial, move, reservation, valuation layer | `stock.moved`, `stock.reserved`, `stock.valued` | Sales/purchasing/manufacturing | Moves are an append-only ledger; on-hand is derived from moves; a reservation cannot exceed available quantity (serialized by item/location lock); valuation changes post through accounting. |
-| Sales | Customer, quote, order, delivery, invoice, credit note | `sales.order.confirmed`, `sales.invoice.posted` | Stock/accounting/tax results | Document numbering is gapless where required by locale; confirmed orders are changed only by explicit amendment documents. |
+| Sales | Customer, quote, order, delivery, invoice, credit note | `sales.order.confirmed`, `sales.invoice.posted` | Stock/accounting/tax results | Document numbering is gapless where required by locale; after a database restore with a raised durable-bus incarnation ([ERP-OPERATIONS.md](ERP-OPERATIONS.md) §6) the series is closed and numbering continues in a new one, so no number is issued twice; a restore without a raised incarnation reissues numbers ([ERP-RECORDS.md](ERP-RECORDS.md) §8); confirmed orders are changed only by explicit amendment documents. |
 | Purchasing | Vendor, request, order, receipt, vendor bill | `purch.order.approved`, `purch.bill.posted` | Stock/accounting/tax | Three-way match rules are explicit; approvals bind to document revision (§4). |
 
 Extension points all domains expose: model extensions ([ERP-MODELS.md](ERP-MODELS.md)), approval policies, numbering schemes, calculation hooks as *pure* registered functions, and events. Cross-domain coordination uses events and workflows, never direct table access to another module's storage.
@@ -253,7 +273,7 @@ Order → reserve stock → invoice → post to ledger → reconcile payment, wi
 
 | Error | Meaning | Mapping |
 | --- | --- | --- |
-| `SubscriberFailed`, `JobFailed`, `JobTimeout`, `WorkflowFailed` | Durable work failed after retries | Visible in admin; replayable. Never surfaced to the original caller as failure of an already-committed command. |
+| `SubscriberFailed`, `JobFailed`, `JobTimeout`, `WorkflowFailed` | Durable work failed after retries | Visible in admin. A subscriber's stream halts or its envelope is parked ([BEH-DB-021](../references/durable-bus/behaviors/03-delivery-and-inbox.md), BEH-DB-022) and is resumed, unparked or released by an audited admin command; a `dead` job is retried with `jobs.retry`; a failed workflow is resumed or terminated. Never surfaced to the original caller as failure of an already-committed command. |
 | `ApprovalRequired`, `ApprovalInvalidated` | Action awaits or lost approval | `Forbidden`-class with a link to the task. Superseded in part: the dispatch outcome is the command companion's `CommandDeferred` or `ApprovalMismatch` ([BEH-CM-014](../references/command/behaviors/02-dispatch.md)); these ERP tags are application-level labels over it. |
 | `IntegrationUnknown` | External result ambiguous | Command already committed; reconciliation pending. |
 | `AttachmentRejected`, `ScanBlocked` | Upload or download refused | `InvalidInput` / `Forbidden`. |
@@ -262,9 +282,10 @@ Order → reserve stock → invoice → post to ledger → reconcile payment, wi
 
 ## 16. Acceptance checks
 
-- A command that rolls back leaves no outbox event, job or workflow; a committed one produces exactly one event row per dedupe key.
-- Kill a worker mid-delivery: the event is redelivered after lease expiry; a database-only subscriber produces one effect.
-- Disable a module with a running workflow: new instances are refused, the running one completes under its pinned definition; re-enable resumes suspended work.
+- A command that rolls back leaves no outbox envelope, job or workflow; a committed one leaves exactly one envelope for each event it published ([BEH-DB-010](../references/durable-bus/behaviors/02-transactional-outbox.md)), and the business key it carries in its payload is stable across a retry of the same command.
+- Kill the relay mid-delivery: the unacknowledged envelope is sent again ([BEH-DB-017](../references/durable-bus/behaviors/03-delivery-and-inbox.md)), the inbox ignores the repeat (BEH-DB-018), and a database-only subscriber produces one effect (BEH-DB-020).
+- Kill a job worker mid-run: after `lease_expires_at` another worker claims the job and runs it again; the first worker's late completion does not overwrite the second's.
+- Disable a module with a running workflow: new instances are refused; an instance that finishes within `workflowDisableGrace` completes under its pinned definition; one still running at the grace is suspended, holds no reference on the module's activation, and the activation can be reclaimed; re-enable resumes it on its pinned definition.
 - An ambiguous payment result never produces a second charge; reconciliation resolves it.
 - An attachment is unreadable by a user who cannot read its parent record.
 - Search results never include a record or snippet the caller cannot read, including with a stale index.
@@ -290,3 +311,5 @@ These are design acceptance scenarios, not tests already executed.
 Only item 1 remains open and needs input from you.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §1 restores the clause lost to a find-and-replace leftover (E-03). §3 defines the ERP job queue's table and claim rule (skip-locked or optimistic, leases on the database clock), which ERP-STORAGE §3 now points to; §1 diagram, §5, §15 and §16 describe delivery in durable-bus terms (relay resend, inbox, halted and parked envelopes) instead of the withdrawn outbox leases, event rows and dead letters (E-05). §4, §5 and §16 state one rule for workflows on disable: drain for at most `workflowDisableGrace`, then suspend, so no workflow holds a disabled module's activation past the grace (E-09). §13 and §14: accounting owns exchange rates and fiscal calendars, not currencies, and locale packs seed `bridger.currency` instead of declaring currencies (E-12); sales numbering after a restore, conditional on a raised incarnation (E-06). §2: every change of an event's encoded payload, an added optional field included, raises its version with an upcaster, as durable-bus BEH-DB-001 and event-store BEH-ES-025 require; publishing an older version only through a checked downcast (BEH-DB-030, BEH-DB-031). §9 cites core 20 instead of the superseded SPEC.md (E-04).

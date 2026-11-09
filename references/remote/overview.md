@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-OVW                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.4 (2026-11-08): round 2: recheck items 20, 23 and 25 — API rows for file 09, errors `PlacementRefused` and `RemoteBudgetExceeded`, core seams G43, G57, G58 and G60 cited as closed (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09: `RemoteOptions.manifest` and `disclose`, `LinkStatus` disclosed claims, `OrgOf` on the wire only when disclosed, `Transport.fromBundle`; loader's `RevokedDigests` and `LoaderRemote.link` in the package boundary; error `LocalContractRefused` (BEH-RM-007); call-log entries name the disclosed claims (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): round 2: recheck items 20, 23 and 25 — API rows for file 09, errors `PlacementRefused` and `RemoteBudgetExceeded`, core seams G43, G57, G58 and G60 cited as closed (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -55,7 +55,7 @@ and from the consumer's deployment of it
 | Scoped mount of a child (unmount when a sub-scope closes) | Core [14 — Children and groups](../core/behaviors/14-children-and-groups.md), BEH-BR-121 and BEH-BR-126 (specified under CCR-BR-020) |
 | **Link and session child, sessions, epochs, heartbeat, withdrawal, call deadlines and outcomes, per-call tokens, `Guest.serve`, the host-side serving end `Remote.serve`, `Transport` interface and endpoint multiplexer, `TestTransport`** | **This package** |
 | Adapters: `worker_threads`, Worker Loader / service binding, Workers for Platforms, self-hosted workerd, later Wasm | Sub-packages `@bridger/worker`, `@bridger/worker-loader`, `@bridger/workers-for-platforms`, `@bridger/workerd`, `@bridger/wasm` |
-| Digest check, signatures, revocation source | `@bridger/loader` — [references/loader/](../loader/README.md) |
+| Digest check, signatures, revocation source, the `RevokedDigests` view, catalog-to-guest links (`LoaderRemote.link`) | `@bridger/loader` — [references/loader/](../loader/README.md) |
 | Cross-host manifests and imports (which use remote proxies) | `@bridger/federation` — [references/federation](../federation/README.md) |
 | Promise SDK for guests, generated from contracts | `@bridger/kit` — [references/kit/](../kit/README.md) (agent KIT) |
 | VM/container boundary, provider configuration, key custody, egress policy, callback admission by actor, the meaning of annotations | The application |
@@ -67,9 +67,9 @@ All signatures are illustrative until code exists.
 | Export | Kind | Purpose | Behaviour |
 | ------ | ---- | ------- | --------- |
 | `Remote.define` | function | The link plugin for a contract over a transport | [01](./behaviors/01-remote-proxy-plugin.md) |
-| `RemoteOptions` | type | `id`, `transport`, `grants`, `accepts`, `callTimeout`, `handshakeTimeout`, `heartbeat`, `unavailableAfter`, `partition`, `reconnect`, `stableFor`, `flapWarning`, `flapWindow`, `maxInFlight`, `tokenTtl` | [01](./behaviors/01-remote-proxy-plugin.md), [04](./behaviors/04-heartbeat-and-partition.md) |
+| `RemoteOptions` | type | `id`, `transport`, `grants`, `accepts`, `callTimeout`, `handshakeTimeout`, `heartbeat`, `unavailableAfter`, `partition`, `reconnect`, `stableFor`, `flapWarning`, `flapWindow`, `maxInFlight`, `tokenTtl`, `manifest`, `disclose` (identity claims sent to the peer; default none, [03](./behaviors/03-remote-calls.md)) | [01](./behaviors/01-remote-proxy-plugin.md), [04](./behaviors/04-heartbeat-and-partition.md) |
 | `Remote.layer` | layer | Base services `RemoteStatus`, `RemoteBoundary`, default `TokenAuthority.inProcess` | [01](./behaviors/01-remote-proxy-plugin.md), [02](./behaviors/02-sessions-and-epochs.md) |
-| `RemoteStatus`, `LinkStatus` | service, type | Session condition per link: names, counts, epochs | [01](./behaviors/01-remote-proxy-plugin.md) |
+| `RemoteStatus`, `LinkStatus` | service, type | Session condition per link: names, counts, epochs, disclosed claim names | [01](./behaviors/01-remote-proxy-plugin.md) |
 | `RemoteBoundary` | service | `revoke(selector, context)`: refuse at the boundary at once | [02](./behaviors/02-sessions-and-epochs.md) |
 | `Guest.serve`, `Guest.Handlers`, `GuestContext` | function, types | The guest end (entry `@bridger/remote/guest`) | [05](./behaviors/05-guest-serve.md) |
 | `Remote.serve` | function | Host-side serving end: serves a local provider over a guest transport, one core lease per call | [05](./behaviors/05-guest-serve.md) |
@@ -84,8 +84,9 @@ All signatures are illustrative until code exists.
 | `PlacementPolicy`, `PlacementPolicy.exact`, `Placement.Residency`, `PlacementRefused` | port, value, annotation key, error | Residency labels compared with a transport's declared labels | [09](./behaviors/09-placement-budgets-and-adapters.md) |
 | `PrincipalBudget`, `TransportUsage`, `RemoteBudgetExceeded` | port, type, error | Per-principal call-rate, CPU-time and egress budgets from adapter-reported usage | [09](./behaviors/09-placement-budgets-and-adapters.md) |
 | `DedupeStore` | port | At-most-once across invocations on per-call transports | [09](./behaviors/09-placement-budgets-and-adapters.md) |
-| `OrgOf` | port | Opaque organisation claim in tokens and wire claims | [09](./behaviors/09-placement-budgets-and-adapters.md) |
+| `OrgOf` | port | Opaque organisation claim in tokens; on the wire only when the link discloses it | [09](./behaviors/09-placement-budgets-and-adapters.md) |
 | `WorkersForPlatforms.transport` | function | Adapter `@bridger/workers-for-platforms` | [09](./behaviors/09-placement-budgets-and-adapters.md) |
+| `Transport.fromBundle`, `BundleRuntime`, `GuestBundle` | function, port, type | A transport that acquires a guest's bytes at each `open` (for example from the loader's `fetchVerified`) and starts the guest from them | [09](./behaviors/09-placement-budgets-and-adapters.md) |
 | `TestTransport`, `TransportFault`, `RemoteTest.settle` | testing | Deterministic transport with scripted faults (entry `@bridger/remote/testing`) | [08](./behaviors/08-test-transport-and-acceptance.md) |
 
 ### Errors
@@ -103,6 +104,7 @@ All signatures are illustrative until code exists.
 | `MethodNotServed` | The serving end does not serve this method | not-executed |
 | `CallbackDenied`, `TokenInvalid`, `TokenExpired` | A guest callback is refused (`CallbackDenied` is this package's error, distinct from core's `CapabilityDenied` defect) | — (callback) |
 | `PlacementRefused` | The required residency label is not offered by the transport or route | not-executed (build fails at define) |
+| `LocalContractRefused` | A local contract (core `Contract.local`) given to `Remote.define`, `Remote.serve` or `Guest.serve` ([01](./behaviors/01-remote-proxy-plugin.md), BEH-RM-007); a callback to one is refused with `CallbackDenied` "local-contract" | not-executed (the link's build fails; a serving end does not start) |
 | `RemoteBudgetExceeded` | The `PrincipalBudget` refused the call | not-executed |
 | `TransportError`, `TransportClosed` | Adapter failures | — |
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.3 (2026-11-09): BEH-KT-017 a suite of a local contract (core `Contract.local`) holds author cases only; BEH-KT-020 a local contract is never verified through a wire subject (`LocalContractRefused`) (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -71,6 +71,19 @@ REQUIREMENT: For each method, the suite MUST contain generated cases:
 ```
 REQUIREMENT: Suites MUST be published with the contract package, one per
              contract version, at `<contract-package>/conformance/<version>`.
+```
+
+```
+REQUIREMENT: A local contract (`Contract.local`, core BEH-BR-225) has no
+             schemas, so the requirement on generated cases above MUST NOT
+             apply to it: `Conformance.suite` of a local contract MUST be
+             typed to reject `generated`, its suite MUST hold author cases
+             only, and a suite built untyped with `generated` for one MUST
+             make `Conformance.verify` fail with the remote companion's
+             `LocalContractRefused { serviceId, site:
+             "conformance-generated" }` (remote BEH-RM-007) before it runs
+             a case. Its author cases run against a plugin subject
+             (BEH-KT-019) only (BEH-KT-020).
 ```
 
 Generated cases test the schemas; author cases test behaviour the schema
@@ -162,6 +175,16 @@ REQUIREMENT: Documentation MUST state that running a suite against a
              deployed endpoint sends generated payloads to it, and that an
              endpoint with side effects should be verified in a test
              environment.
+```
+
+```
+REQUIREMENT: `Conformance.http` MUST be typed to reject a local contract
+             (core BEH-BR-225). `Conformance.verify` of a suite whose
+             `ContractDescriptor` has `local` true against any subject other
+             than a plugin subject (BEH-KT-019) MUST fail with
+             `LocalContractRefused { serviceId, site: "conformance-wire" }`
+             before it opens a connection or sends anything: a local
+             contract must not cross a host boundary (core BEH-BR-232).
 ```
 
 This is what lets a partner run the same suite against the service they

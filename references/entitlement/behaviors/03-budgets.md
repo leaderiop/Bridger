@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-03                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -334,11 +334,28 @@ entitlement bundle first in `Policies.first` (02, BEH-EN-016), so that a
 contribution that is not entitled holds no budget; `Policies.first` refuses a
 reserving bundle that is not last. Reserving at admission and settling after
 the call (04, BEH-EN-030) charges only calls that did their work, through the
-`settle` step with which core closed URS gap G63. A per-command budget — a
-time or cost quota per command invocation — is the same `reserve`/`commit`
-pair called by the command layer (`@bridger/command`) around the command,
-with exhaustion surfaced as a typed refusal of the command, never as a host
-gate decision.
+`settle` step with which core closed URS gap G63.
+
+```
+REQUIREMENT: The package MUST NOT depend on `@bridger/command` and MUST
+             NOT ship a command admission. Documentation MUST show a
+             per-command budget — a time or cost quota per command
+             invocation — as an admission policy the application fixes in
+             the command catalog layer (command BEH-CM-044): its `admit`
+             calls `reserve` in the admission's scope, with the essential
+             labels of the use (BEH-EN-020), and answers `Refuse { reason:
+             "budget-exhausted" }` on `BudgetExhausted`; its `settle`
+             commits the reservation for a dispatch that did its work and
+             releases it otherwise. What a `BudgetUnavailable` answers —
+             a refusal "budget-unavailable" or an admission — is the
+             application's choice, stated in its policy.
+```
+
+The command dispatch then ends with `CommandRefused { reason:
+"budget-exhausted" }`, a refusal at the catalog's boundary: never a handler
+wrapper failure, never a breaker count, and never a host gate decision. The
+reservation lives in the admission's scope, so a dispatch that is
+interrupted or never runs its handler returns the amount (BEH-EN-019).
 
 ## BEH-EN-024: Required acceptance checks
 

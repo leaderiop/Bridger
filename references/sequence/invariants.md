@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): INV-SQ-004 has no exception: a supersession is written in the new incarnation's own stream (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.3 (2026-11-09): INV-SQ-004 source: the origin is checked against `DurableBus.origin` at every `open`, `next` and `close`, so a handle of an earlier origin never writes (CCR-SQ-003)<br>0.2 (2026-11-08): INV-SQ-004 has no exception: a supersession is written in the new incarnation's own stream (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -74,12 +74,14 @@ Every event of a series stream is written by its origin, with no exception;
 the supersession of a series after a restore is written by the new
 incarnation in its own incarnation stream (BEH-SQ-009).
 
-**Source**: origin check in `Series.open` *(Planned)*.
+**Source**: origin check against durable-bus `DurableBus.origin` in `open`,
+`next` and `close`, read at every call *(Planned)*; a handle opened before a
+whole-store re-bootstrap is refused afterwards (BEH-SQ-002).
 
 **Implication**: two hosts cannot draw from one series through this package.
 
-**Verification** *(Planned)*: `NotOwner` scenarios; `verifySeries` foreign
-writer report.
+**Verification** *(Planned)*: `NotOwner` scenarios, including a handle kept
+across a re-bootstrap; `verifySeries` foreign writer report.
 
 **Related**: [BEH-SQ-002](behaviors/01-series-and-ownership.md#beh-sq-002-one-owning-host), [BEH-SQ-009](behaviors/02-incarnation-and-verification.md#beh-sq-009-a-new-incarnation-closes-the-old-series-as-superseded), [ADR-SQ-001](decisions/001-numbers-are-issued-by-the-owning-host.md).
 

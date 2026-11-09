@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-03                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Round-2 agent review (R4 F20) — `InProgress` exits keep the call in flight; a deadline reached after one is `RemoteTimeout` with outcome "unknown" (CCR-RM-003)<br>0.4 (2026-11-08): round 2: alignment with CORE-DECISIONS-2 — method timeouts read from `ContractDescriptor.timeouts` (`MethodSpec.timeout`, core G48 closed); the per-method option may only shorten them; both serving ends enforce the descriptor value; claims carry `onBehalfOf` as `PrincipalRef.encode`, `org` and `correlationId` (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `remaining` in the `call` frame, the deadline never sent as an annotation; wire annotations and claims of a call (BEH-RM-024); `Refused` exits mapped to errors, `MethodNotServed`; `welcome.maxInFlight` (R3-10, R3-15, R3-01) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): identity claims (actor, `onBehalfOf`, `org`, `correlationId`) cross only when the link lists them in `disclose`, default none; a disclosing link is recorded as a data transfer; BEH-RM-024 every crossing entry names the identity claims that crossed in core's new `CrossingInfo.disclosed` (CCR-BR-033), unconditionally (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — `InProgress` exits keep the call in flight; a deadline reached after one is `RemoteTimeout` with outcome "unknown" (CCR-RM-003)<br>0.4 (2026-11-08): round 2: alignment with CORE-DECISIONS-2 — method timeouts read from `ContractDescriptor.timeouts` (`MethodSpec.timeout`, core G48 closed); the per-method option may only shorten them; both serving ends enforce the descriptor value; claims carry `onBehalfOf` as `PrincipalRef.encode`, `org` and `correlationId` (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `remaining` in the `call` frame, the deadline never sent as an annotation; wire annotations and claims of a call (BEH-RM-024); `Refused` exits mapped to errors, `MethodNotServed`; `welcome.maxInFlight` (R3-10, R3-15, R3-01) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -294,10 +294,10 @@ configured.
 
 ## BEH-RM-024: A call carries the caller's wire annotations and a copy of its claims
 
-> **Invariant:** [INV-RM-007](../invariants.md#inv-rm-007-a-guest-reaches-only-granted-contracts-under-a-live-token)
+> **Invariant:** [INV-RM-007](../invariants.md#inv-rm-007-a-guest-reaches-only-granted-contracts-under-a-live-token), [INV-RM-012](../invariants.md#inv-rm-012-a-call-carries-no-identity-claim-its-link-did-not-disclose)
 > **See:** [ADR-RM-005](../decisions/005-per-call-capability-tokens.md), [ADR-BR-045](../../core/decisions/045-operation-context-annotations.md)
 > **Satisfies:** [URS-BR-035](../../core/urs.md#urs-br-035-carry-labels-such-as-taint-provenance-and-deadline-across-calls)
-> **Risk:** [RSK-BR-031](../../core/gxp/03-risk-assessment.md#rsk-br-031)
+> **Risk:** [RSK-BR-031](../../core/gxp/03-risk-assessment.md#rsk-br-031), [RSK-RM-016](../risks.md#rsk-rm-016)
 
 ```
 REQUIREMENT: Every `call` frame MUST carry, in `annotations`, the caller's
@@ -310,16 +310,52 @@ REQUIREMENT: Every `call` frame MUST carry, in `annotations`, the caller's
 ```
 
 ```
-REQUIREMENT: Every `call` frame MUST carry, in `claims`, a copy of the
-             token's public claims (actor, `onBehalfOf` encoded with core
-             `PrincipalRef.encode` (BEH-BR-280), `org`, `correlationId`,
-             link `pluginId`, realm, link `meta.version`, agreed contract
-             version). A receiver MUST read `onBehalfOf` with
-             `PrincipalRef.decode` and treat a string it cannot decode as
-             absent, logging it. The copy MUST NOT carry the `TokenRef`, the grant
-             digest or the token's `tokenId`, and MUST be documented as a
-             description that grants nothing: what a guest presents to call
-             back is the `TokenRef` alone (06).
+REQUIREMENT: Every `call` frame MUST carry, in `claims`, the link claims of
+             the token — link `pluginId`, realm, link `meta.version` and the
+             agreed contract version — and, of the identity claims (actor,
+             `onBehalfOf` encoded with core `PrincipalRef.encode`
+             (BEH-BR-280), `org`, `correlationId`), exactly those the link
+             lists in `RemoteOptions.disclose` and the token has. A claim
+             the link does not disclose MUST be omitted, never sent empty or
+             masked. The default `disclose` MUST be empty: a link built
+             without the option sends no identity claim (INV-RM-012).
+```
+
+```
+REQUIREMENT: A receiver MUST treat every identity claim as optional. It
+             MUST read `onBehalfOf` with `PrincipalRef.decode` and treat a
+             string it cannot decode as absent, logging it. The copy MUST
+             NOT carry the `TokenRef`, the grant digest or the token's
+             `tokenId`, and MUST be documented as a description that grants
+             nothing: what a guest presents to call back is the `TokenRef`
+             alone (06).
+```
+
+```
+REQUIREMENT: A link whose `disclose` is not empty MUST be recorded as a
+             data transfer to its peer: `LinkStatus.disclosed` MUST list
+             the disclosed claim names (01, BEH-RM-006), and each session
+             open MUST be logged at info level with the link ID, the epoch
+             and the disclosed claim names, never their values.
+             Documentation MUST state that the receiver of an identity
+             claim becomes a processor of that personal data, and that
+             choosing to disclose is the application's decision, made per
+             link.
+```
+
+```
+REQUIREMENT: Every "crossing" entry this package offers to the core
+             `CallLog` (06, BEH-RM-046) MUST name in `crossing.disclosed`
+             (core BEH-BR-280) the identity claims that crossed with that
+             call, and never their values: on a host-to-guest call, the
+             claims its `call` frame carried — a claim listed in `disclose`
+             that had no value for the call did not cross and is not
+             named; on a served call (05, BEH-RM-039), the identity claims
+             its frame carried. A callback's identity comes from the token
+             kept on the host (06), so a callback entry names none. Names
+             MUST appear once each, in the order "actor", "onBehalfOf",
+             "org", "correlationId"; an entry for a call that carried no
+             identity claim MUST omit `disclosed`.
 ```
 
 ```
@@ -337,6 +373,16 @@ token is a reference checked on the host (06), and the guest needs to read
 taint and provenance whether or not it ever calls back. Which keys cross is
 decided by each key's declared flows (core BEH-BR-296), not by this
 package.
+
+**Settled here (CCR-RM-004).** Identity is opt-in per link, as the MCP
+companion's import already is
+([BEH-MC-022](../../mcp/behaviors/03-client-import.md#beh-mc-022-the-proxy-forwards-no-identity-unless-the-import-discloses-it-and-never-annotations)):
+a guest or a peer that receives user identities, organisations and
+correlation ids becomes a processor of them, which is a decision for the
+application, not a default of a library. Annotations are not identity
+claims and still cross by their declared flows. A guest that needs to know
+whom it serves asks for it through the integrator, who lists the claims in
+`disclose` ([ADR-RM-005](../decisions/005-per-call-capability-tokens.md)).
 
 ---
 

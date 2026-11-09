@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-29                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.6 (2026-11-09): BEH-BR-280 `CrossingInfo.disclosed`, the names of the identity claims that crossed with the call, never their values, accepted on offered crossing entries and checked for empty or repeated names (requested by remote CCR-RM-004 and MCP CCR-MC-004, finding F-07) (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 
@@ -635,6 +635,8 @@ interface CrossingInfo {
   readonly link: string                         // the companion's link id, opaque
   readonly epoch?: string                       // the companion's session epoch, opaque (remote: an IdGenerator string)
   readonly peer?: string                        // the peer's host id, opaque
+  readonly disclosed?: readonly string[]        // names of the identity claims that crossed with the call
+                                                // ("actor", "onBehalfOf", ...), opaque; never their values
 }
 interface RefusalInfo    { readonly stage: "resolve" | "boundary"; readonly reason: string }
 interface RevocationInfo { readonly link: string; readonly epoch?: string; readonly reason: string }
@@ -692,7 +694,9 @@ REQUIREMENT: `Host.offerCallEntry` MUST do nothing and succeed when no
              `CallLog` is wired. Otherwise it MUST check that `companion`
              is non-empty and that exactly the info field of `kind` is
              present (`crossing`, `refusal`, `revocation` or `dispatch`),
-             and for `dispatch` that `command` is non-empty; any other
+             for `dispatch` that `command` is non-empty, and for a
+             `crossing` with `disclosed` that every name is non-empty and
+             none repeats; any other
              entry MUST fail with `InvalidCallEntry` and queue nothing. It
              MUST complete the entry — `callId`, `startedAt` and
              `durationMs` defaults; `actor` the calling fiber's
@@ -740,9 +744,14 @@ REQUIREMENT: `PrincipalRef.encode` MUST produce "p1;" followed by the
 REQUIREMENT: Offered entries MUST obey the content rule of BEH-BR-276: no
              arguments, results, error messages, configuration values,
              services or causes; `dispatch.inputDigest` is a digest the
-             companion computed, never the input. Core MUST NOT interpret
-             `link`, `peer`, `epoch`, the fields of `dispatch` or the
-             reasons it is given beyond the checks above.
+             companion computed, never the input; `crossing.disclosed`
+             names the identity claims that crossed — sent to the peer on
+             an outbound crossing, received from it on an inbound one — and
+             never carries a claim's value. Core MUST record `disclosed`
+             unchanged, in the order given, and MUST NOT interpret `link`,
+             `peer`, `epoch`, the names in `disclosed`, the fields of
+             `dispatch` or the reasons it is given beyond the checks
+             above.
 ```
 
 A data-access log built on core sees only calls through captured services.
@@ -770,7 +779,13 @@ companion that dispatches named requests — the command companion
 with the dispatched name, its definition and input digests and the
 idempotency key, so that a data-access log lists executed requests beside the
 refused ones. Core offers no kind of its own for this: a dispatch is a
-companion's concept. This closes URS gap G66.
+companion's concept. This closes URS gap G66. (6) `CrossingInfo.disclosed`
+(CCR-BR-033) lets a companion that sends identity to a peer only when a link
+discloses it record, per call, which claims crossed: the receiver of a claim
+becomes a processor of that personal data, so the access log must show the
+transfer, and it must show it without becoming a second copy of the data,
+hence names only. Core cannot know which claims a companion sent, so the
+field is the companion's statement, checked only for form.
 
 ## BEH-BR-281: Re-resolving live captures — a policy change can narrow a running consumer
 

@@ -65,6 +65,9 @@ const AddPriority = Migration.extendModel("001-task-priority", {
       values: ["low", "normal", "high"], default: "normal",
     }),
   },
+  // The value written into existing rows. Explicit: the snapshot's `default`
+  // above is the create default, never a backfill value.
+  backfill: { priority: "normal" },
 })
 
 export const PlanningModule = Module.define({
@@ -145,17 +148,17 @@ sequenceDiagram
     Records->>Records: apply patch and defaults on create
     Records->>Records: validate active constraints and compute derived fields
     Records->>DB: compare revision and persist changed columns
-    Records->>DB: write audit, outbox and command receipt
+    Records->>DB: write audit, outbox envelopes and complete the command receipt
     DB-->>Caller: commit and return requested projection
 ```
 
-Every admitted command acquires a lease on the current model generation (core's `Generation` helper; see [SPEC.md](SPEC.md)), an immutable value that already contains the base model and all active contributions' validators, computed functions and storage mappings. An extension plugin therefore needs no separate lease. Its scope is closed only after the generation that referenced it has been retired and its `drained` effect has completed: publish the generation without the extension, drain the old one, then remove the plugin. A request admitted against an old generation completes under that immutable value; publication cannot mix validators from one generation with storage mappings from another.
+Every admitted command acquires a lease on the current model generation (core's `Generation` helper; core [20 — Generation](../references/core/behaviors/20-generation.md), BEH-BR-172), an immutable value that already contains the base model and all active contributions' validators, computed functions and storage mappings. An extension plugin therefore needs no separate lease. Its scope is closed only after the generation that referenced it has been retired and drained with a bound (`retired.drain({ timeout, force })`, BEH-BR-173): publish the generation without the extension, drain the old one, then remove the plugin (BEH-BR-176). A request admitted against an old generation completes under that immutable value; publication cannot mix validators from one generation with storage mappings from another.
 
-For behavior changes on a shared model, the first implementation calls `closeAdmission` on the tenant's generation, publishes the new generation, awaits the retired value's `drained`, and calls `reopenAdmission` (admission is per tenant, [ERP-RUNTIME.md](ERP-RUNTIME.md) §5). This prevents an old validator committing after a new invariant is declared active. Compatible parallel generations require a separately proven protocol.
+For behavior changes on a shared model, the first implementation calls `closeAdmission` on the tenant's generation, publishes the new generation, drains the retired value with a bound (`retired.drain({ timeout, force })`, BEH-BR-173, BEH-BR-174; at the limit without `force` it fails with `DrainTimeout` and the change is reported, not completed), and calls `reopenAdmission` (admission is per tenant, [ERP-RUNTIME.md](ERP-RUNTIME.md) §5). This prevents an old validator committing after a new invariant is declared active. Compatible parallel generations require a separately proven protocol.
 
 Constraints are side-effect-free checks, combined with logical AND. Plugins cannot overwrite another constraint or override CRUD by registration order. Computed fields declare qualified dependencies; the compiler topologically orders them and rejects cycles. Only the owner of a computed field writes its value. External side effects are delivered through a transactional outbox after commit.
 
-Row-wide audit and change events record qualified changed fields, command identity and the active registry generation. Event subscribers use stable versioned payload contracts; delivery does not require the contributing code to remain loaded merely to decode the event.
+Row-wide audit and change events record qualified changed fields, command identity and the active registry generation. Event subscribers use versioned payload contracts; delivery does not require the contributing code to remain loaded merely to decode the event. Any change of an event's encoded payload, an added optional field included, raises its version ([ERP-BUSINESS.md](ERP-BUSINESS.md) §2).
 
 ## 5. Physical schema versus tenant enablement
 
@@ -169,7 +172,7 @@ Row-wide audit and change events record qualified changed fields, command identi
 
 Installing Planning for tenant A creates its columns once. Enabling it later for tenant B reuses the columns but performs B's required initialization. Disabled tenants can have NULL in extension columns. Therefore an extension's logical `required` is **not automatically a global SQL NOT NULL constraint**.
 
-For the example, `Migration.extendModel` expands storage with nullable columns, performs a resumable tenant backfill of NULL priority to `normal`, and checks readiness before publishing that tenant's extension. Backfill fences affected tenant/model writes during the final catch-up. Existing non-null values are preserved on re-enable. The journal distinguishes database DDL completion from tenant readiness.
+For the example, `Migration.extendModel` expands storage with nullable columns, performs a resumable tenant backfill of NULL priority with the value of its `backfill` entry (`normal`), and checks readiness before publishing that tenant's extension. The backfill value is always the migration's explicit `backfill` entry, decoded against the field's schema when the migration compiles. It is never taken from the snapshot's `default`, which is the create default ([ERP-SCHEMA-DESIGN.md](ERP-SCHEMA-DESIGN.md) §2), so changing a field's create default later cannot change what an old migration writes. A field with no `backfill` entry stays NULL in existing rows; for a field the extension declares `required`, a missing entry fails compilation with `BackfillRequired`. Backfill fences affected tenant/model writes during the final catch-up. Existing non-null values are preserved on re-enable. The journal distinguishes database DDL completion from tenant readiness.
 
 SQL constraints must remain valid for every tenant and every retained generation. Nullable-column type/check constraints can remain installed after disable. Extension-only uniqueness, restrictive foreign keys or triggers can affect writes even when the extension is inactive; the migration planner must reject a globally enforced constraint whose behavior is supposed to disappear on disable. Such a constraint needs an explicit persistent invariant accepted by the model owner or a specified tenant-aware enforcement design. Runtime uniqueness requires transactional serialization, not a check-then-insert query.
 
@@ -217,8 +220,11 @@ Relations reference model IDs and opaque record IDs, not another plugin's table 
 - Base queries never accidentally return extension data through `SELECT *`.
 - Base model upgrades detect incompatible installed extensions.
 - Re-enabling preserves user values and repairs dormant computed values.
+- A backfill writes the migration's `backfill` value, not the field's current create default; a required field without a `backfill` entry fails with `BackfillRequired` before any DDL.
 - No schema constraint accidentally imposes an inactive extension's business rules on other tenants.
 
 These are design acceptance scenarios, not tests already executed.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §2 and §5: `Migration.extendModel` takes an explicit `backfill` entry, which alone decides the value written into existing rows; the snapshot's `default` stays the create default; `BackfillRequired` for a required field without one (E-10). §4 diagram: the command receipt is completed in the transaction, as BEH-CM-041 (E-01). Generation citation points to core 20 instead of the superseded SPEC.md (E-04). §4 drains retired generations with the bounded `drain({ timeout, force })` instead of the unbounded `drained`; §4 states that every event payload change raises the version (durable-bus C-11).

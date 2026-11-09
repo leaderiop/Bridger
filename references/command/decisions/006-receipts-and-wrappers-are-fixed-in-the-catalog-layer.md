@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-ADR-006                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): Receipts carry the dispatch digest and a task id and are compared actor first; `void` for undone batch items; failures completed outside the wrappers, claims expire (round-2 agent review A-02, A-04, A-09, A-10, A-14) (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft (CCR-CM-003)                 |
+> | Change History | 0.3 (2026-11-09): Admission policies fixed in the layer, consulted at step 6 and settled after step 7 (C-10); receipts scoped by an application partition, port calls given explicit `services`, `retryable` typed errors never stored (M-04, ERP alignment); alternatives for admissions recorded (CCR-CM-004)<br>0.2 (2026-11-08): Receipts carry the dispatch digest and a task id and are compared actor first; `void` for undone batch items; failures completed outside the wrappers, claims expire (round-2 agent review A-02, A-04, A-09, A-10, A-14) (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft (CCR-CM-003)                 |
 
 ---
 
@@ -37,7 +37,11 @@ makes for the gate.
 - **Idempotency is a key on the dispatch and a receipts port.** A key reaches
   the request, the handler context and core's call log (as an annotation of
   flow "callLog"); the application's `CommandReceipts` port stores
-  `(command, key) → (actor, inputDigest, digest, taskId?, outcome)`. The
+  `(partition, command, key) → (actor, inputDigest, digest, taskId?,
+  outcome)`, the partition computed by the application from the request.
+  Every port call receives its context explicitly (`services`), so a
+  receipt joins a transaction only through a transaction it is handed; a
+  typed error the command lists as `retryable` is never stored. The
   claim is made after the gate and the hooks; a success is completed
   innermost in the handler wrappers, a typed failure after them; a claim
   that does not end with its completed outcome is released, and an
@@ -53,6 +57,11 @@ makes for the gate.
 - **A breaker per command or provider**, off by default, with core's hook
   breaker semantics, answering at step 6 with `CommandBreakerOpen`
   (BEH-CM-043).
+- **Admission policies are fixed when the layer is built.** An ordered list
+  consulted at step 6 after the claim and the breaker; each admits with a
+  settlement or refuses with `CommandRefused`, and every admission that
+  admitted is settled once after step 7, outside the wrappers (BEH-CM-044).
+  A per-command budget of the entitlement companion is one such policy.
 
 ## Alternatives considered
 
@@ -63,6 +72,16 @@ makes for the gate.
   package must answer a replay before step 7 and must know the claim to
   release it; the port gives that, and an application that wants receipts in
   its transaction implements the port over it.
+- **Budgets in the gate.** Rejected: a gate decides allow, refuse or defer
+  and has no step after the handler, so a reservation could not be
+  committed or released by outcome.
+- **Budgets as a handler wrapper.** Rejected: a wrapper's failure is
+  `CommandWrapperFailed`, which a breaker may count, and a wrapper runs
+  inside the application's transaction, so a rollback would undo the
+  settlement.
+- **A fiber-bound transaction found by the port.** Rejected: the port would
+  join whatever transaction encloses the dispatch, including one the
+  application did not mean to share; explicit `services` name it.
 - **Breakers in core.** Not needed: core's breaker belongs to a hook point
   ([BEH-BR-310](../../core/behaviors/31-hook-points.md)); a command breaker is
   state about a command, which this package owns.
@@ -78,8 +97,9 @@ makes for the gate.
 
 **Negative**:
 
-- Two more ports and options in the catalog layer, and a receipt round trip
-  on every keyed dispatch.
+- Two more ports and options in the catalog layer, a receipt round trip
+  on every keyed dispatch, and one admission round trip per applying
+  policy.
 - Exactly-once effects still depend on the application writing receipts in
   the same transaction as the domain change.
 

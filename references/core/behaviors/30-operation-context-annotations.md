@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-30                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
+> | Change History | 0.4 (2026-11-09): BEH-BR-292 a handoff's `export`, `upgrade` and `import` run with `Annotations.empty`, whatever the call that caused the stop carries (U-04) (CCR-BR-033)<br>0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
 
 ---
 
@@ -255,9 +255,12 @@ REQUIREMENT: Core MUST NOT change `CurrentAnnotations` on a service call:
 ```
 REQUIREMENT: Core MUST run with `CurrentAnnotations` set to
              `Annotations.empty` every piece of plugin code it starts:
-             builds (and so the builds of children), finalizers, background
+             builds (and so the builds of children), finalizers, a handoff's
+             `export`, `upgrade` and `import` (34 — State Handoff), background
              fibers, health checks and `whenAvailable` runs — the same code
-             for which BEH-BR-187 resets `CurrentActor`.
+             for which BEH-BR-187 resets `CurrentActor`. An `export` runs
+             inside the stop of an operator's call, and MUST NOT see that
+             call's annotations.
 ```
 
 ```

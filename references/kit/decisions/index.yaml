@@ -16,7 +16,7 @@ entries:
     status: "Proposed"
   - id: "ADR-KT-004"
     file: "004-promise-sdk-for-out-of-process-partners.md"
-    title: "Partners get a generated Promise SDK that runs only out of process"
+    title: "Partners get a generated Promise SDK and run behind a transport, never in the host's runtime"
     status: "Proposed"
   - id: "ADR-KT-005"
     file: "005-devtools-are-read-only.md"

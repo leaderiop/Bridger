@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-05                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-08): Entries verified through `SignaturePolicy.verify` with the publisher binding; manifest roles, targets and `listens` carried for `declaredContributions` and `AccessPolicy.declaredOnly`; `idle`/`holdTimeout` passed through, fresh check on each reload, refused lazy starts (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-09): Entries carry first-party signatures and a trust class; `Loader.lazy` fails with `NotFirstParty` for guest entries and guests take `LoaderRemote.link` (file 09); `stampRemote` sets the link manifest and fails with `PackageManifestMismatch` (specification audit F-06, M-02, C-16); BEH-LD-039 heading and text: guests run outside the host's runtime, not necessarily out of process (independent review); BEH-LD-039 `stampRemote` reports a manifest without the guest shape as `GuestEntryInvalid`, as `LoaderRemote.link` does (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Entries verified through `SignaturePolicy.verify` with the publisher binding; manifest roles, targets and `listens` carried for `declaredContributions` and `AccessPolicy.declaredOnly`; `idle`/`holdTimeout` passed through, fresh check on each reload, refused lazy starts (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -25,7 +25,7 @@ through a core `ContributionRegistry`, resolved by id and version range, and
 turned into `Plugin.lazy` definitions whose `load` runs the full pipeline of
 [02 — Load Pipeline](./02-load-pipeline.md). It also specifies the path for
 bundles that must not be evaluated in the host at all: fetched and verified
-here, run out of process by `@bridger/remote`. This file owns
+here, run by `@bridger/remote` outside the host's runtime (09). This file owns
 BEH-LD-033–040 and uses all eight.
 
 > **What this package does not do — and who does**
@@ -53,6 +53,7 @@ interface CatalogEntry {
   readonly packageDigest: string          // claimed; recomputed before use (BEH-LD-034)
   readonly signatures: readonly Signature[]
   readonly source: PackageSource          // where the files and SBOM can be fetched
+  readonly firstParty?: readonly Signature[]   // the "first-party" statement's signatures, when the application marked it (09, BEH-LD-066)
 }
 interface CatalogFeedShape {
   readonly entries: Stream.Stream<readonly CatalogEntry[]>   // latest wins; an adapter (HTTP index, OCI, local directory)
@@ -94,6 +95,8 @@ interface VerifiedEntry {
   readonly filesDigest: string
   readonly source: PackageSource
   readonly verification: VerificationRecord
+  readonly trust: "first-party" | "guest"  // derived from the "first-party" statement only (09, BEH-LD-066)
+  // firstParty, firstPartyRefused: 09, BEH-LD-066
 }
 ```
 
@@ -217,24 +220,29 @@ the catalog refuses it one step earlier.
 ```ts
 // illustrative — not type-checked
 declare const Loader: {
-  readonly lazy: (entry: VerifiedEntry) => LazyPluginDefinition
+  // Fails with NotFirstParty unless entry.trust is "first-party" (09, BEH-LD-067).
+  readonly lazy: (entry: VerifiedEntry, options?: { readonly idle?: Duration.Input; readonly holdTimeout?: Duration.Input }) => Effect.Effect<LazyPluginDefinition, NotFirstParty>
   // = Plugin.lazy({                              // core BEH-BR-244
   //     manifest: entry.manifest,                 // carries no `digest` (BEH-LD-034)
   //     digest: entry.packageDigest,              // the lazy definition's identity: meta = { version, digest }
-  //     load: Loader.load({ source: entry.source, expect: entry.packageDigest }).pipe(Effect.map((l) => l.definition))
+  //     load: Loader.load({ source: entry.source, expect: entry.packageDigest,
+  //                         firstParty: entry.firstParty.signatures }).pipe(Effect.map((l) => l.definition))
   //   })
 }
 ```
 
 ```
-REQUIREMENT: `Loader.lazy` MUST build its definition with core's
+REQUIREMENT: `Loader.lazy` MUST refuse an entry whose `trust` is not
+             "first-party" with `NotFirstParty` (09, BEH-LD-067). For a
+             first-party entry it MUST build its definition with core's
              `Plugin.lazy({ manifest, load, digest })`, passing the verified
              manifest, which carries no `digest`, and `digest` set to the
              entry's recomputed package digest. The lazy definition's `meta`
              is then `{ version: manifest.version, digest: packageDigest }`
              before any code is loaded (core BEH-BR-244), and its `load`
              MUST run the full pipeline of 02 — Load Pipeline with `expect`
-             set to the entry's package digest.
+             set to the entry's package digest and `firstParty` set to the
+             entry's first-party signatures.
 ```
 
 ```
@@ -289,7 +297,8 @@ even start the load: core moves the plugin to `disabled` with reason
 
 ```
 REQUIREMENT: A `DesiredPlugin` list built from `Loader.lazy` definitions
-             MUST reconcile against an unchanged host as `unchanged` for
+             and `LoaderRemote.link` definitions (09, BEH-LD-068) MUST
+             reconcile against an unchanged host as `unchanged` for
              every entry, without fetching or evaluating any package, because
              each lazy definition's `meta` carries both `version` and
              `digest` (core BEH-BR-154, BEH-BR-244). Two entries with the
@@ -309,7 +318,7 @@ needs: syncing is cheap when nothing changed, and a change touches only what
 changed. With revocation applied as a filter (04, BEH-LD-028), the same list
 also carries the kill switch.
 
-## BEH-LD-039: Guest bundles are fetched and verified here, and run out of process
+## BEH-LD-039: Guest bundles are fetched and verified here, and run outside the host's runtime
 
 > **See:** [ADR-LD-005](../decisions/005-in-process-loading-is-for-first-party-code.md)
 > **Core seam:** [references/remote/](../../remote/README.md) (RM)
@@ -339,19 +348,26 @@ REQUIREMENT: `Loader.fetchVerified` MUST run steps 1–6 of the pipeline and
 declare const Loader: {
   // Copies a proxy definition (references/remote/) with meta.version and meta.digest
   // taken from the verified guest bundle; checks id and version against its manifest.
+  // Also sets `manifest` to the link manifest derived from the guest's (09, BEH-LD-069).
   readonly stampRemote: <D extends PluginDefinition<any, any, any, any>>(verified: VerifiedPackage, proxy: D) =>
-    Effect.Effect<D, ManifestMismatch>
+    Effect.Effect<D, GuestEntryInvalid | PackageManifestMismatch>   // GuestEntryInvalid: 09, BEH-LD-068
 }
 ```
 
 ```
 REQUIREMENT: `Loader.stampRemote` MUST return a copy of the proxy
              definition whose `meta.version` is the guest manifest's
-             version and whose `meta.digest` is the verified package digest,
-             with every other field unchanged, and MUST fail with
-             `ManifestMismatch` when the proxy's `id` differs from the
-             manifest's or the proxy declares a different `meta.version` or
-             any `meta.digest`. Documentation MUST state that the stamp
+             version, whose `meta.digest` is the verified package digest and
+             whose `manifest` is the link manifest of 09 (BEH-LD-069), with
+             every other field unchanged. It MUST first check that the guest
+             manifest has the guest shape, exactly as `LoaderRemote.link`
+             does (09, BEH-LD-068: one `provides` reference and empty or
+             absent `requires`, `optional`, `activation`, `contributions`
+             and `listens`), and fail with `GuestEntryInvalid` naming the
+             first offending field; it MUST then fail with
+             `PackageManifestMismatch` when the proxy's `id` differs from
+             the manifest's, or the proxy declares a different
+             `meta.version` or any `meta.digest`. Documentation MUST state that the stamp
              names the guest bundle the loader verified, and that whether the
              guest runs those bytes is the remote transport's obligation.
 ```
@@ -361,7 +377,10 @@ REQUIREMENT: Documentation MUST state that code from a party other than
              the application's own developers is to be loaded with
              `fetchVerified` and run by `@bridger/remote` in a separate
              process, isolate or worker behind a proxy plugin, never with
-             `load`. The loader's guarantee ends when it hands over the
+             `load` — which refuses it unless the application signed a
+             "first-party" statement for it (09, BEH-LD-065) — and that a
+             catalog entry not marked first-party reaches the host through
+             `LoaderRemote.link` (09, BEH-LD-068). The loader's guarantee ends when it hands over the
              bytes; that the guest runs exactly those bytes is the remote
              transport's obligation.
 ```
@@ -371,8 +390,9 @@ for third-party guests — their main use case — without application code
 copying a digest by hand: the proxy's `meta.digest` comes from the same
 verified value as a loaded definition's (INV-LD-003).
 
-This is the loader's half of the rule that third-party code never runs in the
-host's process. Verification is the same for both paths — a partner's bundle
+This is the loader's half of the rule that third-party code is never
+evaluated in the host's runtime; where it does run is the deployment's bundle
+runtime (09). Verification is the same for both paths — a partner's bundle
 is signed and revocable like a first-party package — but only first-party
 code is evaluated next to the host, because only for first-party code is
 "signed by the right people" the property that matters. For anyone else's
@@ -426,8 +446,10 @@ version with two digests is ambiguous and withdrawn. (4) Lazy plugins are
 built with core's `Plugin.lazy({ manifest, load, digest })`: the digest lives
 beside the manifest, is the lazy definition's identity from the start, and
 the loaded definition is held to it. (5) Third-party bundles take the
-`fetchVerified` path to an out-of-process guest, and their proxies are
-stamped by `stampRemote`.
+`fetchVerified` path to a guest outside the host's runtime, and their proxies are
+stamped by `stampRemote`. (6) Which entries take which path is decided by a
+signed trust class, not by the reference wiring (09, BEH-LD-065–067);
+catalog guests become links through `LoaderRemote.link` (BEH-LD-068).
 
 **Open.** (1) Whether the catalog should also carry a transparency-log
 checkpoint per feed, so that a device can detect a feed that shows different

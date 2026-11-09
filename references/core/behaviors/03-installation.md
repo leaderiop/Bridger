@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-03                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): generic `install` overload takes the branded `Plugin`; `UnknownRealm` at the linearization point after a retirement (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-017 non-generic `Plugin.Any` overload (CCR-BR-020); BEH-BR-018 `IncompatibleContract`, `IncompatibleEngine` and precedence, BEH-BR-019/020 lazy definitions read from the manifest (CCR-BR-017); BEH-BR-022 `mandatory`, `allowChildren` (CCR-BR-018)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-11-09): BEH-BR-017 `install` unions add `ConfigFingerprintUnavailable` and BEH-BR-024 `PluginHandle.restart` takes `HandoffCallOptions`, as BEH-BR-013 (C-01); BEH-BR-018 precedence names steps 4a and 4b; BEH-BR-023 a disabled installation also runs `IncompatibleEngine` and defers `IncompatibleContract`, and a `replace` that leaves the plugin disabled runs the same checks and reserves nothing (U-07, U-08) (CCR-BR-032)<br>0.4 (2026-11-08): generic `install` overload takes the branded `Plugin`; `UnknownRealm` at the linearization point after a retirement (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-017 non-generic `Plugin.Any` overload (CCR-BR-020); BEH-BR-018 `IncompatibleContract`, `IncompatibleEngine` and precedence, BEH-BR-019/020 lazy definitions read from the manifest (CCR-BR-017); BEH-BR-022 `mandatory`, `allowChildren` (CCR-BR-018)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -45,13 +45,13 @@ install<R extends Keys, P extends Keys, E, C>(
   plugin: Plugin<R, P, E, C>,                  // the branded value Plugin.define returns (01)
   options?: InstallOptions
 ): Effect.Effect<PluginHandle,
-  | InstallError | HostClosed
+  | InstallError | ConfigFingerprintUnavailable | HostClosed
   | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
 install(                                   // non-generic overload (01, BEH-BR-001; 27, BEH-BR-244)
   plugin: Plugin.Any | LazyPluginDefinition,
   options?: InstallOptions
 ): Effect.Effect<PluginHandle,
-  | InstallError | HostClosed
+  | InstallError | ConfigFingerprintUnavailable | HostClosed
   | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
 ```
 
@@ -152,8 +152,11 @@ REQUIREMENT: When more than one check would fail, `install` MUST report the
              first in this order: `HostClosed`; the attribution and latch
              checks (22, 23); `UnknownRealm`, `InvalidDefinition`,
              `IncompatibleEngine`, `DuplicatePlugin`, `DuplicateProvider`,
-             `DependencyCycle`, `IncompatibleContract`; then the gate (25). The definition checks run before the gate is
-             consulted and before any `requested` record is written.
+             `DependencyCycle`, `IncompatibleContract`; then
+             `ConfigFingerprintUnavailable` (22, BEH-BR-188, step 4a), the
+             refusal list (step 4b) and the gate (25). The definition
+             checks run before the gate is consulted and before any
+             `requested` record is written.
 ```
 
 ```
@@ -337,11 +340,23 @@ REQUIREMENT: `install(plugin, { disabled: true })` MUST register the plugin
 ```
 
 ```
-REQUIREMENT: A disabled installation MUST run the `UnknownRealm`,
-             `InvalidDefinition` and `DuplicatePlugin` checks. It MUST NOT
-             reserve a provider slot, and the `DuplicateProvider` and
-             `DependencyCycle` checks MUST be deferred to `enable`
-             (07 — Replacement and Reactivation).
+REQUIREMENT: A disabled installation MUST run the checks that concern the
+             definition and its identity — `UnknownRealm`,
+             `InvalidDefinition`, `IncompatibleEngine` (27 — Manifest and
+             Lazy Activation, BEH-BR-242) and `DuplicatePlugin` — in the
+             order of BEH-BR-018. It MUST NOT reserve a provider slot or a
+             dependency edge, and the checks that concern slots, edges and
+             pairs — `DuplicateProvider`, `DependencyCycle` and
+             `IncompatibleContract` (26 — Versioned Contracts,
+             BEH-BR-228) — MUST be deferred to `enable` (07 — Replacement
+             and Reactivation, BEH-BR-062).
+```
+
+```
+REQUIREMENT: A `replace` that leaves the plugin disabled MUST run the same
+             checks as a disabled installation, MUST reserve nothing and
+             MUST defer the same three checks to `enable` (07 — Replacement
+             and Reactivation, BEH-BR-050).
 ```
 
 A disabled plugin provides nothing and reserves nothing, so another plugin may
@@ -354,7 +369,11 @@ moment they matter.
 directly in this state" without saying which install checks apply. The checks
 that concern the definition and its identity apply at install; the checks
 that concern slots and edges, which a disabled plugin does not hold, apply at
-`enable`.
+`enable`. CCR-BR-032 completes both lists with the checks files 26 and 27
+added (`IncompatibleEngine` at install, `IncompatibleContract` at `enable`)
+and applies them to a `replace` of a disabled plugin, which had been told to
+run every `install` check and reserve both definitions' slots although a
+disabled plugin holds none.
 
 ## BEH-BR-024: PluginHandle and awaitActive
 
@@ -373,7 +392,7 @@ interface PluginHandle {
   readonly remove: (options?: RemoveOptions) => Effect.Effect<void,
     | UnknownPlugin | CleanupError | DrainTimeout | WouldDeadlock | HostClosed
     | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
-  readonly restart: (options?: RemoveOptions) => Effect.Effect<void,
+  readonly restart: (options?: RemoveOptions & HandoffCallOptions) => Effect.Effect<void,   // HandoffCallOptions: 34, BEH-BR-353
     | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock | HostClosed
     | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected>
 }

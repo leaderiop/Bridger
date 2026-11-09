@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-KR-017 persists step state, resumes incomplete shreds at start and on a repeated `shred`, opens its own transactions and commits the notice with the tombstone when the `KeyStore` shares the outbox; BEH-KR-020 and 021 report acknowledging and `KeyStore`-declared hosts only; BEH-KR-022 `notStated` names undeclared hosts; BEH-KR-024 checks 7, 10 and 12 extended (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-017 cites URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — a shred requires an attributed actor (`ShredUnattributed`); the tombstone keeps the shred's actor, `onBehalfOf`, correlation, reason and origin, written once and never changed; the notice carries the reason and time and is published under the shred's context, and a receiving host keeps the origin's attribution as a claim; the receipt exposes the attribution; checks 10 and 12 extended (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-017 persists step state, resumes incomplete shreds at start and on a repeated `shred`, opens its own transactions and commits the notice with the tombstone when the `KeyStore` shares the outbox; BEH-KR-020 and 021 report acknowledging and `KeyStore`-declared hosts only; BEH-KR-022 `notStated` names undeclared hosts; BEH-KR-024 checks 7, 10 and 12 extended (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-017 cites URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -28,20 +28,23 @@ Planned source: `packages/keyring/src/Shred.ts` *(Planned)*.
 > **Invariant:** [INV-KR-002](../invariants.md#inv-kr-002-after-a-shred-begins-the-keyring-neither-encrypts-nor-decrypts-for-the-subject), [INV-KR-004](../invariants.md#inv-kr-004-a-shred-changes-no-stored-byte)
 > **See:** [ADR-KR-001](../decisions/001-shred-keys-never-rewrite-events.md)
 > **Satisfies:** [URS-BR-058](../../core/urs.md#urs-br-058-make-a-subjects-personal-fields-unreadable-without-rewriting-history)
-> **Core seam:** [22 — Attributable Operations](../../core/behaviors/22-attributable-operations.md) (BEH-BR-187)
+> **Core seam:** [22 — Attributable Operations](../../core/behaviors/22-attributable-operations.md) (BEH-BR-187, BEH-BR-189)
+> **Risk:** [RSK-KR-006](../risks.md#rsk-kr-006)
 
 ```ts
 // illustrative — not type-checked
 declare const Keyring: {
   // the keyring opens its own transactions; the caller passes none (see below)
   readonly shred: (subject: string, options: { reason: string; context?: OperationContext }) =>
-    Effect.Effect<ShredReceipt, SubjectInvalid | KeyStoreUnavailable>
+    Effect.Effect<ShredReceipt, SubjectInvalid | ShredUnattributed | KeyStoreUnavailable>
 }
+class ShredUnattributed extends Schema.TaggedError<ShredUnattributed>()("ShredUnattributed", { subject: Schema.String }) {}
 interface ShredReceipt {
   readonly subject: string
   readonly shredId: string                   // IdGenerator
   readonly shreddedAt: string                // Clock
   readonly keyIds: readonly string[]
+  readonly attribution: ShredAttribution     // as kept in the tombstone (BEH-KR-018)
   readonly steps: { readonly tombstone: "done"; readonly destroy: "pending" | "done"; readonly notice: "pending" | "done" }
   readonly status: "redaction-pending" | "shredded"
   readonly callbacks: readonly { name: string; state: "pending" | "acknowledged"; attempts: number }[]
@@ -89,24 +92,73 @@ REQUIREMENT: The keyring MUST open its own transactions. When the `KeyStore`
 ```
 
 ```
-REQUIREMENT: The shred's actor and correlation MUST be resolved as core
-             resolves a call's (BEH-BR-187); `reason` MUST be non-empty and
-             documentation MUST state that it carries no personal data.
-             Shredding a shredded subject MUST resume its pending steps as
-             above and return its receipt; it MUST NOT write a second
-             tombstone or change `shredId`.
+REQUIREMENT: The shred's actor, `onBehalfOf` and correlation MUST be
+             resolved as core resolves a call's (BEH-BR-187). A resolved
+             actor that is `Actor.unattributed`, `Actor.system`, any actor
+             whose `id` begins with "bridger:", or one whose `id` is empty
+             or whitespace-only MUST fail the shred with
+             `ShredUnattributed { subject }` before step 1, writing
+             nothing, whatever core's `attribution.require` says (the rule
+             core applies to `acknowledgeAuditDegraded`, BEH-BR-189): a
+             shred makes retained fields unreadable, so who asked for it
+             is never optional. `reason` MUST be non-empty and not
+             whitespace-only, else the shred MUST fail with
+             `SubjectInvalid` before step 1; documentation MUST state that
+             it carries no personal data. Shredding a shredded subject
+             MUST resume its pending steps as above and return its
+             receipt; it MUST NOT write a second tombstone or change
+             `shredId` or the tombstone's attribution, and the repeated
+             call's own actor and reason are not recorded by the keyring.
 ```
 
 ## BEH-KR-018: The tombstone closes the subject
 
 > **Invariant:** [INV-KR-003](../invariants.md#inv-kr-003-a-shredded-subject-never-gets-a-new-key)
 > **See:** [ADR-KR-003](../decisions/003-a-shredded-subject-is-closed.md)
+> **Risk:** [RSK-KR-006](../risks.md#rsk-kr-006)
+
+```ts
+// illustrative — not type-checked
+interface Tombstone {
+  readonly subject: string
+  readonly shredId: string
+  readonly shreddedAt: string                    // Clock of the host that shred first
+  readonly keyIds: readonly string[]
+  readonly attribution: ShredAttribution
+  readonly steps: { readonly destroyed: boolean; readonly noticed: boolean }   // the only part markStep changes
+}
+interface ShredAttribution {
+  readonly actor: Actor                          // core BEH-BR-185; on a receiving host, the origin's claim
+  readonly onBehalfOf?: string                   // PrincipalRef.encode, when resolved
+  readonly correlationId: string
+  readonly reason: string
+  readonly origin: string                        // durable-bus origin of the host that shred first, node#incarnation
+  readonly received?: { readonly eventId: string; readonly receivedAt: string }   // set on a receiving host only
+}
+```
 
 ```
-REQUIREMENT: A tombstone `{ subject, shredId, shreddedAt, keyIds }` MUST be
-             kept for the life of the `KeyStore`. While it exists, no key
-             MUST be created for the subject; new data about the same person
-             requires a new subject id chosen by the application.
+REQUIREMENT: A tombstone MUST be kept for the life of the `KeyStore`. While
+             it exists, no key MUST be created for the subject; new data
+             about the same person requires a new subject id chosen by the
+             application.
+```
+
+```
+REQUIREMENT: The tombstone MUST carry the shred's attribution: on the host
+             that shred first, the resolved actor, `onBehalfOf` and
+             correlation of BEH-KR-017, the `reason`, and the origin that
+             `DurableBus.origin` returns when step 1 is written; on a
+             receiving host, the values of BEH-KR-020. The `KeyStore` MUST
+             write every field of the tombstone with step 1 and MUST NOT
+             change any of them afterwards; `markStep` MUST change `steps`
+             only (BEH-KR-004). The tombstone is the keyring's record of
+             who shred the subject, when, why and from where. Documentation
+             MUST state that it is not a core audit record (core
+             BEH-BR-207), that the package does not protect it against
+             change or deletion by whoever administers the `KeyStore`, and
+             that a consumer who must keep shreds in its own audit trail
+             writes them there from the receipt or a redaction callback.
 ```
 
 ## BEH-KR-019: Redaction callbacks drop plaintext
@@ -140,9 +192,19 @@ REQUIREMENT: Every registered callback MUST be called at least once per
 
 ```
 REQUIREMENT: `shred` MUST publish `SubjectShredded { subject, shredId,
-             keyIds }` through durable-bus (BEH-KR-017 step 3). A keyring
+             shreddedAt, keyIds, reason }` through durable-bus (BEH-KR-017
+             step 3), under the shred's resolved context, so that the
+             envelope's actor, `onBehalfOf` and correlation are the
+             shred's (durable-bus BEH-DB-005, BEH-DB-006); a notice resumed
+             at plugin start MUST be published under that same context,
+             rebuilt from the tombstone. A keyring
              receiving it MUST apply steps 1, 2 and 4 of BEH-KR-017 locally,
-             once per `shredId`, and publish an acknowledgement
+             once per `shredId`, writing a tombstone whose attribution is
+             the envelope's actor (a claim of the origin, durable-bus
+             BEH-DB-006), its `onBehalfOf`, its correlation and its origin,
+             the notice's `reason` and `shreddedAt`, and `received` with the
+             envelope's `eventId` and the local `Clock`; and publish an
+             acknowledgement
              `SubjectShredAcknowledged { subject, shredId, host }`. The
              originating receipt's `hosts` MUST list every host that
              acknowledged, and every host the `KeyStore` declares through
@@ -234,12 +296,21 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  `destroy`, and one before the notice, are resumed at plugin
                  start and by a repeated `shred`; with an outbox-sharing
                  `KeyStore` the tombstone and the notice commit together;
-                 a second shred keeps `shredId` (BEH-KR-017, BEH-KR-018).
+                 a second shred keeps `shredId` and the first attribution;
+                 a shred by a reserved or blank actor fails with
+                 `ShredUnattributed` and a blank reason with
+                 `SubjectInvalid`, writing nothing; the tombstone and the
+                 receipt carry the actor, `onBehalfOf`, correlation,
+                 reason and origin, and `markStep` changes only `steps`
+                 (BEH-KR-017, BEH-KR-018).
              11. Callbacks: at least once, retried, late-registered callback
                  catches up; status "redaction-pending" until all
                  acknowledge (BEH-KR-019, BEH-KR-021).
              12. Notices and limits: a second host applies a notice once even
-                 when it arrives twice; the receipt lists acknowledging and
+                 when it arrives twice, and its tombstone keeps the origin's
+                 actor, correlation, origin, reason and `shreddedAt` with
+                 `received`; a resumed notice carries the shred's actor and
+                 correlation; the receipt lists acknowledging and
                  declared hosts; a restored host re-applies tombstones; every
                  receipt lists `notStated`; wording lint (BEH-KR-020,
                  BEH-KR-021, BEH-KR-022, BEH-KR-023).
@@ -247,7 +318,11 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
 
 **Settled here.** (1) Tombstone first, then destroy, notify, redact; the
 steps are persisted and resumed, and the notice commits with the tombstone
-when the `KeyStore` shares the outbox's database (BEH-KR-017). (2) A shredded subject is closed (BEH-KR-018). (3) Callbacks are
+when the `KeyStore` shares the outbox's database (BEH-KR-017). (2) A shredded subject is closed (BEH-KR-018), and its tombstone says who
+shred it, when, why and from which origin; the record stays in the keyring
+rather than in core's audit trail, because a shred is not a host lifecycle
+operation (core BEH-BR-193), and it travels with the notice so that every
+receiving host keeps the same account. (3) Callbacks are
 at least once with their own cursor (BEH-KR-019). (4) Every receipt states
 what the shred did not reach (BEH-KR-022).
 

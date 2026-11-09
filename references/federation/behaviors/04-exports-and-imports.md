@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-04                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -97,11 +97,26 @@ REQUIREMENT: Each `ManifestImport` of key K at version V (major M) MUST
              with name K and major M, at V (`Contract.at`, core BEH-BR-227),
              with no `grants`, with id "import:" + from + ":" + K + "@" + M,
              realm `realm ?? "peer:" + from + ":" + K + "@" + M`
-             (BEH-FD-022), and `meta.version`/`meta.digest` derived
-             deterministically from (from, K, V, timeout) so that an
+             (BEH-FD-022), `disclose` the entry's `disclose` (default
+             none), and `meta.version`/`meta.digest` derived
+             deterministically from (from, K, V, timeout, residency,
+             disclose — the claim names sorted and deduplicated) so that an
              unchanged import is the same definition to core reconcile
-             (BEH-BR-154). Two imports of one (from, K, M) MUST be dropped
-             as "duplicate-import".
+             (BEH-BR-154) and a changed disclosure replaces the link. Two
+             imports of one (from, K, M) MUST be dropped as
+             "duplicate-import".
+```
+
+```
+REQUIREMENT: An import's `disclose` MUST be passed unchanged, after sorting
+             and deduplication, as the remote companion's
+             `RemoteOptions.disclose` (BEH-RM-024): only the claims it
+             lists — "actor", "onBehalfOf", "org", "correlationId" — reach
+             the peer, and none when it is absent. An entry that names
+             any other claim MUST be dropped with reason "unknown-claim"
+             and reported; it MUST NOT be installed with the names this
+             host knows. The disclosure is set only by the signed manifest;
+             a local patch MUST NOT change it (BEH-FD-006).
 ```
 
 ```
@@ -136,7 +151,16 @@ REQUIREMENT: Importing a key that the local host also provides in the same
 ```
 
 The proxy is the remote companion's ordinary local proxy plugin; federation
-only decides, from the manifest, which proxies exist and where. Its leases,
+only decides, from the manifest, which proxies exist, where, and what
+identity they send.
+
+**Settled here (CCR-FD-004).** A peer receives no caller identity unless the
+authority's signed manifest lists the claims for that import. Until remote CCR-RM-004 every
+link sent every identity claim on every call; a peer that receives user
+identities becomes a processor of them, and which peers do is a decision the
+authority records, not a default. An unknown claim name drops the import
+rather than sending less than the authority asked for, because a peer that
+needs a claim would otherwise attribute calls wrongly without notice. Its leases,
 drain, epochs and partition behaviour are the remote companion's
 ([INV-RM-005](../../remote/invariants.md#inv-rm-005-a-partition-withdraws-the-provider-and-fails-no-dependent)).
 

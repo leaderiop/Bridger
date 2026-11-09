@@ -114,7 +114,7 @@ CREATE TABLE bridger_companies (
   status     text NOT NULL,                -- active | disabled
   timezone   text NOT NULL,                -- IANA name; drives the company-local business date
   default_locale text NOT NULL,            -- fallback chain end for translatable data and formatting
-  functional_currency text NOT NULL,       -- ISO 4217 code; money rounding default
+  functional_currency text NOT NULL,       -- ISO 4217 code of a bridger.currency row (ERP-RECORDS.md §10); money rounding default
   created_at timestamptz NOT NULL,
   PRIMARY KEY (tenant_id, id)
 );
@@ -146,7 +146,18 @@ Clients declare their context generation on every `/erp/query` and `/erp/command
 
 Every operation response and catalog response carries the context generation it was produced under. The browser keeps its own current generation; on `POST /erp/session/company` it cancels in-flight queries, clears scoped data, and discards any response whose generation differs from the current one ([ERP-BROWSER.md](ERP-BROWSER.md)). The server independently rejects an operation whose declared generation is older than the stored one with `ContextChanged` (client reloads session and retries as a new intent).
 
-Companies are administered through `companies.ensure`, `companies.disable`, `companies.list` (§7). Disabling a company closes admission for it (operations return `Forbidden`), retains all data, and clears it from sessions.
+Companies are administered through `companies.ensure`, `companies.disable`, `companies.list` (§7). `companies.ensure` takes every column the row requires; none has a default:
+
+```ts
+erp.companies.ensure({
+  tenantId: "demo", id: "main", name: "Main",
+  timezone: "Europe/Paris",        // IANA name
+  defaultLocale: "en",             // BCP 47 tag
+  functionalCurrency: "EUR",       // must exist in bridger.currency
+}) // Effect<Company, CompanyConflict | InvalidInput | Forbidden>
+```
+
+It creates the row when absent, returns it unchanged when every value matches, and updates `name` and `default_locale` when only those differ. `timezone` and `functional_currency` decide business dates and money rounding of rows already written, so `ensure` never changes them: a different value fails with `CompanyConflict { field }`. Changing either is a separate reviewed migration, outside this proposal. An unknown time zone, locale or currency fails with `InvalidInput`. Tenant and company IDs are 1 to 63 characters from `[A-Za-z0-9._-]`; `tenants.ensure` and `companies.ensure` reject another ID with `InvalidInput`. The rule keeps an ID safe in a command receipt partition (`<tenant>/<company>`, [ERP-STORAGE.md](ERP-STORAGE.md) §10). Disabling a company closes admission for it (operations return `Forbidden`), retains all data, and clears it from sessions.
 
 ## 5. Grants
 
@@ -210,7 +221,7 @@ Administrative operations are **server composition interfaces and authorized man
 | Command | Authority | Backed by |
 | --- | --- | --- |
 | `tenants.ensure`, `tenants.suspend` | Platform administrator (`canAdministerTenants` in awthaq `AdminTenants`) | Creates/updates the awthaq organization and Bridger tenant state. |
-| `companies.ensure`, `companies.disable`, `companies.list` | `bridger.company:manage` (tenant-wide) | `bridger_companies`. |
+| `companies.ensure`, `companies.disable`, `companies.list` | `bridger.company:manage` (tenant-wide) | `bridger_companies`; `ensure` takes the required fields of §4. |
 | `grants.assign`, `grants.revoke`, `grants.list` | `bridger.grant:manage` | `bridger_grants`. |
 | `members.invite`, `members.remove` | `bridger.member:manage` | Delegates to awthaq `Organization` and `Password`/`OAuth` flows; no Bridger table. |
 | `users.ban`, `sessions.revokeAll` | Platform administrator | awthaq `Admin` / `Sessions`. |
@@ -222,7 +233,7 @@ Administrative operations are **server composition interfaces and authorized man
 
 ## 8. HTTP assembly
 
-Server composition (illustrative):
+Server composition (illustrative; `ErpNode.routes` and `ErpNode.serve` are specified with the wire format in [ERP-SPEC.md](ERP-SPEC.md) §5):
 
 ```ts
 const auth = Auth.make([Password.plugin(), OAuth.plugin(providers), Organization.plugin(), Roles.plugin()])
@@ -292,6 +303,7 @@ Rules:
 | `ContextRequired` | Company-scoped operation without a selected company | `InvalidInput`-class: client selects a company. |
 | `ContextChanged` | Operation carried an older context generation | Client reloads `/erp/session`, re-submits as a new intent. |
 | `GrantRejected`, `GrantEscalation`, `GrantNotFound` | Administrative grant failures | Typed management errors. |
+| `CompanyConflict` | `companies.ensure` asked to change a company's `timezone` or `functional_currency` (§4) | Typed management error carrying `field`. |
 | `ImpersonationForbidden` | Admin command during impersonation | `Forbidden`. |
 | `ContextUnavailable` | Side-table or grants lookup failed | `InternalError` (a lookup failure is never a denial). |
 
@@ -305,6 +317,7 @@ Rules:
 - A tenant admin cannot grant a role beyond their own authority.
 - `Identity.development` refuses to start unless bound to loopback in development mode.
 - Auth events and ERP audit rows for one action share a correlation ID.
+- `companies.ensure` without a time zone, locale or currency is rejected before any write; called again with a different time zone it fails with `CompanyConflict` and leaves the row unchanged.
 
 These are design acceptance scenarios, not tests already executed.
 
@@ -321,3 +334,5 @@ These are design acceptance scenarios, not tests already executed.
 **Status (2026-11-08): open items remain.** The decisions above date from October 2026. Open: the awthaq packages must become consumable (link or publish) and move off their exact Effect pin; the actor and grant model is to be reconciled with the core plugin principal and capability grants ([28](../references/core/behaviors/28-plugin-principal-and-mandatory-policy.md), [29](../references/core/behaviors/29-capability-grants-and-call-log.md)); nothing here is implemented.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §4, §7, §10 and §11: `companies.ensure` takes the three required company columns (time zone, default locale, functional currency), may not change the first or the last, and fails with `CompanyConflict` if asked to (E-07); `functional_currency` refers to the platform's `bridger.currency` (E-12). §4 states the tenant and company ID rule the receipt partition relies on (E-01). §8 points to ERP-SPEC §5 for `ErpNode` (E-07).

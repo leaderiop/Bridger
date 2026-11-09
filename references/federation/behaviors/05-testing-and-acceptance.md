@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1–F5, F7–F11, F15, F21, F22, F24) — checks 16, 32–38 restated; checks 40–43 added (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18, 19, 20 and 22, CORE-DECISIONS-2 — checks 32–39 (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — checks 16 and 18–23 aligned with links over the remote multiplexer, single-major imports and per-link fences; checks 25–31 added (R3-01, R3-02, R3-18, R3-19, R3-20, R3-21, R3-25, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.6 (2026-11-09): Check 44: identity disclosure on imports; check 45: local contracts refused at the plugin's build (core CCR-BR-033); introduction names check 45 (independent review) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1–F5, F7–F11, F15, F21, F22, F24) — checks 16, 32–38 restated; checks 40–43 added (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18, 19, 20 and 22, CORE-DECISIONS-2 — checks 32–39 (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — checks 16 and 18–23 aligned with links over the remote multiplexer, single-major imports and per-link fences; checks 25–31 added (R3-01, R3-02, R3-18, R3-19, R3-20, R3-21, R3-25, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -20,7 +20,9 @@ Distributed behaviour is only worth specifying if it can be tested without
 real networks and real clocks. This file specifies the federation test
 harness and the acceptance checks a conforming implementation must pass.
 This file owns BEH-FD-033–040 and uses BEH-FD-033–034; BEH-FD-035–040 are
-reserved. Checks 32–43 cover [06 — Kill path, placement and skew](./06-kill-path-placement-and-skew.md).
+reserved. Checks 32–43 cover [06 — Kill path, placement and skew](./06-kill-path-placement-and-skew.md);
+check 44 covers identity disclosure on imports (03, 04), and check 45 the
+refusal of local contracts (02, BEH-FD-009).
 
 Planned source: `packages/federation/src/testing/TestFederation.ts`;
 planned tests: `packages/federation/test/acceptance/*.test.ts` *(Planned)*.
@@ -125,6 +127,8 @@ REQUIREMENT: An implementation MUST pass the checks below under
 41. With `maxDisabledPerRevision` set, a set that would disable more owned plugins than allowed disables none, reports each `kill-held`, keeps them in the next apply, and acts after an attributed `releaseRevocation`; a set matching a plugin outside the scope reports `kill-unowned` and acts on nothing (BEH-FD-042).
 42. A crash injected during `install` restarts the host with links suspended, applies the last applied manifest minus pending kills, and resumes the re-bootstrap from step 1; a crash after the install resumes at the manifest apply without installing again; `install` never replaces the manifest, revocation or fence stores (BEH-FD-014, BEH-FD-048).
 43. A re-bootstrap whose settle stays blocked retries on a backoff up to `rebootstrapRetryMax` and never suspends a link while it is blocked (BEH-FD-014).
+44. An import without `disclose` sends no actor, principal, organisation or correlation id to the peer; one with `disclose` sends exactly the listed claims; a changed `disclose` changes the import's `meta.digest` and replaces its proxy, while a reordered or repeated list does not; an entry naming an unknown claim is dropped "unknown-claim" and not installed; no local patch changes `disclose`; the serving host runs a call without identity claims as the peer's service actor with a provenance entry without `ref` and core's default correlation (BEH-FD-023, BEH-FD-026).
+45. A `contracts` list holding a local contract passed untyped fails the federation plugin's build with `LocalContractRefused` (site "federation-contracts") before the store is read; nothing is applied, imported or served; the option's type rejects a local contract at compile time; an import's call-log crossing entries name in `disclosed` exactly the claims sent with the call (BEH-FD-009, remote BEH-RM-007, remote BEH-RM-024).
 
 **Settled here.** Check 24 is the "N−1 replay CI" of the architecture
 review's step B5: the skew window is only as good as the pair of versions

@@ -102,7 +102,7 @@ Every acceptance check in the specs gets a stable ID and a test.
 
 | Spec | Section | Scenario ID prefix |
 | --- | --- | --- |
-| [SPEC.md](SPEC.md) (core runtime) | "Testing the core" | `COR-` |
+| Core runtime: [21 — Testing host](../references/core/behaviors/21-testing-host.md) (BEH-BR-183, BEH-BR-184) | [traceability §5](../references/core/traceability.md#5-acceptance-scenario-traceability) | the core's own `REQ-BR-` IDs (not renumbered here) |
 | [ERP-RUNTIME.md](ERP-RUNTIME.md) | §11 | `RUN-` |
 | [ERP-RECORDS.md](ERP-RECORDS.md) | §14 | `REC-` |
 | [ERP-STORAGE.md](ERP-STORAGE.md) | §15 | `STO-` |
@@ -228,3 +228,5 @@ These are design acceptance scenarios, not tests already executed.
 **Status (2026-11-08): open items remain.** The decisions above date from October 2026. Open: the test kit and CLI overlap with the `@bridger/kit` companion ([references/kit/](../references/kit/README.md)) and are to be reconciled with it; tool versions are to be re-checked against the Effect 4.1 target; nothing here is implemented or run.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §4: the core row cites the core reference's required acceptance checks (BEH-BR-183, BEH-BR-184) and their `REQ-BR-` IDs instead of the superseded SPEC.md and a `COR-` prefix (E-04).

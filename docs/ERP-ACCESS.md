@@ -91,7 +91,7 @@ Authentication is awthaq's: its `Authentication` middleware yields `CurrentPrinc
 
 | Operation | Behavior |
 | --- | --- |
-| `list` | Gate with `check`. Row policy goes through `toPredicate` and `@qadi/predicate-sql`, then is ANDed with the tenant and company scope by the storage adapter's renderer. Requested fields the caller may not read are rejected with `Forbidden` (never silently omitted); permitted fields are projected with `project`. A `False` predicate skips the query. |
+| `list` | Gate with `check`. Row policy goes through `toPredicate` and `@qadi/predicate-sql`, then is ANDed with the tenant and company scope by the storage adapter's renderer. A requested projection containing fields the caller may not read is rejected with `Forbidden` (never silently omitted); permitted fields are projected with `project`. A filter, sort, search or aggregate over a field the caller may not read gives `InvalidQuery { reason: "field-not-allowed" }`, the same error as an unknown field ([ERP-RECORDS.md](ERP-RECORDS.md) §5). A `False` predicate skips the query. |
 | `get` | Same pushdown. A row outside the authorized scope returns `RecordNotFound`. |
 | `create` | `enforce` the gate, then set `createdBy` from the subject. |
 | `update`, `delete` | One statement: `WHERE id AND scope AND <row predicate> AND revision = ?`. Zero rows resolves to `RecordNotFound` or `RevisionConflict` only after authorization. |
@@ -111,7 +111,7 @@ Open points that need tests before the design is accepted:
 
 | Qadi result | Bridger error |
 | --- | --- |
-| `AccessDenied` on the operation gate | `Forbidden`, using the public form (`toAccessDeniedPublic`). |
+| `AccessDenied` on the operation gate | The gate answers `Refuse` with a reason starting `access-denied` (dispatch ends with `CommandRefused`, BEH-CM-011); the gateway maps it to `Forbidden`, using the public form (`toAccessDeniedPublic`) ([ERP-SPEC.md](ERP-SPEC.md) §5). |
 | Denied on a specific row | `RecordNotFound`. |
 | `AttributeResolveError`, `RelationshipResolveError`, `CustomPredicateError` | `InternalError` with a correlation ID. A broken lookup is a failure, not a denial. |
 | `PolicyNotTranslatable` | Activation error when found at Module compile time; otherwise the fallback in section 5. |
@@ -143,3 +143,5 @@ All Bridger packages target the latest stable Effect 4.x (4.1 at the time of the
 - Examples remain design sketches until the pinned dependencies exist.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
+
+Change log: 2026-11-09, audit fixes — §5 `list` row: filters, sorts, searches and aggregates over a field the caller may not read give `InvalidQuery`, as in ERP-RECORDS §5, so list and aggregate agree; `Forbidden` stays for a requested projection (E-11). §6: the gate's refusal reason `access-denied` is what the gateway maps to `Forbidden` (review fix).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-04                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): idle return edges and `StopReason` "idle" (27, BEH-BR-252) (CCR-BR-024); disabled reason "refused-digest" and start-refused edges (CCR-BR-026)<br>0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-11-09): BEH-BR-026 edge `starting` → unregistered when shutdown begins while its build has not begun (12, BEH-BR-105) (review of CCR-BR-032) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-026 the unregistration edges name shutdown; BEH-BR-027 under shutdown every `stopping` entry shows `reason` "shutdown" and `next` "gone" (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): idle return edges and `StopReason` "idle" (27, BEH-BR-252) (CCR-BR-024); disabled reason "refused-digest" and start-refused edges (CCR-BR-026)<br>0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -86,29 +86,30 @@ stateDiagram-v2
     [*] --> disabled: install with disabled
     waiting --> starting: requirements available (also replace)
     waiting --> disabled: disable
-    waiting --> [*]: remove
+    waiting --> [*]: remove, or shutdown begins (12, BEH-BR-105)
     starting --> active: build succeeds and is published
     starting --> failed: build or activation fails, or build times out
     starting --> stopping: target changes; the in-flight step settles first
     starting --> waiting: a requirement is gone when the build would begin (05, BEH-BR-035)
+    starting --> [*]: shutdown begins while its build has not begun (12, BEH-BR-105)
     active --> stopping: dependency loss, remove, replace, restart, reconfigure, disable, runtime failure, shutdown
     stopping --> waiting: requirements missing
     stopping --> starting: requirements available (replace, restart, reconfigure, provider returned)
     stopping --> failed: cleanup fails, or runtime failure completes
     stopping --> disabled: disable completes
-    stopping --> [*]: removal completes
+    stopping --> [*]: removal completes, or a stop under shutdown completes (12, BEH-BR-105)
     failed --> starting: retry, restart, replace or reconfigure, requirements available
     failed --> waiting: retry, restart, replace or reconfigure, requirements missing
     failed --> disabled: disable (not after a cleanup failure)
-    failed --> [*]: remove
+    failed --> [*]: remove; or shutdown begins, except after a cleanup failure (12, BEH-BR-105)
     disabled --> starting: enable, requirements available
     disabled --> waiting: enable, requirements missing
-    disabled --> [*]: remove
+    disabled --> [*]: remove, or shutdown begins (12, BEH-BR-105)
     [*] --> dormant: install of a lazy definition (27)
     dormant --> starting: triggered, requirements available (27)
     dormant --> waiting: triggered, requirements missing (27)
     dormant --> disabled: disable (27)
-    dormant --> [*]: remove (27)
+    dormant --> [*]: remove, or shutdown begins (27; 12, BEH-BR-105)
     disabled --> dormant: enable, not yet loaded (27)
     waiting --> dormant: replace with a lazy definition (27)
     failed --> dormant: replace with a lazy definition (27)
@@ -264,10 +265,14 @@ REQUIREMENT: When a call resumes a parked stop, `reason` MUST become, in the
 ```
 
 ```
-REQUIREMENT: When shutdown resumes a parked stop, `reason` MUST become
-             "shutdown" in the revision in which shutdown resumes it, with
-             `next` the destination of shutdown's stop (12 — Shutdown and
-             Hosting, BEH-BR-105).
+REQUIREMENT: Once shutdown has begun, every `stopping` entry MUST show
+             `reason` "shutdown" and `next` "gone", the destination of every
+             stop under shutdown (12 — Shutdown and Hosting, BEH-BR-105):
+             a stop that shutdown begins, from the revision in which it
+             begins; a stop already running, parked or not, from the
+             revision in which shutdown takes it over or resumes it. A stop
+             whose cleanup then fails still ends in `failed` with phase
+             "cleanup" (06 — Removal, BEH-BR-046).
 ```
 
 ```

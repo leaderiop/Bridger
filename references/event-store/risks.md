@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-RISK                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Risk Assessment                                              |
-> | Change History | 0.2 (2026-11-08): RSK-ES-004 controls follow the round-2 review fixes (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.3 (2026-11-09): RSK-ES-003 failure mode and controls cover a stored event and its envelope that disagree on attribution or stream; RSK-ES-005 failure mode and controls cover a field added without a version raise; scores unchanged (CCR-ES-003)<br>0.2 (2026-11-08): RSK-ES-004 controls follow the round-2 review fixes (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -54,9 +54,9 @@ integration of these risks into the core register is proposed in CCR-ES-001.
 
 | Aspect | Assessment |
 | ------ | ---------- |
-| Failure mode | An event is stored but never published, or published without being stored (dual write). |
+| Failure mode | An event is stored but never published, or published without being stored (dual write); or a stored event and its envelope name different actors, correlations or streams, so that a reviewer matching them by `eventId` reads two accounts. |
 | Initial scoring | S 3 · P 3 · D 3 → class **High** (9) · priority **High** (9) |
-| Controls | Append only inside `StoreTransaction` (BEH-ES-005); outbox written in the append (BEH-ES-028); one database (BEH-ES-034); INV-ES-002. |
+| Controls | Append only inside `StoreTransaction` (BEH-ES-005); outbox written in the append (BEH-ES-028); one database (BEH-ES-034); INV-ES-002; one resolved context per append and the published event's attribution taken from its envelope, on the event-store stream by default (BEH-ES-007, BEH-ES-028). |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
 | Residual risk and acceptability | An application that writes events outside the package. Acceptable. |
 | Owner | Companion |
@@ -78,9 +78,9 @@ integration of these risks into the core register is proposed in CCR-ES-001.
 
 | Aspect | Assessment |
 | ------ | ---------- |
-| Failure mode | An upcaster changes the meaning of old events, an upcaster is removed while old events are stored, or a snapshot of an older state shape is used. |
+| Failure mode | An upcaster changes the meaning of old events, an upcaster is removed while old events are stored, or a snapshot of an older state shape is used; or a field added without a version raise is dropped by an older host that decodes and records or re-publishes the event. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Upcast then decode, stop on unknown versions (BEH-ES-006, BEH-ES-026); retention refusal (BEH-ES-027); `stateVersion` and `Snapshots.verify` (BEH-ES-023, BEH-ES-024); projection version change (BEH-ES-022); INV-ES-005. |
+| Controls | Upcast then decode, stop on unknown versions (BEH-ES-006, BEH-ES-026); every payload change raises the version (BEH-ES-025, durable-bus BEH-DB-001); retention refusal (BEH-ES-027); `stateVersion` and `Snapshots.verify` (BEH-ES-023, BEH-ES-024); projection version change (BEH-ES-022); INV-ES-005. |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |
 | Residual risk and acceptability | A semantically wrong but type-correct upcaster. Owned by the consumer's review and tests. |
 | Owner | Consumer |

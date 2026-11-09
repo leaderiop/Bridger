@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-040                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amends ADR-BR-027 and ADR-BR-011                  |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): `IncompatibleContract` is a cause a companion reports (a proxy provides nothing rather than failing its activation); a provision serves only peers at its major and at least its version, one provision per major (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
+> | Change History | 0.3 (2026-11-09): Decision gains the local contract, `Contract.local(Key, { version, members })`, declared by member names without codecs and never carried across a host; a rejected alternative recorded (requested by event-store CCR-ES-003 and sequence CCR-SQ-003) (CCR-BR-033)<br>0.2 (2026-11-08): `IncompatibleContract` is a cause a companion reports (a proxy provides nothing rather than failing its activation); a provision serves only peers at its major and at least its version, one provision per major (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
 ---
 
 ## Context
@@ -30,6 +30,7 @@ The question is how much of versioning moves into core without moving codecs, wi
 ## Decision
 
 - **An opt-in contract key.** `Contract.make(Key, { version, methods })` returns a key with a `ContractVersion` and a description of its methods by core's own `MethodSpec` (payload, success, error Schemas; optional `stream`). Plain keys are unchanged ([26 — Versioned contracts](../behaviors/26-versioned-contracts.md), BEH-BR-225).
+- **Local contracts (CCR-BR-033).** `Contract.local(Key, { version, members })` declares a contract whose members are named but carry no codecs, for a service whose members run in the caller's process — they take a transaction from the caller's environment or an effect as argument. Every in-process rule of this decision applies to it by member name; it has `local: true` on the value and on its descriptor, and no companion may serve, proxy or derive a wire artifact from it. Locality is fixed per major (BEH-BR-225).
 - **`ServiceId` stays the identity; the major is part of it.** A contract's `ServiceId` must be `<name>@<major>`. Resolution, provider slots, cycles and snapshots are still keyed by `ServiceId`, so ADR-BR-003 holds unchanged: one provider per `<name>@<major>` per realm, and two majors are two keys that can be provided side by side. ADR-BR-006 is untouched: versions never create a second instance of a plugin ID.
 - **Ranges inside one major.** Dependents require `contract.range(r)` (a bare contract means `^` its own version). The grammar is a restricted subset of semver — exact, caret, tilde — in which every range is one interval within the `ServiceId`'s major (BEH-BR-226).
 - **Checked at registration, both directions.** `install`, `replace` and `enable` fail with `IncompatibleContract` when they would leave a registered dependent whose range its registered provider does not satisfy, or whose known methods the provider lacks (BEH-BR-228). The check reads declarations only — never code, never `load`.
@@ -47,6 +48,7 @@ ADR-BR-027's "No loader" bullet says the core does not "fetch, verify, version o
 - **Version as data beside an unversioned `ServiceId`, with several majors in one slot.** Rejected: it would break ADR-BR-003 — one slot would hold two providers chosen by range — and every dependent's captured identity would become a policy decision.
 - **Check compatibility at activation, as `KeyMismatch` is.** Rejected: the failure would land on whichever dependent next started, far from the `replace` that caused it, and would be sticky (ADR-BR-005) for a condition the operator could have been told about at the call.
 - **Compare schemas structurally in core.** Rejected: deciding whether a schema change is additive needs AST rules about optionality, defaults and transformations that a companion should own and refine; core checks method names only.
+- **Mark single members of a codec contract as local.** Rejected (CCR-BR-033): a service with one member that cannot cross a host cannot be served across one at all, and a proxy or client carrying the other members would present a partial service under the full contract's `ServiceId`. Locality belongs to the whole contract, per major.
 - **Full semver ranges (unions, hyphen ranges, pre-releases).** Rejected: a range spanning two majors spans two `ServiceId`s, and pre-release ordering adds readings without adding safety.
 
 ## Consequences

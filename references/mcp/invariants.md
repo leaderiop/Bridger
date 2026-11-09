@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-INV                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): INV-MC-006 implication states the read-only exemption; INV-MC-007 covers keyed calls answered from a receipt (round-2 agent review A-04, A-05) (CCR-MC-003)<br>0.3 (2026-11-08): INV-MC-005 covers resource reads; INV-MC-006 (inbound sessions tainted unless trusted) and INV-MC-007 (a call runs the listed definition) added (CCR-MC-003, round 2: recheck items 6, 9; X7, X8)<br>0.2 (2026-11-08): INV-MC-003 narrowed to the external mark; INV-MC-002 and INV-MC-005 sources aligned (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.5 (2026-11-09): INV-MC-003 `owner` is the import's session child (CCR-MC-004)<br>0.4 (2026-11-08): INV-MC-006 implication states the read-only exemption; INV-MC-007 covers keyed calls answered from a receipt (round-2 agent review A-04, A-05) (CCR-MC-003)<br>0.3 (2026-11-08): INV-MC-005 covers resource reads; INV-MC-006 (inbound sessions tainted unless trusted) and INV-MC-007 (a call runs the listed definition) added (CCR-MC-003, round 2: recheck items 6, 9; X7, X8)<br>0.2 (2026-11-08): INV-MC-003 narrowed to the external mark; INV-MC-002 and INV-MC-005 sources aligned (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -64,7 +64,8 @@ publication and delivery; property test over bursts of contributions.
 ## INV-MC-003: Every imported command is marked external
 
 Every command contributed by `McpClient.import` carries the tag "external"
-and has the proxy plugin as `owner`, and no option removes the tag.
+and has the import's session child (`<import id>/session`) as `owner`, and
+no option removes the tag.
 
 **Source**: `packages/mcp/src/McpClient.ts` *(Planned)* — the spec of every
 imported command is built in one place that always adds the tag.
