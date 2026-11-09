@@ -5,23 +5,24 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-18                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
 A trail is exported to hand it to an inspector, to move it between systems,
-or to keep it after the live store is retired. Digests, seals and binding
+or to keep it after the live store is retired. Digests, chain links and binding
 digests were computed over specific bytes; an exporter that parsed and
 re-wrote the records would produce bytes that no longer match them. This file
 specifies `exportTrail`, which writes one host's entries as their original
-canonical text with their seals, the tickets they cite, the high-water marks,
+canonical text with their marks and, when sealed, their audit-chain links and
+verification bundle, the tickets they cite, the high-water marks,
 a check report, a manifest and a human-readable rendering that shows every
 signature's manifestation; and `readArchive`, which re-verifies an archive
 from its bytes alone ([ADR-GX-023](../decisions/023-archives-keep-original-bytes.md)). This file owns BEH-GX-137–144 and
@@ -99,9 +100,10 @@ must be taken before entries are removed from a live store
 
 ```
 <outDir>/
-  manifest.json       format "bridger-gx-archive/1"
+  manifest.json       format "bridger-gx-archive/2"
   trail.jsonl         one line per entry: its canonical text exactly as stored (BEH-GX-139)
-  seals.jsonl         one line per entry: { hostId, auditSeq, recordId, digest, seal? }
+  seals.jsonl         one line per entry: { hostId, auditSeq, recordId, digest, marks?, collision?, link? }
+  chain-bundle.json   sealed trails only: @bridger/audit-chain's verification bundle (BEH-AC-033)
   tickets.jsonl       one line per ticket-store event, as stored, in eventSeq order
   anchors.jsonl       one line per high-water mark, in the order `list` returned them
   check-report.json   the reports run at export (BEH-GX-140)
@@ -111,7 +113,7 @@ must be taken before entries are removed from a live store
 ```ts
 // illustrative — not type-checked
 interface ArchiveManifest {
-  readonly format: "bridger-gx-archive/1"
+  readonly format: "bridger-gx-archive/2"
   readonly hostId: string
   readonly range: { readonly fromSeq: number; readonly toSeq: number }   // as read
   readonly entries: number
@@ -191,7 +193,7 @@ silently "fixed" it would destroy the evidence that something changed.
 ## BEH-GX-140: readArchive re-verifies an archive from its bytes and runs the checks afresh
 
 > **Invariant:** [INV-GX-009](../invariants.md#inv-gx-009-a-finding-is-never-suppressed-or-upgraded), [INV-GX-012](../invariants.md#inv-gx-012-the-canonical-form-is-deterministic-across-platforms)
-> **See:** [ADR-GX-023](../decisions/023-archives-keep-original-bytes.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md), [ADR-GX-009](../decisions/009-optional-sealing.md)
+> **See:** [ADR-GX-023](../decisions/023-archives-keep-original-bytes.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md), [ADR-GX-029](../decisions/029-sealing-through-audit-chain.md)
 > **Satisfies:** [URS-GX-015](../urs.md#urs-gx-015-export-and-archive-a-trail-with-its-approvals), [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records), [NFR-GX-006](../urs.md#nfr-gx-006-bounded-memory-on-read)
 > **Risk:** [RSK-GX-004](../gxp/03-risk-assessment.md#rsk-gx-004), [RSK-GX-019](../gxp/03-risk-assessment.md#rsk-gx-019)
 > **Regulatory:** supports 21 CFR 11.10(b), 11.10(e); EU GMP Annex 11 §17 (accessibility, readability and accuracy of archived data)
@@ -213,8 +215,9 @@ REQUIREMENT: `readArchive` MUST recompute the digest of every file and
              missing and a file not listed. It MUST then rebuild trail
              entries from `trail.jsonl` and `seals.jsonl` — `canonical` from
              the line's bytes, `record` by parsing them — and run
-             `checkTrailEntries` (BEH-GX-034), seal verification over the
-             archived seals and anchors when present (BEH-GX-052), the
+             `checkTrailEntries` (BEH-GX-034), audit-chain's `verifyBundle`
+             over `chain-bundle.json` when present (BEH-AC-034, mapped as
+             BEH-GX-171 maps a chain report), the
              high-water comparison (BEH-GX-045) and, with `scope` and
              `policy`, `linkApprovals` over the archived tickets (BEH-GX-087).
 ```
@@ -228,7 +231,7 @@ REQUIREMENT: The report MUST be produced by these runs alone. `readArchive`
 
 ```
 REQUIREMENT: An archive whose manifest does not parse, or whose format is not
-             "bridger-gx-archive/1", MUST fail with `ArchiveUnreadable`; any
+             "bridger-gx-archive/2", MUST fail with `ArchiveUnreadable`; any
              other defect MUST be reported, not raised, so that a damaged
              archive is still read as far as it can be.
 ```
@@ -238,9 +241,9 @@ REQUIREMENT: `readArchive` MUST read each file as a stream, computing its
              digest as it reads, and MUST hold in memory at most one page of
              `pageSize` lines of `trail.jsonl` with their `seals.jsonl`
              lines, the last entry of the previous page, the open
-             `requested` records (BEH-GX-037), the state that seal
-             verification and the high-water comparison keep (BEH-GX-052,
-             BEH-GX-045) and, for linking, only the ticket events
+             `requested` records (BEH-GX-037), the state that the
+             high-water comparison keeps (BEH-GX-045), and what audit-chain's
+             `verifyBundle` holds (BEH-AC-034) and, for linking, only the ticket events
              `listConsumptions` holds (BEH-GX-084), so that
              its memory is bounded by these settings and not by the length
              of the archive (NFR-GX-006). Its report MUST equal, finding for

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-INV                                               |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Invariants                                                   |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -243,48 +243,54 @@ the error mapping.
 
 ---
 
-## INV-GX-006: At most one stored entry per record and per host sequence number
+## INV-GX-006: One primary entry per record and per host sequence number, and no stored record is displaced
 
 Every trail store that passes the conformance suite holds, at every moment, at
-most one entry per `recordId` and at most one entry per (`hostId`, `auditSeq`)
-pair, and an entry once stored is the one every later read returns.
+most one primary entry per `recordId`, at most one primary entry per
+(`hostId`, `auditSeq`) pair and at most one entry of any kind per (`recordId`,
+`digest`); an entry once stored is returned by every later read, and a
+different entry offered under a stored key is kept beside the primary as a
+collision entry, never over it and never instead of it.
 
 **Source**: `packages/gxp/src/TrailStore.ts` *(Planned)* — the port contract:
-`append` is idempotent on `recordId` (an entry whose digest equals the stored
-one's answers `"already-stored"`) and fails with `TrailWriteFailed`
-`reason: "conflict"` for a different entry under either key, never
-overwriting. `packages/gxp/src/trailSink.ts` *(Planned)* — compares an
-`"already-stored"` answer's stored digest with the entry it offered and fails
-on a difference. `packages/gxp/src/testing/conformance.ts` *(Planned)* —
-numbered cases for retry after commit, conflicting content under the same
-`recordId` and under the same sequence number, and two hosts.
+`append` is idempotent on `recordId` and digest (an equal entry answers
+`"already-stored"`) and stores a different entry under either key as a
+collision entry, answering `"stored-collision"`, never overwriting or
+dropping. `packages/gxp/src/trailSink.ts` *(Planned)* — compares an
+`"already-stored"` answer with the entries read back and fails when the store
+does not hold the entry it claims. `packages/gxp/src/testing/conformance.ts`
+*(Planned)* — numbered cases for retry after commit, colliding content under
+the same `recordId` and under the same sequence number, and two hosts.
 
 **Implication**: core's retry of a write whose acknowledgement was lost does
-not duplicate the record, and a conflicting record does not replace the one
-stored first ([RSK-GX-002](gxp/03-risk-assessment.md#rsk-gx-002)). The
+not duplicate the record, and a colliding record neither replaces the one
+stored first nor is lost ([RSK-GX-002](gxp/03-risk-assessment.md#rsk-gx-002)). The
 invariant holds for an adapter only as far as its conformance run and its own
 commit semantics reach ([ADR-GX-006](decisions/006-conformance-through-testhost.md)).
 
-**Verification** *(Planned)*: the conformance suite's retry and conflict cases
+**Verification** *(Planned)*: the conformance suite's retry and collision cases
 run against `memoryTrailStore` and, with the expected case failing, against
 each mode of `faultyTrailStore`; a property test of the sink over generated
 retry sequences; acceptance checks of
 [BEH-GX-153](behaviors/20-required-acceptance-checks.md).
 
-**Related**: [BEH-GX-011](behaviors/02-trail-store-port.md), [BEH-GX-012](behaviors/02-trail-store-port.md), [BEH-GX-021](behaviors/03-trail-sink.md), [BEH-GX-028](behaviors/04-conformance-suite.md), [ADR-GX-004](decisions/004-append-only-trail-store.md), [ADR-GX-006](decisions/006-conformance-through-testhost.md), [BEH-BR-202](../core/behaviors/23-audit-sink-and-record.md), [INV-BR-023](../core/invariants.md).
+**Related**: [BEH-GX-011](behaviors/02-trail-store-port.md), [BEH-GX-012](behaviors/02-trail-store-port.md), [BEH-GX-021](behaviors/03-trail-sink.md), [BEH-GX-028](behaviors/04-conformance-suite.md), [ADR-GX-004](decisions/004-append-only-trail-store.md), [ADR-GX-006](decisions/006-conformance-through-testhost.md), [ADR-GX-030](decisions/030-sink-marks-and-gate-refuses.md), [BEH-BR-202](../core/behaviors/23-audit-sink-and-record.md), [INV-BR-023](../core/invariants.md).
 
 ---
 
 ## INV-GX-007: The sink acknowledges only what the store reports stored
 
 `trailSink` completes core's `AuditSink.record` call successfully only after the store's
-`append` has returned `"stored"`, or `"already-stored"` with a stored entry
-equal to the one offered; every other outcome — a failure, a defect, an
-interruption, a timeout — reaches core as a failed write.
+`append` has returned `"stored"` or `"stored-collision"`, or `"already-stored"`
+with a stored entry equal to the one offered; every outcome in which the store
+did not, or cannot be shown to, hold the record — a failure, a defect, an
+interruption, a timeout — reaches core as a failed write, and no other
+outcome does.
 
 **Source**: `packages/gxp/src/trailSink.ts` *(Planned)* — `record` is a single
-sequential effect: check the schema version, canonicalise, digest, seal if
-sealing is on, `append`, inspect the answer, complete. There is no queue,
+sequential effect: classify the schema, canonicalise, digest, mark,
+`append` (through `@bridger/audit-chain`'s `HashChainSink` when sealing is
+on), inspect the answer, count, complete. There is no queue,
 buffer, background fiber or retry inside the sink; a failure maps to core's
 `AuditWriteFailed` with a reason tag and no record content, and core's own
 retry and latch policy then applies.
@@ -333,11 +339,11 @@ checks on read and seal verification, within their stated reach
 mutating member besides `append` and `put`; a property test that an export
 followed by `readArchive` reproduces each entry's canonical bytes and digest
 exactly, including for non-ASCII and large numeric values; a repeat-write
-scenario asserting the stored seal is unchanged; acceptance checks of
+scenario asserting the stored entry, its marks and its chain link are unchanged; acceptance checks of
 [BEH-GX-153](behaviors/20-required-acceptance-checks.md) and
 [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
-**Related**: [BEH-GX-013](behaviors/02-trail-store-port.md), [BEH-GX-014](behaviors/02-trail-store-port.md), [BEH-GX-022](behaviors/03-trail-sink.md), [BEH-GX-041](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-050](behaviors/07-optional-sealing.md), [BEH-GX-068](behaviors/09-approval-tickets.md), [BEH-GX-137–BEH-GX-144](behaviors/18-archive-and-export.md), [ADR-GX-004](decisions/004-append-only-trail-store.md), [ADR-GX-023](decisions/023-archives-keep-original-bytes.md).
+**Related**: [BEH-GX-013](behaviors/02-trail-store-port.md), [BEH-GX-014](behaviors/02-trail-store-port.md), [BEH-GX-022](behaviors/03-trail-sink.md), [BEH-GX-041](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-170](behaviors/21-sealing-through-audit-chain.md), [BEH-GX-068](behaviors/09-approval-tickets.md), [BEH-GX-137–BEH-GX-144](behaviors/18-archive-and-export.md), [ADR-GX-004](decisions/004-append-only-trail-store.md), [ADR-GX-023](decisions/023-archives-keep-original-bytes.md).
 
 ---
 
@@ -374,7 +380,7 @@ each injected defect yields exactly its finding kind, in every report path
 mutation testing of each finding's emission; acceptance checks of
 [BEH-GX-153](behaviors/20-required-acceptance-checks.md).
 
-**Related**: [BEH-GX-033](behaviors/05-checks-on-read.md), [BEH-GX-035](behaviors/05-checks-on-read.md), [BEH-GX-036](behaviors/05-checks-on-read.md), [BEH-GX-040](behaviors/05-checks-on-read.md), [BEH-GX-045](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-046](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-052](behaviors/07-optional-sealing.md), [BEH-GX-055](behaviors/07-optional-sealing.md), [ADR-GX-007](decisions/007-checks-never-claim-integrity.md), [BEH-BR-215](../core/behaviors/24-time-ids-and-sequence.md).
+**Related**: [BEH-GX-033](behaviors/05-checks-on-read.md), [BEH-GX-035](behaviors/05-checks-on-read.md), [BEH-GX-036](behaviors/05-checks-on-read.md), [BEH-GX-040](behaviors/05-checks-on-read.md), [BEH-GX-045](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-046](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-171](behaviors/21-sealing-through-audit-chain.md), [BEH-GX-172](behaviors/21-sealing-through-audit-chain.md), [ADR-GX-007](decisions/007-checks-never-claim-integrity.md), [BEH-BR-215](../core/behaviors/24-time-ids-and-sequence.md).
 
 ---
 
@@ -457,18 +463,21 @@ and [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 ## INV-GX-012: The canonical form is deterministic across platforms
 
-For every value the companion canonicalises — trail records, bindings, seal
-inputs, fingerprint inputs, policy and eligibility definitions, pack manifests
-— the canonical text is the RFC 8785 (JCS) serialisation, identical byte for
+For every value the companion canonicalises — trail records, bindings,
+fingerprint inputs, policy and eligibility definitions, pack manifests — the
+canonical text is the RFC 8785 (JCS) serialisation over the I-JSON domain, identical byte for
 byte on every supported runtime, platform and locale, and every digest over it
 is `"sha256:"` followed by the lower-case hexadecimal SHA-256 of its UTF-8
 bytes.
 
 **Source**: `packages/gxp/src/Canonical.ts` *(Planned)* — one JCS
-implementation used by every caller; values RFC 8785 cannot represent exactly
-(a non-finite number, a number that is not a safe integer, a lone surrogate,
-`undefined` inside an array, a `bigint`, a `Date` or any non-plain object) are
-refused with `CanonicalisationFailed` rather than coerced.
+implementation used by every caller, writing numbers as RFC 8785 §3.2.2.3
+does; for bindings, fingerprint inputs, policies and manifests, values RFC 8785
+cannot represent exactly (a non-finite number, a lone surrogate, `undefined`
+inside an array, a `bigint`, a `Date` or any non-plain object) are refused
+with `CanonicalisationFailed` rather than coerced; for a trail record, which
+must be stored whatever it holds, the sink writes the escaped encoding and
+marks the entry `"jcs-escaped"` (BEH-GX-018).
 `packages/gxp/src/Crypto.ts` *(Planned)* — SHA-256 and HMAC-SHA256 from the
 platform only: WebCrypto where it exists, otherwise `node:crypto`.
 
@@ -476,14 +485,15 @@ platform only: WebCrypto where it exists, otherwise `node:crypto`.
 installations on different platforms compute the same digest for the same
 value; a mismatch then means the value differs
 ([RSK-GX-015](gxp/03-risk-assessment.md#rsk-gx-015)). A core record shape the
-companion was not built for is refused rather than canonicalised differently
+companion was not built for is stored, canonicalised by the same rule and
+marked, never canonicalised differently
 ([RSK-GX-019](gxp/03-risk-assessment.md#rsk-gx-019)).
 
-**Verification** *(Planned)*: the test vectors of files 09 and 13, recomputed
+**Verification** *(Planned)*: the test vectors of files 03, 09 and 13, recomputed
 by the documentation checker (check 17) and by merge-gate row 10 on every
 supported runtime; a property test that canonicalise ∘ parse ∘ canonicalise is
 the identity on generated JSON values, including non-ASCII strings, escapes,
-negative zero and integers at ±(2^53 − 1); acceptance checks of
+negative zero, integers at ±(2^53 − 1) and non-integer numbers; acceptance checks of
 [BEH-GX-153](behaviors/20-required-acceptance-checks.md) and
 [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
@@ -491,38 +501,24 @@ negative zero and integers at ±(2^53 − 1); acceptance checks of
 
 ---
 
-## INV-GX-013: A host's seal chain is linear over exactly the stored sequence
+## INV-GX-013: A host's seal chain is linear over exactly the stored sequence (withdrawn)
 
-With sealing on, every stored entry of a host carries a seal, and for every
-`n` the seal of the entry with `auditSeq = n` is computed over that entry's
-digest and the seal of the entry with `auditSeq = n − 1` (the fixed genesis
-value for `n = 1`), so that the chain has exactly one link per stored
-sequence number, no branch and no gap.
+**Withdrawn** by CCR-GX-002. The companion no longer specifies a seal chain of
+its own; sealing is `@bridger/audit-chain`'s, adopted as the companion's only
+sealing mechanism ([ADR-GX-029](decisions/029-sealing-through-audit-chain.md)),
+and the corresponding property is audit-chain's INV-AC-001 (one link per
+record, identical across retries) together with its verification
+(BEH-AC-017–019). The identifier stays reserved and MUST NOT be reused.
 
-**Source**: `packages/gxp/src/sealing/seal.ts` *(Planned)* —
-`seal_n = "sha256:" + hex(SHA-256(JCS({ v: 1, hostId, auditSeq, prev, digest_n })))`, computed
-by the sink before `append` from the previous seal it holds for the host;
-core's single writer per host
-([BEH-BR-202](../core/behaviors/23-audit-sink-and-record.md)) supplies the
-order. A repeat write keeps the stored seal. Sealing is fixed for the life of a
-host, so a chain never starts mid-host.
-`packages/gxp/src/checks/verifySeals.ts` *(Planned)* — recomputes the chain
-from the stored digests and compares it with every anchor.
+**Source**: none — withdrawn.
 
-**Implication**: seal verification can detect alteration, insertion, removal
-or reordering of sealed records up to the last verified anchor, against a
-party that cannot also rewrite the anchor store — and nothing
-beyond that ([RSK-GX-004](gxp/03-risk-assessment.md#rsk-gx-004),
-[RSK-GX-005](gxp/03-risk-assessment.md#rsk-gx-005)).
+**Implication**: the companion's own chain, envelope and `verifySeals` are not
+to be implemented; see [21 — Sealing through audit-chain](behaviors/21-sealing-through-audit-chain.md).
 
-**Verification** *(Planned)*: a property test that generates trails, applies
-one alteration, insertion, removal, reordering or truncation at a random
-position, and asserts that seal verification reports it when the position is
-at or before the last anchor and reports the unanchored tail otherwise; a
-retry scenario asserting the seal is not recomputed; acceptance checks of
-[BEH-GX-153](behaviors/20-required-acceptance-checks.md).
+**Verification**: none — withdrawn; acceptance check 11 now covers the
+adopted mechanism ([BEH-GX-153](behaviors/20-required-acceptance-checks.md)).
 
-**Related**: [BEH-GX-022](behaviors/03-trail-sink.md), [BEH-GX-049](behaviors/07-optional-sealing.md), [BEH-GX-050](behaviors/07-optional-sealing.md), [BEH-GX-051](behaviors/07-optional-sealing.md), [BEH-GX-052](behaviors/07-optional-sealing.md), [BEH-GX-053](behaviors/07-optional-sealing.md), [BEH-GX-054](behaviors/07-optional-sealing.md), [ADR-GX-009](decisions/009-optional-sealing.md), [ADR-BR-034](../core/decisions/034-gxp-companion-scope.md).
+**Related**: [BEH-GX-170](behaviors/21-sealing-through-audit-chain.md), [ADR-GX-009](decisions/009-optional-sealing.md) (superseded), [ADR-GX-029](decisions/029-sealing-through-audit-chain.md).
 
 ---
 
@@ -591,3 +587,39 @@ rendering under `TestClock`; acceptance checks of
 [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-074](behaviors/10-signature-capture-port.md), [BEH-GX-075](behaviors/10-signature-capture-port.md), [BEH-GX-076](behaviors/10-signature-capture-port.md), [BEH-GX-081–BEH-GX-088](behaviors/11-signature-linking.md), [BEH-GX-137–BEH-GX-144](behaviors/18-archive-and-export.md), [ADR-GX-016](decisions/016-signature-port-and-manifestation.md), [BEH-BR-224](../core/behaviors/25-operation-gate.md).
+
+---
+
+## INV-GX-016: The sink never refuses a record for a condition of its own
+
+`trailSink` fails core's `AuditSink.record` call only when the store did not,
+or cannot be shown to, hold the record. A record of a schema the companion
+does not know, a record that is not I-JSON, and a record colliding with a
+stored one under its `recordId` or `(hostId, auditSeq)` are stored, marked and
+counted; the companion refuses operator changes on those conditions only
+through the gate piece `trailGate`, and recording continues.
+
+**Source**: `packages/gxp/src/trailSink.ts` *(Planned)* — no failure path
+other than the store's answer, the read-back of an "already-stored" answer and,
+with sealing on, audit-chain's keyed hasher; marks written beside the record.
+`packages/gxp/src/trailGate.ts` *(Planned)* — a `Gate<OperationRequest>`
+reading `TrailSinkStatus`.
+
+**Implication**: core retries a failed record forever and its latch stops
+operator changes until an acknowledgement; a sink that refused a record for a
+reason of its own would therefore stop recording for the life of the host
+over a condition the store could have kept
+([RSK-GX-019](gxp/03-risk-assessment.md#rsk-gx-019),
+[RSK-GX-023](gxp/03-risk-assessment.md#rsk-gx-023)). Following core's rule
+([BEH-BR-202](../core/behaviors/23-audit-sink-and-record.md), Settled (0))
+keeps every record and still stops operator changes.
+
+**Verification** *(Planned)*: scenario tests through `GxpTestHost` that hand
+the sink a record with an unknown field, a lone surrogate and a colliding
+identifier, and assert each is stored and marked, the call succeeds, the latch
+is not set, and the next operator change is refused by `trailGate`; a mutation
+test that a refusing branch is caught; acceptance checks of
+[BEH-GX-169](behaviors/20-required-acceptance-checks.md).
+
+**Related**: [BEH-GX-012](behaviors/02-trail-store-port.md), [BEH-GX-017](behaviors/03-trail-sink.md), [BEH-GX-018](behaviors/03-trail-sink.md), [BEH-GX-019](behaviors/03-trail-sink.md), [BEH-GX-176](behaviors/22-trail-status-and-gate.md), [BEH-GX-177](behaviors/22-trail-status-and-gate.md), [ADR-GX-030](decisions/030-sink-marks-and-gate-refuses.md), [BEH-BR-193](../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-202](../core/behaviors/23-audit-sink-and-record.md).
+

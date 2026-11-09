@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GLOSSARY                                          |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Glossary                                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Trail entry, marked entry, collision entry, trail gate; anchor store holds high-water marks only; sealing and seal verification are `@bridger/audit-chain`'s; canonical domain I-JSON (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -35,15 +35,38 @@ no delete. The companion ships no production trail store
 ### Trail entry
 
 What the trail store keeps for one audit record: its `hostId`, `auditSeq`
-and `recordId`, the record, its canonical text, its digest, and, when
-sealing is on, its seal envelope. The canonical text is
+and `recordId`, the record, its canonical text, its digest, the sink's
+marks when it could not handle the record exactly, a collision marker when the
+store kept it beside a primary entry, and, when sealing is on,
+`@bridger/audit-chain`'s link. The canonical text is
 kept as written and is never re-serialised.
+
+### Marked entry
+
+An entry the sink stored with `marks.schema` "unsupported" (a `schemaVersion`
+or field the companion does not know) or `marks.canonical` "jcs-escaped" (a
+record that is not I-JSON, stored with the escaped encoding) instead of
+refusing it; counted in `TrailSinkStatus` and reported on read
+([ADR-GX-030](./decisions/030-sink-marks-and-gate-refuses.md)).
+
+### Collision entry
+
+A different entry the store received under a stored `recordId` or `(hostId,
+auditSeq)`, kept beside the primary entry, never over it, with the reason and
+the primary's digest; answered "stored-collision" and reported as `collision`.
+
+### Trail gate
+
+`trailGate`, a core gate piece that refuses operator changes while the sink's
+counts of marked entries, collisions or unconfirmed "already-stored" answers
+are above zero, so that the sink never has to refuse a record. Composed with
+audit-chain's `ChainGate` and the approval gate into one host gate.
 
 ### Canonical form, canonical text
 
-The RFC 8785 (JSON Canonicalization Scheme) serialisation of a value, within
-the subset the companion uses: object keys sorted, no insignificant
-whitespace, strings escaped as JSON, integers only. Every digest, binding and
+The RFC 8785 (JSON Canonicalization Scheme) serialisation of a value, over
+the I-JSON domain (non-integer numbers included since CCR-GX-002): object keys sorted, no insignificant
+whitespace, strings escaped as JSON, numbers as ECMAScript writes them. Every digest, binding and
 fingerprint input is computed over canonical text encoded as UTF-8
 ([ADR-GX-005](./decisions/005-jcs-and-sha256.md)).
 
@@ -76,7 +99,7 @@ trail store. The runner's report gives each case's pass or fail; a listed
 case with no test in the report is not executed. Its output is evidence for
 an evidence pack, not a verdict on the adapter ([ADR-GX-006](./decisions/006-conformance-through-testhost.md)).
 
-## Checks, anchors and sealing
+## Checks, anchors, sealing and the trail gate
 
 ### Check on read
 
@@ -84,8 +107,9 @@ A function over stored entries (`checkTrailEntries`, `checkStoredTrail`,
 `checkHighWater`, `verifySeals`, `checkApprovals`) that reports findings of
 named kinds — gaps, duplicates, disorder, digest and canonical mismatches,
 unknown `schemaVersion`, `requested` records without a terminal
-record, dropped records, an unclean close, incomplete approval linking, tail
-loss, an unanchored tail, chain breaks and anchor mismatches. A run with no findings reports "no findings of the checked
+record, dropped records, marked and colliding entries, an unclean close,
+incomplete approval linking, tail loss, an unanchored tail, and, mapped from
+audit-chain's report, chain breaks, anchor mismatches and head mismatches. A run with no findings reports "no findings of the checked
 kinds"; it does not say the trail is complete
 ([ADR-GX-007](./decisions/007-checks-never-claim-integrity.md)).
 
@@ -105,9 +129,11 @@ tail ([ADR-GX-008](./decisions/008-high-water-anchors.md)).
 
 ### Anchor store
 
-A caller-supplied port (`AnchorStore`) that holds high-water marks and seal
-anchors under custody separate from the trail store. Its value depends on
-that separation, which the companion cannot check.
+A caller-supplied port (`AnchorStore`) that holds high-water marks under
+custody separate from the trail store. Its value depends on that separation,
+which the companion cannot check. It is not `@bridger/audit-chain`'s `Anchor`,
+which holds the chain's anchors when sealing is on; both should be held apart
+from the trail.
 
 ### Unanchored tail
 
@@ -115,24 +141,20 @@ The entries of a host stored after its last anchor. Neither tail loss nor
 alteration within the unanchored tail can be detected against an anchor;
 checks report its extent.
 
-### Seal, seal chain
+### Sealing, link
 
-With sealing on, each entry of a host carries
-`seal_n = "sha256:" + hex(SHA-256(UTF-8(JCS({v: 1, hostId, auditSeq, prev, digest_n}))))`,
-where `prev` is the seal of the host's previous entry, or the all-zero
-`GENESIS` value for `auditSeq` 1. The seal is kept in the entry, never
-in the record ([ADR-GX-009](./decisions/009-optional-sealing.md)).
-
-### Seal anchor
-
-A high-water mark carrying the seal of the entry at its position, written
-to the anchor store when an entry whose `auditSeq` is a multiple of N is
-acknowledged, when the interval T has passed and the position moved, and at
-close.
+Optional, and specified by `@bridger/audit-chain`, which the companion adopts
+as its only sealing mechanism
+([ADR-GX-029](./decisions/029-sealing-through-audit-chain.md)): its hash chain
+sink wraps the trail store, and each entry carries audit-chain's link
+(`ChainLinkV1`) beside the record. The companion's own seal chain, envelope
+and seal anchors of revision 0.1 are withdrawn.
 
 ### Seal verification
 
-Recomputing a host's seal chain and comparing it with its anchors. Seal
+`verifySeals`: audit-chain's confirmation of anchors and `verifyChain` over a
+host's entries, with high-water marks as expected heads, mapped to findings.
+Seal
 verification detects alteration, insertion, removal or reordering of sealed
 records up to the last verified anchor, against a party that cannot also
 rewrite the anchor store. Sealing does not prevent any change.
@@ -295,7 +317,7 @@ the marker `fixture: true` in its manifest; installation checks fail an installa
 
 ### Archive
 
-The output of `exportTrail`: JSONL of the canonical texts as stored, seals,
+The output of `exportTrail`: JSONL of the canonical texts as stored, marks and audit-chain links,
 tickets, high-water marks, the check report and a manifest, with a human-readable rendering
 that shows manifestations. `readArchive` re-runs the checks on it
 ([ADR-GX-023](./decisions/023-archives-keep-original-bytes.md)).

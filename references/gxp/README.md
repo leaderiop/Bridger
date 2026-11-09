@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-00                                                |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification — Master Index                      |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Re-baseline against core through CCR-BR-031: contents rows for files 20 (to BEH-GX-169), 21 and 22, 07 withdrawn; sealing through `@bridger/audit-chain`; eighteen checks; register row (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -21,7 +21,8 @@
 This is the specification of `@bridger/gxp`, the optional companion package
 that plugs into the ports of `@bridger/core` — `AuditSink`, `OperationGate`
 and `ConfigFingerprinter` — and adds a trail-store contract with a conformance
-suite, checks on read, high-water anchors and optional sealing, approval
+suite, checks on read, high-water anchors, optional sealing through
+`@bridger/audit-chain`, a gate piece over the trail sink's status, approval
 tickets with captured signatures, keyed configuration fingerprints, and
 installation and operational evidence. Its scope is fixed by core's
 [ADR-BR-034](../core/decisions/034-gxp-companion-scope.md); the core change it depends on,
@@ -54,10 +55,14 @@ tamper-proof or tamper-evident. In particular:
 
 - Checks on read report "no findings of the checked kinds"; they do not say a
   trail is complete or intact ([ADR-GX-007](./decisions/007-checks-never-claim-integrity.md)).
-- Optional sealing is called "seal verification". It detects alteration,
-  insertion, removal or reordering of sealed records up to the last verified
-  anchor, and only against a party that cannot also rewrite the separately
-  held anchor store ([ADR-GX-009](./decisions/009-optional-sealing.md)).
+- Optional sealing is `@bridger/audit-chain`'s, adopted as the companion's
+  only sealing mechanism, and is called "seal verification". It detects
+  alteration, insertion, removal or reordering of sealed records up to the
+  last verified anchor, and only against a party that cannot also rewrite the
+  separately held anchor store ([ADR-GX-029](./decisions/029-sealing-through-audit-chain.md)).
+- The trail sink never refuses a record for a condition of its own: what it
+  cannot handle exactly is stored and marked, and operator changes are refused
+  by a gate piece instead ([ADR-GX-030](./decisions/030-sink-marks-and-gate-refuses.md)).
 - A captured signature records what the caller's signature port attested;
   re-authentication and the controls of 21 CFR 11.200 remain the implementer's
   obligations, which the companion does not verify ([ADR-GX-016](./decisions/016-signature-port-and-manifestation.md)).
@@ -116,7 +121,7 @@ and core's own checker must pass (checks 13–15).
 | 04 | [Conformance suite](./behaviors/04-conformance-suite.md) | BEH-GX-025–032 |
 | 05 | [Checks on read](./behaviors/05-checks-on-read.md) | BEH-GX-033–040 |
 | 06 | [High-water marks and anchors](./behaviors/06-high-water-marks-and-anchors.md) | BEH-GX-041–048 |
-| 07 | [Optional sealing](./behaviors/07-optional-sealing.md) | BEH-GX-049–056 |
+| 07 | [Optional sealing](./behaviors/07-optional-sealing.md) (withdrawn by CCR-GX-002; see 21) | BEH-GX-049–056 (withdrawn, reserved) |
 | 08 | [Approval policy](./behaviors/08-approval-policy.md) | BEH-GX-057–064 |
 | 09 | [Approval tickets](./behaviors/09-approval-tickets.md) | BEH-GX-065–072 |
 | 10 | [Signature capture port](./behaviors/10-signature-capture-port.md) | BEH-GX-073–080 |
@@ -129,7 +134,9 @@ and core's own checker must pass (checks 13–15).
 | 17 | [Evidence pack](./behaviors/17-evidence-pack.md) | BEH-GX-129–136 |
 | 18 | [Archive and export](./behaviors/18-archive-and-export.md) | BEH-GX-137–144 |
 | 19 | [Testing entry point](./behaviors/19-testing-entry-point.md) | BEH-GX-145–152 |
-| 20 | [Required acceptance checks](./behaviors/20-required-acceptance-checks.md) | BEH-GX-153–168 |
+| 20 | [Required acceptance checks](./behaviors/20-required-acceptance-checks.md) | BEH-GX-153–169 |
+| 21 | [Sealing through audit-chain](./behaviors/21-sealing-through-audit-chain.md) | BEH-GX-170–175 |
+| 22 | [Trail status and gate](./behaviors/22-trail-status-and-gate.md) | BEH-GX-176–179 |
 
 Each file owns a block of identifiers; unused numbers at the end of a block
 are reserved, not gaps ([identifier scheme](./process/requirement-id-scheme.md) §3).
@@ -147,7 +154,7 @@ are reserved, not gaps ([identifier scheme](./process/requirement-id-scheme.md) 
 
 | Document | Purpose |
 | -------- | ------- |
-| [Requirement identifier scheme](./process/requirement-id-scheme.md) | `GX` series, Document Control, the seventeen mechanical checks |
+| [Requirement identifier scheme](./process/requirement-id-scheme.md) | `GX` series, Document Control, the eighteen mechanical checks |
 | [Definitions of Done](./process/definitions-of-done.md) | Documentation gate (runnable now) and merge gate (planned) |
 | [Change control](./process/change-control.md) | `CCR-GX` lifecycle, impact assessment, single maintainer, coupling with core |
 
@@ -181,3 +188,4 @@ own GxP documents, whose document IDs are `BRIDGER-GXP-NN`. Full rules in
 | CCR | Date | Change |
 | --- | ---- | ------ |
 | CCR-GX-001 | 2026-10-03 | Initial draft of the companion specification: master index, overview with the public API surface, glossary, URS-GX-001–016 and NFR-GX-001–008, behaviours BEH-GX-001–168 in twenty files, INV-GX-001–015, ADR-GX-001–028 (all Proposed), the four GxP documents with RSK-GX-001–022, traceability with the REQ-GX acceptance scenarios of file 20, own process documents (PROC-GX-01–03), the core interface map and the Qadi audit comparison, and the checker `scripts/verify-traceability.sh` copied and adapted from core's (ADR-GX-028). Depends on CCR-BR-014, complete in core: the `ConfigFingerprinter` port (ADR-BR-039), `Host.controls` with `auditPosition`, `CloseReport.auditLastSeq`, `AuditRecord.definition` on `requested` and `rejected` records, RSK-BR-024, REQ-BR-055–058 and the narrowed non-claim 5 of ADR-BR-034. Drafted by agents from one design; the consistency review that follows is an agent review, not the independent review of PROC-GX-03 §5.<br>**Impact (PROC-GX-03 §3).** (1) Identifiers: every `GX` identifier above added; nothing changed or withdrawn; no core identifier changed by this record (the core identifiers relied on are listed in the core interface map). (2) Risk: RSK-GX-001–022 introduced and scored for the first time; no `RSK-BR` entry re-scored here — RSK-BR-014 and RSK-BR-024, whose residual names the companion, were re-scored under CCR-BR-014. (3) GxP impact: yes — the companion is the package that answers the "Companion" allocations of core's compliance matrix (audit trail storage and checks, approvals and signatures, value fingerprints, installation and operational evidence). (4) Revalidation: no version has been released or qualified (implementation absent); nothing is to be re-executed; the REQ-GX scenarios of file 20 will cover the first implementation. (5) Compatibility: no released interface exists; the companion requires a core version that includes CCR-BR-014 and audit `schemaVersion: 1` (ADR-GX-025, compatibility matrix in the core interface map). |
+| CCR-GX-002 | 2026-11-09 | Phase 1 of the specification audit of 2026-11-09, paired with core CCR-BR-031: re-baseline of the companion against core as changed by CCR-BR-015 to CCR-BR-031, which the companion's change control (§7) had not assessed. This is an agent review, not the independent review of PROC-GX-03 §5. **Findings resolved.** F-01 (pinned core revisions stale; the record shape, request fields and canonical domain the companion relied on had moved): the core interface map is re-pinned to every linked core and `@bridger/audit-chain` document, with a coupling assessment of CCR-BR-015–031 (§8 of the map); the canonical domain is I-JSON numbers, not integers only (BEH-GX-002, ADR-GX-005), with a record vector in file 03; binding version 2 binds `onBehalfOf`, `undo` and the request-only `manifestDigest`, `allowChildren` and `mandatoryInterceptions` (BEH-GX-065, 066, 082, 083, ADR-GX-012); the checker gains check 18, which fails when a pinned revision differs from the current Document Control revision or a linked core document has no pin, and check 17 checks the full RFC 8785 number form and every vector block. F-02 (the trail sink refused records for conditions of its own, which core latches as an audit failure): the sink stores every record the store can keep and marks an unsupported `schemaVersion` or a record that is not I-JSON instead of refusing it, fails a write only when the store did not store the record (BEH-GX-017–024, INV-GX-016, ADR-GX-030); a different record under a stored `recordId` or host sequence number is kept beside the primary as a collision entry and answered "stored-collision", the reason "conflict" is withdrawn (BEH-GX-009–015, INV-GX-006, ADR-GX-004); marked and colliding entries are counted in `TrailSinkStatus`, and `trailGate` refuses operator changes while any are present (file 22, BEH-GX-176–179), composed with audit-chain's `ChainGate` and the approval gate into one host gate. C-08: `checkTrail` pairs `requested` with its outcome by phase; a `superseded` record pairs without `causationId` (BEH-GX-037); finding kinds `nonCanonical`, `collision`, `auditDropped` and `headMismatch` added (BEH-GX-033, 034, 038). C-09: the companion adopts `@bridger/audit-chain` as its only sealing mechanism, an optional peer dependency (file 21, BEH-GX-170–175, ADR-GX-029); its own seal chain (file 07, ADR-GX-009, INV-GX-013) is withdrawn; high-water marks become audit-chain's expected heads (BEH-GX-042, 048, ADR-GX-008); archive format 2 carries marks, collisions, links and audit-chain's verification bundle (file 18, ADR-GX-023). Acceptance checks 1, 2, 3, 8, 11, 12 and 42 amended and 43–47 added (BEH-GX-169, REQ-GX-043–047).<br>**Impact (PROC-GX-03 §3).** (1) Identifiers: added BEH-GX-169–179, INV-GX-016, ADR-GX-029 and ADR-GX-030, RSK-GX-023, REQ-GX-043–047; withdrawn and reserved BEH-GX-049–056 and INV-GX-013; ADR-GX-009 superseded by ADR-GX-029; amended BEH-GX-001, 002, 004, 007–012, 014, 015, 017–024, 028, 029, 033, 034, 036–038, 042, 048, 065, 066, 082, 083, 089–096, 153, 154, 168, INV-GX-006, 007, 008, 009, 012, ADR-GX-004, 005, 007, 008, 012, 023, 025, 027, URS-GX-001, 003, 005, NFR-GX-002, RSK-GX-002, 004, 005, 019; no core identifier changed by this record (core CCR-BR-031 is its pair). (2) Risk: RSK-GX-023 (marked or colliding entries accumulate unnoticed) added at High, controlled by `TrailSinkStatus`, `trailGate` and the IQ report; the controls of RSK-GX-002, 004, 005 and 019 re-baselined without a change of score. (3) GxP impact: yes — audit trail storage, the failure modes of the trail write path, seal verification and the approval binding (compliance-matrix rows 11.10(a), 11.10(b), 11.10(e), §9, §17). (4) Revalidation: none; nothing is implemented, released or qualified (implementation absent); a change of the adopted `@bridger/audit-chain` version is added as a revalidation trigger (validation plan). (5) Compatibility: draft to draft only, no released interface exists — `TrailWriteFailed` reason "conflict" withdrawn and `append` result "stored-collision" added; `TrailEntry.seal` withdrawn and `marks`, `collision` and audit-chain `link` added; `HighWaterMark.seal` withdrawn; binding version 2; archive format "bridger-gx-archive/2"; recorded approval refusal reasons carry the prefix "approval: ". Core's pre-release rule for `schemaVersion` holds: the record schema stays version 1 (BEH-BR-195), and the companion requires a core that includes CCR-BR-031 (compatibility matrix in the core interface map). |

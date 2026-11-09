@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-11                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-082, 083: `bindingOf` builds binding version 2 (`onBehalfOf`, `undo`, `requestOnly`); the record-side link takes `requestOnly` from the consumed binding and says so (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -36,7 +36,7 @@ uses all eight.
 > that the person named in a signature was the one at the keyboard, that the
 > signature port re-authenticated them, or that nobody with write access to
 > both stores rewrote them consistently. The ticket store is not sealed
-> ([BEH-GX-056](./07-optional-sealing.md#beh-gx-056-sealing-covers-trail-entries-only)). Identity, re-authentication and the custody of both
+> ([BEH-GX-174](./21-sealing-through-audit-chain.md#beh-gx-174-sealing-covers-trail-entries-only)). Identity, re-authentication and the custody of both
 > stores are the consumer's obligation.
 
 Planned source: `packages/gxp/src/approvals/binding.ts`,
@@ -123,13 +123,16 @@ declare function bindingOf(
 
 | Binding field | Taken from the source |
 | --- | --- |
-| `v` | the constant 1 |
+| `v` | the constant 2 |
 | `scope` | `options.scope` |
 | `operation` | `operation` |
 | `target` | `target`, when present |
 | `definition` | `definition`, with exactly the fields present in the source |
 | `config` | when `configChange` is present: `form` "raw" for `install`, "decoded" for `reconfigure`; `paths` as given; `fingerprints` as given, absent when the source has none |
 | `requester` | `{ id, kind }` of `actor`; `display` is never copied |
+| `onBehalfOf` | `onBehalfOf` without `revision`, when present |
+| `undo` | `true` when a request carries `undo: true` or a record carries `undoes` |
+| `requestOnly` | proposal and request only: `manifestDigest` = `bindingDigest`'s hash over the canonical `definition.manifest`, `allowChildren` and `mandatoryInterceptions` as given; never built from a record |
 | `reason` | `reason`, only when `options.bindReason` is true and the source has one |
 
 ```
@@ -152,9 +155,11 @@ REQUIREMENT: `bindingOf` MUST return None, and no binding MUST be compared,
 ```
 REQUIREMENT: `bindingOf` MUST read only the fields named in the table and
              MUST NOT read `correlationId`, `causationId`, `timestamp`,
-             `recordId`, `auditSeq`, `before`, `after` or `error`, so that the
-             same change gives the same binding whether it is read from the
-             proposal, the request or either of its records.
+             `recordId`, `auditSeq`, `before`, `after`, `error`,
+             `annotations` or `previousManifest`, so that the same change gives
+             the same binding whether it is read from the proposal, the
+             request or either of its records, apart from `requestOnly`,
+             which no record carries (BEH-GX-083).
 ```
 
 Core makes the request and the call's records carry equal `operation`,
@@ -180,8 +185,17 @@ REQUIREMENT: To decide whether a `requested` or `rejected` record links to a
              companion MUST compute `bindingOf({ kind: "record", value:
              record }, { scope, bindReason })`, with `scope` the checker's
              configured scope and `bindReason` true exactly when `b` has a
-             `reason` field, and MUST compare its digest with `b`'s digest.
-             Equal digests link; anything else does not.
+             `reason` field, add to it `b`'s own `requestOnly` member when `b`
+             has one, and MUST compare its digest with `b`'s digest. Equal
+             digests link; anything else does not.
+```
+
+```
+REQUIREMENT: Every rendering and report of a link MUST state that the
+             `requestOnly` fields — the manifest digest, `allowChildren` and
+             the mandatory interceptions — were matched against the request
+             by the gate when it consumed the binding, and are not shown by
+             the record, which does not carry them (BEH-BR-195).
 ```
 
 ```
@@ -493,7 +507,7 @@ breaks the triple. It is weak against a party who controls both stores and
 rewrites them in agreement: such a party can make any link appear. Sealing
 detects that for trail entries only, against a party that cannot also
 rewrite the anchor store; nothing in the companion does it for tickets
-([BEH-GX-056](./07-optional-sealing.md#beh-gx-056-sealing-covers-trail-entries-only)). Separate administration of the two stores is how
+([BEH-GX-174](./21-sealing-through-audit-chain.md#beh-gx-174-sealing-covers-trail-entries-only)). Separate administration of the two stores is how
 the consumer narrows that gap.
 
 ---

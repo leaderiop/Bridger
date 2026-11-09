@@ -124,6 +124,12 @@ for series in ("URS", "NFR"):
 
 # ---------------------------------------------------------------- check 4: risks
 rsk_p = os.path.join(SPEC, "gxp", "03-risk-assessment.md")
+# rigour levels listed in the validation plan's §4 table; each registered risk must be listed once, at the level its initial scoring gives
+vp_p = os.path.join(SPEC, "gxp", "04-validation-plan.md")
+rigour = {}
+for lvl, cell in re.findall(r"^\|\s*(High|Medium|Low)\s*\|([^|]*)\|", text.get(vp_p, ""), re.M):
+    for a, b in re.findall(r"RSK-BR-(\d{3})(?:\s+to\s+RSK-BR-(\d{3}))?", cell):
+        for k in range(int(a), int(b or a) + 1): rigour.setdefault(k, []).append(lvl)
 if rsk_p in text:
     rs = text[rsk_p]
     blocks = re.split(r'(?=<a id="rsk-br-\d{3}")', rs)
@@ -136,6 +142,11 @@ if rsk_p in text:
         for s_, x in ctrl:
             if x not in defs[s_]: fails[4].append(f"RSK-BR-{n:03d} cites undefined {s_}-BR-{x:03d}")
         if not re.search(rf"^\|\s*\[?RSK-BR-{n:03d}\b", section(trace, 7), re.M): fails[4].append(f"RSK-BR-{n:03d} has no row in traceability.md §7")
+        sc = re.search(r"Initial scoring[^\n]*class \*\*(\w+)\*\*[^\n]*priority \*\*(\w+)\*\*", b)
+        if not sc: fails[4].append(f"RSK-BR-{n:03d} has no initial class and priority")
+        else:
+            want = "High" if "High" in sc.groups() else sc.group(1)
+            if rigour.get(n) != [want]: fails[4].append(f"RSK-BR-{n:03d} needs rigour {want} in gxp/04-validation-plan.md §4, found {rigour.get(n) or 'none'}")
 else:
     fails[4].append("gxp/03-risk-assessment.md missing")
 

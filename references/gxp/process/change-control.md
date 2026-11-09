@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-PROC-03                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see §5)                      |
 > | Approved by    | — (pending; single maintainer, see §5)                       |
 > | Classification | Procedure                                                    |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): §7: pins of core and audit-chain revisions, recorded assessments and the mechanical pin-freshness check 18; the drift of CCR-BR-015–030 recorded (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 _Previous: [Definitions of Done](./definitions-of-done.md)_
 
@@ -77,7 +77,7 @@ Every CCR-GX answers, in writing:
    previous version must re-execute qualification, and which scenarios
    (`REQ-GX`) cover the change ([validation plan](../gxp/04-validation-plan.md)).
 5. **Compatibility.** Whether the change breaks a public type, a stored or
-   exported format (trail entry, seal, binding, ticket event, fingerprint,
+   exported format (trail entry, chain link, binding, ticket event, fingerprint,
    evidence pack, archive), a supported core range or audit `schemaVersion`
    ([ADR-GX-025](../decisions/025-core-version-range.md)), or a documented behaviour.
 
@@ -164,18 +164,35 @@ REQUIREMENT: A CCR-GX that changes the supported core range or audit
              interface map in the same change.
 ```
 
+```
+REQUIREMENT: The core interface map MUST pin, in its §6, the revision of
+             every core document it relies on and of every
+             `@bridger/audit-chain` document the adopted sealing relies on.
+             A CCR-GX that assesses a CCR-BR (or a CCR-AC) MUST record its
+             assessment in the map's coupling assessment (§8) and re-pin the
+             revisions it assessed in the same change; no other change MAY
+             alter a pin.
+```
+
 The checker enforces the mechanical half of the rule: a `CCR-BR` cited in this
 tree must be in core's register (check 13), every core identifier cited must
-be defined in core and listed in the map (check 14), and core's checker must
-pass (check 15). Whether a CCR-BR was assessed at all is a review question the
-checker cannot answer.
+be defined in core and listed in the map (check 14), core's checker must
+pass (check 15), and every revision pinned in the map must be the current
+revision of that document (check 18). Check 18 is what makes a missed
+assessment visible: a core change bumps the revision of the document it
+changes, the pin goes stale and the companion's checker fails until a CCR-GX
+re-pins it. It cannot tell whether the assessment written was right; that
+remains a review question.
 
 **Settled here.** The coupling is a pair of cross-references, not a shared
 register: each tree keeps its own numbering, so that core can be read and
 changed without the companion, as [ADR-GX-001](../decisions/001-separate-package.md) requires, and a
 shared register would make core's history depend on a package core does not
 know about. CCR-BR-014 is the first core change made for the companion;
-CCR-GX-001 cites it as complete.
+CCR-GX-001 cites it as complete. CCR-BR-015 to CCR-BR-030 were made without a
+CCR-GX answering them, and the companion drifted from core (finding F-01 of the
+audit of 2026-11-09); CCR-GX-002 assessed them together with CCR-BR-031 and
+added check 18 so that the drift cannot recur unnoticed.
 
 ---
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-17                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -217,7 +217,7 @@ Because the manifest names every file by digest, one digest over the
 manifest identifies the whole pack: the compatibility matrix can cite it,
 a QA signature can sign it, and two packs can be compared by it. Like the
 seal chain, it detects change only against a copy of the digest held
-somewhere the pack's editor cannot reach ([BEH-GX-056](./07-optional-sealing.md#beh-gx-056-sealing-covers-trail-entries-only)); the pack is
+somewhere the pack's editor cannot reach ([BEH-GX-174](./21-sealing-through-audit-chain.md#beh-gx-174-sealing-covers-trail-entries-only)); the pack is
 not sealed.
 
 ## BEH-GX-133: deviations.json holds every raised deviation, and the consumer's assessments are kept apart in assessments.json

@@ -5,16 +5,18 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-009                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Superseded                                                   |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Superseded by ADR-GX-029 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
+
+> **Superseded** by [ADR-GX-029](./029-sealing-through-audit-chain.md) (CCR-GX-002). The companion adopts `@bridger/audit-chain` as its only sealing mechanism; the chain, envelope, anchors and verifier below are not to be implemented. The record is kept unchanged below for history; ADR-GX-009, INV-GX-013 and BEH-GX-049–056 stay reserved.
 
 ## Context
 
@@ -24,7 +26,7 @@ Entry digests ([ADR-GX-004](../decisions/004-append-only-trail-store.md)) show t
 
 - **A per-host chain.** For host `h`, entry `n` (its `auditSeq`) has
   `seal_n = "sha256:" + hex(SHA-256(JCS({ v: 1, hostId: h, auditSeq: n, prev: seal_{n-1}, digest: digest_n })))`,
-  where `digest_n` is the entry digest and `seal_0` is the constant `GENESIS`, `"sha256:"` followed by 64 zeros. The chain is linear over exactly the stored sequence `1..N` of that host ([INV-GX-013](../invariants.md#inv-gx-013-a-hosts-seal-chain-is-linear-over-exactly-the-stored-sequence)).
+  where `digest_n` is the entry digest and `seal_0` is the constant `GENESIS`, `"sha256:"` followed by 64 zeros. The chain is linear over exactly the stored sequence `1..N` of that host ([INV-GX-013](../invariants.md#inv-gx-013-a-hosts-seal-chain-is-linear-over-exactly-the-stored-sequence-withdrawn)).
 - **Held in the envelope, never in the record.** The seal is held in `TrailEntry.seal`, an envelope `{ v: 1, prev, seal }`. The `AuditRecord`, its `canonical` text and its `digest` are unchanged by sealing, so sealing can be turned on without changing what core produces.
 - **Computed by the sink, in order.** `trailSink(store, { sealing: { anchorEvery: { records, interval } } })` computes `seal_n` before `append` from the seal of entry `n − 1`, held in memory once acknowledged. Core writes one record at a time in `auditSeq` order ([BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md)), so the previous seal is known; when it is not in memory, the sink reads it from the store, and if that entry is missing, unsealed or unreadable, the write fails and core latches. A retried write recomputes the same seal, so the store's byte comparison still returns `"already-stored"`.
 - **Anchors every N, every T and at close.** An anchor is a high-water mark carrying `seal` ([ADR-GX-008](../decisions/008-high-water-anchors.md)), put by the high-water recorder in the same separately held `AnchorStore`: when an entry whose `auditSeq` is a multiple of `anchorEvery.records` (default 1000) has been acknowledged, when `anchorEvery.interval` (default 15 minutes) has passed with the position moved, and at close. Sealing therefore needs `anchors`; `GxpLayer.make` refuses sealing with `anchors: "not-used"`.
@@ -55,7 +57,7 @@ Entry digests ([ADR-GX-004](../decisions/004-append-only-trail-store.md)) show t
 ## References
 
 - Behaviours: [07 — Optional sealing](../behaviors/07-optional-sealing.md), [06 — High-water marks and anchors](../behaviors/06-high-water-marks-and-anchors.md)
-- Invariants: [INV-GX-013](../invariants.md#inv-gx-013-a-hosts-seal-chain-is-linear-over-exactly-the-stored-sequence)
+- Invariants: [INV-GX-013](../invariants.md#inv-gx-013-a-hosts-seal-chain-is-linear-over-exactly-the-stored-sequence-withdrawn)
 - Risks: [RSK-GX-004](../gxp/03-risk-assessment.md#rsk-gx-004), [RSK-GX-005](../gxp/03-risk-assessment.md#rsk-gx-005)
 - Decisions: [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-GX-005](../decisions/005-jcs-and-sha256.md), [ADR-GX-008](../decisions/008-high-water-anchors.md), [ADR-GX-027](../decisions/027-claims-and-non-claims.md)
 - Core: [ADR-BR-034](../../core/decisions/034-gxp-companion-scope.md), [BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md)

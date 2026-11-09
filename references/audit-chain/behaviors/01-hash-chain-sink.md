@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-01                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): The store port's shape renamed `ChainStoreShape` (it was still named `ChainSinkShape`, which 04 uses for the chaining sink); the link type of this file is `ChainLinkV1`, and `ChainLink` is the union with the generic series' `ChainLinkV2` (04, BEH-AC-026); audit links stay version 1 (round-2 agent review R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; `HashChainSink` is the audit instance of `ChainSink<R>`; core's `sanitized`, `auditDropped`, `requestedBy`, `undoes` and new system transitions chained as fields (G54, G59 closed) (round 2: recheck item 13; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.5 (2026-11-09): BEH-AC-006: only an equal entry under a stored `recordId` is an idempotent repeat; a different record under it is kept with its link or refused, never dropped, following core BEH-BR-193 as amended by CCR-BR-031 (CCR-AC-004)<br>0.4 (2026-11-08): The store port's shape renamed `ChainStoreShape` (it was still named `ChainSinkShape`, which 04 uses for the chaining sink); the link type of this file is `ChainLinkV1`, and `ChainLink` is the union with the generic series' `ChainLinkV2` (04, BEH-AC-026); audit links stay version 1 (round-2 agent review R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; `HashChainSink` is the audit instance of `ChainSink<R>`; core's `sanitized`, `auditDropped`, `requestedBy`, `undoes` and new system transitions chained as fields (G54, G59 closed) (round 2: recheck item 13; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -369,11 +369,15 @@ declare const ChainStore: {
 ```
 
 ```
-REQUIREMENT: A `ChainStore` MUST treat an `append` whose `record.recordId` it
-             has already stored as idempotent: it MUST succeed and MUST NOT
-             store a second copy. It SHOULD fail only when it did not store
-             the entry. These are the obligations of BEH-BR-193, applied to
-             the entry.
+REQUIREMENT: A `ChainStore` MUST treat an `append` of an entry equal to one
+             it has already stored under the same `record.recordId` as
+             idempotent: it MUST succeed and MUST NOT store a second copy. An
+             entry whose record differs from the one stored under its
+             `recordId` MUST NOT be dropped while the store reports success:
+             the store MUST keep it, with its link, beside the first without
+             displacing it, or fail. It SHOULD fail only when it did not
+             store the entry. These are the obligations of BEH-BR-193,
+             applied to the entry.
 ```
 
 ```
@@ -386,9 +390,10 @@ REQUIREMENT: A `ChainStore` MUST store the record and its link together or
 REQUIREMENT: `ChainStore.split(records, links)` MUST call `records.record`
              with the unchanged record, then, only after it succeeds,
              `links.put` with the link, and MUST fail with
-             `AuditWriteFailed` if either fails. Both stores MUST be
-             idempotent on `recordId`, so that a retry after a partial
-             success leaves one record and one link.
+             `AuditWriteFailed` if either fails. Both stores MUST meet
+             the obligations of BEH-BR-193 for an equal record under a stored
+             `recordId`, so that a retry after a partial success leaves one
+             record and one link.
 ```
 
 ```

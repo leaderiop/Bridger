@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-ADR-004                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AC-001)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.3 (2026-11-09): The GxP companion adopts this package as its only sealing mechanism (CCR-GX-002); the consequence that two sealing designs may exist is removed (CCR-AC-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AC-001)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -23,7 +23,7 @@
 ## Decision
 
 - **A separate, optional package.** `@bridger/audit-chain` depends on `@bridger/core` only. Core never depends on it; it does not depend on `@bridger/gxp`, and this specification relies on nothing in that companion's draft.
-- **Adoption, not ownership.** The GxP companion may adopt this package as its sealing mechanism; whether and how it does is specified by that companion. The limits stated here are those of ADR-BR-034 non-claim 5, so adoption adds no claim.
+- **Adoption, not ownership.** The GxP companion may adopt this package as its sealing mechanism; whether and how it does is specified by that companion. It does: it adopts this package as its only sealing mechanism and withdraws its own chain (its ADR-GX-029, CCR-GX-002). The limits stated here are those of ADR-BR-034 non-claim 5, so adoption adds no claim.
 - **An amendment to ADR-BR-034**, registered by the core's change control as CCR-BR-021: sealing may be provided by `@bridger/audit-chain`, and the "several companion packages" alternative is revisited for sealing only.
 
 ## Alternatives considered
@@ -41,7 +41,6 @@
 **Negative**:
 
 - A further package to version and keep aligned with the core record's `schemaVersion`.
-- Until the GxP companion states whether it adopts this package, two sealing designs may exist in draft.
 
 **Trade-off accepted**: a separate package with a narrow scope, at the cost of one more package, rather than a generic mechanism bundled into a regulated-use companion.
 

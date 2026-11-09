@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-025                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): An unsupported `schemaVersion` is stored and marked, not refused; operator changes are refused by `trailGate` (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -26,7 +26,7 @@ The companion relies on specific core behaviour: the `AuditRecord` fields and `s
 - **The compatibility matrix.** `appendices/core-interface-map.md` holds, for each companion release, the core versions it was tested against, the revision of each core document it relies on, and every core identifier it cites (BEH-BR, ADR-BR, INV-BR, RSK-BR, REQ-BR). Check 14 fails if a cited `*-BR-nnn` is missing from the map ([ADR-GX-028](../decisions/028-checker-copy-and-adapt.md)).
 - **A pair is added only by evidence.** A core version is listed in the compatibility matrix only after the companion's full test suite, including conformance and the cross-tree requirement tags, has run against it and produced an evidence pack ([ADR-GX-022](../decisions/022-evidence-pack-format.md)). The matrix row cites the pack digest.
 - **Checked at runtime and at IQ.** `GxpLayer.make` reads the version `@bridger/core` exports and fails construction with `GxpCoreVersionUnsupported { found, supported }` if it is outside the peer range. IQ-09 passes only for a core version listed in the compiled compatibility row and records the version pair as a proof ([ADR-GX-020](../decisions/020-iq-proof-and-probe.md)).
-- **`schemaVersion` is pinned too.** The companion lists the `AuditRecord.schemaVersion`s it understands. The sink refuses a record with any other version with `AuditWriteFailed`, without calling `append`, so core latches instead of filling the store with records the checks cannot read; checks on read report such records as `unknownSchemaVersion` ([ADR-GX-007](../decisions/007-checks-never-claim-integrity.md)).
+- **`schemaVersion` is pinned too.** The companion lists the `AuditRecord.schemaVersion`s it understands. `GxpLayer.make` refuses to build against a core outside the range. The sink stores a record of any other version, or with a field the supported schema does not define, marked `schema: "unsupported"`, and `trailGate` refuses operator changes while such entries are counted; revision 0.1 refused the record, which stopped recording for the life of the host ([ADR-GX-030](./030-sink-marks-and-gate-refuses.md)). Checks on read report such records as `unknownSchemaVersion` ([ADR-GX-007](../decisions/007-checks-never-claim-integrity.md)).
 - **Coupled changes.** A core CCR touching any interface in the map carries a CCR-GX cross-reference, and a companion change requiring a core change carries a CCR-BR cross-reference (PROC-GX-03).
 
 ## Alternatives considered
@@ -40,7 +40,7 @@ The companion relies on specific core behaviour: the `AuditRecord` fields and `s
 **Positive**:
 
 - An installation builds only within the tested core minor line, IQ fails on a core version the matrix does not list, and the matrix says which pack shows it.
-- A `schemaVersion` change in core cannot silently fill a trail with records the checks do not understand.
+- A `schemaVersion` change in core cannot silently fill a trail with records the checks do not understand: each is marked, counted, reported, and stops operator changes.
 
 **Negative**:
 

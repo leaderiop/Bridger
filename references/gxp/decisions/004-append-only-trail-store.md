@@ -1,18 +1,18 @@
-# ADR-GX-004: The trail store is append-only, idempotent on recordId and unique per host sequence
+# ADR-GX-004: The trail store is append-only, idempotent on recordId, and keeps collisions beside the primary entry
 
 > **Document Control**
 >
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-004                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Collisions are stored beside the primary entry and answered "stored-collision"; "conflict" withdrawn; `TrailEntry` gains `marks`, `collision` and audit-chain's `link`, `seal` withdrawn (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -39,13 +39,15 @@ Core hands each `AuditRecord` to one sink, one at a time, in `auditSeq` order, a
     readonly record: AuditRecord          // as core produced it
     readonly canonical: string            // RFC 8785 JCS of record (ADR-GX-005)
     readonly digest: string               // "sha256:" + lower-case hex SHA-256 of the UTF-8 canonical bytes
-    readonly seal?: SealEnvelope          // only with sealing on (ADR-GX-009)
+    readonly marks?: { readonly schema?: "unsupported"; readonly canonical?: "jcs-escaped" }   // ADR-GX-030
+    readonly collision?: { readonly reason: "record-id" | "host-seq"; readonly with: string }  // set by the store
+    readonly link?: ChainLinkV1           // only with sealing on: @bridger/audit-chain (ADR-GX-029)
   }
   ```
 
-- **Two uniqueness keys.** A store holds at most one entry per `record.recordId` and at most one per `(record.hostId, record.auditSeq)` ([INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number)). Both are enforced by the store itself (a unique index, a conditional put, a transaction), not by a read-then-write in the adapter.
-- **Same bytes is success.** If an entry already exists under either key and its `canonical` is byte-for-byte equal to the incoming one (and the seal, if any, is equal), `append` returns `"already-stored"`. The sink treats it as acknowledged ([ADR-GX-003](../decisions/003-ports-without-defaults.md), [03 — Trail sink](../behaviors/03-trail-sink.md)).
-- **Different bytes is a failure, never an overwrite.** If an entry exists under either key with different bytes, `append` fails with `TrailWriteFailed { reason: "conflict", message }`. The stored entry is left as it was. The message carries identifiers only, never record content.
+- **Two uniqueness keys for primary entries.** A store holds at most one primary entry per `record.recordId` and at most one per `(record.hostId, record.auditSeq)`, and at most one entry of any kind per `(recordId, digest)` ([INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced)). Both are enforced by the store itself (a unique index, a conditional put, a transaction), not by a read-then-write in the adapter.
+- **Same bytes is success.** If an entry already exists under either key and its `canonical` is byte-for-byte equal to the incoming one (its digest is equal), `append` returns `"already-stored"`. The sink treats it as acknowledged ([ADR-GX-003](../decisions/003-ports-without-defaults.md), [03 — Trail sink](../behaviors/03-trail-sink.md)).
+- **Different bytes is a collision, kept beside, never an overwrite.** If a primary entry exists under either key with different bytes, `append` stores the incoming entry as a collision entry naming the primary's digest and answers `"stored-collision"`; the primary is left as it was. Revision 0.1 failed with `TrailWriteFailed { reason: "conflict" }`, which made core retry the same record for the life of the host; that reason is withdrawn ([ADR-GX-030](./030-sink-marks-and-gate-refuses.md)).
 - **"stored" means committed.** `append` returns only after the store has committed the entry, as the user's store defines a commit; returning earlier is a conformance failure (RSK-GX-001).
 - **No update, no delete.** The port has no update, delete, truncate or upsert operation, and no companion API rewrites a stored entry ([INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry)). Retention and disposal are the user's, outside the port.
 - **Reads return what was stored.** `read` yields entries of one host in ascending `auditSeq`, with `canonical` exactly as appended. It never re-serialises `record`.
@@ -60,20 +62,20 @@ Core hands each `AuditRecord` to one sink, one at a time, in `auditSeq` order, a
 
 **Positive**:
 
-- A retry after an unknown outcome stores one entry; a conflicting record fails loudly and core latches ([ADR-BR-031](../../core/decisions/031-audit-failure-policy.md)).
+- A retry after an unknown outcome stores one entry; a colliding record is stored beside the primary, counted, reported by the checks and, through `trailGate`, stops operator changes ([ADR-GX-030](./030-sink-marks-and-gate-refuses.md)).
 - Nothing in the companion can replace a stored entry, so a changed entry can only come from outside the companion, where checks on read and sealing look for it.
 
 **Negative**:
 
 - The store must support two unique constraints and a byte comparison; some stores need a transaction for that.
-- A genuine conflict stops the host's mutations until a person resolves it; that is the intended fail-closed outcome.
+- A genuine collision stops operator changes (when `trailGate` is used) until the host is rebuilt after a person has looked at it, while recording continues.
 
-**Trade-off accepted**: a stricter adapter contract, in exchange for retries that never duplicate and conflicts that never overwrite.
+**Trade-off accepted**: a stricter adapter contract, in exchange for retries that never duplicate and collisions that never overwrite and are never lost.
 
 ## References
 
 - Behaviours: [02 — Trail store port](../behaviors/02-trail-store-port.md), [03 — Trail sink](../behaviors/03-trail-sink.md), [04 — Conformance suite](../behaviors/04-conformance-suite.md)
-- Invariants: [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry)
+- Invariants: [INV-GX-006](../invariants.md#inv-gx-006-one-primary-entry-per-record-and-per-host-sequence-number-and-no-stored-record-is-displaced), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry)
 - Risks: [RSK-GX-001](../gxp/03-risk-assessment.md#rsk-gx-001), [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002)
-- Decisions: [ADR-GX-005](../decisions/005-jcs-and-sha256.md), [ADR-GX-009](../decisions/009-optional-sealing.md), [ADR-GX-023](../decisions/023-archives-keep-original-bytes.md)
+- Decisions: [ADR-GX-005](../decisions/005-jcs-and-sha256.md), [ADR-GX-029](../decisions/029-sealing-through-audit-chain.md), [ADR-GX-030](../decisions/030-sink-marks-and-gate-refuses.md), [ADR-GX-023](../decisions/023-archives-keep-original-bytes.md)
 - Core: [ADR-BR-030](../../core/decisions/030-audit-sink-port.md), [ADR-BR-031](../../core/decisions/031-audit-failure-policy.md), [BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-208](../../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-210](../../core/behaviors/24-time-ids-and-sequence.md), [BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md)

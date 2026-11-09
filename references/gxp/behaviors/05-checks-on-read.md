@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-05                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): BEH-GX-033, 034 kinds `nonCanonical`, `collision`, `auditDropped`, `headMismatch` (F-01, F-02); BEH-GX-036 marked and unmarked unknown shapes; BEH-GX-037 pairing by phase, `superseded` paired without `causationId` (C-08); BEH-GX-038 `auditDropped` on every record, the claim that the acknowledgement is the only place a dropped count appears corrected (F-01); seal kinds from 21 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -30,7 +30,7 @@ Planned source: `packages/gxp/src/checks/checkTrailEntries.ts`,
 `packages/gxp/src/checks/checkStoredTrail.ts` and
 `packages/gxp/src/checks/CheckReport.ts` *(Planned)*. Tail loss against
 high-water marks is [06 — High-Water Marks and Anchors](./06-high-water-marks-and-anchors.md);
-seal verification is [07 — Optional Sealing](./07-optional-sealing.md).
+seal verification is [21 — Sealing through audit-chain](./21-sealing-through-audit-chain.md).
 
 ## BEH-GX-033: A check report lists findings by kind and claims only the absence of the checked kinds
 
@@ -45,10 +45,11 @@ seal verification is [07 — Optional Sealing](./07-optional-sealing.md).
 type FindingKind =
   | "gap" | "duplicate" | "outOfOrder"                         // from verifyAuditSequence (BEH-BR-215)
   | "digestMismatch" | "canonicalMismatch" | "unknownSchemaVersion"
-  | "requestedWithoutTerminal" | "droppedSinceAck" | "noCleanClose"
+  | "nonCanonical" | "collision"                               // marked and colliding entries (03, 02)
+  | "requestedWithoutTerminal" | "droppedSinceAck" | "auditDropped" | "noCleanClose"
   | "approvalWithoutRecord" | "recordWithoutApproval"           // BEH-GX-039
   | "tailLoss" | "unanchoredTail"                              // 06
-  | "chainBreak" | "anchorMismatch"                            // 07
+  | "chainBreak" | "anchorMismatch" | "headMismatch"           // 21, from @bridger/audit-chain
 
 interface Finding {
   readonly kind: FindingKind
@@ -73,7 +74,7 @@ interface CheckReport {
 REQUIREMENT: Every report MUST list in `checkedKinds` exactly the kinds the
              run looked for, and in `notCheckedKinds` every other
              `FindingKind`. A kind that needs an input the caller did not give
-             (an anchor store, a ticket store, a sealed trail) MUST be listed
+             (a high-water mark store, a ticket store, a sealed trail) MUST be listed
              as not checked, never as checked with no findings.
 ```
 
@@ -119,9 +120,11 @@ declare function checkTrailEntries(
 | --- | --- |
 | `gap`, `duplicate`, `outOfOrder` | `verifyAuditSequence` over the entries' `record`s reports it; mapped one to one |
 | `digestMismatch` | `digest` ≠ "sha256:" + hex(SHA-256(UTF-8(`canonical`))) |
-| `canonicalMismatch` | JCS(`record`) ≠ `canonical`, or `hostId`, `auditSeq` or `recordId` of the entry ≠ those of `record` |
+| `canonicalMismatch` | JCS(`record`) ≠ `canonical` — or, for an entry marked `canonical: "jcs-escaped"`, the escaped encoding of `record` ≠ `canonical` — or `hostId`, `auditSeq` or `recordId` of the entry ≠ those of `record` |
 | `unknownSchemaVersion` | [BEH-GX-036](#beh-gx-036-an-entry-of-an-unknown-schema-version-is-reported-and-never-skipped) |
-| `requestedWithoutTerminal`, `droppedSinceAck`, `noCleanClose` | [BEH-GX-037](#beh-gx-037-open-requests-and-an-unclean-close-are-findings), [BEH-GX-038](#beh-gx-038-records-core-reported-dropped-are-a-finding) |
+| `nonCanonical` | the entry carries `marks.canonical` "jcs-escaped" (BEH-GX-018) |
+| `collision` | the entry carries `collision` (BEH-GX-012); `detail` "collides with the primary entry on <reason>" |
+| `requestedWithoutTerminal`, `droppedSinceAck`, `auditDropped`, `noCleanClose` | [BEH-GX-037](#beh-gx-037-open-requests-and-an-unclean-close-are-findings), [BEH-GX-038](#beh-gx-038-records-core-reported-dropped-are-a-finding) |
 
 ```
 REQUIREMENT: `checkTrailEntries` MUST be pure and total: no effects, no clock,
@@ -139,7 +142,11 @@ REQUIREMENT: It MUST obtain `gap`, `duplicate` and `outOfOrder` by calling
 ```
 REQUIREMENT: It MUST check every entry for `digestMismatch` and
              `canonicalMismatch`, independently: an entry can have both, one
-             or neither, and each MUST be reported.
+             or neither, and each MUST be reported. It MUST report
+             `nonCanonical` and `collision` for every entry carrying the
+             mark, and MUST pass collision entries to `verifyAuditSequence`
+             like any other, so that a collision at an occupied sequence
+             number is also reported as core's `duplicate`.
 ```
 
 `canonicalMismatch` catches the store whose structured copy and original text
@@ -147,7 +154,7 @@ disagree — a column updated by hand, a migration that rewrote JSON — and
 `digestMismatch` the one whose original text no longer matches the digest
 written with it. Neither catches an edit that changed text, structure and
 digest together; that needs sealing and an anchor held elsewhere
-([BEH-GX-054](./07-optional-sealing.md#beh-gx-054-seal-verification-is-described-in-exactly-one-way)).
+([BEH-GX-173](./21-sealing-through-audit-chain.md#beh-gx-173-seal-verification-is-described-in-exactly-one-way)).
 
 ## BEH-GX-035: checkStoredTrail streams one host's entries in bounded memory with the same result
 
@@ -223,14 +230,17 @@ the failure names the `auditSeq` where it happened.
 REQUIREMENT: An entry whose `record.schemaVersion` is not in the supported
              list (BEH-GX-007), or whose record has a field the supported
              schema does not define, MUST be reported as
-             `unknownSchemaVersion` with its `auditSeq` and `recordId`.
+             `unknownSchemaVersion` with its `auditSeq` and `recordId`,
+             whether or not the sink marked it `schema: "unsupported"`: a
+             record written by another sink, or before an upgrade, carries
+             no mark.
 ```
 
 ```
 REQUIREMENT: Such an entry MUST still take part in every check that needs only
              the entry's top-level fields and bytes: `gap`, `duplicate`,
-             `outOfOrder`, `digestMismatch` and, for sealed trails, the seal
-             chain. It MUST be excluded only from the checks that interpret
+             `outOfOrder`, `digestMismatch`, `collision` and, for sealed
+             trails, seal verification (BEH-GX-171). It MUST be excluded only from the checks that interpret
              record fields, and the report's `detail` for it MUST say "content
              checks not applied".
 ```
@@ -251,10 +261,18 @@ presence, position and bytes are still accounted for.
 ```
 REQUIREMENT: A `requested` record MUST be paired with the first later record
              of the same host that is its terminal record under core's rules
-             (BEH-BR-198, BEH-BR-200): a `completed`, `failed`, `superseded`
-             or `joined` record with the same `correlationId`, `operation`,
-             `target` and `causationId`, or a `joined` record whose
-             `causationId` equals the requested record's `correlationId`.
+             (BEH-BR-198, BEH-BR-200), by phase:
+             - `completed` or `failed`: the same `correlationId`,
+               `operation`, `target` and `causationId` (a resumer's own
+               terminal record, carrying `resumes`, pairs with the resumer's
+               own `requested` record by the same rule);
+             - `superseded`: the same `correlationId`, `operation` and
+               `target`, whatever its `causationId`, which names the
+               superseding call's `requested` record and so never equals the
+               superseded request's own;
+             - `joined`: a `causationId` equal to the requested record's
+               `correlationId` and the same `target`; its own
+               `correlationId` is the joined call's.
              Pairing MUST be first-in, first-out in `auditSeq` order among
              requests with the same key.
 ```
@@ -268,6 +286,13 @@ REQUIREMENT: Every `requested` record left unpaired at the end of the range
 ```
 
 ```
+REQUIREMENT: A `superseded` record MUST be paired whatever its
+             `causationId` holds. Whether that `causationId` names a stored
+             `requested` record is not checked by this file, and the report
+             MUST NOT be read as saying it was.
+```
+
+```
 REQUIREMENT: With `expectClosed: true`, the check MUST report `noCleanClose`
              for a host whose last entry is not the terminal `completed`
              record of a `shutdown` call. With `expectClosed: false` the kind
@@ -277,8 +302,13 @@ REQUIREMENT: With `expectClosed: true`, the check MUST report `noCleanClose`
 An unanswered request is what core leaves in the trail when the host stopped,
 or the sink failed, between a call's two records ([BEH-BR-198](../../core/behaviors/23-audit-sink-and-record.md)). Core makes
 the second case loud through the latch; the check makes both visible in the
-stored trail, where a reviewer looks. A `requested` record dropped for
-writer overflow leaves no record and no pairing to miss; it is counted by
+stored trail, where a reviewer looks. The pairing keys differ by phase
+because core's records differ: a `superseded` terminal shares the superseded
+call's correlation but carries, as its cause, the superseding call's
+`requested` record ([BEH-BR-200](../../core/behaviors/23-audit-sink-and-record.md)), so a key that included `causationId` —
+revision 0.1's — paired no supersession and reported every superseded call
+as open. A `requested` record dropped for writer overflow leaves no record
+and no pairing to miss; it is counted by
 [BEH-GX-038](#beh-gx-038-records-core-reported-dropped-are-a-finding) instead.
 
 ## BEH-GX-038: Records core reported dropped are a finding
@@ -297,16 +327,31 @@ REQUIREMENT: Every `completed` record of an `acknowledgeAuditDegraded` call
 ```
 
 ```
-REQUIREMENT: A `droppedSinceAck` finding MUST be reported even when the
-             acknowledgement's `reason` explains the loss. The check MUST NOT
-             read or interpret `reason`.
+REQUIREMENT: Every record carries `auditDropped`, the host's count of
+             records dropped for overflow when it was numbered, which never
+             decreases (BEH-BR-195). The check MUST report `auditDropped`, with
+             `detail` "<n> records dropped before this record", at the first
+             record of the range whose `auditDropped` is greater than that of
+             the record before it (or greater than 0, for the first record of
+             the host), and MUST report it with `detail` "auditDropped
+             decreased" at a record whose value is lower than the one before
+             it.
+```
+
+```
+REQUIREMENT: A `droppedSinceAck` or `auditDropped` finding MUST be reported
+             even when a `reason` explains the loss. The check MUST NOT read
+             or interpret `reason`.
 ```
 
 Records dropped for writer overflow leave no gap in `auditSeq`
-([BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md)): the acknowledgement is the only place where the trail itself
-says how many records core failed to hand over. Reporting it, every time,
-keeps a known loss from being forgotten because someone wrote a good reason
-for it.
+([BEH-BR-202](../../core/behaviors/23-audit-sink-and-record.md)). The trail says how many there were in two places: the
+acknowledgement's `droppedSinceAck`, and, since CCR-BR-026, the `auditDropped`
+count every record carries, which shows between which two stored records the
+losses happened. Revision 0.1 said the acknowledgement was the only place;
+that is no longer true, and the check now reads both. Reporting them every
+time keeps a known loss from being forgotten because someone wrote a good
+reason for it.
 
 ## BEH-GX-039: Approvals and records are checked against each other
 

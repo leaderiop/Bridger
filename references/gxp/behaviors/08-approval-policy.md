@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-08                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): Navigation: 07 withdrawn (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -351,4 +351,4 @@ change through the same path as any other change to the host's assembly.
 
 ---
 
-_Previous: [07 — Optional Sealing](./07-optional-sealing.md)_ · _Next: [09 — Approval Tickets](./09-approval-tickets.md)_
+_Previous: [07 — Optional Sealing (withdrawn)](./07-optional-sealing.md)_ · _Next: [09 — Approval Tickets](./09-approval-tickets.md)_

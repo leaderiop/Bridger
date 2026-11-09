@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-PROC-01                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Procedure                                                    |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): §5: eighteen checks; check 17 covers the record vector of file 03, the I-JSON number form and vector blocks outside the listed files; check 18 pinned core and audit-chain revisions (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -129,8 +129,8 @@ until a second reviewer exists ([change control](./change-control.md) §5).
 `scripts/verify-traceability.sh` checks the following mechanically
 ([ADR-GX-028](../decisions/028-checker-copy-and-adapt.md)). Checks 1–11 carry over core's checks of
 the same number, adapted to the `GX` series, check 11 with a stricter lint;
-checks 12–17 are new or changed: 12 and 13 extend core's link and register
-checks into core's tree, 14–17 are the companion's own, and core's check 14
+checks 12–18 are new or changed: 12 and 13 extend core's link and register
+checks into core's tree, 14–18 are the companion's own, and core's check 14
 (SPEC.md coverage) has no counterpart.
 
 1. The root `index.yaml` names the package `bridger-gxp` and the infix `GX`, and each of the root, `behaviors`, `decisions`, `gxp`, `process` and `appendices` has an `index.yaml` for package `bridger-gxp` that matches the Markdown files on disk.
@@ -149,7 +149,8 @@ checks into core's tree, 14–17 are the companion's own, and core's check 14
 14. Every `URS`, `NFR`, `BEH`, `INV`, `ADR`, `REQ` or `RSK` identifier with the `BR` infix cited anywhere is defined in core and listed in `appendices/core-interface-map.md`; with `--strict`, an identifier listed in the map that no other document cites also fails.
 15. Core's checker, `bash references/core/scripts/verify-traceability.sh --strict`, runs and succeeds.
 16. Every `**Regulatory:**` line begins with the verb "supports" and uses no verb of conformance ("satisfies", "meets", "complies", "compliant", "fulfils", "ensures", "achieves", "conforms").
-17. The test vectors in ```` ```vector ```` blocks of `behaviors/09-approval-tickets.md` and `behaviors/13-config-fingerprints.md` recompute, and every fingerprint string in them has the format of BEH-GX-099.
+17. The test vectors in ```` ```vector ```` blocks of `behaviors/03-trail-sink.md`, `behaviors/09-approval-tickets.md` and `behaviors/13-config-fingerprints.md` recompute, every fingerprint string in them has the format of BEH-GX-099, and no other file holds a ```` ```vector ```` block.
+18. Every row of the core interface map's §6 names a document of `references/core` or `references/audit-chain` whose Document Control shows the same Document ID and Revision as the row, and every core document the map links to has a row (change control §7).
 
 **Check 11, claims lint.** The restricted words are *validated*, *qualified*,
 *compliant*, *compliance-ready*, *tamper-evident*, *tamper-proof*, *durable*,
@@ -176,17 +177,26 @@ the restricted claim is that a record or signature *is authentic*, which the
 companion never asserts ([ADR-GX-016](../decisions/016-signature-port-and-manifestation.md)).
 
 **Check 17, test vectors.** Each ```` ```vector ```` block holds one JSON
-object. In file 09 it has the keys `input`, `canonical` and `sha256`; in file
+object. In files 03 and 09 it has the keys `input`, `canonical` and `sha256`; in file
 13 it has `key_hex`, `input`, `canonical` and `hmac_b64url`. The checker
-canonicalises `input` with the subset of RFC 8785 the companion's inputs use —
+canonicalises `input` with RFC 8785 over the I-JSON domain —
 object keys sorted by UTF-16 code units, separators `,` and `:` with no whitespace,
-strings escaped as JSON with non-ASCII characters left literal, numbers that
-are integers only — and requires the result to equal `canonical`; it then
+strings escaped as JSON with non-ASCII characters left literal, numbers written
+as ECMAScript's Number-to-String writes them (RFC 8785 §3.2.2.3) — and requires the result to equal `canonical`; it then
 requires `sha256` (bare, or after a `sha256:` prefix) to equal the lower-case
 hex SHA-256 of the UTF-8 bytes of `canonical`, or `hmac_b64url` to equal the unpadded base64url HMAC-SHA256 of
 those bytes under the key `key_hex`. A vector whose input contains a
-non-integer number fails, because the subset does not define its form
-([ADR-GX-005](../decisions/005-jcs-and-sha256.md)). Every string in a vector that begins `fp1:`, and
+non-finite number or an integer beyond ±(2^53 − 1) fails, because I-JSON does
+not define its form ([ADR-GX-005](../decisions/005-jcs-and-sha256.md)); revision 0.1 also failed non-integer
+numbers, which core records may now carry.
+
+**Check 18, pinned revisions.** The core interface map's §6 pins the revision
+of every core document it relies on, and of the `@bridger/audit-chain`
+documents the adopted sealing relies on, as rows `` `tree/path` `` | Document ID |
+Revision. The check reads each document's Document Control and fails on any
+difference, so that a core or audit-chain change that has not been assessed
+under the coupling rule cannot go unnoticed; a re-pin is made only in a
+CCR-GX that records the assessment ([change control](./change-control.md) §7). Every string in a vector that begins `fp1:`, and
 every value of a `fingerprint` key, must have the format of [BEH-GX-099](../behaviors/13-config-fingerprints.md#beh-gx-099-a-fingerprint-is-hmac-sha256-over-the-canonical-form-of-scope-plugin-path-form-and-value-written-as-fp1hmac-sha256keyidmac): the prefix
 `fp1:hmac-sha256:`, a key id matching `^[A-Za-z0-9._:-]{1,64}$`, and, after
 the last `:`, 43 base64url characters that encode 32 bytes.

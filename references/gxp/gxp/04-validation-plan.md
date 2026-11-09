@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GXP-04                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-09): RSK-GX-023 in the High rigour row; files 21 and 22 in place of 07; scenarios REQ-GX-001–047 (BEH-GX-153–169); a change of the adopted `@bridger/audit-chain` version is a revalidation trigger (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -38,7 +38,7 @@ Roles: the Bridger maintainers plan and execute the companion's verification and
 | Specification level | Verified by | Who | Companion-side activity |
 | ------------------- | ----------- | --- | ----------------------- |
 | User requirements — the user's system URS, informed by [urs.md](../urs.md) | **PQ** | Regulated user | None. The companion supplies no PQ evidence. |
-| Functional specification — [behaviours](../behaviors/01-companion-boundary.md), [invariants](../invariants.md), the acceptance checks of [20](../behaviors/20-required-acceptance-checks.md) | **OQ** | Bridger (§5); regulated user (repeats with their adapters, §6.2) | Acceptance scenarios for BEH-GX-153–168, property tests, conformance runs, test vectors, mutation testing — **against the installed package and the real core**, never the source tree or a mock of core |
+| Functional specification — [behaviours](../behaviors/01-companion-boundary.md), [invariants](../invariants.md), the acceptance checks of [20](../behaviors/20-required-acceptance-checks.md) | **OQ** | Bridger (§5); regulated user (repeats with their adapters, §6.2) | Acceptance scenarios for BEH-GX-153–169, property tests, conformance runs, test vectors, mutation testing — **against the installed package and the real core**, never the source tree or a mock of core |
 | Design — ADRs, package layout, core version range (one minor line), port shapes | **IQ** | Bridger (checks defined, §6.1); regulated user (executes them) | Package identity, version pins, ports wired, fixtures absent, stores reachable, policy and eligibility digests, timeouts |
 
 A failed OQ result traces back to its behaviour and invariant, and from there to the user requirement and risk ([traceability.md](../traceability.md)).
@@ -57,11 +57,11 @@ Applied to the [risk register](./03-risk-assessment.md):
 
 | Rigour | Risks | Behaviour files mainly exercised |
 | ------ | ----- | -------------------------------- |
-| High | RSK-GX-001 to RSK-GX-009, RSK-GX-011 to RSK-GX-017, RSK-GX-019, RSK-GX-020, RSK-GX-022 | [01](../behaviors/01-companion-boundary.md), [02](../behaviors/02-trail-store-port.md)–[07](../behaviors/07-optional-sealing.md), [08](../behaviors/08-approval-policy.md)–[12](../behaviors/12-approval-gate.md), [13](../behaviors/13-config-fingerprints.md), [14](../behaviors/14-fingerprint-keys.md), [15](../behaviors/15-installation-checks.md)–[18](../behaviors/18-archive-and-export.md), [19](../behaviors/19-testing-entry-point.md) |
+| High | RSK-GX-001 to RSK-GX-009, RSK-GX-011 to RSK-GX-017, RSK-GX-019, RSK-GX-020, RSK-GX-022, RSK-GX-023 | [01](../behaviors/01-companion-boundary.md), [02](../behaviors/02-trail-store-port.md)–[06](../behaviors/06-high-water-marks-and-anchors.md), [08](../behaviors/08-approval-policy.md)–[12](../behaviors/12-approval-gate.md), [13](../behaviors/13-config-fingerprints.md), [14](../behaviors/14-fingerprint-keys.md), [15](../behaviors/15-installation-checks.md)–[18](../behaviors/18-archive-and-export.md), [19](../behaviors/19-testing-entry-point.md), [21](../behaviors/21-sealing-through-audit-chain.md), [22](../behaviors/22-trail-status-and-gate.md) |
 | Medium | RSK-GX-010, RSK-GX-018, RSK-GX-021 | [12](../behaviors/12-approval-gate.md), [09](../behaviors/09-approval-tickets.md) |
 | Low | None in the current register | — |
 
-These are minimums. Every numbered check of BEH-GX-153–168 (REQ-GX-001–042, [traceability](../traceability.md) §5) is scripted regardless of the table; [NFR-GX-003](../urs.md#nfr-gx-003-coverage) (coverage at least 95%) and [NFR-GX-004](../urs.md#nfr-gx-004-mutation-testing) (mutation score at least 80%) apply to the whole of `packages/gxp`.
+These are minimums. Every numbered check of BEH-GX-153–169 (REQ-GX-001–047, [traceability](../traceability.md) §5) is scripted regardless of the table; [NFR-GX-003](../urs.md#nfr-gx-003-coverage) (coverage at least 95%) and [NFR-GX-004](../urs.md#nfr-gx-004-mutation-testing) (mutation score at least 80%) apply to the whole of `packages/gxp`.
 
 ## §5 Verification of the companion
 
@@ -71,7 +71,7 @@ All suites run against the **packed and installed** `@bridger/gxp`, beside the p
 
 | Test type | What it shows | Merge-gate row |
 | --------- | ------------- | -------------- |
-| Acceptance scenarios REQ-GX-001–042, for the numbered checks of BEH-GX-153–168 | Each behaviour's observable outcomes, including every refusal reason, finding kind and error tag | 8 |
+| Acceptance scenarios REQ-GX-001–047, for the numbered checks of BEH-GX-153–169 | Each behaviour's observable outcomes, including every refusal reason, finding kind and error tag | 8 |
 | Property tests | Invariants INV-GX-001–015 over generated trails, tickets, signer sets, interleavings and faults, stepped deterministically under core's `TestHost` | 7 |
 | Type-level tests | Port shapes; `GxpLayer.make` with a missing member fails to compile; no mutating member besides `append` and `put` | 6 |
 | Fault-injection matrix | Every port × {fail, die, hang past the deadline, malformed answer, interruption} refuses or fails the write (INV-GX-011) | 8 |
@@ -84,7 +84,7 @@ All suites run against the **packed and installed** `@bridger/gxp`, beside the p
 The suite ([04](../behaviors/04-conformance-suite.md)) is the companion's test tool for other people's adapters, so it is verified in both directions:
 
 1. **It passes a conforming store.** Every numbered case passes against `memoryTrailStore` with several seeds, and two runs with one seed produce identical output (BEH-GX-030).
-2. **It fails a non-conforming store, at the right case.** Against each `brokenTrailStore` variant — duplicate on repeat, unchecked already-stored, overwrite on conflict, no sequence check, acknowledge without storing — every case listed for the variant fails, and every case from 3 to 9 fails against at least one variant ([BEH-GX-147](../behaviors/19-testing-entry-point.md); merge-gate row 9). The fault cases inject commit-then-hang, commit-then-fail, fail-before-commit and die through `faultyTrailStore` (BEH-GX-027).
+2. **It fails a non-conforming store, at the right case.** Against each `brokenTrailStore` variant — duplicate on repeat, unchecked already-stored, overwrite on collision, drop on collision, no sequence check, acknowledge without storing — every case listed for the variant fails, and every case from 3 to 9 fails against at least one variant ([BEH-GX-147](../behaviors/19-testing-entry-point.md); merge-gate row 9). The fault cases inject commit-then-hang, commit-then-fail, fail-before-commit and die through `faultyTrailStore` (BEH-GX-027).
 3. **It drives the real core.** A test asserts the suite resolves core's `TestHost` from the installed core and never a stand-in (BEH-GX-026).
 4. **Its limits are in its output.** The stated limits of BEH-GX-032 appear in every run's output and are checked by a golden test.
 
@@ -139,7 +139,7 @@ Evidence follows core's rules ([core validation plan](../../core/gxp/04-validati
 
 The companion's verification of a release is acceptable as supplier evidence when all of the following hold:
 
-1. Every acceptance scenario REQ-GX-001–042 (the checks of BEH-GX-153–168) was executed against the installed packages and passed; none linked to a High-rigour risk (§4) is skipped.
+1. Every acceptance scenario REQ-GX-001–047 (the checks of BEH-GX-153–169) was executed against the installed packages and passed; none linked to a High-rigour risk (§4) is skipped.
 2. Every `BEH-GX` is covered by at least one executed test, or is listed as not covered with a reason.
 3. The conformance suite passes against `memoryTrailStore` and fails at the expected cases for each `faultyTrailStore` mode and each broken adapter (§5.2).
 4. The evidence generator's self-test passes on both corpora (§5.4).
@@ -184,7 +184,7 @@ This is an input to the user's own periodic evaluation (Annex 11 §11). A user's
 The following require the affected verification to be re-executed and new evidence generated, and are flagged in the CCR and release notes so that a user can decide whether to re-qualify:
 
 1. **A core version change.** Any new core version, patch releases included, is added to the [compatibility matrix](../appendices/core-interface-map.md) only after the full suite, including conformance and cross-tree tags, has run against it and produced a pack ([ADR-GX-025](../decisions/025-core-version-range.md)). A core change to `schemaVersion` or to any identifier in the interface map needs a new companion version (core interface map §7).
-2. **Any GxP-impacting change to the companion** — a port shape, the canonical form, the binding contents, the seal or fingerprint construction or format version, the gate's steps or refusal reasons, the policy format, the evidence rules, or a compliance-matrix row ([change control](../process/change-control.md) §3).
+2. **Any GxP-impacting change to the companion** — a port shape, the canonical form, the binding contents, the fingerprint construction, the adopted `@bridger/audit-chain` version or format version, the gate's steps or refusal reasons, the policy format, the evidence rules, or a compliance-matrix row ([change control](../process/change-control.md) §3).
 3. **Key rotation or a change of key provider** in a user's installation. Outstanding tickets become stale and are re-issued ([ADR-GX-019](../decisions/019-key-provider-and-rotation.md)); the IQ probe of the key provider and the fingerprint OQ cases are re-executed against the new key id.
 4. **A policy or eligibility change** in a user's installation. The digest changes, outstanding tickets issued under the old policy are no longer valid, and IQ and the policy OQ cases are re-executed ([BEH-GX-061](../behaviors/08-approval-policy.md)).
 5. **A change of adapter** — a new trail, anchor or ticket store, or a new version of one: the conformance suite and the store-related OQ cases are re-run against it.
@@ -219,7 +219,7 @@ The chain URS-GX → BEH-GX → INV-GX → ADR-GX → REQ-GX → RSK-GX → test
 | Activity | Status |
 | -------- | ------ |
 | Documentation gate D1, including core's checker and the test vectors | Runnable; not evidence of behaviour |
-| Acceptance scenarios REQ-GX-001–042 (BEH-GX-153–168) | Planned — not yet runnable; see [traceability](../traceability.md) §5 |
+| Acceptance scenarios REQ-GX-001–047 (BEH-GX-153–169) | Planned — not yet runnable; see [traceability](../traceability.md) §5 |
 | Property, type-level, canary and fault-injection tests | Planned — not yet runnable |
 | Conformance suite verification (§5.2) | Planned — no suite exists |
 | Evidence generator self-test (§5.4) | Planned — the corpus is specified, no generator exists |

@@ -86,18 +86,18 @@ adrs = re.findall(r'id: "ADR-GX-(\d{3})"\s*\n\s*file: "([^"]+)"\s*\n\s*title: "(
 
 # ---------------------------------------------------------------- acceptance checks -> REQ-GX
 SUMMARY = {
- 1: "The sink acknowledges only what the store answered stored; a failing, dying or hanging store reaches core as `AuditWriteFailed`",
- 2: "A repeated append is already-stored; different content under a stored key fails with conflict and the first entry reads back unchanged",
- 3: "The sink refuses an unsupported `schemaVersion` or an undefined field, and core sets the audit-degraded latch",
+ 1: "The sink acknowledges only what the store answered stored or stored-collision; a failing, dying or hanging store reaches core as `AuditWriteFailed`",
+ 2: "A repeated append is already-stored; different content under a stored key is kept beside the primary as a collision and the first entry reads back unchanged",
+ 3: "The sink stores and marks an unsupported shape and a record that is not I-JSON, the call succeeds and no latch is set; the record vector reproduces",
  4: "Conformance cases 1–16 pass against `memoryTrailStore` and fail as listed against each `brokenTrailStore` variant",
  5: "Conformance runs with one seed are reproducible; the manifest lists every case and no result",
  6: "`checkTrailEntries` reports each seeded gap, duplicate, disorder, digest mismatch and canonical mismatch",
  7: "`checkStoredTrail` equals `checkTrailEntries` across page boundaries and never reports part of a range",
- 8: "Unknown schema versions, unfinished calls, records dropped since acknowledgement and unclean closes are reported, with the fixed statement",
+ 8: "Unknown schema versions, unfinished calls, records dropped (at acknowledgement and per record) and unclean closes are reported, with the fixed statement",
  9: "`checkApprovals` reports approvals without records and records without approvals, and nothing for a gate refusal",
  10: "High-water marks follow `Host.controls` and `CloseReport`; `checkHighWater` reports `tailLoss` and `unanchoredTail`",
- 11: "`verifySeals` reports `chainBreak`, `anchorMismatch` and `unanchoredTail`; with sealing off both kinds are listed as not checked",
- 12: "`bindingDigest` reproduces the vectors; a proposal, the gate request and both records give one digest",
+ 11: "Sealing through audit-chain: links stored beside entries; `verifySeals` maps `chainBreak`, `anchorMismatch`, `unanchoredTail` and `headMismatch`; off, the kinds are not checked",
+ 12: "`bindingDigest` reproduces the four vectors; a proposal, the gate request and both records give one digest",
  13: "`issueTicket` refusals, `issued` and `signed` events; a declined or failed capture leaves the ticket issued",
  14: "Signature refusals for the requester, a repeated or reserved signer, a wrong meaning or digest, too few components, or no re-authentication",
  15: "The rendering shows every bound field and only \"fingerprinted\" for a fingerprinted path; the fixed manifestation sentence",
@@ -128,6 +128,11 @@ SUMMARY = {
  40: "Every report carries its fixed sentences and, outside a negated sentence, none of the words ADR-GX-027 forbids",
  41: "Testing ports are marked `fixture: true`; test keys are deterministic; an installation using a fixture fails IQ",
  42: "The suite's own OQ evidence reports every REQ-GX as pass; coverage and mutation targets are met",
+ 43: "`trailGate` refuses operator calls while the sink's counts are raised; recording, system records and refused calls' records continue",
+ 44: "A call refused by the trail or chain piece consumes no binding",
+ 45: "`superseded`, `joined` and resumer terminals pair with their requests and are not reported open",
+ 46: "Binding version 2 binds `onBehalfOf`, `undo` and the request-only fields; annotations and `previousManifest` change nothing",
+ 47: "Installation evidence reports the trail and chain gate pieces; evidence packs carry the sink's counts",
 }
 
 checks = []
@@ -202,13 +207,13 @@ out.append("\n".join([
     "# Traceability", "", "> **Document Control**", ">",
     "> | Property       | Value                                                        |",
     "> | -------------- | ------------------------------------------------------------ |",
-    dc("Document ID", "BRIDGER-GX-TRACE"), dc("Revision", "0.1"),
+    dc("Document ID", "BRIDGER-GX-TRACE"), dc("Revision", "0.2"),
     dc("Effective Date", "— (pending approval)"), dc("Status", "Draft"),
     dc("Author", "Bridger Engineering"),
     dc("Reviewed by", "— (no independent reviewer yet; see PROC-GX-03 §5)"),
     dc("Approved by", "— (pending; single maintainer, see PROC-GX-03 §5)"),
     dc("Classification", "Traceability Matrix"),
-    dc("Change History", "0.1 (2026-10-03): Initial draft (CCR-GX-001)"),
+    dc("Change History", "0.2 (2026-11-09): Regenerated for CCR-GX-002: behaviours 169–179 (files 20, 21, 22), BEH-GX-049–056 and INV-GX-013 withdrawn, INV-GX-016, ADR-GX-029 and ADR-GX-030, RSK-GX-023, acceptance scenarios REQ-GX-043–047 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)"),
 ]))
 out.append('''
 ---
@@ -248,11 +253,12 @@ for f in files:
     out.append(f"| {rng(ns)} | [{f}](behaviors/{f}) | {cell} |")
 
 out.append("\n## §2 Invariant traceability\n\n| Invariant | Enforced by behaviours | Planned verification |\n| --- | --- | --- |")
-PROPERTY = {2, 3, 4, 6, 7, 8, 9, 12, 13}
+PROPERTY = {2, 3, 4, 6, 7, 8, 9, 12, 16}   # INV-GX-013 withdrawn (CCR-GX-002)
 for i in sorted(inv_titles):
     bs = ", ".join(link_beh(n) for n in sorted(inv_beh.get(i, []))) or "—"
     kind = "property test over generated histories" if i in PROPERTY else "scenario tests"
-    out.append(f"| [INV-GX-{i:03d}](invariants.md#{slug('INV-GX-%03d: %s' % (i, inv_titles[i]))}) | {bs} | {kind} *(Planned)* |")
+    if "(withdrawn)" in inv_titles[i]: kind = "none — withdrawn"
+    out.append(f"| [INV-GX-{i:03d}](invariants.md#{slug('INV-GX-%03d: %s' % (i, inv_titles[i]))}) | {bs} | {kind}{'' if 'withdrawn' in kind else ' *(Planned)*'} |")
 
 out.append("\n## §3 Decision traceability\n\n| Decision | Status | Cited by behaviours |\n| --- | --- | --- |")
 adr_beh = {}
@@ -268,13 +274,15 @@ for f in files:
     stem = f[:-3]
     if f.startswith("20-"):
         cell = "`packages/gxp/test/acceptance/` *(Planned)*, one tagged test per REQ-GX of §5"
+    elif "withdrawn" in read(os.path.join("behaviors", f)).split("\n", 1)[0]:
+        cell = "— (file withdrawn by CCR-GX-002)"
     else:
         cell = f"`packages/gxp/test/{stem}.test.ts` *(Planned)*"
         if f[:2] in ("01",):
             cell += f", `packages/gxp/test/{stem}.tst.ts` *(Planned)*"
     out.append(f"| [{f}](behaviors/{f}) | {cell} |")
 
-out.append(f"\n## §5 Acceptance scenario traceability\n\nOne scenario per numbered check of [BEH-GX-153–168](behaviors/20-required-acceptance-checks.md) (checks 1–{len(REQ)}), in the same order: REQ-GX-nnn is check nnn. The behaviours are those the check's text cites. Each will be a test tagged `@REQ-GX-nnn` in `packages/gxp/test/acceptance/` once code exists; until then none has run.\n\n| Scenario | Check | Behaviours | Status |\n| --- | --- | --- | --- |")
+out.append(f"\n## §5 Acceptance scenario traceability\n\nOne scenario per numbered check of [BEH-GX-153–169](behaviors/20-required-acceptance-checks.md) (checks 1–{len(REQ)}), in the same order: REQ-GX-nnn is check nnn. The behaviours are those the check's text cites. Each will be a test tagged `@REQ-GX-nnn` in `packages/gxp/test/acceptance/` once code exists; until then none has run.\n\n| Scenario | Check | Behaviours | Status |\n| --- | --- | --- | --- |")
 for k, title, ns in REQ:
     out.append(f"| REQ-GX-{k:03d} | {k}. {title} | {', '.join(link_beh(n) for n in ns)} | Not run |")
 
