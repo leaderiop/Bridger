@@ -1,0 +1,13 @@
+# companions-foreign-prefixes.txt — identifier prefixes that belong to an
+# external package, not to a specification tree in this repository. A citation
+# such as ADR-QD-056 is read as provenance and is not checked for a definition
+# here, because the defining document lives with that package.
+#
+# Format:  <PREFIX>::<reason>
+#
+# Entries are permissive only and are never asserted to exist. A prefix that is
+# also a tree infix in references/*/index.yaml is always resolved as that tree,
+# never as foreign. An entry that no longer matches anything is harmless and is
+# not reported: this file may describe an external package that is cited only by
+# a tree checked out separately.
+QD::@qadi/audit — an external package cited as provenance by the gxp companion (ADR-QD-056–058, BEH-QD-249–257); its identifiers are defined in that package, not here.

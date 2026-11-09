@@ -1,0 +1,13 @@
+kind: process
+package: bridger-gxp
+infix: GX
+entries:
+  - file: "requirement-id-scheme.md"
+    id: "BRIDGER-GX-PROC-01"
+    title: "Requirement Identifier Scheme"
+  - file: "definitions-of-done.md"
+    id: "BRIDGER-GX-PROC-02"
+    title: "Definitions of Done"
+  - file: "change-control.md"
+    id: "BRIDGER-GX-PROC-03"
+    title: "Change Control"

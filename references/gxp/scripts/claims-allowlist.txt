@@ -1,0 +1,14 @@
+# claims-allowlist.txt — lines allowed to use a restricted claim word without
+# an escape word in the same sentence, and the only lines outside
+# decisions/027-claims-and-non-claims.md allowed to contain "tamper-proof".
+# Format:  <path relative to references/gxp>::<exact substring of the line>
+# The list fails in both directions: an entry whose substring no longer
+# appears in its file is itself a failure. Add an entry only with a reason.
+# The honest-claims rule names the word it forbids; the sentence is a non-claim.
+README.md::tamper-proof or tamper-evident. In particular:
+# The identifier scheme lists the restricted words the lint looks for.
+process/requirement-id-scheme.md::**Check 11, claims lint.** The restricted words are *validated*, *qualified*,
+# The identifier scheme states the tamper-proof rule itself.
+process/requirement-id-scheme.md::not count. *Tamper-proof* fails even when negated, except in
+# The registered title of NFR-GX-005 names the property of the specification's own cross-references, not of a trail.
+urs.md::### NFR-GX-005: Specification integrity

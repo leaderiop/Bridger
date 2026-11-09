@@ -1,0 +1,26 @@
+kind: root
+package: bridger-gxp
+infix: GX
+implementation: absent
+entries:
+  - file: "README.md"
+    id: "BRIDGER-GX-00"
+    title: "Bridger GxP Companion — Specification"
+  - file: "overview.md"
+    id: "BRIDGER-GX-OVW"
+    title: "Overview"
+  - file: "glossary.md"
+    id: "BRIDGER-GX-GLOSSARY"
+    title: "Glossary"
+  - file: "urs.md"
+    id: "BRIDGER-GX-URS"
+    title: "User Requirements"
+  - file: "invariants.md"
+    id: "BRIDGER-GX-INV"
+    title: "Invariants"
+  - file: "traceability.md"
+    id: "BRIDGER-GX-TRACE"
+    title: "Traceability"
+  - file: "roadmap.md"
+    id: "BRIDGER-GX-ROADMAP"
+    title: "Roadmap"

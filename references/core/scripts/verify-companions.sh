@@ -8,8 +8,10 @@
 # verify-traceability.sh where they apply:
 #   1. links and anchors      — as core check 12 (fenced code ignored)
 #   2. claims lint            — as core check 11 (same restricted words, same
-#                               negations, same three-line window), with its own
-#                               allowlist companions-claims-allowlist.txt that
+#                               negations), read sentence by sentence as the gxp
+#                               tree's checker does, so a claim wrapped across
+#                               lines keeps the negation that introduces it. Its
+#                               own allowlist companions-claims-allowlist.txt
 #                               fails in both directions. The package name
 #                               `@bridger/durable-bus` (and its path, document
 #                               title and package id) is masked before the lint:
@@ -17,7 +19,9 @@
 #                               persistence claim, and the rename stays an open
 #                               gap in references/core/urs.md.
 #   3. own identifiers        — every BEH/INV/ADR/REQ/RSK-<PFX> cited in any tree
-#                               or guide is defined in the tree owning <PFX>
+#                               or guide is defined in the tree owning <PFX>; a
+#                               prefix declared in companions-foreign-prefixes.txt
+#                               names an external package and is not checked here
 #   4. core identifiers       — every BEH/INV/ADR/URS/NFR/RSK/REQ-BR cited is
 #                               defined in references/core (same definition
 #                               rules as verify-traceability.sh)
@@ -97,20 +101,70 @@ if os.path.exists(allow_p):
         l = l.strip()
         if l and not l.startswith("#") and "::" in l:
             f, sub = l.split("::", 1); allow.append((f.strip(), sub.strip()))
+# A tree's own claims allowlist is honored for matching only. Its checker
+# already fails on a stale entry; here an entry only prevents a false positive,
+# so this script never reports one as unused.
+tree_allow = []
+for t in trees:
+    tp = os.path.join(REFS, t, "scripts", "claims-allowlist.txt")
+    if os.path.exists(tp):
+        for l in read(tp).split("\n"):
+            l = l.strip()
+            if l and not l.startswith("#") and "::" in l:
+                f, sub = l.split("::", 1); tree_allow.append((f"{t}/{f.strip()}", sub.strip()))
 used = set()
 CLAIM = re.compile(r"\b(validated|qualified|compliant|compliance-ready|tamper[- ]evident|tamper[- ]proof|durable|durability)\b", re.I)
-NEG = re.compile(r"\b(not|no|never|nor|neither|without|cannot|can't|isn't|aren't|doesn't|won't|makes no|refus\w*|out of scope|consumer|companion|regulated user|liabilit\w*|claim\w*|responsib\w*|obligation\w*|unverified)\b", re.I)
+NEG = re.compile(r"\b(not|no|never|nothing|nor|neither|without|cannot|can't|isn't|aren't|doesn't|won't|makes no|refus\w*|out of scope|consumer|companion|regulated user|liabilit\w*|claim\w*|responsib\w*|obligation\w*|unverified)\b", re.I)
 # Package-name mask (ADR-DB-007): the name is intent only, never a claim.
 NAME = re.compile(r"@bridger/durable-bus|bridger-durable-bus|durable-bus|Bridger Durable Bus|Durable Bus\b")
+
+def sentences(src):
+    """Yield (sentence, line numbers) over prose and table rows.
+
+    A sentence is the unit a negation is read in, so a claim wrapped across
+    several lines keeps the "does not" that introduces it (the three-line
+    window this check used before missed such a negation). Fenced code is
+    skipped; link targets are removed so an anchor slug does not repeat its
+    heading, which is linted where it stands."""
+    lines_ = [re.sub(r"\]\([^)\s]*\)", "]", l) for l in strip_code(src).split("\n")]
+    out, para = [], []
+    def flush():
+        if not para: return
+        joined, owner = "", []
+        for ln, l in para:
+            piece = l.strip() + " "
+            joined += piece; owner += [ln] * len(piece)
+        start = 0
+        for m in re.finditer(r"(?<=[.!?])\s+(?!\d)|$", joined):
+            end = m.start()
+            if end > start: out.append((joined[start:end], sorted(set(owner[start:end]))))
+            start = m.end()
+        para.clear()
+    for ln, l in enumerate(lines_, 1):
+        if not l.strip():
+            flush()
+        elif l.lstrip().startswith("|"):        # a table row is its own unit
+            flush(); out.append((l.strip(), [ln]))
+        else:
+            para.append((ln, l))
+    flush()
+    return out
+
 for p in md_files:
-    lines_ = [NAME.sub("PKG", l) for l in text[p].split("\n")]
-    for ln, line in enumerate(lines_, 1):
-        window = " ".join(lines_[max(0, ln - 3):ln])
-        if not CLAIM.search(line) or NEG.search(window): continue
-        raw = text[p].split("\n")[ln - 1]
-        hit = next((a for a in allow if a[0] == rel(p) and a[1] in raw), None)
+    raw_lines = text[p].split("\n")
+    masked_lines = [NAME.sub("PKG", l) for l in raw_lines]
+    for sent, lns in sentences(text[p]):
+        masked = NAME.sub("PKG", sent)
+        if not CLAIM.search(masked): continue
+        if NEG.search(masked): continue
+        first = next((i for i in lns if CLAIM.search(masked_lines[i - 1])), lns[0])
+        raw_span = [raw_lines[i - 1] for i in lns]
+        def matches(a):
+            return a[0] == rel(p) and (a[1] in sent or any(a[1] in x for x in raw_span))
+        hit = next((a for a in allow if matches(a)), None)
         if hit: used.add(hit)
-        else: fails[2].append(f"{rel(p)}:{ln}: unqualified claim word — {raw.strip()[:110]}")
+        elif next((a for a in tree_allow if matches(a)), None): continue
+        else: fails[2].append(f"{rel(p)}:{first}: unqualified claim word — {sent.strip()[:110]}")
 for a in allow:
     if a not in used:
         fails[2].append(f"allowlist entry matches no flagged line: {a[0]} :: {a[1][:60]}")
@@ -122,6 +176,17 @@ for t in trees:
     if os.path.exists(ip):
         m = re.search(r"^infix:\s*(\w+)", read(ip), re.M)
         if m: prefix_tree[m.group(1)] = t
+# A foreign prefix names an external package whose identifiers are cited as
+# provenance and cannot be defined here (for example QD for `@qadi/audit`).
+# Format: <PREFIX>::<reason>, one per line. Entries are permissive only; a
+# prefix that is also a tree infix is resolved as that tree, never as foreign.
+foreign_p = os.path.join(CORE, "scripts", "companions-foreign-prefixes.txt")
+foreign = set()
+if os.path.exists(foreign_p):
+    for l in read(foreign_p).split("\n"):
+        l = l.strip()
+        if l and not l.startswith("#") and "::" in l:
+            foreign.add(l.split("::", 1)[0].strip())
 cdefs = defaultdict(set)   # (series, pfx) -> nums
 for p in md_files:
     s = strip_code(text[p])
@@ -140,8 +205,10 @@ for p in md_files:
         if pfx == "BR": continue
         ln = text[p].count("\n", 0, m.start())
         if "reserved" in " ".join(ls_[ln:ln + 2]): continue   # a reserved block remainder, named as such
-        if pfx not in prefix_tree: fails[3].append(f"{rel(p)}: cites {s_}-{pfx}-{n:03d} of unknown tree"); continue
-        if n not in cdefs[(s_, pfx)]: fails[3].append(f"{rel(p)}: cites undefined {s_}-{pfx}-{n:03d}")
+        if pfx in prefix_tree:
+            if n not in cdefs[(s_, pfx)]: fails[3].append(f"{rel(p)}: cites undefined {s_}-{pfx}-{n:03d}")
+        elif pfx not in foreign:
+            fails[3].append(f"{rel(p)}: cites {s_}-{pfx}-{n:03d} of unknown tree")
 fails[3] = sorted(set(fails[3]))
 
 # ---------------------------------------------------------------- check 4: core identifiers

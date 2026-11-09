@@ -1,0 +1,16 @@
+kind: gxp
+package: bridger-gxp
+infix: GX
+entries:
+  - file: "01-regulatory-scope.md"
+    id: "BRIDGER-GX-GXP-01"
+    title: "Regulatory scope"
+  - file: "02-compliance-matrix.md"
+    id: "BRIDGER-GX-GXP-02"
+    title: "Compliance matrix"
+  - file: "03-risk-assessment.md"
+    id: "BRIDGER-GX-GXP-03"
+    title: "Risk assessment"
+  - file: "04-validation-plan.md"
+    id: "BRIDGER-GX-GXP-04"
+    title: "Validation plan"

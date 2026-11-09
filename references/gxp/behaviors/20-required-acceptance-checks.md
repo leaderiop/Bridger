@@ -1,0 +1,563 @@
+# 20 — Required Acceptance Checks
+
+> **Document Control**
+>
+> | Property       | Value                                                        |
+> | -------------- | ------------------------------------------------------------ |
+> | Document ID    | BRIDGER-GX-BEH-20                                            |
+> | Revision       | 0.1                                                          |
+> | Effective Date | — (pending approval)                                         |
+> | Status         | Draft                                                        |
+> | Author         | Bridger Engineering                                          |
+> | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
+> | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
+> | Classification | Functional Specification                                     |
+> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+
+---
+
+The behaviours of files 01–19 say what the companion must do; this file says
+which of them must be shown by an executed test before any version is
+released, in the numbered style of core's required checks ([BEH-BR-183](../../core/behaviors/21-testing-host.md),
+[BEH-BR-184](../../core/behaviors/21-testing-host.md)). Each numbered check is one observable pass condition and becomes
+the acceptance scenario `REQ-GX-nnn` with the same number, in order, in
+[traceability](../traceability.md) §5. Checks 1–11 cover storage, conformance, checks on
+read, anchors and sealing; checks 12–28 tickets, signatures, the gate,
+fingerprints, evidence and export; checks 29–42 the cross-cutting rules
+([ADR-GX-021](../decisions/021-oq-from-runner-output.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)). This file owns BEH-GX-153–168 and uses all
+sixteen.
+
+> **What these checks do not show**
+>
+> A passing check shows that the companion behaved as specified in the
+> companion's own test environment, against its fixtures and the real core.
+> It shows nothing about the consumer's adapters, identity system, key
+> management or infrastructure, which the consumer tests with the
+> conformance suite and their own procedures. This is the consumer's
+> obligation.
+
+Planned tests: `packages/gxp/test/acceptance/` *(Planned)*, run against the
+installed package through `GxpTestHost` ([19 — Testing Entry Point](./19-testing-entry-point.md)).
+Every test carries the tag `@REQ-GX-nnn` of the check it evidences, and the
+OQ evidence of [16 — OQ Evidence](./16-oq-evidence.md) reports each check as pass, fail,
+skipped or not covered.
+
+## BEH-GX-153: Required acceptance checks — storage, conformance, checks on read, anchors and sealing
+
+> **Invariant:** [INV-GX-006](../invariants.md#inv-gx-006-at-most-one-stored-entry-per-record-and-per-host-sequence-number), [INV-GX-007](../invariants.md#inv-gx-007-the-sink-acknowledges-only-what-the-store-reports-stored), [INV-GX-008](../invariants.md#inv-gx-008-no-companion-api-rewrites-a-stored-entry), [INV-GX-009](../invariants.md#inv-gx-009-a-finding-is-never-suppressed-or-upgraded), [INV-GX-013](../invariants.md#inv-gx-013-a-hosts-seal-chain-is-linear-over-exactly-the-stored-sequence)
+> **See:** [ADR-GX-004](../decisions/004-append-only-trail-store.md), [ADR-GX-006](../decisions/006-conformance-through-testhost.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md), [ADR-GX-008](../decisions/008-high-water-anchors.md), [ADR-GX-009](../decisions/009-optional-sealing.md), [ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md)
+> **Satisfies:** [URS-GX-001](../urs.md#urs-gx-001-store-audit-records-with-honest-acknowledgement), [URS-GX-002](../urs.md#urs-gx-002-show-that-a-trail-adapter-conforms), [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records), [URS-GX-004](../urs.md#urs-gx-004-detect-loss-of-the-newest-records), [URS-GX-005](../urs.md#urs-gx-005-optionally-detect-alteration-of-sealed-records)
+> **Risk:** [RSK-GX-001](../gxp/03-risk-assessment.md#rsk-gx-001), [RSK-GX-002](../gxp/03-risk-assessment.md#rsk-gx-002), [RSK-GX-003](../gxp/03-risk-assessment.md#rsk-gx-003), [RSK-GX-004](../gxp/03-risk-assessment.md#rsk-gx-004), [RSK-GX-016](../gxp/03-risk-assessment.md#rsk-gx-016)
+> **Regulatory:** supports 21 CFR 11.10(a), 11.10(c), 11.10(e); EU GMP Annex 11 §4.7, §7.1, §9
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run
+             against the installed package through `GxpTestHost` unless the
+             check concerns a pure function, for each of the following:
+             1. `trailSink` acknowledges a record only after `append` answered
+                "stored", or "already-stored" for an entry equal to the one
+                written; a store that fails or dies reaches core as
+                `AuditWriteFailed` carrying no record content, a hung
+                `append` is interrupted, and the call fails with
+                `AuditUnavailable` after `auditTimeout` (BEH-GX-017 to
+                BEH-GX-021; BEH-BR-203).
+             2. A repeated append of a stored entry answers "already-stored"
+                and stores nothing; an entry with the same `recordId` or the
+                same `(hostId, auditSeq)` and different content fails with
+                "conflict", and the first entry reads back byte-identical
+                (BEH-GX-011, BEH-GX-012).
+             3. The sink refuses a record whose `schemaVersion` is not
+                supported, or which has a field the schema does not define,
+                and core sets the audit-degraded latch when the refused
+                record is a terminal, `rejected` or system record
+                (BEH-GX-007, BEH-GX-018; BEH-BR-205).
+             4. Every conformance case 1 to 16 passes against
+                `memoryTrailStore`; every `brokenTrailStore` variant fails
+                each case listed for it; a store declared without reopen
+                registers case 12 as a failing test, never as skipped
+                (BEH-GX-025, BEH-GX-028, BEH-GX-146, BEH-GX-147).
+             5. Two conformance runs with the same seed hand the store records
+                equal in every field, and `conformance-manifest.json` lists
+                every registered case and contains no result (BEH-GX-030,
+                BEH-GX-031).
+             6. Over a seeded corpus with defects at known positions,
+                `checkTrailEntries` reports each `gap`, `duplicate` and
+                `outOfOrder` through core's `verifyAuditSequence`, and each
+                `digestMismatch` and `canonicalMismatch` independently
+                (BEH-GX-034).
+             7. `checkStoredTrail` gives the report of `checkTrailEntries`
+                over the same range, finding for finding, with defects split
+                across page boundaries; and fails with `TrailReadFailed` or
+                `CheckCapacityExceeded` instead of reporting part of a range
+                (BEH-GX-035).
+             8. An entry of an unknown schema version is reported as
+                `unknownSchemaVersion` and still takes part in the sequence
+                and digest checks; `requestedWithoutTerminal`,
+                `droppedSinceAck` and `noCleanClose` are reported; and the
+                report's `statement` is exactly the text of BEH-GX-033, with
+                the kinds not checked listed (BEH-GX-033, BEH-GX-036 to
+                BEH-GX-038).
+             9. `checkApprovals` reports `approvalWithoutRecord` for a
+                consumed binding with no linked record and
+                `recordWithoutApproval` for a gated record with no consumed
+                binding, and reports nothing for the `rejected` record of a
+                gate refusal for a missing or invalid ticket (BEH-GX-039).
+             10. `recordHighWater` writes a mark when
+                 `Host.controls.auditPosition` moves, and at close one from
+                 `Host.controls.auditPosition` read after the flush, not from
+                 `CloseReport.auditLastSeq`; after the newest entries
+                 are removed from the store, `checkHighWater` reports
+                 `tailLoss` for exactly that range, and `unanchoredTail` above
+                 the highest mark (BEH-GX-042 to BEH-GX-046).
+             11. With sealing on, `verifySeals` reports `chainBreak` at an
+                 altered entry, `anchorMismatch` for each anchor that no
+                 longer matches, and `unanchoredTail` above the last matching
+                 anchor; with no matching anchor and no `chainBreak` it
+                 states "The chain is internally consistent; no anchor
+                 confirms it."; with sealing
+                 off both kinds are listed as not checked (BEH-GX-049 to
+                 BEH-GX-055).
+```
+
+These are the checks the trail side of the companion depends on: an
+acknowledgement that means stored, a retry that cannot duplicate, a suite that
+can fail, and checks that name each defect they find. Each one exercises the
+path a consumer's host takes — core's writer, its retries and its latch —
+rather than the companion's functions in isolation.
+
+## BEH-GX-154: Required acceptance checks — tickets, signatures, the gate, fingerprints, evidence and export
+
+> **Invariant:** [INV-GX-002](../invariants.md#inv-gx-002-a-binding-is-consumed-at-most-once), [INV-GX-003](../invariants.md#inv-gx-003-an-allowed-call-holds-a-valid-binding-with-an-equal-digest), [INV-GX-004](../invariants.md#inv-gx-004-the-approver-is-never-the-requester), [INV-GX-010](../invariants.md#inv-gx-010-evidence-results-come-only-from-runner-output-and-gaps-stay-gaps), [INV-GX-011](../invariants.md#inv-gx-011-every-port-failure-on-a-decision-path-refuses), [INV-GX-015](../invariants.md#inv-gx-015-every-signed-binding-carries-a-manifestation)
+> **See:** [ADR-GX-010](../decisions/010-sign-first-then-call.md), [ADR-GX-013](../decisions/013-single-use-tickets.md), [ADR-GX-016](../decisions/016-signature-port-and-manifestation.md), [ADR-GX-017](../decisions/017-hmac-through-the-core-port.md), [ADR-GX-020](../decisions/020-iq-proof-and-probe.md), [ADR-GX-022](../decisions/022-evidence-pack-format.md), [ADR-GX-023](../decisions/023-archives-keep-original-bytes.md)
+> **Satisfies:** [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made), [URS-GX-007](../urs.md#urs-gx-007-bind-an-approval-to-exactly-the-change-approved), [URS-GX-008](../urs.md#urs-gx-008-show-who-signed-when-and-with-what-meaning), [URS-GX-009](../urs.md#urs-gx-009-link-each-signature-to-the-change-it-approved), [URS-GX-010](../urs.md#urs-gx-010-keep-requester-and-approver-apart), [URS-GX-011](../urs.md#urs-gx-011-compare-configuration-values-without-revealing-them), [URS-GX-012](../urs.md#urs-gx-012-manage-fingerprint-keys), [URS-GX-013](../urs.md#urs-gx-013-produce-installation-evidence), [URS-GX-014](../urs.md#urs-gx-014-produce-operational-evidence-that-shows-gaps), [URS-GX-015](../urs.md#urs-gx-015-export-and-archive-a-trail-with-its-approvals)
+> **Risk:** [RSK-GX-006](../gxp/03-risk-assessment.md#rsk-gx-006), [RSK-GX-008](../gxp/03-risk-assessment.md#rsk-gx-008), [RSK-GX-009](../gxp/03-risk-assessment.md#rsk-gx-009), [RSK-GX-010](../gxp/03-risk-assessment.md#rsk-gx-010), [RSK-GX-013](../gxp/03-risk-assessment.md#rsk-gx-013), [RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015), [RSK-GX-016](../gxp/03-risk-assessment.md#rsk-gx-016), [RSK-GX-021](../gxp/03-risk-assessment.md#rsk-gx-021), [RSK-GX-022](../gxp/03-risk-assessment.md#rsk-gx-022)
+> **Regulatory:** supports 21 CFR 11.10(b), 11.10(f), 11.10(g), 11.50, 11.70; EU GMP Annex 11 §4.4, §4.7, §14, §17
+
+```
+REQUIREMENT: The companion's test suite MUST also contain at least one test,
+             run as BEH-GX-153 states, for each of the following:
+             12. `bindingDigest` reproduces the three vectors of BEH-GX-066,
+                 and `bindingOf` over a proposal, the request core passes to
+                 the gate and the call's `requested` or `rejected` record
+                 gives one digest, and over a terminal record gives None
+                 (BEH-GX-066, BEH-GX-082).
+             13. `issueTicket` refuses each case of `IssueRefused`, stores the
+                 `issued` event and one `signed` event per accepted signature,
+                 and after a declined or failed capture leaves the ticket
+                 `issued` with earlier signatures kept (BEH-GX-069,
+                 BEH-GX-077).
+             14. A captured signature is refused, and nothing recorded, when
+                 its signer is the requester, a repeated signer or begins with
+                 "bridger:", when its meaning or rendered digest differs from
+                 the request, when `components` is below 2 for a non-biometric
+                 method, or when `reauthenticated` is not `true`; an accepted
+                 one has `signedAt` equal to the `TestClock` reading
+                 (BEH-GX-075, BEH-GX-076, BEH-GX-078).
+             15. The rendered text shows each binding's operation, target,
+                 bound definition, paths, requester id and bound reason,
+                 ends with the meaning text and `notAfter`, and shows only
+                 the word "fingerprinted" for a fingerprinted path, and
+                 `renderManifestation` gives exactly the sentence of
+                 BEH-GX-085 (BEH-GX-074, BEH-GX-085).
+             16. The gate refuses with each of the eleven reasons when, and
+                 only when, its condition holds, with the first in step order
+                 when several hold; each refusal reaches core as
+                 `OperationRejected` with the bare code and leaves one
+                 `rejected` record (BEH-GX-090, BEH-GX-091; BEH-BR-220).
+             17. Two concurrent calls citing one binding, on one host and on
+                 two hosts sharing the ticket store, give exactly one allow
+                 and one stored `consumed` event; the other is refused
+                 "binding-consumed"; a binding stays consumed after its call
+                 fails (BEH-GX-071, BEH-GX-093).
+             18. With a ticket store that fails, dies, hangs past the deadline
+                 or answers "commit-then-fail", the gate refuses
+                 "ticket-store-unavailable" no later than its deadline and
+                 before core's `gateTimeout`; an unattached gate refuses
+                 every request (BEH-GX-089, BEH-GX-091, BEH-GX-093,
+                 BEH-GX-094).
+             19. A `reconcile` citing a bundle consumes one binding per
+                 matching entry, refuses a non-matching entry alone so that it
+                 appears in `ReconcileReport.rejected`, and leaves the unused
+                 bindings open (BEH-GX-072, BEH-GX-096; BEH-BR-222).
+             20. An exempt rule allows only after the `exempted` event is
+                 stored and refuses "ticket-store-unavailable" when that
+                 append fails; `attach` stores one `policy-activated` event
+                 (BEH-GX-095).
+             21. `linkApprovals` links each consumption to its record by the
+                 triple of BEH-GX-081, reports "burned" for a call that failed
+                 and for a consumption linked to a `rejected` record, and
+                 reports a signature copied into another ticket as
+                 `signatureTransferred` without counting it (BEH-GX-081 to
+                 BEH-GX-087; REQ-BR-058).
+             22. `hmacFingerprinter` reproduces the three vectors of
+                 BEH-GX-101; `select` returns only eligible paths in candidate
+                 order; and on a `TestHost` the call's request and both
+                 records carry those fingerprints (BEH-GX-097 to BEH-GX-101;
+                 REQ-BR-055).
+             23. A value outside the domain, a path not selected, a failing
+                 key provider, an invalid key id and a test key without the
+                 fixture marker each fail with their fixed tag, and core fails
+                 the call with `ConfigFingerprintUnavailable` before the gate,
+                 writing no record (BEH-GX-100, BEH-GX-106, BEH-GX-107;
+                 REQ-BR-056).
+             24. `proposeFingerprints` equals the call's fingerprints for the
+                 vectors and a seeded sample of schemas; after `rotate`, a
+                 ticket binding fingerprints signed before it is refused
+                 "stale-fingerprint-key" and is listed by `staleTickets`
+                 (BEH-GX-102, BEH-GX-109).
+             25. `matchesFingerprint` answers "match" and "no-match" under the
+                 key that made a fingerprint, "key-retired-unavailable" after
+                 that key is destroyed, and refuses a path the eligibility
+                 list does not admit and a malformed fingerprint (BEH-GX-108,
+                 BEH-GX-110).
+             26. `runInstallationChecks` on a `GxpTestHost` reports IQ-01 to
+                 IQ-21 and IQ-U1 to IQ-U9 in order, with IQ-10, IQ-11 and
+                 IQ-15 failing because fixtures are wired, and the
+                 `Host.controls` snapshot recorded; on a host with
+                 `gateTimeout: "forever"` and an explicit gate deadline,
+                 IQ-19 fails (BEH-GX-113 to BEH-GX-120; REQ-BR-057).
+             27. `collectOqEvidence` gives the exact outcome of every item of
+                 the known-bad corpus; `buildEvidencePack` run twice on the
+                 same inputs and `generatedAt` gives byte-identical packs
+                 with one pack digest; and `diffPacks` lists a requirement
+                 that lost its only test as changed (BEH-GX-121 to
+                 BEH-GX-136).
+             28. Every line of `trail.jsonl` equals the stored `canonical`
+                 text byte for byte; after one line is edited, `readArchive`
+                 reports the file's digest difference and a `digestMismatch`
+                 for that entry, from its own run, whatever the archived check
+                 report says (BEH-GX-137 to BEH-GX-140).
+```
+
+These are the approval, fingerprint and evidence paths. Several of them only
+make sense end to end: an approval is worth something only if the gate refuses
+everything but the approved change and the link report shows afterwards which
+change it was, so the checks drive the issuer, the gate, core and the checks
+on read in one test wherever the behaviour spans them.
+
+## BEH-GX-155: Required acceptance checks — dependencies and the main entry point
+
+> **Invariant:** [INV-GX-001](../invariants.md#inv-gx-001-no-decision-port-has-a-default-outside-the-testing-entry-point)
+> **See:** [ADR-GX-001](../decisions/001-separate-package.md), [ADR-GX-003](../decisions/003-ports-without-defaults.md), [ADR-GX-025](../decisions/025-core-version-range.md)
+> **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine), [NFR-GX-002](../urs.md#nfr-gx-002-minimal-dependencies)
+> **Risk:** [RSK-GX-017](../gxp/03-risk-assessment.md#rsk-gx-017), [RSK-GX-019](../gxp/03-risk-assessment.md#rsk-gx-019)
+> **Regulatory:** supports GAMP 5 supplier documentation of software components; EU GMP Annex 11 §4.5
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             29. The packed `@bridger/gxp` declares `effect` and
+                 `@bridger/core` as its only runtime dependencies, both as
+                 peers, with the core range of the compatibility row; no core
+                 source file imports the companion; and the main entry point
+                 exports no implementation of `TrailStore`, `AnchorStore`,
+                 `TicketStore`, `SignatureCapture`, `FingerprintKeyProvider`
+                 or `FingerprintEligibility`, and no policy (BEH-GX-001,
+                 BEH-GX-003).
+```
+
+A static check over the packed artifact, not the source tree, is the only test
+of what a consumer actually installs; it is the companion's half of core's own
+dependency check.
+
+## BEH-GX-156: Required acceptance checks — GxpLayer assembly
+
+> **Invariant:** [INV-GX-001](../invariants.md#inv-gx-001-no-decision-port-has-a-default-outside-the-testing-entry-point), [INV-GX-011](../invariants.md#inv-gx-011-every-port-failure-on-a-decision-path-refuses)
+> **See:** [ADR-GX-003](../decisions/003-ports-without-defaults.md)
+> **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine), [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made)
+> **Risk:** [RSK-GX-017](../gxp/03-risk-assessment.md#rsk-gx-017), [RSK-GX-011](../gxp/03-risk-assessment.md#rsk-gx-011)
+> **Regulatory:** supports EU GMP Annex 11 §4.4 (a stated configuration)
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             30. Omitting any key of `GxpLayer.make`'s options, or of a used
+                 section, fails to compile (a type-level test); a section
+                 given as "not-used" provides no port, and a scripted run then
+                 produces the same outcomes, snapshots and events as on a host
+                 with that core port unwired (BEH-GX-004; INV-BR-026).
+```
+
+"not-used" is the line in an assembly a reviewer reads; the check shows both
+that it cannot be forgotten silently and that it changes nothing in core.
+
+## BEH-GX-157: Required acceptance checks — no value, key or port text in any output
+
+> **Invariant:** [INV-GX-005](../invariants.md#inv-gx-005-no-configuration-value-or-key-material-appears-in-any-companion-output)
+> **See:** [ADR-GX-017](../decisions/017-hmac-through-the-core-port.md), [ADR-GX-019](../decisions/019-key-provider-and-rotation.md)
+> **Satisfies:** [URS-GX-011](../urs.md#urs-gx-011-compare-configuration-values-without-revealing-them), [NFR-GX-007](../urs.md#nfr-gx-007-no-secrets-in-any-output)
+> **Risk:** [RSK-GX-014](../gxp/03-risk-assessment.md#rsk-gx-014), [RSK-GX-013](../gxp/03-risk-assessment.md#rsk-gx-013)
+> **Regulatory:** supports EU GMP Annex 11 §12.1; 21 CFR 11.10(d)
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             31. With a `Redacted` canary value on an eligible "high" path, a
+                 canary key in the key provider, and every port answering
+                 errors whose text contains a canary marker, a scripted run
+                 through approvals, fingerprinting, checks, IQ, OQ, an
+                 evidence pack and an export leaves none of the three canaries
+                 (the key in hexadecimal or base64 too) in any log line,
+                 span, metric, error, record, ticket, report, pack or archive
+                 (BEH-GX-006, BEH-GX-103, BEH-GX-111).
+```
+
+One run with three canaries covers the three ways a secret can leave: the
+value itself, the key, and a port's error message quoting either.
+
+## BEH-GX-158: Required acceptance checks — fail closed on every decision path
+
+> **Invariant:** [INV-GX-011](../invariants.md#inv-gx-011-every-port-failure-on-a-decision-path-refuses)
+> **See:** [ADR-GX-003](../decisions/003-ports-without-defaults.md), [ADR-GX-010](../decisions/010-sign-first-then-call.md)
+> **Satisfies:** [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made), [NFR-GX-008](../urs.md#nfr-gx-008-gate-decision-within-its-deadline)
+> **Risk:** [RSK-GX-010](../gxp/03-risk-assessment.md#rsk-gx-010), [RSK-GX-021](../gxp/03-risk-assessment.md#rsk-gx-021)
+> **Regulatory:** supports 21 CFR 11.10(e), 11.10(f); EU GMP Annex 11 §12.1
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             32. For each path of the table of BEH-GX-005, a port that fails,
+                 dies, hangs or answers malformed data ends in the refusal
+                 shown — `AuditWriteFailed`, "ticket-store-unavailable",
+                 `ConfigFingerprintFailed`, `SignatureCaptureFailed` — and
+                 never in an acknowledgement, an allow, a fingerprint or a
+                 recorded signature; no companion function retries a call
+                 whose first attempt may have taken effect, except
+                 `TrailStore.append` through core (BEH-GX-005).
+```
+
+This is the property every other control rests on; it is checked path by path
+because a single path that fails open is enough to make the rest decorative.
+
+## BEH-GX-159: Required acceptance checks — core version and record shape
+
+> **See:** [ADR-GX-025](../decisions/025-core-version-range.md)
+> **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine), [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records)
+> **Risk:** [RSK-GX-019](../gxp/03-risk-assessment.md#rsk-gx-019)
+> **Regulatory:** supports EU GMP Annex 11 §10
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             33. Building `GxpLayer` against a core whose exported version
+                 lies outside the compatibility row fails with
+                 `GxpCoreVersionUnsupported` naming the version found and the
+                 supported range, and starts nothing (BEH-GX-004,
+                 BEH-GX-007).
+```
+
+The range is narrow on purpose; this check makes sure it is enforced where the
+layer is built, not only in the package manager's resolution.
+
+## BEH-GX-160: Required acceptance checks — policy validation and matching
+
+> **Invariant:** [INV-GX-003](../invariants.md#inv-gx-003-an-allowed-call-holds-a-valid-binding-with-an-equal-digest)
+> **See:** [ADR-GX-014](../decisions/014-deny-by-default-policy.md)
+> **Satisfies:** [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made)
+> **Risk:** [RSK-GX-011](../gxp/03-risk-assessment.md#rsk-gx-011), [RSK-GX-007](../gxp/03-risk-assessment.md#rsk-gx-007)
+> **Regulatory:** supports 21 CFR 11.10(f); EU GMP Annex 11 §10, §12.1
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             34. Each invalid policy of 08 — a field missing; an exempt rule
+                 with a justification under 20 characters or covering every
+                 operation; a rule naming `shutdown` or a system transition;
+                 no rule for `acknowledgeAuditDegraded`; `requireDigest` with
+                 `defineRealm` or `acknowledgeAuditDegraded`;
+                 `requireFingerprints` misplaced; `signatures`, `meanings` or
+                 `validity` out of range; duplicate rule ids — fails the
+                 layer with `GxpLayerInvalid` naming the rule `id`, where
+                 there is one, and the field; a request no
+                 rule matches requires a ticket under the defaults; and the
+                 first matching rule decides (BEH-GX-057 to BEH-GX-064).
+```
+
+The policy is the place where a deny-by-default design is most easily undone;
+each refusal here is a configuration mistake caught before the host exists.
+
+## BEH-GX-161: Required acceptance checks — ticket lifecycle and window
+
+> **Invariant:** [INV-GX-002](../invariants.md#inv-gx-002-a-binding-is-consumed-at-most-once)
+> **See:** [ADR-GX-013](../decisions/013-single-use-tickets.md)
+> **Satisfies:** [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made)
+> **Risk:** [RSK-GX-006](../gxp/03-risk-assessment.md#rsk-gx-006), [RSK-GX-018](../gxp/03-risk-assessment.md#rsk-gx-018)
+> **Regulatory:** supports 21 CFR 11.10(e), 11.10(f); EU GMP Annex 11 §12.1
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             35. A ticket's state follows from its events alone; it is usable
+                 at `notAfter` minus 1 ms and refused at `notAfter` and before
+                 `notBefore` under `TestClock`; `revokeTicket` refuses a
+                 reserved actor, a blank reason and a final ticket, and leaves
+                 already-consumed bindings consumed; and concurrent appends at
+                 one version store exactly one event (BEH-GX-067, BEH-GX-068,
+                 BEH-GX-070).
+```
+
+The window is exact, without tolerance, so the test places the clock on both
+sides of each boundary.
+
+## BEH-GX-162: Required acceptance checks — caller interruption at the gate
+
+> **Invariant:** [INV-GX-002](../invariants.md#inv-gx-002-a-binding-is-consumed-at-most-once), [INV-GX-003](../invariants.md#inv-gx-003-an-allowed-call-holds-a-valid-binding-with-an-equal-digest)
+> **See:** [ADR-GX-010](../decisions/010-sign-first-then-call.md), [ADR-GX-013](../decisions/013-single-use-tickets.md)
+> **Satisfies:** [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made), [URS-GX-009](../urs.md#urs-gx-009-link-each-signature-to-the-change-it-approved)
+> **Risk:** [RSK-GX-006](../gxp/03-risk-assessment.md#rsk-gx-006), [RSK-GX-022](../gxp/03-risk-assessment.md#rsk-gx-022)
+> **Regulatory:** supports 21 CFR 11.10(e), 11.70
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             36. A caller interrupted while the gate decides gets core's
+                 `rejected` record "caller-interrupted" and no change; the
+                 gate starts no append after the interruption; and a
+                 consumption whose append was already in flight is reported
+                 "burned" by `linkApprovals` (BEH-GX-096, BEH-GX-087;
+                 BEH-BR-221).
+```
+
+Interruption is the one moment where the gate's record and core's record can
+disagree; the check makes the disagreement visible rather than impossible to
+observe.
+
+## BEH-GX-163: Required acceptance checks — no caching at the gate
+
+> **Invariant:** [INV-GX-003](../invariants.md#inv-gx-003-an-allowed-call-holds-a-valid-binding-with-an-equal-digest)
+> **See:** [ADR-GX-010](../decisions/010-sign-first-then-call.md)
+> **Satisfies:** [URS-GX-006](../urs.md#urs-gx-006-approve-a-change-before-it-is-made)
+> **Risk:** [RSK-GX-006](../gxp/03-risk-assessment.md#rsk-gx-006)
+> **Regulatory:** supports 21 CFR 11.10(f)
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             37. Two identical calls are each decided from the ticket store at
+                 their own time: a ticket revoked between them refuses the
+                 second as "ticket-revoked", and a store that fails between
+                 them refuses the second as "ticket-store-unavailable"
+                 (BEH-GX-096; BEH-BR-218).
+```
+
+A cache is the simplest optimisation and the simplest bypass; two calls with a
+change in between show that none exists.
+
+## BEH-GX-164: Required acceptance checks — the canonical form across platforms
+
+> **Invariant:** [INV-GX-012](../invariants.md#inv-gx-012-the-canonical-form-is-deterministic-across-platforms)
+> **See:** [ADR-GX-005](../decisions/005-jcs-and-sha256.md)
+> **Satisfies:** [NFR-GX-001](../urs.md#nfr-gx-001-deterministic-outputs)
+> **Risk:** [RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015)
+> **Regulatory:** supports EU GMP Annex 11 §4.7
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             38. On every runtime of the companion's test matrix, the vectors
+                 of BEH-GX-066 and BEH-GX-101 reproduce, canonicalisation
+                 refuses each value outside the domain of BEH-GX-002 with
+                 `CanonicalisationFailed` naming its position only, and a
+                 seeded sample of records gives the same canonical text and
+                 digest everywhere (BEH-GX-002, BEH-GX-066, BEH-GX-101).
+```
+
+Issuer and gate, sink and checker may run on different runtimes; the vectors
+are the shared ground truth they are tested against.
+
+## BEH-GX-165: Required acceptance checks — bounded memory on read
+
+> **Invariant:** [INV-GX-009](../invariants.md#inv-gx-009-a-finding-is-never-suppressed-or-upgraded)
+> **See:** [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md)
+> **Satisfies:** [URS-GX-003](../urs.md#urs-gx-003-detect-lost-duplicated-reordered-or-altered-stored-records), [URS-GX-015](../urs.md#urs-gx-015-export-and-archive-a-trail-with-its-approvals), [NFR-GX-006](../urs.md#nfr-gx-006-bounded-memory-on-read)
+> **Risk:** [RSK-GX-004](../gxp/03-risk-assessment.md#rsk-gx-004)
+> **Regulatory:** supports EU GMP Annex 11 §9, §17
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             39. `checkStoredTrail`, `verifySeals`, `listConsumptions`,
+                 `exportTrail` and `readArchive` of that export, over a
+                 seeded trail of 1,000,000 entries and a ticket log of
+                 1,000,000 events citing few tickets, complete with heap
+                 growth below a fixed bound set in the test, independent of
+                 the trail's and the log's length (BEH-GX-035, BEH-GX-052,
+                 BEH-GX-084, BEH-GX-137, BEH-GX-140).
+```
+
+A check that works on a test trail and exhausts memory on a production one
+fails exactly when it is needed; the bound is measured, not assumed.
+
+## BEH-GX-166: Required acceptance checks — wording of every report
+
+> **See:** [ADR-GX-027](../decisions/027-claims-and-non-claims.md), [ADR-GX-007](../decisions/007-checks-never-claim-integrity.md)
+> **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine)
+> **Risk:** [RSK-GX-004](../gxp/03-risk-assessment.md#rsk-gx-004)
+> **Regulatory:** supports (by delimiting) 21 CFR 11.10, 11.50, 11.70; EU GMP Annex 11 §9
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             40. Every report, statement and rendering a scripted run produces
+                 contains the fixed sentences its behaviour requires —
+                 BEH-GX-032, BEH-GX-033, BEH-GX-036, BEH-GX-047, BEH-GX-054,
+                 BEH-GX-055, BEH-GX-062, BEH-GX-088, BEH-GX-104, BEH-GX-115,
+                 BEH-GX-120, BEH-GX-124, BEH-GX-130, BEH-GX-134, BEH-GX-138,
+                 BEH-GX-141 — and, outside a negated sentence, none of the
+                 words ADR-GX-027 forbids (BEH-GX-008).
+```
+
+The honest-claims rule is checked in the specification by the checker; this
+check carries it into the outputs the software writes, where a reader actually
+meets it.
+
+## BEH-GX-167: Required acceptance checks — fixtures
+
+> **Invariant:** [INV-GX-014](../invariants.md#inv-gx-014-test-fixtures-are-detectable), [INV-GX-001](../invariants.md#inv-gx-001-no-decision-port-has-a-default-outside-the-testing-entry-point)
+> **See:** [ADR-GX-024](../decisions/024-fixtures-are-marked.md)
+> **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine), [URS-GX-013](../urs.md#urs-gx-013-produce-installation-evidence)
+> **Risk:** [RSK-GX-017](../gxp/03-risk-assessment.md#rsk-gx-017)
+> **Regulatory:** supports EU GMP Annex 11 §4.7; 21 CFR 11.10(d)
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             41. Every port built by `@bridger/gxp/testing` has `fixture:
+                 true` in its manifest; `scriptedSignatureCapture` without
+                 `decide` fails to compile; `testKeyProvider` gives the same
+                 key ids and fingerprints for the same seed, all beginning
+                 "test:"; and an installation wiring any companion fixture
+                 fails IQ-11 (BEH-GX-118, BEH-GX-145 to BEH-GX-152).
+```
+
+The fixtures are the parts most likely to reach production by accident; the
+check shows each is marked and that the mark is acted on.
+
+## BEH-GX-168: Required acceptance checks — the acceptance suite's own evidence
+
+> **Invariant:** [INV-GX-010](../invariants.md#inv-gx-010-evidence-results-come-only-from-runner-output-and-gaps-stay-gaps)
+> **See:** [ADR-GX-021](../decisions/021-oq-from-runner-output.md), [ADR-GX-028](../decisions/028-checker-copy-and-adapt.md)
+> **Satisfies:** [URS-GX-014](../urs.md#urs-gx-014-produce-operational-evidence-that-shows-gaps), [NFR-GX-003](../urs.md#nfr-gx-003-coverage), [NFR-GX-004](../urs.md#nfr-gx-004-mutation-testing), [NFR-GX-005](../urs.md#nfr-gx-005-specification-integrity)
+> **Risk:** [RSK-GX-016](../gxp/03-risk-assessment.md#rsk-gx-016)
+> **Regulatory:** supports EU GMP Annex 11 §4.7; GAMP 5 supplier testing
+
+```
+REQUIREMENT: The companion's test suite MUST contain at least one test, run as
+             BEH-GX-153 states, for the following:
+             42. Running the companion's suite against the installed package
+                 and passing its output to `collectOqEvidence` reports every
+                 requirement REQ-GX-001 to REQ-GX-042 as pass, with no
+                 deviation of kind `unknown-requirement`, `package-mismatch`
+                 or `environment-incomplete`; line and branch coverage
+                 of `packages/gxp` reach 95% and the mutation score 80%
+                 (BEH-GX-121 to BEH-GX-128; NFR-GX-003, NFR-GX-004).
+```
+
+The last check closes the loop: the companion's own release evidence is
+produced by the generator it specifies, from the runner's output, and a check
+of this file with no executed test appears as "not covered" rather than
+disappearing.
+
+---
+
+_Previous: [19 — Testing Entry Point](./19-testing-entry-point.md)_ · _Next: [Invariants](../invariants.md)_

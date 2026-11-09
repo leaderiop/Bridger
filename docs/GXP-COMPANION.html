@@ -1,0 +1,1059 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bridger GxP Companion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a guided read. One comfortable reading column; diagrams and tables break out to the full content width. */
+:root {
+  --bg: #f6f8fb;
+  --paper: #ffffff;
+  --ink: #1b2430;
+  --muted: #5b6878;
+  --line: #d8dfe7;
+  --core: #2f5fb3;      --core-soft: #e8effb;   --on-core: #ffffff;
+  --comp: #0f766e;      --comp-soft: #ddf2ef;
+  --you: #9a5b00;       --you-soft: #fcefd9;
+  --ok: #2f7d32;        --ok-soft: #e5f3e6;
+  --bad: #b42318;       --bad-soft: #fde7e4;
+  --code-bg: #f0f3f7;
+  --font-display: "Figtree", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Figtree", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b; --paper: #161d26; --ink: #e4e9ef; --muted: #9ba8b7; --line: #2b3542;
+    --core: #8fb1ee; --core-soft: #1c2a42; --on-core: #0f141b;
+    --comp: #5fd0c3; --comp-soft: #12302d;
+    --you: #f1b860; --you-soft: #352812;
+    --ok: #86d18a; --ok-soft: #173019;
+    --bad: #f39a8f; --bad-soft: #3b1a16;
+    --code-bg: #11171f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b; --paper: #161d26; --ink: #e4e9ef; --muted: #9ba8b7; --line: #2b3542;
+  --core: #8fb1ee; --core-soft: #1c2a42; --on-core: #0f141b;
+  --comp: #5fd0c3; --comp-soft: #12302d;
+  --you: #f1b860; --you-soft: #352812;
+  --ok: #86d18a; --ok-soft: #173019;
+  --bad: #f39a8f; --bad-soft: #3b1a16;
+  --code-bg: #11171f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.65; padding: 0 16px; padding-block: 40px 80px; }
+.page { max-width: 920px; margin: 0 auto; display: grid; gap: 64px; }
+.read { max-width: 66ch; display: grid; gap: 14px; }
+p.read { display: block; }
+h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(34px, 6vw, 52px); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: clamp(26px, 4vw, 32px); font-weight: 800; letter-spacing: -0.01em; }
+h3 { font-size: 21px; font-weight: 700; }
+h4 { font-size: 16px; font-weight: 700; }
+p { margin: 0; }
+ul, ol { margin: 0; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+:not(pre) > code { background: var(--code-bg); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px; }
+a { color: var(--core); text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--core); outline-offset: 3px; border-radius: 3px; }
+section { display: grid; gap: 22px; }
+.kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--comp); }
+.lede { font-size: 20px; color: var(--muted); max-width: 60ch; }
+
+/* header */
+.hero { display: grid; gap: 18px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper); color: var(--muted); }
+.chip.warn { background: var(--you-soft); border-color: transparent; color: var(--you); }
+
+/* figures */
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.fig { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 18px; overflow-x: auto; }
+figcaption { font-size: 14px; color: var(--muted); max-width: 70ch; }
+svg.d { display: block; width: 100%; height: auto; }
+svg.d text { font-family: var(--font-body); font-size: 14px; fill: var(--ink); }
+svg.d .tb { font-weight: 700; }
+svg.d .ts { font-size: 12.5px; fill: var(--muted); }
+svg.d .tm { font-family: var(--font-mono); font-size: 12.5px; }
+svg.d .tl { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; fill: var(--muted); }
+svg.d .tn { font-weight: 700; font-size: 13px; fill: var(--on-core); }
+svg.d .t-ok { fill: var(--ok); } svg.d .t-bad { fill: var(--bad); } svg.d .t-you { fill: var(--you); } svg.d .t-comp { fill: var(--comp); } svg.d .t-core { fill: var(--core); }
+svg.d .b { fill: var(--paper); stroke: var(--line); stroke-width: 1.5; }
+svg.d .b-core { fill: var(--core-soft); stroke: var(--core); stroke-width: 1.5; }
+svg.d .b-comp { fill: var(--comp-soft); stroke: var(--comp); stroke-width: 1.5; }
+svg.d .b-you { fill: var(--you-soft); stroke: var(--you); stroke-width: 1.5; }
+svg.d .b-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+svg.d .b-bad { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.5; }
+svg.d .f-core { fill: var(--core); } svg.d .f-comp { fill: var(--comp); } svg.d .f-ok { fill: var(--ok); } svg.d .f-bad { fill: var(--bad); } svg.d .f-you { fill: var(--you); } svg.d .f-muted { fill: var(--muted); } svg.d .f-line { fill: var(--line); }
+svg.d .a { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#ah); }
+svg.d .a-ok { stroke: var(--ok); stroke-width: 1.6; fill: none; marker-end: url(#ah-ok); }
+svg.d .a-bad { stroke: var(--bad); stroke-width: 1.6; fill: none; marker-end: url(#ah-bad); }
+svg.d .a-comp { stroke: var(--comp); stroke-width: 1.6; fill: none; marker-end: url(#ah-comp); }
+svg.d .dash { stroke-dasharray: 5 4; }
+svg.d .life { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 5; fill: none; }
+svg.d .axis { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+svg.d .person { fill: var(--muted); }
+.ah { fill: var(--muted); } .ah-ok { fill: var(--ok); } .ah-bad { fill: var(--bad); } .ah-comp { fill: var(--comp); }
+
+/* cards and callouts */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card p { font-size: 15.5px; color: var(--muted); }
+.card .term { font-family: var(--font-mono); font-size: 13px; color: var(--comp); font-weight: 600; }
+.card-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--core-soft); color: var(--core); }
+.card-icon svg { width: 20px; height: 20px; }
+.callout { background: var(--comp-soft); border-radius: 14px; padding: 18px 20px; display: grid; gap: 6px; }
+.callout h4 { color: var(--comp); }
+.callout.note { background: var(--core-soft); } .callout.note h4 { color: var(--core); }
+.callout.limit { background: var(--you-soft); } .callout.limit h4 { color: var(--you); }
+.callout p { font-size: 16px; }
+
+/* options */
+.option { border-top: 4px solid var(--line); }
+.option.no { border-top-color: var(--bad); }
+.option.yes { border-top-color: var(--ok); }
+.verdict { font-size: 13px; font-weight: 700; }
+.option.no .verdict { color: var(--bad); } .option.yes .verdict { color: var(--ok); }
+
+/* code */
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; overflow-x: auto; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.55; }
+.label { font-family: var(--font-mono); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); display: block; margin-bottom: 8px; }
+.cm { color: var(--muted); }
+
+/* tables */
+.tablewrap { overflow-x: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th { text-align: left; font-weight: 700; font-size: 14px; color: var(--muted); background: var(--bg); }
+th, td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.n { font-variant-numeric: tabular-nums; text-align: right; font-family: var(--font-mono); font-size: 13.5px; }
+.ledger td { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 9px; border-radius: 999px; white-space: nowrap; font-family: var(--font-body); }
+.p-core { background: var(--core-soft); color: var(--core); }
+.p-comp { background: var(--comp-soft); color: var(--comp); }
+.p-you { background: var(--you-soft); color: var(--you); }
+.p-ok { background: var(--ok-soft); color: var(--ok); }
+.p-bad { background: var(--bad-soft); color: var(--bad); }
+.p-sys { background: var(--code-bg); color: var(--muted); border: 1px solid var(--line); }
+
+/* parts */
+.part { display: grid; gap: 18px; padding: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; min-width: 0; }
+.part .fig { background: var(--bg); }
+.part-head { display: flex; gap: 14px; align-items: center; }
+.part-num { width: 40px; height: 40px; border-radius: 12px; background: var(--comp); color: var(--paper); display: grid; place-items: center; font-weight: 800; font-size: 18px; flex: none; }
+.plain { font-size: 18px; }
+
+/* claims */
+.claims { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.claims li { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 15px; display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+.claims li::before { content: "✕"; color: var(--bad); font-weight: 800; }
+
+/* scenarios */
+.scenario { display: grid; gap: 18px; padding: 28px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; min-width: 0; }
+.scenario .fig, .scenario .tablewrap { background: var(--bg); }
+.scenario-tag { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.letter { width: 34px; height: 34px; border-radius: 50%; background: var(--core); color: var(--on-core); display: grid; place-items: center; font-weight: 800; }
+.steps { padding-left: 22px; display: grid; gap: 8px; }
+.why { border-left: 4px solid var(--comp); padding-left: 14px; color: var(--ink); }
+.why strong { color: var(--comp); }
+.toc { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.toc a { display: flex; gap: 12px; align-items: baseline; text-decoration: none; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 15px; }
+.toc a:hover { border-color: var(--core); color: var(--core); }
+.toc .mono { color: var(--comp); }
+footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+@media (max-width: 560px) { .part, .scenario { padding: 18px; } body { font-size: 16px; } }
+</style>
+</head>
+<body>
+
+<!-- shared arrowheads -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+    <marker id="ah-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-ok"/></marker>
+    <marker id="ah-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-bad"/></marker>
+    <marker id="ah-comp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-comp"/></marker>
+  </defs>
+</svg>
+
+<main class="page">
+
+<!-- ============================================================ HERO -->
+<header class="hero">
+  <span class="kicker">Bridger · roadmap phase P6</span>
+  <h1>Bridger GxP Companion</h1>
+  <p class="lede">A friendly guide to <code>@bridger/gxp</code>: why a regulated team needs it next to the Bridger plugin host, how each of its parts is meant to work, and six scenarios that show it in action.</p>
+  <div class="chips">
+    <span class="chip warn">Proposal</span>
+    <span class="chip">Not specified yet</span>
+    <span class="chip">Not implemented</span>
+    <span class="chip">October 2026</span>
+  </div>
+  <figure>
+    <div class="fig">
+      <svg class="d" viewBox="0 0 760 240" role="img" aria-labelledby="hero-t">
+        <title id="hero-t">An operator's change passes an approval gate, is applied by the Bridger host, and is recorded in an audit trail; a test run produces an evidence pack.</title>
+        <circle cx="62" cy="76" r="15" class="person"/>
+        <path d="M40 132 A22 22 0 0 1 84 132 Z" class="person"/>
+        <text x="62" y="156" text-anchor="middle" class="tb">Operator</text>
+        <text x="62" y="174" text-anchor="middle" class="ts">wants to install</text>
+        <text x="62" y="190" text-anchor="middle" class="ts">a plugin</text>
+        <line x1="92" y1="100" x2="120" y2="100" class="a"/>
+        <rect x="124" y="55" width="156" height="90" rx="12" class="b-comp"/>
+        <text x="202" y="86" text-anchor="middle" class="tb">Approval gate</text>
+        <text x="202" y="106" text-anchor="middle" class="ts">companion</text>
+        <text x="202" y="124" text-anchor="middle" class="ts">Is it approved?</text>
+        <line x1="280" y1="100" x2="326" y2="100" class="a"/>
+        <text x="304" y="90" text-anchor="middle" class="ts">allowed</text>
+        <rect x="330" y="45" width="180" height="110" rx="12" class="b-core"/>
+        <text x="420" y="74" text-anchor="middle" class="tb">Bridger host</text>
+        <text x="420" y="94" text-anchor="middle" class="tm t-core">@bridger/core</text>
+        <rect x="345" y="110" width="46" height="26" rx="6" class="b"/>
+        <text x="368" y="127" text-anchor="middle" class="tm">scale</text>
+        <rect x="397" y="110" width="46" height="26" rx="6" class="b"/>
+        <text x="420" y="127" text-anchor="middle" class="tm">pump</text>
+        <rect x="449" y="110" width="46" height="26" rx="6" class="b-comp"/>
+        <text x="472" y="127" text-anchor="middle" class="tm">+ new</text>
+        <line x1="510" y1="100" x2="556" y2="100" class="a"/>
+        <text x="534" y="90" text-anchor="middle" class="ts">records</text>
+        <rect x="560" y="55" width="180" height="90" rx="12" class="b-you"/>
+        <text x="650" y="86" text-anchor="middle" class="tb">Audit trail</text>
+        <text x="650" y="106" text-anchor="middle" class="ts">your database</text>
+        <text x="650" y="124" text-anchor="middle" class="ts">via the companion adapter</text>
+        <line x1="420" y1="155" x2="420" y2="186" class="a"/>
+        <text x="430" y="176" class="ts">test run</text>
+        <rect x="330" y="190" width="180" height="42" rx="10" class="b-comp"/>
+        <text x="420" y="216" text-anchor="middle" class="tb">Evidence pack (IQ/OQ)</text>
+      </svg>
+    </div>
+    <figcaption>The whole idea in one picture. Bridger (blue) runs the plugins. The companion (teal) asks for approval before a change, carries each record of the change to your database, and turns test runs into qualification evidence. The amber parts stay yours.</figcaption>
+  </figure>
+  <div class="callout note">
+    <h4>How to read this guide</h4>
+    <p>New to regulated software? Read sections 1 to 4 in order: they build up the vocabulary and the problem. Engineers will want section 5, where each part of the companion is explained with a diagram and a code sketch. Quality and validation people should look at sections 6 and 7. The six scenarios at the end tie everything together.</p>
+  </div>
+</header>
+
+<nav aria-label="Contents">
+  <ul class="toc">
+    <li><a href="#words"><span class="mono">1</span>Five words you'll meet</a></li>
+    <li><a href="#problem"><span class="mono">2</span>The problem</a></li>
+    <li><a href="#core"><span class="mono">3</span>What the core already does</a></li>
+    <li><a href="#why"><span class="mono">4</span>Why a companion package</a></li>
+    <li><a href="#how"><span class="mono">5</span>How the companion will work</a></li>
+    <li><a href="#owners"><span class="mono">6</span>Who is responsible for what</a></li>
+    <li><a href="#claims"><span class="mono">7</span>Promises it will never make</a></li>
+    <li><a href="#open"><span class="mono">8</span>Questions still open</a></li>
+    <li><a href="#scenarios"><span class="mono">9</span>Six scenarios</a></li>
+  </ul>
+</nav>
+
+<!-- ============================================================ 1 WORDS -->
+<section id="words">
+  <span class="kicker">Section 1</span>
+  <h2>Five words you'll meet</h2>
+  <p class="read">Regulated software has its own vocabulary. These five terms come up on almost every page of this guide, so here they are in plain language first.</p>
+  <div class="cards">
+    <div class="card">
+      <span class="term">GxP</span>
+      <h4>"Good practice" rules</h4>
+      <p>The family of rules for regulated industries: GMP for manufacturing, GLP for laboratories, GCP for clinical trials. When software touches a regulated process, it falls under these rules too. In the US the key text for software is 21 CFR Part 11; in Europe it is EU GMP Annex 11.</p>
+    </div>
+    <div class="card">
+      <span class="term">Audit trail</span>
+      <h4>The diary of every change</h4>
+      <p>A record, written as things happen, of who changed what, when and why. Records are only ever added; nothing is edited or deleted. An inspector reads it to reconstruct the history of the system.</p>
+    </div>
+    <div class="card">
+      <span class="term">E-signature</span>
+      <h4>A signature on a screen</h4>
+      <p>The electronic equivalent of signing a paper form. It identifies the person, records the date and time, and states its meaning, such as "approved" or "reviewed". Part 11 sets strict rules for it.</p>
+    </div>
+    <div class="card">
+      <span class="term">IQ · OQ · PQ</span>
+      <h4>Proving the software works</h4>
+      <p>Validation evidence comes in three layers. <strong>IQ</strong>: the right software is installed correctly. <strong>OQ</strong>: it behaves as its specification says. <strong>PQ</strong>: it does the job in your real process. A supplier can help with IQ and OQ. PQ is always the user's.</p>
+    </div>
+    <div class="card">
+      <span class="term">Port and adapter</span>
+      <h4>A socket and a plug</h4>
+      <p>A <em>port</em> is an interface the core calls without knowing who answers, like a power socket. An <em>adapter</em> is the plug you build for it, for example code that writes audit records into your own database.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 2 PROBLEM -->
+<section id="problem">
+  <span class="kicker">Section 2</span>
+  <h2>The problem: changing software in a regulated plant</h2>
+  <div class="read">
+    <p>Bridger is a plugin host. A business application runs on top of it, and features arrive as plugins: a plugin that reads a laboratory balance, one that prints batch labels, one that talks to a dosing pump. Plugins can be installed, replaced, reconfigured and removed while the application runs.</p>
+    <p>In an ordinary company that flexibility is simply convenient. In a pharmaceutical plant it is a <strong>change to a validated system</strong>. If a plugin that reads the balance is swapped for a different version, the weights recorded in a batch might change, and so might a patient's dose. Every such change therefore has to be controlled and explainable, years later, to an inspector.</p>
+    <p>An inspector looking at any change will ask the same four questions:</p>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></div>
+      <h4>Who did it?</h4>
+      <p>A named, authenticated person, never "the system" or "admin".</p>
+    </div>
+    <div class="card">
+      <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h4"/></svg></div>
+      <h4>What, when and why?</h4>
+      <p>A trustworthy, ordered record with a time and a reason for each change.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 17c3-1 4-6 6-6s1 5 3 5 3-3 5-3"/><path d="M4 21h16"/></svg></div>
+      <h4>Was it approved?</h4>
+      <p>Where your procedures say so, a second person signed off before it happened.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12l4 4 10-10"/><path d="M4 21h16"/></svg></div>
+      <h4>Can you prove it works?</h4>
+      <p>Evidence from real test runs that the software does what its documents say.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 3 CORE -->
+<section id="core">
+  <span class="kicker">Section 3</span>
+  <h2>What the core already does</h2>
+  <div class="read">
+    <p>The Bridger core, <code>@bridger/core</code>, is specified (not yet built) to answer part of those questions by itself. Every change to the plugin set passes through the same eight checks inside the host, always in the same order. Two of those steps are deliberately left open: the core calls out to something else and waits for the answer. These are the places where the companion plugs in.</p>
+  </div>
+  <figure>
+    <div class="fig">
+      <svg class="d" viewBox="0 0 760 490" style="min-width:600px" role="img" aria-labelledby="pipe-t">
+        <title id="pipe-t">The eight steps of a change. Step 5 asks the approval gate; steps 6 and 8 hand records to the audit adapter.</title>
+        <!-- rows -->
+        <rect x="30" y="20" width="400" height="46" rx="10" class="b"/><circle cx="58" cy="43" r="14" class="f-core"/><text x="58" y="47.5" text-anchor="middle" class="tn">1</text><text x="84" y="48">Is the host still open?</text>
+        <rect x="30" y="78" width="400" height="46" rx="10" class="b"/><circle cx="58" cy="101" r="14" class="f-core"/><text x="58" y="105.5" text-anchor="middle" class="tn">2</text><text x="84" y="106">Who is asking, and why?</text>
+        <rect x="30" y="136" width="400" height="46" rx="10" class="b"/><circle cx="58" cy="159" r="14" class="f-core"/><text x="58" y="163.5" text-anchor="middle" class="tn">3</text><text x="84" y="164">Is the audit alarm off?</text>
+        <rect x="30" y="194" width="400" height="46" rx="10" class="b"/><circle cx="58" cy="217" r="14" class="f-core"/><text x="58" y="221.5" text-anchor="middle" class="tn">4</text><text x="84" y="222">Is the plugin definition valid?</text>
+        <rect x="30" y="252" width="400" height="46" rx="10" class="b-core"/><circle cx="58" cy="275" r="14" class="f-comp"/><text x="58" y="279.5" text-anchor="middle" class="tn">5</text><text x="84" y="280" class="tb">Is this change allowed? (the gate)</text>
+        <rect x="30" y="310" width="400" height="46" rx="10" class="b-core"/><circle cx="58" cy="333" r="14" class="f-comp"/><text x="58" y="337.5" text-anchor="middle" class="tn">6</text><text x="84" y="338" class="tb">Write the "requested" record</text>
+        <rect x="30" y="368" width="400" height="46" rx="10" class="b"/><circle cx="58" cy="391" r="14" class="f-core"/><text x="58" y="395.5" text-anchor="middle" class="tn">7</text><text x="84" y="396">Make the change</text>
+        <rect x="30" y="426" width="400" height="46" rx="10" class="b-core"/><circle cx="58" cy="449" r="14" class="f-comp"/><text x="58" y="453.5" text-anchor="middle" class="tn">8</text><text x="84" y="454" class="tb">Write the outcome record</text>
+        <!-- callouts -->
+        <rect x="480" y="252" width="260" height="46" rx="10" class="b-comp"/>
+        <text x="496" y="271" class="tb">Approval gate (companion)</text>
+        <text x="496" y="289" class="ts">a refusal writes one "rejected" record</text>
+        <line x1="430" y1="275" x2="476" y2="275" class="a-comp"/>
+        <rect x="480" y="320" width="260" height="150" rx="10" class="b-comp"/>
+        <text x="496" y="345" class="tb">Audit adapter (companion)</text>
+        <text x="496" y="367" class="ts">carries each record to your database</text>
+        <text x="496" y="395" class="ts">request not recorded?</text>
+        <text x="496" y="412" class="ts">→ nothing changes</text>
+        <text x="496" y="438" class="ts">outcome not recorded?</text>
+        <text x="496" y="455" class="ts">→ the audit alarm turns on</text>
+        <line x1="430" y1="333" x2="476" y2="345" class="a-comp"/>
+        <line x1="430" y1="449" x2="476" y2="440" class="a-comp"/>
+      </svg>
+    </div>
+    <figcaption>The order of a change inside the host (simplified from behaviour BEH-BR-188). Steps 5, 6 and 8, in blue, reach outside the core; teal boxes show what the companion will put there.</figcaption>
+  </figure>
+  <div class="cards">
+    <div class="card">
+      <h4>Rule 1: no record, no change</h4>
+      <p>If the core cannot record that a change was <em>requested</em>, the change does not happen. The call fails with <code>AuditUnavailable</code>. This is called failing closed.</p>
+    </div>
+    <div class="card">
+      <h4>Rule 2: the audit alarm</h4>
+      <p>If the <em>outcome</em> of a change cannot be recorded, the core turns on an alarm (the "latch"). Until a person acknowledges it with a reason, no further operator changes are accepted.</p>
+    </div>
+    <div class="card">
+      <h4>Rule 3: silence means no</h4>
+      <p>If the gate crashes or does not answer within its time limit, the change is refused. A broken approval system can never wave changes through.</p>
+    </div>
+  </div>
+  <div class="read">
+    <p>The two open steps are defined as ports. In code they are small interfaces: one to <em>send</em> a record somewhere, and one to <em>ask</em> whether a change may happen.</p>
+  </div>
+<pre><span class="label">Specified in the core · behaviours 23 and 25</span><span class="cm">// Where records go. The core calls this for every record, in order.</span>
+interface AuditSink {
+  readonly record: (r: AuditRecord) =&gt; Effect.Effect&lt;void, AuditWriteFailed&gt;
+}
+
+<span class="cm">// Whether a change may happen. The core calls this before recording anything.</span>
+interface OperationGate {
+  readonly authorize: (req: OperationRequest) =&gt; Effect.Effect&lt;void, OperationRejected&gt;
+}
+
+<span class="cm">// What the gate is shown about the change.</span>
+interface OperationRequest {
+  readonly operation: Operation          <span class="cm">// "install", "replace", "remove", ...</span>
+  readonly target?: { id: string; realm: string }
+  readonly actor: Actor                  <span class="cm">// who is asking</span>
+  readonly reason?: string               <span class="cm">// why</span>
+  readonly correlationId: string         <span class="cm">// links the request, its records and any signature</span>
+  readonly definition?: { version?: string; digest?: string }
+  readonly configChange?: { paths: readonly string[] }   <span class="cm">// which settings, never their values</span>
+}</pre>
+</section>
+
+<!-- ============================================================ 4 WHY -->
+<section id="why">
+  <span class="kicker">Section 4</span>
+  <h2>Why a companion package?</h2>
+  <div class="read">
+    <p>The core stops at the ports on purpose. It produces the records and offers a place to ask for approval, but it <strong>keeps nothing and signs nothing</strong>. Once the sink has accepted a record, the core forgets it. This table shows what is still missing once the core has done its part.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <tr><th>The inspector asks</th><th>The core gives</th><th>Still missing</th></tr>
+      <tr><td>Who did it?</td><td>An actor on every change; anonymous calls can be refused</td><td>Proof that the actor is a real, logged-in person</td></tr>
+      <tr><td>What, when and why?</td><td>Numbered, time-stamped records with a reason</td><td>Somewhere safe to keep them</td></tr>
+      <tr><td>Is anything missing?</td><td>A function that checks the numbering</td><td>A routine that runs it over the stored trail</td></tr>
+      <tr><td>Was it approved?</td><td>The gate, called before anything happens</td><td>A gate that actually collects an approval and a signature</td></tr>
+      <tr><td>Which setting changed, and to what?</td><td>The names of changed settings, never their values</td><td>A safe way to compare values without revealing them</td></tr>
+      <tr><td>Can you prove it works?</td><td>A specification and a planned test suite</td><td>IQ/OQ documents produced from a real test run</td></tr>
+    </table>
+  </div>
+  <div class="read">
+    <p>So something has to fill the gaps. There are three ways to do it, and only one of them holds up.</p>
+  </div>
+  <div class="cards">
+    <div class="card option no">
+      <span class="verdict">Rejected</span>
+      <h4>Build it all into the core</h4>
+      <p>Every plant uses a different database, a different login system and a different way to sign. Building all of that into the core would load it with dependencies that most users never need, and it would tempt the core into "helpful" defaults. An in-memory audit store would vanish on restart. A placeholder signature would approve everything.</p>
+    </div>
+    <div class="card option no">
+      <span class="verdict">Rejected</span>
+      <h4>Leave it to every team</h4>
+      <p>Each regulated team would rediscover the same tricky rules alone: why a retried record must not be stored twice, why a sink must never report a save it did not make. Each would also write validation evidence in its own format. That costs more, and it is harder for inspectors to compare.</p>
+    </div>
+    <div class="card option yes">
+      <span class="verdict">Chosen (ADR-BR-034)</span>
+      <h4>A separate, optional companion</h4>
+      <p>One package, <code>@bridger/gxp</code>, that depends on the core while the core never depends on it. It defines the contracts and tests once, captures approvals through the gate, and produces evidence. Teams that are not regulated simply don't install it. The same split already worked for Bridger's sister project Qadi and its <code>@qadi/audit</code> companion.</p>
+    </div>
+  </div>
+  <figure>
+    <div class="fig">
+      <svg class="d" viewBox="0 0 760 330" style="min-width:620px" role="img" aria-labelledby="layers-t">
+        <title id="layers-t">Three nested layers: the core inside the companion inside your regulated system.</title>
+        <rect x="10" y="10" width="740" height="310" rx="18" class="b-you"/>
+        <text x="34" y="40" class="tb t-you">Your regulated system (you)</text>
+        <text x="34" y="62" class="ts">logins · your database · clock sync · retention · reviewing the trail · procedures · PQ</text>
+        <rect x="40" y="80" width="680" height="220" rx="16" class="b-comp"/>
+        <text x="64" y="108" class="tb t-comp">@bridger/gxp, the companion (proposed)</text>
+        <text x="64" y="130" class="ts">adapter contract · checking the trail · approval and signature · fingerprints · IQ/OQ evidence</text>
+        <rect x="70" y="160" width="620" height="120" rx="14" class="b-core"/>
+        <text x="94" y="190" class="tb t-core">@bridger/core, the plugin host (specified)</text>
+        <text x="94" y="214" class="ts">an actor on every change · AuditSink port · OperationGate port</text>
+        <text x="94" y="236" class="ts">numbered records · verifyAuditSequence · the audit alarm</text>
+        <text x="94" y="258" class="ts">keeps no copy of any record · ships no gate</text>
+      </svg>
+    </div>
+    <figcaption>Each outer layer adds what the inner one must not own. Dependencies point inward only: the companion depends on the core, never the other way round.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ 5 HOW -->
+<section id="how">
+  <span class="kicker">Section 5</span>
+  <h2>How the companion will work</h2>
+  <div class="read">
+    <p>The companion has five parts, listed in decision ADR-BR-034. Each is explained below in the same order: the problem in plain words, a diagram, how it works, a code sketch, and what it cannot do. The code shows the intended shape, but every companion name in it is a proposal until the specification is written.</p>
+  </div>
+
+  <!-- 5.1 -->
+  <article class="part" id="part-trail">
+    <div class="part-head"><span class="part-num">1</span><h3>A contract for writing the audit trail</h3></div>
+    <p class="plain read">The core sends each record to an adapter that you write for your database. The companion is to set out the rules a good adapter follows, and ship tests that prove yours does.</p>
+    <div class="read">
+      <p>Why does an adapter need rules? Because things go wrong in the middle. Imagine the database is slow. The core waits, gives up after a timeout, and sends <strong>the same record again</strong>, with the same identifier and the same sequence number. If the first write did land after all, a careless adapter now stores the record twice. Worse, an adapter that hides a database error and reports success makes the core believe a record exists when it does not.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 356" style="min-width:620px" role="img" aria-labelledby="retry-t">
+          <title id="retry-t">The core writer sends record 41, the database is slow, the write times out, the core retries the same record and it is stored exactly once.</title>
+          <rect x="40" y="16" width="150" height="40" rx="10" class="b-core"/><text x="115" y="41" text-anchor="middle" class="tb">Core's audit writer</text>
+          <rect x="305" y="16" width="150" height="40" rx="10" class="b-comp"/><text x="380" y="41" text-anchor="middle" class="tb">Your adapter</text>
+          <rect x="570" y="16" width="150" height="40" rx="10" class="b-you"/><text x="645" y="41" text-anchor="middle" class="tb">Your database</text>
+          <line x1="115" y1="56" x2="115" y2="342" class="life"/>
+          <line x1="380" y1="56" x2="380" y2="342" class="life"/>
+          <line x1="645" y1="56" x2="645" y2="342" class="life"/>
+          <line x1="115" y1="90" x2="376" y2="90" class="a"/><text x="247" y="82" text-anchor="middle" class="tm">record #41</text>
+          <line x1="380" y1="118" x2="641" y2="118" class="a"/><text x="512" y="110" text-anchor="middle" class="tm">insert</text>
+          <text x="653" y="148" class="ts">slow… no answer</text>
+          <line x1="380" y1="170" x2="119" y2="170" class="a-bad dash"/><text x="247" y="162" text-anchor="middle" class="ts t-bad">AuditWriteFailed (timed out)</text>
+          <text x="124" y="196" class="ts">the core waits, then retries the same record</text>
+          <line x1="115" y1="238" x2="376" y2="238" class="a"/><text x="247" y="230" text-anchor="middle" class="tm">retry: the same record #41</text>
+          <line x1="380" y1="266" x2="641" y2="266" class="a"/><text x="512" y="258" text-anchor="middle" class="tm">insert … on conflict do nothing</text>
+          <line x1="645" y1="294" x2="384" y2="294" class="a-ok dash"/><text x="512" y="286" text-anchor="middle" class="ts t-ok">ok, stored exactly once</text>
+          <line x1="380" y1="322" x2="119" y2="322" class="a-ok dash"/><text x="247" y="314" text-anchor="middle" class="ts t-ok">success</text>
+        </svg>
+      </div>
+      <figcaption>The retry the contract has to make safe. Because the retry carries the same record identifier, the database can ignore the second copy.</figcaption>
+    </figure>
+    <div class="read">
+      <p>The rules the contract is expected to contain:</p>
+      <ul>
+        <li><strong>Store each record once.</strong> Writing the same <code>recordId</code> twice must change nothing.</li>
+        <li><strong>Never fake success.</strong> Any write that cannot be confirmed must fail with <code>AuditWriteFailed</code>.</li>
+        <li><strong>Keep every field.</strong> Records are stored exactly as given, including their format version.</li>
+        <li><strong>Only add.</strong> The adapter never edits or deletes a stored record.</li>
+        <li><strong>Order by number.</strong> Records are read back in sequence-number order, never by timestamp, because clocks can jump.</li>
+      </ul>
+    </div>
+<pre><span class="label">Illustrative · an adapter you would write, following the future contract</span>const postgresSink = (sql: Sql): AuditSink["Service"] =&gt; ({
+  record: (r) =&gt;
+    sql`insert into audit_trail (record_id, host_id, audit_seq, body)
+        values (${r.recordId}, ${r.hostId}, ${r.auditSeq}, ${JSON.stringify(r)})
+        on conflict (record_id) do nothing`          <span class="cm">// a retry is harmless</span>
+      .pipe(
+        Effect.asVoid,
+        Effect.mapError((e) =&gt; new AuditWriteFailed({ message: String(e) }))  <span class="cm">// report failure honestly</span>
+      )
+})
+
+<span class="cm">// Illustrative · the companion's conformance tests (proposed name)</span>
+import { sinkConformance } from "@bridger/gxp/testing"
+
+sinkConformance("postgres trail", () =&gt; postgresSink(testDb))
+<span class="cm">//  ✓ a retried record is stored once
+//  ✓ a database error surfaces as AuditWriteFailed, never as success
+//  ✓ every field round-trips unchanged</span></pre>
+    <div class="callout limit">
+      <h4>What it cannot do</h4>
+      <p>The companion writes the rules and the tests. It does not store anything itself. Keeping records safe for years, backups, access control and retention belong to your database and your IT. Neither package claims to store records durably.</p>
+    </div>
+  </article>
+
+  <!-- 5.2 -->
+  <article class="part" id="part-verify">
+    <div class="part-head"><span class="part-num">2</span><h3>Checking the stored trail</h3></div>
+    <p class="plain read">Every record gets a number from the host: 1, 2, 3, and so on, without gaps. If a number is missing or appears twice in your database, something went wrong on the way. The companion is to run that check over the stored trail and produce a report a reviewer can file.</p>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 680 128" style="min-width:560px" role="img" aria-labelledby="gap-t">
+          <title id="gap-t">Records 2207 to 2212; 2210 is missing and 2211 appears twice.</title>
+          <rect x="20" y="30" width="80" height="54" rx="10" class="b"/><text x="60" y="62" text-anchor="middle" class="tm">2207</text>
+          <rect x="114" y="30" width="80" height="54" rx="10" class="b"/><text x="154" y="62" text-anchor="middle" class="tm">2208</text>
+          <rect x="208" y="30" width="80" height="54" rx="10" class="b"/><text x="248" y="62" text-anchor="middle" class="tm">2209</text>
+          <rect x="302" y="30" width="80" height="54" rx="10" class="b-bad dash"/><text x="342" y="62" text-anchor="middle" class="tm t-bad">2210</text>
+          <rect x="396" y="30" width="80" height="54" rx="10" class="b"/><text x="436" y="62" text-anchor="middle" class="tm">2211</text>
+          <rect x="490" y="30" width="80" height="54" rx="10" class="b-you"/><text x="530" y="62" text-anchor="middle" class="tm t-you">2211</text>
+          <rect x="584" y="30" width="80" height="54" rx="10" class="b"/><text x="624" y="62" text-anchor="middle" class="tm">2212</text>
+          <text x="342" y="112" text-anchor="middle" class="ts t-bad">missing: a gap</text>
+          <text x="530" y="112" text-anchor="middle" class="ts t-you">repeated: a duplicate</text>
+        </svg>
+      </div>
+      <figcaption>What the check can see in the numbering of a stored trail.</figcaption>
+    </figure>
+<pre><span class="label">verifyAuditSequence is specified in the core · the loading code is illustrative</span>const stored = yield* trail.load({ hostId: "line-3-host" })
+const report = verifyAuditSequence(stored)
+<span class="cm">// → { gaps: [{ after: 2209, before: 2211 }], duplicates: [2211], outOfOrder: [] }</span></pre>
+    <div class="callout limit">
+      <h4>What it cannot do</h4>
+      <p>It finds lost and repeated records, but it is not tamper evidence. Someone who can rewrite your database can also renumber the records neatly. Nor can it notice that a whole trail is gone, or that the newest records after the last stored one were lost. Protecting the database itself is your job.</p>
+    </div>
+  </article>
+
+  <!-- 5.3 -->
+  <article class="part" id="part-sign">
+    <div class="part-head"><span class="part-num">3</span><h3>Approvals and electronic signatures</h3></div>
+    <p class="plain read">Many changes need a second person's sign-off before they happen. The core offers the gate as the place to ask. The companion is to supply a gate that insists on an approval for chosen operations, while you supply the part that actually identifies the signer.</p>
+    <div class="read">
+      <p>Part 11 §11.50 says a signed record must show the signer's printed name, the date and time, and the <strong>meaning</strong> of the signature: review, approval, responsibility or authorship. Identifying people safely depends on your login system, so signature capture is a port you implement. There is deliberately no default, not even a "do nothing" version, because a fake signer would quietly approve everything.</p>
+      <p>Approvals usually happen before the change, sometimes hours before, so the guide shows the likely design: an <em>approval ticket</em> is signed first and the change refers to it later. Section 8 explains why this is still an open question.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 300" style="min-width:640px" role="img" aria-labelledby="appr-t">
+          <title id="appr-t">First a QA approver signs approval ticket APR-0419. Later an operator's install refers to it; the gate looks the ticket up and allows or refuses.</title>
+          <text x="20" y="22" class="tl">1 · BEFORE: THE APPROVAL</text>
+          <circle cx="56" cy="68" r="13" class="person"/><path d="M37 114 A19 19 0 0 1 75 114 Z" class="person"/>
+          <text x="56" y="134" text-anchor="middle" class="ts">QA approver</text>
+          <line x1="86" y1="90" x2="122" y2="90" class="a"/>
+          <rect x="126" y="55" width="180" height="70" rx="12" class="b-you"/>
+          <text x="216" y="84" text-anchor="middle" class="tb">Signature capture</text>
+          <text x="216" y="105" text-anchor="middle" class="ts">yours: password or SSO</text>
+          <line x1="306" y1="90" x2="344" y2="90" class="a"/><text x="325" y="80" text-anchor="middle" class="ts">signed</text>
+          <rect x="348" y="45" width="250" height="92" rx="12" class="b-comp"/>
+          <text x="473" y="69" text-anchor="middle" class="tb">Approval ticket APR-0419</text>
+          <text x="473" y="91" text-anchor="middle" class="tm">install · lab/balance-reader</text>
+          <text x="473" y="109" text-anchor="middle" class="tm">v2.3.1 · sha256:7be1…</text>
+          <text x="473" y="127" text-anchor="middle" class="ts">meaning: approval · A. Haddad</text>
+          <text x="20" y="176" class="tl">2 · LATER: THE CHANGE</text>
+          <circle cx="56" cy="218" r="13" class="person"/><path d="M37 264 A19 19 0 0 1 75 264 Z" class="person"/>
+          <text x="56" y="284" text-anchor="middle" class="ts">Operator</text>
+          <line x1="86" y1="240" x2="122" y2="240" class="a"/>
+          <rect x="126" y="205" width="180" height="70" rx="12" class="b-core"/>
+          <text x="216" y="234" text-anchor="middle" class="tm tb">host.install(…)</text>
+          <text x="216" y="255" text-anchor="middle" class="ts">refers to APR-0419</text>
+          <line x1="306" y1="240" x2="344" y2="240" class="a"/>
+          <rect x="348" y="195" width="250" height="90" rx="12" class="b-comp"/>
+          <text x="473" y="222" text-anchor="middle" class="tb">Approval gate</text>
+          <text x="473" y="244" text-anchor="middle" class="ts">Does APR-0419 match this exact</text>
+          <text x="473" y="262" text-anchor="middle" class="ts">operation, plugin and digest?</text>
+          <line x1="473" y1="137" x2="473" y2="191" class="a-comp dash"/><text x="483" y="168" class="ts t-comp">looked up</text>
+          <rect x="630" y="188" width="120" height="44" rx="10" class="b-ok"/>
+          <text x="690" y="206" text-anchor="middle" class="tb t-ok">allow</text>
+          <text x="690" y="223" text-anchor="middle" class="ts">record + change</text>
+          <rect x="630" y="246" width="120" height="44" rx="10" class="b-bad"/>
+          <text x="690" y="264" text-anchor="middle" class="tb t-bad">refuse</text>
+          <text x="690" y="281" text-anchor="middle" class="ts">1 rejected record</text>
+          <line x1="598" y1="228" x2="626" y2="214" class="a-ok"/>
+          <line x1="598" y1="252" x2="626" y2="266" class="a-bad"/>
+        </svg>
+      </div>
+      <figcaption>The approval is signed first (top); the change refers to it later (bottom). The gate decides, your signature capture identifies the person, and the shared identifier links them in the trail.</figcaption>
+    </figure>
+<pre><span class="label">Illustrative · proposed shape, nothing specified yet</span><span class="cm">// You implement this: it knows how your company identifies people.</span>
+interface SignatureCapture {
+  readonly capture: (req: OperationRequest, meaning: "approval" | "review")
+    =&gt; Effect.Effect&lt;SignatureRecord, SignatureRefused&gt;
+}
+
+<span class="cm">// The companion supplies the gate; you choose which operations need approval.</span>
+const gate = Gxp.approvalGate({
+  operations: ["install", "replace", "remove", "reconfigure"],
+  signatures: ssoStepUp,                       <span class="cm">// required: there is no default</span>
+})
+
+<span class="cm">// Wiring: give the host your gate and your audit adapter.</span>
+const host = yield* Bridger.make(options).pipe(
+  Effect.provideService(OperationGate, gate),
+  Effect.provideService(AuditSink, postgresSink(sql)),
+)</pre>
+    <div class="callout limit">
+      <h4>What it cannot do</h4>
+      <p>It does not log anyone in, does not make a signature legally binding, and does not provide the identity controls of Part 11 §§11.100–11.300. Those depend on your systems and procedures.</p>
+    </div>
+  </article>
+
+  <!-- 5.4 -->
+  <article class="part" id="part-fp">
+    <div class="part-head"><span class="part-num">4</span><h3>Fingerprints for configuration values (optional)</h3></div>
+    <p class="plain read">The core never puts setting values in the audit trail, only the names of the settings that changed. That keeps passwords and connection strings out of the trail. Sometimes an auditor still needs to know whether a value went back to what it was before. A fingerprint answers that without revealing the value.</p>
+    <div class="read">
+      <p>A fingerprint is a keyed hash (HMAC) of the value, made with a secret key. Equal values always give equal fingerprints and different values give different ones, but the fingerprint cannot be turned back into the value without the key.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 200" style="min-width:620px" role="img" aria-labelledby="fp-t">
+          <title id="fp-t">Three values of tolerance.mg are hashed with a secret key. 0.5 and 0.5 give the same fingerprint; 0.8 gives a different one.</title>
+          <rect x="20" y="20" width="210" height="44" rx="10" class="b"/><text x="125" y="47" text-anchor="middle" class="tm">tolerance.mg = 0.5</text>
+          <line x1="230" y1="42" x2="266" y2="42" class="a"/>
+          <rect x="270" y="20" width="150" height="44" rx="10" class="b-comp"/><text x="345" y="47" text-anchor="middle" class="tb">HMAC + secret key</text>
+          <line x1="420" y1="42" x2="456" y2="42" class="a"/>
+          <rect x="460" y="20" width="110" height="44" rx="10" class="b-core"/><text x="515" y="47" text-anchor="middle" class="tm">9f2c…</text>
+          <text x="590" y="47" class="ts">the original</text>
+
+          <rect x="20" y="80" width="210" height="44" rx="10" class="b"/><text x="125" y="107" text-anchor="middle" class="tm">tolerance.mg = 0.8</text>
+          <line x1="230" y1="102" x2="266" y2="102" class="a"/>
+          <rect x="270" y="80" width="150" height="44" rx="10" class="b-comp"/><text x="345" y="107" text-anchor="middle" class="tb">HMAC + secret key</text>
+          <line x1="420" y1="102" x2="456" y2="102" class="a"/>
+          <rect x="460" y="80" width="110" height="44" rx="10" class="b-you"/><text x="515" y="107" text-anchor="middle" class="tm">41ad…</text>
+          <text x="590" y="107" class="ts t-you">different: it changed</text>
+
+          <rect x="20" y="140" width="210" height="44" rx="10" class="b"/><text x="125" y="167" text-anchor="middle" class="tm">tolerance.mg = 0.5</text>
+          <line x1="230" y1="162" x2="266" y2="162" class="a"/>
+          <rect x="270" y="140" width="150" height="44" rx="10" class="b-comp"/><text x="345" y="167" text-anchor="middle" class="tb">HMAC + secret key</text>
+          <line x1="420" y1="162" x2="456" y2="162" class="a"/>
+          <rect x="460" y="140" width="110" height="44" rx="10" class="b-core"/><text x="515" y="167" text-anchor="middle" class="tm">9f2c…</text>
+          <text x="590" y="167" class="ts t-ok">same as the original</text>
+        </svg>
+      </div>
+      <figcaption>The trail stores only the fingerprint on the right, never the value on the left.</figcaption>
+    </figure>
+    <div class="callout limit">
+      <h4>What it cannot do</h4>
+      <p>It needs a secret key that someone manages and rotates. It also cannot hide short or guessable values: if a setting can only be <code>true</code> or <code>false</code>, anyone can hash both and compare. The specification must say which fields may be fingerprinted, which is why the feature is optional and lives outside the core.</p>
+    </div>
+  </article>
+
+  <!-- 5.5 -->
+  <article class="part" id="part-evidence">
+    <div class="part-head"><span class="part-num">5</span><h3>IQ/OQ evidence from real test runs</h3></div>
+    <p class="plain read">To validate a system that includes Bridger, a regulated user needs documents showing that Bridger is installed correctly (IQ) and behaves as specified (OQ). The companion is to produce them from an actual run of Bridger's acceptance tests on the installed package.</p>
+    <div class="read">
+      <p>The rule behind this (ADR-BR-035) is simple: evidence must come from tests that really ran. A document that only says "the specification requires X" proves nothing. An evidence pack points every line at the run that produced it: which test, which package version, which machine, when.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 270" style="min-width:640px" role="img" aria-labelledby="ev-t">
+          <title id="ev-t">The installed package runs the acceptance suite, results flow into an evidence pack, then the user's QA review, PQ and go-live.</title>
+          <rect x="20" y="30" width="150" height="80" rx="12" class="b-core"/>
+          <text x="95" y="64" text-anchor="middle" class="tb">Installed package</text>
+          <text x="95" y="86" text-anchor="middle" class="tm">@bridger/core</text>
+          <line x1="170" y1="70" x2="206" y2="70" class="a"/><text x="188" y="60" text-anchor="middle" class="ts">runs</text>
+          <rect x="210" y="30" width="150" height="80" rx="12" class="b"/>
+          <text x="285" y="64" text-anchor="middle" class="tb">Acceptance tests</text>
+          <text x="285" y="86" text-anchor="middle" class="tm">REQ-BR-001…054</text>
+          <line x1="360" y1="70" x2="396" y2="70" class="a"/>
+          <rect x="400" y="30" width="150" height="80" rx="12" class="b"/>
+          <text x="475" y="64" text-anchor="middle" class="tb">Results</text>
+          <text x="475" y="86" text-anchor="middle" class="ts">+ run id, date, machine</text>
+          <line x1="550" y1="70" x2="586" y2="70" class="a"/>
+          <rect x="590" y="22" width="150" height="96" rx="12" class="b-comp"/>
+          <text x="665" y="50" text-anchor="middle" class="tb">Evidence pack</text>
+          <text x="665" y="74" text-anchor="middle" class="ts">IQ: right package</text>
+          <text x="665" y="94" text-anchor="middle" class="ts">OQ: works as specified</text>
+          <line x1="665" y1="118" x2="665" y2="166" class="a"/>
+          <rect x="590" y="170" width="150" height="64" rx="12" class="b-you"/>
+          <text x="665" y="198" text-anchor="middle" class="tb">QA review</text>
+          <text x="665" y="218" text-anchor="middle" class="ts">by your QA team</text>
+          <line x1="590" y1="202" x2="554" y2="202" class="a"/>
+          <rect x="400" y="170" width="150" height="64" rx="12" class="b-you"/>
+          <text x="475" y="198" text-anchor="middle" class="tb">PQ</text>
+          <text x="475" y="218" text-anchor="middle" class="ts">on your real process</text>
+          <line x1="400" y1="202" x2="364" y2="202" class="a"/>
+          <rect x="210" y="170" width="150" height="64" rx="12" class="b-you"/>
+          <text x="285" y="198" text-anchor="middle" class="tb">Go live</text>
+          <text x="285" y="218" text-anchor="middle" class="ts">production</text>
+          <text x="24" y="196" class="ts">top row: Bridger</text>
+          <text x="24" y="214" class="ts">and the companion</text>
+          <text x="24" y="232" class="ts t-you">bottom row: you</text>
+        </svg>
+      </div>
+      <figcaption>Evidence flows from a real run into a pack your QA team reviews. Performance qualification (PQ) on your own process always stays with you.</figcaption>
+    </figure>
+    <div class="callout limit">
+      <h4>What it cannot do</h4>
+      <p>Evidence about one component is not validation of your system. The companion helps you validate; it cannot do it for you.</p>
+    </div>
+  </article>
+</section>
+
+<!-- ============================================================ 6 OWNERS -->
+<section id="owners">
+  <span class="kicker">Section 6</span>
+  <h2>Who is responsible for what</h2>
+  <div class="read">
+    <p>Regulations do not care which package does what. They care that every obligation has an owner. This table, drawn from the compliance matrix in the specification, shows how each obligation is split between <span class="pill p-core">Core</span>, <span class="pill p-comp">Companion</span> and <span class="pill p-you">You</span>.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <tr><th>Rule</th><th>What it asks for</th><th><span class="pill p-core">Core</span></th><th><span class="pill p-comp">Companion</span></th><th><span class="pill p-you">You</span></th></tr>
+      <tr><td class="mono">Part 11 §11.10(e)</td><td>A time-stamped audit trail of changes</td><td>Creates numbered records</td><td>Adapter contract</td><td>Store and keep them</td></tr>
+      <tr><td class="mono">Part 11 §11.10(c)</td><td>Records protected for their whole life</td><td>Keeps no copy</td><td>Adapter contract</td><td>Storage, protection</td></tr>
+      <tr><td class="mono">Part 11 §11.10(g)</td><td>Only authorised people make changes</td><td>The gate, which cannot be bypassed</td><td>Approval gate</td><td>Who is authorised</td></tr>
+      <tr><td class="mono">Part 11 §11.50</td><td>Signatures show name, time and meaning</td><td>The linking identifier</td><td>Captures through the gate</td><td>Signature capture</td></tr>
+      <tr><td class="mono">Part 11 §11.70</td><td>Signatures cannot be copied to another record</td><td>Identifier and digest</td><td>A link that is hard to copy</td><td>Controls</td></tr>
+      <tr><td class="mono">Annex 11 §7</td><td>Data storage and backup</td><td>None</td><td>Adapter contract</td><td>Backup, restore, retention</td></tr>
+      <tr><td class="mono">Annex 11 §9</td><td>Audit trails, regularly reviewed</td><td>Records and reasons</td><td>Checking the stored trail</td><td>The regular review</td></tr>
+      <tr><td class="mono">Annex 11 §14</td><td>Electronic signature</td><td>The gate</td><td>Capture</td><td>Signature capture</td></tr>
+      <tr><td class="mono">ALCOA+ "Complete"</td><td>Nothing missing</td><td>Gap-free numbering, the alarm</td><td>Checking the stored trail</td><td>Store, cross-host checks</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ 7 CLAIMS -->
+<section id="claims">
+  <span class="kicker">Section 7</span>
+  <h2>Promises it will never make</h2>
+  <div class="read">
+    <p>Over-claiming is a real danger in regulated software. A sentence like "this library is Part 11 compliant" can lead a team to skip work they still have to do. So decision ADR-BR-034 lists, as numbered items that documents and release notes can be checked against, what neither Bridger package will ever claim. Neither package claims that Bridger:</p>
+  </div>
+  <ul class="claims">
+    <li>makes you compliant with Part 11, Annex 11 or any other rule</li>
+    <li>is validated or qualified</li>
+    <li>logs people in, or proves who an actor really is</li>
+    <li>stores or archives records durably</li>
+    <li>can prove records were not tampered with</li>
+    <li>makes an electronic signature legally binding</li>
+    <li>keeps clocks synchronised</li>
+    <li>checks, signs or sandboxes plugin code</li>
+    <li>isolates plugins from one another</li>
+    <li>turns its live event stream into an audit trail</li>
+    <li>undoes the effects of a plugin that failed</li>
+    <li>reviews your trail or performs your PQ</li>
+  </ul>
+</section>
+
+<!-- ============================================================ 8 OPEN -->
+<section id="open">
+  <span class="kicker">Section 8</span>
+  <h2>Questions still open</h2>
+  <div class="read">
+    <p>The companion's specification has not been written yet. These are the questions it will have to answer. Raising them now helps the core be built in a way that leaves room for good answers.</p>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <h4>Approvals take hours, the gate waits a minute</h4>
+      <p>The core refuses a change if the gate has not answered within its time limit (60 seconds by default). A human approval can take far longer. The likely answer is the approval ticket shown above: sign first, then change. It is not settled.</p>
+    </div>
+    <div class="card">
+      <h4>Keeping a signature on its own change</h4>
+      <p>A signature must not be reusable on a different change (Part 11 §11.70). The specification must say exactly how a signature is bound to the change's identifier and the plugin's digest.</p>
+    </div>
+    <div class="card">
+      <h4>Managing fingerprint keys</h4>
+      <p>Where the secret key lives, how it is rotated, how older fingerprints stay comparable, and which settings are too guessable to fingerprint at all.</p>
+    </div>
+    <div class="card">
+      <h4>What the evidence pack looks like</h4>
+      <p>Which fields identify a run, how each line points at a requirement, and how a new pack is compared with the previous release's pack.</p>
+    </div>
+  </div>
+  <div class="callout note">
+    <h4>Order of work</h4>
+    <p>The roadmap requires the companion's specification to be approved before any companion code exists. Because the companion is built on the core's ports, the core's first phases come first: then the companion is designed against real interfaces rather than paper ones.</p>
+  </div>
+</section>
+
+<!-- ============================================================ 9 SCENARIOS -->
+<section id="scenarios">
+  <span class="kicker">Section 9</span>
+  <h2>Six scenarios</h2>
+  <div class="read">
+    <p>To see how the pieces fit, follow one plant through six situations. A tablet factory runs a Bridger host called <code>line-3-host</code> on its production line. Plugins on it read the analytical balance, drive a dosing pump and print labels. Its audit trail is written to the plant's Postgres database by an adapter that passes the companion's conformance tests.</p>
+    <p>People, record numbers, identifiers and digests are invented for the examples, and audit ledgers are trimmed to the columns that matter.</p>
+  </div>
+
+  <!-- A -->
+  <article class="scenario" id="scenario-a">
+    <div class="scenario-tag"><span class="letter">A</span><span class="pill p-ok">installed and fully recorded</span></div>
+    <h3>An approved plugin is installed</h3>
+    <div class="read">
+      <p>Change request <strong>CR-2026-118</strong> introduces <code>lab/balance-reader</code> version 2.3.1. The QA lead, Dr. Amal Haddad, approves it in the morning. The operator, Karim Benali, installs it during the afternoon shift.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 150" style="min-width:620px" role="img" aria-labelledby="sa-t">
+          <title id="sa-t">Timeline: 09:02 approval signed, 14:30 install called, then records 2207, 2208 and 2209.</title>
+          <line x1="40" y1="70" x2="730" y2="70" class="axis"/>
+          <circle cx="80" cy="70" r="8" class="f-comp"/><text x="80" y="48" text-anchor="middle" class="tb">09:02</text><text x="80" y="98" text-anchor="middle" class="ts">QA signs approval</text><text x="80" y="116" text-anchor="middle" class="ts">ticket APR-0419</text>
+          <circle cx="250" cy="70" r="8" class="f-core"/><text x="250" y="48" text-anchor="middle" class="tb">14:30</text><text x="250" y="98" text-anchor="middle" class="ts">Karim calls install</text><text x="250" y="116" text-anchor="middle" class="ts">citing APR-0419</text>
+          <circle cx="410" cy="70" r="8" class="f-core"/><text x="410" y="48" text-anchor="middle" class="tm tb">#2207</text><text x="410" y="98" text-anchor="middle" class="ts">requested</text><text x="410" y="116" text-anchor="middle" class="ts">the gate allowed it</text>
+          <circle cx="560" cy="70" r="8" class="f-ok"/><text x="560" y="48" text-anchor="middle" class="tm tb">#2208</text><text x="560" y="98" text-anchor="middle" class="ts">completed</text><text x="560" y="116" text-anchor="middle" class="ts">plugin registered</text>
+          <circle cx="695" cy="70" r="8" class="f-muted"/><text x="695" y="48" text-anchor="middle" class="tm tb">#2209</text><text x="695" y="98" text-anchor="middle" class="ts">system-start</text><text x="695" y="116" text-anchor="middle" class="ts">plugin running</text>
+        </svg>
+      </div>
+    </figure>
+    <ol class="steps read">
+      <li>Dr. Haddad approves the exact build: install <code>lab/balance-reader</code>, version 2.3.1, digest <code>sha256:7be1…</code>. The plant's single sign-on asks her to log in again, and the companion stores her signature with the meaning "approval" as ticket <strong>APR-0419</strong>.</li>
+      <li>Karim installs the plugin, giving the reason CR-2026-118 and the ticket number.</li>
+      <li>The approval gate looks up APR-0419, checks that the operation, plugin, version and digest all match, and allows the change.</li>
+      <li>The core records the request, registers the plugin, records the result, and then records the plugin's start, linked back to the request.</li>
+    </ol>
+    <div class="tablewrap">
+      <table class="ledger">
+        <tr><th>auditSeq</th><th>phase</th><th>operation</th><th>actor</th><th>correlationId</th><th>causationId</th></tr>
+        <tr><td class="n">2207</td><td><span class="pill p-core">requested</span></td><td>install</td><td>user-kbenali</td><td>APR-0419</td><td>—</td></tr>
+        <tr><td class="n">2208</td><td><span class="pill p-ok">completed</span></td><td>install</td><td>user-kbenali</td><td>APR-0419</td><td>rec-2207</td></tr>
+        <tr><td class="n">2209</td><td><span class="pill p-sys">system</span></td><td>system-start</td><td>bridger:system</td><td>…</td><td>rec-2207</td></tr>
+      </table>
+    </div>
+    <p class="why read"><strong>Why it matters.</strong> Years later, a reviewer can start from Dr. Haddad's signature and follow APR-0419 through records 2207 to 2209 to the moment the plugin started. The records also carry the version and digest, and they match what she approved.</p>
+  </article>
+
+  <!-- B -->
+  <article class="scenario" id="scenario-b">
+    <div class="scenario-tag"><span class="letter">B</span><span class="pill p-bad">refused, nothing changed</span></div>
+    <h3>An unapproved build is refused</h3>
+    <div class="read">
+      <p>A week later the vendor sends version 2.3.2 with a "small fix". Karim tries to replace the running plugin and reuses ticket APR-0419, the one he has.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 200" style="min-width:620px" role="img" aria-labelledby="sb-t">
+          <title id="sb-t">Comparison: the ticket approved install of 2.3.1 with digest 7be1; the call presents replace of 2.3.2 with digest c04d. Three fields differ.</title>
+          <rect x="20" y="16" width="330" height="170" rx="14" class="b-comp"/>
+          <text x="40" y="44" class="tb t-comp">What APR-0419 approved</text>
+          <text x="40" y="80" class="ts">operation</text><text x="160" y="80" class="tm">install</text>
+          <text x="40" y="108" class="ts">plugin</text><text x="160" y="108" class="tm">lab/balance-reader</text>
+          <text x="40" y="136" class="ts">version</text><text x="160" y="136" class="tm">2.3.1</text>
+          <text x="40" y="164" class="ts">digest</text><text x="160" y="164" class="tm">sha256:7be1…</text>
+          <text x="380" y="80" text-anchor="middle" class="tb t-bad">✕</text>
+          <text x="380" y="108" text-anchor="middle" class="tb t-ok">✓</text>
+          <text x="380" y="136" text-anchor="middle" class="tb t-bad">✕</text>
+          <text x="380" y="164" text-anchor="middle" class="tb t-bad">✕</text>
+          <rect x="410" y="16" width="330" height="170" rx="14" class="b"/>
+          <text x="430" y="44" class="tb">What the call presents</text>
+          <text x="430" y="80" class="ts">operation</text><text x="550" y="80" class="tm t-bad">replace</text>
+          <text x="430" y="108" class="ts">plugin</text><text x="550" y="108" class="tm">lab/balance-reader</text>
+          <text x="430" y="136" class="ts">version</text><text x="550" y="136" class="tm t-bad">2.3.2</text>
+          <text x="430" y="164" class="ts">digest</text><text x="550" y="164" class="tm t-bad">sha256:c04d…</text>
+        </svg>
+      </div>
+    </figure>
+    <ol class="steps read">
+      <li>The gate compares the ticket with the request. The operation, version and digest do not match.</li>
+      <li>The gate refuses: "approval does not cover this definition".</li>
+      <li>The core writes exactly one <code>rejected</code> record and no <code>requested</code> record. Version 2.3.1 keeps running, untouched.</li>
+    </ol>
+    <div class="tablewrap">
+      <table class="ledger">
+        <tr><th>auditSeq</th><th>phase</th><th>operation</th><th>actor</th><th>definition</th><th>error</th></tr>
+        <tr><td class="n">2236</td><td><span class="pill p-bad">rejected</span></td><td>replace</td><td>user-kbenali</td><td>2.3.2 · sha256:c04d…</td><td>OperationRejected</td></tr>
+      </table>
+    </div>
+    <p class="why read"><strong>Why it matters.</strong> Even the refusal is on record: who tried, what they tried, and why it was stopped. Note that the digest is a label the gate compares. Bridger does not check that the plugin's code really matches it.</p>
+  </article>
+
+  <!-- C -->
+  <article class="scenario" id="scenario-c">
+    <div class="scenario-tag"><span class="letter">C</span><span class="pill p-you">fail closed, alarm, acknowledged</span></div>
+    <h3>The audit database goes down at night</h3>
+    <div class="read">
+      <p>At 02:14 the plant's Postgres server fails over to its standby. For about seventeen minutes, writes hang longer than the core's audit time limit (10 seconds by default).</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 190" style="min-width:640px" role="img" aria-labelledby="sc-t">
+          <title id="sc-t">Timeline from 02:10 to 02:45. The database is down from 02:14 to 02:31. The audit alarm is on from 02:14 until QA acknowledges at 02:40.</title>
+          <text x="20" y="46" class="ts">Database</text>
+          <rect x="120" y="30" width="68.6" height="24" rx="4" class="b-ok"/>
+          <rect x="188.6" y="30" width="291.4" height="24" rx="4" class="b-bad"/>
+          <text x="334" y="47" text-anchor="middle" class="ts t-bad">down</text>
+          <rect x="480" y="30" width="240" height="24" rx="4" class="b-ok"/>
+          <text x="20" y="82" class="ts">Audit alarm</text>
+          <rect x="120" y="66" width="68.6" height="24" rx="4" class="b"/>
+          <rect x="188.6" y="66" width="445.7" height="24" rx="4" class="b-you"/>
+          <text x="411" y="83" text-anchor="middle" class="ts t-you">ON: operator changes refused</text>
+          <rect x="634.3" y="66" width="85.7" height="24" rx="4" class="b"/>
+          <line x1="120" y1="110" x2="720" y2="110" class="axis"/>
+          <line x1="188.6" y1="104" x2="188.6" y2="116" class="axis"/>
+          <line x1="480" y1="104" x2="480" y2="116" class="axis"/>
+          <line x1="634.3" y1="104" x2="634.3" y2="116" class="axis"/>
+          <text x="120" y="130" class="tm">02:10</text>
+          <text x="188.6" y="130" text-anchor="middle" class="tm">02:14</text>
+          <text x="480" y="130" text-anchor="middle" class="tm">02:31</text>
+          <text x="634.3" y="130" text-anchor="middle" class="tm">02:40</text>
+          <text x="188.6" y="156" text-anchor="middle" class="ts">restart refused</text>
+          <text x="188.6" y="173" text-anchor="middle" class="ts">(AuditUnavailable)</text>
+          <text x="480" y="156" text-anchor="middle" class="ts">database back:</text>
+          <text x="480" y="173" text-anchor="middle" class="ts">retries land once</text>
+          <text x="634.3" y="156" text-anchor="middle" class="ts">QA acknowledges</text>
+          <text x="634.3" y="173" text-anchor="middle" class="ts">reason DEV-0077</text>
+        </svg>
+      </div>
+    </figure>
+    <ol class="steps read">
+      <li>An operator tries to restart the balance plugin. The core cannot record the request in time, so the restart fails with <code>AuditUnavailable</code> and nothing restarts. No record, no change.</li>
+      <li>At the same moment, the outcome record of an earlier change cannot be written either. The core turns on the audit alarm. From now on every operator change is refused; only shutting down is still allowed.</li>
+      <li>The core keeps retrying the unwritten records with the same identifiers. When the database returns at 02:31, the adapter's "store once" rule makes those retries safe.</li>
+      <li>At 02:40 the QA on-call acknowledges the alarm with the reason "DEV-0077: database failover 02:14–02:31". A reason is mandatory, and acknowledging only works once records can be written again.</li>
+    </ol>
+    <p class="why read"><strong>Why it matters.</strong> This scenario only works because the adapter told the truth. An adapter that reported success while the database was down would have kept the alarm off, and nobody would have known that records were missing.</p>
+  </article>
+
+  <!-- D -->
+  <article class="scenario" id="scenario-d">
+    <div class="scenario-tag"><span class="letter">D</span><span class="pill p-you">gap found, deviation opened</span></div>
+    <h3>The monthly review finds a gap</h3>
+    <div class="read">
+      <p>Annex 11 §9 expects audit trails to be reviewed regularly. At the monthly review, QA runs the companion's check over the stored trail of <code>line-3-host</code>.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 660 122" style="min-width:520px" role="img" aria-labelledby="sd-t">
+          <title id="sd-t">Records 2307 to 2312 with record 2310 missing.</title>
+          <rect x="20" y="24" width="90" height="54" rx="10" class="b"/><text x="65" y="56" text-anchor="middle" class="tm">2307</text>
+          <rect x="126" y="24" width="90" height="54" rx="10" class="b"/><text x="171" y="56" text-anchor="middle" class="tm">2308</text>
+          <rect x="232" y="24" width="90" height="54" rx="10" class="b"/><text x="277" y="56" text-anchor="middle" class="tm">2309</text>
+          <rect x="338" y="24" width="90" height="54" rx="10" class="b-bad dash"/><text x="383" y="56" text-anchor="middle" class="tm t-bad">2310</text>
+          <rect x="444" y="24" width="90" height="54" rx="10" class="b"/><text x="489" y="56" text-anchor="middle" class="tm">2311</text>
+          <rect x="550" y="24" width="90" height="54" rx="10" class="b"/><text x="595" y="56" text-anchor="middle" class="tm">2312</text>
+          <text x="383" y="106" text-anchor="middle" class="ts t-bad">record 2310 is missing</text>
+        </svg>
+      </div>
+    </figure>
+<pre><span class="label">Illustrative report</span>host line-3-host · records 1 to 2,480
+gaps:        after 2,309, before 2,311   (1 record missing)
+duplicates:  none
+outOfOrder:  none</pre>
+    <ol class="steps read">
+      <li>Record 2310 is missing. QA opens deviation <strong>DEV-0081</strong>.</li>
+      <li>The investigation finds a manual database restore on 12 September that lost one row. The records on either side, and the host's logs, narrow down what the missing record was about.</li>
+      <li>The finding and the corrective action go into the plant's quality system. That step is entirely the plant's own.</li>
+    </ol>
+    <p class="why read"><strong>Why it matters.</strong> The numbering turned a silent loss into a visible one. Its limits are clear too: it could not have spotted an edited record that kept its number, or lost records after number 2,480. Those risks belong to the database's own protections.</p>
+  </article>
+
+  <!-- E -->
+  <article class="scenario" id="scenario-e">
+    <div class="scenario-tag"><span class="letter">E</span><span class="pill p-ok">reverted, values never stored</span></div>
+    <h3>A configuration change is reverted</h3>
+    <div class="read">
+      <p>Under change request <strong>CR-2026-131</strong>, process engineering widens the balance tolerance for a trial, then puts it back when the trial fails. An auditor asks: is the final value really the original one?</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 160" style="min-width:640px" role="img" aria-labelledby="se-t">
+          <title id="se-t">Three states of tolerance.mg: before the change, fingerprint 9f2c; after record 2402, 41ad; after record 2417, 9f2c again, the original.</title>
+          <rect x="20" y="20" width="220" height="118" rx="12" class="b"/>
+          <text x="38" y="48" class="tb">Before CR-2026-131</text>
+          <text x="38" y="72" class="ts">value: ••• (never stored)</text>
+          <text x="38" y="98" class="tm">fingerprint 9f2c…</text>
+          <line x1="240" y1="79" x2="266" y2="79" class="a"/>
+          <rect x="270" y="20" width="220" height="118" rx="12" class="b-you"/>
+          <text x="288" y="48" class="tb">#2402 reconfigure</text>
+          <text x="288" y="72" class="ts">changed: tolerance.mg</text>
+          <text x="288" y="98" class="tm">fingerprint 41ad…</text>
+          <text x="288" y="122" class="ts t-you">a different value</text>
+          <line x1="490" y1="79" x2="516" y2="79" class="a"/>
+          <rect x="520" y="20" width="220" height="118" rx="12" class="b-ok"/>
+          <text x="538" y="48" class="tb">#2417 reconfigure</text>
+          <text x="538" y="72" class="ts">changed: tolerance.mg</text>
+          <text x="538" y="98" class="tm">fingerprint 9f2c…</text>
+          <text x="538" y="122" class="ts t-ok">the original value again</text>
+        </svg>
+      </div>
+    </figure>
+    <div class="tablewrap">
+      <table class="ledger">
+        <tr><th>auditSeq</th><th>phase</th><th>operation</th><th>configChange.paths</th><th>companion fingerprint</th></tr>
+        <tr><td class="n">2402</td><td><span class="pill p-ok">completed</span></td><td>reconfigure</td><td>["tolerance.mg"]</td><td>41ad… (was 9f2c…)</td></tr>
+        <tr><td class="n">2417</td><td><span class="pill p-ok">completed</span></td><td>reconfigure</td><td>["tolerance.mg"]</td><td>9f2c… (was 41ad…)</td></tr>
+      </table>
+    </div>
+    <p class="why read"><strong>Why it matters.</strong> The core's records only say that <code>tolerance.mg</code> changed. The fingerprints add the proof that record 2417 restored exactly the value in force before 2402, without the trail ever holding the value. Because a tolerance has few likely values, the plant must first decide whether fingerprinting this field is acceptable (part 4 above).</p>
+  </article>
+
+  <!-- F -->
+  <article class="scenario" id="scenario-f">
+    <div class="scenario-tag"><span class="letter">F</span><span class="pill p-comp">evidence produced, PQ by the plant</span></div>
+    <h3>Requalifying after a Bridger upgrade</h3>
+    <div class="read">
+      <p>IT wants to upgrade <code>@bridger/core</code> to its next release. The plant's change procedure requires fresh IQ/OQ evidence for the component before anything reaches production.</p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg class="d" viewBox="0 0 760 120" style="min-width:640px" role="img" aria-labelledby="sf-t">
+          <title id="sf-t">New release, qualification environment, evidence pack with IQ passed and OQ 54 of 54, QA review, then PQ and go-live.</title>
+          <rect x="20" y="28" width="124" height="64" rx="12" class="b-core"/><text x="82" y="56" text-anchor="middle" class="tb">New release</text><text x="82" y="76" text-anchor="middle" class="ts">@bridger/core</text>
+          <line x1="144" y1="60" x2="164" y2="60" class="a"/>
+          <rect x="168" y="28" width="124" height="64" rx="12" class="b"/><text x="230" y="56" text-anchor="middle" class="tb">Qualification</text><text x="230" y="76" text-anchor="middle" class="ts">environment</text>
+          <line x1="292" y1="60" x2="312" y2="60" class="a"/>
+          <rect x="316" y="28" width="124" height="64" rx="12" class="b-comp"/><text x="378" y="56" text-anchor="middle" class="tb">Evidence pack</text><text x="378" y="76" text-anchor="middle" class="ts">IQ ✓ · OQ 54/54 ✓</text>
+          <line x1="440" y1="60" x2="460" y2="60" class="a"/>
+          <rect x="464" y="28" width="124" height="64" rx="12" class="b-you"/><text x="526" y="56" text-anchor="middle" class="tb">QA review</text><text x="526" y="76" text-anchor="middle" class="ts">plant QA</text>
+          <line x1="588" y1="60" x2="608" y2="60" class="a"/>
+          <rect x="612" y="28" width="124" height="64" rx="12" class="b-you"/><text x="674" y="56" text-anchor="middle" class="tb">PQ, then live</text><text x="674" y="76" text-anchor="middle" class="ts">line 3</text>
+        </svg>
+      </div>
+    </figure>
+    <ol class="steps read">
+      <li>In the qualification environment the team installs the new release and runs the companion's evidence task.</li>
+      <li><strong>IQ:</strong> the package name, version and digest match the release record, and its one dependency, <code>effect</code>, is at the pinned version.</li>
+      <li><strong>OQ:</strong> all 54 acceptance requirements, REQ-BR-001 to 054, run against the installed package. Each result carries the run identifier, date and machine, and the pack lists what differs from the previous release's pack.</li>
+      <li>Plant QA reviews the pack, then runs its own PQ on line 3 with the real balance plugin. Only then does the upgrade go live.</li>
+    </ol>
+    <p class="why read"><strong>Why it matters.</strong> The evidence describes what actually happened. Had one requirement failed, the pack would show the failure instead of a hopeful "pass", and the plant would decide what to do before going live.</p>
+  </article>
+</section>
+
+<footer>
+  Bridger · <code>@bridger/gxp</code> guide · 3 October 2026. Based on the core specification in <code>references/core</code> (change records CCR-BR-001 to CCR-BR-013). Every companion name, interface and scenario detail here is illustrative until the P6 specification under <code>references/gxp/</code> is written and approved. Nothing in this guide describes an implemented, validated or qualified system.
+</footer>
+
+</main>
+</body>
+</html>
