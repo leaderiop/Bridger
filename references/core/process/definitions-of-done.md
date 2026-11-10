@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-02                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Process Specification                                        |
-> | Change History | 0.2 (2026-10-03): What `implementation: partial` changes, as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-10): Merge gate row 8 runs the acceptance scenarios against the packed package (C25) (CCR-BR-034)<br>0.2 (2026-10-03): What `implementation: partial` changes, as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 _Previous: [Requirement Identifier Scheme](./requirement-id-scheme.md)_
 
@@ -47,7 +47,7 @@ before the code that must pass it.
 | 5 | `madge --circular --extensions ts packages/*/src` | No circular imports | Not yet runnable |
 | 6 | `tstyche` | Type-level tests (`*.tst.ts`), including undeclared-dependency compile errors and event-key mismatches | Not yet runnable |
 | 7 | `vitest run --coverage` | Tests pass; coverage ≥ 95% on `packages/core` ([NFR-BR-003](../urs.md#nfr-br-003-coverage)) | Not yet runnable |
-| 8 | `pnpm --filter @bridger/features test` | Acceptance scenarios `REQ-BR-NNN` pass | Not yet runnable |
+| 8 | `pnpm --filter @bridger/features test` | Acceptance scenarios `REQ-BR-NNN` pass, importing the packed package by name from a clean install ([validation plan](../gxp/04-validation-plan.md) §5.2) | Not yet runnable |
 | 9 | `node scripts/check-doc-examples.mjs` | Every runnable example in `references/` compiles ([NFR-BR-004](../urs.md#nfr-br-004-executable-documentation-examples)) | Not yet runnable |
 | 10 | `bash references/core/scripts/verify-traceability.sh --strict` | Gate D1 | Runnable |
 | 11 | `node scripts/check-api-surface.mjs` | `overview.md` names every export | Not yet runnable |

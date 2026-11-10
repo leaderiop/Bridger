@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-OVW                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16; core alignment — mission item 5 (grant narrowing), API rows `Entitlement.capabilityPolicy`, `ReadOnly`, `Entitlement.contributionPolicy`, `Policies.first`, `Budget.contributionPolicy`, `Budget.usage`; core `policy` and `settle` replace `skip`; limits updated (CCR-EN-003)<br>0.3 (2026-11-08): Gate scope (`install`, optional `replace`); core seam specified (BEH-BR-089); core modes `unmetered`/`unknown`; API rows `EntitlementGate.piece`, `Entitlement.skipPolicy`, `Skip.first`, `Budget.skipPolicy`; worked example options corrected (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.5 (2026-11-10): API rows `EntitlementAdapter`, `Entitlement.layer`, `EntitlementGate.check`, `Entitlement.inspect`; `EntitlementOptions` and `EntitlementState` rows complete; worked example supplies the options through `Entitlement.layer` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — mission item 5 (grant narrowing), API rows `Entitlement.capabilityPolicy`, `ReadOnly`, `Entitlement.contributionPolicy`, `Policies.first`, `Budget.contributionPolicy`, `Budget.usage`; core `policy` and `settle` replace `skip`; limits updated (CCR-EN-003)<br>0.3 (2026-11-08): Gate scope (`install`, optional `replace`); core seam specified (BEH-BR-089); core modes `unmetered`/`unknown`; API rows `EntitlementGate.piece`, `Entitlement.skipPolicy`, `Skip.first`, `Budget.skipPolicy`; worked example options corrected (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -73,11 +73,12 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
-| `Entitlement` | port | `check(subject)` and `watch(subject)`; the application's adapter |
+| `EntitlementAdapter` | port | `check(subject)` and `watch(subject)`; the application's adapter |
+| `Entitlement`, `Entitlement.layer(adapter, options)` | service, layer | The adapter with its `EntitlementOptions`, required by every component of the package; the only way the options are supplied |
 | `EntitlementSubject` | type | `{ pluginId, realm?, labels }` — labels opaque |
-| `EntitlementState` | type | `{ mode: "full" \| "grace" \| "read-only" \| "none", validUntil?, graceUntil?, reason?, asOf, stale? }`; core adds its own modes `"unmetered"` and `"unknown"` on `Plugin.Runtime.entitled` (BEH-BR-089), which the port never produces |
+| `EntitlementState` | type | `{ mode: "full" \| "grace" \| "read-only" \| "none", validUntil?, graceUntil?, reason?, asOf, stale?, fallbackMode? }`; core adds its own modes `"unmetered"` and `"unknown"` on `Plugin.Runtime.entitled` (BEH-BR-089), which the port never produces |
 | `EntitlementUnavailable`, `NotEntitled` | errors | The port cannot answer; an operation needs more than the current mode |
-| `EntitlementOptions` | type | `onUnavailable`, `staleAfter`, `essential` |
+| `EntitlementOptions` | type | `labels`, `onUnavailable`, `staleAfter`, `checkTimeout`, `essential` |
 
 ### Gate and runtime — [behaviour 02](./behaviors/02-gate-and-runtime.md)
 
@@ -85,8 +86,10 @@ All signatures are illustrative until code exists.
 | ------ | ---- | ------- |
 | `EntitlementGate.gate`, `EntitlementGate.piece` | functions | A `Gate<OperationRequest>` that refuses granting operations for unentitled plugins; `piece` gives the `Gate.all` entry with its timeout |
 | `EntitlementGate.layer` | layer | Provides it as the host's `OperationGate` when it is the only gate |
+| `EntitlementGate.check` | function | The piece's decision for an application's own `authorize`: fails with `OperationRejected` exactly when the piece would refuse |
 | `EntitlementView.layer` | layer | Provides the core port behind `Plugin.Runtime.entitled` |
 | `Entitlement.guard` | function | Fails an effect with `NotEntitled` unless the current mode allows it; skips essential operations |
+| `Entitlement.inspect`, `EntitlementInspection` | member, type | Essential passes per label, refusals per plugin, guard calls outside plugin code |
 | `Entitlement.contributionPolicy`, `Policies.first` | functions | A hook point's `policy` (and `settle`): a not-entitled contribution is skipped ("skipped-policy") or, under `onNotEntitled: "deny"`, denies a veto phase ("denied-policy"); bundles combined in order, a reserving bundle last |
 
 ### Budgets — [behaviour 03](./behaviors/03-budgets.md)
@@ -112,15 +115,19 @@ All signatures are illustrative until code exists.
 
 ```ts
 // illustrative — not type-checked
-const entitlement = Layer.succeed(Entitlement, {
+const entitlement = Entitlement.layer({
   check: (s) => tokens.verify(s),           // application adapter: signed tokens checked offline
   watch: (s) => tokens.watch(s)
+}, {                                        // EntitlementOptions (01, BEH-EN-001, BEH-EN-005, BEH-EN-007)
+  labels: (t) => ({ org: orgOf(t.realm) }),
+  onUnavailable: "last-known", staleAfter: "7 days", checkTimeout: "2 seconds",
+  essential: ["duty:legal"]
 })
 
 const HostLive = Bridger.layer({ /* ... */ }).pipe(
   Layer.provide(EntitlementGate.layer({ onReplace: "allow", gateTimeout: "5 seconds" })),   // the host's gateTimeout
   Layer.provide(EntitlementView.layer),
-  Layer.provide(entitlement)   // with EntitlementOptions { onUnavailable, staleAfter, essential: ["duty:legal"] } (01, BEH-EN-005, BEH-EN-007)
+  Layer.provide(entitlement)
 )
 
 // A plugin that switches itself to read-only:

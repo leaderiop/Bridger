@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-30                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): BEH-BR-292 a handoff's `export`, `upgrade` and `import` run with `Annotations.empty`, whatever the call that caused the stop carries (U-04) (CCR-BR-033)<br>0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
+> | Change History | 0.5 (2026-11-10): BEH-BR-293 and BEH-BR-295 the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-09): BEH-BR-292 a handoff's `export`, `upgrade` and `import` run with `Annotations.empty`, whatever the call that caused the stop carries (U-04) (CCR-BR-033)<br>0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
 
 ---
 
@@ -456,7 +456,7 @@ REQUIREMENT: Core documentation, types and events MUST NOT describe
 
 ```
 REQUIREMENT: When no code adds an annotation, every operation MUST behave
-             exactly as files 02–29 specify; records MUST omit
+             exactly as files 02–20 and 22–34 specify; records MUST omit
              `annotations` and `annotationsOmitted`, and every
              `OperationRequest` MUST carry `Annotations.empty`.
 ```
@@ -551,7 +551,7 @@ REQUIREMENT: The following checks MUST pass before this file's behaviours
                  named in `annotationsOmitted`; the entry records of a
                  `reconcile` carry the `reconcile` call's "audit" keys; call-log entries carry
                  "callLog" keys; no annotation appears in snapshots,
-                 events or logs; with none set, the suites of files 02–29
+                 events or logs; with none set, the suites of files 02–20 and 22–34
                  pass unchanged (BEH-BR-293, BEH-BR-295).
              106. Correlation in the fiber: a call takes `options.context`'s
                  `correlationId`, else the fiber's `CurrentCorrelation`,

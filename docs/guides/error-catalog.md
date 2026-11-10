@@ -29,9 +29,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### DependencyCycle
 
-*error* · origin: core · raised by: `install`, `replace`, `enable`, child install
+*error* · origin: core · raised by: `install`, `replace`, `enable`, child install; `reconcile` (per entry)
 
-- **Cause.** The definition would close a cycle of `requires` (`path` lists it).
+- **Cause.** The definition would close a cycle of `requires` (`path` lists it); in `reconcile`, edges on a cycle are ignored for the order and the desired-list entry that closes the cycle is rejected with it (BEH-BR-156).
 - **Example.** `a` requires `B` provided by `b`, which requires `A` provided by `a`; `path` is `["a","b","a"]`.
 - **Fix.** Break the cycle: move the shared part into its own plugin, or make one edge `optional`.
 
@@ -85,11 +85,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### HostClosed
 
-*error* · origin: core · raised by: every operation once shutdown begins
+*error* · origin: core · raised by: every operation once shutdown begins; a `reconcile` without `atomic` cut by shutdown
 
-- **Cause.** The host is shutting down or closed.
+- **Cause.** The host is shutting down or closed. A `reconcile` without `atomic` that shutdown cuts issues no further action and fails with it; the entry actions already completed stay applied and recorded (BEH-BR-157).
 - **Example.** A background fiber calls `host.use(...)` after the scope closed.
-- **Fix.** Do not call the host after `shutdown`; in tests, check scope boundaries.
+- **Fix.** Do not call the host after `shutdown`; in tests, check scope boundaries. After a cut `reconcile`, run it again on the next host.
 
 ### ConfigInvalid
 
@@ -117,11 +117,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### WouldDeadlock
 
-*error* · origin: core · raised by: stopping operations, `retry`, `enable`, `awaitIdle`
+*error* · origin: core · raised by: stopping operations, `retry`, `enable`, `awaitIdle`; `shutdown` from a plugin's own fibers
 
-- **Cause.** The call would wait for something its own lease or transition blocks (ADR-BR-016).
+- **Cause.** The call would wait for something its own lease or transition blocks (ADR-BR-016). A `shutdown` called from a fiber running a plugin's `build` or `load`, or a finalizer of its activation scope (or a fiber such a fiber awaits), fails at once naming that plugin, begins nothing and writes no record (BEH-BR-105).
 - **Example.** Inside `host.use(Logger, …)`, the callback calls `host.remove("example/logger")`.
-- **Fix.** Do not stop your own provider from inside a call to it; fork the operation outside the lease.
+- **Fix.** Do not stop your own provider from inside a call to it; fork the operation outside the lease. Call `shutdown` from the application, never from a plugin's build, `load` or finalizer.
 
 ### IdleTimeout
 
@@ -358,11 +358,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### NoImplementation
 
-*error* · origin: core/31 · raised by: selector
+*error* · origin: core/31 · raised by: `Selector.use`
 
-- **Cause.** The registry has no implementation for the site.
-- **Example.** The selector for a site finds no implementation in the registry.
-- **Fix.** Install an implementation, or change the selector.
+- **Cause.** No id the selector chose is in the registry's view, or the chosen id left the view before its hold was taken (BEH-BR-307); `run` did not run and no other id was tried.
+- **Example.** The selector for a site finds no implementation in the registry, or the one it chose is removed at that moment.
+- **Fix.** Install an implementation, or change the selector; when the chosen one was being removed, call again.
 
 ### LoadFailed
 
@@ -408,8 +408,8 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core/32 · raised by: `reconcile(desired, { expect: plan })`
 
-- **Cause.** The host changed since `Host.plan` produced the plan (`mismatches`), at the call or at its intent; nothing was applied.
-- **Example.** Another operator replaced a plugin between plan and approval.
+- **Cause.** The host or the desired list changed since `Host.plan` produced the plan (`mismatches`) — an entry's action, its `incoming` version or digest, its `consentDiff`, or a compared option (BEH-BR-319) — at the call or at its intent; nothing was applied.
+- **Example.** Another operator replaced a plugin between plan and approval; or the resolver now returns another digest for an entry.
 - **Fix.** Run `Host.plan` again, have it approved, and apply the new plan.
 
 ### RealmInUse
@@ -443,6 +443,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** The plugin's own handoff step failed (`message`); export or decode failures give a cold start, an import failure fails the activation.
 - **Example.** `import` rejects a state its new version cannot read.
 - **Fix.** Fix the handoff schema or `upgrade`; the `handoff` record names the lost step.
+
+### HandoffExportFailed, HandoffVersionUnaccepted, HandoffUpgradeFailed, HandoffDecodeFailed, HandoffImportFailed, HandoffAbandoned
+
+*record-only* · origin: core/34 · raised by: the `error` of a `handoff` system record only (BEH-BR-350)
+
+- **Cause.** A state handoff on `replace`, `restart` or `reconfigure` was lost at the step the tag names: the old activation's export, a state version the new definition does not accept, `upgrade`, decoding, import; or abandoned because the new build failed or timed out, went `waiting`, was removed, disabled or replaced again, or shutdown began. A `handoff-lost` event names the plugin and the tag; none is ever a call's error.
+- **Example.** A new version of a plugin does not accept the state version the old one exported; the `handoff` record carries `HandoffVersionUnaccepted`.
+- **Fix.** No action on the record; the plugin started without the state. Fix the step named (the handoff schema or `upgrade`), or for `HandoffAbandoned` what stopped the new activation.
 
 ### PolicyMismatch
 
@@ -488,7 +496,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core/32 · raised by: `reconcile(desired, { atomic: true })`
 
-- **Cause.** An entry failed (`failed`) and every applied entry was undone (`undone`).
+- **Cause.** An entry failed (`failed`) and every applied entry was undone (`undone`); also when the apply stopped — for any cause, the latch, an unwritten `requested` record or shutdown included — before any action completed, with `undone` empty (BEH-BR-324).
 - **Example.** The third of four entries fails to activate; the first two are undone in reverse.
 - **Fix.** Fix the failed entry's cause and run again; nothing stayed applied.
 
@@ -517,6 +525,22 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** No federation protocol version common to both sides inside the window, or not a declared peer.
 - **Example.** A host two versions behind its peer.
 - **Fix.** Upgrade one side into the N/N−1 window.
+
+### DialFailed
+
+*port-error* · origin: federation/03 · raised by: `LinkDialer.dial`
+
+- **Cause.** The application's dialer could not open a physical connection to a peer's address; the link is not up.
+- **Example.** The peer's address in the manifest points at a host that is down.
+- **Fix.** Check the peer's address and the network path to it.
+
+### ListenFailed
+
+*port-error* · origin: federation/03 · raised by: `LinkListener.accept`
+
+- **Cause.** The application's listener failed while accepting incoming connections; no incoming link is accepted through it.
+- **Example.** The listener cannot bind its port.
+- **Fix.** Fix the listener (address, port, permissions).
 
 ### RemoteUnavailable
 
@@ -614,6 +638,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** The guest process exited.
 - **Fix.** Expected on shutdown; otherwise a partition handled by the link.
 
+### GuestTransportError
+
+*error* · origin: remote/05, remote/07, remote/09 · raised by: `Guest.serve`; `GuestTransport.accept`
+
+- **Cause.** The guest's transport could not accept connections, or `Guest.serve` refused to start (`reason`; "no-dedupe": a per-call transport with neither a `DedupeStore` nor "idempotent-handlers").
+- **Example.** `Guest.serve` on a request/response runtime with no `dedupe` option.
+- **Fix.** Fix the guest transport; on a per-call transport, give `Guest.serve` a `DedupeStore` or declare "idempotent-handlers".
+
 ### ManifestRejected
 
 *error* · origin: federation/01 · raised by: manifest apply
@@ -621,6 +653,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** A received host manifest is not applied: signature refused, wrong host or authority, revision regressed, undecodable.
 - **Example.** A replayed older signed manifest.
 - **Fix.** Nothing to do locally; the host keeps its applied state; check the authority.
+
+### ResolveFailed
+
+*port-error* · origin: federation/01 · raised by: `PluginResolver.resolve` (supplied by the loader companion)
+
+- **Cause.** A manifest entry's digest could not be resolved to a definition; the entry is dropped from the desired list with its reason and reported, and the other entries are applied.
+- **Example.** The package with the digest a manifest names is not in the loader's catalog.
+- **Fix.** Make the package for that digest available to the loader, or correct the manifest.
 
 ### ManifestUnavailable
 
@@ -806,6 +846,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** Only the publisher signed where a reviewer is also required.
 - **Fix.** Obtain the missing signatures (`bridger countersign`), or configure a rule for the type; hand revocation lists to `RevocationSource.offer`.
 
+### SignatureInvalid
+
+*port-error* · origin: loader/03 · raised by: `SignatureVerifier.verify`
+
+- **Cause.** The signature does not verify against exactly one trusted signer of the verifier's scheme; it counts for nothing (`ignored` of `SignatureRejected`), and the policy decides.
+- **Example.** An Ed25519 signature made with a key the policy does not pin.
+- **Fix.** Sign with a key or identity the policy pins for that scheme.
+
 ### Revoked
 
 *error* · origin: loader/02 · raised by: revocation check of a package
@@ -829,6 +877,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** A verified revocation-list payload is not the `bridger-revocation-set/v1` shape, has a non-positive revision or repeated keys; the offer is `Rejected` ("malformed").
 - **Example.** An issuer that signs a list written by hand rather than by `RevocationSet.encode`.
 - **Fix.** Ask the list issuer to re-issue the list with `RevocationSet.encode`.
+
+### RevocationStoreFailed
+
+*port-error* · origin: loader/04 · raised by: `RevocationStore.load`, `RevocationStore.save`; `RevocationSource.offer`, `RevocationSource.verified` (construction)
+
+- **Cause.** The application's revocation store failed; an unsaved list is not published. Federation reports the failure and offers the list again when it is next received (federation BEH-FD-042).
+- **Example.** The database table that keeps the last revocation list is read-only.
+- **Fix.** Fix the store; the held list is unchanged.
 
 ### RevocationStale
 
@@ -968,11 +1024,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### EntitlementConfigError
 
-*error* · origin: entitlement/02, entitlement/04 · raised by: `EntitlementGate.piece`, `EntitlementGate.layer`, `Entitlement.capabilityPolicy`, `ReadOnly.fromContracts`, `ReadOnly.fromServices`, `Policies.first`
+*error* · origin: entitlement/01, entitlement/02, entitlement/04 · raised by: `Entitlement.layer`, `EntitlementGate.piece`, `EntitlementGate.layer`, `Entitlement.capabilityPolicy`, `ReadOnly.fromContracts`, `ReadOnly.fromServices`, `Policies.first`
 
-- **Cause.** A construction rule of the entitlement package is broken (`component`, `reason`): `checkTimeout` is not shorter than the piece's `timeout`, the stated `gateTimeout` or the host's `resolutionTimeout`; `readOnly`, `onUnclassified` or `onNone` is missing; a classified name is not a method of its contract, or a contract or key is listed twice; a reserving budget bundle is not last in `Policies.first`.
+- **Cause.** A construction rule of the entitlement package is broken (`component`, `reason`): `onUnavailable` absent, or "last-known" without `staleAfter` (`Entitlement.layer`, BEH-EN-001); `checkTimeout` not shorter than the piece's `timeout`, the stated `gateTimeout` or the host's `resolutionTimeout`; `readOnly`, `onUnclassified` or `onNone` missing; a classified name that is not a method of its contract, or a contract or key listed twice; a reserving budget bundle not last in `Policies.first`.
 - **Example.** `Policies.first(quota, entitled)` — the budget bundle reserves, so a later entitlement `Skip` would leave its reservation to expire.
-- **Fix.** Correct what `reason` names: shorten `checkTimeout`, state the missing option, fix the classification, or list the budget bundle last.
+- **Fix.** Correct what `reason` names: state `onUnavailable` (and `staleAfter` with "last-known"), shorten `checkTimeout`, state the missing option, fix the classification, or list the budget bundle last.
 
 ### HistoryUnavailable
 
@@ -984,11 +1040,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### KeyedHashFailed
 
-*port-error* · origin: audit-chain/01 · raised by: `KeyedHasher.mac`
+*port-error (also error)* · origin: audit-chain/01 · raised by: `KeyedHasher.mac`; a generic `ChainSink.append` (audit-chain/04)
 
-- **Cause.** The keyed-hash adapter failed; the sink maps it to `AuditWriteFailed`.
-- **Example.** The hardware module holding the MAC key is offline.
-- **Fix.** Restore the hardware module or key service behind the port.
+- **Cause.** The keyed-hash adapter failed (`keyId`, `permanent`). The audit sink maps it to `AuditWriteFailed`; a generic series' `append` fails with it. `permanent: true` (the key was revoked, retired or destroyed) fails every later write until the sink is rebuilt with another key.
+- **Example.** The hardware module holding the MAC key is offline; or the key was retired while a sink still writes with it.
+- **Fix.** Restore the hardware module or key service behind the port; after a permanent failure, rebuild the sink with another key.
 
 ### RebootstrapFailed
 
@@ -1126,6 +1182,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** An approved apply re-dispatched two days after the plan, past the default 24-hour `planTtl`.
 - **Fix.** Run `reconcile-plan` again and have the new plan approved.
 
+### PlanAffectsCaller
+
+*error* · origin: mcp/04 · raised by: `bridger.host.reconcile-apply`
+
+- **Cause.** An entry action of the stored plan would remove, replace, restart, disable or reconfigure a plugin on the apply's own call path (`planId`, `plugins`): the host-tools plugin, the plugin acting on the caller's behalf, the plugins the handler holds, or a provider whose stop would stop one of them; `reconcile` was not called.
+- **Example.** An agent asks `reconcile-apply` to apply a plan that replaces the MCP server plugin serving that very call.
+- **Fix.** Apply the plan from an operator, or from a dispatch whose call path the plan does not cross.
+
 ### ModelError
 
 *port-error* · origin: agent/01 · raised by: model adapter
@@ -1237,6 +1301,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** A scripted model step did not match (`step`, `reason`: expect-failed, script-exhausted).
 - **Example.** The agent called a tool the script did not expect.
 - **Fix.** Fix the agent or the script.
+
+### UnreachableViolation
+
+*error* · origin: agent/05 · raised by: `AgentTest.assertUnreachable`
+
+- **Cause.** An excluded command is in the toolset the selector yields for a given principal (`principal`, `command`).
+- **Example.** `assertUnreachable` finds `billing/refund` in the toolset of a support agent's principal.
+- **Fix.** Remove the command from that principal's toolset, or drop it from `excluded` if it should be reachable.
 
 ### IdempotencyConflict
 
@@ -1392,11 +1464,19 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### BundleExportFailed
 
-*error* · origin: audit-chain/05 · raised by: `exportBundle`
+*error* · origin: audit-chain/05 · raised by: `exportBundle`; the `ReceiptReader` read by gxp `verifySeals` and `exportTrail`
 
-- **Cause.** The chain store or receipt store could not be read, the series is unknown, or the range is invalid (`reason`); no partial bundle is produced.
+- **Cause.** The chain store or receipt store could not be read, the series is unknown, or the range is invalid (`reason`); no partial bundle is produced. Gxp `verifySeals` fails with it; gxp `exportTrail` fails with `ExportFailed`.
 - **Example.** `exportBundle` for a series id the store does not know.
 - **Fix.** Fix the store access or the requested range and export again.
+
+### AnchorUnconfirmed
+
+*port-error* · origin: audit-chain/03 (BEH-AC-020) · raised by: `AnchorVerifier.confirm`
+
+- **Cause.** The anchor service did not confirm the statement for the receipt (a timestamp token or inclusion proof that does not check against the authority); `confirmAnchors` lists the pair as unconfirmed with its reason and does not pass it to `verifyChain`.
+- **Example.** A timestamp token whose signing certificate does not chain to the configured authority.
+- **Fix.** Check the receipt with the anchor service; a statement read from your own `ReceiptStore` and not confirmed proves nothing against someone who can write that store.
 
 ### PlacementRefused
 
@@ -1422,6 +1502,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A partner principal exceeds its hourly call budget.
 - **Fix.** Wait for the budget window, or raise the principal's budget.
 
+### DedupeUnavailable
+
+*port-error* · origin: remote/09 · raised by: `DedupeStore.claim`, `DedupeStore.complete`
+
+- **Cause.** The guest deployment's dedupe store could not be reached. From `claim`, the call is answered `Refused` "busy" and the handler does not run (the host sees `RemoteBusy`); from `complete`, the result is still sent and the failure logged.
+- **Example.** The key-value store behind the guest's `DedupeStore` times out.
+- **Fix.** Restore the dedupe store; the host may retry a call refused as busy.
+
 ### RevocationListStale
 
 *error* · origin: federation/06 · raised by: `kill` frame handling
@@ -1432,25 +1520,25 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### RebootstrapBlocked
 
-*error* · origin: federation/02 (raised by event-delivery `rebootstrapOutbox`) · raised by: re-bootstrap step 1
+*error* · origin: federation/02 (raised by event-delivery `rebootstrapOutbox().settle`) · raised by: re-bootstrap step 1 (`RebootstrapOutbox.settle` only)
 
-- **Cause.** The outbox could neither push nor keep local facts (`pending`, `reason`: outbox-unsettled, outbox-unavailable, no-outbox-port), or the settlement was refused (`reason`: kept-needs-in-store for "pushed-or-kept" with a whole-store install, no-incarnation-source for a whole-store install without an `IncarnationSource`; event-delivery/06, BEH-DB-048); nothing fetched or installed, links resumed, status `rebootstrap-blocked`, retried next sync.
+- **Cause.** The outbox could neither push nor keep local facts (`pending`, `reason`: outbox-unsettled, outbox-unavailable, no-outbox-port), or the settlement was refused (`reason`: kept-needs-in-store for "pushed-or-kept" with a whole-store install, no-incarnation-source for a whole-store install without an `IncarnationSource`; event-delivery/06, BEH-DB-048); nothing fetched or installed, links resumed, status `rebootstrap-blocked`, retried next sync. `OutboxSettlement.install` never fails with it.
 - **Example.** A terminal with 300 unsent envelopes cannot reach the hub when a snapshot is due.
 - **Fix.** Restore delivery so the outbox settles; wire an outbox port if none is configured; for a whole-store install, wire an `IncarnationSource` or install in store.
 
 ### OutboxFrozen
 
-*error* · origin: event-delivery/06 (BEH-DB-048) · raised by: `publish`
+*error* · origin: event-delivery/06 (BEH-DB-048) · raised by: `publish`; every event-store write (`Stream.append`, `Aggregate.handle`, `run`, `record`, `recordFact`, the handlers of `receive` and `receiveVerbatim`)
 
-- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`); nothing is written and the caller's transaction fails with it.
+- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`); nothing is written and the caller's transaction fails with it. Event-store writes fail with it whether or not their types are published. While the raised incarnation cannot be recorded, it persists after the scope closes (`origin-unrecorded`).
 - **Example.** A terminal records a sale while it installs a fresh snapshot from the hub.
-- **Fix.** Retry the publish after the re-bootstrap ends.
+- **Fix.** Retry the write after the re-bootstrap ends; on `origin-unrecorded`, restore the store so the raised incarnation can be recorded.
 
 ### IncarnationUnavailable
 
-*port-error* · origin: event-delivery/01 (BEH-DB-004) · raised by: `IncarnationSource.current`, `IncarnationSource.raise`
+*port-error* · origin: event-delivery/01 (BEH-DB-004) · raised by: `IncarnationSource.current`, `IncarnationSource.raise`; a whole-store `OutboxSettlement.install`
 
-- **Cause.** The application's incarnation source could not be read or raised (`cause`); a whole-store install that cannot raise it fails.
+- **Cause.** The application's incarnation source could not be read or raised (`cause`). A whole-store install that cannot raise it fails before `run`, so nothing is raised or replaced; federation reports it at step 3a as `rebootstrap-failed` and retries from step 1.
 - **Example.** The file that keeps the incarnation number outside the database is not writable.
 - **Fix.** Fix the incarnation source's storage, which lives outside the store's backups.
 
@@ -1474,11 +1562,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### PayloadDecodeFailed
 
-*error* · origin: event-delivery/01 · raised by: reading envelopes, event-store reads
+*error* · origin: event-delivery/01 · raised by: reading envelopes, event-store reads; the keyring field codec's decode
 
-- **Cause.** The `PayloadCodec` could not decode the payload, or the reader lacks the envelope's `codec`; handled under the subscription's `onPoison` (event-store: the read ends, BEH-ES-032).
+- **Cause.** The `PayloadCodec` could not decode the payload, or the reader lacks the envelope's `codec`; handled under the subscription's `onPoison` (event-store: the read ends, BEH-ES-032). The keyring codec also fails with it, naming `KeyStoreUnavailable`, when the key store cannot be read: a subscription under `onPoison: "halt"` stops before the envelope until `resume` (keyring BEH-KR-012).
 - **Example.** A reader without the keyring codec receives an encrypted envelope.
-- **Fix.** Wire the codec named in `Envelope.codec` on the reader.
+- **Fix.** Wire the codec named in `Envelope.codec` on the reader; for a key-store cause, restore the key store and `resume`.
 
 ### PayloadUnreadable
 
@@ -1594,7 +1682,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### KeyShredded
 
-*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, the field codec's encode
+*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, `rotate`, the field codec's encode
 
 - **Cause.** The subject has a tombstone; no key is given out and nothing is encrypted for it.
 - **Example.** Encrypting a new record for a customer whose data was removed.
@@ -1602,7 +1690,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### KeyStoreUnavailable
 
-*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, `shred`
+*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, `rotate`, `rewrap`, `shred`
 
 - **Cause.** The application's key store could not be reached (`message`).
 - **Example.** The key vault is down.
@@ -1610,19 +1698,19 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### SubjectInvalid
 
-*error* · origin: keyring/01 · raised by: `Keyring.key`, `shred`
+*error* · origin: keyring/01 · raised by: `Keyring.key`, `rotate`, `shred`
 
-- **Cause.** The subject id is not 1–128 characters of `[A-Za-z0-9._:/-]` (`reason`).
+- **Cause.** The subject id is not 1–128 characters of `[A-Za-z0-9._:/-]` (`reason`); or a `shred` was given a blank `reason` (BEH-KR-017).
 - **Example.** A subject id containing a name with spaces.
-- **Fix.** Use an opaque id; the subject id stays readable after a shred.
+- **Fix.** Use an opaque id; the subject id stays readable after a shred. Give every shred a reason that carries no personal data.
 
 ### ShredUnattributed
 
-*error* · origin: keyring/03 (BEH-KR-017) · raised by: `Keyring.shred`
+*error* · origin: keyring/03 (BEH-KR-017, BEH-KR-020) · raised by: `Keyring.shred`; the keyring's handler of a received shred notice
 
-- **Cause.** The shred's resolved actor is `Actor.unattributed`, `Actor.system`, a "bridger:" actor or blank (`subject`). Nothing is written, whatever core's `attribution.require` says.
+- **Cause.** The shred's resolved actor is `Actor.unattributed`, `Actor.system`, a "bridger:" actor or blank (`subject`); nothing is written, whatever core's `attribution.require` says. A received notice whose actor would be refused, or whose `reason` is blank, is neither applied nor acknowledged and is parked (BEH-KR-020).
 - **Example.** A shred run from a background job with no actor.
-- **Fix.** Run the shred under an attributed actor.
+- **Fix.** Run the shred under an attributed actor; for a parked notice, shred again at its origin under an attributed actor with a reason.
 
 ### DecryptFailed
 
@@ -1655,6 +1743,222 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** A `FieldSpec`'s subject function reads a path listed for encryption.
 - **Example.** The subject is read from the `customerId` field that is also encrypted.
 - **Fix.** Read the subject from an unencrypted field.
+
+### GxpLayerInvalid
+
+*error* · origin: gxp/01 (BEH-GX-004) · raised by: `GxpLayer.make`; `approvalGate`, `hmacFingerprinter`, `trailGate`, `recordHighWater`
+
+- **Cause.** The options are refused (`section`, and a `message` naming the section and member, never a value): a port value lacks a method; a blank `scope`; an invalid approval policy (BEH-GX-064); a `requireFingerprints` rule with `fingerprints` "not-used" or no eligibility entry; an invalid eligibility list; a high-water `schedule` outside 1 second to 1 hour; a `trailGate` refusing on nothing; or `trail.sealing.gate` configured while `anchoring` is "unanchored" (BEH-GX-175).
+- **Example.** `GxpLayer.make({ scope: "", … })` — section "scope".
+- **Fix.** Correct the section and member the message names; give a section that is not used as "not-used".
+
+### GxpPlatformUnsupported
+
+*error* · origin: gxp/01 (BEH-GX-002) · raised by: `GxpLayer.make`
+
+- **Cause.** Neither WebCrypto nor `node:crypto` is available (`missing`: "sha256" or "hmac-sha256"); the companion never falls back to a weaker implementation.
+- **Example.** A JavaScript runtime without `crypto.subtle`.
+- **Fix.** Run on a runtime that provides WebCrypto or `node:crypto`.
+
+### GxpCoreVersionUnsupported
+
+*error* · origin: gxp/01 (BEH-GX-007) · raised by: `GxpLayer.make`
+
+- **Cause.** The installed core's `Bridger.version` (`found`) lies outside the core range the companion supports (`supported`).
+- **Example.** A companion release for one core minor line installed beside the next minor line.
+- **Fix.** Install a core version in the supported range, or a companion release that supports yours.
+
+### CanonicalisationFailed
+
+*error* · origin: gxp/01 (BEH-GX-002) · raised by: the companion's canonicalisation, outside the trail sink
+
+- **Cause.** A value RFC 8785 cannot represent exactly — a non-finite number, a lone surrogate, `undefined` in an array, a `bigint`, a `Date` or a non-plain object — at `path`, which never contains the value. A trail record is never refused: the sink writes an escaped encoding and marks the entry.
+- **Example.** A proposal carrying a `Date` object where a string is expected.
+- **Fix.** Convert the value to plain I-JSON (for example strings for dates and big integers).
+
+### TrailWriteFailed
+
+*port-error* · origin: gxp/02 (BEH-GX-009) · raised by: `TrailStore.append`
+
+- **Cause.** The trail store adapter did not store the entry (`reason`: unavailable, too-large, rejected; "conflict" is withdrawn, a collision is stored); the trail sink answers core with `AuditWriteFailed`.
+- **Example.** The trail database is unreachable when a record is written.
+- **Fix.** Fix the store; for "too-large", raise the adapter's entry size limit or find what produced the record.
+
+### TrailReadFailed
+
+*port-error* · origin: gxp/02 (BEH-GX-009) · raised by: `TrailStore.read`, `TrailStore.hosts`; `checkStoredTrail`, `checkHighWater`, `checkApprovals`, `linkApprovals`, `verifySeals`
+
+- **Cause.** The trail store could not be read (`reason`: unavailable, rejected); a check fails rather than report the part it read.
+- **Example.** The trail database drops the connection halfway through a check.
+- **Fix.** Restore read access to the store and run the check again.
+
+### CheckCapacityExceeded
+
+*error* · origin: gxp/05 (BEH-GX-037), gxp/18, gxp/21 · raised by: `checkStoredTrail`, `checkApprovals`, `linkApprovals`, `exportTrail`, `readArchive`, `verifySeals`
+
+- **Cause.** A configured memory bound would be exceeded (`hostId`, `auditSeq`): open requests beyond `maxOpenRequests`, or entries beyond `maxEntries` (default 1,000,000); the check fails rather than drop data or report part of a range.
+- **Example.** `verifySeals` on a host with two million stored entries and the default `maxEntries`.
+- **Fix.** Raise the bound for this host, or, where the function takes a range, use a smaller one.
+
+### AnchorWriteFailed
+
+*port-error* · origin: gxp/06 (BEH-GX-041) · raised by: `AnchorStore.put`; `HighWaterRecorder.recordClose`
+
+- **Cause.** The anchor store did not store a high-water mark (unavailable or refusing); `recordHighWater` counts consecutive failures in its status.
+- **Example.** The separately administered anchor bucket refuses writes.
+- **Fix.** Restore the anchor store; until marks are written again, the entries no mark covers are reported as `unanchoredTail`.
+
+### AnchorReadFailed
+
+*port-error* · origin: gxp/06 (BEH-GX-045) · raised by: `AnchorStore.list`, `AnchorStore.latest`; `checkHighWater`, `verifySeals`
+
+- **Cause.** The anchor store could not be read; the comparison of marks and entries is not reported as done.
+- **Example.** The anchor store's credentials expired before a periodic check.
+- **Fix.** Restore read access to the anchor store and run the check again.
+
+### TicketWriteFailed
+
+*port-error* · origin: gxp/09 (BEH-GX-068) · raised by: `TicketStore.append`; `issueTicket`, `revokeTicket`; the approval gate
+
+- **Cause.** The ticket store did not store the event; the gate refuses with "ticket-store-unavailable" and does not retry, since the append may have taken effect.
+- **Example.** The ticket database is unreachable when the gate consumes a binding.
+- **Fix.** Restore the ticket store; for a call refused meanwhile, check whether its binding was consumed, or issue a new ticket.
+
+### TicketReadFailed
+
+*port-error* · origin: gxp/09 (BEH-GX-068) · raised by: `TicketStore.ticket`, `TicketStore.events`; the approval gate, `checkApprovals`, `linkApprovals`, `listConsumptions`, `staleTickets`
+
+- **Cause.** The ticket store could not be read; the gate refuses with "ticket-store-unavailable" and a check fails.
+- **Example.** The ticket database is down while an operator change is gated.
+- **Fix.** Restore read access to the ticket store.
+
+### TicketVersionConflict
+
+*port-error* · origin: gxp/09 (BEH-GX-068) · raised by: `TicketStore.append`; `issueTicket`, `revokeTicket`
+
+- **Cause.** A compare-and-set lost to a concurrent event on the same ticket; nothing was stored. The gate and `revokeTicket` re-read and retry at most three times.
+- **Example.** Two hosts sharing a ticket store consume the same binding at once.
+- **Fix.** Usually handled; repeated conflicts mean another party writes the same ticket — re-read it.
+
+### IssueRefused
+
+*error* · origin: gxp/09 (BEH-GX-069) · raised by: `issueTicket`
+
+- **Cause.** The policy does not allow the ticket: requests under different "ticket" rules or under an "exempt" rule, a window longer than the rule's `validity` or with `notAfter` not later than `notBefore`, or a request lacking what its rule binds (`reason`, `definition.digest`, a fingerprint per path); `message` names the rule `id` and the field only.
+- **Example.** A reconfigure request without the fingerprints its rule's `requireFingerprints` asks for.
+- **Fix.** Supply what the rule requires, split the requests by rule, or shorten the window.
+
+### RevokeRefused
+
+*error* · origin: gxp/09 (BEH-GX-070) · raised by: `revokeTicket`
+
+- **Cause.** The revocation is refused: a reserved actor, a blank `reason`, an unknown ticket, or a ticket already `consumed`, `expired` or `revoked`.
+- **Example.** Revoking a ticket whose binding the gate has already consumed.
+- **Fix.** Revoke under an attributed actor with a reason; a ticket that is no longer open needs no revocation.
+
+### SignatureDeclined
+
+*port-error* · origin: gxp/10 (BEH-GX-077) · raised by: `SignatureCapture.capture`; `issueTicket`, `signEvidencePack`
+
+- **Cause.** The signer refused to sign (`ticketId`, `meaning`); no signature is recorded and the ticket stays `issued`, unusable until it expires or is revoked.
+- **Example.** The approver presses "Decline" in the identity provider's signing dialog.
+- **Fix.** A decision, not a fault: if the change is still wanted, it needs a new ticket.
+
+### SignatureCaptureFailed
+
+*port-error* · origin: gxp/10 (BEH-GX-077, BEH-GX-078) · raised by: `SignatureCapture.capture`; `issueTicket`, `signEvidencePack`
+
+- **Cause.** The capture failed (`ticketId`, `reason`: unavailable, malformed, timeout after `captureTimeout`, default 10 minutes); "malformed" also when the signer is the requester, an earlier signer of the ticket or a reserved actor. No signature is recorded; the ticket stays `issued` and cannot be signed later.
+- **Example.** The requester tries to approve their own change.
+- **Fix.** Fix the signature port or have a different person sign, under a new ticket.
+
+### GateAttachFailed
+
+*error* · origin: gxp/12 (BEH-GX-089, BEH-GX-094) · raised by: `ApprovalGateLink.attach`
+
+- **Cause.** The approval gate could not attach to the host (`reason`): "already-attached" to another `hostId`; "deadline-required" — the host's `gateTimeout` is "forever" and no `deadline` was given; "deadline-too-long" — the deadline leaves less than 1 second of the gate's budget; "ticket-store-unavailable". Until attached, the gate refuses every request.
+- **Example.** Attaching the gate to a host built with `gateTimeout: "forever"` and no `deadline`.
+- **Fix.** Attach once per host; give a `deadline`, or a finite `gateTimeout` that leaves room for it.
+
+### FingerprintProposalFailed
+
+*error* · origin: gxp/13 (BEH-GX-102) · raised by: `proposeFingerprints`
+
+- **Cause.** The fingerprints the call will carry could not be computed (`reason`: decode-failed, path-not-found, value-outside-domain, key-unavailable, key-id-invalid); the message names no path, value or key id.
+- **Example.** A path in `paths` that the override value does not contain.
+- **Fix.** Pass the value and paths the call will carry; for "key-unavailable", restore the key provider.
+
+### FingerprintKeyUnavailable
+
+*port-error* · origin: gxp/14 (BEH-GX-105) · raised by: `FingerprintKeyProvider.current`, `FingerprintKeyProvider.byId`; `matchesFingerprint`
+
+- **Cause.** The key provider failed (`keyId`, `reason`: unavailable, timeout, malformed — a key that is not HMAC-SHA-256 for "sign", or a missing or invalid key id); `message` is a fixed template. The fingerprinter answers core with `ConfigFingerprintFailed`.
+- **Example.** The KMS holding the fingerprint key is unreachable.
+- **Fix.** Restore the key provider; hand out non-extractable HMAC-SHA-256 keys with valid key ids.
+
+### FingerprintMalformed
+
+*error* · origin: gxp/14 (BEH-GX-110) · raised by: `matchesFingerprint`
+
+- **Cause.** The fingerprint string is not in the `fp1` format.
+- **Example.** A fingerprint copied from a report with its key id cut off.
+- **Fix.** Pass the fingerprint exactly as the record carries it.
+
+### FingerprintCompareRefused
+
+*error* · origin: gxp/14 (BEH-GX-110) · raised by: `matchesFingerprint`
+
+- **Cause.** The comparison is refused (`reason`): "path-not-eligible" — no eligibility entry admits the plugin, path and form in any realm; "value-outside-domain" — the candidate is outside the canonical domain (BEH-GX-100).
+- **Example.** Comparing a candidate for a path the eligibility list does not admit.
+- **Fix.** Compare only eligible paths, with a candidate in the canonical domain.
+
+### RunnerOutputUnreadable
+
+*error* · origin: gxp/16 (BEH-GX-122) · raised by: `collectOqEvidence`
+
+- **Cause.** A test-runner output file does not parse, is truncated, lacks its format's end marker, or holds two tests with the same identity (`path`, `reason`); no report is produced from any file.
+- **Example.** A JUnit file cut short when the CI job ran out of disk.
+- **Fix.** Run the suite again and collect complete runner output.
+
+### EvidenceWriteFailed
+
+*error* · origin: gxp/17 (BEH-GX-129) · raised by: `buildEvidencePack`, `assessDeviation`, `signEvidencePack`
+
+- **Cause.** A file of the evidence pack could not be written (`path`, `reason`); `buildEvidencePack` leaves nothing under `outDir`.
+- **Example.** The output directory is on a full disk.
+- **Fix.** Fix the output location (space, permissions) and run again.
+
+### EvidenceReadFailed
+
+*error* · origin: gxp/17 (BEH-GX-135, BEH-GX-136) · raised by: `signEvidencePack`, `diffPacks`
+
+- **Cause.** A pack could not be read, or does not match its manifest.
+- **Example.** A file of the pack was edited after it was built.
+- **Fix.** Rebuild the pack, or find out what changed its files.
+
+### AssessmentRefused
+
+*error* · origin: gxp/17 (BEH-GX-133) · raised by: `assessDeviation`
+
+- **Cause.** The assessment is refused: an unknown deviation id, a reserved actor or a blank assessment; no file is changed.
+- **Example.** Assessing a deviation id that is not in `deviations.json`.
+- **Fix.** Use a deviation id from `deviations.json`, an attributed actor and a non-blank text.
+
+### ExportFailed
+
+*error* · origin: gxp/18 (BEH-GX-137, BEH-GX-139) · raised by: `exportTrail`
+
+- **Cause.** The archive could not be written: a store read failed (for a sealed export, a `BundleExportFailed` too), or an entry's canonical text holds a raw line feed (`reason` "entry-not-canonical", `auditSeq`); the archive is renamed into place only when complete.
+- **Example.** The trail store becomes unreachable halfway through an export.
+- **Fix.** Fix the store access and export again; investigate an entry that is not canonical.
+
+### ArchiveUnreadable
+
+*error* · origin: gxp/18 (BEH-GX-140) · raised by: `readArchive`
+
+- **Cause.** The archive's manifest does not parse, or its format is not "bridger-gx-archive/2"; any other defect is reported as a finding, not raised.
+- **Example.** A directory whose `manifest.json` was truncated.
+- **Fix.** Check that the directory is an archive written by `exportTrail` and that its manifest is intact.
 
 ## Kit
 
@@ -1767,3 +2071,5 @@ Change log: 2026-11-08, round-2 agent review — entries `RevocationListMalforme
 Change log: 2026-11-08, round-2 integration — entries `OutboxFrozen` and `IncarnationUnavailable`; `RebootstrapBlocked` gains "kept-needs-in-store" and "no-incarnation-source"; `RevocationListStale` raised on an `offer` answer `NotNewer`; a note on the federation status events `revocation-rejected`, `kill-held`, `rebootstrap-revision-mismatch` and remote `WireExit.InProgress` (CCR-BR-029).
 
 Change log: 2026-11-09, audit — the loader's `ManifestMismatch` renamed `PackageManifestMismatch`; entries `NotFirstParty`, `GuestEntryInvalid` (CCR-KT-004), `DraftWithdrawalFailed` (CCR-AG-004) and `InvalidRealm` (core's CCR-BR-032, entry under CCR-KT-004); entries `CommitConflict` (CCR-DB-004), `SupersessionPending` (CCR-SQ-003) and `ShredUnattributed` (CCR-KR-003), `NotOwner` aligned and `CommandRefused` admission refusals and `receiptPartition` failures (CCR-CM-004), entries under CCR-KT-004; entries `SnapshotFailed`, `MalformedBatch`, `UnknownEnvelopeFormat`, `EvolveFailed`, `UpcasterRemoved` and `LedgerUnavailable`, missing before this audit (CCR-KT-004); `InvalidDefinition` raised by `enable` and as a phase "load" cause, entry `LocalContractRefused` and `CallbackDenied` reason "local-contract" (core CCR-BR-033, entries under CCR-KT-004).
+
+Change log: 2026-11-10, audit round 2 — catalog completed (H11): entries for the 27 GxP companion tags, audit-chain `AnchorUnconfirmed`, mcp `PlanAffectsCaller`, agent `UnreachableViolation`, loader `SignatureInvalid` and `RevocationStoreFailed`, remote `GuestTransportError` and `DedupeUnavailable`, federation `ResolveFailed`, `DialFailed` and `ListenFailed`, and core's record-only handoff loss tags; `DependencyCycle`, `HostClosed`, `WouldDeadlock`, `NoImplementation`, `PlanStale`, `ApplyRolledBack`, `KeyedHashFailed`, `BundleExportFailed`, `EntitlementConfigError`, `RebootstrapBlocked`, `OutboxFrozen`, `IncarnationUnavailable`, `PayloadDecodeFailed`, `KeyShredded`, `KeyStoreUnavailable`, `SubjectInvalid` and `ShredUnattributed` updated (CCR-BR-034; kit entries under CCR-KT-005).

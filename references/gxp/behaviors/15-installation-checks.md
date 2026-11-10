@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-15                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): IQ-23 added: the gate pieces "trail" and "chain" used as `expected.sections` declares, with their options recorded (BEH-GX-179); IQ-19 counts the timeouts of the pieces composed before the approval gate; deviation range IQ-01 to IQ-23 (H7, P18) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -88,10 +88,11 @@ declare function runInstallationChecks(
 | IQ-16 | The signature capture port's manifest names its methods and attestation | companion | proof |
 | IQ-17 | The policy digest, its exempt rules and its `acknowledgeAuditDegraded` rule are recorded | companion | proof |
 | IQ-18 | The eligibility digest and its entries are recorded | companion | proof |
-| IQ-19 | `gateTimeout` is finite and exceeds the gate's attached deadline by at least 1 second | companion | proof |
+| IQ-19 | `gateTimeout` is finite and exceeds the gate's attached deadline plus the timeouts of the pieces composed before it by at least 1 second | companion | proof |
 | IQ-20 | The approval gate is attached to this host | companion | proof |
 | IQ-21 | The high-water recorder's `status` reports no consecutive failures; its `lastMarked` is recorded | companion | probe |
 | IQ-22 | Where `Host.controls.idGenerator` is "provided", a draw of `idDraw.count` values from each generator of `idDraw` finds no value repeated within or across them | core #8 (b) | probe |
+| IQ-23 | The host gate's pieces "trail" (`trailGate`) and "chain" (audit-chain's `ChainGate`) are used or "not-used" as `expected`; the options of each used piece are recorded | companion | proof |
 
 ```
 REQUIREMENT: `runInstallationChecks` MUST produce exactly one result for each
@@ -175,7 +176,7 @@ REQUIREMENT: The items of the second table MUST always be listed with outcome
 ```
 
 ```
-REQUIREMENT: Every "fail", and every "not-executed" result of IQ-01 to IQ-22,
+REQUIREMENT: Every "fail", and every "not-executed" result of IQ-01 to IQ-23,
              MUST also be recorded as a deviation in the evidence pack
              (BEH-GX-133). A "not-applicable" result MUST NOT be recorded as
              a deviation, but its reason MUST be shown in every rendering.
@@ -243,7 +244,8 @@ interface InstallationRequirements {
   readonly gateTimeout: Duration.Input | "forever"
   readonly fingerprintTimeout: Duration.Input
   readonly sections: { readonly anchors: "used" | "not-used"; readonly approvals: "used" | "not-used"
-                       readonly fingerprints: "used" | "not-used"; readonly sealing: "on" | "off" }
+                       readonly fingerprints: "used" | "not-used"; readonly sealing: "on" | "off"
+                       readonly trailGate: "used" | "not-used"; readonly chainGate: "used" | "not-used" }   // IQ-23
 }
 ```
 
@@ -376,6 +378,17 @@ REQUIREMENT: IQ-11 MUST fail when the manifest of any wired companion port —
 ```
 
 ```
+REQUIREMENT: IQ-23 MUST fail when the piece "trail" or "chain" of the host
+             gate (BEH-GX-178) is used where `expected.sections` says
+             "not-used" or the reverse, read from `options.gxp`. It MUST
+             record, as `observed`, the `refuseOn` members and `allow` list
+             of a used `trailGate` and the options of a used `ChainGate`; for
+             a `trailGate` given "not-used" its result MUST carry the
+             statement "Marked entries do not stop operator changes."
+             (BEH-GX-179).
+```
+
+```
 REQUIREMENT: IQ-16 MUST print the signature port's `name`, `version`,
              `methods` and attestation document and version, and MUST mark
              them "attested, not verified by @bridger/gxp" (BEH-GX-079). It
@@ -441,15 +454,15 @@ interface IqReport {
   readonly hostId: string
   readonly runAt: string                              // from Clock
   readonly controls: HostControls                     // the snapshot every core check was derived from
-  readonly results: readonly IqResult[]               // IQ-01 … IQ-22, then IQ-U1 … IQ-U10
+  readonly results: readonly IqResult[]               // IQ-01 … IQ-23, then IQ-U1 … IQ-U10
   readonly statement: string
 }
 ```
 
 ```
 REQUIREMENT: IQ-19 MUST fail when `gateTimeout` is "forever", or when it
-             exceeds the deadline reported by `ApprovalGateLink.status` by
-             less than 1 second; with "forever" the evidence pack MUST also
+             exceeds the sum of the `deadline` and `precededBy` reported by
+             `ApprovalGateLink.status` (BEH-GX-094) by less than 1 second; with "forever" the evidence pack MUST also
              carry the deviation "non-finite gateTimeout" (BEH-GX-133). IQ-20
              MUST fail when the gate's attached `hostId` differs from
              `Host.controls.hostId` or is absent.

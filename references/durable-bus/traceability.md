@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-TRACE                                             |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 — REQ-DB-042–044; INV-DB-002, 004, 005 and 009 rows extended (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-DB-039–041; REQ-DB-031, 033, 034, 037, 038 restated; INV-DB-006, 009, 011 rows extended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — BEH-DB-008, 016, 031, 032, 048, INV-DB-009–011, ADR-DB-009, REQ-DB-031–038 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — BEH-DB-047; REQ-DB-028–030; check texts aligned with BEH-DB-058 (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — REQ-DB-024 and REQ-DB-044 restated (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — REQ-DB-042–044; INV-DB-002, 004, 005 and 009 rows extended (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-DB-039–041; REQ-DB-031, 033, 034, 037, 038 restated; INV-DB-006, 009, 011 rows extended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — BEH-DB-008, 016, 031, 032, 048, INV-DB-009–011, ADR-DB-009, REQ-DB-031–038 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — BEH-DB-047; REQ-DB-028–030; check texts aligned with BEH-DB-058 (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -43,7 +43,7 @@ requirements and risks are registered in the core `urs.md` and
 | [INV-DB-004](invariants.md#inv-db-004-an-inbox-records-each-envelope-processed-at-most-once-per-subscription) | BEH-DB-015, 018, 020, 021 | ADR-DB-003 | REQ-DB-009, 011, 043 |
 | [INV-DB-005](invariants.md#inv-db-005-handlers-see-each-stream-in-sequence-without-skipping) | BEH-DB-018, 020, 021, 022, 033 | ADR-DB-004 | REQ-DB-009, 015, 029, 043 |
 | [INV-DB-006](invariants.md#inv-db-006-no-envelope-is-dropped-silently) | BEH-DB-008, 014, 016, 018, 019, 022, 026, 044, 045, 047 | ADR-DB-005, ADR-DB-006 | REQ-DB-013, 014, 024, 025, 028, 029, 031, 038, 040 |
-| [INV-DB-007](invariants.md#inv-db-007-hlc-timestamps-issued-by-a-node-strictly-increase) | BEH-DB-034, 035 | ADR-DB-004 | REQ-DB-017, 018 |
+| [INV-DB-007](invariants.md#inv-db-007-hlc-timestamps-issued-under-one-origin-strictly-increase) | BEH-DB-034, 035 | ADR-DB-004 | REQ-DB-017, 018 |
 | [INV-DB-008](invariants.md#inv-db-008-in-flight-delivery-is-bounded-by-the-receivers-credit) | BEH-DB-041, 042, 047 | ADR-DB-006 | REQ-DB-021, 022, 023, 030 |
 | [INV-DB-009](invariants.md#inv-db-009-no-snapshot-restore-removes-an-unacknowledged-outbox-envelope) | BEH-DB-004, 044, 048 | ADR-DB-006 | REQ-DB-033, 034, 039, 044 |
 | [INV-DB-010](invariants.md#inv-db-010-a-payload-reaches-storage-and-the-wire-only-through-the-payload-codec) | BEH-DB-008 | ADR-DB-008 | REQ-DB-031 |
@@ -92,7 +92,7 @@ One scenario per required acceptance check of [BEH-DB-058](behaviors/08-testing-
 | REQ-DB-021 | 21. The relay never exceeds the receiver's credit; zero credit waits `Ack.retryAfter` | [BEH-DB-041](behaviors/06-replay-and-snapshots.md) | Not run |
 | REQ-DB-022 | 22. Reconnect backoff uses seeded full jitter between `retryMin` and `retryMax` | [BEH-DB-042](behaviors/06-replay-and-snapshots.md) | Not run |
 | REQ-DB-023 | 23. A high-priority stream is delivered while a large low-priority backlog drains, with order kept in each stream | [BEH-DB-043](behaviors/06-replay-and-snapshots.md) | Not run |
-| REQ-DB-024 | 24. A follower behind the source's retained history receives `SnapshotRequired` from `HistorySource.read`; restore, watermark and cursor resets commit together; without a provider following stays stopped | [BEH-DB-044](behaviors/06-replay-and-snapshots.md), [BEH-DB-047](behaviors/06-replay-and-snapshots.md) | Not run |
+| REQ-DB-024 | 24. A follower behind the source's retained history receives `SnapshotRequired` from `HistorySource.read`; restore, watermark and cursor resets commit together; a watermark moved past unstored sequences is recorded as a `GapRecord`; without a provider following stays stopped | [BEH-DB-019](behaviors/03-delivery-and-inbox.md), [BEH-DB-044](behaviors/06-replay-and-snapshots.md), [BEH-DB-047](behaviors/06-replay-and-snapshots.md) | Not run |
 | REQ-DB-025 | 25. The push path carries no `SnapshotRequired`; an inbox accepts a backlog however old | [BEH-DB-045](behaviors/06-replay-and-snapshots.md) | Not run |
 | REQ-DB-026 | 26. `forward` emits on the core bus after commit; a failing core listener leaves the cursor advanced; the bus never touches `Bridger.Events` otherwise | [BEH-DB-049](behaviors/07-core-bus-and-adapters.md), [BEH-DB-050](behaviors/07-core-bus-and-adapters.md) | Not run |
 | REQ-DB-027 | 27. Stopping the bus plugin mid-batch leaves unacknowledged envelopes pending and rolls back running handlers; the build makes no transport call; a caller's `publish` is not interrupted | [BEH-DB-051](behaviors/07-core-bus-and-adapters.md), [BEH-DB-052](behaviors/07-core-bus-and-adapters.md) | Not run |
@@ -112,4 +112,4 @@ One scenario per required acceptance check of [BEH-DB-058](behaviors/08-testing-
 | REQ-DB-041 | 41. Every `publish` error writes nothing and rolls back the caller's write if unhandled | [BEH-DB-009](behaviors/02-transactional-outbox.md), [BEH-DB-031](behaviors/04-versions-and-upcasters.md) | Not run |
 | REQ-DB-042 | 42. `publish` options: a given stream (own sequence), an empty one refused as a defect, causation outside a handler | [BEH-DB-003](behaviors/01-events-and-envelope.md), [BEH-DB-005](behaviors/01-events-and-envelope.md), [BEH-DB-009](behaviors/02-transactional-outbox.md) | Not run |
 | REQ-DB-043 | 43. A commit conflict is retried in a new transaction and, when the attempts end on one, halts without parking; `receive` stores nothing on a conflict | [BEH-DB-018](behaviors/03-delivery-and-inbox.md), [BEH-DB-021](behaviors/03-delivery-and-inbox.md), [BEH-DB-054](behaviors/07-core-bus-and-adapters.md) | Not run |
-| REQ-DB-044 | 44. `origin` and `originChanges`; store-swap participants run before a whole-store install, and a failing one stops it | [BEH-DB-004](behaviors/01-events-and-envelope.md), [BEH-DB-048](behaviors/06-replay-and-snapshots.md) | Not run |
+| REQ-DB-044 | 44. `origin` and `originChanges`; store-swap participants run before a whole-store install, and a failing one stops it; the incarnation is raised before `run`, a failing raise stops the install, and the old origin is never used after a raise | [BEH-DB-004](behaviors/01-events-and-envelope.md), [BEH-DB-048](behaviors/06-replay-and-snapshots.md) | Not run |

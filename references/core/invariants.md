@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.13                                                         |
+> | Revision       | 0.14                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.13 (2026-11-09): INV-BR-024 generated identifiers are unique within their host and across hosts sharing a store, an obligation on the generator that core does not check (F-03); INV-BR-004 the staleness of a build that imports handed-off state is decided before the import (U-02); INV-BR-045 covers `restart` and `reconfigure` under `alsoOn`, the stop's final step, and a superseded build that leaves the value held (C-14, U-02) (CCR-BR-033)<br>0.12 (2026-11-09): INV-BR-018 the final snapshot holds exactly the `failed(cleanup)` plugins of the report (U-01); INV-BR-020 verification: no realm isolates the host or its bus (C-02) (CCR-BR-032)<br>0.11 (2026-11-08): INV-BR-046 covers idling and refused declarations, `HostLink.none` and failed reads, and states its scope (forged links, gap G64); INV-BR-052 retitled to Effect members with the residual named (CCR-BR-029)<br>0.10 (2026-11-08): INV-BR-046–047; INV-BR-040 and INV-BR-032 amended (CCR-BR-024); INV-BR-048–049 (CCR-BR-025); INV-BR-050–052 (CCR-BR-026)<br>0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.14 (2026-11-10): INV-BR-026 covers files 02–21 and 26–34, and its differential test compares generated identifiers by order of first appearance (C12; audit round 2, Low); INV-BR-043 names what `expect` compares and that configuration values are outside a plan (H2); INV-BR-037 statement and verification cover files 02–20 and 22–34 (review of CCR-BR-034) (CCR-BR-034)<br>0.13 (2026-11-09): INV-BR-024 generated identifiers are unique within their host and across hosts sharing a store, an obligation on the generator that core does not check (F-03); INV-BR-004 the staleness of a build that imports handed-off state is decided before the import (U-02); INV-BR-045 covers `restart` and `reconfigure` under `alsoOn`, the stop's final step, and a superseded build that leaves the value held (C-14, U-02) (CCR-BR-033)<br>0.12 (2026-11-09): INV-BR-018 the final snapshot holds exactly the `failed(cleanup)` plugins of the report (U-01); INV-BR-020 verification: no realm isolates the host or its bus (C-02) (CCR-BR-032)<br>0.11 (2026-11-08): INV-BR-046 covers idling and refused declarations, `HostLink.none` and failed reads, and states its scope (forged links, gap G64); INV-BR-052 retitled to Effect members with the residual named (CCR-BR-029)<br>0.10 (2026-11-08): INV-BR-046–047; INV-BR-040 and INV-BR-032 amended (CCR-BR-024); INV-BR-048–049 (CCR-BR-025); INV-BR-050–052 (CCR-BR-026)<br>0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -966,7 +966,7 @@ action.
 ## INV-BR-026: An unwired sink or gate changes nothing
 
 A host constructed with no `AuditSink`, no `OperationGate` and default
-`attribution` behaves exactly as files 02–21 specify — the same outcomes,
+`attribution` behaves exactly as files 02–21 and 26–34 specify — the same outcomes,
 errors, snapshots and events, with no added waiting — and nothing in it
 claims an audit exists. Likewise, a host with no `ConfigFingerprinter` wired
 skips step 4a of BEH-BR-188: its records and requests carry `configChange`
@@ -992,11 +992,13 @@ log, `CloseReport` or document implies its changes are recorded. A permissive
 default gate would have been a control that does nothing while appearing to
 be one, so there is none.
 
-**Verification** *(Planned)*: the acceptance scenarios of files 02–21 run on
-a host with no ports; a differential property test comparing, for generated
+**Verification** *(Planned)*: the acceptance scenarios of files 02–21 and
+26–34 run on a host with no ports; a differential property test comparing, for generated
 operation scripts, a host with no ports against one wired with the in-memory
 sink fixture and a scripted gate that allows every request, asserting equal
-outcomes, snapshots and events apart from audit fields; a type-level check
+outcomes, snapshots and events apart from audit fields and identifiers drawn
+from `IdGenerator`, which are compared by order of first appearance (check
+38); a type-level check
 that `Bridger.layer`'s requirements exclude `AuditSink`, `OperationGate` and
 `ConfigFingerprinter`.
 
@@ -1350,7 +1352,7 @@ route equals the specified order (check 69).
 
 With no mandatory interception, no `AccessPolicy`, no `CapabilityPolicy`,
 no `CallLog`, default `allowChildren` and no annotation set, every operation
-behaves exactly as files 02–25 specify; the only difference a wired sink
+behaves exactly as files 02–20 and 22–34 specify; the only difference a wired sink
 sees is `onBehalfOf` on records of calls made from plugin code.
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — the three ports are
@@ -1362,7 +1364,7 @@ read once with `Effect.serviceOption` and are not in the requirements of
 unwired policy is reported as unwired by `Host.controls`, so it cannot be
 mistaken for a wired one.
 
-**Verification** *(Planned)*: the suites of files 02–25 on a host with none
+**Verification** *(Planned)*: the suites of files 02–20 and 22–34 on a host with none
 wired; a type-level check of `Bridger.layer`'s requirements (checks 70, 73,
 76).
 
@@ -1491,7 +1493,11 @@ timing-out and breaker-open hooks; check 79.
 
 `Host.plan` performs no action, record, event, gate or fingerprinter call;
 `reconcile` with `expect` issues no entry action unless its diff, at the call
-and again at its intent, equals the plan.
+and again at its intent, equals the plan — entries, actions and their order,
+each entry's expected registration, incoming version and digest, consent
+diff, policy and configuration paths. Configuration values are not part of a
+plan and are not compared (BEH-BR-318); a gate that must bind them uses the
+fingerprints of the entry's gate request (BEH-BR-188).
 
 **Source**: `packages/core/src/Plan.ts` and `packages/core/src/Reconcile.ts`
 *(Planned)* — `plan` shares the diff computation with `reconcile` and stops
@@ -1499,7 +1505,8 @@ before the intent; `expect` is compared at step 4 and after the diff is
 recomputed at the intent, using per-plugin `registeredAt`.
 
 **Implication**: what an approver reviewed is what runs, or nothing runs; a
-dry run can never apply by mistake.
+dry run can never apply by mistake. A plan approved for one version of a
+plugin cannot apply another.
 
 **Verification** *(Planned)*: differential property test (plan vs. the
 actions reconcile then takes) over random host states; scenarios changing

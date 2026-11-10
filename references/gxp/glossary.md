@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GLOSSARY                                          |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Glossary                                                     |
-> | Change History | 0.3 (2026-11-09): Installation checks: core's eight checks (IQ-01 to IQ-07, IQ-22 and IQ-U10) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Trail entry, marked entry, collision entry, trail gate; anchor store holds high-water marks only; sealing and seal verification are `@bridger/audit-chain`'s; canonical domain I-JSON (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): Check on read and unanchored tail: findings taken from audit-chain named apart (`chainUnanchoredTail`, unconfirmed receipts, loss-counter rises) (P14, P16) (CCR-GX-005)<br>0.3 (2026-11-09): Installation checks: core's eight checks (IQ-01 to IQ-07, IQ-22 and IQ-U10) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Trail entry, marked entry, collision entry, trail gate; anchor store holds high-water marks only; sealing and seal verification are `@bridger/audit-chain`'s; canonical domain I-JSON (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -109,7 +109,9 @@ named kinds — gaps, duplicates, disorder, digest and canonical mismatches,
 unknown `schemaVersion`, `requested` records without a terminal
 record, dropped records, marked and colliding entries, an unclean close,
 incomplete approval linking, tail loss, an unanchored tail, and, mapped from
-audit-chain's report, chain breaks, anchor mismatches and head mismatches. A run with no findings reports "no findings of the checked
+audit-chain's results under names of their own, chain breaks, anchor
+mismatches, head mismatches, the chain's unanchored tail, non-canonical
+links, loss-counter rises and unconfirmed receipts. A run with no findings reports "no findings of the checked
 kinds"; it does not say the trail is complete
 ([ADR-GX-007](./decisions/007-checks-never-claim-integrity.md)).
 
@@ -137,9 +139,11 @@ from the trail.
 
 ### Unanchored tail
 
-The entries of a host stored after its last anchor. Neither tail loss nor
-alteration within the unanchored tail can be detected against an anchor;
-checks report its extent.
+The entries of a host stored after its last anchor: after its highest
+high-water mark (`unanchoredTail`, BEH-GX-046) or, in seal verification,
+after its last confirmed chain anchor (`chainUnanchoredTail`, BEH-GX-171).
+Neither tail loss nor alteration within the unanchored tail can be detected
+against that anchor; checks report its extent.
 
 ### Sealing, link
 

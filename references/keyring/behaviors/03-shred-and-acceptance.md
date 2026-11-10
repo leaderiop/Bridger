@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-03                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — a shred requires an attributed actor (`ShredUnattributed`); the tombstone keeps the shred's actor, `onBehalfOf`, correlation, reason and origin, written once and never changed; the notice carries the reason and time and is published under the shred's context, and a receiving host keeps the origin's attribution as a claim; the receipt exposes the attribution; checks 10 and 12 extended (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-017 persists step state, resumes incomplete shreds at start and on a repeated `shred`, opens its own transactions and commits the notice with the tombstone when the `KeyStore` shares the outbox; BEH-KR-020 and 021 report acknowledging and `KeyStore`-declared hosts only; BEH-KR-022 `notStated` names undeclared hosts; BEH-KR-024 checks 7, 10 and 12 extended (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-017 cites URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-KR-020: a received notice whose envelope actor a local shred would refuse is not applied (`ShredUnattributed`, parked); the `AccessPolicy` rules that keep the notice's event type to the keyring plugin and to trusted origins are a stated obligation; checks 7 and 12 extended (P12; key-store outage on decode) (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — a shred requires an attributed actor (`ShredUnattributed`); the tombstone keeps the shred's actor, `onBehalfOf`, correlation, reason and origin, written once and never changed; the notice carries the reason and time and is published under the shred's context, and a receiving host keeps the origin's attribution as a claim; the receipt exposes the attribution; checks 10 and 12 extended (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-017 persists step state, resumes incomplete shreds at start and on a repeated `shred`, opens its own transactions and commits the notice with the tombstone when the `KeyStore` shares the outbox; BEH-KR-020 and 021 report acknowledging and `KeyStore`-declared hosts only; BEH-KR-022 `notStated` names undeclared hosts; BEH-KR-024 checks 7, 10 and 12 extended (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-017 cites URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -214,6 +214,33 @@ REQUIREMENT: `shred` MUST publish `SubjectShredded { subject, shredId,
 ```
 
 ```
+REQUIREMENT: A received notice MUST pass the attribution rule of a local
+             shred before any step: when the envelope's actor is one that
+             BEH-KR-017 refuses (reserved, `bridger:` or blank) or its
+             `reason` is blank, the keyring MUST NOT apply or acknowledge
+             it, MUST log it at error level with the origin and `shredId`,
+             and its handler MUST fail with `ShredUnattributed { subject }`;
+             the keyring's notice subscription MUST be registered with
+             `onPoison: "park-and-continue"`, so that such a notice is
+             parked, visible and never applied, and later notices still
+             arrive (durable-bus BEH-DB-021).
+```
+
+```
+REQUIREMENT: The grant on `shred` (BEH-KR-008) does not reach a notice: any
+             code that can publish the notice's event type on a host makes
+             every receiving keyring shred. Documentation MUST therefore
+             require the consumer's core `AccessPolicy` (core BEH-BR-269,
+             durable-bus BEH-DB-053) to allow `{ kind: "emit", event:
+             SubjectShredded, mode: "publish" }` only to the keyring
+             plugin's principal, on every host, and the keyring's
+             `{ kind: "listen", event: SubjectShredded, style: "delivery",
+             origin }` only from the origins whose shreds the host accepts.
+             The keyring cannot check either rule itself; a received
+             actor stays a claim of the origin (durable-bus BEH-DB-006).
+```
+
+```
 REQUIREMENT: A host restored from a backup MUST re-apply every received
              tombstone before it serves `decrypt` (BEH-KR-007).
 ```
@@ -287,8 +314,9 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 with `KeyShredded`; encoding an existing marker stores it
                 without a key, so a late fact about the subject is recorded
                 (event-store BEH-ES-030); replays and projections continue;
-                an upcaster passes a marker through (BEH-KR-009,
-                BEH-KR-012).
+                an upcaster passes a marker through; a key-store outage
+                fails the decode with `PayloadDecodeFailed`, never a marker
+                or `PayloadUnreadable` (BEH-KR-009, BEH-KR-012).
              8. Chains: a chain over stored events verifies before and after
                 a shred, byte-identical stored rows (BEH-KR-014).
              9. Determinism with `fixedNonces` (BEH-KR-015).
@@ -310,7 +338,12 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  when it arrives twice, and its tombstone keeps the origin's
                  actor, correlation, origin, reason and `shreddedAt` with
                  `received`; a resumed notice carries the shred's actor and
-                 correlation; the receipt lists acknowledging and
+                 correlation; a notice under a reserved or blank actor, or
+                 with a blank reason, is parked and not applied; with the
+                 documented `AccessPolicy`, a notice published by another
+                 plugin is refused with `AccessRefused` and one from an
+                 origin the policy does not accept is not applied; the
+                 receipt lists acknowledging and
                  declared hosts; a restored host re-applies tombstones; every
                  receipt lists `notStated`; wording lint (BEH-KR-020,
                  BEH-KR-021, BEH-KR-022, BEH-KR-023).

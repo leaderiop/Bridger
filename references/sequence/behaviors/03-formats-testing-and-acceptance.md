@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): BEH-SQ-019 adds a `rebootstrap` fixture; BEH-SQ-020 check 1 covers handles of an earlier origin, checks 11 (re-bootstrap on a running host) and 12 (grants on the `Sequence` members) added (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — check 8 covers authority-side recording with `SeriesFacts` (P5); check 12 covers appends under `asSelf` (CCR-SQ-004)<br>0.3 (2026-11-09): BEH-SQ-019 adds a `rebootstrap` fixture; BEH-SQ-020 check 1 covers handles of an earlier origin, checks 11 (re-bootstrap on a running host) and 12 (grants on the `Sequence` members) added (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -96,7 +96,12 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
              8. Verification: purity and totality over decoded inputs in any
                 order (property test); gaps, duplicates, after-close, foreign
                 writer (including a `SeriesSuperseded` from another node),
-                missing previous, retirement (BEH-SQ-012–015).
+                missing previous, retirement; series events recorded at an
+                authority with `SeriesFacts.receive` keep the issuer's
+                stream, a redelivery is "already-recorded", and
+                `SeriesEventInput.of` gives the issuer's `eventId`s, so that
+                a duplicate is reported with the issuer's ids
+                (BEH-SQ-011–015).
              9. Chaining: chain `seq` equals stream version; series id is not
                 a host id (BEH-SQ-016).
              10. Formats and storage: integers only; no storage port; no
@@ -114,7 +119,10 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
              12. Grants: a capture of `Sequence` granted `open` and `next`
                  issues numbers through a `Series` handle and is refused
                  `close`; the plugin appends through its own `EventStore`
-                 capture (BEH-SQ-003, BEH-SQ-008).
+                 capture, under `asSelf`: the series events carry the
+                 `Sequence` plugin as `onBehalfOf` and the caller's actor,
+                 and the access policy's `emit` question names the
+                 `Sequence` plugin (BEH-SQ-003, BEH-SQ-008).
 ```
 
 **Settled here.** (1) Integers only (BEH-SQ-017). (2) The event store is the

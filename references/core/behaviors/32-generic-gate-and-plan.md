@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-32                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-09): BEH-BR-318 a plan rejection's `_tag` is the concrete tag of the error, an `InstallError` member's own tag, never the union's name (C-07) (CCR-BR-033)<br>0.6 (2026-11-08): BEH-BR-318 and BEH-BR-319 `expect` compares `pruneDrain` and `pruneForce` only when `prune` or `atomic` is true (host-core prototype finding G-P23), BEH-BR-326 aligned; BEH-BR-323 a two-action undo step that stops halfway is one `notUndone` entry (G-P24); checks REQ-BR-083 and REQ-BR-099 amended (CCR-BR-030)<br>0.5 (2026-11-08): BEH-BR-317 `plan` and atomic validation consult the `RefusalList`; BEH-BR-318 `rejected` may carry a refusal, `registeredAt` tracks the operator's flag; BEH-BR-322 a step-4b refusal stops an atomic apply; BEH-BR-323 undo of `replace` restores the entry's previous override, expected revision moves with the undo, the "refused-digest" reason is not restored; BEH-BR-326 undo removals use the prune options whatever `prune` is (agent review R1-01, R1-02, R1-07, R1-11, R1-12) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-317 `plan` MUST decode a `reconfigure` value to compute the recorded paths (host-core prototype finding G-P10); BEH-BR-319 `PlanStale` mismatches not about one entry carry no `id` or `realm` (G-P9) (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-322–326 atomic apply (`atomic: true`): dependency order, stop at the first failure, undo in reverse, `ApplyRolledBack` and `PartialApply`, records with `undoes`, gate requests with `undo`, interaction with leases, drain, `PlanStale`, the latch, interruption and shutdown; BEH-BR-318 plan carries `atomic`, `undo` and `policy`, and `PolicyMismatch` among rejections; BEH-BR-319 compares `atomic`; acceptance checks 99 and 100 (CCR-BR-025)<br>0.2 (2026-11-08): `plan` may decode `reconfigure` values to compute paths (never exposed); `configChange.paths` and the prune options are part of the `expect` comparison; plan `rejected` reasons are `{ _tag, message }`; `Gate.all` pieces take a timeout (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.8 (2026-11-10): BEH-BR-319 `expect` also compares each entry's `incoming` version and digest and its `consentDiff`, and configuration values are stated to be outside a plan (H2); BEH-BR-324 `notUndone` is never empty, an apply stopped before any action completed fails with `ApplyRolledBack` (audit round 2, Low); BEH-BR-325 `children` counts the actions that wrote a record of their own (audit round 2, Low); REQ-BR-083 extended (H2); BEH-BR-326 and REQ-BR-100: a latch or shutdown before any forward action completed yields `ApplyRolledBack`, as BEH-BR-324 (review of CCR-BR-034) (CCR-BR-034)<br>0.7 (2026-11-09): BEH-BR-318 a plan rejection's `_tag` is the concrete tag of the error, an `InstallError` member's own tag, never the union's name (C-07) (CCR-BR-033)<br>0.6 (2026-11-08): BEH-BR-318 and BEH-BR-319 `expect` compares `pruneDrain` and `pruneForce` only when `prune` or `atomic` is true (host-core prototype finding G-P23), BEH-BR-326 aligned; BEH-BR-323 a two-action undo step that stops halfway is one `notUndone` entry (G-P24); checks REQ-BR-083 and REQ-BR-099 amended (CCR-BR-030)<br>0.5 (2026-11-08): BEH-BR-317 `plan` and atomic validation consult the `RefusalList`; BEH-BR-318 `rejected` may carry a refusal, `registeredAt` tracks the operator's flag; BEH-BR-322 a step-4b refusal stops an atomic apply; BEH-BR-323 undo of `replace` restores the entry's previous override, expected revision moves with the undo, the "refused-digest" reason is not restored; BEH-BR-326 undo removals use the prune options whatever `prune` is (agent review R1-01, R1-02, R1-07, R1-11, R1-12) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-317 `plan` MUST decode a `reconfigure` value to compute the recorded paths (host-core prototype finding G-P10); BEH-BR-319 `PlanStale` mismatches not about one entry carry no `id` or `realm` (G-P9) (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-322–326 atomic apply (`atomic: true`): dependency order, stop at the first failure, undo in reverse, `ApplyRolledBack` and `PartialApply`, records with `undoes`, gate requests with `undo`, interaction with leases, drain, `PlanStale`, the latch, interruption and shutdown; BEH-BR-318 plan carries `atomic`, `undo` and `policy`, and `PolicyMismatch` among rejections; BEH-BR-319 compares `atomic`; acceptance checks 99 and 100 (CCR-BR-025)<br>0.2 (2026-11-08): `plan` may decode `reconfigure` values to compute paths (never exposed); `configChange.paths` and the prune options are part of the `expect` comparison; plan `rejected` reasons are `{ _tag, message }`; `Gate.all` pieces take a timeout (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -524,7 +524,9 @@ REQUIREMENT: With `expect`, `reconcile` MUST compare, at step 4 of BEH-BR-188
              be compared; CCR-BR-030, host-core prototype finding G-P23),
              the same entries with
              the same actions in the same order, each entry's
-             `configChange.paths` and `policy` equal, the same `atomic`, the
+             `configChange.paths`, `policy`, `incoming` (version and digest,
+             each compared present or absent) and `consentDiff` equal, the
+             same `atomic`, the
              same `unchanged` and
              validation `rejected` sets, and each entry's `expected` equal
              to the plugin's current registration. On any difference it MUST
@@ -532,7 +534,8 @@ REQUIREMENT: With `expect`, `reconcile` MUST compare, at step 4 of BEH-BR-188
              nothing and MUST write no record. A mismatch about one entry —
              an entry present on one side only, in a different set, at a
              different place in the order, or with a different action,
-             `configChange.paths`, `policy` or `expected` — MUST carry that
+             `configChange.paths`, `policy`, `incoming`, `consentDiff` or
+             `expected` — MUST carry that
              entry's `id` and `realm`. A mismatch not about one entry
              (`hostId`, `scope`, a prune option, `atomic`) MUST carry no `id`
              and no `realm`, and a `reason` naming the field (CCR-BR-028).
@@ -563,7 +566,12 @@ changed the host since the plan — leaves no trace and costs nothing; and a
 final check at the intent, where the diff that will actually run is known,
 answered with a recorded failure because the parent `requested` record
 already exists. Between them, a plan is applied exactly as reviewed or not at
-all.
+all — as far as a plan describes it. A plan carries configuration paths,
+never values (BEH-BR-318), so `expect` cannot see a value that changed while
+its paths stayed the same; with a `ConfigFingerprinter` wired, each entry
+action's gate request carries the fingerprints of the values it will apply
+(22, BEH-BR-188, step 4a), and binding those to the approval is the gate's
+part (CCR-BR-034, audit finding H2).
 
 **Settled here.** (1) Staleness fails the whole call, not the stale entries:
 an approver approved a set of changes, and applying the part that still fits
@@ -949,7 +957,12 @@ REQUIREMENT: With `atomic: true`, when every forward action completed,
              complete and every undo action completed, the call MUST fail
              with `ApplyRolledBack`. When at least one completed action was
              not undone, the call MUST fail with `PartialApply`, listing every
-             such action in `notUndone` with its reason.
+             such action in `notUndone` with its reason. `notUndone` of a
+             `PartialApply` is never empty: when the apply stops — for any
+             cause, including the latch, an unwritten `requested` record and
+             shutdown (BEH-BR-326) — before any action completed and with no
+             stop left parked, nothing needs undoing and the call MUST fail
+             with `ApplyRolledBack` with `undone` empty.
 ```
 
 ```
@@ -1036,7 +1049,8 @@ REQUIREMENT: With a sink wired, the records of an undo action MUST carry
              undoes. The parent terminal record MUST be `completed` when the
              call returns a report and `failed` with `ApplyRolledBack` or
              `PartialApply` otherwise; its `children` MUST count every forward
-             and undo action that reached the gate.
+             and undo action that wrote a record of its own (refused at step
+             4b or at the gate, or passed both; BEH-BR-201).
 ```
 
 ```
@@ -1114,7 +1128,9 @@ REQUIREMENT: When an entry action's `requested` record cannot be written,
              action — an undo is an operator mutation the latch blocks
              (INV-BR-029), and its records could not be written — and the
              call MUST fail with `PartialApply`, listing every completed
-             action in `notUndone` with reason `AuditUnavailable`.
+             action in `notUndone` with reason `AuditUnavailable`; when no
+             forward action had completed, it MUST fail with
+             `ApplyRolledBack` instead, as BEH-BR-324 states.
 ```
 
 ```
@@ -1128,7 +1144,9 @@ REQUIREMENT: An interruption of the caller after the intent MUST end only
 REQUIREMENT: When host shutdown begins during an atomic apply, the host
              MUST issue no further forward or undo action, and the call MUST
              fail with `PartialApply`, listing every completed action not yet
-             undone in `notUndone` with reason `HostClosed`.
+             undone in `notUndone` with reason `HostClosed`; when no forward
+             action had completed, it MUST fail with `ApplyRolledBack`
+             instead, as BEH-BR-324 states.
 ```
 
 ```
@@ -1163,9 +1181,9 @@ scenario once code exists; none has run.
 | --- | --- | --- |
 | REQ-BR-081 | `Gate.run` calls `decide` once with only "gate"-flow annotations, maps defects, timeouts and malformed drafts to `Refuse`, returns the draft and its `draftId` unchanged, and ends without a decision on caller interruption; `Gate.all` consults in order, the first refusal wins, a deferral yields to a later refusal; `Draft.check` reports every mismatch and nothing else | BEH-BR-313, BEH-BR-314, BEH-BR-316, BEH-BR-321 |
 | REQ-BR-082 | `OperationGate.fromGate`: `Defer` reaches the host as `OperationRejected` with the defer reason and one `rejected` record; with and without the adapter, every host scenario of 25 — Operation Gate produces identical records | BEH-BR-315 |
-| REQ-BR-083 | `Host.plan` equals the diff `reconcile` then applies, including the decoded `configChange.paths` of a `reconfigure` entry, writes no record, consults no gate or fingerprinter, emits no event and carries no value; `reconcile` with `expect` fails `PlanStale` with no record when stale at the call, with a parent `failed` record when stale at the intent, with host-level mismatches carrying no `id` or `realm`, compares `pruneDrain` and `pruneForce` only when `prune` or `atomic` is true, and otherwise gates every entry | BEH-BR-317, BEH-BR-318, BEH-BR-319, BEH-BR-320 |
+| REQ-BR-083 | `Host.plan` equals the diff `reconcile` then applies, including the decoded `configChange.paths` of a `reconfigure` entry, writes no record, consults no gate or fingerprinter, emits no event and carries no value; `reconcile` with `expect` fails `PlanStale` with no record when stale at the call (including a changed incoming version, digest or consent diff), with a parent `failed` record when stale at the intent, with host-level mismatches carrying no `id` or `realm`, compares `pruneDrain` and `pruneForce` only when `prune` or `atomic` is true, and otherwise gates every entry | BEH-BR-317, BEH-BR-318, BEH-BR-319, BEH-BR-320 |
 | REQ-BR-099 | With `atomic: true`: actions in dependency order; the first refused or failed forward action stops the apply; completed actions are undone in reverse with the opposite operations, each attributed to the call, gated with `undo: true` and recorded with `undoes`; the call fails `ApplyRolledBack`; a validation-stage rejection applies nothing; an activation failure starts no undo; the plan lists `undo` and `atomic`, and `expect` compares `atomic`; a multi-action entry is undone in full, each check against the revision the previous undo action produced; an undone `replace` gets its previous override back, and a two-action undo step whose `reconfigure` fails or is skipped is one `notUndone` entry with `action` `replace` and is not in `undone`; undo removals use `pruneDrain`/`pruneForce` whatever `prune` is; a refused digest in the diff applies nothing and one refused at step 4b stops the apply | BEH-BR-317, BEH-BR-318, BEH-BR-319, BEH-BR-322, BEH-BR-323, BEH-BR-324, BEH-BR-325, BEH-BR-326 |
-| REQ-BR-100 | An undo refused by the gate, failing, or skipped by `ChangedSinceApply` yields `PartialApply` with every action left applied and a `reconcile-partial` event; a parked forward `DrainTimeout`, a latch set mid-apply and shutdown each yield `PartialApply` with no further action; caller interruption after the intent still completes the undo and the parent record; an undo `replace` hands off state as any replace; the next reconcile waits for the undo | BEH-BR-323, BEH-BR-324, BEH-BR-326, BEH-BR-353 |
+| REQ-BR-100 | An undo refused by the gate, failing, or skipped by `ChangedSinceApply` yields `PartialApply` with every action left applied and a `reconcile-partial` event; a parked forward `DrainTimeout`, a latch set mid-apply and shutdown each yield `PartialApply` with no further action once a forward action has completed, and `ApplyRolledBack` before; caller interruption after the intent still completes the undo and the parent record; an undo `replace` hands off state as any replace; the next reconcile waits for the undo | BEH-BR-323, BEH-BR-324, BEH-BR-326, BEH-BR-353 |
 
 ---
 

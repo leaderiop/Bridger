@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-016 uses core `HookPointOptions.policy` (`ContributionPolicy`, `Run`/`Skip`/`Deny`) with `Entitlement.contributionPolicy` (`onNotEntitled: "skip" \| "deny"`) and `Policies.first`, replacing `Entitlement.skipPolicy`, `SkipPolicy` and `Skip.first` (G62 closed in core); G64 limit stated; BEH-EN-009 allows `undo` requests and ignores `allowChildren` and `mandatoryInterceptions`; BEH-EN-015 points to grant narrowing (CCR-EN-003)<br>0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-EN-009 declares `EntitlementGate.check(request, options)`, which the text already required; BEH-EN-011 reads `checkTimeout` from the `Entitlement` service's options (01, BEH-EN-001); BEH-EN-014 defines `EntitlementInspection` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-016 uses core `HookPointOptions.policy` (`ContributionPolicy`, `Run`/`Skip`/`Deny`) with `Entitlement.contributionPolicy` (`onNotEntitled: "skip" \| "deny"`) and `Policies.first`, replacing `Entitlement.skipPolicy`, `SkipPolicy` and `Skip.first` (G62 closed in core); G64 limit stated; BEH-EN-009 allows `undo` requests and ignores `allowChildren` and `mandatoryInterceptions`; BEH-EN-015 points to grant narrowing (CCR-EN-003)<br>0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -64,6 +64,9 @@ declare const EntitlementGate: {
   // provides the host's OperationGate when this is the deployment's only gate
   readonly layer: (options: EntitlementGateOptions & { readonly gateTimeout: Duration.Input }) =>
     Layer.Layer<OperationGate, EntitlementConfigError, Entitlement>
+  // the piece's decision, for an application's own authorize (below)
+  readonly check: (request: OperationRequest, options: EntitlementGateOptions) =>
+    Effect.Effect<void, OperationRejected, Entitlement>
 }
 interface EntitlementGateOptions {
   readonly onReplace: "consult" | "allow"   // required, no default (BEH-EN-009)
@@ -100,8 +103,9 @@ REQUIREMENT: A request with `undo: true` — an undo action of an atomic
 REQUIREMENT: The gate MUST NOT return Defer. Where the generic gate of
              32 — Generic gate and plan is not available, the
              piece MUST be usable from an application's own `authorize`
-             through `EntitlementGate.check(request)`, which fails with
-             `OperationRejected` exactly when the piece would refuse.
+             through `EntitlementGate.check(request, options)`, which fails
+             with `OperationRejected` exactly when the piece built with the
+             same options would refuse.
 ```
 
 Granting is where an entitlement check belongs at the host: installing a
@@ -169,8 +173,9 @@ REQUIREMENT: The gate MUST ask the port for a fresh answer (`check`), bounded
 
 ```
 REQUIREMENT: `EntitlementGate.piece` MUST fail with `EntitlementConfigError`
-             when the `checkTimeout` of the `Entitlement` service it is built
-             over (01, BEH-EN-005) is not shorter than the piece's `timeout`;
+             when the `checkTimeout` in the options of the `Entitlement`
+             service it is built over (01, BEH-EN-001, BEH-EN-005) is not
+             shorter than the piece's `timeout`;
              `EntitlementGate.layer` MUST fail likewise against the stated
              `gateTimeout`. Documentation MUST state that, inside `Gate.all`,
              each piece's `timeout` bounds that piece and the host's
@@ -291,6 +296,11 @@ declare const Entitlement: {
     options: { readonly requires: "full" | "read-only"; readonly labels?: readonly string[] }
   ) => Effect.Effect<A, E | NotEntitled, R>
   readonly inspect: Effect.Effect<EntitlementInspection>    // essential passes per label, refusals per plugin
+}
+interface EntitlementInspection {                            // process-local counters (01, BEH-EN-007; BEH-EN-014)
+  readonly essentialPasses: Readonly<Record<string, number>>  // per essential label
+  readonly refusals: Readonly<Record<string, number>>         // per plugin id: gate refusals and NotEntitled
+  readonly noPrincipal: number                                // guard calls outside plugin code
 }
 class NotEntitled extends Schema.TaggedError<NotEntitled>()("NotEntitled", {
   pluginId: Schema.String,

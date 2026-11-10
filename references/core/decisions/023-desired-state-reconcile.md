@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-023                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amended by ADR-BR-051                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): Amended by ADR-BR-051 (CCR-BR-025)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-10): The `rejected` union defers to BEH-BR-157 instead of restating it (C24) (CCR-BR-034)<br>0.3 (2026-11-08): Amended by ADR-BR-051 (CCR-BR-025)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -30,7 +30,7 @@ Applications usually keep the plugin set as data: a configuration file, a module
 - **Errors are per entry.** An invalid entry is reported in `ReconcileReport.rejected` and does not stop the others, except when a change can no longer be recorded (below). Activation failures are state, as for `install`.
 - **`Desired.overlay(base, patch)`** merges patches by (`id`, realm) in order (later wins; `config` merged deeply). It is pure and performs no I/O ([18 — Reconciliation and confluence](../behaviors/18-reconciliation-and-confluence.md), BEH-BR-153); how lists are stored, signed or fetched belongs to the application or a loader adapter.
 - **GxP hooks.** `reconcile` is an `Operation` and takes `options?: OperationOptions`. With an `AuditSink` wired it writes one parent `requested`/terminal pair plus a pair per entry acted on, linked by `correlationId` ([ADR-BR-030](../decisions/030-audit-sink-port.md)). With an `OperationGate` wired the gate is consulted once per entry action, not once for the batch, and a refused entry appears in `ReconcileReport.rejected` ([ADR-BR-032](../decisions/032-operation-gate.md)). Attribution and the audit latch are checked once for the whole call, which fails with `Unattributed`, `ReasonRequired` or `AuditUnavailable` (or `HostClosed`). If a per-entry `requested` record cannot be written, reconcile stops there (fail closed) and returns `AuditUnavailable`; entries already applied stay applied and recorded. The same stop applies when the audit-degraded latch becomes set *while* the reconcile runs (a terminal or system record could not be written): no further entry action is issued and the call fails with `AuditUnavailable`, because continuing would make operator-initiated changes in the state the latch exists to block ([18 — Reconciliation and confluence](../behaviors/18-reconciliation-and-confluence.md), BEH-BR-157).
-- **The `rejected` union.** `ReconcileReport.rejected[].reason` is `InstallError | ConfigInvalid | OperationRejected | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock`, as fixed in 18. This deliberately widens the union of settlement S8 (`InstallError | ConfigInvalid | OperationRejected`; [SPEC.md migration map](../appendices/spec-md-migration-map.md)): an entry action that passes the gate, writes its `requested` record and then fails operationally is recorded as `failed` in the trail, and dropping it from the report would hide a change that was requested and not made. Every such entry must still be reported.
+- **The `rejected` union.** `ReconcileReport.rejected[].reason` is the union fixed in [18 — Reconciliation and confluence](../behaviors/18-reconciliation-and-confluence.md), BEH-BR-157, which this ADR does not restate: when it was decided it was `InstallError | ConfigInvalid | OperationRejected | UnknownPlugin | Conflict | Superseded | CleanupError | DrainTimeout | WouldDeadlock`, and later decisions added members (`ConfigFingerprintUnavailable`, [ADR-BR-039](./039-config-fingerprint-port.md), CCR-BR-014; `PolicyMismatch`, CCR-BR-025). This deliberately widens the union of settlement S8 (`InstallError | ConfigInvalid | OperationRejected`; [SPEC.md migration map](../appendices/spec-md-migration-map.md)): an entry action that passes the gate, writes its `requested` record and then fails operationally is recorded as `failed` in the trail, and dropping it from the report would hide a change that was requested and not made. Every such entry must still be reported.
 
 ## Alternatives considered
 

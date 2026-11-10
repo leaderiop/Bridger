@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-17                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7) (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -52,6 +52,7 @@ declare function buildEvidencePack(q: {
   readonly iq?: IqReport                                   // BEH-GX-120
   readonly oq?: OqReport                                   // BEH-GX-121
   readonly checks?: readonly CheckReport[]                 // 05–07, 11
+  readonly sinkStatus: TrailSinkStatusValue | "no-sink"     // read with TrailSinkStatus.current when the pack is made (22, BEH-GX-179)
   readonly adapterManifests: readonly unknown[]            // every wired port's manifest, copied unchanged (BEH-GX-016)
   readonly attachments: readonly { readonly path: string; readonly as: string }[]   // runner outputs, run and conformance manifests
   readonly outDir: string                                  // must not exist
@@ -65,6 +66,7 @@ declare function buildEvidencePack(q: {
   oq.json            the OQ report, when given
   coverage.json      requirement → tests → outcome, behaviour → requirements (BEH-GX-131)
   checks.json        the check reports given, in input order (BEH-GX-131)
+  sink-status.json   the trail sink's counts, labelled "counts since the sink was built", unless "no-sink" (BEH-GX-179)
   deviations.json    every deviation raised by IQ, OQ and the checks (BEH-GX-133)
   adapters.json      the port manifests, copied unchanged
   attachments/       input files, byte for byte
@@ -74,7 +76,10 @@ declare function buildEvidencePack(q: {
 
 ```
 REQUIREMENT: The pack MUST contain exactly the files of the layout, and a
-             file for a part not given MUST be absent, not empty. `outDir`
+             file for a part not given MUST be absent, not empty.
+             `sinkStatus` MUST be stated explicitly, "no-sink" only for an
+             assembly without a trail sink, and the renderings MUST then say
+             that no sink status was given. `outDir`
              MUST NOT exist before the call; the pack MUST be written to a
              temporary sibling directory and renamed into place only when
              every file is written, so that no partial pack exists under

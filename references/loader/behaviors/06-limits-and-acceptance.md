@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-06                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.5 (2026-11-09): Checks 5, 15 and 16 follow `PackageManifestMismatch`, the stamped manifest, the entry key, `Loader.lazy`'s refusal of guest entries and the link manifest; checks 25–30 are in file 09; `statementRules` carries the "first-party" rule (specification audit F-06, M-02, M-03, C-16); check 16: `stampRemote` refuses a non-guest manifest with `GuestEntryInvalid` (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Check 10 covers first boot, the separate revocation trust root, self-revocation and envelope mismatch (round-2 agent review R3-02) (CCR-LD-003)<br>0.3 (2026-11-08): The loader plugin reads `buildTimeout` from `Host.controls` (G61 closed) and provides `StatementVerifier`; open question 2 answered (core alignment) (CCR-LD-003)<br>0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.6 (2026-11-10): Check 6 adds the cross-companion scenario: subagent and model-family installs under `LoaderGate` (P23) (CCR-LD-005)<br>0.5 (2026-11-09): Checks 5, 15 and 16 follow `PackageManifestMismatch`, the stamped manifest, the entry key, `Loader.lazy`'s refusal of guest entries and the link manifest; checks 25–30 are in file 09; `statementRules` carries the "first-party" rule (specification audit F-06, M-02, M-03, C-16); check 16: `stampRemote` refuses a non-guest manifest with `GuestEntryInvalid` (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Check 10 covers first boot, the separate revocation trust root, self-revocation and envelope mismatch (round-2 agent review R3-02) (CCR-LD-003)<br>0.3 (2026-11-08): The loader plugin reads `buildTimeout` from `Host.controls` (G61 closed) and provides `StatementVerifier`; open question 2 answered (core alignment) (CCR-LD-003)<br>0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -294,7 +294,15 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                 accepted again; `enable`, `retry`, `restart` and
                 `reconfigure` of a revoked installed digest are refused
                 "digest-revoked"; remove and disable are never refused, and
-                shutdown never reaches the gate (BEH-LD-015).
+                shutdown never reaches the gate; with the agent companion,
+                a subagent spawn (`Realm.ephemeral`) whose plugins carry no
+                accepted digest fails with the refusal and leaves no realm,
+                and a model family member (`Realm.family`) in that case
+                fails with `FamilyMemberUnavailable` ("rejected") and the
+                step with `ModelError` "unavailable"; both succeed when
+                their plugins come from a loader load or are exempt by
+                digest, and a realm is never exempt (BEH-LD-015; agent
+                BEH-AG-007, BEH-AG-025).
              7. `LoadLog`: an unwritable `accepted` record prevents
                 evaluation; an unwritable refusal record is logged and the
                 refusal is unchanged; record fields are present exactly for

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-09): BEH-BR-071 `starting` row: a `restart` or `reconfigure` that supersedes a build keeps a held handoff value for the next build, and a call that arrives while a build imports handed-off state waits for the build step and is decided against the state it lands in (U-02) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-073 covers every system stop, the idle return of a lazy plugin (reason "idle", `next` "dormant") named (C-06); BEH-BR-075 every stop under shutdown ends "gone" or `failed(cleanup)` and nothing starts; BEH-BR-080 a resumed stop under shutdown unregisters the plugin (U-01) (CCR-BR-032)<br>0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.13 (2026-11-10): BEH-BR-068 `replace` and `enable` complete on entering `dormant` too, and a row for a call whose start the `RefusalList` refuses after step 4b (completes on `disabled`, `completed` record, `start-refused` caused by its `requested` record) (H3); BEH-BR-073 names the system stop of a refused background restart, reason "refused-digest", `next` "disabled" (C5) (CCR-BR-034)<br>0.12 (2026-11-09): BEH-BR-071 `starting` row: a `restart` or `reconfigure` that supersedes a build keeps a held handoff value for the next build, and a call that arrives while a build imports handed-off state waits for the build step and is decided against the state it lands in (U-02) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-073 covers every system stop, the idle return of a lazy plugin (reason "idle", `next` "dormant") named (C-06); BEH-BR-075 every stop under shutdown ends "gone" or `failed(cleanup)` and nothing starts; BEH-BR-080 a resumed stop under shutdown unregisters the plugin (U-01) (CCR-BR-032)<br>0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -279,12 +279,13 @@ the reconciler has not yet heard of a call that has no intent.
 | --- | --- |
 | `install` | the plugin's first snapshot entry has been published (03) |
 | `remove` | the plugin has no snapshot entry (06) |
-| `replace` | the new definition is registered and the plugin has entered `starting`, `waiting` or `disabled` (07) |
+| `replace` | the new definition is registered and the plugin has entered `starting`, `waiting`, `dormant` or `disabled` (07; 27) |
 | `retry` | the plugin has entered `starting` or `waiting` (07) |
 | `reconfigure` | the plugin has re-entered `starting` or `waiting`; or, for a plugin that is not restarted, the override is stored or cleared (and volatile values published) (11) |
 | `restart` | the plugin has re-entered `starting` or `waiting` (07) |
 | `disable` | the plugin is `disabled` (07) |
-| `enable` | the plugin has entered `starting` or `waiting` (07) |
+| `enable` | the plugin has entered `starting`, `waiting` or `dormant` (07; 27, BEH-BR-247) |
+| a call whose start a wired `RefusalList` refuses after its step 4b passed (28, BEH-BR-267) | the plugin has entered `disabled` with reason "refused-digest", in place of the state named above; the call succeeds, its terminal record is `completed`, and the `start-refused` record takes the call's `requested` record as its cause (22, BEH-BR-190) |
 | any no-op | at its linearization point |
 | any joined call | when the call it joined completes, with the same result — except a call that joins a parked operation, which resumes it (next row) |
 | a call that joins or supersedes a parked operation | when the resumed operation — the operation BEH-BR-072's row names: the one in flight when the call joins, this call's own when it supersedes — reaches the point given above; the call is its owner (BEH-BR-074) |
@@ -596,9 +597,12 @@ operation and records its own outcome.
 REQUIREMENT: When an operator call reaches its linearization point while the
              plugin is `stopping` because of a running system stop — any
              stop the host began without an operator operation: `reason`
-             "dependency-loss" or "runtime-failure", or "idle" with `next`
+             "dependency-loss" or "runtime-failure", "idle" with `next`
              "dormant" for the idle return of a lazy plugin (27 — Manifest
-             and Lazy Activation, BEH-BR-252); not parked — with no
+             and Lazy Activation, BEH-BR-252), or "refused-digest" with
+             `next` "disabled" for a refused background restart (28 —
+             Plugin Principal and Mandatory Policy, BEH-BR-267); not
+             parked — with no
              operator operation in flight, the call MUST wait,
              before its intent is recorded, until that stop has settled, and
              MUST then be decided by BEH-BR-071 against the state the plugin

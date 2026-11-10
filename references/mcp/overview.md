@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-OVW                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): `McpClient.import` options `reconnect`, `handshakeTimeout`, `disclose`; import described as a link; API rows `McpClient.layer` and `McpClientStatus` (independent review) (CCR-MC-004)<br>0.5 (2026-11-08): Server options `maxResultBytes` and `maxStructuredBytes` (round-2 agent review A-07) (CCR-MC-003)<br>0.4 (2026-11-08): Resources, trusted sessions, listing record and `resources` option in the API surface; worked example shows the inbound taint (CCR-MC-003, round 2: recheck items 6, 9)<br>0.3 (2026-11-08): Branded `Plugin` return types; per-call pin; external mark; plan store options (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.7 (2026-11-10): API row lists `PlanAffectsCaller` (BEH-MC-029, P24) (CCR-MC-005)<br>0.6 (2026-11-09): `McpClient.import` options `reconnect`, `handshakeTimeout`, `disclose`; import described as a link; API rows `McpClient.layer` and `McpClientStatus` (independent review) (CCR-MC-004)<br>0.5 (2026-11-08): Server options `maxResultBytes` and `maxStructuredBytes` (round-2 agent review A-07) (CCR-MC-003)<br>0.4 (2026-11-08): Resources, trusted sessions, listing record and `resources` option in the API surface; worked example shows the inbound taint (CCR-MC-003, round 2: recheck items 6, 9)<br>0.3 (2026-11-08): Branded `Plugin` return types; per-call pin; external mark; plan store options (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -60,7 +60,7 @@ regulated command is, approval rules, and every product meaning of a tool.
 | `JsonSchemaValidator` | port | [BEH-MC-019](./behaviors/03-client-import.md#beh-mc-019-input-is-checked-against-the-external-json-schema-before-it-leaves) |
 | `HostTools.plugin(options)` | plugin definition | [BEH-MC-025](./behaviors/04-host-tools.md#beh-mc-025-host-tools-are-commands-contributed-by-one-plugin) |
 | `DefinitionResolver` | port | [BEH-MC-028](./behaviors/04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing) |
-| `PlanStore` (inside the host-tools plugin), `PlanUnknown` | internal store, error | [BEH-MC-028](./behaviors/04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing), [BEH-MC-029](./behaviors/04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates) |
+| `PlanStore` (inside the host-tools plugin), `PlanUnknown`, `PlanAffectsCaller` | internal store, errors | [BEH-MC-028](./behaviors/04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing), [BEH-MC-029](./behaviors/04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates) |
 
 ```ts
 // illustrative — not type-checked

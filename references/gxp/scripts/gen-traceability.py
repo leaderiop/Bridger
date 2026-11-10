@@ -96,7 +96,7 @@ SUMMARY = {
  8: "Unknown schema versions, unfinished calls, records dropped (at acknowledgement and per record) and unclean closes are reported, with the fixed statement",
  9: "`checkApprovals` reports approvals without records and records without approvals, and nothing for a gate refusal",
  10: "High-water marks follow `Host.controls` and `CloseReport`; `checkHighWater` reports `tailLoss` and `unanchoredTail`",
- 11: "Sealing through audit-chain: links stored beside entries; `verifySeals` maps `chainBreak`, `anchorMismatch`, `unanchoredTail` and `headMismatch`; off, the kinds are not checked",
+ 11: "Sealing through audit-chain: links stored beside entries; `verifySeals` maps `chainBreak`, `anchorMismatch`, `chainUnanchoredTail`, `anchorUnconfirmed`, `chainLossCounterRose` and `headMismatch`; off, the kinds are not checked",
  12: "`bindingDigest` reproduces the four vectors; a proposal, the gate request and both records give one digest",
  13: "`issueTicket` refusals, `issued` and `signed` events; a declined or failed capture leaves the ticket issued",
  14: "Signature refusals for the requester, a repeated or reserved signer, a wrong meaning or digest, too few components, or no re-authentication",
@@ -132,7 +132,7 @@ SUMMARY = {
  44: "A call refused by the trail or chain piece consumes no binding",
  45: "`superseded`, `joined` and resumer terminals pair with their requests and are not reported open",
  46: "Binding version 2 binds `onBehalfOf`, `undo` and the request-only fields; annotations and `previousManifest` change nothing",
- 47: "Installation evidence reports the trail and chain gate pieces; evidence packs carry the sink's counts",
+ 47: "IQ-23 reports the trail and chain gate pieces; evidence packs carry the sink's counts in `sink-status.json`",
 }
 
 checks = []
@@ -207,13 +207,13 @@ out.append("\n".join([
     "# Traceability", "", "> **Document Control**", ">",
     "> | Property       | Value                                                        |",
     "> | -------------- | ------------------------------------------------------------ |",
-    dc("Document ID", "BRIDGER-GX-TRACE"), dc("Revision", "0.3"),
+    dc("Document ID", "BRIDGER-GX-TRACE"), dc("Revision", "0.4"),
     dc("Effective Date", "— (pending approval)"), dc("Status", "Draft"),
     dc("Author", "Bridger Engineering"),
     dc("Reviewed by", "— (no independent reviewer yet; see PROC-GX-03 §5)"),
     dc("Approved by", "— (pending; single maintainer, see PROC-GX-03 §5)"),
     dc("Classification", "Traceability Matrix"),
-    dc("Change History", "0.3 (2026-11-09): REQ-GX-026 text: IQ-22, a repeated identifier in the draw (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Regenerated for CCR-GX-002: behaviours 169–179 (files 20, 21, 22), BEH-GX-049–056 and INV-GX-013 withdrawn, INV-GX-016, ADR-GX-029 and ADR-GX-030, RSK-GX-023, acceptance scenarios REQ-GX-043–047 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)"),
+    dc("Change History", "0.4 (2026-11-10): REQ-GX-011 and REQ-GX-047 text: chain-derived finding kinds, IQ-23 and `sink-status.json`; check 47 cites BEH-GX-118 and BEH-GX-129 (CCR-GX-005)<br>0.3 (2026-11-09): REQ-GX-026 text: IQ-22, a repeated identifier in the draw (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Regenerated for CCR-GX-002: behaviours 169–179 (files 20, 21, 22), BEH-GX-049–056 and INV-GX-013 withdrawn, INV-GX-016, ADR-GX-029 and ADR-GX-030, RSK-GX-023, acceptance scenarios REQ-GX-043–047 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)"),
 ]))
 out.append('''
 ---

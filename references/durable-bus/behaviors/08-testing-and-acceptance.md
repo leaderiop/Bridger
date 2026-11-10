@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-08                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 — `TestStore.conflictAtCommit`; checks 42–44 added (publish options, commit conflicts, origin changes and store-swap participants) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F13, F16, F22, F25, F26, F27; R5-04/05, R5-13) — checks 31, 33–35, 37, 38 restated; checks 39–41 added (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — checks 31–38 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — checks 6, 8, 13, 15, 17, 20, 21, 24, 25 and 27 restated; checks 28–30 added (receiver regression, two parking levels, history pulls) (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — check 24 covers the `GapRecord` of a restore or install (P3); check 44 covers the raise before `run`, a failing raise and a failing `run` after the raise (H8) (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — `TestStore.conflictAtCommit`; checks 42–44 added (publish options, commit conflicts, origin changes and store-swap participants) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F13, F16, F22, F25, F26, F27; R5-04/05, R5-13) — checks 31, 33–35, 37, 38 restated; checks 39–41 added (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19–22, 24 and 25 — checks 31–38 (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — checks 6, 8, 13, 15, 17, 20, 21, 24, 25 and 27 restated; checks 28–30 added (receiver regression, two parking levels, history pulls) (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -91,7 +91,7 @@ REQUIREMENT: An implementation MUST pass the checks below with `TestStore`
 21. The relay never exceeds the receiver's credit; zero credit waits `Ack.retryAfter` (BEH-DB-041).
 22. Reconnect backoff uses seeded full jitter between `retryMin` and `retryMax` (BEH-DB-042).
 23. A high-priority stream is delivered while a large low-priority backlog drains, with order kept in each stream (BEH-DB-043).
-24. A follower behind the source's retained history receives `SnapshotRequired` from `HistorySource.read`; the restore, the watermark reset and the cursor resets commit together; without a provider following stays stopped (BEH-DB-044, BEH-DB-047).
+24. A follower behind the source's retained history receives `SnapshotRequired` from `HistorySource.read`; the restore, the watermark reset and the cursor resets commit together; a watermark moved past unstored sequences, by a restore or by an in-store or whole-store install, is recorded as a `GapRecord` with reason "snapshot:" and the restoring actor, and listed in status; without a provider following stays stopped (BEH-DB-019, BEH-DB-044, BEH-DB-047).
 25. The push path carries no `SnapshotRequired`: an inbox accepts a relay's backlog however old (BEH-DB-045).
 26. `forward` emits on the core bus after commit; a failing core listener leaves the cursor advanced; the bus never touches `Bridger.Events` otherwise (BEH-DB-049, BEH-DB-050).
 27. Stopping the bus plugin mid-batch leaves unacknowledged envelopes pending and rolls back running handlers; the build makes no transport call; a `publish` in a caller's transaction is not interrupted by the stop (BEH-DB-051, BEH-DB-052).
@@ -111,7 +111,7 @@ REQUIREMENT: An implementation MUST pass the checks below with `TestStore`
 41. Every `publish` error (`EncodeFailed`, `DowncastRefused`, `PayloadEncodeFailed`, `AccessRefused`, `OutboxFrozen`, `OutboxWriteFailed`, `Unattributed`) writes nothing and, left unhandled, rolls back the caller's own write in the same transaction (BEH-DB-009, BEH-DB-031).
 42. `publish` with `options.stream` writes the envelope on that stream, numbered in that stream's own sequence, and without it on `event.stream(payload)`; an empty stream is a defect and writes nothing; `options.causationId` sets the causation outside a handler, and inside one the handled envelope's `eventId` is used (BEH-DB-003, BEH-DB-005, BEH-DB-009).
 43. A handler attempt whose commit fails with `CommitConflict` (`TestStore.conflictAtCommit`) commits nothing and is retried in a new transaction; when the attempts end on a conflict the (origin, stream) halts under either `onPoison` and nothing is parked; a conflict in `receive` stores and acknowledges nothing (BEH-DB-018, BEH-DB-021, BEH-DB-054).
-44. `DurableBus.origin` returns the origin of the next envelope; a whole-store install runs every `onStoreSwap` participant's `prepare` on the store being replaced, before `run` and while `publish` fails with `OutboxFrozen`; a failing `prepare` fails the install with "prepare-failed" and raises nothing; after the raise, `originChanges` emits one `OriginChange` and `origin` returns the new origin (BEH-DB-004, BEH-DB-048).
+44. `DurableBus.origin` returns the origin of the next envelope; a whole-store install runs every `onStoreSwap` participant's `prepare` on the store being replaced, before `run` and while `publish` fails with `OutboxFrozen`; a failing `prepare` fails the install with "prepare-failed" and raises nothing; the incarnation is raised before `run`, and a failing raise fails the install with `IncarnationUnavailable` without calling `run`; after the raise, `originChanges` emits one `OriginChange` and `origin` returns the new origin, also when `run` fails; a restart after the raise, before the incarnation was recorded, starts under the raised incarnation (BEH-DB-004, BEH-DB-048).
 
 ---
 

@@ -259,8 +259,11 @@ anything, or make a system compliant. Those obligations stay with a companion
 and with you; the [compliance matrix](../../references/core/gxp/02-compliance-matrix.md)
 lists them clause by clause.
 
-`bridger dev` never runs against a host with a sink or a gate: reloading
-unreviewed code into a recorded system would turn every save into a recorded
-change.
+`bridger dev` refuses to start when the entry wires an `AuditSink`, an
+`OperationGate` or a `ConfigFingerprinter` other than the kit's in-memory
+development doubles: reloading unreviewed code into a recorded system would
+turn every save into a recorded change.
 
 Change log: 2026-11-08, round 2 — normative range extended to core 34; new sections "Lazy plugins" (`Plugin.lazy` with `digest`) and "Hook points" (`policy` replaces `skip`, `settle`, `HostLink`); hosting snippet shows `plan`, `atomic` (default false) and `CurrentCorrelation`, reconcile order and G65.
+
+Change log: 2026-11-10, audit round 2 — `bridger dev` refusal aligned with kit BEH-KT-026: any `AuditSink`, `OperationGate` or `ConfigFingerprinter` other than the kit's in-memory doubles (CCR-BR-034).

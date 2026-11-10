@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-24                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): BEH-BR-210 every value an `IdGenerator` returns is unique within its host and across every host whose identified outputs reach a common store; a provided generator carries that obligation, the default meets it with high probability only, and the testing counter within one `TestHost` (F-03); the requirement states what a conforming design is — unique by construction, or at least 122 bits per value drawn independently and uniformly from a cryptographically secure source — so that the default conforms (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-10): The GxP companion is cited as a Draft, not as specified later (C20) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-210 every value an `IdGenerator` returns is unique within its host and across every host whose identified outputs reach a common store; a provided generator carries that obligation, the default meets it with high probability only, and the testing counter within one `TestHost` (F-03); the requirement states what a conforming design is — unique by construction, or at least 122 bits per value drawn independently and uniformly from a cryptographically secure source — so that the default conforms (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -34,7 +34,7 @@ file owns BEH-BR-209–216 and uses all eight.
 > **review** them, and `verifyAuditSequence` is **not tamper evidence**. It
 > does not authenticate actors or manifest **electronic signatures**. Those
 > obligations belong to the consumer, or to the `@bridger/gxp` companion where
-> adopted, and are specified later in `references/gxp/`.
+> adopted, specified as a Draft in [`references/gxp/`](../../gxp/README.md).
 
 Planned source: `packages/core/src/IdGenerator.ts` and
 `packages/core/src/verifyAuditSequence.ts` *(Planned)*. The writer that

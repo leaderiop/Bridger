@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Invariants                                                   |
-> | Change History | 0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): INV-GX-003 source lists the binding version 2 request fields (H5) (CCR-GX-005)<br>0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -145,7 +145,9 @@ separation of duties → consume → allow, in which every step can only refuse
 and only the last can allow. `packages/gxp/src/approvals/binding.ts`
 *(Planned)* — the binding is rebuilt from the gate's scope and the
 `OperationRequest` core passes (operation, target, definition version and digest, configuration paths and
-fingerprints, requester, and the reason where the rule binds it) and digested
+fingerprints, requester, `onBehalfOf` without its revision, `undo`, the
+digest of `definition.manifest`, `allowChildren`, `mandatoryInterceptions`,
+and the reason where the rule binds it) and digested
 by the same function the issuer uses. The gate keeps no cache of tickets or
 decisions.
 

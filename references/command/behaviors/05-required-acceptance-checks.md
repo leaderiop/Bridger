@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-05                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.7 (2026-11-10): Check 6 compares the actor and annotations of offered call-log entries and hook inputs with a context supplied only in `options.context` (H9) (CCR-CM-005)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -66,7 +66,12 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 outer correlation through core's `CurrentCorrelation`; a
                 correlation set on the dispatching fiber is used when none
                 is supplied; generated correlation ids come from
-                `IdGenerator`.
+                `IdGenerator`; for a dispatch from a fiber with no actor and
+                no annotations, given its actor and annotations only in
+                `options.context`, the actor and "callLog" annotations of
+                every entry it offers ("refusal" and "dispatch") equal
+                those of `options.context`, and the `before` and `after`
+                hooks receive its annotations (BEH-CM-010, BEH-CM-015).
              7. Gate: consulted once per dispatch and never cached; Refuse,
                 Defer (no handler run; typed `CommandDeferred`), defect and
                 timeout as refusals; an approved draft is re-dispatched

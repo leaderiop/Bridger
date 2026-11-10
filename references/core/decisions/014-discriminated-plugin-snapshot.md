@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-014                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-042, ADR-BR-050 and ADR-BR-053  |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-08): The snapshot union gains `dormant` (ADR-BR-042) (CCR-BR-017); state handoff adds no snapshot field (CCR-BR-019)<br>0.3 (2026-10-03): `HostSnapshot.auditDropped` listed (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` of a resumed or parked stop (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-11-10): Amended by ADR-BR-042, ADR-BR-050 and ADR-BR-053 marked; the union and `StopReason` defer to BEH-BR-027 (C22, C5) (CCR-BR-034)<br>0.4 (2026-11-08): The snapshot union gains `dormant` (ADR-BR-042) (CCR-BR-017); state handoff adds no snapshot field (CCR-BR-019)<br>0.3 (2026-10-03): `HostSnapshot.auditDropped` listed (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` of a resumed or parked stop (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -76,6 +76,10 @@ What each variant encodes:
 - The discriminated union gains a `dormant` variant, `starting.loading` and failure phase "load" for lazy plugins ([ADR-BR-042](../decisions/042-lazy-activation.md)).
 - A held handoff value never appears in a snapshot ([ADR-BR-049](../decisions/049-state-handoff-on-replace.md)).
 
+**Amendments (2026-11-10)**:
+
+- The union and the `StopReason` list in the Decision above are the ones first decided and are not kept current here: the current ones are in [04 — States and snapshots](../behaviors/04-states-and-snapshots.md), BEH-BR-027. Since then `stopping.next` has gained `"dormant"` ([ADR-BR-042](../decisions/042-lazy-activation.md)), `disabled` an optional `reason` "refused-digest" ([ADR-BR-053](../decisions/053-refusal-list.md)), and `StopReason` the members "idle" ([ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md)) and "refused-digest" (ADR-BR-053) (CCR-BR-034).
+
 ## References
 
 - Behaviours: [04 — States and snapshots](../behaviors/04-states-and-snapshots.md), [08 — Operation legality](../behaviors/08-operation-legality.md), [13 — Observability and diagnostics](../behaviors/13-observability-and-diagnostics.md)
@@ -83,3 +87,4 @@ What each variant encodes:
 - Requirements: [URS-BR-004](../urs.md#urs-br-004-know-why-a-plugin-is-not-running), [URS-BR-028](../urs.md#urs-br-028-know-which-plugin-version-was-active-at-any-time)
 - Decisions: [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-007](../decisions/007-observation-primitives.md), [ADR-BR-030](../decisions/030-audit-sink-port.md), [ADR-BR-042](../decisions/042-lazy-activation.md), [ADR-BR-049](../decisions/049-state-handoff-on-replace.md)
 - Source: `docs/SPEC.md` — "Host interface" (`HostSnapshot`, `PluginState`), "State and lifecycle"
+- Amended by: [ADR-BR-042](./042-lazy-activation.md) — `dormant`, `next: "dormant"`, `starting.loading` and failure phase "load" (CCR-BR-017); [ADR-BR-050](./050-dormant-veto-and-hook-phases.md) — `StopReason` "idle" (CCR-BR-024); [ADR-BR-053](./053-refusal-list.md) — `disabled.reason` and `StopReason` "refused-digest" (CCR-BR-026, CCR-BR-034).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-02                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): BEH-FD-009 `contracts` rejects a local contract at compile time, and one passed untyped fails the plugin's build with the remote companion's `LocalContractRefused` before the store is read (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-014: `OutboxSettlement.install` restated with the event delivery companion's error union and `InstallContext` (its `StoreTransaction`); what step 3a does for each error (P1); the outcome of a call cut by a link suspension follows the remote companion's frame-state rule (CCR-FD-005)<br>0.5 (2026-11-09): BEH-FD-009 `contracts` rejects a local contract at compile time, and one passed untyped fails the plugin's build with the remote companion's `LocalContractRefused` before the store is read (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -326,9 +326,10 @@ interface Rebootstrap {
   readonly fetch: (q: { readonly host: string; readonly since: string; readonly revision: number }) =>
     Effect.Effect<SnapshotHandle, RebootstrapFailed, Scope.Scope>
   // ... and replaces its local state with it, returning the manifest revision it matches. Called only through
-  // OutboxSettlement.install (step 3a); `InstallContext` is what that settlement provides (for the event
-  // delivery companion, its StoreTransaction when `replaces` is "in-store"). It MUST be re-runnable over a
-  // partly installed state, and MUST NOT replace the ManifestStore, the RevocationStore or the fence table.
+  // OutboxSettlement.install (step 3a); `InstallContext` is what that settlement provides: the event delivery
+  // companion's StoreTransaction, live when `replaces` is "in-store" and never usable when it is "whole-store"
+  // (BEH-DB-048). It MUST be re-runnable over a partly installed state, and MUST NOT replace the ManifestStore,
+  // the RevocationStore or the fence table.
   readonly install: (snapshot: SnapshotHandle) => Effect.Effect<{ readonly revision: number }, RebootstrapFailed, InstallContext>
   readonly replaces: "in-store" | "whole-store"   // no default: how install replaces local state (BEH-DB-048)
 }
@@ -338,10 +339,13 @@ interface RebootstrapOutbox {          // step 1; the event delivery companion s
   readonly settle: (q: { readonly timeout: Duration.Duration; readonly replaces: "in-store" | "whole-store" }) =>
     Effect.Effect<OutboxSettlement, RebootstrapBlocked, Scope.Scope>   // held until the install ends or fails
 }
+// The settlement, its errors and InstallContext are the event delivery companion's (BEH-DB-048), restated here.
+type InstallContext = StoreTransaction                  // @bridger/durable-bus
 interface OutboxSettlement {           // the guarded install path (BEH-DB-048)
   readonly pushed: number
   readonly kept: number
-  readonly install: <A, E, R>(run: Effect.Effect<A, E, R>) => Effect.Effect<A, E | RebootstrapBlocked, Exclude<R, InstallContext>>
+  readonly install: <A, E, R>(run: Effect.Effect<A, E, R>) =>
+    Effect.Effect<A, E | SnapshotFailed | IncarnationUnavailable, Exclude<R, InstallContext>>
 }
 class RebootstrapBlocked extends Schema.TaggedError<RebootstrapBlocked>()("RebootstrapBlocked", {
   pending: Schema.Number, reason: Schema.String       // e.g. "outbox-unsettled", "outbox-unavailable", "no-outbox-port"
@@ -392,6 +396,27 @@ REQUIREMENT: A failure of step 1 — `RebootstrapBlocked`, a timeout, a
 ```
 
 ```
+REQUIREMENT: A failure of step 3a MUST leave the applied manifest in force,
+             keep links suspended, be reported as `rebootstrap-failed` with
+             step "install", the error's tag and its `reason` when it has
+             one, and be retried from step 1 by the rule below. For each
+             error `OutboxSettlement.install` can return:
+             - `RebootstrapFailed` (the application's `install`): local
+               state may be half replaced; `install` runs again over it;
+             - `SnapshotFailed` "outbox-touched" (in-store): the install
+               transaction rolled back and local state is as before it;
+             - `SnapshotFailed` "prepare-failed" (whole-store): a store-swap
+               participant failed before the incarnation was raised;
+               nothing was raised or replaced;
+             - `IncarnationUnavailable` (whole-store): the incarnation
+               could not be raised; nothing was replaced.
+             A defect is handled as `RebootstrapFailed`. Whichever store the
+             install left, the event delivery companion has already moved
+             to the raised origin when the failure came after the raise
+             (BEH-DB-048), so the retry pushes the outbox of that origin.
+```
+
+```
 REQUIREMENT: Retries of a re-bootstrap MUST back off on their own schedule,
              not at every sync: from `syncEvery`, doubling up to
              `rebootstrapRetryMax` (default 30 minutes), with jitter from
@@ -408,8 +433,10 @@ REQUIREMENT: When the application wires a `Rebootstrap` but no
              { reason: "no-outbox-port" }` unless `FederationOptions.outbox`
              is explicitly set to `RebootstrapOutbox.none` — a value whose
              `settle` returns `{ pushed: 0, kept: 0 }` and documents that the
-             application holds no local facts — so that skipping the outbox
-             is a written decision.
+             application holds no local facts, and whose settlement's
+             `install` runs `run` and fails with nothing of its own,
+             providing an `InstallContext` whose every use dies with a
+             defect — so that skipping the outbox is a written decision.
 ```
 
 ```
@@ -418,9 +445,11 @@ REQUIREMENT: Suspending links MUST NOT be a host operation: the import
              their endpoints, so their session children are withdrawn and their
              dependents wait as on a partition (BEH-FD-021), audited by core
              as system transitions. Calls in flight when a link is closed
-             fail with the remote companion's `SessionLost` (`outcome:
-             "unknown"`), and calls served to peers are cut as on a link
-             loss. Every link MUST show `suspended` in `Federation.Status`
+             fail with the remote companion's `SessionLost`, whose `outcome`
+             the remote companion sets by its own rule: "not-executed" only
+             when the call's frame was never handed to the transport,
+             "unknown" otherwise (remote BEH-RM-020); calls served to peers
+             are cut as on a link loss. Every link MUST show `suspended` in `Federation.Status`
              from step 2 until step 4. The outbox's own delivery transport
              is not a federation link and is never suspended; a deployment
              that carries it over a peer link pushes in step 1, before any

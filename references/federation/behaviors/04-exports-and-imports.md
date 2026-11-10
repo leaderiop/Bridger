@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-04                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-026: the no-identity statement narrowed to proxy calls; what event envelopes routed to a peer disclose (CCR-FD-005)<br>0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -154,8 +154,15 @@ The proxy is the remote companion's ordinary local proxy plugin; federation
 only decides, from the manifest, which proxies exist, where, and what
 identity they send.
 
-**Settled here (CCR-FD-004).** A peer receives no caller identity unless the
-authority's signed manifest lists the claims for that import. Until remote CCR-RM-004 every
+**Settled here (CCR-FD-004).** A peer receives no caller identity through an
+import's calls unless the authority's signed manifest lists the claims for that
+import. `disclose` governs proxy calls only. An envelope of the event delivery
+companion that a route sends to a peer carries the publishing fiber's actor,
+the publishing plugin as `onBehalfOf`, the correlation id and the "wire"
+annotations (durable-bus BEH-DB-002, BEH-DB-006, BEH-DB-053) whatever the
+manifest says; which streams reach which peer is decided by that companion's
+routes (BEH-DB-013), and a peer that must not receive those claims is a peer
+no such stream is routed to. Until remote CCR-RM-004 every
 link sent every identity claim on every call; a peer that receives user
 identities becomes a processor of them, and which peers do is a decision the
 authority records, not a default. An unknown claim name drops the import

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-TRACE                                             |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.6 (2026-11-09): Rows BEH-LD-065–071 and REQ-LD-025–030; REQ-LD-005, 015 and 016 summaries; RSK-BR-013 and RSK-BR-044 notes (specification audit F-06, M-02, M-03, M-06, C-16); RSK-BR-013 row guest wording (independent review) (CCR-LD-004)<br>0.5 (2026-11-08): REQ-LD-010, 017–019, 022–024 summaries follow the round-2 agent review resolutions (CCR-LD-003)<br>0.4 (2026-11-08): Rows BEH-LD-049–064, REQ-LD-017–024; RSK-BR-043 and RSK-BR-044 notes (G60 closed); hazard (d) stale data (round 2: recheck items 11, 12, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-043 and RSK-BR-044 notes (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.7 (2026-11-10): REQ-LD-006 summary adds the subagent and model-family installs (P23) (CCR-LD-005)<br>0.6 (2026-11-09): Rows BEH-LD-065–071 and REQ-LD-025–030; REQ-LD-005, 015 and 016 summaries; RSK-BR-013 and RSK-BR-044 notes (specification audit F-06, M-02, M-03, M-06, C-16); RSK-BR-013 row guest wording (independent review) (CCR-LD-004)<br>0.5 (2026-11-08): REQ-LD-010, 017–019, 022–024 summaries follow the round-2 agent review resolutions (CCR-LD-003)<br>0.4 (2026-11-08): Rows BEH-LD-049–064, REQ-LD-017–024; RSK-BR-043 and RSK-BR-044 notes (G60 closed); hazard (d) stale data (round 2: recheck items 11, 12, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-043 and RSK-BR-044 notes (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 
 ---
@@ -108,7 +108,7 @@ Each scenario is one numbered acceptance check of [BEH-LD-048](behaviors/06-limi
 | <a id="req-ld-003"></a>REQ-LD-003 | 3 | Evaluation from held bytes; closed module resolution | BEH-LD-011 |
 | <a id="req-ld-004"></a>REQ-LD-004 | 4 | One evaluation per digest; resident set | BEH-LD-012 |
 | <a id="req-ld-005"></a>REQ-LD-005 | 5 | Stamping with the signed manifest; `PackageManifestMismatch`; manifest without `digest`; entry named in `extensions["@bridger/loader"]` | BEH-LD-001, BEH-LD-007, BEH-LD-014 |
-| <a id="req-ld-006"></a>REQ-LD-006 | 6 | `LoaderGate` as a core gate piece: refusals, exemptions, catalog entries, loader replacement, revoked restarts; removal never refused | BEH-LD-015 |
+| <a id="req-ld-006"></a>REQ-LD-006 | 6 | `LoaderGate` as a core gate piece: refusals, exemptions, catalog entries, loader replacement, revoked restarts; removal never refused; subagent and model-family installs (with the agent companion) admitted only by a load or a digest exemption | BEH-LD-015 |
 | <a id="req-ld-007"></a>REQ-LD-007 | 7 | LoadLog fail-closed before evaluation; refusal-record failures; fields per step | BEH-LD-016 |
 | <a id="req-ld-008"></a>REQ-LD-008 | 8 | Signature policy: thresholds, roles, distinct signers, windows, statement binding | BEH-LD-017, BEH-LD-018, BEH-LD-019, BEH-LD-020, BEH-LD-021 |
 | <a id="req-ld-009"></a>REQ-LD-009 | 9 | No permissive acceptance rule | BEH-LD-019, BEH-LD-022 |

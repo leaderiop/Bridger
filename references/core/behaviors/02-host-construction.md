@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-02                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-09): BEH-BR-016 the `hostId` is unique among the hosts that share a store, by the uniqueness rule of BEH-BR-210 (F-03) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-012 the base-key rule scoped to the default realm's resolution scope, an isolating realm may provide a base key, the host-owned keys `Bridger.Host` and `Bridger.Events` never provided or isolated (C-02); BEH-BR-013 made the single source of host signatures: `restart` and `reconfigure` take `HandoffCallOptions`, `reconcile` adds `ApplyRolledBack` and `PartialApply`, `defineRealm` adds `InvalidRealm`, Settled note (C-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-010 `HostLink` reference and BEH-BR-013 `declaredContributions` and `link` (CCR-BR-024); BEH-BR-011 option `mandatoryCatalog` and its domain rule (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-010 `CurrentCorrelation` reference; BEH-BR-013 `offerCallEntry`, Settled item 8; BEH-BR-015 the `RefusalList` port and the `CallLog` fields read at construction (CCR-BR-026)<br>0.5 (2026-11-08): `wake` takes no `OperationContext` and is a class of its own (system transitions only); generic `install`/`replace` overloads take the branded `Plugin` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-011 options `mandatory`, `resolutionTimeout`, `callLogTimeout` (CCR-BR-018), `baseContracts` (CCR-BR-017), `handoffTimeout` (CCR-BR-019); BEH-BR-013 `Plugin.Any` overloads (CCR-BR-020), `wake` (CCR-BR-017), `plan`, `retireRealm`, `PlanStale` (CCR-BR-019), `ResolutionRefused` (CCR-BR-018); BEH-BR-014 `retireRealm` operation; BEH-BR-015 policy ports, context references (CCR-BR-018) and `EntitlementView` (CCR-BR-020)<br>0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.10 (2026-11-10): BEH-BR-011 a `baseContracts` entry naming a key the base does not provide fails construction once the base is built, the other option checks before (audit round 2, Low); BEH-BR-010 `HostLink` is set in every fiber running plugin or callback code (Low); BEH-BR-013 `shutdown` gains `WouldDeadlock` (C6) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-016 the `hostId` is unique among the hosts that share a store, by the uniqueness rule of BEH-BR-210 (F-03) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-012 the base-key rule scoped to the default realm's resolution scope, an isolating realm may provide a base key, the host-owned keys `Bridger.Host` and `Bridger.Events` never provided or isolated (C-02); BEH-BR-013 made the single source of host signatures: `restart` and `reconfigure` take `HandoffCallOptions`, `reconcile` adds `ApplyRolledBack` and `PartialApply`, `defineRealm` adds `InvalidRealm`, Settled note (C-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-010 `HostLink` reference and BEH-BR-013 `declaredContributions` and `link` (CCR-BR-024); BEH-BR-011 option `mandatoryCatalog` and its domain rule (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-010 `CurrentCorrelation` reference; BEH-BR-013 `offerCallEntry`, Settled item 8; BEH-BR-015 the `RefusalList` port and the `CallLog` fields read at construction (CCR-BR-026)<br>0.5 (2026-11-08): `wake` takes no `OperationContext` and is a class of its own (system transitions only); generic `install`/`replace` overloads take the branded `Plugin` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-011 options `mandatory`, `resolutionTimeout`, `callLogTimeout` (CCR-BR-018), `baseContracts` (CCR-BR-017), `handoffTimeout` (CCR-BR-019); BEH-BR-013 `Plugin.Any` overloads (CCR-BR-020), `wake` (CCR-BR-017), `plan`, `retireRealm`, `PlanStale` (CCR-BR-019), `ResolutionRefused` (CCR-BR-018); BEH-BR-014 `retireRealm` operation; BEH-BR-015 policy ports, context references (CCR-BR-018) and `EntitlementView` (CCR-BR-020)<br>0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -94,7 +94,7 @@ HeldPlugins        // "@bridger/core/HeldPlugins"   ReadonlySet<string>, default
 ActivePlugin       // "@bridger/core/ActivePlugin"  default: none (13)
 CurrentActor       // "@bridger/core/CurrentActor"  default: Actor.unattributed (22)
 CurrentCorrelation // "@bridger/core/CurrentCorrelation"  default: none (22, BEH-BR-187)
-HostLink           // "@bridger/core/HostLink"      Option<HostLink>, default: none (27, BEH-BR-250; set by the host in every fiber it runs code in)
+HostLink           // "@bridger/core/HostLink"      Option<HostLink>, default: none (27, BEH-BR-250; set by the host in every fiber it runs plugin or callback code in)
 ```
 
 ```
@@ -172,13 +172,16 @@ REQUIREMENT: Construction MUST reject an option value outside its domain —
              `fingerprintTimeout`, `resolutionTimeout`, `callLogTimeout` or
              `handoffTimeout` that is not a positive duration (for the last
              four, "forever" is not accepted); a `baseContracts` entry that
-             is invalid or names a `ServiceId` the base does not provide
-             (checked once the base is built; 26 — Versioned Contracts); a
+             is invalid (26 — Versioned Contracts); a
              `drainTimeout`, `gateTimeout` or `stallWarning` that is
              neither a positive duration nor its named keyword; a
              `mandatoryCatalog` entry with an empty id, or two entries with
              one id (18 — Reconciliation and Confluence, BEH-BR-153) — by failing with a defect that names the option, before
-             any base layer is built.
+             any base layer is built. A `baseContracts` entry that names a
+             `ServiceId` the base does not provide can be found only once
+             the base is built: construction MUST then fail with a defect
+             that names the option, before the host is provided and before
+             any plugin is installed.
 ```
 
 ```
@@ -335,7 +338,7 @@ interface Host {
   retireRealm(id: string, operation?: OperationOptions):
     Effect.Effect<void, UnknownRealm | RealmInUse | HostClosed | G>                              // 33
   shutdown(options?: OperationOptions & { readonly timeout?: Duration.Input }):
-    Effect.Effect<CloseReport, Unattributed | ReasonRequired>   // 12; never gated, never blocked by the
+    Effect.Effect<CloseReport, Unattributed | ReasonRequired | WouldDeadlock>   // 12; never gated, never blocked by the
                                                                  // latch or by an unwritable record
   acknowledgeAuditDegraded(options: { readonly context: OperationContext }):
     Effect.Effect<void, HostClosed | G>                                                          // 23

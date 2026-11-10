@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-09                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-069 `ProposedRequest` carries the request fields binding version 2 digests (`definition.manifest`, `onBehalfOf`, `undo`, `allowChildren`, `mandatoryInterceptions`); BEH-GX-067 a late or surplus `signed` event is refused by the companion before appending, the store enforcing the version only (H5, low) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -205,10 +205,12 @@ REQUIREMENT: A ticket's state MUST be computed from its events in `eventSeq`
 ```
 
 ```
-REQUIREMENT: A `signed` event recorded after `notAfter`, after a `revoked`
-             event, or beyond the number of signatures the rule requires MUST
-             be refused by the store's compare-and-set (BEH-GX-068) and MUST
-             NOT change the state.
+REQUIREMENT: A `signed` event after `notAfter`, after a `revoked` event, or
+             beyond the number of signatures the rule requires MUST be
+             refused by the companion before it appends (BEH-GX-068: the
+             store enforces the version only) and MUST NOT change the state;
+             one found in the log all the same MUST be ignored when the
+             state is computed.
 ```
 
 ```
@@ -308,13 +310,17 @@ order the same way a trail is, and lets `checkApprovals` stream it
 
 ```ts
 // illustrative — not type-checked
-interface ProposedRequest {                     // an OperationRequest without correlationId (BEH-BR-219)
+interface ProposedRequest {                     // an OperationRequest without correlationId, annotations and previousManifest (BEH-BR-219)
   readonly operation: GatedOperation
   readonly target?: { readonly id: string; readonly realm: string }
   readonly actor: Actor
   readonly reason?: string
-  readonly definition?: { readonly version?: string; readonly digest?: string }
+  readonly definition?: { readonly version?: string; readonly digest?: string; readonly manifest?: PluginManifest }   // BEH-BR-248
   readonly configChange?: { readonly paths: readonly string[]; readonly fingerprints?: readonly { readonly path: string; readonly fingerprint: string }[] }
+  readonly onBehalfOf?: PrincipalRef                                           // calls from plugin code (BEH-BR-259)
+  readonly undo?: true                                                         // an undo action of an atomic reconcile (BEH-BR-325)
+  readonly allowChildren?: boolean                                             // BEH-BR-263
+  readonly mandatoryInterceptions?: readonly { readonly serviceId: ServiceId; readonly id?: string }[]   // BEH-BR-260, in request order
 }
 
 declare function issueTicket(
@@ -335,7 +341,10 @@ REQUIREMENT: `issueTicket` MUST evaluate the policy for every proposed request
 ```
 
 ```
-REQUIREMENT: It MUST build one binding per proposed request as BEH-GX-065
+REQUIREMENT: Each proposed request MUST carry every field of BEH-GX-065 that
+             the call's `OperationRequest` will carry, with the same value;
+             a field left out yields a binding the gate refuses as a
+             mismatch. It MUST build one binding per proposed request as BEH-GX-065
              states, compute each digest (BEH-GX-066), take `id` from core's
              `IdGenerator` and `notBefore`, when omitted, from `Clock`, and
              append the `issued` event with `expectedVersion` 0.

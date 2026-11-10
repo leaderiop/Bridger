@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-030                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-043, ADR-BR-045, ADR-BR-051 and ADR-BR-053 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-10-03): Three loss paths; the overflow exception to cardinality; the port read once at construction (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `AuditRecord` gains `endsIntentOf` and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-11-10): Amendments marked: later record fields, step-4b and undo cardinality (C22) (CCR-BR-034)<br>0.4 (2026-10-03): Three loss paths; the overflow exception to cardinality; the port read once at construction (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `AuditRecord` gains `endsIntentOf` and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -64,6 +64,11 @@ interface AuditSink { readonly record: (r: AuditRecord) => Effect.Effect<void, A
 
 **Trade-off accepted**: an awaited, failure-typed port on every mutation, at the cost of latency, in exchange for a trail that, while the host runs, cannot lose a record without the host knowing.
 
+**Amendments (2026-11-10)**:
+
+- The record gains `onBehalfOf` ([ADR-BR-043](./043-plugin-principal-and-mandatory-policy.md)), `annotations` and `annotationsOmitted` ([ADR-BR-045](./045-operation-context-annotations.md)), `undoes` ([ADR-BR-051](./051-atomic-bundle-apply.md)), and `auditDropped`, `sanitized` and `requestedBy` (CCR-BR-026, CCR-BR-028). The field list above is the one first decided; the current shape is `AuditRecord` in [23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md), BEH-BR-195.
+- Cardinality: a call refused by the `RefusalList` at step 4b also writes exactly one `rejected` record and no `requested` record ([ADR-BR-053](./053-refusal-list.md)); the undo actions of an atomic `reconcile` write their own records under the parent ([ADR-BR-051](./051-atomic-bundle-apply.md)) (CCR-BR-034).
+
 ## References
 
 - Behaviours: [23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md), [13 — Observability and diagnostics](../behaviors/13-observability-and-diagnostics.md)
@@ -75,3 +80,4 @@ interface AuditSink { readonly record: (r: AuditRecord) => Effect.Effect<void, A
 - Source: `docs/SPEC.md` — "Observability", "Host interface"
 - Precedent: Qadi ADR-QD-044, *An optional decision sink* (precedent for the optional port shape; cited by name).
 - External: 21 CFR Part 11 §11.10(e); EU GMP Annex 11 (2011) §9; PIC/S PI 041 (ALCOA+, complete, original).
+- Amended by: [ADR-BR-043](./043-plugin-principal-and-mandatory-policy.md), [ADR-BR-045](./045-operation-context-annotations.md), [ADR-BR-051](./051-atomic-bundle-apply.md) and [ADR-BR-053](./053-refusal-list.md) — record fields and cardinality, as the amendments above state (CCR-BR-034).

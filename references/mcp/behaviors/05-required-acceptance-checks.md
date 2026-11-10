@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): Checks 8, 9 and 10 follow the import as a link: session child, background handshake, `SessionLost` outcomes, disclosure; check 15 and REQ-MC-015: no contract object, local contracts, call-log `disclosed` (core CCR-BR-033); check 9: `McpClientStatus` and no session after a refused mount (independent review) (CCR-MC-004)<br>0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.6 (2026-11-10): Check 1: server removal interrupts in-flight calls; check 12: the host calls' actor and `PlanAffectsCaller` (P22, P24) (CCR-MC-005)<br>0.5 (2026-11-09): Checks 8, 9 and 10 follow the import as a link: session child, background handshake, `SessionLost` outcomes, disclosure; check 15 and REQ-MC-015: no contract object, local contracts, call-log `disclosed` (core CCR-BR-033); check 9: `McpClientStatus` and no session after a refused mount (independent review) (CCR-MC-004)<br>0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -35,8 +35,10 @@ Planned tests: `packages/mcp/test/*.test.ts` *(Planned)*.
 ```
 REQUIREMENT: The package test suite MUST contain at least one test for each
              of the following:
-             1. The server is a plugin: removal ends sessions after in-flight
-                calls drain; no tool table outside the toolset.
+             1. The server is a plugin: removal stops accepting requests,
+                interrupts in-flight calls (each dispatch ends interrupted)
+                and closes the transport; no tool table outside the
+                toolset.
              2. A session with no principal, or a refused or failing
                 resolver, lists and calls nothing; every call carries the
                 session actor and an MCP-session provenance entry; a session
@@ -125,8 +127,15 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  refused entry appears in `rejected`; with `atomic`, a
                  failed entry yields `ApplyRolledBack` or `PartialApply` and
                  undo requests reach the gate; host calls carry the
-                 dispatch's correlation; host tools write no `AuditSink`
-                 record of their own.
+                 dispatch's correlation and a context `{ actor, reason }`
+                 whose actor is the dispatching actor, recorded as the
+                 actor of every lifecycle record (never unattributed or
+                 `Actor.system`); a plan whose entry action would stop the
+                 host-tools plugin, the dispatching plugin (`onBehalfOf`), a
+                 plugin the fiber holds, or a provider of one of them fails
+                 with `PlanAffectsCaller` naming them and calls no
+                 `reconcile`; host tools write no `AuditSink` record of
+                 their own.
              13. Resources: templates only for read-only commands tagged
                  "mcp-resource" of the session's toolset, in toolset order;
                  a read is one dispatch with the listed digest and the

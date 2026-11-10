@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-13                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-08): `plugin-idled` and `held-event-dropped` events (27, BEH-BR-251, BEH-BR-252) (CCR-BR-024); `reconcile-partial` event (32, BEH-BR-324) (CCR-BR-025)<br>0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.8 (2026-11-10): BEH-BR-114 `Generation` joins the helpers that publish on their own streams, never on `Host.events` (C7) (CCR-BR-034)<br>0.7 (2026-11-08): `plugin-idled` and `held-event-dropped` events (27, BEH-BR-251, BEH-BR-252) (CCR-BR-024); `reconcile-partial` event (32, BEH-BR-324) (CCR-BR-025)<br>0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -143,12 +143,15 @@ REQUIREMENT: `Host.events` MUST emit, without coalescing: `plugin-installed`,
 
 ```
 REQUIREMENT: Helpers outside the `Host` interface — hook points
-             ([31](./31-hook-points.md)) and realm families
-             ([33](./33-realm-families.md)) — MUST NOT publish on
+             ([31](./31-hook-points.md)), realm families
+             ([33](./33-realm-families.md)) and `Generation`
+             ([20](./20-generation.md)) — MUST NOT publish on
              `Host.events`, whose `seq` only the host assigns: a hook
              point's breaker transitions go on its own `decisions` stream
-             (BEH-BR-304) and a family's eviction outcomes on its own
-             `events` stream (BEH-BR-333).
+             (BEH-BR-304), a family's eviction outcomes on its own
+             `events` stream (BEH-BR-333), and a generation's forced
+             revocations on its own `revocations` stream as
+             `GenerationRevoked` (BEH-BR-169, BEH-BR-174).
 ```
 
 ```

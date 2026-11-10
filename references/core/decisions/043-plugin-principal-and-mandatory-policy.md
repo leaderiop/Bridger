@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-043                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed — amends ADR-BR-019 and ADR-BR-021                  |
+> | Status         | Proposed — amends ADR-BR-019 and ADR-BR-021; amended by ADR-BR-050 and ADR-BR-053 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): Extended by AccessPolicy.declaredOnly, AccessPolicy.ask and the RefusalList port (CCR-BR-026)<br>0.2 (2026-11-08): `onBehalfOf` is the principal of the calling fiber (the provider case stated); retirement after finalizers; mandatory interceptions are application-wired and cover host captures only (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.4 (2026-11-10): Amendments marked: `onBehalfOf` on root `lazy-triggered` records, child mounts refused by the `RefusalList`, `ChildNotAllowed` for a denied child request (C22) (CCR-BR-034)<br>0.3 (2026-11-08): Extended by AccessPolicy.declaredOnly, AccessPolicy.ask and the RefusalList port (CCR-BR-026)<br>0.2 (2026-11-08): `onBehalfOf` is the principal of the calling fiber (the provider case stated); retirement after finalizers; mandatory interceptions are application-wired and cover host captures only (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 
@@ -56,6 +56,11 @@ This amends ADR-BR-019 (interception now also covers `Host.use` for mandatory in
 
 **Trade-off accepted**: an honest, testable "no plugin can remove this through Bridger's API", in place of an isolation claim core cannot make in one process.
 
+**Amendments (2026-11-10)**:
+
+- `onBehalfOf` does appear on one kind of system record: the root `lazy-triggered` record of a wake or an event dispatch carries the caller's principal ([ADR-BR-050](./050-dormant-veto-and-hook-phases.md); [28](../behaviors/28-plugin-principal-and-mandatory-policy.md), BEH-BR-259).
+- A child mount is also refused by a wired `RefusalList`, and that refusal writes a `start-refused` record ([ADR-BR-053](./053-refusal-list.md)). An `AccessPolicy` denial of a `child` request fails `Plugin.Runtime.install` with `ChildNotAllowed`, as a mount refused by `allowChildren` does; denials of `listen`, `emit` and `contribute` stay defects (BEH-BR-263, BEH-BR-264) (CCR-BR-034).
+
 ## References
 
 - Behaviours: [28 — Plugin principal and mandatory policy](../behaviors/28-plugin-principal-and-mandatory-policy.md), [17 — Realms and interception](../behaviors/17-realms-and-interception.md), [14 — Children and groups](../behaviors/14-children-and-groups.md), [22 — Attributable operations](../behaviors/22-attributable-operations.md)
@@ -64,3 +69,4 @@ This amends ADR-BR-019 (interception now also covers `Host.use` for mandatory in
 - Risks: [RSK-BR-028](../gxp/03-risk-assessment.md#rsk-br-028), [RSK-BR-029](../gxp/03-risk-assessment.md#rsk-br-029)
 - Decisions: [ADR-BR-019](./019-realms-are-resolution-namespaces.md), [ADR-BR-021](./021-children-and-groups.md), [ADR-BR-027](./027-core-exclusions.md), [ADR-BR-029](./029-attributable-mutations.md), [ADR-BR-032](./032-operation-gate.md), [ADR-BR-044](./044-capability-policy-and-call-log-ports.md)
 - Extended by CCR-BR-026: `AccessPolicy.declaredOnly` and `AccessPolicy.ask` (BEH-BR-268, BEH-BR-269); the `RefusalList` port ([ADR-BR-053](./053-refusal-list.md)).
+- Amended by: [ADR-BR-050](./050-dormant-veto-and-hook-phases.md) — root `lazy-triggered` records carry `onBehalfOf` (CCR-BR-024); [ADR-BR-053](./053-refusal-list.md) — a refused digest refuses a child mount (CCR-BR-026).

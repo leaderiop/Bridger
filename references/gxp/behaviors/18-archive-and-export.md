@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-18                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -58,8 +58,14 @@ declare function exportTrail(q: {
   readonly range: { readonly fromSeq: number; readonly toSeq: number } | "all"
   readonly scope: string                               // for re-linking approvals (BEH-GX-083)
   readonly policy: ApprovalPolicy | "not-used"
+  readonly sealing: {                                  // a sealed trail (21); "not-used" otherwise
+    readonly chain: ChainReaderShape                   // audit-chain 05, read side of the chain store; series id = hostId
+    readonly receipts: ReceiptReaderShape              // audit-chain 05
+    readonly trustRoots: readonly TrustRoot[]          // audit-chain 05, BEH-AC-035; never read from a store
+  } | "not-used"
+  readonly maxEntries?: number                         // default 1,000,000, as verifySeals (BEH-GX-171)
   readonly outDir: string                              // must not exist
-}): Effect.Effect<ArchiveManifest, ExportFailed>
+}): Effect.Effect<ArchiveManifest, ExportFailed | CheckCapacityExceeded>
 ```
 
 ```
@@ -84,13 +90,25 @@ REQUIREMENT: It MUST hold in memory at most one page of entries, the set of
              that a host of any length can be exported (NFR-GX-006).
 ```
 
+```
+REQUIREMENT: With `sealing`, the archive MUST contain `chain-bundle.json`,
+             written by audit-chain's `exportBundle({ series: [hostId],
+             range: the range read, disclose: "segments", trustRoots })`
+             with `sealing.chain` and `sealing.receipts` as its `ChainReader`
+             and `ReceiptReader`; a `BundleExportFailed` MUST fail the export
+             with `ExportFailed`. `exportBundle` returns the whole bundle, so
+             a sealed export MUST fail with `CheckCapacityExceeded` before
+             calling it when the range holds more than `maxEntries` entries.
+             With "not-used" the file MUST be absent.
+```
+
 Exporting a trail without its approvals would cut the link of 11.70 at the
 moment the trail leaves the system ([11 — Signature Linking](./11-signature-linking.md)); the
 archive therefore carries every ticket the exported records cite. The export
 must be taken before entries are removed from a live store
 ([BEH-GX-013](./02-trail-store-port.md#beh-gx-013-the-port-offers-no-update-and-no-delete)), since the companion offers no other copy.
 
-## BEH-GX-138: An archive has a fixed layout and a manifest of digests in format bridger-gx-archive/1
+## BEH-GX-138: An archive has a fixed layout and a manifest of digests in format bridger-gx-archive/2
 
 > **Invariant:** [INV-GX-012](../invariants.md#inv-gx-012-the-canonical-form-is-deterministic-across-platforms)
 > **See:** [ADR-GX-023](../decisions/023-archives-keep-original-bytes.md), [ADR-GX-022](../decisions/022-evidence-pack-format.md)
@@ -116,6 +134,7 @@ interface ArchiveManifest {
   readonly format: "bridger-gx-archive/2"
   readonly hostId: string
   readonly range: { readonly fromSeq: number; readonly toSeq: number }   // as read
+  readonly requested: { readonly fromSeq: number; readonly toSeq: number } | "all"   // q.range, copied (BEH-GX-140)
   readonly entries: number
   readonly supportedSchemaVersions: readonly number[]                   // BEH-GX-142
   readonly exportedAt: string                                           // from Clock
@@ -204,6 +223,8 @@ declare function readArchive(dir: string, options?: {
   readonly scope?: string; readonly policy?: ApprovalPolicy
   readonly pageSize?: number                           // default 1000, as checkStoredTrail (BEH-GX-035)
   readonly maxOpenRequests?: number                    // default 100000, as checkStoredTrail
+  readonly maxEntries?: number                         // default 1,000,000, as verifySeals (BEH-GX-171)
+  readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // for keyed links; passed to verifyBundle as options.keyed
 }): Effect.Effect<{ readonly manifest: ArchiveManifest; readonly files: readonly FileCheck[]
                     readonly report: CheckReport; readonly links?: ApprovalLinkReport },
                   ArchiveUnreadable | CheckCapacityExceeded>
@@ -215,11 +236,34 @@ REQUIREMENT: `readArchive` MUST recompute the digest of every file and
              missing and a file not listed. It MUST then rebuild trail
              entries from `trail.jsonl` and `seals.jsonl` — `canonical` from
              the line's bytes, `record` by parsing them — and run
-             `checkTrailEntries` (BEH-GX-034), audit-chain's `verifyBundle`
+             `checkTrailEntries` (BEH-GX-034) bounded by the `requested`
+             range, audit-chain's `verifyBundle`
              over `chain-bundle.json` when present (BEH-AC-034, mapped as
              BEH-GX-171 maps a chain report), the
              high-water comparison (BEH-GX-045) and, with `scope` and
              `policy`, `linkApprovals` over the archived tickets (BEH-GX-087).
+```
+
+```
+REQUIREMENT: When `chain-bundle.json` is present, `readArchive` MUST compare
+             its segment entries with the archived entries: an entry whose
+             `record` does not give the line of `trail.jsonl` at the same
+             `auditSeq` when encoded as BEH-GX-018 encodes it, whose `link`
+             differs from the `seals.jsonl` link at that `auditSeq`, or
+             whose `auditSeq` is on one side only, MUST be reported as one
+             `bundleMismatch` finding. Receipts `verifyBundle` reports
+             "not-checked" or "failed" MUST be reported as
+             `anchorUnconfirmed`, as BEH-GX-171 reports unconfirmed receipts.
+```
+
+```
+REQUIREMENT: The checks MUST be bounded by the manifest's `requested` range.
+             When it is a range, the report MUST equal that of
+             `checkStoredTrail` with its `fromSeq` and `toSeq` (BEH-GX-035,
+             BEH-GX-037): no `gap` below `fromSeq`, the end-of-range rule
+             for open requests; and the high-water comparison MUST NOT
+             report `tailLoss` or `unanchoredTail` above `toSeq`. With
+             "all" the archive is checked as the whole host.
 ```
 
 ```
@@ -242,15 +286,23 @@ REQUIREMENT: `readArchive` MUST read each file as a stream, computing its
              `pageSize` lines of `trail.jsonl` with their `seals.jsonl`
              lines, the last entry of the previous page, the open
              `requested` records (BEH-GX-037), the state that the
-             high-water comparison keeps (BEH-GX-045), and what audit-chain's
-             `verifyBundle` holds (BEH-AC-034) and, for linking, only the ticket events
+             high-water comparison keeps (BEH-GX-045) and, for linking, only the ticket events
              `listConsumptions` holds (BEH-GX-084), so that
              its memory is bounded by these settings and not by the length
              of the archive (NFR-GX-006). Its report MUST equal, finding for
-             finding, that of `checkTrailEntries` over all archived entries
-             at once (BEH-GX-035). When the open `requested` records exceed
-             `maxOpenRequests` it MUST fail with `CheckCapacityExceeded`,
-             never return a partial report.
+             finding, that of the checks bounded by the `requested` range
+             over all archived entries at once (BEH-GX-035). When the open
+             `requested` records exceed `maxOpenRequests` it MUST fail with
+             `CheckCapacityExceeded`, never return a partial report.
+```
+
+```
+REQUIREMENT: `verifyBundle` takes the parsed bundle whole (BEH-AC-034), so
+             `readArchive` MUST fail with `CheckCapacityExceeded` before
+             parsing `chain-bundle.json` when the manifest's `entries`
+             exceeds `maxEntries`, and MUST NOT parse a bundle whose size or
+             digest differs from the manifest's; such a file is reported as
+             a file difference and the seal kinds are listed as not checked.
 ```
 
 An archive is opened years after it was written, by someone who did not

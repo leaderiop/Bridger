@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-21                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
+> | Change History | 0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
 
 ---
 
@@ -47,7 +47,7 @@ Planned source: `packages/gxp/src/sealing/trailChainStore.ts` and
 
 ```ts
 // illustrative — not type-checked
-import type { HashChainOptions, ChainStoreShape, AnchorShape, ReceiptStoreShape, KeyedHasherShape } from "@bridger/audit-chain"
+import type { HashChainOptions, ChainStoreShape, AnchorShape, ReceiptStoreShape, ReceiptReaderShape, KeyedHasherShape } from "@bridger/audit-chain"
 
 interface SealingOptions {
   readonly chain: HashChainOptions                                   // audit-chain 01, BEH-AC-001; alg, anchorEvery, …
@@ -63,9 +63,16 @@ declare function trailChainStore(store: TrailStoreShape): ChainStoreShape
 
 ```
 REQUIREMENT: With sealing on, `trailSink` (BEH-GX-022) MUST build its
-             `AuditSink` with `HashChainSink.make(trailChainStore(store),
-             options.chain)` — or the unanchored variant when `anchoring` is
-             "unanchored" — of `@bridger/audit-chain`. `trailChainStore`'s
+             `AuditSink` with `@bridger/audit-chain`'s
+             `HashChainSink.make(trailChainStore(store), options.chain)`,
+             given `anchoring.anchor` and `anchoring.receipts` as its `Anchor`
+             and `ReceiptStore`, when `anchoring` names them; and with
+             `HashChainSink.layerUnanchored(options.chain)` over
+             `trailChainStore(store)` when `anchoring` is "unanchored". Only
+             the first returns the sink's `ChainStatusView` (BEH-AC-012),
+             which `ChainGate` reads (BEH-GX-175); the second exposes no
+             status. Like the trail sink it is part of, the chain sink serves
+             exactly one host (BEH-AC-001, BEH-GX-017). `trailChainStore`'s
              `append({ record, link })` MUST perform the steps of BEH-GX-018
              to BEH-GX-021 on `record` and store `link` in the entry's `link`
              field, unchanged; it MUST fail with `AuditWriteFailed` in, and
@@ -117,37 +124,70 @@ declare function verifySeals(
   store: TrailStoreShape,
   marks: AnchorStoreShape,                         // the companion's high-water marks (06)
   sealing: {
-    readonly receipts: ReceiptStoreShape           // audit-chain 02
+    readonly receipts: ReceiptReaderShape          // audit-chain 05, the read side of the ReceiptStore; series id = hostId
     readonly verifier: AnchorVerifierShape         // audit-chain 03, BEH-AC-020
     readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined
   },
-  options: { readonly hostId: string; readonly pageSize?: number }
+  options: {
+    readonly hostId: string
+    readonly continuesFrom?: HashChainOptions["continuesFrom"]   // as the host's sink was built with (BEH-AC-007)
+    readonly pageSize?: number
+    readonly maxEntries?: number                   // default 1,000,000 (NFR-GX-006)
+  }
 ): Effect.Effect<CheckReport & { readonly chain: ChainReport },
-                 TrailReadFailed | AnchorReadFailed | ReceiptStoreFailed>   // ReceiptStoreFailed: audit-chain 02
+                 TrailReadFailed | AnchorReadFailed | BundleExportFailed | CheckCapacityExceeded>   // BundleExportFailed: audit-chain 05, ReceiptReader
 ```
 
-| Finding kind | From audit-chain's `ChainReport` |
+| Finding kind | From audit-chain |
 | --- | --- |
-| `chainBreak` | each entry of `breaks`, with its `kind` as `detail` |
+| `chainBreak` | each entry of the `ChainReport`'s `breaks`, whatever its `kind` ("canon-changed" and "counter-decreased" included), with the `kind` as `detail` |
 | `anchorMismatch` | each entry of `anchorMismatches` |
-| `unanchoredTail` | `hosts[].unanchoredTail`, when present |
+| `chainUnanchoredTail` | `hosts[].unanchoredTail`, when present: entries above the last confirmed anchor |
 | `headMismatch` | `hosts[].head` "head-short" or "head-mismatch" against the expected head taken from the host's highest high-water mark |
-| `nonCanonical` | each entry of `notices` |
+| `chainNonCanonical` | each entry of `notices` of kind "non-canonical-encoding" |
+| `chainLossCounterRose` | each entry of `notices` of kind "loss-counter-rose": the record's `auditDropped` rose (BEH-AC-030) |
+| `anchorUnconfirmed` | each entry of `confirmAnchors`'s `unconfirmed`, with the window of its statement as `auditSeq` and `toSeq` and `detail` "statement <statementHash> not confirmed"; the verifier's `reason` is not copied (NFR-GX-007) |
 
 ```
-REQUIREMENT: `verifySeals` MUST confirm the receipts with audit-chain's
-             `confirmAnchors` and then call `verifyChain` over the host's
+REQUIREMENT: `verifySeals` MUST read the host's statements and receipts with
+             `sealing.receipts.read(hostId, 1, s)`, `s` the highest
+             `auditSeq` read from the store, confirm them with audit-chain's
+             `confirmAnchors`, and then call `verifyChain` over the host's
              entries as `{ record, link }`, in ascending `auditSeq`, with
+             the confirmed statements, the default profile (`auditProfile`,
+             BEH-AC-031), `continuesFrom` keyed by `hostId` when given, and
              `expectedHeads` set from the host's highest high-water mark
              (BEH-GX-042) when one exists. It MUST NOT recompute, re-derive or
              reinterpret any link itself.
 ```
 
 ```
-REQUIREMENT: Every item of the `ChainReport` that the table names MUST become
-             exactly one finding of the kind shown, and the `ChainReport`
-             MUST be attached unchanged as `chain`. No item MAY be dropped,
-             merged or upgraded (BEH-GX-040).
+REQUIREMENT: Every item the table names MUST become exactly one finding of
+             the kind shown, and the `ChainReport` MUST be attached unchanged
+             as `chain`. No item MAY be dropped, merged or upgraded
+             (BEH-GX-040). The table covers every break and notice kind of
+             the pinned audit-chain revision; a kind added by a later
+             revision is assessed and mapped under a CCR-GX before that
+             revision is adopted (change control §7).
+```
+
+```
+REQUIREMENT: `verifyChain` takes the entries as one synchronous `Iterable`
+             and returns one report (BEH-AC-017), so `verifySeals` MUST hold
+             the host's entries in memory to call it. It MUST read them
+             through `store.read` and fail with `CheckCapacityExceeded {
+             hostId, auditSeq }`, `auditSeq` the first entry it could not
+             hold, as soon as more than `maxEntries` would be held; it MUST
+             NOT verify part of a host's entries. This is the bound of
+             NFR-GX-006 for seal verification.
+```
+
+```
+REQUIREMENT: When the host's sink was built with `continuesFrom`, the caller
+             MUST pass the same value. Without it the first link is checked
+             against the host's own genesis value and reported as a
+             `chainBreak` at the first entry; the report MUST NOT be read as
+             showing an alteration until it is rerun with the value.
 ```
 
 ```
@@ -162,6 +202,15 @@ expected heads lets the same report show what audit-chain alone cannot: that
 the newest anchored windows were removed together with their receipts. The
 findings are named in the companion's vocabulary so that one report lists
 every kind; the attached `ChainReport` is the evidence they were taken from.
+A finding taken from the chain has a name of its own wherever the companion
+already has a kind for a similar fact from another source — `unanchoredTail`
+is measured against high-water marks (BEH-GX-046), `chainUnanchoredTail`
+against confirmed anchors; `nonCanonical` and `auditDropped` are read from the
+entry (BEH-GX-034, BEH-GX-038), `chainNonCanonical` and `chainLossCounterRose`
+from its link — so that a reader can tell which evidence each rests on. A
+receipt that could not be confirmed is reported rather than dropped: an
+anchor service that was unreachable at verification would otherwise look
+like a window that was never anchored.
 
 ## BEH-GX-172: Without a confirmed anchor, a consistent chain shows only consistency
 
@@ -175,11 +224,11 @@ every kind; the attached `ChainReport` is the evidence they were taken from.
 REQUIREMENT: When `verifiedThrough` is 0 for the host and the report has no
              `chainBreak`, the report MUST state "The chain is internally
              consistent; no anchor confirms it." and MUST report
-             `unanchoredTail` for the whole trail.
+             `chainUnanchoredTail` for the whole trail.
 ```
 
 ```
-REQUIREMENT: When the receipt store or the high-water mark store cannot be
+REQUIREMENT: When the receipt reader or the high-water mark store cannot be
              read, `verifySeals` MUST fail with the read error rather than
              report chain consistency alone.
 ```
@@ -187,8 +236,9 @@ REQUIREMENT: When the receipt store or the high-water mark store cannot be
 ```
 REQUIREMENT: When sealing is off, or the sealing inputs are not given, every
              check that offers seal verification MUST list `chainBreak`,
-             `anchorMismatch`, `headMismatch` and `nonCanonical` in
-             `notCheckedKinds` (BEH-GX-033).
+             `anchorMismatch`, `chainUnanchoredTail`, `headMismatch`,
+             `chainNonCanonical`, `chainLossCounterRose` and
+             `anchorUnconfirmed` in `notCheckedKinds` (BEH-GX-033).
 ```
 
 A chain recomputed end to end by whoever changed an entry is consistent; only
@@ -266,12 +316,12 @@ by the trail's chain.
 // illustrative — not type-checked
 interface SealingOptions {
   // ...chain, anchoring, keyed (BEH-GX-170)
-  readonly gate?: Parameters<typeof ChainGate.make>[1] | "not-used"   // audit-chain 02, BEH-AC-013
+  readonly gate: Parameters<typeof ChainGate.make>[1] | "not-used"    // audit-chain 02, BEH-AC-013
 }
 ```
 
 ```
-REQUIREMENT: When `sealing.gate` is given, `GxpLayer.make` MUST build
+REQUIREMENT: When `sealing.gate` is a configuration, `GxpLayer.make` MUST build
              audit-chain's `ChainGate` over the sealing sink's status and
              place it in the companion's host gate as the piece named
              "chain", after "trail" and before "approval" (BEH-GX-178). The
@@ -284,6 +334,14 @@ REQUIREMENT: When `sealing.gate` is given, `GxpLayer.make` MUST build
 REQUIREMENT: `sealing.gate` MUST be stated explicitly, as a configuration or
              "not-used", whenever sealing is on; a missing value MUST be a
              type error (BEH-GX-004).
+```
+
+```
+REQUIREMENT: With `anchoring` "unanchored", `sealing.gate` MUST be
+             "not-used": the unanchored sink exposes no status for `ChainGate`
+             to read (BEH-GX-170), and `GxpLayer.make` MUST fail with
+             `GxpLayerInvalid` (section "trail") when a configuration is
+             given.
 ```
 
 Audit-chain already says how an anchoring outage or a chain break should stop

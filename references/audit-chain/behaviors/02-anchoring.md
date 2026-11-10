@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped` for every series, version 1 still read; the windows of a series resumed by another writer (04, BEH-AC-026) (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore` (round 2: recheck item 13) (CCR-AC-003)<br>0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.5 (2026-11-10): `ChainStatus` gains `dropped`, the loss counter 04, BEH-AC-030 requires the status to report; open item 3 closed (statements carry `dropped`) (CCR-AC-005)<br>0.4 (2026-11-08): `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped` for every series, version 1 still read; the windows of a series resumed by another writer (04, BEH-AC-026) (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore` (round 2: recheck item 13) (CCR-AC-003)<br>0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -256,6 +256,7 @@ interface ChainStatus {
   readonly chainBreaks: number                              // links appended with a break marker (01, BEH-AC-004, BEH-AC-005)
   readonly unsupportedSchema: number                        // links marked schema "unsupported" (01, BEH-AC-002)
   readonly nonCanonical: number                             // links marked canonical "jcs-escaped" (01, BEH-AC-003)
+  readonly dropped?: number                                 // loss counter of the last appended record, when the series has one (04, BEH-AC-030)
 }
 interface ChainStatusView {
   readonly current: Effect.Effect<ChainStatus>
@@ -490,10 +491,9 @@ explicit configuration with its limits stated (BEH-AC-016).
 **Open.** (1) Whether to publish to several anchors at once and count a window
 as anchored when k of them confirm, for deployments that do not want to rely
 on one anchor service. (2) The default window sizes, which should be set from
-measurements of real anchor services' latency and cost. (3) Whether a
-statement should also carry the count of records dropped by core's writer
-queue (`HostSnapshot.auditDropped`), which the sink cannot observe through
-the `AuditSink` port today.
+measurements of real anchor services' latency and cost. (3) *Settled:* a
+statement carries the loss counter of its window's last record (`dropped`,
+BEH-AC-009; for the audit instance core's `auditDropped`, 04, BEH-AC-030).
 
 ---
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-01                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.5 (2026-11-10): `rotate` and `rewrap`, required by BEH-KR-006, added to `KeyringShape` (BEH-KR-002) and to the members of the `Keyring` contract (BEH-KR-008) (P10) (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -52,6 +52,8 @@ interface KeyringShape {
     Effect.Effect<Sealed, KeyShredded | KeyStoreUnavailable>
   readonly decrypt: (sealed: Sealed, aad: Uint8Array) =>
     Effect.Effect<Uint8Array, KeyShredded | DecryptFailed | KeyStoreUnavailable>
+  readonly rotate: (subject: string) => Effect.Effect<KeyHandle, KeyShredded | SubjectInvalid | KeyStoreUnavailable>   // BEH-KR-006: the new current handle
+  readonly rewrap: (kekId: string) => Effect.Effect<void, KeyStoreUnavailable>                                         // BEH-KR-006
   // shred, onShred, shredStatus: 03
 }
 interface Sealed { readonly v: 1; readonly subject: string; readonly keyId: string; readonly nonce: string; readonly ct: string }  // base64url
@@ -172,9 +174,10 @@ REQUIREMENT: Documentation MUST state the backup obligations: backups of the
 ```
 REQUIREMENT: The `Keyring` service MUST be declared with core
              `Contract.local` (core BEH-BR-225) listing its members `key`,
-             `encrypt`, `decrypt`, `shred`, `onShred` and `shredStatus`, and
-             provided by a plugin, so that `decrypt` and `shred` can be granted per
-             plugin (BEH-BR-273) and a grant withdrawn through
+             `encrypt`, `decrypt`, `rotate`, `rewrap`, `shred`, `onShred` and
+             `shredStatus`, and provided by a plugin, so that `decrypt`,
+             `rotate`, `rewrap` and `shred` can be granted per plugin
+             (BEH-BR-273) and a grant withdrawn through
              `CapabilityPolicy.changes` narrows live captures (BEH-BR-281).
              Arguments that reach the call log MUST be limited to subject,
              key id and member; plaintext and ciphertext MUST NOT.

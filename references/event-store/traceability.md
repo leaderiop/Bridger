@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-TRACE                                             |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.3 (2026-11-09): REQ-ES-017 (grants on the `EventStore` members); BEH-ES-007 cites BEH-BR-292 and REQ-ES-013; BEH-ES-028 and BEH-ES-030 add REQ-ES-006 and REQ-ES-013; BEH-ES-034 adds REQ-ES-008; BEH-ES-038 cites URS-BR-034 and REQ-ES-017 (CCR-ES-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — REQ-ES-018 (re-bootstrap install); BEH-ES-034 row cites INV-ES-004 and REQ-ES-018 (CCR-ES-004)<br>0.3 (2026-11-09): REQ-ES-017 (grants on the `EventStore` members); BEH-ES-007 cites BEH-BR-292 and REQ-ES-013; BEH-ES-028 and BEH-ES-030 add REQ-ES-006 and REQ-ES-013; BEH-ES-034 adds REQ-ES-008; BEH-ES-038 cites URS-BR-034 and REQ-ES-017 (CCR-ES-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -57,13 +57,13 @@ RSK-ES / core RSK-BR → test. Every test is *Planned*; no row is evidence
 | BEH-ES-031 | INV-ES-003 | ADR-ES-007 | — | URS-BR-022 | REQ-ES-015 |
 | BEH-ES-032 | — | ADR-ES-007 | — | URS-BR-059 | REQ-ES-015 |
 | BEH-ES-033 | INV-ES-001, INV-ES-003 | ADR-ES-006 | — | — | REQ-ES-016 |
-| BEH-ES-034 | INV-ES-002 | ADR-ES-003 | — | URS-BR-043, URS-BR-056 | REQ-ES-008, REQ-ES-016 |
+| BEH-ES-034 | INV-ES-002, INV-ES-004 | ADR-ES-003 | — | URS-BR-043, URS-BR-056 | REQ-ES-008, REQ-ES-016, REQ-ES-018 |
 | BEH-ES-035 | — | ADR-ES-006 | — | — | REQ-ES-016 |
 | BEH-ES-036 | INV-ES-004 | ADR-ES-006 | — | — | REQ-ES-016 |
 | BEH-ES-037 | — | ADR-ES-006 | — | URS-BR-025 | REQ-ES-016 |
 | BEH-ES-038 | — | — | BEH-BR-225, BEH-BR-244, BEH-BR-251, BEH-BR-269, BEH-BR-273 | URS-BR-029, URS-BR-034 | REQ-ES-016, REQ-ES-017 |
 | BEH-ES-039 | — | — | BEH-BR-209, BEH-BR-210 | URS-BR-027 | REQ-ES-016 |
-| BEH-ES-040 | — | — | — | URS-BR-025 | REQ-ES-001–017 |
+| BEH-ES-040 | — | — | — | URS-BR-025 | REQ-ES-001–018 |
 
 ## §2 Acceptance scenarios
 
@@ -90,6 +90,7 @@ Test files are *Planned* under `packages/event-store/test/` *(Planned)*.
 | <a id="req-es-015"></a>REQ-ES-015 | 15 | Chain receives stored form; codec | BEH-ES-031, BEH-ES-032 |
 | <a id="req-es-016"></a>REQ-ES-016 | 16 | Adapter conformance on SQLite and Postgres | BEH-ES-008, BEH-ES-033–039 |
 | <a id="req-es-017"></a>REQ-ES-017 | 17 | Grants name the `EventStore` members; helpers reach the store only through them | BEH-ES-038 |
+| <a id="req-es-018"></a>REQ-ES-018 | 18 | Re-bootstrap install: writes refused during a whole-store freeze; followers stop, projections resume from the new store's checkpoints, chains wait for the application | BEH-ES-034 |
 
 ## §3 Risk notes
 

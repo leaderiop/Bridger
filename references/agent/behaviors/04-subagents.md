@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-04                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Parent relation via `Actor.narrow` (BEH-BR-337), not `onBehalfOf`; `SubagentParentUnattributed`; error classes declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.3 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — installs run under the parent's context as core `Realm.ephemeral` specifies, the subagent acts with `EphemeralRealm.context`, and `SubagentError` uses core's error unions (BEH-AG-025, BEH-AG-026, P21); the loop is started with `StartRequest.spawn` carrying the restricted toolset, taint and parent task (BEH-AG-025, 027, 029, H10); gate exemption question settled by the loader's wiring (P23) (CCR-AG-005)<br>0.2 (2026-11-08): Parent relation via `Actor.narrow` (BEH-BR-337), not `onBehalfOf`; `SubagentParentUnattributed`; error classes declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -70,7 +70,11 @@ class SubagentParentUnattributed extends Schema.TaggedError<SubagentParentUnattr
 
 type SubagentError =
   | SubagentToolNotInParent | SubagentParentUnattributed
-  | InstallError | BudgetExhausted | BudgetUnavailable    // core 03; entitlement companion
+  | InvalidRealm | DuplicateRealm | FamilyMemberUnavailable          // core Realm.ephemeral (BEH-BR-336)
+  | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected
+  | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout   // core EphemeralRealm.use (BEH-BR-336)
+  | ResolutionRefused | AgentStartError                               // the subagent loop's start (01, BEH-AG-003)
+  | BudgetExhausted | BudgetUnavailable                               // entitlement companion
 ```
 
 ```
@@ -90,17 +94,35 @@ REQUIREMENT: The subagent MUST NOT outlive its parent turn. The
 ```
 
 ```
-REQUIREMENT: Installing `plugins` MUST go through the host's ordinary
-             `install` path, attributed to the narrowed actor (BEH-AG-026),
-             and therefore through the `OperationGate` when one is wired.
+REQUIREMENT: `spawnSubagent` MUST pass `parent.context` as the
+             `Realm.ephemeral` option `context`, so that defining the
+             realm, installing `plugins` and tearing them down are
+             attributed to the parent's actor, as core specifies for the
+             owner of an ephemeral realm (core BEH-BR-336), and pass
+             through the `OperationGate` when one is wired. The narrowed
+             actor of `EphemeralRealm.context` is the subagent's own
+             (BEH-AG-026); it MUST NOT be used for those operations.
+```
+
+```
+REQUIREMENT: `spawnSubagent` MUST start the subagent's loop through
+             `EphemeralRealm.use([AgentLoop], …)` with a `StartRequest`
+             whose `actor` is the actor of `EphemeralRealm.context` and
+             whose `spawn` carries `parent.taskId`, the restricted toolset
+             (BEH-AG-027) and the parent session's taint labels
+             (BEH-AG-029) (01, BEH-AG-003). A failure of `Realm.ephemeral`,
+             of that `use` or of `start` MUST fail `spawnSubagent` with
+             that error.
 ```
 
 **Settled here.** The default `tools` is empty: a subagent that needs tools
 names them, so widening by omission cannot happen.
 
-**Open.** Whether installing the subagent's plugins should be exempt from the
-`OperationGate` (they are scoped to one turn); v0.1 does not exempt them,
-leaving the decision to the application's gate.
+**Settled here (gate).** Installing the subagent's plugins is not exempt
+from the `OperationGate`: they are ordinary installs by the parent's actor.
+With the loader's gate piece wired, they are allowed only when loaded
+through the loader or exempt by digest (loader
+[BEH-LD-015](../../loader/behaviors/02-load-pipeline.md#beh-ld-015-a-gate-piece-refuses-definitions-that-did-not-come-through-the-loader)).
 
 ## BEH-AG-026: The subagent acts as a narrowed actor
 
@@ -109,8 +131,9 @@ leaving the decision to the application's gate.
 > **Core seam:** [33 — Realm families](../../core/behaviors/33-realm-families.md), [28 — Plugin principal and mandatory policy](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md)
 
 ```
-REQUIREMENT: Every dispatch and host call of the subagent MUST carry an
-             actor obtained by `Actor.narrow` from the parent's actor (core
+REQUIREMENT: Every dispatch and host call of the subagent MUST carry the
+             actor of `EphemeralRealm.context`, obtained by core with
+             `Actor.narrow` from the parent's actor (core BEH-BR-336,
              BEH-BR-337), so that records and gate requests show the
              subagent, and — through the narrowed actor's id — the actor it
              acts for. The parent relation MUST NOT be expressed through
@@ -154,6 +177,8 @@ REQUIREMENT: The subagent's toolset MUST be the parent's pinned toolset
 ```
 REQUIREMENT: The subagent MUST use that one restricted toolset for its whole
              life; it MUST NOT pin a toolset of its own from the catalog.
+             It receives the toolset as `StartRequest.spawn.toolset`
+             (BEH-AG-025, BEH-AG-003).
 ```
 
 ```
@@ -198,8 +223,8 @@ behaviour depends on them and does not define them.
 
 ```
 REQUIREMENT: A subagent's session MUST start with the parent session's
-             taint. A subagent of a tainted parent is tainted from its
-             first step.
+             taint, passed as `StartRequest.spawn.taint` (BEH-AG-003). A
+             subagent of a tainted parent is tainted from its first step.
 ```
 
 ```

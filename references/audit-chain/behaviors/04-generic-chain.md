@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-04                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Round-2 agent review (R3-06, R3-07, R3-09; R5-08): `ChainLinkV2` with `seriesId`, `seq`, `canon` and its hash inputs, audit links stay version 1; anchor statements version 2 carry `seriesId`, `canon` and `dropped`; a series resumes across hosts with `resumeFrom` or `ChainStore.head`; the erasure wording no longer over-claims; checks 13–16 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
+> | Change History | 0.3 (2026-11-10): BEH-AC-027 and BEH-AC-030 name the report kinds "canon-changed", "loss-counter-rose" and "counter-decreased" (03, BEH-AC-019); BEH-AC-029 restates store idempotence for an equal entry only (BEH-AC-006, CCR-AC-004); BEH-AC-031 passes the profile as `verifyChain`'s `options.profile` and names `SequenceResult`; open item 1 closed (`ChainLinkV2.origin`) (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-06, R3-07, R3-09; R5-08): `ChainLinkV2` with `seriesId`, `seq`, `canon` and its hash inputs, audit links stay version 1; anchor statements version 2 carry `seriesId`, `canon` and `dropped`; a series resumes across hosts with `resumeFrom` or `ChainStore.head`; the erasure wording no longer over-claims; checks 13–16 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
 
 ---
 
@@ -327,7 +327,8 @@ REQUIREMENT: The canonicaliser's `id` MUST be recorded in every link of a
              statement of the series (`AnchorStatement.canon`),
              and MUST be fixed for the life of the series. A verifier MUST
              select the canonicaliser by this id and MUST report a link whose
-             `canon` differs from the series' first link as a break.
+             `canon` differs from the series' first link as a "canon-changed"
+             break (03, BEH-AC-019).
 ```
 
 ```
@@ -459,7 +460,9 @@ REQUIREMENT: The sink MUST read each record's position only through
 
 ```
 REQUIREMENT: A `ChainStore` of any series MUST meet the obligations of 01,
-             BEH-AC-006: idempotent on `recordId`, record and link stored
+             BEH-AC-006: an equal entry under a stored `recordId` is an
+             idempotent repeat and a different one is kept or refused, never
+             dropped; record and link stored
              together or `ChainStore.split` semantics (record first, then
              link), and no call into the host it serves. `ChainStore.split`
              MUST be available for any `R`, taking the stream's own record
@@ -498,9 +501,9 @@ REQUIREMENT: When the series spec gives `dropped`, the sink MUST report the
 REQUIREMENT: The package MUST NOT treat a non-zero or increasing loss counter
              as a reason to fail or mark an append: the records were lost
              before the sink and the counter is part of the record. It MUST
-             be reported by verification (03, BEH-AC-019) as a notice at the
-             record where the counter rose, and a counter that decreases as a
-             break.
+             be reported by verification (03, BEH-AC-019) as a
+             "loss-counter-rose" notice at the record where the counter rose,
+             and a counter that decreases as a "counter-decreased" break.
 ```
 
 ```
@@ -538,6 +541,7 @@ interface ChainProfile<R> {
   readonly schema?: (record: R) => "supported" | "unsupported"
   readonly sequence: (records: Iterable<R>) => SequenceResult
 }
+type SequenceResult = ReturnType<typeof verifyAuditSequence>  // core's result shape (BEH-BR-215), used for every profile
 declare const auditProfile: ChainProfile<AuditRecord>        // sequence = core verifyAuditSequence (BEH-BR-215)
 declare const ChainProfile: {
   readonly of: <R>(series: Omit<SeriesSpec<R>, "seriesId" | "canonicaliser"> & { readonly canonicalisers: readonly Canonicaliser<R>[] }) => ChainProfile<R>
@@ -547,8 +551,8 @@ declare function verifySeriesSequence<R>(records: Iterable<R>, position: (r: R) 
 ```
 
 ```
-REQUIREMENT: `verifyChain` (03) MUST take a `ChainProfile`, defaulting to
-             `auditProfile`. With `auditProfile` the sequence result MUST be
+REQUIREMENT: `verifyChain` (03) MUST take a `ChainProfile` as
+             `options.profile`, defaulting to `auditProfile`. With `auditProfile` the sequence result MUST be
              core's `verifyAuditSequence`, unchanged (03, BEH-AC-018). With a
              profile built by `ChainProfile.of`, it MUST be
              `verifySeriesSequence`, which reports gaps, duplicates and
@@ -600,13 +604,15 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  implementation, using the `ChainLinkV2` hash inputs; a
                  changed `canon`, `seq` or `recordId` in a stored link
                  makes its hash fail to recompute; a changed `canon`
-                 mid-series is a break;
+                 mid-series is a "canon-changed" break;
                  after the key of an encrypted field is destroyed, every
                  link still recomputes and `verifyChain` reports no break;
                  no statement or bundle contains a record field
                  (BEH-AC-027, BEH-AC-028).
              16. Loss counters and profiles: a rising `auditDropped` is a
-                 notice at the record where it rose, a decrease a break, and
+                 "loss-counter-rose" notice at the record where it rose, a
+                 decrease a "counter-decreased" break, `ChainStatus.dropped`
+                 is the last appended record's value, and
                  version 2 statements carry the window's last value, while a
                  version 1 statement is reported as anchoring no loss
                  counter; a generic profile
@@ -628,9 +634,8 @@ version 1; anchor statements are version 2 for every series. (8) A series
 resumes across hosts from `resumeFrom` or the store's head; `continuesFrom` is
 for a different predecessor series.
 
-**Open.** (1) Whether a series should be able to declare its writer identity
-in each link (an `origin` field in the link itself), so that two parallel
-writers are told apart by the verifier rather than only as breaks.
+**Open.** (1) *Settled:* a series declares its writer identity in each link
+through `ChainLinkV2.origin` (BEH-AC-026), taken from `SeriesPosition.origin`.
 (2) Whether the built-in canonicalisers should include a CBOR deterministic
 encoding (RFC 8949 §4.2) for binary streams. (3) How the planned sequence and
 keyring companions will name the series spec and canonicaliser they offer;

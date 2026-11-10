@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-01                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-08): BEH-BR-001 Settled: `Plugin.Any` re-checked against effect 4.0.0; host-core prototype finding G-P15 not adopted, with reason (CCR-BR-029)<br>0.5 (2026-11-08): BEH-BR-007 Settled: the distribution-layer reference points to behaviours 26 and 27 and the loader companion instead of docs/ERP-DISTRIBUTION.md (CCR-BR-027)<br>0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-10): BEH-BR-003 rule (h) also rejects a `health.every` or `health.timeout` that is not a positive finite duration, rule (j) names the contract causes of 26, and the Settled note no longer claims a complete set, pointing to the manifest and `idle` causes of 27 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-08): BEH-BR-001 Settled: `Plugin.Any` re-checked against effect 4.0.0; host-core prototype finding G-P15 not adopted, with reason (CCR-BR-029)<br>0.5 (2026-11-08): BEH-BR-007 Settled: the distribution-layer reference points to behaviours 26 and 27 and the loader companion instead of docs/ERP-DISTRIBUTION.md (CCR-BR-027)<br>0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -236,10 +236,14 @@ REQUIREMENT: `install` (and `replace`, and `enable` where it re-checks) MUST
              (g) `volatile` is declared without `config`, or names
                  something that is not a top-level field of the `config`
                  schema (11 — Configuration);
-             (h) `health` is declared with a `failureThreshold` below 1
-                 (10 — Runtime Failure and Health);
+             (h) `health` is declared with a `failureThreshold` below 1,
+                 or with an `every` or `timeout` that is not a positive
+                 finite duration (10 — Runtime Failure and Health);
              (i) `handoff` breaks a rule of BEH-BR-345 (34 — State
-                 Handoff).
+                 Handoff);
+             (j) a contract named in `requires`, `provides` or `optional`
+                 is invalid or placed against the rules of 26 — Versioned
+                 Contracts (BEH-BR-225, BEH-BR-226, BEH-BR-227).
 ```
 
 The type erasure is the reason the lists exist at all: the resolver wires
@@ -260,8 +264,10 @@ lists a key it provides as optional would resolve against itself, which is the
 same self-dependency rule (d) forbids for `requires`. Rules (g) and (h) are
 the install-time checks that [11 — Configuration](./11-configuration.md) and
 [10 — Runtime Failure and Health](./10-runtime-failure-and-health.md) settle,
-listed here so that the complete set of `InvalidDefinition` causes is in one
-place. The rules are
+listed here, with (i) and (j), so that the causes can be found from one
+place; a definition's `manifest` and a lazy definition's `idle` add the
+causes that 27 — Manifest and Lazy Activation states (BEH-BR-241,
+BEH-BR-242, BEH-BR-244, BEH-BR-252). The rules are
 deliberately strict; relaxing one later is compatible, tightening one after
 release would not be.
 

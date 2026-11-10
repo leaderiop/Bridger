@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-06                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
+> | Change History | 0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
 
 ---
 
@@ -356,7 +356,7 @@ so a host and a link refuse on the same rule. Core only carries the label
 | Contract major | the contract (`ServiceId`), `contractWindow` | an import names one major; majors older than highest − window are dropped | [BEH-FD-020](./03-links-and-skew-handshake.md#beh-fd-020-each-import-names-one-major-and-the-offer-accepts-or-refuses-it) |
 | Contract minor | the provision's `version` V | a peer at v ≥ V within the major is accepted; add-only evolution (core 26) | BEH-FD-020, core BEH-BR-232 |
 | Event version | `DurableEvent.version`, `publishVersion` | readers read N and N−1; writers write N only after every reader in scope reads it (writers last) | [BEH-DB-031](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-031-one-skew-rule-for-events-writers-last-where-readers-cannot-go-first) |
-| Upcaster chain | `DurableEvent.minVersion` | kept until the oldest version received from every origin is ≥ the new minimum | [BEH-DB-029](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-029-upcasters-are-kept-for-as-long-as-old-envelopes-can-arrive), BEH-DB-032 |
+| Upcaster chain | `DurableEvent.minVersion` | kept until no origin can still hold an envelope below the new minimum, an origin that has not reported counting as holding one; on a host with an event store, also until no event below it is stored there (`UpcasterRemoved`), normally the life of that store | [BEH-DB-029](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-029-upcasters-are-kept-for-as-long-as-old-envelopes-can-arrive), BEH-DB-032, [BEH-ES-027](../../event-store/behaviors/04-versions-publication-and-chaining.md#beh-es-027-upcasters-are-kept-for-as-long-as-events-at-that-version-are-stored) |
 | Manifest and envelope formats | `format` literals | a new format only for changes older readers must not ignore; unknown fields ignored | BEH-FD-001, BEH-DB-002 |
 
 ```
@@ -395,6 +395,19 @@ REQUIREMENT: Documentation MUST state that the authority MAY exclude from
              re-bootstrap's manifest before it reads downstream history.
              Without this, one lost or decommissioned host would hold every
              writer back for ever.
+```
+
+```
+REQUIREMENT: Documentation MUST state that this exclusion applies to the
+             writer switch only and MUST NOT be used to drop an upcaster.
+             The offline cap bounds how long a host follows unconfirmed
+             desired state, not the age of its outbox: a host past its cap
+             pushes its whole backlog, at the versions it was written at, in
+             step 1 of its re-bootstrap (BEH-FD-014, durable-bus BEH-DB-045).
+             A release that raises `minVersion` MUST NOT be rolled out to a
+             host whose event store holds events below the new minimum: the
+             store refuses the registration with `UpcasterRemoved`
+             (event-store BEH-ES-027).
 ```
 
 **Settled here.** Readers-first (BEH-DB-028 as first written) assumes every

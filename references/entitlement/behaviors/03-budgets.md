@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-03                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.6 (2026-11-10): Acceptance checks 1, 4 and 8 cover `Entitlement.layer` and its option checks, `fallbackMode` and `EntitlementGate.check` (P13) (CCR-EN-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -367,14 +367,19 @@ interrupted or never runs its handler returns the amount (BEH-EN-019).
 REQUIREMENT: The package's test suite MUST contain at least one test for
              each of the following, run on a `TestHost` under `TestClock`
              with the scripted `Entitlement` adapter:
-             1.  The package exports no `Entitlement` implementation, and
-                 every component fails to build without one (BEH-EN-001).
+             1.  The package exports no `EntitlementAdapter`
+                 implementation; every component fails to build without the
+                 `Entitlement` service; `Entitlement.layer` fails with
+                 `EntitlementConfigError` for "last-known" without
+                 `staleAfter`, and every component reads the options it was
+                 given (BEH-EN-001).
              2.  Labels are compared for equality only; `pluginId` and
                  `realm` come from the target, never from plugin code
                  (BEH-EN-002).
              3.  Mode ordering and "allows" for each mode (BEH-EN-003).
-             4.  `full` → `grace` → fallback at `validUntil` and
-                 `graceUntil` under `TestClock`, emitted without asking the
+             4.  `full` → `grace` → `fallbackMode` (`read-only` when
+                 absent) at `validUntil` and `graceUntil` under `TestClock`,
+                 emitted without asking the
                  adapter; no extension of adapter dates (BEH-EN-004).
              5.  `onUnavailable` and `staleAfter` are required; a stale
                  last-known state is served `read-only` with `stale: true`;
@@ -387,7 +392,8 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
              8.  The gate consults the port for `install`, and for
                  `replace` only with `onReplace: "consult"`, including
                  `reconcile` entries; it is a core `Gate<OperationRequest>`
-                 composed with `Gate.all`; it never returns Defer
+                 composed with `Gate.all`; it never returns Defer;
+                 `EntitlementGate.check` refuses exactly when the piece does
                  (BEH-EN-009).
              9.  Port unavailability refuses a grant with
                  "entitlement-unavailable" and changes nothing running;

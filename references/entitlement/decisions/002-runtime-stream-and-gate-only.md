@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-ADR-002 |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record |
-> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16 — grant narrowing through core `CapabilityPolicy` named as separate from the gate (ADR-EN-004) (CCR-EN-003)<br>0.3 (2026-11-08): Gate consulted for `install` and optionally `replace`; core's `unmetered` mode; seam specified in core (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.5 (2026-11-10): The rejected alternative no longer cites a settled open item of 02 as a live fallback (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16 — grant narrowing through core `CapabilityPolicy` named as separate from the gate (ADR-EN-004) (CCR-EN-003)<br>0.3 (2026-11-08): Gate consulted for `install` and optionally `replace`; core's `unmetered` mode; seam specified in core (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -55,8 +55,9 @@ being able to read, or claim, another's.
 
 - **A package service keyed by `CurrentPlugin`**
   ([28 — Plugin principal and mandatory policy](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md)).
-  Kept as the fallback (Open (1) of 02 — Gate and runtime): it needs no core change but
-  makes every plugin that wants its mode depend on this package.
+  Not needed once the core seam was specified (02 — Gate and runtime, "Settled
+  at integration"): it needs no core change but makes every plugin that wants
+  its mode depend on this package.
 - **Entitlement checks inside `Host.use`.** Rejected as a refusal: would make
   every resolution a policy decision with no record. Core's
   `CapabilityPolicy` later gave a recorded, state-preserving form (grants and

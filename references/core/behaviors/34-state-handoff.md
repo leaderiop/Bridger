@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-34                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): Examples use `Plugin.define` (C-15); BEH-BR-347 export as the stop's final step of any handing-off operation (C-14); export under the old activation's principal and import and upgrade under the new one's, each with an empty annotation bag and the correlation of its stop or build (U-04); BEH-BR-346 a lazy registration's old side is its loaded definition, whose `handoff` is checked at load (U-05); BEH-BR-349 the value is imported only into a build that will be published, a stale build receives nothing and a target change during the import waits for publication; BEH-BR-351 a `restart` or `reconfigure` that supersedes the new build keeps the value held for the next build (U-02); acceptance rows REQ-BR-087 and 088 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-353 `PluginHandle.restart` takes `HandoffCallOptions`; BEH-BR-013 named as the source of every signature (C-01) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-353 handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `alsoOn`, `cold` call option, none on a volatile-only `reconfigure` (gap G44); BEH-BR-346 and 350 extended to those operations and to the undo `replace` of an atomic apply; BEH-BR-352 the previous definition kept for an atomic apply's undo; acceptance check 103 (CCR-BR-025)<br>0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.6 (2026-11-10): BEH-BR-345 a definition without `handoff` behaves as files 01–20 and 22–33 specify (review of CCR-BR-034) (CCR-BR-034)<br>0.5 (2026-11-09): Examples use `Plugin.define` (C-15); BEH-BR-347 export as the stop's final step of any handing-off operation (C-14); export under the old activation's principal and import and upgrade under the new one's, each with an empty annotation bag and the correlation of its stop or build (U-04); BEH-BR-346 a lazy registration's old side is its loaded definition, whose `handoff` is checked at load (U-05); BEH-BR-349 the value is imported only into a build that will be published, a stale build receives nothing and a target change during the import waits for publication; BEH-BR-351 a `restart` or `reconfigure` that supersedes the new build keeps the value held for the next build (U-02); acceptance rows REQ-BR-087 and 088 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-353 `PluginHandle.restart` takes `HandoffCallOptions`; BEH-BR-013 named as the source of every signature (C-01) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-353 handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `alsoOn`, `cold` call option, none on a volatile-only `reconfigure` (gap G44); BEH-BR-346 and 350 extended to those operations and to the undo `replace` of an atomic apply; BEH-BR-352 the previous definition kept for an atomic apply's undo; acceptance check 103 (CCR-BR-025)<br>0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -85,7 +85,7 @@ const counter = Plugin.define({
 
 ```
 REQUIREMENT: `handoff` MUST be optional on a plugin definition. A definition
-             without it MUST behave exactly as files 01–25 specify, and
+             without it MUST behave exactly as files 01–20 and 22–33 specify, and
              `replace` to or from such a definition MUST NOT attempt a
              handoff.
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-01                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-002 checks the origin against durable-bus `DurableBus.origin` at every `open`, `next` and `close`, so a handle of an earlier origin writes nothing (`NotOwner { origin, current }`) (U-10); BEH-SQ-003 defines the `Sequence` members `open`, `next` and `close` and makes `Series` a handle over them, adding `SupersessionPending` (M-05, U-10); BEH-SQ-008 makes grants name those members and states that the contract is local (M-05) ; BEH-SQ-008 declares `Sequence` with core `Contract.local` (core CCR-BR-033) (CCR-SQ-003)<br>0.3 (2026-11-08): BEH-SQ-002 loses the foreign-writer exception (a restore no longer writes in the old series, BEH-SQ-009); BEH-SQ-003 adds `WrongExpectedVersion` to `open` and `close` (CCR-SQ-002)<br>0.2 (2026-11-08): BEH-SQ-001, 004 and 005 cite URS-BR-057 (registered by core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-008: series events are appended under `Plugin.Runtime.asSelf`, so their `onBehalfOf` and the `emit` question name the `Sequence` plugin, not the caller (CCR-SQ-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-002 checks the origin against durable-bus `DurableBus.origin` at every `open`, `next` and `close`, so a handle of an earlier origin writes nothing (`NotOwner { origin, current }`) (U-10); BEH-SQ-003 defines the `Sequence` members `open`, `next` and `close` and makes `Series` a handle over them, adding `SupersessionPending` (M-05, U-10); BEH-SQ-008 makes grants name those members and states that the contract is local (M-05) ; BEH-SQ-008 declares `Sequence` with core `Contract.local` (core CCR-BR-033) (CCR-SQ-003)<br>0.3 (2026-11-08): BEH-SQ-002 loses the foreign-writer exception (a restore no longer writes in the old series, BEH-SQ-009); BEH-SQ-003 adds `WrongExpectedVersion` to `open` and `close` (CCR-SQ-002)<br>0.2 (2026-11-08): BEH-SQ-001, 004 and 005 cite URS-BR-057 (registered by core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -219,6 +219,22 @@ REQUIREMENT: The `Sequence` service MUST be declared with core
              plugin may be allowed to issue numbers and not to close a
              series. The plugin MUST append through its own capture of the
              `EventStore` contract (event-store BEH-ES-038).
+```
+
+```
+REQUIREMENT: A member runs in the caller's fiber and so under the caller's
+             principal (core BEH-BR-258). The plugin MUST run each append
+             of a series event inside its `Plugin.Runtime.asSelf`, so that
+             the stored event's `onBehalfOf` and the durable-bus `emit`
+             question of the publish (durable-bus BEH-DB-053) name the
+             `Sequence` plugin, not the caller: an access policy then grants
+             the series event types to the `Sequence` plugin alone, and no
+             caller needs an `emit` grant for them. `asSelf` changes the
+             principal only; the actor, correlation and annotations stay
+             the caller's (event-store BEH-ES-007). Documentation MUST state
+             that the calling plugin is recorded on the application's own
+             event that carries the number (BEH-SQ-004), not on the series
+             event.
 ```
 
 ```

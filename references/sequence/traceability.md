@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-TRACE                                             |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.3 (2026-11-09): REQ-SQ-011 and REQ-SQ-012; BEH-SQ-002, 003, 008, 009, 010, 019 and 020 rows extended (CCR-SQ-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-008 cites BEH-BR-258; BEH-SQ-011 adds REQ-SQ-008; REQ-SQ-008 and REQ-SQ-012 restated (CCR-SQ-004)<br>0.3 (2026-11-09): REQ-SQ-011 and REQ-SQ-012; BEH-SQ-002, 003, 008, 009, 010, 019 and 020 rows extended (CCR-SQ-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -31,10 +31,10 @@ RSK-BR → test. Every test is *Planned*; no row is evidence
 | BEH-SQ-005 | INV-SQ-001, INV-SQ-002 | ADR-SQ-002 | — | URS-BR-057 | REQ-SQ-004 |
 | BEH-SQ-006 | — | — | — | — | REQ-SQ-005 |
 | BEH-SQ-007 | INV-SQ-003 | ADR-SQ-003 | — | — | REQ-SQ-006 |
-| BEH-SQ-008 | — | — | BEH-BR-187, BEH-BR-207, BEH-BR-225, BEH-BR-273 | URS-BR-054, URS-BR-034 | REQ-SQ-002, REQ-SQ-012 |
+| BEH-SQ-008 | — | — | BEH-BR-187, BEH-BR-207, BEH-BR-225, BEH-BR-258, BEH-BR-273 | URS-BR-054, URS-BR-034 | REQ-SQ-002, REQ-SQ-012 |
 | BEH-SQ-009 | INV-SQ-003, INV-SQ-004 | ADR-SQ-003 | — | — | REQ-SQ-007, REQ-SQ-011 |
 | BEH-SQ-010 | — | ADR-SQ-003 | — | URS-BR-026 | REQ-SQ-007, REQ-SQ-011 |
-| BEH-SQ-011 | — | ADR-SQ-002 | — | URS-BR-043 | REQ-SQ-003 |
+| BEH-SQ-011 | — | ADR-SQ-002 | — | URS-BR-043 | REQ-SQ-003, REQ-SQ-008 |
 | BEH-SQ-012 | INV-SQ-005 | — | BEH-BR-215 | URS-BR-022 | REQ-SQ-008 |
 | BEH-SQ-013 | INV-SQ-005 | — | — | URS-BR-022 | REQ-SQ-008 |
 | BEH-SQ-014 | — | ADR-SQ-003 | — | — | REQ-SQ-008 |
@@ -60,11 +60,11 @@ Test files are *Planned* under `packages/sequence/test/` *(Planned)*.
 | <a id="req-sq-005"></a>REQ-SQ-005 | 5 | Hand-out before commit detected by the fixture | BEH-SQ-006, BEH-SQ-019 |
 | <a id="req-sq-006"></a>REQ-SQ-006 | 6 | Close | BEH-SQ-007 |
 | <a id="req-sq-007"></a>REQ-SQ-007 | 7 | Restore with and without a new incarnation | BEH-SQ-009, BEH-SQ-010, BEH-SQ-013 |
-| <a id="req-sq-008"></a>REQ-SQ-008 | 8 | Verification categories, purity, registry, retirement | BEH-SQ-012–015 |
+| <a id="req-sq-008"></a>REQ-SQ-008 | 8 | Verification categories, purity, registry, retirement; authority-side recording with the issuer's ids | BEH-SQ-011–015 |
 | <a id="req-sq-009"></a>REQ-SQ-009 | 9 | Chaining by stream version | BEH-SQ-016 |
 | <a id="req-sq-010"></a>REQ-SQ-010 | 10 | Integers only; no storage of its own | BEH-SQ-017, BEH-SQ-018 |
 | <a id="req-sq-011"></a>REQ-SQ-011 | 11 | Re-bootstrap on a running host: old handles refused, old series superseded from the replaced store | BEH-SQ-002, BEH-SQ-009, BEH-SQ-010 |
-| <a id="req-sq-012"></a>REQ-SQ-012 | 12 | Grants on the `Sequence` members decide calls through a handle | BEH-SQ-003, BEH-SQ-008 |
+| <a id="req-sq-012"></a>REQ-SQ-012 | 12 | Grants on the `Sequence` members decide calls through a handle; series events appended under the plugin's own principal | BEH-SQ-003, BEH-SQ-008 |
 
 ## §3 Risk notes
 

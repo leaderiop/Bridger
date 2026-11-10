@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): The `AgentLoop.plugin` options of BEH-AG-007 and the example of BEH-AG-008 carry the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-08, A-09, A-16): `Started` chosen by the descriptor's `long`, never by the output's shape; the idempotency key covers a resubmission within the process, not crash recovery of the run; a step with a long call is not batched; a batch of declared reads from a tainted session runs on the gate's decision, other batches need an approval that also covers their compensations (CCR-AG-003)<br>0.3 (2026-11-08): Steps run under core `CurrentCorrelation`; tool calls carry an idempotency key; tool results reach the model as envelopes; long commands and batches in `ToolOutcome`; `ResumeInput.Approved` carries one outcome per drafted command; BEH-AG-007 model adapter per session through a realm family; BEH-AG-008 a step's tool calls as one batch (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — `StartRequest.spawn` carries a subagent's restricted toolset, taint and parent task, and forbids pinning (BEH-AG-003, H10); a tool withdrawn mid-turn fails with `CommandNotFound`, `ContributionUnavailable` or `ToolChanged` as command dispatch decides (low finding); `onBehalfOf` of a tool call names the loop's plugin, and a tool call that would stop its own loop is settled (BEH-AG-005, core BEH-BR-258; P24); `spawn` is trusted input, set by `spawnSubagent` (review of the round) (CCR-AG-005)<br>0.5 (2026-11-09): The `AgentLoop.plugin` options of BEH-AG-007 and the example of BEH-AG-008 carry the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-08, A-09, A-16): `Started` chosen by the descriptor's `long`, never by the output's shape; the idempotency key covers a resubmission within the process, not crash recovery of the run; a step with a long call is not batched; a batch of declared reads from a tainted session runs on the gate's decision, other batches need an approval that also covers their compensations (CCR-AG-003)<br>0.3 (2026-11-08): Steps run under core `CurrentCorrelation`; tool calls carry an idempotency key; tool results reach the model as envelopes; long commands and batches in `ToolOutcome`; `ResumeInput.Approved` carries one outcome per drafted command; BEH-AG-007 model adapter per session through a realm family; BEH-AG-008 a step's tool calls as one batch (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -152,6 +152,13 @@ interface StartRequest {
   readonly taintedSelector?: ToolsetSelector  // used for turns that begin while the session is tainted (03, BEH-AG-022)
   readonly budget?: BudgetScope            // entitlement companion's scope descriptor
   readonly model?: string                  // the model key of BEH-AG-007; default: the session id
+  readonly spawn?: SpawnStart              // set only by spawnSubagent (04, BEH-AG-025)
+}
+// What a subagent's loop inherits from its parent (04 — Subagents).
+interface SpawnStart {
+  readonly parentTaskId: string            // the parent's task (BEH-AG-030)
+  readonly toolset: PinnedToolset          // the parent's pinned toolset restricted to the requested tools (BEH-AG-027)
+  readonly taint: ReadonlySet<string>      // the parent session's Annotation.Taint labels (BEH-AG-029)
 }
 
 // How the application tells a waiting task what happened (02, BEH-AG-012).
@@ -183,6 +190,21 @@ REQUIREMENT: At the start of each turn the loop MUST take one pinned toolset
              the same `tools` and `toolsetFingerprint` in every
              `ModelRequest`, and the same pinned toolset in every dispatch.
              The pin MUST be released when the turn ends.
+```
+
+```
+REQUIREMENT: When `StartRequest.spawn` is present, the loop MUST NOT call
+             `Toolsets.pin` and MUST NOT read `selector` or
+             `taintedSelector`: every turn of the task MUST use
+             `spawn.toolset` as its pinned toolset, under the rule above.
+             Before the first model call it MUST add `spawn.taint` to the
+             session's `Annotation.Taint` (03, BEH-AG-017), and every
+             snapshot of the task MUST carry `spawn.parentTaskId` as
+             `parentTaskId` (02, BEH-AG-009). `spawn` is trusted input, as
+             `actor` is: the loop does not check where it came from, and
+             documentation MUST state that an application lets only
+             `spawnSubagent` and code it trusts with that toolset call
+             `AgentLoop.start` with `spawn`.
 ```
 
 ```
@@ -224,8 +246,11 @@ REQUIREMENT: `resume` MUST accept `Approved`, `Refused` and `Stale` only for
 Pinning per turn means the model never sees one list of tools and has its
 calls checked against another: a catalog change in the middle of a turn is
 seen at the next turn. A tool withdrawn mid-turn fails at dispatch with
-`ContributionUnavailable` or `ToolChanged`; it is never resolved to a
-different handler under the same id (command BEH on toolsets).
+`CommandNotFound` when it has left the catalog before the dispatch's lookup,
+`ContributionUnavailable` when it leaves between the lookup and the run, and
+`ToolChanged` when it was contributed again with another definition; it is
+never resolved to a different handler under the same id (command
+[BEH-CM-019](../../command/behaviors/03-toolsets.md#beh-cm-019-pinning-a-toolset-for-a-turn), BEH-CM-013).
 
 **Settled here.** (1) No automatic retry, for the reason core gives in
 [ADR-BR-005](../../core/decisions/005-failure-is-sticky.md): a retried tool
@@ -342,8 +367,9 @@ REQUIREMENT: The `context` passed to dispatch MUST carry the session's
              (03 — Taint and provenance) and MUST name the agent's actor.
              The runner MUST NOT set or imitate `onBehalfOf`: dispatch takes
              it from the dispatching fiber's plugin principal (core
-             BEH-BR-258; command BEH-CM-010), which names the runner's
-             plugin, never an actor.
+             BEH-BR-258; command BEH-CM-010), which names a plugin — the
+             loop's, since a service method runs under its caller's
+             principal — never an actor.
 ```
 
 ```
@@ -376,7 +402,15 @@ its record only when the catalog has a persistent `CommandTaskStore`
 (command BEH-CM-054). The key is passed only with
 `ToolRunner.plugin({ idempotency: true })`: a keyed dispatch is refused when
 the catalog has no `CommandReceipts` (`IdempotencyConflict`, "no-receipts"),
-so enabling it is the application's choice once receipts are wired.
+so enabling it is the application's choice once receipts are wired. (3) A
+tool call that would stop the plugin running the turn, or a plugin that
+plugin depends on, cannot return its result to the turn: the host tools
+refuse such a plan with `PlanAffectsCaller`, because the dispatch's
+`onBehalfOf` names the loop's plugin (`@bridger/mcp`
+[BEH-MC-029](../../mcp/behaviors/04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates)),
+and any other command meets core's rules — `WouldDeadlock` for a plugin
+the fiber holds (core BEH-BR-088), otherwise the stop interrupts the turn
+while the host operation continues (core BEH-BR-067).
 
 ## BEH-AG-006: Budgets are reserved through the entitlement companion, and the reference plugins are replaceable
 

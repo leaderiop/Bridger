@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-02                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): BEH-AG-016: a task that ends while awaiting approval reports its draft through the loop's required `DraftWithdrawal` option, and the terminal snapshot carries the outcome; BEH-AG-009, 010 and 012 amended (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): BEH-AG-011 open question restated: command tasks keep records through the command companion's `CommandTaskStore`, agent runs stay in memory; BEH-AG-015 keyed repeats and lost command tasks (round-2 agent review A-08, A-09) (CCR-AG-003)<br>0.3 (2026-11-08): `awaiting-approval` carries every drafted command; approval of a batch draft resumes with one outcome per command, all or none; BEH-AG-015 command tasks of long commands: the loop's wait, the herdr and MCP bridges (CCR-AG-003, round 2: recheck items 5, 7)<br>0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-AG-014 and BEH-AG-015: a task id from an MCP client is answered as unknown unless the task's actor is the session's principal or within it (round 2 findings of the specification audit of 2026-11-09, low finding) (CCR-AG-005)<br>0.5 (2026-11-09): BEH-AG-016: a task that ends while awaiting approval reports its draft through the loop's required `DraftWithdrawal` option, and the terminal snapshot carries the outcome; BEH-AG-009, 010 and 012 amended (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): BEH-AG-011 open question restated: command tasks keep records through the command companion's `CommandTaskStore`, agent runs stay in memory; BEH-AG-015 keyed repeats and lost command tasks (round-2 agent review A-08, A-09) (CCR-AG-003)<br>0.3 (2026-11-08): `awaiting-approval` carries every drafted command; approval of a batch draft resumes with one outcome per command, all or none; BEH-AG-015 command tasks of long commands: the loop's wait, the herdr and MCP bridges (CCR-AG-003, round 2: recheck items 5, 7)<br>0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -359,6 +359,16 @@ REQUIREMENT: The bridge MUST expose only tasks that exist in `Tasks` — runs
 ```
 
 ```
+REQUIREMENT: A task id received from the client — in `tasks/get`,
+             `tasks/cancel` or a status subscription — MUST be answered as
+             an unknown task, with nothing read beyond the check and
+             nothing cancelled, unless the task's `actor` is the MCP
+             session's principal or within it (`Actor.isWithin`, core
+             BEH-BR-337, which admits the session's subagents). The same
+             rule MUST apply to command tasks (BEH-AG-015).
+```
+
+```
 REQUIREMENT: An MCP `tasks/cancel` MUST call `Tasks.cancel` with the MCP
              session's principal as the context actor. The bridge MUST NOT
              accept an approval through MCP task input; approvals reach a
@@ -407,7 +417,8 @@ REQUIREMENT: `HerdrBridge` and `McpTaskBridge` MUST also expose command
              session's actor, or the actor the application names for a
              herdr connection). `tasks/cancel` on a command task MUST call
              `CommandTasks.cancel` with the MCP session's principal as the
-             context actor.
+             context actor, and only for a task the actor rule of
+             BEH-AG-014 admits.
 ```
 
 ```

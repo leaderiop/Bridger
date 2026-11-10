@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-12                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-09): BEH-BR-105 a `starting` plugin whose build has not begun is unregistered without a stop step when shutdown begins, like a `waiting` one, and gets no record of its own; every plugin shutdown moves through `stopping` gets its `system-stop` record (review of CCR-BR-032) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-105 once shutdown begins no plugin enters `starting` and no build or load begins, queued builds are cancelled, every stop ends "gone" (or `failed(cleanup)`), plugins with nothing to stop are unregistered in the first revision, Settled note; BEH-BR-109 the final snapshot defined (U-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.10 (2026-11-10): BEH-BR-105 `shutdown` from a build, `load` or finalizer fiber of a plugin fails at once with `WouldDeadlock` and begins nothing; the Settled note limited to lease callbacks (C6) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-105 a `starting` plugin whose build has not begun is unregistered without a stop step when shutdown begins, like a `waiting` one, and gets no record of its own; every plugin shutdown moves through `stopping` gets its `system-stop` record (review of CCR-BR-032) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-105 once shutdown begins no plugin enters `starting` and no build or load begins, queued builds are cancelled, every stop ends "gone" (or `failed(cleanup)`), plugins with nothing to stop are unregistered in the first revision, Settled note; BEH-BR-109 the final snapshot defined (U-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -32,7 +32,7 @@ uses all eight.
 ```ts
 // illustrative — not type-checked
 shutdown(options?: { readonly timeout?: Duration.Input } & OperationOptions):
-  Effect.Effect<CloseReport, Unattributed | ReasonRequired>   // never AuditUnavailable or OperationRejected (BEH-BR-110)
+  Effect.Effect<CloseReport, Unattributed | ReasonRequired | WouldDeadlock>   // never AuditUnavailable or OperationRejected (BEH-BR-110)
 ```
 
 ```
@@ -201,12 +201,25 @@ scope, nothing depends on them, and leaving them registered would show
 running is not interrupted, for the reason BEH-BR-039 gives for any stale
 build: its scope's finalizers stay in a known state.
 
+```
+REQUIREMENT: A `shutdown` called from a fiber that runs a plugin's `build`
+             or `load`, or one of the finalizers of its activation scope —
+             or from a fiber such a fiber forked and awaits (09 — Leases,
+             BEH-BR-088) — MUST fail at once with `WouldDeadlock { id }`
+             naming that plugin, MUST NOT begin shutdown or join one in
+             progress, and MUST write no record.
+```
+
 **Settled here.** Because shutdown runs in the host's fibers, a `shutdown`
 called from inside a lease callback does not deadlock on its own lease: the
 caller waits, the overall limit eventually forces the remaining leases
 (including the caller's, which interrupts its wait), and shutdown completes
-and delivers its report to `onClose`. `shutdown` therefore does not fail with
-`WouldDeadlock`.
+and delivers its report to `onClose`. A lease callback's `shutdown`
+therefore does not fail with `WouldDeadlock`. A finalizer is different: it
+is never abandoned (BEH-BR-107), so a shutdown waiting for its own
+finalizer's stop would wait forever; and a build waiting for a shutdown that
+waits for the build would hold the host for a whole `buildTimeout`. Those
+callers fail fast instead, as every re-entrant wait does.
 
 **Settled here.** A parked stop waits for an operator call; once shutdown
 has begun, every such call fails with `HostClosed`

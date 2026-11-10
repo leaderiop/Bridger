@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-01                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-09): Specification audit of 2026-11-09 — BEH-DB-001 states that every change of the encoded payload, an added optional field included, raises the version (C-11); BEH-DB-003 takes the stream from `publish`'s `options.stream` when given (F-05); BEH-DB-004 adds `DurableBus.origin` and `originChanges` and confines an origin change to a whole-store re-bootstrap (U-10); BEH-DB-005 takes `causationId` from `options.causationId` outside a handler (C-20) (CCR-DB-004)<br>0.6 (2026-11-08): Round-2 agent review (R4 F12, F26; R5-04/05, R5-06, R5-08) — `IncarnationSource`, raised by a whole-store re-bootstrap; downstream signature of an unraised restore stated; codec rotation through `decodes`; write order schema → downcast → codec; `PayloadUnreadable` under the subscription's `onUnreadable` ("park" or "halt") or read undecoded through `subscribeEnvelopes`, never dropped; codec markers pass through upcasters; erasure sentence narrowed to holders without another copy of the key (CCR-DB-003)<br>0.5 (2026-11-08): BEH-DB-008 cites URS-BR-059 (registered by core CCR-BR-027) instead of a proposal (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 21 and 25, CORE-DECISIONS-2 — BEH-DB-008 `PayloadCodec` and the no-personal-data guidance for annotations, actors, the call log and audit `reason`; `onBehalfOf` as `PrincipalRef.encode`; correlation from `CurrentCorrelation` and set for handlers through `CallerContext.serve` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — annotations carried as core `AnnotationEntry[]` under flow "wire" (BEH-BR-296), the deadline never carried; envelope-level stops for unknown formats and conflicts; check 6 and the incarnation rule restated as an operator obligation (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.8 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-004: a whole-store re-bootstrap raises the incarnation before the install runs, and the old origin is never used again once raised (H8) (CCR-DB-005)<br>0.7 (2026-11-09): Specification audit of 2026-11-09 — BEH-DB-001 states that every change of the encoded payload, an added optional field included, raises the version (C-11); BEH-DB-003 takes the stream from `publish`'s `options.stream` when given (F-05); BEH-DB-004 adds `DurableBus.origin` and `originChanges` and confines an origin change to a whole-store re-bootstrap (U-10); BEH-DB-005 takes `causationId` from `options.causationId` outside a handler (C-20) (CCR-DB-004)<br>0.6 (2026-11-08): Round-2 agent review (R4 F12, F26; R5-04/05, R5-06, R5-08) — `IncarnationSource`, raised by a whole-store re-bootstrap; downstream signature of an unraised restore stated; codec rotation through `decodes`; write order schema → downcast → codec; `PayloadUnreadable` under the subscription's `onUnreadable` ("park" or "halt") or read undecoded through `subscribeEnvelopes`, never dropped; codec markers pass through upcasters; erasure sentence narrowed to holders without another copy of the key (CCR-DB-003)<br>0.5 (2026-11-08): BEH-DB-008 cites URS-BR-059 (registered by core CCR-BR-027) instead of a proposal (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck items 21 and 25, CORE-DECISIONS-2 — BEH-DB-008 `PayloadCodec` and the no-personal-data guidance for annotations, actors, the call log and audit `reason`; `onBehalfOf` as `PrincipalRef.encode`; correlation from `CurrentCorrelation` and set for handlers through `CallerContext.serve` (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — annotations carried as core `AnnotationEntry[]` under flow "wire" (BEH-BR-296), the deadline never carried; envelope-level stops for unknown formats and conflicts; check 6 and the incarnation rule restated as an operator obligation (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -228,11 +228,14 @@ interface OriginChange { readonly previous: string; readonly current: string }
 REQUIREMENT: When the bus is given an `IncarnationSource`, it MUST read the
              incarnation from `current` at start, under the same refusal
              rule. A re-bootstrap that replaces the whole store (06,
-             BEH-DB-048) MUST raise it through `raise` before the bus
-             publishes again, and the bus MUST then record the new
-             incarnation in the replaced store and use the new origin for
-             every later envelope. Without an `IncarnationSource`, a
-             whole-store re-bootstrap MUST be refused (BEH-DB-048).
+             BEH-DB-048) MUST raise it through `raise` before the
+             application's install runs, and the bus MUST then record the
+             new incarnation in the store the install left and use the new
+             origin for every later envelope; once raised, the old origin
+             MUST NOT be used again, even when the install fails or the
+             process stops before the incarnation is recorded. Without an
+             `IncarnationSource`, a whole-store re-bootstrap MUST be refused
+             (BEH-DB-048).
 ```
 
 ```

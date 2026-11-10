@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-33                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): BEH-BR-331 a member is ready when every plugin is `active`, `dormant` or disabled by an operator; a plugin disabled "refused-digest" fails the member ("rejected"); after `activationTimeout` the member stays "creating", the next `use` waits again without a host call, and BEH-BR-333 lets idle eviction evict it (U-03); BEH-BR-336 `EphemeralRealm.use` is `Host.useAll` with the realm, with its callback shape and error union (C-15); acceptance row REQ-BR-084 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-336 `Realm.ephemeral` adds `InvalidRealm` from `defineRealm` (C-02) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-337 "/" reserved as the narrowing delimiter, `isWithin` specified for ids that keep it, a Settled paragraph (host-core prototype finding G-P8; actor half of gap G47) (CCR-BR-028)<br>0.2 (2026-11-08): eviction and teardown prune through `reconcile` with `pruneDrain`/`pruneForce`; a per-realm turn serialises `retireRealm` with registrations into the realm; eviction outcomes on the family's own `events` stream, not the host feed; `family.use` aligned with `Host.useAll`; duplicate family ids a documented precondition (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.6 (2026-11-10): BEH-BR-329 family scope close removes a `failed(cleanup)` plugin as BEH-BR-047 allows, as an ephemeral realm does (C13); BEH-BR-331 a ready member whose plugin fails or is refused is marked "failed" (C16); BEH-BR-336 a teardown step refused by the gate or blocked by the latch stops, logs at error level and leaves the realm visible (C19) (CCR-BR-034)<br>0.5 (2026-11-09): BEH-BR-331 a member is ready when every plugin is `active`, `dormant` or disabled by an operator; a plugin disabled "refused-digest" fails the member ("rejected"); after `activationTimeout` the member stays "creating", the next `use` waits again without a host call, and BEH-BR-333 lets idle eviction evict it (U-03); BEH-BR-336 `EphemeralRealm.use` is `Host.useAll` with the realm, with its callback shape and error union (C-15); acceptance row REQ-BR-084 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-336 `Realm.ephemeral` adds `InvalidRealm` from `defineRealm` (C-02) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-337 "/" reserved as the narrowing delimiter, `isWithin` specified for ids that keep it, a Settled paragraph (host-core prototype finding G-P8; actor half of gap G47) (CCR-BR-028)<br>0.2 (2026-11-08): eviction and teardown prune through `reconcile` with `pruneDrain`/`pruneForce`; a per-realm turn serialises `retireRealm` with registrations into the realm; eviction outcomes on the family's own `events` stream, not the host feed; `family.use` aligned with `Host.useAll`; duplicate family ids a documented precondition (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -134,9 +134,10 @@ REQUIREMENT: When the scope given to `Realm.family` closes, the family MUST
              stop creating members and MUST evict every member as
              BEH-BR-333 specifies, except that at the drain limit it MUST
              retry with `pruneForce: true`, report each forced eviction, and then
-             retire the realm; a member it cannot evict because a plugin is
-             `failed` with phase "cleanup" MUST be left installed and
-             reported.
+             retire the realm. A plugin `failed` with phase "cleanup" MUST
+             be removed as BEH-BR-047 allows — the leak acknowledged and
+             reported — and retirement MUST follow, as for an ephemeral
+             realm (BEH-BR-336).
 ```
 
 The family is the generic form of "a realm per customer": nothing in it
@@ -221,6 +222,11 @@ REQUIREMENT: After the reconcile, creation MUST wait, bounded by
              (`reason: "failed"`); a plugin that ends `disabled` with reason
              "refused-digest" (28 — Plugin Principal and Mandatory Policy,
              BEH-BR-267) MUST mark it "failed" (`reason: "rejected"`).
+             These two rules MUST also hold after the member is "ready": a
+             plugin of a "ready" member that enters `failed` (any phase) or
+             `disabled` with reason "refused-digest" MUST mark the member
+             "failed" with the same `reason`, so that BEH-BR-334 governs it
+             and idle eviction does not apply.
 ```
 
 ```
@@ -515,6 +521,20 @@ REQUIREMENT: When the caller's scope closes, the ephemeral realm MUST be
              then, at the limit, the same with `pruneForce: true`, reporting
              each forced plugin; then `retireRealm`. A plugin `failed` with phase "cleanup" MUST be
              removed as BEH-BR-047 allows, and retirement MUST follow.
+```
+
+```
+REQUIREMENT: When a teardown step cannot complete — an entry action
+             refused by the `OperationGate`, the call
+             failing with `AuditUnavailable` (the audit-degraded latch),
+             `Unattributed` or `ReasonRequired`, or `retireRealm` failing
+             with `RealmInUse` — the teardown MUST NOT bypass the gate or
+             the latch and MUST NOT retry; it MUST stop at that step, leave
+             the realm defined with the plugins it did not remove, log at
+             error level naming the realm, the step and the error, and
+             then complete, since it runs in a finalizer that cannot fail.
+             What it left stays visible in the snapshot until an operator
+             removes it and retires the realm.
 ```
 
 ```

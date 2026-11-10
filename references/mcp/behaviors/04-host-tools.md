@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-04                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-08): `reconcile-plan` no longer declared `readOnly`: it writes a plan into the `PlanStore` and may evict others (round-2 agent review A-18) (CCR-MC-003)<br>0.4 (2026-11-08): Reads and plans declared `readOnly`; host calls carry the dispatch's correlation through core `CurrentCorrelation`; `reconcile-plan` takes `atomic`, `reconcile-apply` reports `ApplyRolledBack` and `PartialApply`, undo requests, core's order and refused digests; call-log wording (CCR-MC-003, round 2: recheck item 9; core round 2 alignment)<br>0.3 (2026-11-08): `PlanStore` and `PlanUnknown`; `UnknownPlugin`; inspect without id; served host calls; error classes declared (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — host calls pass `{ actor, reason }` with the served actor, never a context without one (P22); reconcile-apply refuses a plan that would stop a plugin on its own call path with `PlanAffectsCaller` (P24); the call path's providers are found through `Host.inspect`, since the snapshot carries no dependency edges (CCR-MC-005)<br>0.5 (2026-11-08): `reconcile-plan` no longer declared `readOnly`: it writes a plan into the `PlanStore` and may evict others (round-2 agent review A-18) (CCR-MC-003)<br>0.4 (2026-11-08): Reads and plans declared `readOnly`; host calls carry the dispatch's correlation through core `CurrentCorrelation`; `reconcile-plan` takes `atomic`, `reconcile-apply` reports `ApplyRolledBack` and `PartialApply`, undo requests, core's order and refused digests; call-log wording (CCR-MC-003, round 2: recheck item 9; core round 2 alignment)<br>0.3 (2026-11-08): `PlanStore` and `PlanUnknown`; `UnknownPlugin`; inspect without id; served host calls; error classes declared (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -62,11 +62,15 @@ REQUIREMENT: `HostTools.plugin` MUST contribute exactly the commands in the
 ```
 REQUIREMENT: The host tools' handlers run as served calls (command
              BEH-CM-003, core `CallerContext.serve`, BEH-BR-292), and MUST
-             call the `Host` they require from that fiber, passing the
-             input's `reason` in `options.context` and leaving
-             `correlationId` unset, so that core takes the dispatch's
-             correlation from the fiber's `CurrentCorrelation` (core
-             BEH-BR-187). The host then attributes each lifecycle call
+             call the `Host` they require from that fiber, passing
+             `options.context` = `{ actor, reason }` with `actor` the
+             served actor read by `CallerContext.current` and `reason` the
+             input's, and leaving `correlationId` and `annotations` unset:
+             a supplied context wins entirely over `CurrentActor` (core
+             BEH-BR-187), so a context without the actor would not be
+             attributed, while core still takes the correlation from the
+             fiber's `CurrentCorrelation` and adds the fiber's annotations
+             (core BEH-BR-292). The host then attributes each lifecycle call
              to the dispatching actor (the MCP session's or the agent's),
              with the dispatch's annotations, and records the host-tools
              plugin as `onBehalfOf` (the fiber's plugin principal, core
@@ -276,6 +280,41 @@ REQUIREMENT: `bridger.host.reconcile-apply` MUST take `{ planId, reason }`
              BEH-BR-156), not in input order.
 ```
 
+```ts
+// illustrative — not type-checked
+class PlanAffectsCaller extends Schema.TaggedError<PlanAffectsCaller>()("PlanAffectsCaller", {
+  planId: Schema.String,
+  plugins: Schema.Array(Schema.String)       // "<realm>/<id>" of each call-path plugin an entry action would stop
+}) {}
+```
+
+```
+REQUIREMENT: Between steps (3) and (4), reconcile-apply MUST compute its
+             *call path*: the host-tools plugin; the plugin named by
+             `HandlerContext.onBehalfOf` when present (the MCP server
+             plugin for a `tools/call`, the agent loop's plugin for an
+             agent tool call, core BEH-BR-258); every plugin in the
+             handler fiber's `@bridger/core/HeldPlugins` (core BEH-BR-088);
+             and every plugin whose stop would first stop one of these (its
+             providers, transitively, core BEH-BR-156), found from one
+             `Host.snapshot()` and the `requires` and `provides` that
+             `Host.inspect` reports for its plugins (core BEH-BR-118); the
+             snapshot carries no dependency edges. When an entry action of the stored plan would
+             remove, replace, restart, disable or reconfigure a plugin of
+             the call path, the command MUST fail with the declared handler
+             error `PlanAffectsCaller { planId, plugins }` and MUST NOT call
+             `reconcile`. Such a change is made by an operator or by a
+             dispatch whose call path it does not cross.
+```
+
+Without this rule a plan that removes or restarts the host-tools plugin, the
+MCP server serving the call or the agent loop running the turn has no
+outcome its caller can receive: the stop waits for, or interrupts, the very
+dispatch that is waiting on `reconcile`, and core continues the reconcile
+without it (core BEH-BR-067, BEH-BR-167). Core's `WouldDeadlock` covers only
+the plugins the fiber carries, and reports them one entry at a time, after
+earlier entries of a non-atomic apply have run.
+
 ```
 REQUIREMENT: The command MUST NOT bypass, cache or pre-approve the
              `OperationGate` because the command gate allowed it; the two
@@ -292,12 +331,14 @@ REQUIREMENT: The result MUST be `{ report, proposedBy }`: the core
              `PartialApply` (BEH-BR-324) MUST be declared in the command's
              `error` schema and returned as `isError` results with their
              `failed`, `undone` and `notUndone` lists; a `PartialApply`
-             MUST NOT be described as rolled back.
+             MUST NOT be described as rolled back. `PlanUnknown` and
+             `PlanAffectsCaller` MUST be declared and returned the same way.
 ```
 
 ```
 REQUIREMENT: `reason` MUST be required and passed as the `OperationContext`
-             reason, so that `requireReason` of core BEH-BR-189 can be met.
+             reason, beside the served actor (BEH-MC-025), so that
+             `requireReason` of core BEH-BR-189 can be met.
 ```
 
 A stale plan is refused, not re-planned, at this layer: an approval was

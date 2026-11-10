@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.3 (2026-11-09): API table: the `Sequence` members and the local contract; worked example reads the origin from `DurableBus.origin`; limit 5 and the application's duty for series it keeps outside the package: the durable-bus incarnation is the only restore epoch, and no generic one is offered (ERP alignment) (CCR-SQ-003)<br>0.2 (2026-11-08): Restore closure in the new incarnation's stream; `SeriesSuperseded` and decoded `verifySeries` inputs; limit 3 states the inbox conflict (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.4 (2026-11-10): API table: `SeriesFacts` (BEH-SQ-011, P5) (CCR-SQ-004)<br>0.3 (2026-11-09): API table: the `Sequence` members and the local contract; worked example reads the origin from `DurableBus.origin`; limit 5 and the application's duty for series it keeps outside the package: the durable-bus incarnation is the only restore epoch, and no generic one is offered (ERP alignment) (CCR-SQ-003)<br>0.2 (2026-11-08): Restore closure in the new incarnation's stream; `SeriesSuperseded` and decoded `verifySeries` inputs; limit 3 states the inbox conflict (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -69,6 +69,7 @@ All signatures are illustrative until code exists.
 | `SeriesOpened`, `NumberIssued`, `SeriesClosed` | events | The package's own `DurableEvent`s | [01](./behaviors/01-series-and-ownership.md) |
 | `SeriesSuperseded` | event | Supersession of an old incarnation's series, in the new incarnation's stream | [02](./behaviors/02-incarnation-and-verification.md) |
 | `verifySeries`, `SeriesEventInput.of` | functions | Pure check of decoded series events, ordered by number | [02](./behaviors/02-incarnation-and-verification.md) |
+| `SeriesFacts` | decider, functions | The authority records received series events with `SeriesFacts.receive`, keeping the issuer's stream and `eventId` | [02](./behaviors/02-incarnation-and-verification.md) |
 | `SeriesRegistry` | function | Authority view across incarnations of a node | [02](./behaviors/02-incarnation-and-verification.md) |
 | `Series.chainSpec` | function | The `SeriesSpec` for `ChainSink.make` | [02](./behaviors/02-incarnation-and-verification.md) |
 | `memorySequence`, `SeriesFixtures` | fixtures | Testing entry point only | [03](./behaviors/03-formats-testing-and-acceptance.md) |

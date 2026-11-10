@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-017: one `trailSink` layer and its status serve exactly one host, as audit-chain's chain sink does; a second host's record is stored, never refused (H6) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -81,9 +81,14 @@ REQUIREMENT: `trailSink` MUST NOT call any mutating operation of a host
 ```
 
 ```
-REQUIREMENT: The layer MUST be safe to share between hosts: all state it keeps
-             MUST be keyed by `hostId`, and a record of one host MUST NOT wait
-             on, or change the outcome of, a record of another host.
+REQUIREMENT: One `trailSink` layer, with the `TrailSinkStatus` it provides,
+             MUST serve exactly one host, as audit-chain's `HashChainSink`
+             does (BEH-AC-001): each host MUST be given a layer built for it,
+             and documentation MUST say so. A record of a second host that
+             reaches the layer MUST still be stored by the steps of this file
+             — never refused — and logged at error level once, naming no
+             record field; with sealing on, audit-chain appends it with a
+             break marker (BEH-AC-005).
 ```
 
 `options` is optional in this signature because `trailSink` is also usable on

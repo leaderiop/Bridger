@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-04                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F22, F25) — readers' versions reported per event type as "reader" reports that reach the authority; `DowncastRefused` fails the caller's transaction, with round-trip defaults recommended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 22 — writers last where readers cannot go first: `publishVersion`, round-trip-checked `downcast`, `DowncastRefused` (BEH-DB-031); oldest version received per origin (BEH-DB-032); BEH-DB-028 heading changed (old anchor kept); BEH-DB-029 open item settled; BEH-DB-030 amended (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — an unknown version halts or parks per the subscription's `onPoison` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-029: the offline cap no longer bounds the backlog; an origin that has not reported counts as still holding the old version; the event store's stored-version refusal named (P4) (CCR-DB-005)<br>0.4 (2026-11-08): Round-2 agent review (R4 F22, F25) — readers' versions reported per event type as "reader" reports that reach the authority; `DowncastRefused` fails the caller's transaction, with round-trip defaults recommended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 22 — writers last where readers cannot go first: `publishVersion`, round-trip-checked `downcast`, `DowncastRefused` (BEH-DB-031); oldest version received per origin (BEH-DB-032); BEH-DB-028 heading changed (old anchor kept); BEH-DB-029 open item settled; BEH-DB-030 amended (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — an unknown version halts or parks per the subscription's `onPoison` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -129,9 +129,16 @@ REQUIREMENT: The acceptance suite MUST replay envelopes recorded at every
 REQUIREMENT: Raising `minVersion` (dropping upcasters) MUST be treated as a
              breaking change of the event. It SHOULD happen only when no
              origin can still hold an unacknowledged envelope below the new
-             `minVersion`: at least the offline cap after the last release
-             that published that version, plus the longest outbox backlog
-             reported by `backlog`.
+             `minVersion`: every origin that may have published that version
+             has reported an empty outbox backlog (`backlog`) since it last
+             published that version. An origin that has not MUST be counted
+             as still holding the old version, whatever the federation
+             offline cap: the cap bounds how long a host follows unconfirmed
+             desired state, not the age of its outbox, which is never
+             truncated (BEH-DB-045) and is pushed whole when the host
+             returns. On a host whose
+             event store holds events below the new minimum, the store
+             refuses the raise (event-store BEH-ES-027).
 ```
 
 The bus cannot know every origin's backlog; the application, or a

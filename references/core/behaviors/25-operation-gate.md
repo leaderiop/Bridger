@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-25                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-08): BEH-BR-223 lists every `SystemTransition`, `lazy-idle` and `unmount-requested` included (agent review R1-15) (CCR-BR-029)<br>0.7 (2026-11-08): BEH-BR-219 `allowChildren` and `mandatoryInterceptions` on the request of plugin-addressed operations (G41), revocation paragraph points to the `RefusalList`; BEH-BR-218 and BEH-BR-220 the refusal list at step 4b, before the gate; BEH-BR-223 "start-refused" among system transitions, and the list consulted on system starts without gating them (CCR-BR-026); `OperationRequest.undo` (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-219: what a gate can and cannot do with the installed digest (revocation) (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-219 `definition.manifest` and `previousManifest`, a manifest is allowed (CCR-BR-017); `onBehalfOf` and gate-flow `annotations`, BEH-BR-221 bound by `Annotation.Deadline` (CCR-BR-018); BEH-BR-217 adapters `OperationGate.fromGate`/`asGate` are not implementations (CCR-BR-019); `_Next` to 26 (CCR-BR-017)<br>0.4 (2026-10-03): BEH-BR-219 `configChange: ConfigChange` with optional `fingerprints` from the consumer's `ConfigFingerprinter`, equal to the records'; a fingerprint is not a configuration value; Settled (3) (CCR-BR-014)<br>0.3 (2026-10-02): An approval is never consumed without a `requested` record; interruption outcomes aligned with BEH-BR-188; that rule placed after the refusal rules; `intent-ended` is not gated (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-10): BEH-BR-222 a refused entry stops an atomic `reconcile` (C1); BEH-BR-217 unwired equivalence covers files 02–21 and 26–34 (audit round 2, Low); the GxP companion is cited as a Draft (C20) (CCR-BR-034)<br>0.8 (2026-11-08): BEH-BR-223 lists every `SystemTransition`, `lazy-idle` and `unmount-requested` included (agent review R1-15) (CCR-BR-029)<br>0.7 (2026-11-08): BEH-BR-219 `allowChildren` and `mandatoryInterceptions` on the request of plugin-addressed operations (G41), revocation paragraph points to the `RefusalList`; BEH-BR-218 and BEH-BR-220 the refusal list at step 4b, before the gate; BEH-BR-223 "start-refused" among system transitions, and the list consulted on system starts without gating them (CCR-BR-026); `OperationRequest.undo` (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-219: what a gate can and cannot do with the installed digest (revocation) (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-219 `definition.manifest` and `previousManifest`, a manifest is allowed (CCR-BR-017); `onBehalfOf` and gate-flow `annotations`, BEH-BR-221 bound by `Annotation.Deadline` (CCR-BR-018); BEH-BR-217 adapters `OperationGate.fromGate`/`asGate` are not implementations (CCR-BR-019); `_Next` to 26 (CCR-BR-017)<br>0.4 (2026-10-03): BEH-BR-219 `configChange: ConfigChange` with optional `fingerprints` from the consumer's `ConfigFingerprinter`, equal to the records'; a fingerprint is not a configuration value; Settled (3) (CCR-BR-014)<br>0.3 (2026-10-02): An approval is never consumed without a `requested` record; interruption outcomes aligned with BEH-BR-188; that rule placed after the refusal rules; `intent-ended` is not gated (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -36,8 +36,8 @@ BEH-BR-217–224 and uses all eight.
 > electronic signatures** (21 CFR 11.50, 11.70) or implement signature
 > components (11.200), and offers **no tamper evidence**. Core provides **no
 > gate implementation at all**. Those belong to the consumer, or to the
-> `@bridger/gxp` companion where adopted, and are specified later in
-> `references/gxp/`. Core guarantees only that a wired gate cannot be bypassed
+> `@bridger/gxp` companion where adopted, specified as a Draft in
+> [`references/gxp/`](../../gxp/README.md). Core guarantees only that a wired gate cannot be bypassed
 > through the `Host` it guards.
 
 Planned source: `packages/core/src/OperationGate.ts` *(Planned)*. The call
@@ -86,7 +86,8 @@ REQUIREMENT: `@bridger/core` MUST NOT export any `OperationGate`
 
 ```
 REQUIREMENT: With no gate wired, step 5 of BEH-BR-188 MUST be skipped and
-             every call MUST behave exactly as specified in files 02–21.
+             every call MUST behave exactly as specified in files 02–21 and
+             26–34.
 ```
 
 A shipped allow-all gate would be a control that does nothing and looks like
@@ -407,7 +408,10 @@ REQUIREMENT: Every operator mutation reachable through the `Host` — every
 REQUIREMENT: `reconcile` MUST consult the gate once per entry action, never
              once for the batch. A refused entry MUST appear in
              `ReconcileReport.rejected` with `OperationRejected` and MUST NOT
-             stop the other entries (18 — Reconciliation and Confluence).
+             stop the other entries (18 — Reconciliation and Confluence),
+             unless the call is atomic: with `atomic: true` a refusal stops
+             the apply and is reported in `failed` of `ApplyRolledBack` or
+             `PartialApply` (32 — Generic Gate and Plan, BEH-BR-322).
 ```
 
 ```

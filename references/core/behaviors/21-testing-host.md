@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.19                                                         |
+> | Revision       | 0.20                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.19 (2026-11-09): BEH-BR-179 the counter is unique within one `TestHost`, and `TestHost`s whose records meet in one sink need distinct prefixes (F-03); checks 59 (local contracts, `descriptor.local`), 65 (a loaded definition breaking BEH-BR-003 fails phase "load" with `InvalidDefinition`), 83 (the plan's rejection tags), 84 (member readiness, timeout and the next `use`), 86 (`EphemeralRealm.use` is `Host.useAll`), 87 (handoff on `restart` and `reconfigure` under `alsoOn`, the stop's final step, principal, annotations, lazy registrations), 88 (a superseded build keeps the held value; a call during the import waits) and 112 (`CrossingInfo.disclosed`) amended; check 114 added (identifier uniqueness); check 8: a plugin whose build is queued when shutdown begins is unregistered without a stop step or record (CCR-BR-033)<br>0.18 (2026-11-09): Checks 4 (idle return under BEH-BR-073), 8 (shutdown: no start, cancelled and discarded builds, destination "gone", final snapshot), 9 and 24 (dependents' exceptions; undeclared keys of the optional members), 26 (base key in an isolating realm, `InvalidRealm`, failing `wrap` after activation), 27 (`enable` precedence, `replace` of a disabled plugin), 51 (mount record in `starting`) and 103 (`PluginHandle.restart` options) amended (BEH-BR-183, BEH-BR-184) (CCR-BR-032)<br>0.17 (2026-11-09): `memoryAuditSink` keeps a different record under a stored `recordId` beside the first, following BEH-BR-193 (CCR-BR-031)<br>0.16 (2026-11-08): Checks amended for the host-core prototype third pass: 83 (prune drain and force compared only when they take effect, G-P23), 92 (link without `hostId`, wait to the end of a non-empty window, G-P20, G-P21), 96 (a discarded successful build drops "ended", G-P19), 97 (kept trigger not in `triggered`, G-P22), 99 (half-finished two-action undo step, G-P24) (CCR-BR-030)<br>0.15 (2026-11-08): Checks amended for the round-2 agent review and prototype second pass: 72 (`Grant.all` layer with `changes`, G-P13), 92 (idling and refused declarations, owner matching, `HostLink.none`, failed reads, wake window, long waking), 96 (held-event drop reason during a load, G-P14), 97 (registry holds not idle conditions, G-P17), 99 (multi-action undo, override restore, prune options, refused digests), 104 (refused-digest and the reconcile diff, plan) (CCR-BR-029)<br>0.14 (2026-11-08): Checks amended for the resolutions of the host-core prototype findings G-P1..G-P12: 49 (lazy registrations in the confluence comparison), 59 (`serviceKey`), 60 (`disabled: true`), 62 (`consentDiff` shapes), 63 (`range` with `version`), 79 (`settle` outcomes), 83 (decoded paths, host-level mismatches), 86 (delimiter rule), 92 (empty wake window, woken while `starting`, `make` refusal), 108 (which records carry `sanitized`) (CCR-BR-028)<br>0.13 (2026-11-08): BEH-BR-184 checks 112 (call-log kind "dispatch", string epochs) and 113 (registry entry owner, `HoldRevoked` feed) (CCR-BR-027)<br>0.12 (2026-11-08): Check 64 amended, checks 92–97 (CCR-BR-024); checks 98–103 (CCR-BR-025); `memoryCallLog` `onFailure` and `queue`, `scriptedRefusalList` fixture, check 79 renamed to `policy` and covers `settle`, checks 104–111 (CCR-BR-026)<br>0.11 (2026-11-08): check 22 (generation `changes` and `view`); checks 63, 65, 66 (lazy digest, not-yet-loaded `reconfigure`, `methods`); copies of checks 67, 68, 70, 75 and 76 aligned with files 28 and 30; checks 77, 79, 81, 83 and 85 aligned with files 31–33; check 91 (entitlement failure modes, mode `unmetered`) (CCR-BR-022)<br>0.10 (2026-11-08): Acceptance checks 59–66 (CCR-BR-017), 67–76 (CCR-BR-018), 77–88 (CCR-BR-019) and 89–91 (CCR-BR-020); `Fault.loadFails` and `Fault.handoffFails`; scripted `AccessPolicy`, `CapabilityPolicy` and `Gate<Req>` fixtures, in-memory `CallLog` fixture and `heldHandoff` (CCR-BR-017, CCR-BR-018, CCR-BR-019)<br>0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.20 (2026-11-10): check 53: a generation's forced revocation is a `GenerationRevoked` on its own feed, not a host event (C7); BEH-BR-177 `TestHost` implements files 02–20 and 22–34 (audit round 2, Low); check 38 compares values drawn from `IdGenerator` by order of first appearance (C12); check 83 covers a changed incoming version, digest or consent diff (H2); checks 70, 73 and 76 cover files 02–20 and 22–34 (review of CCR-BR-034) (CCR-BR-034)<br>0.19 (2026-11-09): BEH-BR-179 the counter is unique within one `TestHost`, and `TestHost`s whose records meet in one sink need distinct prefixes (F-03); checks 59 (local contracts, `descriptor.local`), 65 (a loaded definition breaking BEH-BR-003 fails phase "load" with `InvalidDefinition`), 83 (the plan's rejection tags), 84 (member readiness, timeout and the next `use`), 86 (`EphemeralRealm.use` is `Host.useAll`), 87 (handoff on `restart` and `reconfigure` under `alsoOn`, the stop's final step, principal, annotations, lazy registrations), 88 (a superseded build keeps the held value; a call during the import waits) and 112 (`CrossingInfo.disclosed`) amended; check 114 added (identifier uniqueness); check 8: a plugin whose build is queued when shutdown begins is unregistered without a stop step or record (CCR-BR-033)<br>0.18 (2026-11-09): Checks 4 (idle return under BEH-BR-073), 8 (shutdown: no start, cancelled and discarded builds, destination "gone", final snapshot), 9 and 24 (dependents' exceptions; undeclared keys of the optional members), 26 (base key in an isolating realm, `InvalidRealm`, failing `wrap` after activation), 27 (`enable` precedence, `replace` of a disabled plugin), 51 (mount record in `starting`) and 103 (`PluginHandle.restart` options) amended (BEH-BR-183, BEH-BR-184) (CCR-BR-032)<br>0.17 (2026-11-09): `memoryAuditSink` keeps a different record under a stored `recordId` beside the first, following BEH-BR-193 (CCR-BR-031)<br>0.16 (2026-11-08): Checks amended for the host-core prototype third pass: 83 (prune drain and force compared only when they take effect, G-P23), 92 (link without `hostId`, wait to the end of a non-empty window, G-P20, G-P21), 96 (a discarded successful build drops "ended", G-P19), 97 (kept trigger not in `triggered`, G-P22), 99 (half-finished two-action undo step, G-P24) (CCR-BR-030)<br>0.15 (2026-11-08): Checks amended for the round-2 agent review and prototype second pass: 72 (`Grant.all` layer with `changes`, G-P13), 92 (idling and refused declarations, owner matching, `HostLink.none`, failed reads, wake window, long waking), 96 (held-event drop reason during a load, G-P14), 97 (registry holds not idle conditions, G-P17), 99 (multi-action undo, override restore, prune options, refused digests), 104 (refused-digest and the reconcile diff, plan) (CCR-BR-029)<br>0.14 (2026-11-08): Checks amended for the resolutions of the host-core prototype findings G-P1..G-P12: 49 (lazy registrations in the confluence comparison), 59 (`serviceKey`), 60 (`disabled: true`), 62 (`consentDiff` shapes), 63 (`range` with `version`), 79 (`settle` outcomes), 83 (decoded paths, host-level mismatches), 86 (delimiter rule), 92 (empty wake window, woken while `starting`, `make` refusal), 108 (which records carry `sanitized`) (CCR-BR-028)<br>0.13 (2026-11-08): BEH-BR-184 checks 112 (call-log kind "dispatch", string epochs) and 113 (registry entry owner, `HoldRevoked` feed) (CCR-BR-027)<br>0.12 (2026-11-08): Check 64 amended, checks 92–97 (CCR-BR-024); checks 98–103 (CCR-BR-025); `memoryCallLog` `onFailure` and `queue`, `scriptedRefusalList` fixture, check 79 renamed to `policy` and covers `settle`, checks 104–111 (CCR-BR-026)<br>0.11 (2026-11-08): check 22 (generation `changes` and `view`); checks 63, 65, 66 (lazy digest, not-yet-loaded `reconfigure`, `methods`); copies of checks 67, 68, 70, 75 and 76 aligned with files 28 and 30; checks 77, 79, 81, 83 and 85 aligned with files 31–33; check 91 (entitlement failure modes, mode `unmetered`) (CCR-BR-022)<br>0.10 (2026-11-08): Acceptance checks 59–66 (CCR-BR-017), 67–76 (CCR-BR-018), 77–88 (CCR-BR-019) and 89–91 (CCR-BR-020); `Fault.loadFails` and `Fault.handoffFails`; scripted `AccessPolicy`, `CapabilityPolicy` and `Gate<Req>` fixtures, in-memory `CallLog` fixture and `heldHandoff` (CCR-BR-017, CCR-BR-018, CCR-BR-019)<br>0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -64,7 +64,7 @@ TestHost.layer(options?: BridgerOptions): Layer.Layer<Bridger.Host>   // provide
 
 ```
 REQUIREMENT: `TestHost` MUST implement the full `Host` contract of files
-             02–20 and 22–25. A behaviour that holds for a host made by
+             02–20 and 22–34. A behaviour that holds for a host made by
              `Bridger.make` MUST hold for a `TestHost`, apart from the
              scheduling rule of BEH-BR-178.
 ```
@@ -653,7 +653,11 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  event equals the outcome of the same script run with a
                  `memoryAuditSink` that accepts every write and an allow-all
                  `scriptedGate(() => "allow")` fixture wired, except
-                 `HostSnapshot.audit`.
+                 `HostSnapshot.audit` and the values drawn from
+                 `IdGenerator` (BEH-BR-210): a wired sink draws its
+                 `recordId`s from the same generator, which shifts every
+                 later generated `correlationId`, so those are compared by
+                 order of first appearance, not by value.
              39. System transitions are recorded with `Actor.system` and the
                  `causationId` of their cause; they are never gated.
              40. `reconcile` consults the gate once per entry action, and a
@@ -762,10 +766,11 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  BEH-BR-151).
              53. A generation's forced drain interrupts the fiber that took
                  an `acquire` lease and fails a `use` callback with
-                 `LeaseRevoked` after its finalizers; made inside an
-                 activation, the generation reports the revocation as a
-                 `lease-revoked` host event naming it (20 — Generation,
-                 BEH-BR-172, BEH-BR-174).
+                 `LeaseRevoked` after its finalizers; the generation
+                 publishes one `GenerationRevoked` on its own
+                 `revocations` feed (naming the owning plugin when made
+                 inside an activation) and nothing on `Host.events`
+                 (20 — Generation, BEH-BR-172, BEH-BR-174).
              54. `TestHost` edges: `pending` lists the transition an
                  operation just started; `awaitIdle` completes only once the
                  test steps; a test that ends with pending items closes its
@@ -931,7 +936,7 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  method serving another plugin carries the parent
                  activation's principal, a throwing `decide` denies with
                  "policy-defect", and `Host.controls` reports the wiring;
-                 with nothing wired, the suites of files 02–25 pass with
+                 with nothing wired, the suites of files 02–20 and 22–34 pass with
                  only the additive fields of BEH-BR-266 added to the values
                  they compare (BEH-BR-263 to BEH-BR-266).
              71. A wired `CapabilityPolicy` is consulted once per capture on
@@ -954,7 +959,7 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  a failing or slow `record` changes no outcome and is
                  counted; `CurrentCall` is set only around intercepted
                  calls and a provided one dies with `PrincipalForged`; with
-                 nothing wired, the suites of files 02–25 pass unchanged
+                 nothing wired, the suites of files 02–20 and 22–34 pass unchanged
                  (BEH-BR-276 to BEH-BR-278).
              74. Keys combine as declared; a monotonic key cannot be
                  replaced through the API nor removed by a supplied
@@ -984,7 +989,7 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  named in `annotationsOmitted`; the entry records of a
                  `reconcile` carry the `reconcile` call's "audit" keys; call-log entries carry
                  "callLog" keys; no annotation appears in snapshots,
-                 events or logs; with none set, the suites of files 02–29
+                 events or logs; with none set, the suites of files 02–20 and 22–34
                  pass unchanged (BEH-BR-293, BEH-BR-295).
              77. A hook point admits registrations only through the
                  application's rule over the principal's owner and labels; a
@@ -1044,8 +1049,9 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  tag of the error — an `InstallError` member's own tag,
                  never "InstallError"); `reconcile` with
                  `expect` fails `PlanStale` with no record when stale at the
-                 call — also when `configChange.paths` or the prune options
-                 differ, `pruneDrain` and `pruneForce` counting only when
+                 call — also when `configChange.paths`, an entry's
+                 incoming version or digest, its `consentDiff` or the prune
+                 options differ, `pruneDrain` and `pruneForce` counting only when
                  `prune` or `atomic` is true — with a
                  parent `failed` record when stale at the intent, and a
                  mismatch of `hostId`, `scope`, a prune option or `atomic`

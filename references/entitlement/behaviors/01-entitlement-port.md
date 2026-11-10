@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-EN-001: the application's `EntitlementAdapter` is wrapped by `Entitlement.layer(adapter, options)`, the one way `EntitlementOptions` reach the package's components, and the `Entitlement` service carries them; BEH-EN-003 and 004: the adapter's fallback mode is `EntitlementState.fallbackMode` (P13) (CCR-EN-005)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -41,11 +41,17 @@ Planned source: `packages/entitlement/src/Entitlement.ts` *(Planned)*.
 
 ```ts
 // illustrative — not type-checked
-interface EntitlementShape {
+interface EntitlementAdapter {                       // the application's
   readonly check: (subject: EntitlementSubject) => Effect.Effect<EntitlementState, EntitlementUnavailable>
   readonly watch: (subject: EntitlementSubject) => Stream.Stream<EntitlementState, EntitlementUnavailable>
 }
+interface EntitlementShape extends EntitlementAdapter {
+  readonly options: EntitlementOptions               // BEH-EN-005; read by every component of this package
+}
 class Entitlement extends Context.Service<Entitlement, EntitlementShape>()("@bridger/entitlement/Entitlement") {}
+declare const Entitlement: {
+  readonly layer: (adapter: EntitlementAdapter, options: EntitlementOptions) => Layer.Layer<Entitlement, EntitlementConfigError>
+}
 
 class EntitlementUnavailable extends Schema.TaggedError<EntitlementUnavailable>()("EntitlementUnavailable", {
   pluginId: Schema.String,
@@ -54,11 +60,22 @@ class EntitlementUnavailable extends Schema.TaggedError<EntitlementUnavailable>(
 ```
 
 ```
-REQUIREMENT: `@bridger/entitlement` MUST NOT export an `Entitlement`
+REQUIREMENT: `@bridger/entitlement` MUST NOT export an `EntitlementAdapter`
              implementation — no "allow all", no "always full", no example
-             layer outside its testing entry point. The only fixture MUST be
+             adapter outside its testing entry point. The only fixture MUST be
              a scripted test adapter exported from
              `@bridger/entitlement/testing`.
+```
+
+```
+REQUIREMENT: `Entitlement.layer(adapter, options)` MUST be the only way the
+             `Entitlement` service is provided: it serves the adapter's
+             `check` and `watch` unchanged, with `options`, and gives no
+             answer of its own. It MUST fail with `EntitlementConfigError`
+             (component "Entitlement.layer", 04) when `onUnavailable` is
+             absent or is "last-known" without `staleAfter` (BEH-EN-005).
+             Every component reads `labels`, `onUnavailable`, `staleAfter`,
+             `checkTimeout` and `essential` from the service's `options`.
 ```
 
 ```
@@ -126,6 +143,7 @@ interface EntitlementState {
   readonly reason?: string            // free text from the adapter, e.g. "expired"
   readonly asOf: string               // when this state was established, from Clock
   readonly stale?: true               // last-known answer served under onUnavailable (BEH-EN-005)
+  readonly fallbackMode?: "read-only" | "none"   // the adapter's mode after validUntil and graceUntil (BEH-EN-004); "read-only" when absent
 }
 ```
 
@@ -160,7 +178,7 @@ person decides whether to take it out
 REQUIREMENT: When an answer carries `validUntil` or `graceUntil`, the package
              MUST derive the effective mode from the time read from `Clock`:
              `full` until `validUntil`; then `grace` until `graceUntil` when
-             present; then the adapter's stated fallback mode, `read-only`
+             present; then the adapter's stated `fallbackMode`, `read-only`
              when it states none. The package MUST NOT read ambient time.
 ```
 

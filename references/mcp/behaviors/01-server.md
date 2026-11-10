@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): BEH-MC-001 no entry point takes a contract object, so a local contract (core `Contract.local`) never crosses through this package (core CCR-BR-033) (CCR-MC-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-06, A-07, A-17): what a default (tainted) session can do — declared reads and resources on the gate's decision, writes only through an approval the client never applies; the model-facing text of a result rendered through `Command.envelope` with `maxResultBytes`, `structuredContent` capped by `maxStructuredBytes`; command tasks are MCP tasks when negotiated, a deferred call never; a long command awaited with `timeout: "forever"` (CCR-MC-003)<br>0.3 (2026-11-08): Inbound sessions tainted unless the application's resolver marks them trusted (BEH-MC-002); the session's listing record and `expectDigest` refuse a call whose definition changed since it was listed, `ToolChanged` mapped (BEH-MC-003–005); `readOnlyHint` from the descriptor; idempotency key from `_meta`; long commands as tasks; new outcomes mapped; MCP resources as projections of read-only commands (BEH-MC-006, BEH-MC-007) (CCR-MC-003, round 2: recheck items 1, 6, 7, 9; X7, X8)<br>0.2 (2026-11-08): `tools/call` pins per call and passes the toolset; deferred direct calls are `isError` results; `onBehalfOf` wording; `Annotations` type (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-MC-001: the server holds no lease, so its removal interrupts in-flight calls instead of draining them; a host tool cannot stop the server serving it (P24) (CCR-MC-005)<br>0.5 (2026-11-09): BEH-MC-001 no entry point takes a contract object, so a local contract (core `Contract.local`) never crosses through this package (core CCR-BR-033) (CCR-MC-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-06, A-07, A-17): what a default (tainted) session can do — declared reads and resources on the gate's decision, writes only through an approval the client never applies; the model-facing text of a result rendered through `Command.envelope` with `maxResultBytes`, `structuredContent` capped by `maxStructuredBytes`; command tasks are MCP tasks when negotiated, a deferred call never; a long command awaited with `timeout: "forever"` (CCR-MC-003)<br>0.3 (2026-11-08): Inbound sessions tainted unless the application's resolver marks them trusted (BEH-MC-002); the session's listing record and `expectDigest` refuse a call whose definition changed since it was listed, `ToolChanged` mapped (BEH-MC-003–005); `readOnlyHint` from the descriptor; idempotency key from `_meta`; long commands as tasks; new outcomes mapped; MCP resources as projections of read-only commands (BEH-MC-006, BEH-MC-007) (CCR-MC-003, round 2: recheck items 1, 6, 7, 9; X7, X8)<br>0.2 (2026-11-08): `tools/call` pins per call and passes the toolset; deferred direct calls are `isError` results; `onBehalfOf` wording; `Annotations` type (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -59,11 +59,17 @@ REQUIREMENT: `McpServer.plugin` MUST return an ordinary plugin definition. Its
 
 ```
 REQUIREMENT: Removing, restarting or replacing the server plugin MUST end
-             every MCP session it holds: in-flight `tools/call` requests are
-             leases on the commands they dispatch (command companion,
-             02 — Dispatch) and drain under the host's rules; once the scope
-             closes, the transport MUST answer new requests with a
-             JSON-RPC error and close.
+             every MCP session it holds. The server holds no lease for a
+             session or a call (a dispatch holds the command's
+             contribution, not the server), so its stop drains nothing of
+             its own: when its activation scope closes, the transport MUST
+             stop accepting requests, every in-flight `tools/call` and
+             `resources/read` MUST be interrupted — its dispatch ends as an
+             interruption (command BEH-CM-013, BEH-CM-015), while a host
+             operation its handler already started continues under core's
+             rules (core BEH-BR-067) — and the transport MUST then answer
+             new requests with a JSON-RPC error and close. A host tool
+             cannot stop the server serving it (04, BEH-MC-029).
 ```
 
 ```
@@ -90,7 +96,7 @@ A server that is a plugin inherits everything the host already says about
 plugins: it is installed, attributed, gated (core `OperationGate`) and
 audited as a plugin; it can wait for its requirements; `inspect` shows it.
 
-**Settled here.** Session ending on removal is the drain of the server's
+**Settled here.** Session ending on removal is the closing of the server's
 activation scope, not a separate shutdown protocol: an MCP client loses its
 connection exactly when the plugin stops serving.
 

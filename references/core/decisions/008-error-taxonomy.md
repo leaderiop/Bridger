@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-008                                              |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.8 (2026-11-09): `InvalidDefinition` raised by `enable` too (BEH-BR-062) and the cause of a `load` that fails phase "load" (BEH-BR-246) (CCR-BR-033)<br>0.7 (2026-11-09): `InvalidRealm` added (C-02); `InstallError` and the `reconcile` union aligned with BEH-BR-013, named as the single source of host unions (C-01) (CCR-BR-032)<br>0.6 (2026-11-08): record-only handoff loss tags (`HandoffExportFailed`, `HandoffVersionUnaccepted`, `HandoffUpgradeFailed`, `HandoffDecodeFailed`, `HandoffImportFailed`, `HandoffAbandoned`) beside `Interrupted` (CCR-BR-022)<br>0.5 (2026-10-03): `ConfigFingerprintUnavailable { operation, message }` (call error of `install` and `reconfigure`, per entry for `reconcile`; message written by core) and `ConfigFingerprintFailed { message }` (the port's error, never reaching a caller) (CCR-BR-014)<br>0.4 (2026-10-03): `Conflict` and `HostClosed` also raised by child install (BEH-BR-121) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Record-only `Interrupted` tag; `DependencyCycle` raised by child install; `DrainTimeout { id, leases, target? }`, `id` also naming a plugin whose running transition step the call waited for; `WouldDeadlock` raised by `retry` and `enable` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.9 (2026-11-10): The error table is no longer called complete; errors added later are listed in the overview (C23) (CCR-BR-034)<br>0.8 (2026-11-09): `InvalidDefinition` raised by `enable` too (BEH-BR-062) and the cause of a `load` that fails phase "load" (BEH-BR-246) (CCR-BR-033)<br>0.7 (2026-11-09): `InvalidRealm` added (C-02); `InstallError` and the `reconcile` union aligned with BEH-BR-013, named as the single source of host unions (C-01) (CCR-BR-032)<br>0.6 (2026-11-08): record-only handoff loss tags (`HandoffExportFailed`, `HandoffVersionUnaccepted`, `HandoffUpgradeFailed`, `HandoffDecodeFailed`, `HandoffImportFailed`, `HandoffAbandoned`) beside `Interrupted` (CCR-BR-022)<br>0.5 (2026-10-03): `ConfigFingerprintUnavailable { operation, message }` (call error of `install` and `reconfigure`, per entry for `reconcile`; message written by core) and `ConfigFingerprintFailed { message }` (the port's error, never reaching a caller) (CCR-BR-014)<br>0.4 (2026-10-03): `Conflict` and `HostClosed` also raised by child install (BEH-BR-121) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Record-only `Interrupted` tag; `DependencyCycle` raised by child install; `DrainTimeout { id, leases, target? }`, `id` also naming a plugin whose running transition step the call waited for; `WouldDeadlock` raised by `retry` and `enable` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -24,7 +24,7 @@ A second distinction matters as much as the encoding: which outcomes are errors 
 
 ## Decision
 
-Every named error is a `Schema.TaggedError` (the v4 constructor name, as SPEC.md writes it, is in the API smoke test of [ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md)). Errors carry identifiers and messages only. The complete list:
+Every named error is a `Schema.TaggedError` (the v4 constructor name, as SPEC.md writes it, is in the API smoke test of [ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md)). Errors carry identifiers and messages only. The table lists the errors this decision fixed; it is not complete. Errors that later decisions added — among them `IncompatibleEngine`, `ChildNotAllowed`, `LoadFailed`, `HandoffError` and the policy, plan and realm errors — are listed by group in the [overview](../overview.md#errors), and the full union of each host member is in its behaviour file:
 
 | Error | Fields | Raised by |
 | --- | --- | --- |

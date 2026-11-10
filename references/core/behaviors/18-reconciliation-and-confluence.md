@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-18                                               |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-09): BEH-BR-153 `IncompatibleContract` and `IncompatibleEngine` reach the report as `InstallError` members, and a plan names each by its own tag (C-07) (CCR-BR-033)<br>0.9 (2026-11-08): BEH-BR-154 the diff reads the operator's `disabled` flag, a "refused-digest" registration counts as not disabled; BEH-BR-155 atomic undo removals use the prune options whatever `prune` is; BEH-BR-159 idempotence after a run with no rejection, refused entries retried; BEH-BR-160 refusal-list answers are history like failure (agent review R1-07, R1-11) (CCR-BR-029)<br>0.8 (2026-11-08): BEH-BR-160 lazy registrations compared with `dormant` and `active` as one class; eager registrations compared exactly (host-core prototype finding G-P7) (CCR-BR-028)<br>0.7 (2026-11-08): BEH-BR-153 `DesiredPlugin.mandatoryInterceptions` and `allowChildren`, `BridgerOptions.mandatoryCatalog`, `ReconcileOptions.atomic`, `PolicyMismatch`, `ApplyRolledBack` and `PartialApply`; BEH-BR-154 policy compared, never changed in place; BEH-BR-156 entries ordered by dependency (removals dependents first, other changes providers first), closing gap G36; BEH-BR-157 and 158 atomic apply and undo operations; acceptance checks 98 and 101 (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-154: lazy identity `meta` (digest supplied beside the manifest); BEH-BR-153/155: `pruneDrain` and `pruneForce` (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-153 `DesiredPlugin.plugin` accepts lazy definitions, BEH-BR-154 lazy definitions compared by manifest `version` and `digest` without loading (CCR-BR-017); BEH-BR-153 `expect` and `PlanStale`, BEH-BR-156 diff shared with `Host.plan`, BEH-BR-158 a stale plan applies nothing (CCR-BR-019); BEH-BR-153 `plugin: Plugin.Any` (CCR-BR-020)<br>0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.11 (2026-11-10): BEH-BR-156 edges on a cycle of the change phase are ignored for the order (list order) and the entry closing the cycle is rejected with `DependencyCycle` (C9); BEH-BR-157 shutdown during a non-atomic `reconcile` issues no further action and fails with `HostClosed`, parent record `failed` (C10) (CCR-BR-034)<br>0.10 (2026-11-09): BEH-BR-153 `IncompatibleContract` and `IncompatibleEngine` reach the report as `InstallError` members, and a plan names each by its own tag (C-07) (CCR-BR-033)<br>0.9 (2026-11-08): BEH-BR-154 the diff reads the operator's `disabled` flag, a "refused-digest" registration counts as not disabled; BEH-BR-155 atomic undo removals use the prune options whatever `prune` is; BEH-BR-159 idempotence after a run with no rejection, refused entries retried; BEH-BR-160 refusal-list answers are history like failure (agent review R1-07, R1-11) (CCR-BR-029)<br>0.8 (2026-11-08): BEH-BR-160 lazy registrations compared with `dormant` and `active` as one class; eager registrations compared exactly (host-core prototype finding G-P7) (CCR-BR-028)<br>0.7 (2026-11-08): BEH-BR-153 `DesiredPlugin.mandatoryInterceptions` and `allowChildren`, `BridgerOptions.mandatoryCatalog`, `ReconcileOptions.atomic`, `PolicyMismatch`, `ApplyRolledBack` and `PartialApply`; BEH-BR-154 policy compared, never changed in place; BEH-BR-156 entries ordered by dependency (removals dependents first, other changes providers first), closing gap G36; BEH-BR-157 and 158 atomic apply and undo operations; acceptance checks 98 and 101 (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-154: lazy identity `meta` (digest supplied beside the manifest); BEH-BR-153/155: `pruneDrain` and `pruneForce` (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-153 `DesiredPlugin.plugin` accepts lazy definitions, BEH-BR-154 lazy definitions compared by manifest `version` and `digest` without loading (CCR-BR-017); BEH-BR-153 `expect` and `PlanStale`, BEH-BR-156 diff shared with `Host.plan`, BEH-BR-158 a stale plan applies nothing (CCR-BR-019); BEH-BR-153 `plugin: Plugin.Any` (CCR-BR-020)<br>0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -386,7 +386,12 @@ REQUIREMENT: `reconcile` MUST compute its diff against the host state at the
                 in the state the list describes, P's definition provides a
                 key that D's definition requires in D's resolution scope
                 (`scopeOf`, 17 — Realms and Interception). Ties MUST be
-                broken in list order.
+                broken in list order. Edges that lie on a cycle of these
+                edges MUST be ignored for the order, so the entries of a
+                cycle keep list order among themselves; each action then
+                meets the cycle check of its direct call (03 — Installation,
+                BEH-BR-020), and the entry that closes the cycle is
+                rejected with `DependencyCycle`.
              The diff computation, including this order, MUST be the one
              `Host.plan` uses
              ([32 — Generic Gate and Plan](./32-generic-gate-and-plan.md),
@@ -532,6 +537,18 @@ REQUIREMENT: When the audit-degraded latch becomes set while a `reconcile` is
              running (a terminal or system record could not be written),
              `reconcile` MUST issue no further action and MUST fail with
              `AuditUnavailable`, with the same treatment of completed actions.
+```
+
+```
+REQUIREMENT: When host shutdown begins while a `reconcile` without `atomic`
+             is running, `reconcile` MUST issue no further action and MUST
+             fail with `HostClosed`. Entry actions already completed MUST
+             remain applied and recorded; an action already issued ends as
+             the direct call would under shutdown (08 — Operation Legality,
+             BEH-BR-075). With a sink wired, the parent terminal record
+             MUST be `failed` with `HostClosed`, written before the audit
+             writer closes (12 — Shutdown and Hosting, BEH-BR-108). With
+             `atomic`, 32 — Generic Gate and Plan, BEH-BR-326, applies.
 ```
 
 The call-level errors are those that make the whole call impossible: the host

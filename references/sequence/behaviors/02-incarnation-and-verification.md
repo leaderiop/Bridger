@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-02                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-009 runs the supersession step again when the durable-bus origin changes on a running host, takes the old series from the store being replaced through a durable-bus store-swap participant, refuses calls under the new origin with `SupersessionPending` until the step has committed, and states what a re-bootstrap snapshot may hold (U-10); `lastKnownOnly` is false for series read from the live store at a re-bootstrap (BEH-SQ-009, BEH-SQ-010, BEH-SQ-012); BEH-SQ-011 publishes on the event-store stream by event-store's default (F-05) (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-011: the package ships `SeriesFacts` (decider, `toFact`, `receive`) for authority-side recording, keeping the issuer's stream and the issuer's `eventId` as fact identifier; BEH-SQ-012: `SeriesEventInput.of` takes the issuer's `eventId` from `causationId` for a recorded received fact (P5) (CCR-SQ-004)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-009 runs the supersession step again when the durable-bus origin changes on a running host, takes the old series from the store being replaced through a durable-bus store-swap participant, refuses calls under the new origin with `SupersessionPending` until the step has committed, and states what a re-bootstrap snapshot may hold (U-10); `lastKnownOnly` is false for series read from the live store at a re-bootstrap (BEH-SQ-009, BEH-SQ-010, BEH-SQ-012); BEH-SQ-011 publishes on the event-store stream by event-store's default (F-05) (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -164,11 +164,41 @@ REQUIREMENT: `SeriesOpened`, `NumberIssued`, `SeriesClosed` and
              default delivery stream of event-store BEH-ES-028), and so that
              the authority
              receives them in order per origin and stream. The authority MUST
-             record them with event-store `EventStore.receive` (a fact,
-             never rejected). Series event types MUST NOT be listed in a
+             record them with `SeriesFacts.receive` (below), an event-store
+             `EventStore.receive` handler (a fact, never rejected),
+             registered with `EventStore.receiveOptions` and with the series
+             event types registered without `publish`. Series event types MUST NOT be listed in a
              payload codec's field selection (keyring `FieldSpec`): they
              carry numbers and stream ids, never personal data, and the
              authority must be able to read them without keys.
+```
+
+```ts
+// illustrative — not type-checked
+type SeriesEvent = SeriesOpened | NumberIssued | SeriesClosed | SeriesSuperseded | SeriesRetired
+interface SeriesFact { readonly event: SeriesEvent; readonly stream: string; readonly issuerEventId: string }
+declare const SeriesFacts: {
+  readonly decider: FactDecider<void, SeriesFact, SeriesEvent>
+  readonly toFact: (event: SeriesEvent, envelope: Envelope) => SeriesFact
+  readonly receive: (event: SeriesEvent, envelope: Envelope, receipt: Receipt) =>
+    Effect.Effect<void, unknown, StoreTransaction>        // EventStore.receive(SeriesFacts.decider, SeriesFacts.toFact)
+}
+```
+
+```
+REQUIREMENT: The package MUST provide `SeriesFacts`. `toFact` MUST take
+             `stream` from the envelope's stream and `issuerEventId` from
+             the envelope's `eventId`. The decider's `streamOf` MUST return
+             `stream`, so that the authority keeps each series and
+             incarnation stream under the issuing host's stream id; its
+             `factId` MUST return `issuerEventId`, so that a redelivery is
+             "already-recorded" (event-store BEH-ES-015); its `accept` MUST
+             return the event unchanged and nothing else; `initial` is
+             `undefined` and `evolve` returns it. Documentation MUST state
+             that the fact identifier holds for one hop (event-store
+             BEH-ES-015): series events MUST reach the authority from the
+             issuing host directly, never re-published by an intermediate
+             host.
 ```
 
 ## BEH-SQ-012: verifySeries is a pure, total function
@@ -198,7 +228,7 @@ type SeriesEventInput =
   | { readonly type: "SeriesSuperseded"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly lastKnown: number; readonly lastKnownOnly: boolean }
   | { readonly type: "SeriesRetired"; readonly eventId: string; readonly origin: string; readonly seriesId: string; readonly reason: string }
 declare const verifySeries: (events: readonly SeriesEventInput[]) => SeriesReport
-declare const SeriesEventInput: { readonly of: (read: ReadEvent<unknown>) => SeriesEventInput | undefined }  // takes eventId and origin from the StoredEvent
+declare const SeriesEventInput: { readonly of: (read: ReadEvent<unknown>) => SeriesEventInput | undefined }  // takes eventId and origin from the StoredEvent (below)
 ```
 
 ```
@@ -208,6 +238,19 @@ REQUIREMENT: `verifySeries` MUST be pure and total: it MUST NOT throw, read
              position, because the authority's stream versions and positions
              are its own append order, not the issuing host's. It MUST have
              no overall pass or fail field.
+```
+
+```
+REQUIREMENT: `SeriesEventInput.of` MUST give every input the issuing host's
+             `eventId` and the issuing `origin`: for a stored event that
+             records a received fact (it carries a `factId`, event-store
+             BEH-ES-015) the `eventId` is its `causationId`, which is the
+             envelope's `eventId` (event-store BEH-ES-030); for any other
+             stored event it is its own `eventId`, which is the envelope's
+             when published (event-store BEH-ES-028). `origin` is the stored
+             event's in both cases. So that `duplicates` and `foreignWriter`
+             compare the issuer's identities, never the authority's fresh
+             ones.
 ```
 
 ## BEH-SQ-013: What verification reports

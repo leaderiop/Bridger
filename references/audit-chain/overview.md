@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-OVW                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.5 (2026-11-09): Package boundary: the GxP companion adopts this package as its only sealing mechanism (CCR-GX-002) (CCR-AC-004)<br>0.4 (2026-11-08): `ChainLink` (`ChainLinkV1` audit, `ChainLinkV2` generic), `AnchorStatement` version 2, `resumeFrom` and `ChainStore.head` in the API surface (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Generic chain and verification bundle in the API surface; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `ChainGate` in the API surface and worked example (no `failClosed` option); `expectedHeads`; limits gain deletion of trailing windows and control of the process before the sink (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.6 (2026-11-10): `ChainStore` idempotent for an equal entry only (BEH-AC-006); `verifyChain` takes a profile and a `KeyedHasher` keeps one key per sink (CCR-AC-005)<br>0.5 (2026-11-09): Package boundary: the GxP companion adopts this package as its only sealing mechanism (CCR-GX-002) (CCR-AC-004)<br>0.4 (2026-11-08): `ChainLink` (`ChainLinkV1` audit, `ChainLinkV2` generic), `AnchorStatement` version 2, `resumeFrom` and `ChainStore.head` in the API surface (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Generic chain and verification bundle in the API surface; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `ChainGate` in the API surface and worked example (no `failClosed` option); `expectedHeads`; limits gain deletion of trailing windows and control of the process before the sink (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -67,10 +67,10 @@ All signatures are illustrative until code exists.
 | ------ | ---- | ------- |
 | `HashChainSink.layer`, `HashChainSink.make` | functions | Provide the core `AuditSink` by wrapping an inner `ChainStore` |
 | `HashChainSink.layerUnanchored` | function | The chain without anchoring, chosen explicitly; described as corruption detection only |
-| `ChainStore` | port | Inner store of chained entries (`append`), idempotent on `recordId` |
+| `ChainStore` | port | Inner store of chained entries (`append`); an equal entry under a stored `recordId` is an idempotent repeat, a different one is kept or refused, never dropped (BEH-AC-006) |
 | `ChainStore.split` | function | Keep an existing `AuditSink` for the records and send the links to a separate `LinkStore` |
 | `LinkStore` | port | Store of links only, for `ChainStore.split` |
-| `KeyedHasher` | port | Optional: a keyed hash (for example HMAC in a hardware module) in place of the plain hash |
+| `KeyedHasher` | port | Optional: a keyed hash (for example HMAC in a hardware module) in place of the plain hash; one key per sink, changed by rebuilding the sink (BEH-AC-007) |
 | `ChainEntry`, `ChainLink`, `ChainLinkV1`, `ChainLinkV2`, `HashChainOptions` | types | The record with its link (version 1 for the audit instance, version 2 with `seriesId`, `seq`, `canon` for a generic series); options (`alg`, `continuesFrom`, anchoring) |
 
 ### Anchoring — [behaviour 02](./behaviors/02-anchoring.md)
@@ -87,7 +87,7 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
-| `verifyChain` | function | Pure, total check of stored entries against links, sequence, confirmed anchors and, when supplied, independently learned heads |
+| `verifyChain` | function | Pure, total check of stored entries against links, sequence, confirmed anchors and, when supplied, independently learned heads; any series through `options.profile` |
 | `AnchorVerifier` | port | Confirm a receipt with its anchor service (an effect, kept out of `verifyChain`) |
 | `proveInclusion`, `verifyInclusion` | functions | Show that one record is covered by an anchored Merkle root without disclosing the others |
 | `ChainReport`, `InclusionProof` | types | Verification results |

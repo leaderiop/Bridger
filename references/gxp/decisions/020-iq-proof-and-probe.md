@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-020                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-09): Core's installation checks 1–8 (check 8, identifier uniqueness, core CCR-BR-033): its draw is a probe, its design review listed as not executed; `idDraw` option; output order to IQ-22 and IQ-U10 (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): Output order to IQ-23, the gate pieces check (H7) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation checks 1–8 (check 8, identifier uniqueness, core CCR-BR-033): its draw is a probe, its design review listed as not executed; `idDraw` option; output order to IQ-22 and IQ-U10 (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -28,7 +28,7 @@ Installation evidence (URS-GX-013) answers "is what was specified installed and 
 - **What no check can show is listed, not run.** Separate custody of the anchor store, one identifier per person in the identity system, entropy of eligible values, key custody, store durability and the design of a provided identifier generator (core's check 8, part (a)) are listed as `not-executed` with the reason "not observable from code; Consumer obligation", and the re-authentication behind signatures with "attested, not verified by @bridger/gxp", so they appear in the pack as open items for the user's own procedure.
 - **Outcomes are literal.** `fail` is never folded into a warning. A check that could not run (a missing permission, a thrown defect) is `not-executed` with the reason, never `pass`. A non-finite `gateTimeout` is `fail` for its check and is also recorded as a deviation in the evidence pack ([ADR-GX-022](../decisions/022-evidence-pack-format.md)).
 - **No key material, no values.** Probes ask the key provider for `current` and record only the key id; they never fingerprint a test value under a production key.
-- **Output.** Results go to `iq.json` in the evidence pack, in table order (IQ-01 … IQ-22, then IQ-U1 … IQ-U10), with the `Host.controls` snapshot they were derived from (all fields are non-secret by core's definition).
+- **Output.** Results go to `iq.json` in the evidence pack, in table order (IQ-01 … IQ-23, then IQ-U1 … IQ-U10), with the `Host.controls` snapshot they were derived from (all fields are non-secret by core's definition).
 
 ## Alternatives considered
 

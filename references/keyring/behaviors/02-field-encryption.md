@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): BEH-KR-009 `Field` is `Codec<A | Shredded, I | Shredded>` and upcasters pass markers through; BEH-KR-010 defines the `Shredded` form, decoded and stored; BEH-KR-012 stores an existing marker without a key, leaves park or halt to the reader, and states the key precondition as a limit (CCR-KR-002)<br>0.3 (2026-11-08): BEH-KR-009 and 012 cite URS-BR-058 and URS-BR-059 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.2 (2026-11-08): BEH-KR-009 and BEH-KR-012 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape cited, codec id "bridger-keyring/v1", `PayloadEncodeFailed`, `PayloadDecodeFailed` and `PayloadUnreadable` mapping); Open (2) closed (CCR-KR-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-KR-012: a decode that meets `KeyStoreUnavailable` fails with `PayloadDecodeFailed`, never `PayloadUnreadable` or a marker, so that the reader keeps the envelope and retries (CCR-KR-004)<br>0.4 (2026-11-08): BEH-KR-009 `Field` is `Codec<A | Shredded, I | Shredded>` and upcasters pass markers through; BEH-KR-010 defines the `Shredded` form, decoded and stored; BEH-KR-012 stores an existing marker without a key, leaves park or halt to the reader, and states the key precondition as a limit (CCR-KR-002)<br>0.3 (2026-11-08): BEH-KR-009 and 012 cite URS-BR-058 and URS-BR-059 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.2 (2026-11-08): BEH-KR-009 and BEH-KR-012 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape cited, codec id "bridger-keyring/v1", `PayloadEncodeFailed`, `PayloadDecodeFailed` and `PayloadUnreadable` mapping); Open (2) closed (CCR-KR-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -145,6 +145,21 @@ REQUIREMENT: `decode` MUST fail with durable-bus `PayloadUnreadable` only
              Documentation MUST tell authors to declare every selected field
              with `Keyring.Field`, because a schema that reads a selected path
              without it fails on a `Shredded` marker in the bus's schema step.
+```
+
+```
+REQUIREMENT: When the `KeyStore` cannot be read (`KeyStoreUnavailable`),
+             `decode` MUST NOT yield a `Shredded` marker and MUST NOT fail
+             with `PayloadUnreadable`, since nothing is known to be gone: it
+             MUST fail with `PayloadDecodeFailed` naming `KeyStoreUnavailable`
+             as its cause. The reader then keeps the envelope and can retry:
+             a durable-bus subscription under `onPoison: "halt"` stops that
+             (origin, stream) with its cursor before the envelope until
+             `resume` (BEH-DB-021), and an event-store read ends with
+             `DecodeFailed` and can be repeated (BEH-ES-032). Documentation
+             MUST tell subscribers of encrypted event types to use
+             `onPoison: "halt"`, because "park-and-continue" parks the
+             envelope until it is unparked by hand.
 ```
 
 ```

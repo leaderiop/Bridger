@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-22                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-11-09): Initial draft; the sink's status and the `trailGate` piece that refuses operator changes in place of a refused write (CCR-GX-002) |
+> | Change History | 0.2 (2026-11-10): BEH-GX-176 counts are those of the one host the layer serves; BEH-GX-179 names IQ-23 and the evidence pack's `sink-status.json` (H6, H7) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; the sink's status and the `trailGate` piece that refuses operator changes in place of a refused write (CCR-GX-002) |
 
 ---
 
@@ -74,7 +74,9 @@ REQUIREMENT: The status MUST hold counts only: no `hostId`, `recordId`,
              05 are.
 ```
 
-The counts are the sink's only voice besides its answer to core. They carry
+The counts are the sink's only voice besides its answer to core. A layer
+serves one host (BEH-GX-017), so its counts are that host's, and a gate built
+over them refuses only that host's operator changes. They carry
 no identifiers for the reason the logs carry none (BEH-GX-024); the checks on
 read find the entries, which are marked in the store.
 
@@ -198,18 +200,19 @@ consultation ([BEH-BR-221](../../core/behaviors/25-operation-gate.md)).
 > **Regulatory:** supports EU GMP Annex 11 §4.4; 21 CFR 11.10(a) (as evidence the consumer evaluates)
 
 ```
-REQUIREMENT: The installation checks (BEH-GX-113–120) MUST report, as a
-             proof, whether `trailGate` is used and with which `refuseOn`
+REQUIREMENT: The installation checks (BEH-GX-113–120) MUST report, as the
+             proof IQ-23, whether `trailGate` is used and with which `refuseOn`
              members and `allow` list, and whether audit-chain's `ChainGate`
-             is used; a `trailGate` given "not-used" MUST be reported as a
-             consumer decision, with the statement "Marked entries do not
-             stop operator changes."
+             is used and with which options; a `trailGate` given "not-used"
+             MUST be reported as a consumer decision, with the statement
+             "Marked entries do not stop operator changes."
 ```
 
 ```
-REQUIREMENT: Every evidence pack MUST include the current
-             `TrailSinkStatus` counts at the time the pack was made, labelled
-             as counts since the sink was built.
+REQUIREMENT: Every evidence pack made for an assembly with a trail sink MUST
+             include, as `sink-status.json`, the `TrailSinkStatus` counts
+             read when the pack was made, labelled as counts since the sink
+             was built (BEH-GX-129).
 ```
 
 A deployment may decide that a marked entry should not stop changes — a

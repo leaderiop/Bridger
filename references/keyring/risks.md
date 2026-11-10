@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-RISK                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Risk Assessment                                              |
-> | Change History | 0.2 (2026-11-09): RSK-KR-006 added: a shred that leaves no attributable, reasoned record (M-01) (CCR-KR-003)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.3 (2026-11-10): RSK-KR-002 control restated as BEH-KR-012 specifies (a lost key fails the decode with `PayloadUnreadable`, an unreachable store with `PayloadDecodeFailed`) and re-scored, scores unchanged; RSK-KR-006 covers a received notice that no attributed shred made (P11, P12) (CCR-KR-004)<br>0.2 (2026-11-09): RSK-KR-006 added: a shred that leaves no attributable, reasoned record (M-01) (CCR-KR-003)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -41,8 +41,8 @@ specified, not implemented
 | ------ | ---------- |
 | Failure mode | The `KeyStore` or the wrapping key is lost, and every encrypted field becomes unreadable — a record loss. |
 | Initial scoring | S 3 · P 2 · D 1 → class **High** (6) · priority Medium (3) |
-| Controls | Backup obligations as availability control (BEH-KR-007); wrapper and store obligations (BEH-KR-004, BEH-KR-005); reads yield `Shredded`-like markers rather than failing, so loss is visible (BEH-KR-012). |
-| Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) |
+| Controls | Backup obligations as availability control (BEH-KR-007); wrapper and store obligations (BEH-KR-004, BEH-KR-005); a field whose key is absent without a tombstone is never read as shredded: the decode fails with `PayloadUnreadable`, and with `PayloadDecodeFailed` while the store cannot be read, so the reader halts, parks or ends the read and the loss surfaces as a typed error (BEH-KR-012). |
+| Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2). Re-scored under CCR-KR-004 against the restated control: D 1 rests on the typed decode failure, not on markers; scores unchanged. |
 | Residual risk and acceptability | Simultaneous loss of store and backups. Owned by the consumer. |
 | Owner | Consumer |
 
@@ -87,11 +87,11 @@ specified, not implemented
 
 | Aspect | Assessment |
 | ------ | ---------- |
-| Failure mode | A shred makes fields of retained records unreadable, and nothing on the shredding host or on a receiving host says who asked for it, on whose behalf, when, why or from which host; or it was made under a reserved or anonymous actor. |
+| Failure mode | A shred makes fields of retained records unreadable, and nothing on the shredding host or on a receiving host says who asked for it, on whose behalf, when, why or from which host; or it was made under a reserved or anonymous actor; or a receiving host applies a notice that no attributed, granted shred produced. |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | A shred by a reserved or blank actor is refused with `ShredUnattributed` (BEH-KR-017); the tombstone keeps actor, `onBehalfOf`, correlation, reason and origin, written once with step 1 and never changed by the `KeyStore` (BEH-KR-004, BEH-KR-018); the notice carries reason and time under the shred's context, and receiving hosts keep the origin's attribution as a claim (BEH-KR-020); the receipt exposes it (BEH-KR-017). |
+| Controls | A shred by a reserved or blank actor is refused with `ShredUnattributed` (BEH-KR-017); the tombstone keeps actor, `onBehalfOf`, correlation, reason and origin, written once with step 1 and never changed by the `KeyStore` (BEH-KR-004, BEH-KR-018); the notice carries reason and time under the shred's context, and receiving hosts keep the origin's attribution as a claim and do not apply a notice under a reserved or blank actor (BEH-KR-020); the consumer's `AccessPolicy` keeps publishing the notice to the keyring plugin and receiving it to accepted origins (BEH-KR-020); the receipt exposes it (BEH-KR-017). |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority High (6) |
-| Residual risk and acceptability | The tombstone lives in the consumer's `KeyStore`, is not a core audit record and is not protected against change or deletion by the store's administrators; a received actor is the origin's claim. Owned by the consumer, who writes shreds to its own audit trail where it must. |
+| Residual risk and acceptability | The tombstone lives in the consumer's `KeyStore`, is not a core audit record and is not protected against change or deletion by the store's administrators; a received actor is the origin's claim, and the `AccessPolicy` rules are the consumer's to configure. Owned by the consumer, who writes shreds to its own audit trail where it must. |
 | Owner | Companion + Consumer |
 
 ---
