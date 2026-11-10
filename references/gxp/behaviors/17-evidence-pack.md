@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-17                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-129 the layout lists `assessments.json` and `signatures.json`, written only by `assessDeviation` and `signEvidencePack`, outside the manifest's file list (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7); follow-up: `EvidenceWriteFailed`, `AssessmentRefused`, `EvidenceReadFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -52,10 +52,16 @@ declare function buildEvidencePack(q: {
   readonly iq?: IqReport                                   // BEH-GX-120
   readonly oq?: OqReport                                   // BEH-GX-121
   readonly checks?: readonly CheckReport[]                 // 05–07, 11
+  readonly sinkStatus: TrailSinkStatusValue | "no-sink"     // read with TrailSinkStatus.current when the pack is made (22, BEH-GX-179)
   readonly adapterManifests: readonly unknown[]            // every wired port's manifest, copied unchanged (BEH-GX-016)
   readonly attachments: readonly { readonly path: string; readonly as: string }[]   // runner outputs, run and conformance manifests
   readonly outDir: string                                  // must not exist
 }): Effect.Effect<{ readonly packDigest: string }, EvidenceWriteFailed>
+
+class EvidenceWriteFailed extends Schema.TaggedError<EvidenceWriteFailed>()("EvidenceWriteFailed", {
+  path: Schema.String,                    // the file that could not be written
+  reason: Schema.String                   // the file system's error code, e.g. "ENOSPC", "EEXIST"; never file content
+}) {}
 ```
 
 ```
@@ -65,16 +71,25 @@ declare function buildEvidencePack(q: {
   oq.json            the OQ report, when given
   coverage.json      requirement → tests → outcome, behaviour → requirements (BEH-GX-131)
   checks.json        the check reports given, in input order (BEH-GX-131)
+  sink-status.json   the trail sink's counts, labelled "counts since the sink was built", unless "no-sink" (BEH-GX-179)
   deviations.json    every deviation raised by IQ, OQ and the checks (BEH-GX-133)
   adapters.json      the port manifests, copied unchanged
   attachments/       input files, byte for byte
   report.md          derived rendering (BEH-GX-134)
   report.html        derived rendering (BEH-GX-134)
+  assessments.json   added later by assessDeviation; outside the manifest's file list (BEH-GX-133)
+  signatures.json    added later by signEvidencePack; outside the manifest's file list (BEH-GX-135)
 ```
 
 ```
 REQUIREMENT: The pack MUST contain exactly the files of the layout, and a
-             file for a part not given MUST be absent, not empty. `outDir`
+             file for a part not given MUST be absent, not empty.
+             `buildEvidencePack` MUST NOT write `assessments.json` or
+             `signatures.json`; each exists only once its first entry is
+             appended (BEH-GX-133, BEH-GX-135).
+             `sinkStatus` MUST be stated explicitly, "no-sink" only for an
+             assembly without a trail sink, and the renderings MUST then say
+             that no sink status was given. `outDir`
              MUST NOT exist before the call; the pack MUST be written to a
              temporary sibling directory and renamed into place only when
              every file is written, so that no partial pack exists under
@@ -244,6 +259,11 @@ declare function assessDeviation(
   a: { readonly deviationId: string; readonly by: Actor; readonly assessment: string; readonly reference?: string },
   deps: { readonly clock?: Clock.Clock }
 ): Effect.Effect<void, EvidenceWriteFailed | AssessmentRefused>
+
+class AssessmentRefused extends Schema.TaggedError<AssessmentRefused>()("AssessmentRefused", {
+  deviationId: Schema.String,
+  reason: Schema.Literal("unknown-deviation", "reserved-actor", "blank-assessment")
+}) {}
 ```
 
 ```
@@ -362,6 +382,10 @@ knows a new review is needed.
 ```ts
 // illustrative — not type-checked
 declare function diffPacks(prev: string, next: string): Effect.Effect<PackDiff, EvidenceReadFailed>
+class EvidenceReadFailed extends Schema.TaggedError<EvidenceReadFailed>()("EvidenceReadFailed", {
+  path: Schema.String,                    // the pack directory, or the file that failed
+  reason: Schema.Literal("unreadable", "manifest-mismatch")   // BEH-GX-132
+}) {}
 interface PackDiff {
   readonly format: "bridger-gx-pack-diff/1"
   readonly prev: string; readonly next: string                     // pack digests

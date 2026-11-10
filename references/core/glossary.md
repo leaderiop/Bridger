@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.14                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.11 (2026-11-09): Contract: local contract (`Contract.local`); realm family: a ready member; state handoff: `restart` and `reconfigure` under `alsoOn`, and a superseded build (U-02, U-03; local contracts); system stop names the idle return of a lazy plugin (BEH-BR-252, BEH-BR-073) (CCR-BR-033)<br>0.10 (2026-11-09): Base service: replaceable only in a realm that isolates its key; host-owned keys (C-02) (CCR-BR-032)<br>0.9 (2026-11-08): Companion terms of round 2: receipt, listing record, model-facing envelope, signed statement, data pack, revocation list, kill-only apply, chain series, verification bundle, residency label, writers last, payload codec, expected version, fact, number series, crypto-shredding; entry owner and `HoldRevoked` (CCR-BR-027)<br>0.8 (2026-11-08): Hook point entry: phases, targets, breaker per plugin, declarations; declared contribution, HostLink, held event, idle return, denied-policy (CCR-BR-024); atomic apply, undo action, PartialApply, mandatory catalog, contract registry, Selector range (CCR-BR-025); refusal list, CurrentCorrelation, call-log failure policy, attributed unmount, call-log entry kinds (CCR-BR-026)<br>0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.14 (2026-11-10): Audit-degraded latch: a running `reconcile`'s parent record lost at shutdown also sets it (C4) (CCR-BR-036)<br>0.13 (2026-11-10): Parked stop and ended intent: a child's sub-scope close or unmount also resumes (C11); plan: `expect` binds code only through `meta.digest` (C6) (CCR-BR-035)<br>0.12 (2026-11-10): System stop names the refused background restart (C5); `HoldRevoked` `seq` and `GenerationRevoked` (C7); Call-log entry kinds include "dispatch" (audit round 2, Low) (CCR-BR-034)<br>0.11 (2026-11-09): Contract: local contract (`Contract.local`); realm family: a ready member; state handoff: `restart` and `reconfigure` under `alsoOn`, and a superseded build (U-02, U-03; local contracts); system stop names the idle return of a lazy plugin (BEH-BR-252, BEH-BR-073) (CCR-BR-033)<br>0.10 (2026-11-09): Base service: replaceable only in a realm that isolates its key; host-owned keys (C-02) (CCR-BR-032)<br>0.9 (2026-11-08): Companion terms of round 2: receipt, listing record, model-facing envelope, signed statement, data pack, revocation list, kill-only apply, chain series, verification bundle, residency label, writers last, payload codec, expected version, fact, number series, crypto-shredding; entry owner and `HoldRevoked` (CCR-BR-027)<br>0.8 (2026-11-08): Hook point entry: phases, targets, breaker per plugin, declarations; declared contribution, HostLink, held event, idle return, denied-policy (CCR-BR-024); atomic apply, undo action, PartialApply, mandatory catalog, contract registry, Selector range (CCR-BR-025); refusal list, CurrentCorrelation, call-log failure policy, attributed unmount, call-log entry kinds (CCR-BR-026)<br>0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -108,7 +108,9 @@ reports it as `pending`.
 
 A transition no operator call asked for: an automatic start, a
 dependency-loss or runtime-failure stop, the idle return of a lazy plugin to
-`dormant` (BEH-BR-252), a child mount or removal by its parent, or shutdown's
+`dormant` (BEH-BR-252), the stop into `disabled` of a plugin whose
+`background` restart the refusal list refused (reason "refused-digest",
+BEH-BR-267), a child mount or removal by its parent, or shutdown's
 stops (BEH-BR-073). A **system stop** is such a stop; it is audited as
 a system record attributed to `Actor.system`, never gated.
 
@@ -136,13 +138,14 @@ stop, or a cascade whose root is an operator call — park, and none parks once
 shutdown has begun. A parked operation resumes when a call joins or supersedes
 it, a parked system stop when a `remove`, `replace`, `restart`, `disable` or
 `reconfigure` arrives on the plugin (on a child whose stop removes it, only
-`remove`), and either kind when a cascade needs it or
-at shutdown.
+`remove`), and either kind when a cascade needs it,
+at shutdown, or — for a child — when the sub-scope it was mounted under closes
+or it is unmounted (14, BEH-BR-121, BEH-BR-126).
 
 ### Ended intent
 
-A parked operator intent that a cascade or shutdown ends when it resumes the
-stop (BEH-BR-080): its remaining actions never run, a `replace`'s reservations
+A parked operator intent that a cascade, shutdown, or a child's sub-scope close
+or unmount ends when it resumes the stop (BEH-BR-080, BEH-BR-121): its remaining actions never run, a `replace`'s reservations
 are released and every override change made under it reverts, in the same
 revision, in which the host writes an `intent-ended` system record whose
 `endsIntentOf` is the `recordId` of the parked call's `requested` record. A
@@ -308,7 +311,7 @@ optional **`CallLog`** port receives one payload-free entry per call through a
 recorded capture; core keeps nothing. **`CurrentCall`** describes the
 intercepted call in progress and is the seam for per-call tokens
 ([29](./behaviors/29-capability-grants-and-call-log.md)). Entries have a kind ("call", "crossing",
-"refusal", "revocation"); companions offer theirs with `Host.offerCallEntry`; a policy may re-resolve live captures
+"refusal", "revocation", "dispatch"); companions offer theirs with `Host.offerCallEntry`; a policy may re-resolve live captures
 through `changes` (BEH-BR-280, BEH-BR-281).
 
 ### Call-log failure policy
@@ -358,8 +361,9 @@ A **gate** answers Allow, Refuse or Defer with a **draft** carrying the
 versions it was planned against; `OperationGate` is its host instance and
 `Gate.all` composes pieces. A **plan** (`ReconcilePlan`) is the read-only
 result of `Host.plan`: what `reconcile` would do, without values;
-`reconcile(desired, { expect: plan })` applies it or nothing (`PlanStale`)
-([32](./behaviors/32-generic-gate-and-plan.md)).
+`reconcile(desired, { expect: plan })` applies it or nothing (`PlanStale`); it
+binds an entry's code only where the definition declares `meta.digest`
+([32](./behaviors/32-generic-gate-and-plan.md), BEH-BR-319).
 
 ### Atomic apply, undo action, PartialApply
 
@@ -477,8 +481,9 @@ companion specifies them, as detection only.
 ### Audit-degraded latch
 
 The host condition, after a terminal, `rejected` or system record (or
-`shutdown`'s `requested` record) could not be written, or a record was dropped
-for writer-queue overflow, in which operator mutations are refused until
+`shutdown`'s `requested` record) could not be written, a record was dropped
+for writer-queue overflow, or a running `reconcile`'s parent terminal record
+was lost because shutdown's wait for it ended without it (BEH-BR-108), in which operator mutations are refused until
 acknowledged (BEH-BR-205). An ordinary call whose `requested` record cannot be
 written fails with `AuditUnavailable` instead and sets no latch.
 
@@ -670,7 +675,10 @@ A registry view entry's **owner** is the plugin id and realm that
 `ActivePlugin` held when its `add` ran — diagnostic attribution, never
 authorization (BEH-BR-165). A **`HoldRevoked`** notice is published on a
 registry's `revocations` feed when a removal interrupts holders at
-`drainTimeout` (BEH-BR-167); the feed is a notification, not a log.
+`drainTimeout` (BEH-BR-167); the feed is a notification, not a log, and its
+`seq` shows lost notices as a gap. A generation announces its forced
+revocations the same way, as `GenerationRevoked` on its own `revocations`
+feed (BEH-BR-174).
 
 ---
 

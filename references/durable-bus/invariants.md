@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-INV                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F9, F13, F16, F26; R5-04/05) — INV-DB-006 covers `Withheld` markers and undecoded delivery through `subscribeEnvelopes`; INV-DB-009 covers both install paths; INV-DB-010 narrowed to copies the bus stores or sends; INV-DB-011 covers out-of-host readers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19, 21 and 24 — INV-DB-009 (outbox survives a restore), INV-DB-010 (payload codec), INV-DB-011 (access policy at delivery) added (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — INV-DB-002 origin uniqueness restated as an operator obligation; INV-DB-005 unpark exception; INV-DB-006 receiver regression; INV-DB-007 saved receipt clock (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — INV-DB-006 admits the `GapRecord` of a snapshot restore or re-bootstrap install (P3); INV-DB-007 scoped to one origin on one store (heading changed, old anchor kept) (CCR-DB-005)<br>0.4 (2026-11-08): Round-2 agent review (R4 F9, F13, F16, F26; R5-04/05) — INV-DB-006 covers `Withheld` markers and undecoded delivery through `subscribeEnvelopes`; INV-DB-009 covers both install paths; INV-DB-010 narrowed to copies the bus stores or sends; INV-DB-011 covers out-of-host readers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck items 19, 21 and 24 — INV-DB-009 (outbox survives a restore), INV-DB-010 (payload codec), INV-DB-011 (access policy at delivery) added (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — INV-DB-002 origin uniqueness restated as an operator obligation; INV-DB-005 unpark exception; INV-DB-006 receiver regression; INV-DB-007 saved receipt clock (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -86,7 +86,7 @@ A subscription processes the envelopes of one (origin, stream) in increasing seq
 
 ## INV-DB-006: No envelope is dropped silently
 
-An envelope that cannot be processed halts its stream, is parked with a reason, stops its stream at the inbox, or — for a subscriber reading through `subscribeEnvelopes` — reaches its handler undecoded, as received, and each is listed; a sequence withheld from a destination or reader arrives as a counted `Withheld` marker, never as a gap; upstream envelopes are never truncated before acknowledgement; a receiver whose watermark regressed is resent to or, when the sender no longer retains the range, reported on both sides; an inbox watermark passes unstored sequences only through an attributed `acceptGap`; a gap in downstream history is answered with `SnapshotRequired`, never skipped.
+An envelope that cannot be processed halts its stream, is parked with a reason, stops its stream at the inbox, or — for a subscriber reading through `subscribeEnvelopes` — reaches its handler undecoded, as received, and each is listed; a sequence withheld from a destination or reader arrives as a counted `Withheld` marker, never as a gap; upstream envelopes are never truncated before acknowledgement; a receiver whose watermark regressed is resent to or, when the sender no longer retains the range, reported on both sides; an inbox watermark passes unstored sequences only through an attributed `acceptGap`, or through a snapshot restore or re-bootstrap install that records the passed range as an attributed `GapRecord`; a gap in downstream history is answered with `SnapshotRequired`, never skipped.
 
 **Source**: `packages/durable-bus/src/Inbox.ts`, `Relay.ts`, `Snapshot.ts` *(Planned)*.
 
@@ -96,9 +96,11 @@ An envelope that cannot be processed halts its stream, is parked with a reason, 
 
 **Related**: [BEH-DB-014](behaviors/02-transactional-outbox.md#beh-db-014-the-outbox-is-never-truncated-before-acknowledgement), [BEH-DB-019](behaviors/03-delivery-and-inbox.md#beh-db-019-acknowledgement-follows-the-receivers-commit), [BEH-DB-022](behaviors/03-delivery-and-inbox.md#beh-db-022-parked-envelopes-are-visible-and-can-be-released), [BEH-DB-026](behaviors/04-versions-and-upcasters.md#beh-db-026-unknown-versions-are-parked-not-dropped), [BEH-DB-044](behaviors/06-replay-and-snapshots.md#beh-db-044-a-subscriber-behind-the-retained-history-needs-a-snapshot), [BEH-DB-045](behaviors/06-replay-and-snapshots.md#beh-db-045-upstream-facts-are-slowed-never-truncated).
 
-## INV-DB-007: HLC timestamps issued by a node strictly increase
+## INV-DB-007: HLC timestamps issued under one origin strictly increase
 
-Every HLC a node writes into a committed envelope, or saves as its clock after a committed receipt, is greater than every such HLC before it, across restarts. Ticks of transactions that rolled back are not observable and are not covered.
+<a id="inv-db-007-hlc-timestamps-issued-by-a-node-strictly-increase"></a>
+
+Every HLC a node writes into a committed envelope, or saves as its clock after a committed receipt, under one origin (one incarnation, BEH-DB-004), is greater than every such HLC before it under that origin, across restarts on the same store. Ticks of transactions that rolled back are not observable and are not covered. A store restored from a backup, or replaced by a whole-store re-bootstrap, starts a new origin and is not covered: its highest HLC may be lower than one the old origin issued, and its first HLC then rests on the `Clock` alone.
 
 **Source**: `packages/durable-bus/src/Hlc.ts` *(Planned)* — send and receive rules, stamping in the adapter's serialized append, start from the higher of the outbox's highest HLC and the saved receipt clock, drift bound.
 

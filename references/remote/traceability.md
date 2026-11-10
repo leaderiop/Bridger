@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-TRACE                                             |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09: file 09 to BEH-RM-072; INV-RM-012; REQ-RM-045–048; RSK-RM-016; REQ-RM-034 summary; BEH-RM-007 in file 01; REQ-RM-048 widened and REQ-RM-049 added; RSK-RM-016 row (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-RM-043, 044; REQ-RM-036, 038, 039 restated; INV-RM-011 row extended (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — BEH-RM-065–071, INV-RM-011, ADR-RM-010, REQ-RM-034–042, RSK-RM-014 and 015 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — REQ-RM-036 restated: a placement refusal holds no claim (PL15) (CCR-RM-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — REQ-RM-050; REQ-RM-038, 042 and 044 restated; RSK-RM-017 row; INV-RM-010 and INV-RM-011 rows extended (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: file 09 to BEH-RM-072; INV-RM-012; REQ-RM-045–048; RSK-RM-016; REQ-RM-034 summary; BEH-RM-007 in file 01; REQ-RM-048 widened and REQ-RM-049 added; RSK-RM-016 row (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-RM-043, 044; REQ-RM-036, 038, 039 restated; INV-RM-011 row extended (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — BEH-RM-065–071, INV-RM-011, ADR-RM-010, REQ-RM-034–042, RSK-RM-014 and 015 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -46,8 +46,8 @@ Every source and test path is *(Planned)*; no scenario has run.
 | [INV-RM-007](invariants.md#inv-rm-007-a-guest-reaches-only-granted-contracts-under-a-live-token) | BEH-RM-024, 036, 041, 043, 044, 046 | REQ-RM-020, 021, 033 |
 | [INV-RM-008](invariants.md#inv-rm-008-an-unknown-outcome-is-reported-as-unknown-and-never-retried) | BEH-RM-020, 021 | REQ-RM-012 |
 | [INV-RM-009](invariants.md#inv-rm-009-within-one-session-a-call-executes-at-most-once-on-a-conforming-guest) | BEH-RM-034, 035, 039, 051, 067 | REQ-RM-019, 026, 029, 030, 036 |
-| [INV-RM-010](invariants.md#inv-rm-010-within-one-parent-call-a-callback-executes-at-most-once) | BEH-RM-043, 048 | REQ-RM-028 |
-| [INV-RM-011](invariants.md#inv-rm-011-no-call-crosses-a-transport-that-does-not-offer-its-residency-label) | BEH-RM-056, 068, 069 | REQ-RM-037, 038, 044 |
+| [INV-RM-010](invariants.md#inv-rm-010-within-one-parent-call-a-callback-executes-at-most-once) | BEH-RM-043, 048 | REQ-RM-028, 050 |
+| [INV-RM-011](invariants.md#inv-rm-011-no-call-crosses-a-transport-that-does-not-offer-its-residency-label) | BEH-RM-049, 056, 068, 069 | REQ-RM-037, 038, 044, 050 |
 | [INV-RM-012](invariants.md#inv-rm-012-a-call-carries-no-identity-claim-its-link-did-not-disclose) | BEH-RM-024, 046, 065 | REQ-RM-034, 045 |
 
 ## §3 Decisions
@@ -108,20 +108,21 @@ order. Planned location `packages/remote/test/` *(Planned)*. None has run.
 | REQ-RM-033 | 33. Wire annotations cross without the deadline and combine on receipt | [BEH-RM-024](behaviors/03-remote-calls.md), [BEH-RM-041](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-045](behaviors/06-capability-tokens-and-call-log.md) | Not run |
 | REQ-RM-034 | 34. With `OrgOf`, tokens carry `org` and claims carry it only when disclosed; never in status | [BEH-RM-065](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-035 | 35. A budget refusal fails the call before any frame; `charge` uses reported measures only | [BEH-RM-066](behaviors/09-placement-budgets-and-adapters.md) | Not run |
-| REQ-RM-036 | 36. A duplicated per-call `call` runs once with a shared `DedupeStore`, the copy answered with the result or `InProgress`; refused copies hold no claim; retention residual; no store and no statement refuses to start | [BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-036 | 36. A duplicated per-call `call` runs once with a shared `DedupeStore`, the copy answered with the result or `InProgress`; refused copies, placement refusals included, hold no claim; retention residual; no store and no statement refuses to start | [BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-037 | 37. A residency label not offered by the transport fails the link's build with `PlacementRefused` | [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md) | Not run |
-| REQ-RM-038 | 38. The residency label crosses as a wire annotation and a serving end refuses a mismatch before any lease; the host refuses a fiber's own label before sending | [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-038 | 38. The residency label crosses as a wire annotation and a serving end refuses a mismatch before any lease (`Remote.serve` logs to the `CallLog`, `Guest.serve` locally); the host refuses a fiber's own label before sending | [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-039 | 39. `Transport.postMessage` origin checks, "opaque" mode source and nonce checks, one port per connection, new epoch per frame load | [BEH-RM-070](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-040 | 40. Workers for Platforms adapter limits, outbound route and conformance with a `DedupeStore` | [BEH-RM-071](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-041 | 41. Revocation records `unmount-requested` with `requestedBy`; `RefusalList` keeps the link disabled; one revocation entry | [BEH-RM-014](behaviors/02-sessions-and-epochs.md) | Not run |
-| REQ-RM-042 | 42. Core entry kinds offered; callbacks refused when unlogged; correlation and host link in served calls; descriptor timeouts | [BEH-RM-017](behaviors/03-remote-calls.md), [BEH-RM-039](behaviors/05-guest-serve.md), [BEH-RM-045](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md) | Not run |
+| REQ-RM-042 | 42. Core entry kinds offered, refusal reasons as `WireRefusal`s; an unlogged callback's result withheld; correlation and host link in served calls; descriptor timeouts | [BEH-RM-017](behaviors/03-remote-calls.md), [BEH-RM-039](behaviors/05-guest-serve.md), [BEH-RM-045](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md) | Not run |
 | REQ-RM-043 | 43. The wire version is negotiated per session; revocation entries carry the epoch | [BEH-RM-009](behaviors/02-sessions-and-epochs.md), [BEH-RM-014](behaviors/02-sessions-and-epochs.md) | Not run |
-| REQ-RM-044 | 44. A multiplexed endpoint carries the route's residency labels | [BEH-RM-056](behaviors/07-transports-and-adapters.md), [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-044 | 44. A multiplexed endpoint, host or guest side, carries the route's residency labels | [BEH-RM-049](behaviors/07-transports-and-adapters.md), [BEH-RM-056](behaviors/07-transports-and-adapters.md), [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md), [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-045 | 45. Identity claims cross only when disclosed; disclosure listed and logged; calls without claims served | [BEH-RM-024](behaviors/03-remote-calls.md), [BEH-RM-039](behaviors/05-guest-serve.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md) | Not run |
 | REQ-RM-046 | 46. A refused session-child mount (`ChildNotAllowed`, `DuplicateProvider`) ends the session "mount-refused", is not retried and fails the link | [BEH-RM-002](behaviors/01-remote-proxy-plugin.md), [BEH-RM-013](behaviors/02-sessions-and-epochs.md) | Not run |
 | REQ-RM-047 | 47. `Transport.fromBundle` acquires afresh per `open` and starts from the given bytes | [BEH-RM-072](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-048 | 48. The loader's `RevokedDigests` view refuses at the boundary at once; the link manifest is carried and checked by core; crossing entries name the disclosed claims | [BEH-RM-014](behaviors/02-sessions-and-epochs.md), [BEH-RM-001](behaviors/01-remote-proxy-plugin.md), [BEH-RM-024](behaviors/03-remote-calls.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md) | Not run |
 | REQ-RM-049 | 49. A local contract is refused at link build, at serve and guest start, and for grants and callbacks | [BEH-RM-007](behaviors/01-remote-proxy-plugin.md), [BEH-RM-043](behaviors/06-capability-tokens-and-call-log.md) | Not run |
+| REQ-RM-050 | 50. Callback placement and budget checked after the duplicate check; a duplicate of an admitted callback is never refused or charged again | [BEH-RM-043](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-048](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-066](behaviors/09-placement-budgets-and-adapters.md), [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 
 ## §5 Risks
 
@@ -143,6 +144,7 @@ order. Planned location `packages/remote/test/` *(Planned)*. None has run.
 | [RSK-RM-014](risks.md#rsk-rm-014) | Residency labels mistaken for a residency guarantee | BEH-RM-068, 069, INV-RM-011 | REQ-RM-037, 038 |
 | [RSK-RM-015](risks.md#rsk-rm-015) | A browser frame reached by, or reaching, the wrong party | BEH-RM-070 | REQ-RM-039 |
 | [RSK-RM-016](risks.md#rsk-rm-016) | Identity disclosed to a peer without a recorded decision | BEH-RM-006, 024, 041, 043, 046, 065, 066, INV-RM-012 | REQ-RM-034, 045, 048 |
+| [RSK-RM-017](risks.md#rsk-rm-017) | Callback whose host service ran reported to the guest as refused | BEH-RM-036, 046, 048, INV-RM-010 | REQ-RM-042 |
 
 ---
 

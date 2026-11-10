@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-02                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-09): Specification audit of 2026-11-09 — step 6 consults the admission policies after the claim and the breaker, and step 8 settles them first (BEH-CM-044, C-10); options `admissions`, `receiptPartition` and `receiptContext` (06, BEH-CM-041, M-04 and the ERP alignment) (CCR-CM-004)<br>0.6 (2026-11-08): Resolutions of the round-2 agent review (A-03, A-05, A-11, A-12, A-13, A-16): the taint floor exempts commands declared `readOnly` (option `taintFloor.readOnly: "floor"` removes the exemption), drafts nothing for batch items and compensations; `CommandRequest.compensation`, `ApprovalRef.compensationOf`; dispatch by string id typed `unknown`; step 7 ends without a handler call offered as "refusal"; one flow list for the key annotation; `IdempotencyConflict` reasons `definition-differs`, `mode-differs`; options `receiptGrace`, `tasks.store` (CCR-CM-003)<br>0.5 (2026-11-08): BEH-CM-015 executed and replayed dispatches offered as call-log kind "dispatch" with core `DispatchInfo` (core G66 closed by CCR-BR-027); outcome mapping; Settled (3) (CCR-CM-003)<br>0.4 (2026-11-08): Steps 6 and 7 split into admission (breaker, receipt) and run (handler wrappers, handler, encode, receipt completion); `idempotencyKey` and `expectDigest` options; correlation from core `CurrentCorrelation`, `DispatchCorrelation` withdrawn; `CommandRequest` carries the typed metadata and the key; command hook points use core 31's phases, targets and policy, with the catalog's `hooks` options and `attach`; `CommandVetoed` gains `cause`; refusals offered to the call log as entries of kind "refusal", dispatch entries pending a core kind; errors `IdempotencyConflict`, `CommandBreakerOpen` (CCR-CM-003, round 2: recheck items 1, 2, 3, 4, 6, 10)<br>0.3 (2026-11-08): BEH-CM-016 taint floor; gate wrappers and draft source in catalog options; `ApprovalRef.inputDigest` and `ApprovalMismatch`; no reliance on mandatory interceptions; correlation through `DispatchCorrelation`; `onBehalfOf` as fiber principal (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.8 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — steps 4–8 run inside `CallerContext.serve` with the resolved actor, annotations and correlation, so hooks and call-log entries see a context supplied only in `options.context` (BEH-CM-010, BEH-CM-015; H9) (CCR-CM-005)<br>0.7 (2026-11-09): Specification audit of 2026-11-09 — step 6 consults the admission policies after the claim and the breaker, and step 8 settles them first (BEH-CM-044, C-10); options `admissions`, `receiptPartition` and `receiptContext` (06, BEH-CM-041, M-04 and the ERP alignment) (CCR-CM-004)<br>0.6 (2026-11-08): Resolutions of the round-2 agent review (A-03, A-05, A-11, A-12, A-13, A-16): the taint floor exempts commands declared `readOnly` (option `taintFloor.readOnly: "floor"` removes the exemption), drafts nothing for batch items and compensations; `CommandRequest.compensation`, `ApprovalRef.compensationOf`; dispatch by string id typed `unknown`; step 7 ends without a handler call offered as "refusal"; one flow list for the key annotation; `IdempotencyConflict` reasons `definition-differs`, `mode-differs`; options `receiptGrace`, `tasks.store` (CCR-CM-003)<br>0.5 (2026-11-08): BEH-CM-015 executed and replayed dispatches offered as call-log kind "dispatch" with core `DispatchInfo` (core G66 closed by CCR-BR-027); outcome mapping; Settled (3) (CCR-CM-003)<br>0.4 (2026-11-08): Steps 6 and 7 split into admission (breaker, receipt) and run (handler wrappers, handler, encode, receipt completion); `idempotencyKey` and `expectDigest` options; correlation from core `CurrentCorrelation`, `DispatchCorrelation` withdrawn; `CommandRequest` carries the typed metadata and the key; command hook points use core 31's phases, targets and policy, with the catalog's `hooks` options and `attach`; `CommandVetoed` gains `cause`; refusals offered to the call log as entries of kind "refusal", dispatch entries pending a core kind; errors `IdempotencyConflict`, `CommandBreakerOpen` (CCR-CM-003, round 2: recheck items 1, 2, 3, 4, 6, 10)<br>0.3 (2026-11-08): BEH-CM-016 taint floor; gate wrappers and draft source in catalog options; `ApprovalRef.inputDigest` and `ApprovalMismatch`; no reliance on mandatory interceptions; correlation through `DispatchCorrelation`; `onBehalfOf` as fiber principal (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -201,12 +201,20 @@ REQUIREMENT: The `correlationId` MUST be resolved as core resolves the
 ```
 
 ```
-REQUIREMENT: Steps 4–8 MUST run inside `CurrentCorrelation.with(correlationId)`
-             with the resolved value, so that the gate, every hook call
-             (core BEH-BR-306), the handler, its wrappers and every host call
-             or captured service call they make carry it, and every
-             call-log entry they cause records it (core BEH-BR-276). The
-             package MUST NOT keep a correlation reference of its own.
+REQUIREMENT: Steps 4–8 MUST run inside `CallerContext.serve({ actor,
+             annotations, correlationId })` (core BEH-BR-292) with the
+             resolved values, which sets `CurrentActor`,
+             `CurrentAnnotations` and `CurrentCorrelation` for them: the
+             gate, the `before` and `after` hook dispatches (which read the
+             calling fiber's annotations and correlation, core BEH-BR-306),
+             the admissions and their settlement, the handler, its wrappers
+             and every host call or captured service call they make, and
+             every `Host.offerCallEntry` of step 8, whose actor, correlation
+             and "callLog" annotations core completes from that fiber (core
+             BEH-BR-280). A context supplied only in `options.context` is
+             therefore the one every call-log entry and hook of the
+             dispatch sees. The package MUST NOT keep an actor or
+             correlation reference of its own.
 ```
 
 Carrying annotations unchanged is what lets `@bridger/agent` mark a request
@@ -695,7 +703,7 @@ REQUIREMENT: When a host is attached (BEH-CM-012), every dispatch that
              error's tag and `reason` the tag followed by ": " and the
              error's reason, cause or `reason` field. Core completes the
              actor, the correlation and the "callLog" annotations from the
-             dispatching fiber.
+             fiber of step 8, which serves the resolved context (BEH-CM-010).
 ```
 
 ```

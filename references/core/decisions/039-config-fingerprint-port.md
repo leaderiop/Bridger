@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-039                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amends ADR-BR-029                                 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): File restored: it was registered in decisions/index.yaml and cited across core but missing from the repository; its content reconstructed from what BEH-BR-011, 015, 103, 188, 192, 197 and 219, ADR-BR-008, 018, 033 and 034, INV-BR-013, 026 and 028, RSK-BR-008 and RSK-BR-024, the CCR-BR-014 and CCR-BR-015 register entries and `prototypes/host-core` already state; no decision changed (CCR-BR-016)<br>0.1 (2026-10-03): Initial draft: an optional `ConfigFingerprinter` port asked at step 4a of BEH-BR-188, after validation and before the gate; core computes no fingerprint; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015) |
+> | Change History | 0.3 (2026-11-10): Status names the ADRs this one amends (ADR-BR-029), pairing their "amended by" (C22) (CCR-BR-034)<br>0.2 (2026-11-08): File restored: it was registered in decisions/index.yaml and cited across core but missing from the repository; its content reconstructed from what BEH-BR-011, 015, 103, 188, 192, 197 and 219, ADR-BR-008, 018, 033 and 034, INV-BR-013, 026 and 028, RSK-BR-008 and RSK-BR-024, the CCR-BR-014 and CCR-BR-015 register entries and `prototypes/host-core` already state; no decision changed (CCR-BR-016)<br>0.1 (2026-10-03): Initial draft: an optional `ConfigFingerprinter` port asked at step 4a of BEH-BR-188, after validation and before the gate; core computes no fingerprint; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015) |
 
 ---
 

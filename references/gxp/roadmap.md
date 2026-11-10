@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ROADMAP                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Roadmap                                                      |
-> | Change History | 0.2 (2026-11-09): G1 adds the sink's status and `trailGate` (22); G2 seals through `@bridger/audit-chain` (21; 07 withdrawn); G0 reproduces the vectors of file 03 (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): Deferred: non-integer numbers removed (specified since CCR-GX-002, BEH-GX-018); seal verification beyond `maxEntries` awaits an incremental verifier in `@bridger/audit-chain` (P19, low) (CCR-GX-005)<br>0.2 (2026-11-09): G1 adds the sink's status and `trailGate` (22); G2 seals through `@bridger/audit-chain` (21; 07 withdrawn); G0 reproduces the vectors of file 03 (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -68,8 +68,10 @@ A first release of `@bridger/gxp` is blocked until all of the following hold:
   ([ADR-GX-028](./decisions/028-checker-copy-and-adapt.md)) — a later CCR on both sides.
 - Reference adapters for specific databases or object stores, as separate
   packages with their own conformance evidence; none ships with the companion.
-- Further canonical-form support (non-integer numbers) — only if a record
-  field ever needs it, under a CCR that adds vectors.
+- Seal verification of a host with more entries than `maxEntries`
+  (BEH-GX-171): it needs an incremental verifier from `@bridger/audit-chain`,
+  whose `verifyChain` takes its whole input at once; until then such a run
+  fails with `CheckCapacityExceeded`.
 - Signature schemes beyond the port (for example detached cryptographic
   signatures over binding digests) — the port's shape allows them; no
   implementation is planned.

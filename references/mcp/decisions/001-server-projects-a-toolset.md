@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-ADR-001                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.2 (2026-11-10): Sessions end when the activation scope closes; the server drains nothing of its own (P24) (CCR-MC-005)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -27,7 +27,7 @@ A second tool table in the MCP package would be a second path to handlers.
 ## Decision
 
 - **The server is an ordinary plugin** whose sessions end when its activation
-  scope drains (BEH-MC-001).
+  scope closes (BEH-MC-001).
 - **Each session has one principal**, resolved by an application port; no
   permissive default resolver is shipped; Bridger does not authenticate
   (BEH-MC-002).

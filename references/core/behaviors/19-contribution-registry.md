@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-19                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -87,6 +87,7 @@ namespace ContributionRegistry {
     readonly owner?: EntryOwner                     // as on the view entry
     readonly holders: number                        // use / useAll callbacks interrupted with LeaseRevoked
     readonly at: string                             // Clock, ISO-8601 UTC with ms
+    readonly seq: number                            // per registry, from 1, gap-free (BEH-BR-167)
   }
   interface EntryOwner { readonly pluginId: string; readonly realm: string }   // from ActivePlugin at add (13, BEH-BR-119)
   type RegistryReader<A> = Pick<Registry<A>, "get" | "view" | "changes" | "use" | "useAll">
@@ -175,10 +176,16 @@ REQUIREMENT: A `priority` that is not a finite number MUST be rejected at
 ```
 REQUIREMENT: When `add` is called inside a plugin's activation (the
              `@bridger/core/ActivePlugin` reference is set), the registry
-             MUST report the contribution's owner to the host for
-             `inspect` and MUST carry it as the entry's `owner`
-             (BEH-BR-165). It MUST NOT use the reference for anything
-             else.
+             MUST report the contribution to the host for `inspect` by
+             calling the value's `report` with its registry name and id in
+             the scope `add` runs in, so that the listing ends when the
+             contribution is withdrawn (13 — Observability and
+             Diagnostics, BEH-BR-119), and MUST carry the value's
+             `pluginId` and `realm` as the entry's `owner` (BEH-BR-165).
+             The registry reaches the host only through the value the
+             calling fiber carries, never through a reference to a host,
+             which it is built before. It MUST NOT use the reference for
+             anything else (CCR-BR-036).
 ```
 
 ```
@@ -363,7 +370,11 @@ REQUIREMENT: When a removal revokes at least one holder, the registry MUST
              of host events (13 — Observability and Diagnostics): a
              subscriber sees only notices published after it subscribed, a
              slow subscriber loses its own oldest notices, and publishing
-             never waits. The registry MUST NOT write an audit record for a
+             never waits. `seq` MUST start at 1 for each registry and
+             increase by one for each notice published, so that a
+             subscriber detects the notices it lost by a gap, as a host
+             event's `seq` lets it (13, BEH-BR-115). The registry MUST NOT
+             write an audit record for a
              revocation: it is not a host operation (23, BEH-BR-193).
 ```
 
@@ -402,9 +413,10 @@ REQUIREMENT: Multiplexing — several implementations behind one service key —
 
 ```
 REQUIREMENT: A registry MUST report each contribution's owning plugin and
-             registry name to the host so that `inspect` lists
-             `{ registry, id }` for that plugin. It MUST report names and ids
-             only, never values.
+             registry name to the host, through `ActivePlugin.report`
+             (BEH-BR-163), so that `inspect` lists `{ registry, id }` for
+             that plugin. It MUST report names and ids only, never
+             values.
 ```
 
 One provider per key ([ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md))

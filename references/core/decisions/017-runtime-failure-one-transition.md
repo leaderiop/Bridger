@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-017                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-053                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-10-03): An exhausted restart schedule fails the plugin; an in-flight health check never delays a drain (G17) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Dependents' stops in a runtime failure are a cascade with no caller: they revoke and never park, and resume a parked stop; only stops under an operator's cascade park; second pass: an ended intent gets its `intent-ended` record, a wait on a build continues under `buildTimeout` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-11-10): Amended by ADR-BR-053 marked: a refused background restart stops the plugin into `disabled` (C22) (CCR-BR-034)<br>0.4 (2026-10-03): An exhausted restart schedule fails the plugin; an in-flight health check never delays a drain (G17) (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Dependents' stops in a runtime failure are a cascade with no caller: they revoke and never park, and resume a parked stop; only stops under an operator's cascade park; second pass: an ended intent gets its `intent-ended` record, a wait on a build continues under `buildTimeout` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -63,6 +63,10 @@ There is also no caller. A runtime failure is not an operation; if draining its 
 
 **Trade-off accepted**: forced revocation of a failing plugin's callers at the drain limit, in exchange for a single failure model and a host that cannot be held hostage by a failing plugin.
 
+**Amendments (2026-11-10)**:
+
+- `"restart"` no longer always leaves plugin state unchanged. With a `RefusalList` wired and a digest declared, the list is consulted before each restart of the fiber; a refusal leaves the fiber stopped and stops the plugin into `disabled` with reason "refused-digest", dependents first and revoked at the drain limit as on a path with no caller ([ADR-BR-053](./053-refusal-list.md); [10 — Runtime failure and health](../behaviors/10-runtime-failure-and-health.md), BEH-BR-090; [28](../behaviors/28-plugin-principal-and-mandatory-policy.md), BEH-BR-267) (CCR-BR-034).
+
 ## References
 
 - Behaviours: [10 — Runtime failure and health](../behaviors/10-runtime-failure-and-health.md), [09 — Leases](../behaviors/09-leases.md), [22 — Attributable operations](../behaviors/22-attributable-operations.md)
@@ -71,3 +75,4 @@ There is also no caller. A runtime failure is not an operation; if draining its 
 - Risks: [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016), [RSK-BR-015](../gxp/03-risk-assessment.md#rsk-br-015)
 - Decisions: [ADR-BR-005](../decisions/005-failure-is-sticky.md), [ADR-BR-015](../decisions/015-leases-one-primitive.md), [ADR-BR-029](../decisions/029-attributable-mutations.md), [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)
 - Source: `docs/SPEC.md` — "Runtime failure and health", "State and lifecycle"
+- Amended by: [ADR-BR-053](./053-refusal-list.md) — a refused background restart stops the plugin into `disabled` (CCR-BR-026).

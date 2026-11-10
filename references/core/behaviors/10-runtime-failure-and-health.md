@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-10                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-08): BEH-BR-089 `Plugin.Runtime.unmount` for an attributed child removal (14, BEH-BR-126); BEH-BR-090 a wired `RefusalList` is consulted before each background restart (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-089: `EntitlementView` failure modes (one `watch` per activation, shared latest-wins, unbounded first element, ended port yields a stale state once); unwired mode `unmetered`, core-only mode `unknown` (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-089 `Plugin.Runtime` gains `principal` and `asSelf` and `install` may fail with `ChildNotAllowed` (CCR-BR-018); `install` takes `Plugin.Any`, and the optional `EntitlementView` port with `Plugin.Runtime.entitled` (CCR-BR-020)<br>0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.10 (2026-11-10): BEH-BR-096 names shutdown's unregistration as the one exit from a runtime `failed` that is not an operation, as INV-BR-007, ADR-BR-005 and BEH-BR-031 do (CL1); BEH-BR-090 an untracked fiber a build forks keeps `CurrentTransition` for life (C2); `Plugin.Runtime.useOptional` takes `options.timeout`, as BEH-BR-131 (CL6); the `EntitlementState` mode "unknown" is no longer core-only: a port may serve it itself (entitlement BEH-EN-005) (E3) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-095 a refused background restart is a cascade with no caller and revokes at the drain limit (C3) (CCR-BR-035)<br>0.8 (2026-11-08): BEH-BR-089 `Plugin.Runtime.unmount` for an attributed child removal (14, BEH-BR-126); BEH-BR-090 a wired `RefusalList` is consulted before each background restart (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-089: `EntitlementView` failure modes (one `watch` per activation, shared latest-wins, unbounded first element, ended port yields a stale state once); unwired mode `unmetered`, core-only mode `unknown` (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-089 `Plugin.Runtime` gains `principal` and `asSelf` and `install` may fail with `ChildNotAllowed` (CCR-BR-018); `install` takes `Plugin.Any`, and the optional `EntitlementView` port with `Plugin.Runtime.entitled` (CCR-BR-020)<br>0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -51,7 +51,8 @@ interface PluginRuntime {
   readonly reportFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>
   // Optional and reactive dependencies: behaviour 15.
   readonly optional: <S>(key: Context.Key<any, S>) => Effect.Effect<Option.Option<S>>
-  readonly useOptional: <S, A, E, R>(key: Context.Key<any, S>, run: (service: S) => Effect.Effect<A, E, R>) =>
+  readonly useOptional: <S, A, E, R>(key: Context.Key<any, S>, run: (service: S) => Effect.Effect<A, E, R>,
+    options?: { readonly timeout?: Duration.Input }) =>
     Effect.Effect<Option.Option<A>, E | LeaseRevoked | LeaseTimeout, R>
   readonly whenAvailable: <const Keys extends readonly Context.Key<any, any>[], A, E, R>(
     keys: Keys,
@@ -81,7 +82,7 @@ interface PluginRuntime {
 interface EntitlementState {
   readonly mode: "full" | "grace" | "read-only" | "none"   // from the port
     | "unmetered"                    // core only: no EntitlementView is wired
-    | "unknown"                      // core only: the port ended before giving any state
+    | "unknown"                      // no state known: the port ended before giving any (core), or a port serving "unknown" itself (entitlement BEH-EN-005)
   readonly validUntil?: string
   readonly graceUntil?: string
   readonly reason?: string
@@ -214,7 +215,11 @@ REQUIREMENT: Interruption of a background fiber caused by its activation
 
 ```
 REQUIREMENT: Fibers forked in `build` without `background` are not tracked
-             by the host. The host MUST NOT claim to supervise them.
+             by the host. The host MUST NOT claim to supervise them. Such a
+             fiber, when the build does not await it, keeps its plugin in
+             `@bridger/core/CurrentTransition` for its whole life, a stated
+             false positive of the re-entrancy check (09 — Leases,
+             BEH-BR-088; CCR-BR-036).
 ```
 
 `inspect` reports each background fiber by name, policy, restart count and
@@ -446,8 +451,9 @@ REQUIREMENT: If the drain limit expires during a runtime failure transition,
 ```
 REQUIREMENT: The same MUST hold for every cascade with no caller at its
              root: a dependency-loss stop with no operator call at its root,
-             and shutdown. Its stops MUST drain under
-             `BridgerOptions.drainTimeout` and MUST never park; they MUST
+             a refused background restart (28 — Plugin Principal and
+             Mandatory Policy, BEH-BR-267), and shutdown. Its stops MUST
+             drain under `BridgerOptions.drainTimeout` and MUST never park; they MUST
              revoke on expiry — shutdown only once the overall shutdown limit
              has passed (12 — Shutdown and Hosting, BEH-BR-107). A parked
              stop such a cascade meets MUST be resumed under those options
@@ -505,9 +511,11 @@ waits for the build, which `buildTimeout` bounds.
 ```
 REQUIREMENT: A plugin `failed` with phase "runtime" MUST stay `failed` until
              one of these explicit operations: `retry`, `restart`, `replace`,
-             `reconfigure`, `disable` or `remove`. The host MUST NOT retry it
-             automatically, including when its requirements disappear and
-             return.
+             `reconfigure`, `disable` or `remove` — or until shutdown begins
+             and unregisters it, which ends the host rather than recovering
+             the plugin (12 — Shutdown and Hosting, BEH-BR-105; CCR-BR-036).
+             The host MUST NOT retry it automatically, including when its
+             requirements disappear and return.
 ```
 
 ```
@@ -521,7 +529,8 @@ SPEC.md's runtime failure paragraph listed the exit operations as `retry`,
 its state rules list `disable` among the operations that leave `failed`. The
 state rules are correct and this list is aligned with them: every failure
 phase other than `cleanup`, `runtime` included, is left by the same six
-operations, and a `cleanup` failure only by `remove`
+operations or by shutdown's unregistration, and a `cleanup` failure only by
+`remove`
 ([08 — Operation Legality](./08-operation-legality.md)).
 
 Automatic restart after a runtime failure would repeat whatever side effects

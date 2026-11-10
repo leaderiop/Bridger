@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GXP-04                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.3 (2026-11-09): §6.1 core's installation checks include identifier uniqueness of a provided generator (IQ-22 draw, IQ-U10 design review) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): RSK-GX-023 in the High rigour row; files 21 and 22 in place of 07; scenarios REQ-GX-001–047 (BEH-GX-153–169); a change of the adopted `@bridger/audit-chain` version is a revalidation trigger (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): §5.1 the mutation kill rule is a review criterion applied against the run's mutation report, outside the generated OQ evidence (BEH-GX-124, ADR-GX-021) (C14) (CCR-GX-007)<br>0.3 (2026-11-09): §6.1 core's installation checks include identifier uniqueness of a provided generator (IQ-22 draw, IQ-U10 design review) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): RSK-GX-023 in the High rigour row; files 21 and 22 in place of 07; scenarios REQ-GX-001–047 (BEH-GX-153–169); a change of the adopted `@bridger/audit-chain` version is a revalidation trigger (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -77,7 +77,7 @@ All suites run against the **packed and installed** `@bridger/gxp`, beside the p
 | Fault-injection matrix | Every port × {fail, die, hang past the deadline, malformed answer, interruption} refuses or fails the write (INV-GX-011) | 8 |
 | Canary scan | No configuration value, key material or port text in any output (INV-GX-005) | 7 |
 | Coverage | Line and branch at least 95%, as a floor and never as evidence on its own | 7 |
-| Mutation testing | At least 80% on `packages/gxp`; a test that kills no mutant of the code it covers is not counted as evidence for that code | 15 |
+| Mutation testing | At least 80% on `packages/gxp`; a test that kills no mutant of the code it covers is not counted as evidence for that code — a review criterion applied to the pack against the run's mutation report, outside the evidence `collectOqEvidence` generates, which takes no mutation report (BEH-GX-124, ADR-GX-021) | 15 |
 
 ### §5.2 The conformance suite
 

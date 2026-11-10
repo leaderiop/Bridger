@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-29                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): BEH-BR-280 `CrossingInfo.disclosed`, the names of the identity claims that crossed with the call, never their values, accepted on offered crossing entries and checked for empty or repeated names (requested by remote CCR-RM-004 and MCP CCR-MC-004, finding F-07) (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.7 (2026-11-10): BEH-BR-280 the core-produced `refusal` entry is the one exception to kind "call" and always follows "drop" (audit round 2, Low); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-280 `CrossingInfo.disclosed`, the names of the identity claims that crossed with the call, never their values, accepted on offered crossing entries and checked for empty or repeated names (requested by remote CCR-RM-004 and MCP CCR-MC-004, finding F-07) (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 
@@ -484,7 +484,7 @@ REQUIREMENT: With no `CapabilityPolicy` and no `CallLog` wired, no narrowing
              `ResolutionRefused` and `CallLogUnavailable` MUST never be
              produced, `Host.offerCallEntry` MUST do nothing, and every
              operation
-             MUST behave exactly as files 02–25 specify.
+             MUST behave exactly as files 02–20 and 22–34 specify.
 ```
 
 ```
@@ -680,13 +680,18 @@ declare const PrincipalRef: {
 ```
 
 ```
-REQUIREMENT: Every entry core produces from a capture MUST have `kind`
-             "call". When a `CapabilityPolicy` refuses a capture
-             (BEH-BR-274) and a `CallLog` is wired, core MUST call `select`
-             for that capture and, unless it returns false, MUST queue one
-             entry with `kind` "refusal", `refusal.stage` "resolve",
-             `refusal.reason` the refusal's reason, `outcome` "refused", no
-             `member`, and `durationMs` the time the decision took.
+REQUIREMENT: Every entry core produces from a member call on a capture MUST
+             have `kind` "call". The one entry core produces of another
+             kind is the refusal entry: when a `CapabilityPolicy` refuses a
+             capture (BEH-BR-274) and a `CallLog` is wired, core MUST call
+             `select` for that capture and, unless it returns false, MUST
+             queue one entry with `kind` "refusal", `refusal.stage`
+             "resolve", `refusal.reason` the refusal's reason, `outcome`
+             "refused", no `member`, and `durationMs` the time the decision
+             took. That entry MUST follow "drop" whatever `select` or the
+             port's `onFailure` says, as a denied call's does (BEH-BR-279):
+             the capture fails with `ResolutionRefused` in any case, and a
+             full queue drops the entry and counts it in `dropped`.
 ```
 
 ```
@@ -885,7 +890,7 @@ REQUIREMENT: The following checks MUST pass before this file's behaviours
                  a failing or slow `record` changes no outcome and is
                  counted; `CurrentCall` is set only around intercepted
                  calls and a provided one dies with `PrincipalForged`; with
-                 nothing wired, the suites of files 02–25 pass unchanged
+                 nothing wired, the suites of files 02–20 and 22–34 pass unchanged
                  (BEH-BR-276 to BEH-BR-278).
              107. Call-log failure policy: under "drop" a full queue drops
                  and counts the entry and a failing `record` is counted,

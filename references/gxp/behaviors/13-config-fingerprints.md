@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-13                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-10): BEH-GX-100 a finite non-integer number, or an integer beyond ±(2^53 − 1), is in the fingerprint domain, written as RFC 8785 writes it, as everywhere in the canonical form (INV-GX-012); only `NaN` and ±infinity are outside (M6) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -236,8 +236,8 @@ equal. The input is the one ADR-GX-017 fixes; adding the realm would be a
 | The value core hands over | Canonical value |
 | --- | --- |
 | `null`, `true`, `false`, a string with no lone surrogate | itself |
-| a number that is a safe integer | itself |
-| any other number (fraction, `NaN`, ±infinity, beyond ±(2^53 − 1)) | outside the domain |
+| a finite number, integer or not | itself, written as RFC 8785 §3.2.2.3 writes it (BEH-GX-002) |
+| `NaN`, ±infinity | outside the domain |
 | an array | each element mapped; an `undefined` element is outside the domain |
 | a plain object (prototype `Object.prototype` or `null`) | each own enumerable string-keyed property mapped; a property whose value is `undefined` is omitted |
 | a `Redacted` value (Effect) | its content, mapped — only on a path whose entry has `entropy: "high"`; otherwise outside the domain |
@@ -272,11 +272,11 @@ REQUIREMENT: The fingerprinter MUST NOT catch its own failure and answer
 ```
 
 The domain is what makes "the same value" mean the same bytes on every
-platform and in both the issuer and the call ([RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015)). Integers only,
-as everywhere in the companion's canonical form (BEH-GX-002): a fractional
-setting cannot be bound by fingerprint, and listing it as eligible makes every
-call that changes it fail, which the consumer will notice at once rather than
-later. A `Date` and a `bigint` are given fixed string forms because schemas
+platform and in both the issuer and the call ([RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015)). Numbers follow
+the companion's canonical form (BEH-GX-002), which writes every finite
+number, fractional or not, in RFC 8785's one ECMAScript form, so a fractional
+setting is fingerprinted like any other; revision 0.1 refused it, a
+restriction the canonical form no longer has. A `Date` and a `bigint` are given fixed string forms because schemas
 decode to them routinely; a string and a `Date` with the same text then
 share a fingerprint, which is harmless because one path has one type.
 `Redacted` is unwrapped only where the consumer declared the value a

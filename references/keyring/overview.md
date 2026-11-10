@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.3 (2026-11-09): `Keyring.shred` keeps the shred's attribution in the tombstone and fails with `ShredUnattributed` without an attributed actor (M-01); `Keyring` is a local contract (core CCR-BR-033) (CCR-KR-003)<br>0.2 (2026-11-08): Limit 5: no key distribution, and what a host without keys does; receipt covers acknowledging and declared hosts only (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.6 (2026-11-10): API rows for `KeyringPorts`, `Keyring.plugin`, the `KeyStore` acknowledgement members and `Keyring.fields(ports, spec)`; worked example installs the plugin (K1, PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.5 (2026-11-10): `Keyring.rewrap` returns a `RewrapReport`; `KeyWrapper`, `WrappedKey` and `SubjectKeys` declared (M24) (CCR-KR-005)<br>0.4 (2026-11-10): API rows `Keyring.rotate` and `Keyring.rewrap` (P10) (CCR-KR-004)<br>0.3 (2026-11-09): `Keyring.shred` keeps the shred's attribution in the tombstone and fails with `ShredUnattributed` without an attributed actor (M-01); `Keyring` is a local contract (core CCR-BR-033) (CCR-KR-003)<br>0.2 (2026-11-08): Limit 5: no key distribution, and what a host without keys does; receipt covers acknowledging and declared hosts only (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -61,8 +61,10 @@ All signatures are illustrative until code exists.
 | `Keyring` | service (local contract, `Contract.local`) | Provided by the keyring plugin; never crosses a host | [01](./behaviors/01-keys-and-subjects.md) |
 | `Keyring.key(subject)` | member | The subject's current key handle | [01](./behaviors/01-keys-and-subjects.md) |
 | `Keyring.encrypt`, `Keyring.decrypt` | members | Bytes in, bytes out, with authenticated data | [01](./behaviors/01-keys-and-subjects.md) |
-| `KeyStore`, `KeyWrapper`, `NonceSource` | ports | Wrapped key storage; key-encryption key; randomness | [01](./behaviors/01-keys-and-subjects.md) |
-| `Keyring.fields(spec)` | function | A `PayloadCodec` encrypting selected fields of one event type | [02](./behaviors/02-field-encryption.md) |
+| `Keyring.rotate(subject)`, `Keyring.rewrap(kekId)` | members | A new data-key version for later writes, earlier versions kept until shred; the versions listed at the call's start re-wrapped under the wrapper's current key, with a `RewrapReport` naming those it could not re-wrap | [01](./behaviors/01-keys-and-subjects.md) |
+| `KeyStore`, `KeyWrapper`, `NonceSource` | ports | Wrapped key storage (`WrappedKey`, `SubjectKeys`), with shred acknowledgements and each callback's cursor (`acknowledge`, `acknowledgements`, `unacknowledged`); key-encryption key (`kekId`, `wrap`, `unwrap`, optional `rewrap`); randomness (`bytes`) | [01](./behaviors/01-keys-and-subjects.md) |
+| `KeyringPorts`, `Keyring.plugin(options)` | type, plugin definition | The application's `KeyStore`, `KeyWrapper` and `NonceSource`, one value for the plugin and the codec; the plugin requires `DurableBus`, provides `Keyring`, and registers the subscriptions `<id>/shred-apply`, `<id>/shred-refused` and `<id>/shred-ack` (`KeyringConfigError` without a way to publish the notice) | [01](./behaviors/01-keys-and-subjects.md), [03](./behaviors/03-shred-and-acceptance.md) |
+| `Keyring.fields(ports, spec)` | function | A `PayloadCodec` encrypting selected fields of one event type | [02](./behaviors/02-field-encryption.md) |
 | `Encrypted<A>`, `Shredded` | types | A field as stored; a field whose key is gone | [02](./behaviors/02-field-encryption.md) |
 | `Keyring.shred(subject, options)` | member | Tombstone with the shred's actor, correlation, reason and origin; destroy, notify, redact; `ShredUnattributed` without an attributed actor | [03](./behaviors/03-shred-and-acceptance.md) |
 | `Keyring.onShred(name, redact)` | member | Register a redaction callback | [03](./behaviors/03-shred-and-acceptance.md) |
@@ -82,7 +84,8 @@ const ContactAdded = DurableEvent.make("app/ContactAdded", Schema.Struct({
   phone: Keyring.Field(Schema.String)
 }), { version: 1 })
 
-const codec = Keyring.fields({
+const ports = { store: keyStore, wrapper: kmsWrapper, nonces: cryptoNonces }   // the application's adapters
+const codec = Keyring.fields(ports, {
   event: ContactAdded,
   subject: (payload) => `contact:${payload.contactId}`,
   fields: ["name", "phone"]
@@ -90,6 +93,9 @@ const codec = Keyring.fields({
 
 // The same codec is given to the event store and to the bus (one encoded payload).
 const Stores = EventStore.layer({ codec }).pipe(Layer.provide(DurableBus.layer({ codec })))
+
+// The keyring plugin, over the same ports; the KeyStore here shares the outbox's database.
+yield* host.install(Keyring.plugin(ports))
 
 // A projection that holds plaintext registers how to drop it.
 yield* Keyring.onShred("app/contacts-view", (subject) => contactsView.redact(subject))

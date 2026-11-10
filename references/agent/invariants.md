@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-INV                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): INV-AG-008: a task never ends with its pending draft unreported; INV-AG-004 Related (audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): INV-AG-001 scoped to commands not declared `readOnly` and retitled (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): INV-AG-007 added (untrusted output only inside an envelope) (CCR-AG-003, round 2: recheck item 8)<br>0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.8 (2026-11-10): INV-AG-008: the exception is a subagent's task cancelled with the hand-off marker naming its pending draft; a subagent draft not taken by its parent, including when the parent's turn ends with an answer, `needs-input` or its own deferral, is withdrawn by the subagent's own task (BEH-AG-016, BEH-AG-030) (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): INV-AG-008: a subagent's task whose deferral its parent waits on reports its draft as "handed-to-parent", and the parent's task, holding it as pending from the moment the subagent's result settles, reports it if it ends without it (BEH-AG-016, BEH-AG-030) (H3) (CCR-AG-006)<br>0.6 (2026-11-09): INV-AG-008: a task never ends with its pending draft unreported; INV-AG-004 Related (audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): INV-AG-001 scoped to commands not declared `readOnly` and retitled (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): INV-AG-007 added (untrusted output only inside an envelope) (CCR-AG-003, round 2: recheck item 8)<br>0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -162,10 +162,19 @@ paths, an imported command and an oversized output (acceptance check 14).
 
 ## INV-AG-008: A task never ends with its pending draft unreported
 
-A task that is cancelled or fails while `awaiting-approval` asks the
-application's draft flow to withdraw that draft before its terminal snapshot
+A task that is cancelled or fails with a pending draft — while
+`awaiting-approval`, or holding a draft a subagent's result handed it that it
+has not yet published — asks the application's draft flow to withdraw that
+draft before its terminal snapshot
 is published, and the terminal snapshot says what the flow answered:
-"withdrawn", "already-applied" or "not-withdrawn".
+"withdrawn", "already-applied" or "not-withdrawn". The one exception is a
+subagent's task whose draft its parent took: its parent cancels it with the
+hand-off marker `handedDraftId` naming that draft, and it ends with
+"handed-to-parent" and asks nothing, because the draft is pending on the
+parent's task, which reports it under this invariant if it ends without it.
+A subagent's draft the parent did not take — a later `Deferred`, or any
+subagent draft when the parent's turn ends with an answer, `needs-input` or
+its own deferral — is withdrawn by the subagent's own task.
 
 **Source**: `packages/agent/src/AgentLoop.ts` *(Planned)* — the loop's end of
 task path, which calls the required `DraftWithdrawal` option.
@@ -179,4 +188,4 @@ act on it.
 **Verification** *(Planned)*: tests that cancel and fail a task in each state,
 with a withdrawal that answers, fails and times out (acceptance check 17).
 
-**Related**: BEH-AG-010, BEH-AG-012, BEH-AG-016; INV-AG-004; ADR-AG-002.
+**Related**: BEH-AG-010, BEH-AG-012, BEH-AG-016, BEH-AG-030; INV-AG-004; ADR-AG-002.

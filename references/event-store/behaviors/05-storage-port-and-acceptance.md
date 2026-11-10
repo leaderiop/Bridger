@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-05                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-ES-033: the adapter's `transaction` provides the transaction's own `Scope`; BEH-ES-034: `DurableBus.fence` runs in that scope (H3); BEH-ES-040 check 18: a `receive` handler refused by the freeze does not halt its stream (F4) (CCR-ES-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — BEH-ES-034: every write of the store calls durable-bus `DurableBus.fence(tx)` inside its own write transaction during a whole-store install instead of following the sliding `outbox-frozen`/`outbox-thawed` feed; check 18 restated (CCR-ES-005)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-ES-034: what the store does at a re-bootstrap install — every write refused with `OutboxFrozen` during a whole-store freeze, followers read their checkpoint each batch, stop at a whole-store swap and restart from the new store's checkpoints, chain followers wait for the application, positions never translated (P6); BEH-ES-040 check 18 (CCR-ES-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -33,8 +33,9 @@ Planned source: `packages/event-store/src/Adapter.ts`,
 ```ts
 // illustrative — not type-checked
 interface EventStoreAdapter {
-  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) =>
-    Effect.Effect<A, E | StoreUnavailable | WrongExpectedVersion, Exclude<R, StoreTransaction>>
+  // provides StoreTransaction and the transaction's own Scope, closed when it ends (durable-bus BEH-DB-054)
+  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction | Scope.Scope>) =>
+    Effect.Effect<A, E | StoreUnavailable | WrongExpectedVersion, Exclude<R, StoreTransaction | Scope.Scope>>
   readonly append: (tx: StoreTransaction["Service"], stream: string, expected: ExpectedVersion,
                     rows: readonly Omit<StoredEvent, "streamVersion" | "position">[]) =>
     Effect.Effect<readonly StoredEvent[], WrongExpectedVersion | StoreWriteFailed>
@@ -85,7 +86,7 @@ REQUIREMENT: An adapter that declares `savepoints: true` MUST run `savepoint`
 
 > **Invariant:** [INV-ES-002](../invariants.md#inv-es-002-an-append-and-its-outbox-entries-commit-together-or-not-at-all)
 > **Satisfies:** [URS-BR-056](../../core/urs.md#urs-br-056-keep-event-sourced-business-streams-with-the-outbox-in-one-transaction)
-> **Depends on:** [BEH-DB-012](../../durable-bus/behaviors/02-transactional-outbox.md#beh-db-012-the-outboxstore-port), [BEH-DB-054](../../durable-bus/behaviors/07-core-bus-and-adapters.md#beh-db-054-storage-adapter-obligations)
+> **Depends on:** [BEH-DB-012](../../durable-bus/behaviors/02-transactional-outbox.md#beh-db-012-the-outboxstore-port), [BEH-DB-054](../../durable-bus/behaviors/07-core-bus-and-adapters.md#beh-db-054-storage-adapter-obligations), [BEH-DB-048](../../durable-bus/behaviors/06-replay-and-snapshots.md#beh-db-048-before-a-snapshot-the-outbox-is-pushed-or-kept-and-the-install-goes-through-the-bus) (re-bootstrap install)
 > **Risk:** [RSK-ES-003](../risks.md#rsk-es-003)
 
 ```
@@ -107,6 +108,55 @@ REQUIREMENT: An adapter that detects conflicts only at commit
              never as `StoreUnavailable`: the inbox's combinator has no
              event-store error, and the bus retries a `CommitConflict` in a
              new transaction (BEH-DB-021).
+```
+
+A re-bootstrap (federation BEH-FD-014) replaces the local state of the store
+through durable-bus `OutboxSettlement.install`, either in one transaction
+("in-store") or by replacing the database ("whole-store", BEH-DB-048).
+
+```
+REQUIREMENT: During a whole-store install, every write of the store —
+             `Stream.append`, `Aggregate.handle`, `run`, `record` and
+             `recordFact`, and the handlers of `receive` and
+             `receiveVerbatim` — MUST fail with durable-bus `OutboxFrozen`
+             and write nothing, whether or not its types are published: the
+             store being replaced would take the write with it. Each such
+             write MUST call durable-bus `DurableBus.fence(tx)` (BEH-DB-048)
+             inside its own write transaction, before its first write, in
+             the transaction's `Scope` that the adapter's `transaction`
+             provides and closes when the transaction ends (durable-bus
+             BEH-DB-054), and fail with the fence's `OutboxFrozen`; the `outbox-frozen` and
+             `outbox-thawed` reports are a sliding status feed and MUST NOT
+             be used to decide. An in-store install refuses no write; the
+             engine orders the install transaction with every other
+             (above).
+```
+
+```
+REQUIREMENT: Every follower of the store (projections, BEH-ES-019, and
+             chaining, BEH-ES-031) MUST read its checkpoint from the store
+             at the start of each batch transaction, never only from
+             memory, so that after an in-store install it continues from
+             the checkpoint the install left. For a whole-store install the
+             store MUST register a durable-bus `onStoreSwap` participant
+             whose `prepare` stops every follower, its batch in flight
+             rolled back. After the `OriginChange`, projections MUST restart
+             from the checkpoints the new store holds, and from the start
+             (a rebuild, BEH-ES-021) where it holds none. Chain followers
+             MUST NOT restart on their own: each is reported `halted
+             { cause: "store-replaced" }` until the application calls
+             `EventStore.chain` again, under the same series only when the
+             new store holds the chained stream versions unchanged.
+```
+
+```
+REQUIREMENT: The package MUST NOT translate a checkpoint or a position of
+             the replaced store into the new one; positions are per store
+             (BEH-ES-008). Documentation MUST state that a snapshot which
+             carries checkpoints MUST carry the events and positions they
+             refer to, or leave them out so that the projections rebuild,
+             and that origins and appends after the install follow
+             BEH-ES-007 (the new origin).
 ```
 
 ## BEH-ES-035: SQLite adapter obligations (terminal)
@@ -280,7 +330,7 @@ REQUIREMENT: The testing entry point MUST export `memoryEventStore` (an
 ```
 REQUIREMENT: The package's test suite MUST contain at least one test for
              each of the following (planned acceptance scenarios
-             REQ-ES-001–017, traceability §2):
+             REQ-ES-001–018, traceability §2):
              1. Registration: unregistered and duplicate types refused
                 (BEH-ES-001).
              2. Stored form: fields, Clock and IdGenerator sources, no
@@ -347,6 +397,18 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  `readAll` and `checkpoints` runs a follower, and no helper
                  reaches the adapter except through the members
                  (BEH-ES-038).
+             18. Re-bootstrap install: during a whole-store freeze an
+                 append of an unpublished type fails with `OutboxFrozen` and
+                 writes nothing, decided by `DurableBus.fence` inside its
+                 transaction, so a write whose transaction began before the
+                 freeze is either committed before it or refused; a
+                 `receive` handler refused with `OutboxFrozen` does not halt
+                 its stream and is retried after the settlement; followers stop at the swap and projections
+                 resume from the new store's checkpoints, or rebuild where
+                 there is none; a chain follower stays halted with
+                 "store-replaced" until `chain` is called again; after an
+                 in-store install a follower continues from the checkpoint
+                 the install wrote (BEH-ES-034).
 ```
 
 **Settled here.** (1) Constraints of the engine, not package memory, enforce

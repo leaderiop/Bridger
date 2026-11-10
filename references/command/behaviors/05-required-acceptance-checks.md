@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-05                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.9 (2026-11-10): Check 17: the task's fiber carries the dispatching fiber's plugin principal, and a task whose dispatcher's activation ends keeps running and fails "PrincipalRetired" on its next mutating host call (BEH-CM-052) (T3) (CCR-CM-007)<br>0.8 (2026-11-10): Checks 15 and 19: wrappers and admissions see the dispatching fiber's plugin principal, none for application code (H5) (CCR-CM-006)<br>0.7 (2026-11-10): Check 6 compares the actor and annotations of offered call-log entries and hook inputs with a context supplied only in `options.context` (H9) (CCR-CM-005)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -66,7 +66,12 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 outer correlation through core's `CurrentCorrelation`; a
                 correlation set on the dispatching fiber is used when none
                 is supplied; generated correlation ids come from
-                `IdGenerator`.
+                `IdGenerator`; for a dispatch from a fiber with no actor and
+                no annotations, given its actor and annotations only in
+                `options.context`, the actor and "callLog" annotations of
+                every entry it offers ("refusal" and "dispatch") equal
+                those of `options.context`, and the `before` and `after`
+                hooks receive its annotations (BEH-CM-010, BEH-CM-015).
              7. Gate: consulted once per dispatch and never cached; Refuse,
                 Defer (no handler run; typed `CommandDeferred`), defect and
                 timeout as refusals; an approved draft is re-dispatched
@@ -151,7 +156,9 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  first, fixed at layer build, `applies` filters them, only
                  `provides` keys reach the handler, a wrapper cannot turn a
                  failed run into a success, and a wrapper failure is
-                 `CommandWrapperFailed`; refusals are offered once as
+                 `CommandWrapperFailed`; a wrapper runs under the
+                 dispatching fiber's plugin principal, none for a dispatch
+                 by application code; refusals are offered once as
                  "refusal" entries (also a step-7 end before the handler
                  was called), and executed and replayed dispatches
                  once as "dispatch" entries with the command id, digests,
@@ -191,7 +198,11 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  the `CommandTaskStore` before the feeds; a store holding a
                  `running` record at layer build yields `failed` /
                  `TaskLost` and releases its receipt; a string dispatch is
-                 told apart by the descriptor's `long`.
+                 told apart by the descriptor's `long`; the task's fiber
+                 carries the dispatching fiber's plugin principal, and when
+                 the dispatcher's activation ends the task keeps running
+                 and a mutating host call from it ends it `failed` /
+                 "PrincipalRetired".
              18. Metadata and envelope: id and tag grammars (mixed case,
                  `.`, `:`; case-only duplicates refused); typed metadata on
                  descriptors, requests, hook targets and digests;
@@ -214,7 +225,9 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  the wrappers, with the outcome mapping of BEH-CM-015 or
                  `NotRun`, and its scope closes after it; a failing
                  `settle` changes nothing; batch items and tasks are
-                 settled as BEH-CM-049, BEH-CM-050 and BEH-CM-052 state.
+                 settled as BEH-CM-049, BEH-CM-050 and BEH-CM-052 state;
+                 `admit` runs under the dispatching fiber's plugin
+                 principal, none for a dispatch by application code.
 ```
 
 | REQ | Check | Behaviours | Status |

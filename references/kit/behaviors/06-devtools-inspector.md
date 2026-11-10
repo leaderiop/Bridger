@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-06                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-KT-047: `--keyed <module>` passes a pure MAC function as `keyed` and `--expect-keyed [<seriesId>]` passes `expectKeyed` (true, or the set of series); "key-unavailable" links give exit 4, not 1 (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -216,7 +216,7 @@ REQUIREMENT: `verify-chain` MUST read the bundle file, decode it as JSON and
              with no network, clock or file access beyond reading the
              bundle, the `--trust-roots` file, whose roots MUST be passed
              as `pinnedTrustRoots` (BEH-AC-035), and the modules named by
-             `--verifier` and `--profile`. It MUST NOT verify anything
+             `--verifier`, `--profile` and `--keyed`. It MUST NOT verify anything
              itself and MUST NOT contact an anchor service.
 ```
 
@@ -243,6 +243,22 @@ REQUIREMENT: Expected heads MUST be passed from `--expect-head
 ```
 
 ```
+REQUIREMENT: `--keyed <module>` MUST load, from a module on the inspector's
+             machine, a pure MAC function of the type of `options.keyed`
+             and pass it as `options.keyed` (BEH-AC-034, BEH-AC-039); the
+             module is listed by path and digest like the others, and no
+             key is read from the bundle. `--expect-keyed` with no argument
+             MUST pass `expectKeyed: true`; `--expect-keyed <seriesId>`
+             (repeatable) MUST pass the set of the series ids given (03,
+             BEH-AC-019). Without `--keyed`, documentation MUST state that
+             every keyed link is reported "key-unavailable" and that a
+             keyed chain can be recomputed only by a holder of the key; and
+             that a consumer whose sink was built with a `KeyedHasher`
+             verifies with `--expect-keyed`, since without it unkeyed links
+             that recompute are not a break.
+```
+
+```
 REQUIREMENT: The output MUST render the `BundleReport` under the wording
              rules of the audit-chain companion (BEH-AC-022, BEH-AC-038):
              counts and positions, which trust roots were used (pinned or
@@ -253,12 +269,13 @@ REQUIREMENT: The output MUST render the `BundleReport` under the wording
 ```
 
 ```
-REQUIREMENT: Exit codes: 1 when the report has a break, a failed receipt,
-             an anchor mismatch, a bundle digest mismatch or a malformed
-             entry; otherwise 4 when the check is incomplete — trust roots
-             carried by the bundle (no `--trust-roots`), any receipt "not
-             checked", any head "head-unconfirmed" or not given, or any
-             series not verified ("unknown-profile"); otherwise 0; 2 for a
+REQUIREMENT: Exit codes: 1 when the report has a break other than
+             "key-unavailable", a failed receipt, an anchor mismatch, a
+             bundle digest mismatch or a malformed entry; otherwise 4 when
+             the check is incomplete — trust roots carried by the bundle (no
+             `--trust-roots`), any receipt "not checked", any head
+             "head-unconfirmed" or not given, any series not verified
+             ("unknown-profile"), or any link "key-unavailable"; otherwise 0; 2 for a
              usage error; 3 when the bundle, the trust-root file or a module
              cannot be read or loaded. Documentation MUST state that exit
              code 0 means "nothing checked was found inconsistent, and every

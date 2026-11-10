@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-TRACE                                             |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.5 (2026-11-09): REQ-FD-044; REQ-FD-045 (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review — BEH-FD-048; REQ-FD-040–043; REQ-FD-016, 032–036, 038 restated; INV-FD-003, 010, 011 rows extended (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18–20 and 22 — BEH-FD-041–047, INV-FD-010–012, ADR-FD-009, REQ-FD-032–039 (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — REQ-FD-025–031; invariant scenarios updated (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — REQ-FD-016 and REQ-FD-043 restated (F2, F3) (CCR-FD-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — REQ-FD-046; REQ-FD-036, 038 and 043 restated; INV-FD-011 row extended (CCR-FD-006)<br>0.5 (2026-11-09): REQ-FD-044; REQ-FD-045 (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review — BEH-FD-048; REQ-FD-040–043; REQ-FD-016, 032–036, 038 restated; INV-FD-003, 010, 011 rows extended (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18–20 and 22 — BEH-FD-041–047, INV-FD-010–012, ADR-FD-009, REQ-FD-032–039 (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — REQ-FD-025–031; invariant scenarios updated (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -45,7 +45,7 @@ requirements and risks are registered in the core `urs.md` and
 | [INV-FD-008](invariants.md#inv-fd-008-no-host-transition-waits-on-the-network) | BEH-FD-008, 009, 014, 017, 024 | ADR-FD-001 | REQ-FD-012, 016 |
 | [INV-FD-009](invariants.md#inv-fd-009-staleness-and-the-offline-cap-are-never-silent) | BEH-FD-012, 013, 015, 016, 047 | ADR-FD-007 | REQ-FD-014, 015, 017, 029, 038 |
 | [INV-FD-010](invariants.md#inv-fd-010-a-kill-never-waits-on-a-manifest-apply-the-offline-cap-or-a-re-bootstrap) | BEH-FD-013, 041, 042, 043 | ADR-FD-009 | REQ-FD-032, 033, 034, 035, 041 |
-| [INV-FD-011](invariants.md#inv-fd-011-a-re-bootstrap-never-replaces-state-while-local-facts-are-neither-pushed-nor-kept) | BEH-FD-014, 044, 048 | ADR-FD-007 | REQ-FD-016, 036, 042, 043 |
+| [INV-FD-011](invariants.md#inv-fd-011-a-re-bootstrap-never-replaces-state-while-local-facts-are-neither-pushed-nor-kept) | BEH-FD-014, 044, 048 | ADR-FD-007 | REQ-FD-016, 036, 042, 043, 046 |
 | [INV-FD-012](invariants.md#inv-fd-012-no-import-or-export-runs-over-a-route-that-does-not-offer-its-residency-label) | BEH-FD-045 | ADR-RM-010 (remote) | REQ-FD-037 |
 
 ## §3 Decision traceability
@@ -83,7 +83,7 @@ One scenario per required acceptance check of [BEH-FD-034](behaviors/05-testing-
 | REQ-FD-013 | 13. Repeated `ManifestUnavailable` backs off with seeded jitter up to ten intervals and resets on success | [BEH-FD-011](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
 | REQ-FD-014 | 14. Passing `validUntil` disables exactly the `requiresFresh` entries and nothing else; a newer manifest restores them | [BEH-FD-012](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
 | REQ-FD-015 | 15. Exceeding `maxOffline` reports `offline-capped` once; the next contact requires re-bootstrap before applying a newer manifest | [BEH-FD-013](behaviors/02-sync-offline-and-rebootstrap.md), [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
-| REQ-FD-016 | 16. `ResyncRequired` settles the outbox with links up, suspends links (control kept), fetches and installs through the settlement, applies the latest manifest and resumes links, in that order; a failing install keeps links suspended and retries on its own backoff | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
+| REQ-FD-016 | 16. `ResyncRequired` settles the outbox with links up on a first attempt, suspends links (control kept), fetches and installs through the settlement, applies the latest manifest and resumes links, in that order; a failing install keeps links suspended and retries on its own backoff | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
 | REQ-FD-017 | 17. A clock set back before `issuedAt − skewTolerance` makes the manifest stale and reports `clock-skew` | [BEH-FD-016](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
 | REQ-FD-018 | 18. Protocol handshake over generated ranges and windows: both ends agree on the same version; N against N−2 yields `IncompatiblePeer` on both ends and no remote session starts | [BEH-FD-019](behaviors/03-links-and-skew-handshake.md) | Not run |
 | REQ-FD-019 | 19. An import not exported at its major and version is refused alone (proxy provides nothing, `IncompatibleContract` listed); two majors run as two proxies | [BEH-FD-020](behaviors/03-links-and-skew-handshake.md) | Not run |
@@ -103,13 +103,14 @@ One scenario per required acceptance check of [BEH-FD-034](behaviors/05-testing-
 | REQ-FD-033 | 33. Not-newer and rejected lists reported and not relayed; kill frames accepted on links about to be refused; `revocation` required | [BEH-FD-041](behaviors/06-kill-path-placement-and-skew.md), [BEH-FD-043](behaviors/06-kill-path-placement-and-skew.md) | Not run |
 | REQ-FD-034 | 34. A kill-only apply runs a newer manifest's kill entries while a re-bootstrap is pending, and they stay applied across re-applies and restarts | [BEH-FD-042](behaviors/06-kill-path-placement-and-skew.md) | Not run |
 | REQ-FD-035 | 35. A hub relays newer lists once per link and before every offer | [BEH-FD-043](behaviors/06-kill-path-placement-and-skew.md) | Not run |
-| REQ-FD-036 | 36. Re-bootstrap order outbox, suspend, fetch, guarded install, apply, resume; a blocked settle stops before fetch, suspends nothing and drops nothing | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md), [BEH-FD-044](behaviors/06-kill-path-placement-and-skew.md) | Not run |
+| REQ-FD-036 | 36. Re-bootstrap order outbox, suspend, fetch, guarded install, apply, resume; a blocked settle stops before fetch, suspends nothing on a first attempt and drops nothing; `follow` paused from settle to the end of install | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md), [BEH-FD-044](behaviors/06-kill-path-placement-and-skew.md) | Not run |
 | REQ-FD-037 | 37. Imports and exports refused "placement-refused" on routes that do not offer their label | [BEH-FD-045](behaviors/06-kill-path-placement-and-skew.md) | Not run |
-| REQ-FD-038 | 38. One skew rule per axis, park-never-drop on events; writers switched only after reader reports from every host in scope allow it | [BEH-FD-046](behaviors/06-kill-path-placement-and-skew.md), [BEH-FD-047](behaviors/06-kill-path-placement-and-skew.md) | Not run |
+| REQ-FD-038 | 38. One skew rule per axis, park-never-drop on events; writers switched only after reader reports from every host in scope allow it; backlog reports carry the origin and pending count | [BEH-FD-046](behaviors/06-kill-path-placement-and-skew.md), [BEH-FD-047](behaviors/06-kill-path-placement-and-skew.md) | Not run |
 | REQ-FD-039 | 39. Installation policy carried as manifest data; `PolicyMismatch` not retried; `PartialApply` reported | [BEH-FD-005](behaviors/01-host-manifest.md), [BEH-FD-008](behaviors/01-host-manifest.md) | Not run |
 | REQ-FD-040 | 40. Manifest envelopes verified with the loader's exact call and checked against the decoded manifest; `filterDesired` on every apply | [BEH-FD-002](behaviors/01-host-manifest.md), [BEH-FD-007](behaviors/01-host-manifest.md) | Not run |
 | REQ-FD-041 | 41. The blast-radius guard holds and releases a revision; list matches outside the scope reported `kill-unowned` | [BEH-FD-042](behaviors/06-kill-path-placement-and-skew.md) | Not run |
 | REQ-FD-042 | 42. A crash during or after install resumes from the persisted marker with links suspended | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md), [BEH-FD-048](behaviors/06-kill-path-placement-and-skew.md) | Not run |
-| REQ-FD-043 | 43. Blocked re-bootstraps back off on their own schedule and suspend no link | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
+| REQ-FD-043 | 43. Blocked re-bootstraps back off on their own schedule; a first attempt suspends no link, a retry after a failed install keeps links suspended but reopens the `deliveryImports` for step 1 | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
 | REQ-FD-044 | 44. Imports send only the identity claims the signed manifest discloses; a changed disclosure replaces the proxy; served calls without claims are attributed to the peer | [BEH-FD-023](behaviors/03-links-and-skew-handshake.md), [BEH-FD-026](behaviors/04-exports-and-imports.md) | Not run |
 | REQ-FD-045 | 45. A local contract in `contracts` fails the plugin's build before the store is read; nothing is applied, imported or served | [BEH-FD-009](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |
+| REQ-FD-046 | 46. Each install failure keeps the manifest and the links suspended, is reported with its tag and reason and retries from step 1; the install is attributed to the federation actor | [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md) | Not run |

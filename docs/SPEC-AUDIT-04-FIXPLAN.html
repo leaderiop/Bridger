@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bridger Audit 4 Fixes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Schibsted+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: an engineering drawing sheet. Title block on top, ruled sections, diagrams as figures on a drafting ground. */
+:root{
+  --bg:#F1F4F6; --surface:#FFFFFF; --ink:#14222E; --muted:#566673; --line:#C9D3DB;
+  --accent:#1F5FBF; --accent-soft:#E2ECFA; --ok:#1B7A4D; --gap:#C03E28; --warn:#9A6200;
+  --code-bg:#E7ECF0; --ok-soft:#E1F2E9; --gap-soft:#FBE7E2; --warn-soft:#F8EBD3;
+  --sans:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1B2B; --surface:#12263A; --ink:#E4EDF5; --muted:#93A7B9; --line:#2A4560;
+    --accent:#6EB0FF; --accent-soft:#16365A; --ok:#5FCB93; --gap:#FF8670; --warn:#E8B04A;
+    --code-bg:#0A1624; --ok-soft:#12372A; --gap-soft:#3C1E1B; --warn-soft:#3A2E12; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1B2B; --surface:#12263A; --ink:#E4EDF5; --muted:#93A7B9; --line:#2A4560;
+  --accent:#6EB0FF; --accent-soft:#16365A; --ok:#5FCB93; --gap:#FF8670; --warn:#E8B04A;
+  --code-bg:#0A1624; --ok-soft:#12372A; --gap-soft:#3C1E1B; --warn-soft:#3A2E12; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 17px/1.65 var(--sans);margin:0;padding-inline:20px;padding-block:32px 72px}
+.sheet{max-width:980px;margin-inline:auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--sans);text-wrap:balance;margin:0}
+h1{font-weight:800;font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;letter-spacing:-.02em}
+h2{font-weight:800;font-size:clamp(1.5rem,3vw,2rem);line-height:1.15;letter-spacing:-.01em}
+h3{font-weight:600;font-size:1.15rem;line-height:1.3}
+p{margin:0}
+a{color:var(--accent)}
+code{font:600 .88em var(--mono);background:var(--code-bg);padding:.1em .35em;border-radius:3px}
+pre{font:400 13.5px/1.55 var(--mono);background:var(--code-bg);padding:14px 16px;border-radius:4px;margin:0;overflow-x:auto;border-left:3px solid var(--line)}
+pre code{background:none;padding:0;font-weight:400;font-size:inherit}
+.k{color:var(--accent);font-weight:600}.s{color:var(--ok)}.e{color:var(--gap);font-weight:600}.c{color:var(--muted)}
+.titleblock{display:grid;grid-template-columns:2fr 1fr 1fr;border:1.5px solid var(--ink);background:var(--surface)}
+.titleblock>div{padding:10px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.titleblock>div:last-child{border-right:0}
+.titleblock .lab{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block}
+.titleblock .big{grid-column:1/-1;padding:22px 18px 20px;border-right:0}
+.titleblock .big p{margin-top:12px;max-width:62ch;color:var(--muted)}
+.toc{display:flex;flex-wrap:wrap;gap:8px 18px;font:600 14px var(--mono);padding:0;margin:0;list-style:none}
+.toc a{text-decoration:none;color:var(--ink);border-bottom:2px solid var(--line)}
+.toc a:hover{border-color:var(--accent)}
+section{display:flex;flex-direction:column;gap:20px}
+.part{font:600 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border-top:2px solid var(--ink);padding-top:10px}
+.lead{font-size:1.12rem;max-width:66ch}
+.text{max-width:68ch}
+.plain{background:var(--accent-soft);border-left:4px solid var(--accent);padding:14px 18px;max-width:72ch}
+.plain b{display:block;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.warnbox{background:var(--warn-soft);border-left:4px solid var(--warn);padding:14px 18px;max-width:72ch}
+.warnbox b{display:block;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:4px}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.verdict>div{background:var(--surface);border:1px solid var(--line);padding:16px 18px;min-width:0}
+.verdict h3{margin-bottom:6px}
+.verdict .tag{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.tag.ok{color:var(--ok)}.tag.gap{color:var(--gap)}.tag.warn{color:var(--warn)}
+figure{margin:0;display:flex;flex-direction:column;gap:10px}
+.fig{overflow-x:auto;background:var(--surface);border:1px solid var(--line);padding:12px}
+.fig svg{display:block;width:100%;min-width:660px;height:auto;color:var(--ink)}
+figcaption{font-size:.92rem;color:var(--muted);max-width:72ch}
+figcaption b{color:var(--ink)}
+/* svg vocabulary (page CSS styles inline svg) */
+svg .box{fill:var(--surface);stroke:var(--ink);stroke-width:1.5}
+svg .box.acc{fill:var(--accent-soft);stroke:var(--accent)}
+svg .box.ok{fill:var(--ok-soft);stroke:var(--ok)}
+svg .box.gap{fill:var(--gap-soft);stroke:var(--gap);stroke-dasharray:6 4}
+svg .box.warn{fill:var(--warn-soft);stroke:var(--warn)}
+svg .panel{fill:none;stroke:var(--line);stroke-width:1.5}
+svg .lbl{font:600 14px var(--sans);fill:var(--ink)}
+svg .sub{font:400 12px var(--mono);fill:var(--muted)}
+svg .small{font:400 12.5px var(--sans);fill:var(--ink)}
+svg .ttl{font:600 11.5px var(--mono);letter-spacing:.1em;fill:var(--muted);text-transform:uppercase}
+svg .edge{stroke:var(--ink);stroke-width:1.5;fill:none}
+svg .edge.acc{stroke:var(--accent)}
+svg .edge.gap{stroke:var(--gap);stroke-dasharray:6 4}
+svg .edge.ok{stroke:var(--ok)}
+svg .edge.warn{stroke:var(--warn);stroke-dasharray:6 4}
+svg .edge.thin{stroke:var(--line)}
+svg .elbl{font:400 12px var(--mono);fill:var(--muted)}
+svg .okt{fill:var(--ok);font:600 13px var(--sans)}
+svg .gapt{fill:var(--gap);font:600 13px var(--sans)}
+svg .warnt{fill:var(--warn);font:600 13px var(--sans)}
+svg .mid{text-anchor:middle}
+svg .end{text-anchor:end}
+table{border-collapse:collapse;width:100%;font-size:.95rem;background:var(--surface)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line)}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+td:first-child{white-space:nowrap}
+.pill{display:inline-block;font:600 11.5px var(--mono);padding:2px 8px;border-radius:99px;letter-spacing:.03em}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.gap{background:var(--gap-soft);color:var(--gap)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.new{background:var(--accent-soft);color:var(--accent)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.cols>*{min-width:0}
+.glossary{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.glossary div{background:var(--surface);border:1px solid var(--line);padding:12px 14px}
+.glossary dt{font:600 13px var(--mono);color:var(--accent)}
+.glossary dd{margin:2px 0 0;font-size:.95rem}
+dl{margin:0}
+ul.tight{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;max-width:68ch}
+.foot{font-size:.9rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+@media (max-width:640px){.titleblock{grid-template-columns:1fr 1fr}.titleblock>div:first-child{grid-column:1/-1}}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+<style>
+.find{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--gap);padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.find.con{border-left-color:var(--warn)}
+.find h3{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.find .id{font:600 13px var(--mono);color:var(--muted)}
+.find dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:.95rem}
+.find dt{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:3px}
+.find dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.stack{display:flex;flex-direction:column;gap:14px}
+td code,dd code{font-weight:400;overflow-wrap:anywhere}
+.count{font:800 2.4rem/1 var(--sans)}
+@media (max-width:640px){.find dl{grid-template-columns:1fr}}
+</style>
+<style>.id{font:600 13px var(--mono);color:var(--muted)}</style>
+</head>
+<body>
+<main class="sheet">
+<header class="titleblock">
+  <div class="big">
+    <h1>Bridger spec audit, round 4: fix plan</h1>
+    <p>An ordered plan that closes every finding of <a href="SPEC-AUDIT-04.html">SPEC-AUDIT-04</a>: six decisions to make first, then five phases grouped by root cause. Each step lists the findings it closes and the files it touches. The finding IDs are the report's.</p>
+  </div>
+  <div><span class="lab">Document</span>SPEC-AUDIT-04 · fix plan</div>
+  <div><span class="lab">Date</span>2026-11-10</div>
+  <div><span class="lab">Covers</span>71 findings: 4 high, 36 medium, 31 low</div>
+  <div><span class="lab">Status</span>Applied with D1–D6 as recommended, except D5: the key is <code>JSON.stringify([realm, id])</code> (realm ids contain "/"). Not committed.</div>
+  <div><span class="lab">Steps</span>36 in 6 phases</div>
+  <div><span class="lab">Change records</span>CCR-BR-036 and companion CCRs (to be opened)</div>
+</header>
+<nav aria-label="Contents"><ul class="toc">
+  <li><a href="#order">Order</a></li><li><a href="#decisions">Decisions</a></li>
+  <li><a href="#p0">Phase 0</a></li><li><a href="#p1">Phase 1</a></li><li><a href="#p2">Phase 2</a></li><li><a href="#p3">Phase 3</a></li><li><a href="#p4">Phase 4</a></li><li><a href="#p5">Phase 5</a></li>
+</ul></nav>
+
+<section id="order">
+  <div class="part">01 · Order of work</div>
+  <div class="verdict">
+    <div><span class="tag gap">Phase 1</span><div class="count">4</div><p>High findings. One decision each, then a few files.</p></div>
+    <div><span class="tag warn">Phase 2</span><div class="count">10</div><p>Round-3 rules copied into the places that still have the old text. No decisions.</p></div>
+    <div><span class="tag warn">Phase 3</span><div class="count">10</div><p>Core design gaps. New rules, one CCR entry each.</p></div>
+    <div><span class="tag ok">Phase 4</span><div class="count">8</div><p>Companion design gaps. Independent of each other.</p></div>
+  </div>
+  <div class="plain"><b>Why this order</b>The high fixes change the text that the later steps edit (the resume lists in 08, the re-entrancy references in 09, federation's link setup), so they go first. Phase 2 is mechanical, but two steps wait on phase-4 work (2.7 after 4.8, 2.9 with 4.1). Phases 3 and 4 do not depend on each other. Every round so far has turned up fixes made in one place and missed elsewhere, so each step's "Files" column is a list to grep, not a closed list.</div>
+</section>
+
+<section id="decisions">
+  <div class="part">02 · Decisions to make first</div>
+  <p class="text">These need the spec owner's call. Each lists a recommended option and the main alternative.</p>
+  <div class="stack">
+<article class="find con"><h3><span class="id">D1</span>How long may a sub-scope close or <code>unmount</code> wait for a stop the parent already started?</h3><dl><dt>Closes</dt><dd>H1, C10</dd><dt>Recommended</dt><dd>Follow the parent stop's own limits: park with the operator call, wait for the overall limit under shutdown, revoke only on a path with no caller.</dd><dt>Alternative</dt><dd>Keep <code>drainTimeout</code> and revocation, and add sub-scope close and <code>unmount</code> to the paths with no caller in BEH-BR-086 and INV-BR-017. This lets a finalizer override an operator's <code>force: false</code>.</dd></dl></article>
+<article class="find con"><h3><span class="id">D2</span>How does a subagent learn that its parent took its draft?</h3><dl><dt>Closes</dt><dd>H2, T2</dd><dt>Recommended</dt><dd>A hand-off marker on the cancel, for example <code>Tasks.cancel(taskId, ctx, { handedDraftId })</code>, set by <code>spawnSubagent</code> only for the subagent whose draft the parent took.</dd><dt>Alternative</dt><dd>A callback on <code>SpawnStart</code> that the subagent's loop consults before it withdraws. This adds a second channel between the loops.</dd></dl></article>
+<article class="find con"><h3><span class="id">D3</span>How does the bus know when a fenced transaction has ended?</h3><dl><dt>Closes</dt><dd>H3, F4</dd><dt>Recommended</dt><dd>A scoped <code>fence</code>: it requires <code>Scope</code>, and its finalizer runs when the adapter's <code>transaction</code> ends. Setting the freeze refuses new fences first, then waits for the open ones.</dd><dt>Alternative</dt><dd>An adapter obligation: a freeze row that <code>transaction</code> reads, serialised with open writers. This puts more work in every storage adapter.</dd></dl></article>
+<article class="find con"><h3><span class="id">D4</span>Where does a federation link get its <code>TransportProfile</code>?</h3><dl><dt>Closes</dt><dd>H4, F1</dd><dt>Recommended</dt><dd><code>LinkDialer.dial</code> and <code>LinkListener.accept</code> yield <code>{ connection, profile }</code>, which BEH-FD-017 passes to both <code>multiplex</code> calls.</dd><dt>Alternative</dt><dd>A <code>profile</code> field on the link configuration per peer. This is simpler, but the profile can drift from the real transport.</dd></dl></article>
+<article class="find con"><h3><span class="id">D5</span>How are plugins named in <code>HeldPlugins</code>, <code>CurrentTransition</code> and <code>WouldDeadlock</code>?</h3><dl><dt>Closes</dt><dd>C1</dd><dt>Recommended</dt><dd>A canonical <code>realm/id</code> string, so the reference types stay <code>string</code> and the error gains <code>realm</code>.</dd><dt>Alternative</dt><dd>A <code>{ id, realm }</code> record. Clearer, but it changes the exported reference types (CCR-BR-020).</dd></dl></article>
+<article class="find con"><h3><span class="id">D6</span>What does <code>Entitlement.guard</code> trust?</h3><dl><dt>Closes</dt><dd>E1, E2, E3</dd><dt>Recommended</dt><dd>The passed <code>entitled</code> stream only, with <code>pluginId</code> from the runtime, an application-wide essential list from <code>Entitlement.layer</code>, and a <code>checkTimeout</code> that yields <code>NotEntitled</code> "unknown".</dd><dt>Alternative</dt><dd>Keep the fiber principal and narrow INV-EN-005. Smaller, but provided methods stay unguarded for application callers.</dd></dl></article>
+  </div>
+</section>
+
+<section id="p0">
+  <div class="part">03 · Before starting</div>
+  <h2>Phase 0 · Before starting</h2>
+  <p class="text">Commit the round-3 fixes on their own, so the round-4 changes stay a separate, reviewable diff.</p>
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Change</th><th>Closes</th><th>Files</th><th>Notes</th></tr></thead><tbody><tr><td>0.1</td><td>Commit the round-3 working tree (CCR-BR-035 and companions) as its own commit.</td><td>—</td><td>143 files under <code>references/</code> and <code>docs/</code></td><td>Line numbers in the round-4 report refer to this tree.</td></tr></tbody></table></div>
+</section><section id="p1">
+  <div class="part">04 · High findings</div>
+  <h2>Phase 1 · High findings</h2>
+  <p class="text">Each needs one decision (section 02), then a small set of files. Do these first: phase 3 and phase 4 fixes touch the same text.</p>
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Change</th><th>Closes</th><th>Files</th><th>Notes</th></tr></thead><tbody><tr><td>1.1</td><td>Sub-scope close and <code>unmount</code> follow the parent stop's limits, and every resume list names them.</td><td><span class="pill gap">H1</span> <span class="pill warn">C10</span></td><td>core 14 (BEH-BR-121, 125), 09 (BEH-BR-086), 08 (BEH-BR-074, 080), 21 (BEH-BR-178), 13; INV-BR-009, INV-BR-017</td><td>D1. Also add the refused background restart to INV-BR-017.</td></tr><tr><td>1.2</td><td>Hand-off marker for subagent drafts; precedence with the parent's own deferral; a provider for <code>Tasks</code> kept out of <code>isolate</code>.</td><td><span class="pill gap">H2</span> <span class="pill warn">T1</span> <span class="pill warn">T2</span> <span class="pill ok">PL13</span></td><td>agent 01, 02 (BEH-AG-012, 016), 04 (BEH-AG-025, 030), 06 (checks 9, 17), overview; <code>docs/guides/error-catalog.md</code>, kit 07</td><td>D2.</td></tr><tr><td>1.3</td><td>Scoped <code>fence</code> with a two-step freeze; subscriptions paused (or <code>OutboxFrozen</code> not counted) during a whole-store settlement.</td><td><span class="pill gap">H3</span> <span class="pill warn">F4</span> <span class="pill ok">PL19</span></td><td>durable-bus 02, 03, 06 (BEH-DB-046 status), 08 (check 45), overview; event-store 04, 05</td><td>D3.</td></tr><tr><td>1.4</td><td>Profiles on dialled and accepted links; export endpoints opened with residency; "placement-refused" in <code>LinkAgreement</code>; the guest's placement check runs before <code>claim</code>.</td><td><span class="pill gap">H4</span> <span class="pill warn">F1</span> <span class="pill ok">PL15</span> <span class="pill ok">PL16</span></td><td>federation 03 (BEH-FD-017), 04, 06 (BEH-FD-045); remote 09 (BEH-RM-067)</td><td>D4.</td></tr></tbody></table></div>
+</section><section id="p2">
+  <div class="part">05 · Carry the round-3 fixes through</div>
+  <h2>Phase 2 · Carry the round-3 fixes through</h2>
+  <p class="text">No decisions needed: each step copies a rule that is already settled into the places that still have the old text.</p>
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Change</th><th>Closes</th><th>Files</th><th>Notes</th></tr></thead><tbody><tr><td>2.1</td><td>Reconcile record lost at shutdown: require a wired sink, then name the loss path in every list.</td><td><span class="pill warn">C3</span> <span class="pill warn">C4</span></td><td>core 12 (BEH-BR-108), 23 (BEH-BR-205); INV-BR-022, INV-BR-029; ADR-031; glossary; RSK-BR-006; CCR-BR-035 impact entry</td><td></td></tr><tr><td>2.2</td><td>Carry the narrowed INV-BR-043 into the risk and the URS.</td><td><span class="pill warn">C13</span></td><td>core/gxp/03 (RSK-BR-033), urs.md (URS-BR-037 and gap table)</td><td>Reassess RSK-BR-033's score.</td></tr><tr><td>2.3</td><td>Clean up the leftovers of the <code>shutdown</code>/<code>WouldDeadlock</code> change.</td><td><span class="pill ok">CL1</span> <span class="pill ok">CL8</span> <span class="pill ok">CL10</span> <span class="pill ok">CL11</span> <span class="pill ok">CL12</span></td><td>core 10 (BEH-BR-096); INV-BR-016 Source and verification; ADR-016; migration map items 83, 97; RSK-BR-061; traceability §7</td><td></td></tr><tr><td>2.4</td><td>Add steps 4a and 4b to every ordered list of checks.</td><td><span class="pill ok">CL3</span> <span class="pill ok">PL17</span></td><td>core 08 (BEH-BR-066); remote invariants (INV-RM-007), ADR-RM-005</td><td></td></tr><tr><td>2.5</td><td>Add the not-yet-loaded exception to <code>reconfigure</code> with a value.</td><td><span class="pill warn">C8</span></td><td>core 11 (BEH-BR-101, 102), 08 (BEH-BR-066)</td><td></td></tr><tr><td>2.6</td><td>GxP: export receipts above the stored head, and bring the ADRs and checks up to date.</td><td><span class="pill warn">G1</span> <span class="pill ok">PL6</span> <span class="pill ok">PL7</span> <span class="pill ok">PL8</span> <span class="pill ok">PL9</span> <span class="pill ok">PL10</span></td><td>gxp 18 (BEH-GX-139), 20 (checks 11, 29), 21; ADR-GX-001, 004, 022, 023, 025</td><td></td></tr><tr><td>2.7</td><td>Limit "links stay up in step 1" to a first attempt.</td><td><span class="pill warn">F3</span></td><td>federation 02, 06 (BEH-FD-044); ADR-FD-007</td><td>Do after 4.8, which may change the retry rule.</td></tr><tr><td>2.8</td><td>Keyed verification reaches the CLI; per-series <code>keyed</code> functions are merged.</td><td><span class="pill warn">A1</span> <span class="pill ok">PL1</span></td><td>kit 06 (BEH-KT-047); audit-chain 03, 05</td><td></td></tr><tr><td>2.9</td><td>Fix <code>contributionPolicy</code> the way M25 fixed <code>guard</code>.</td><td><span class="pill warn">E4</span></td><td>entitlement 02, 03</td><td>Do with 4.1.</td></tr><tr><td>2.10</td><td>ADR-RM-007 names the <code>DedupeStore</code> path.</td><td><span class="pill ok">PL18</span></td><td>remote/decisions/007</td><td></td></tr></tbody></table></div>
+</section><section id="p3">
+  <div class="part">06 · Core design gaps</div>
+  <h2>Phase 3 · Core design gaps</h2>
+  <p class="text">New rules in core. Several are small, but each changes behaviour, so give each its own CCR entry.</p>
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Change</th><th>Closes</th><th>Files</th><th>Notes</th></tr></thead><tbody><tr><td>3.1</td><td>Realm-qualified re-entrancy references.</td><td><span class="pill warn">C1</span></td><td>core 09 (BEH-BR-088), 02 (BEH-BR-010), 15, 16, 17; ADR-016; ADR-008 (<code>WouldDeadlock</code>)</td><td>D5.</td></tr><tr><td>3.2</td><td><code>CurrentTransition</code> for fibers a build forks: a step token, or a stated limit.</td><td><span class="pill warn">C2</span></td><td>core 09, 10; RSK-BR-011</td><td>Do with 3.1, since both change the same references.</td></tr><tr><td>3.3</td><td>Close flush losses signalled after the report; a record mid-retry is numbered.</td><td><span class="pill warn">C5</span> <span class="pill ok">CL7</span></td><td>core 12, 23, 24</td><td>Recommended: error log and <code>auditPosition</code>, not <code>CloseReport</code>.</td></tr><tr><td>3.4</td><td>Step 4b skips Conflict cells; <code>enable</code> of <code>failed(load)</code> is a no-op.</td><td><span class="pill warn">C6</span> <span class="pill warn">C7</span></td><td>core 28 (BEH-BR-267, check 104), 27, 22</td><td></td></tr><tr><td>3.5</td><td>The proxy's accepted range is <code>^V</code>.</td><td><span class="pill warn">C9</span></td><td>core 26 (BEH-BR-232); remote 01, 02; federation 03</td><td></td></tr><tr><td>3.6</td><td><code>whenAvailable</code> re-runs consult the <code>RefusalList</code>.</td><td><span class="pill warn">C11</span></td><td>core 15, 28, 22 (BEH-BR-190)</td><td></td></tr><tr><td>3.7</td><td>Declare the <code>ActivePlugin</code> value type and its report operation.</td><td><span class="pill warn">C12</span></td><td>core 13, 19, 20, 27 (<code>HostLink</code>)</td><td></td></tr><tr><td>3.8</td><td>Decide where the mutation kill rule lives.</td><td><span class="pill warn">C14</span></td><td>core ADR-035, gxp/04 §5.2; gxp 16 (BEH-GX-124), ADR-GX-021</td><td>Recommended: a review criterion, so the generator stays mechanical.</td></tr><tr><td>3.9</td><td>Complete the realm and family error unions.</td><td><span class="pill ok">CL4</span> <span class="pill ok">CL5</span></td><td>core 33; ADR-008; kit 07; error catalog</td><td></td></tr><tr><td>3.10</td><td>Small fixes: <code>useOptional</code> timeout, <code>Host.use</code> interception wording, the <code>CleanupError</code> advice.</td><td><span class="pill ok">CL6</span> <span class="pill ok">CL9</span> <span class="pill ok">CL2</span></td><td>core 15, 10, 17; error catalog</td><td></td></tr></tbody></table></div>
+</section><section id="p4">
+  <div class="part">07 · Companion design gaps</div>
+  <h2>Phase 4 · Companion design gaps</h2>
+  <p class="text">Independent of each other, so they can be done in any order or in parallel.</p>
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Change</th><th>Closes</th><th>Files</th><th>Notes</th></tr></thead><tbody><tr><td>4.1</td><td>Rework <code>Entitlement.guard</code>.</td><td><span class="pill warn">E1</span> <span class="pill warn">E2</span> <span class="pill warn">E3</span> <span class="pill ok">PL3</span></td><td>entitlement 01, 02, overview, invariants (INV-EN-005); error catalog; kit 07</td><td>D6.</td></tr><tr><td>4.2</td><td>Keyring: store shred acknowledgements; define the outcome of a second <code>shredId</code>; name the subscriptions and declare the plugin or layer.</td><td><span class="pill warn">K1</span> <span class="pill warn">K2</span> <span class="pill ok">PL2</span></td><td>keyring 01, 03, overview</td><td></td></tr><tr><td>4.3</td><td>GxP: archive ranges inside a window, the IQ identity, <code>Defer</code> from consumer pieces, <code>GxpTestHost</code>, the append table and sink metrics.</td><td><span class="pill warn">G2</span> <span class="pill warn">G3</span> <span class="pill warn">G5</span> <span class="pill ok">PL4</span> <span class="pill ok">PL5</span> <span class="pill ok">PL11</span></td><td>gxp 02, 03, 15, 16, 18, 19, 20, 22</td><td></td></tr><tr><td>4.4</td><td>Agree on an empty <code>definition</code> between core and GxP.</td><td><span class="pill warn">G4</span></td><td>core 23 (BEH-BR-196); gxp 09, 11; test vector 5</td><td>Recommended: exempt <code>definition</code> in core 23:229.</td></tr><tr><td>4.5</td><td>Loader: exempt digests and "verification-unknown"; the kill switch's reconcile list; acceptances keyed by origin; drop "one computation".</td><td><span class="pill warn">L1</span> <span class="pill warn">L2</span> <span class="pill ok">PL12</span> <span class="pill ok">PL14</span></td><td>loader 02, 04, 05, 06, 07, 09</td><td></td></tr><tr><td>4.6</td><td>The kit's <code>definePlugin</code> passes <code>manifest</code> and <code>handoff</code> through.</td><td><span class="pill warn">L3</span></td><td>kit 01</td><td></td></tr><tr><td>4.7</td><td>The principal of a long command's task fiber.</td><td><span class="pill warn">T3</span></td><td>command 06 (BEH-CM-046), 07 (BEH-CM-052)</td><td></td></tr><tr><td>4.8</td><td>A retried install can push over peer links.</td><td><span class="pill warn">F2</span></td><td>federation 02 (BEH-FD-008 and nearby)</td><td>Then do 2.7.</td></tr></tbody></table></div>
+</section><section id="p5">
+  <div class="part">08 · Close the round</div>
+  <h2>Phase 5 · Close the round</h2>
+  
+  <div class="tablewrap"><table><thead><tr><th>Step</th><th>Change</th><th>Closes</th><th>Files</th><th>Notes</th></tr></thead><tbody><tr><td>5.1</td><td>Record CCR-BR-036 and the companion CCRs; bump document versions and change histories.</td><td>—</td><td>every touched README and <code>index.yaml</code></td><td></td></tr><tr><td>5.2</td><td>Run the three verifiers.</td><td>—</td><td><code>references/core/scripts/verify-*.sh</code>, gxp <code>verify-traceability.sh --strict</code></td><td></td></tr><tr><td>5.3</td><td>Run a targeted round 5 over the touched files and the files still not read line by line.</td><td>—</td><td>see the report's method section</td><td>Every round so far has found incomplete carry-through, so check that first.</td></tr></tbody></table></div>
+</section>
+
+<section>
+  <p class="foot">Bridger · specification audit round 4 · fix plan · every finding ID of the report is covered by exactly one step (checked when this page was generated).</p>
+</section>
+</main>
+</body>
+</html>

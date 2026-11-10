@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-INV                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Runtime Invariants                                           |
-> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09 (F-07): INV-RM-012 added — a call carries no identity claim its link did not disclose (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F19, F20) — INV-RM-009 holds within the `DedupeStore` retention, duplicates of a running call answered `InProgress`; INV-RM-011 includes the calling fiber's label, checked before sending (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — INV-RM-009 holds across per-call invocations with a `DedupeStore`; INV-RM-011 (residency placement) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — INV-RM-007: the callback admission order includes the placement check (step 4a) and the budget check (step 4b) of BEH-RM-043 (PL17) (CCR-RM-007)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (F-07): INV-RM-012 added — a call carries no identity claim its link did not disclose (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F19, F20) — INV-RM-009 holds within the `DedupeStore` retention, duplicates of a running call answered `InProgress`; INV-RM-011 includes the calling fiber's label, checked before sending (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — INV-RM-009 holds across per-call invocations with a `DedupeStore`; INV-RM-011 (residency placement) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -202,7 +202,9 @@ the core's capability policy allows it.
 
 **Source**: `packages/remote/src/Callback.ts` *(Planned)* — in the order of
 BEH-RM-043: epoch and revocation checked, the token checked through the
-`TokenAuthority`, duplicates set aside, the grant checked, the optional
+`TokenAuthority`, duplicates set aside, the residency label checked against
+the link's transport (step 4a, BEH-RM-069), the `PrincipalBudget` consulted
+when one is provided (step 4b, BEH-RM-066), the grant checked, the optional
 `CallbackAdmission` consulted, the payload decoded, and only then the host
 service reached with `Host.use`, whose capture is where the core
 `CapabilityPolicy` decides; the `CallLog` entry is offered when the callback

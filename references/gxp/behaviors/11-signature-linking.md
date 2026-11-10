@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-11                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-082, 083: `bindingOf` builds binding version 2 (`onBehalfOf`, `undo`, `requestOnly`); the record-side link takes `requestOnly` from the consumed binding and says so (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-082 `bindingOf` copies an empty `definition` as `{}` and an empty `mandatoryInterceptions` as `[]`, and builds `requestOnly` exactly when one of its fields is present (H7) (CCR-GX-006)<br>0.2 (2026-11-09): BEH-GX-082, 083: `bindingOf` builds binding version 2 (`onBehalfOf`, `undo`, `requestOnly`); the record-side link takes `requestOnly` from the consumed binding and says so (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -127,12 +127,12 @@ declare function bindingOf(
 | `scope` | `options.scope` |
 | `operation` | `operation` |
 | `target` | `target`, when present |
-| `definition` | `definition`, with exactly the fields present in the source |
+| `definition` | `definition`, with exactly the fields present in the source; `{}` when the source carries a `definition` that declares neither (BEH-GX-065) |
 | `config` | when `configChange` is present: `form` "raw" for `install`, "decoded" for `reconfigure`; `paths` as given; `fingerprints` as given, absent when the source has none |
 | `requester` | `{ id, kind }` of `actor`; `display` is never copied |
 | `onBehalfOf` | `onBehalfOf` without `revision`, when present |
 | `undo` | `true` when a request carries `undo: true` or a record carries `undoes` |
-| `requestOnly` | proposal and request only: `manifestDigest` = `bindingDigest`'s hash over the canonical `definition.manifest`, `allowChildren` and `mandatoryInterceptions` as given; never built from a record |
+| `requestOnly` | proposal and request only: `manifestDigest` = `bindingDigest`'s hash over the canonical `definition.manifest`, `allowChildren` and `mandatoryInterceptions` as given, `[]` included; present exactly when one of its fields is; never built from a record |
 | `reason` | `reason`, only when `options.bindReason` is true and the source has one |
 
 ```

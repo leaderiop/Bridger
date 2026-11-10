@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): Round 2: recheck item 16; core alignment — INV-EN-002 covers grant narrowing; INV-EN-005 names the contribution policies and grant narrowing; INV-EN-006 and INV-EN-007 added (CCR-EN-003)<br>0.2 (2026-11-08): INV-EN-001: `enable` never refused, `replace` only under `onReplace: "consult"`; INV-EN-005 names the skip policies (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.4 (2026-11-10): INV-EN-005: the essential labels `guard` honours are the application's, from `Entitlement.layer`; a plugin may add, never remove (E2) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — INV-EN-002 covers grant narrowing; INV-EN-005 names the contribution policies and grant narrowing; INV-EN-006 and INV-EN-007 added (CCR-EN-003)<br>0.2 (2026-11-08): INV-EN-001: `enable` never refused, `replace` only under `onReplace: "consult"`; INV-EN-005 names the skip policies (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -125,7 +125,9 @@ A use that carries an application-declared essential label is never refused,
 degraded, skipped, denied or narrowed by the gate piece, `guard`,
 `Entitlement.contributionPolicy`, `Entitlement.capabilityPolicy`, `reserve` or
 `Budget.contributionPolicy`, and every such pass in a mode or budget state that would
-otherwise refuse is counted.
+otherwise refuse is counted. The essential labels are the application's, given
+to `Entitlement.layer`; `guard` reads them from the package's process-local
+state and a plugin may add to them, never remove one (BEH-EN-014).
 
 **Source**: `packages/entitlement/src/essential.ts` *(Planned)* — one shared
 predicate consulted first by every component, with a per-label counter.

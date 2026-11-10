@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-16                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-121, BEH-GX-126 `installed` is the IQ report's `installed`, produced by IQ-01, IQ-03, IQ-08 and IQ-24 (G3); BEH-GX-124 the generator takes no mutation report: the mutation kill rule is a review criterion outside the generated evidence (C14) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -56,9 +56,14 @@ declare function collectOqEvidence(q: {
     readonly run: string                             // path of its run manifest (BEH-GX-127)
   }[]
   readonly traceability: { readonly core: string; readonly gx: string }   // the two traceability.md files
-  readonly installed: InstalledIdentity              // from the IQ report (BEH-GX-117)
+  readonly installed: InstalledIdentity              // the IQ report's `installed` (BEH-GX-117, BEH-GX-120)
   readonly conformance?: readonly string[]           // conformance-manifest.json files (BEH-GX-031)
 }): Effect.Effect<OqReport, RunnerOutputUnreadable>
+
+class RunnerOutputUnreadable extends Schema.TaggedError<RunnerOutputUnreadable>()("RunnerOutputUnreadable", {
+  path: Schema.String,                    // the runner output file
+  reason: Schema.Literal("unparseable", "truncated", "no-end-marker", "duplicate-test")   // BEH-GX-122
+}) {}
 
 interface OqReport {
   readonly format: "bridger-gx-oq/1"
@@ -197,6 +202,17 @@ REQUIREMENT: The generator MUST offer no option to exclude a requirement,
 ```
 
 ```
+REQUIREMENT: The generator MUST NOT take a mutation report, and the rule
+             above MUST NOT be weighted by one. Core's kill rule — a test
+             that kills no mutant of the code it covers is not counted as
+             evidence for that code (ADR-BR-035; validation plan §5.1) — is
+             a review criterion applied outside the generated evidence, by
+             the reviewer of the pack against the run's mutation report
+             (core gxp/04 §6.1); documentation MUST state that a "pass" in `oq.json` says
+             a test passed, not that it killed a mutant.
+```
+
+```
 REQUIREMENT: Every test MUST be listed under every requirement it claims,
              with its identity, its outcome and the attachment it came from,
              so that each outcome can be traced to the runner's own line.
@@ -259,15 +275,16 @@ where the consumer records why that is acceptable for their store, if it is.
 
 ```ts
 // illustrative — not type-checked
-interface InstalledIdentity {
+interface InstalledIdentity {                           // produced by IQ-01, IQ-03, IQ-08 and IQ-24 (BEH-GX-117)
   readonly packages: readonly { readonly name: string; readonly version: string; readonly registryHash: string
-                                readonly filesDigest: string; readonly resolvedFrom: string }[]  // @bridger/core, @bridger/gxp, effect
+                                readonly filesDigest: string; readonly resolvedFrom: string }[]  // @bridger/core, @bridger/gxp, effect; @bridger/audit-chain with sealing on
 }
 ```
 
 ```
 REQUIREMENT: A runner output MUST be counted only when its run manifest
-             records, for `@bridger/core`, `@bridger/gxp` and `effect`, the
+             records, for `@bridger/core`, `@bridger/gxp` and `effect`, and
+             for `@bridger/audit-chain` when the assembly has sealing on, the
              same name, version, registry hash and installed-files digest as
              `installed`, and a resolved location inside an installed
              dependency directory, not a source tree or a workspace link.

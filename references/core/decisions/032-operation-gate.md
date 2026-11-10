@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-032                                              |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed — amends ADR-BR-020; amended by ADR-BR-053          |
+> | Status         | Proposed — amends ADR-BR-010 and ADR-BR-020; amended by ADR-BR-053 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.5 (2026-11-08): Amended by ADR-BR-053 (CCR-BR-026)<br>0.4 (2026-11-08): `OperationGate` is the `Gate<OperationRequest>` instance of ADR-BR-047; port and records unchanged (CCR-BR-019)<br>0.3 (2026-10-03): Step 7 of the call order in full (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-10): Status names ADR-BR-010, which this ADR amends for host lifecycle operations (Low) (CCR-BR-035)<br>0.5 (2026-11-08): Amended by ADR-BR-053 (CCR-BR-026)<br>0.4 (2026-11-08): `OperationGate` is the `Gate<OperationRequest>` instance of ADR-BR-047; port and records unchanged (CCR-BR-019)<br>0.3 (2026-10-03): Step 7 of the call order in full (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context

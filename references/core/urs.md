@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-URS                                                  |
-> | Revision       | 0.24                                                         |
+> | Revision       | 0.26                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.24 (2026-11-09): Gap G35 closed: the GxP companion Draft is present and re-baselined (CCR-GX-002), links restored; G8 and the allocation table link it; gap G71 opened (request fields the companion binds but the trail does not carry) (CCR-BR-031)<br>0.23 (2026-11-08): Gap G70 opened (no `settle` for a declaration answered `Run` whose wake failed) (CCR-BR-029)<br>0.22 (2026-11-08): URS-BR-059 retitled and narrowed to holders without another key copy, no erasure claim (agent review R5-08); gap G64 row narrowed (CCR-BR-029)<br>0.21 (2026-11-08): Gap G47 row: actor half settled with the narrowing delimiter rule, realm half still open (CCR-BR-028)<br>0.20 (2026-11-08): URS-BR-056–059 (event-sourced streams, per-host number series, subject key removal, erasable event payloads); gap G56 closed; gaps G66–G68 opened and closed with core seams (call-log kind "dispatch", registry entry owner, `HoldRevoked` feed); gap G69 (no read-only marker on contract methods); G43 and G49 rows updated (CCR-BR-027)<br>0.19 (2026-11-08): URS-BR-049–050; gaps G37, G39 and G62 closed; gap G64 (a loaded but inactive veto plugin still fails open) (CCR-BR-024); URS-BR-051–052; gaps G36, G40, G44 and G48 closed; gap G65 (a narrowing provider replace needs two runs) (CCR-BR-025); URS-BR-053–055; gaps G38, G41–G43, G54, G55 (core side), G57–G61 and G63 closed (CCR-BR-026)<br>0.18 (2026-11-08): Gaps G61–G63 from the open questions of the loader and entitlement companions (CCR-BR-023)<br>0.17 (2026-11-08): URS-BR-032 reads "on behalf of which plugin" (CCR-BR-022)<br>0.16 (2026-11-08): URS-BR-029–031, gaps G36–G38 and G5 narrowed (CCR-BR-017); URS-BR-032–035, gaps G39–G42 (CCR-BR-018); URS-BR-036–040, gaps G44–G47 (CCR-BR-019); companion-origin URS-BR-041–048, Partner user group, companion scope row, gaps G43 and G48–G56 (CCR-BR-021)<br>0.15 (2026-11-08): Gap G35 recorded (the companion Draft in references/gxp/, on which G8's closure rests, is not present in this repository); G8's status points to G35; links into references/gxp/ turned into plain-text citations (CCR-BR-016)<br>0.14 (2026-10-03): Gap G8 closed: the companion is specified as a Draft in references/gxp/ (CCR-BR-015)<br>0.13 (2026-10-03): Gap G34 recorded and closed (`CloseReport.auditLastSeq` and the audit position after close) (CCR-BR-014)<br>0.12 (2026-10-03): §6 points to the behaviours' Satisfies lines (consistency pass) (CCR-BR-013)<br>0.11 (2026-10-03): G33 recorded and closed from the P5 exit-criterion work (CCR-BR-012)<br>0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.26 (2026-11-10): URS-BR-037 rationale states that code is bound only through `meta.digest`; gap G72 for a definition without one (INV-BR-043, RSK-BR-033) (C13) (CCR-BR-036)<br>0.25 (2026-11-10): URS-BR-039 when an approval control or an unavailable trail refuses the teardown, what was left is reported (C19); URS-BR-023 narrowed to operator changes, with shutdown and the host's own changes as stated exceptions (C17); §1.1 companions row names event-store, sequence and keyring (audit round 2, Low) (CCR-BR-034)<br>0.24 (2026-11-09): Gap G35 closed: the GxP companion Draft is present and re-baselined (CCR-GX-002), links restored; G8 and the allocation table link it; gap G71 opened (request fields the companion binds but the trail does not carry) (CCR-BR-031)<br>0.23 (2026-11-08): Gap G70 opened (no `settle` for a declaration answered `Run` whose wake failed) (CCR-BR-029)<br>0.22 (2026-11-08): URS-BR-059 retitled and narrowed to holders without another key copy, no erasure claim (agent review R5-08); gap G64 row narrowed (CCR-BR-029)<br>0.21 (2026-11-08): Gap G47 row: actor half settled with the narrowing delimiter rule, realm half still open (CCR-BR-028)<br>0.20 (2026-11-08): URS-BR-056–059 (event-sourced streams, per-host number series, subject key removal, erasable event payloads); gap G56 closed; gaps G66–G68 opened and closed with core seams (call-log kind "dispatch", registry entry owner, `HoldRevoked` feed); gap G69 (no read-only marker on contract methods); G43 and G49 rows updated (CCR-BR-027)<br>0.19 (2026-11-08): URS-BR-049–050; gaps G37, G39 and G62 closed; gap G64 (a loaded but inactive veto plugin still fails open) (CCR-BR-024); URS-BR-051–052; gaps G36, G40, G44 and G48 closed; gap G65 (a narrowing provider replace needs two runs) (CCR-BR-025); URS-BR-053–055; gaps G38, G41–G43, G54, G55 (core side), G57–G61 and G63 closed (CCR-BR-026)<br>0.18 (2026-11-08): Gaps G61–G63 from the open questions of the loader and entitlement companions (CCR-BR-023)<br>0.17 (2026-11-08): URS-BR-032 reads "on behalf of which plugin" (CCR-BR-022)<br>0.16 (2026-11-08): URS-BR-029–031, gaps G36–G38 and G5 narrowed (CCR-BR-017); URS-BR-032–035, gaps G39–G42 (CCR-BR-018); URS-BR-036–040, gaps G44–G47 (CCR-BR-019); companion-origin URS-BR-041–048, Partner user group, companion scope row, gaps G43 and G48–G56 (CCR-BR-021)<br>0.15 (2026-11-08): Gap G35 recorded (the companion Draft in references/gxp/, on which G8's closure rests, is not present in this repository); G8's status points to G35; links into references/gxp/ turned into plain-text citations (CCR-BR-016)<br>0.14 (2026-10-03): Gap G8 closed: the companion is specified as a Draft in references/gxp/ (CCR-BR-015)<br>0.13 (2026-10-03): Gap G34 recorded and closed (`CloseReport.auditLastSeq` and the audit position after close) (CCR-BR-014)<br>0.12 (2026-10-03): §6 points to the behaviours' Satisfies lines (consistency pass) (CCR-BR-013)<br>0.11 (2026-10-03): G33 recorded and closed from the P5 exit-criterion work (CCR-BR-012)<br>0.10 (2026-10-02): G26–G32 recorded and closed from the P5 prototype (CCR-BR-011)<br>0.9 (2026-10-02): G19–G25 recorded and closed from the P4 prototype (CCR-BR-010)<br>0.8 (2026-10-02): G17 and G18 recorded and closed from the P2 prototype (CCR-BR-009)<br>0.7 (2026-10-02): G11 status reworded (the prototype evidences no requirement); G16 recorded and closed, including the second review pass (CCR-BR-008)<br>0.6 (2026-10-02): G14 and G15 recorded and closed from the in-flight table prototype (CCR-BR-007)<br>0.5 (2026-10-02): G11 closed by ADR-BR-038 (CCR-BR-006)<br>0.4 (2026-10-02): G11 extended and G13 recorded from the GxP prototype (CCR-BR-005)<br>0.3 (2026-10-02): G10–G12 recorded from the host-core prototype (CCR-BR-004)<br>0.2 (2026-10-02): Open items G2–G4 closed by the Effect API prototype; G9 added (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -40,7 +40,7 @@ records what is still undecided.
 | **Core** (`@bridger/core`) | Installing, activating, replacing and removing plugins at runtime; dependency ordering; leases; failure and health; configuration decoding; observation; attributable operations; the `AuditSink` and `OperationGate` ports; deterministic time and identifiers |
 | **Companion** (`@bridger/gxp`, specified as a Draft in [`references/gxp/`](../gxp/README.md)) | A durable audit-trail adapter contract; approval and electronic-signature flows through `OperationGate`; IQ/OQ evidence generated from executed tests |
 | **Consumer** (the regulated user's system) | Authentication and identity binding; audit storage, retention, protection, review and archival; clock synchronisation; system validation (IQ/OQ/PQ); procedures, training, periodic review; security of the process |
-| **Companions** (specified as Drafts, CCR-BR-021) | Out-of-process plugins (`@bridger/remote`); host federation (`@bridger/federation`); cross-host event delivery (`@bridger/durable-bus`); loading and signature checks (`@bridger/loader`); hash chaining of stored records (`@bridger/audit-chain`); entitlement and budgets (`@bridger/entitlement`); command catalog, MCP and agent seams (`@bridger/command`, `@bridger/mcp`, `@bridger/agent`); developer kit (`@bridger/kit`). Isolation of out-of-process code is allocated to the consumer (host mechanism and deployment), not to Bridger |
+| **Companions** (specified as Drafts, CCR-BR-021) | Out-of-process plugins (`@bridger/remote`); host federation (`@bridger/federation`); cross-host event delivery (`@bridger/durable-bus`); loading and signature checks (`@bridger/loader`); hash chaining of stored records (`@bridger/audit-chain`); entitlement and budgets (`@bridger/entitlement`); command catalog, MCP and agent seams (`@bridger/command`, `@bridger/mcp`, `@bridger/agent`); developer kit (`@bridger/kit`); event-sourced streams (`@bridger/event-store`), per-host number series (`@bridger/sequence`) and per-subject keys with crypto-shredding (`@bridger/keyring`) (CCR-BR-027). Isolation of out-of-process code is allocated to the consumer (host mechanism and deployment), not to Bridger |
 | **Out of scope** | Fetching, verifying or sandboxing plugin code in core; domain models; HTTP, UI or CLI integration; compensation of external effects |
 
 Bridger runs plugins; it does not authenticate, persist, or validate. A library
@@ -191,10 +191,18 @@ be reviewed.
 
 ### URS-BR-023: Prevent a change that cannot be recorded
 
-When a change cannot be recorded, it must not happen.
+When an operator's change cannot be recorded, it must not happen. Two kinds
+of change are excepted, because refusing them would be worse than an
+unrecorded change: shutdown, and the changes the host makes on its own (a
+failure, a dependent stopped with its provider, a lazy plugin returning to
+dormant). These proceed; a record of theirs that cannot be written must be
+detectable and must block further operator changes until someone
+acknowledges it.
 
 Rationale: a change made while the trail is unavailable is a change nobody can
-later reconstruct.
+later reconstruct. A host cannot refuse to fail or to stop, so for those the
+requirement is that the hole in the trail is noticed, not that the change is
+prevented (BEH-BR-203, BEH-BR-205).
 
 ### URS-BR-024: Require approval before a regulated change
 
@@ -305,7 +313,10 @@ only if the host is still in the state it was planned against; any gate must
 be able to answer "not yet" as well as yes or no.
 
 Rationale: self-modifying systems (agents adding tools, update services) are
-reviewable only if what is applied is what was reviewed.
+reviewable only if what is applied is what was reviewed. Bridger binds the
+reviewed code only through a definition's `meta.digest`: for a definition
+without one, a plan binds its version but not its code (INV-BR-043; gap
+G72).
 
 ### URS-BR-038: Create a plugin set per key on demand and reclaim it when idle
 
@@ -317,8 +328,10 @@ presenting this as separation of one key's data from another's.
 ### URS-BR-039: Run a short-lived plugin set for delegated work
 
 An application developer must be able to run a plugin set that lives exactly
-as long as one task, leaves nothing behind, and whose changes are recorded as
-made by that task on behalf of the person or service that started it.
+as long as one task, leaves nothing behind — or, when an approval control or
+an unavailable audit trail refuses its removal, reports what it left — and
+whose changes are recorded as made by that task on behalf of the person or
+service that started it.
 
 ### URS-BR-040: Keep a plugin's state across a replacement
 
@@ -734,6 +747,7 @@ it satisfies in its `**Satisfies:**` line.
 | G69 | A contract cannot state which of its methods are read-only (BEH-BR-225), so the entitlement companion's grant narrowing on lapse needs a separate `ReadOnlyClassifier` per deployment, and a wrong classification leaves a writing member callable (entitlement BEH-EN-025–028, Open (1)). | Open (CCR-BR-027): whether `MethodSpec` gains an optional read-only marker carried in `ContractDescriptor` and read by companions, never enforced by core |
 | G70 | `settle` is called only after a hook call that `policy` answered with `Run` (BEH-BR-302). A declaration answered `Run` before its wake whose wake then fails or times out (BEH-BR-309) is never called, so it gets no `settle`, and a budget the policy charged for it is returned only when the charge expires (entitlement BEH-EN-023; open item (0) of entitlement behaviour file 04). | Open (CCR-BR-029): whether `settle` gains an outcome "wake-failed" for a declaration answered `Run` and never called; until then the entitlement companion documents expiry at `ttl` (BEH-BR-302, BEH-BR-309) |
 | G71 | The `requested` and `rejected` records carry the presented `definition` (BEH-BR-195) but not `allowChildren`, `mandatoryInterceptions` or the manifest digest of the `OperationRequest` (BEH-BR-219). The GxP companion's binding version 2 binds them from the request, so its check that compares records with approvals cannot recompute them from the trail (companion gap GX-G11, BEH-GX-083). | Open (CCR-BR-031): whether BEH-BR-195 adds them to `requested` and `rejected` records of `install` and `replace`, under the pre-release rule for `schemaVersion` |
+| G72 | A plan binds an entry's code only through `meta.digest` (INV-BR-043, CCR-BR-035): for an `install` or `replace` entry whose definition declares none, `expect` compares only `meta.version`, so different code of the same version applies under an approved plan, and URS-BR-037's "what is applied is what was reviewed" holds for the code only where every definition carries a digest. | Residual risk (CCR-BR-036): RSK-BR-033, reassessed to Medium (3) / Medium (4); the approver sees an `incoming` without `digest` (BEH-BR-318), and the consumer requires digests on approved plans or binds the code by its own control |
 | G9 | A naive supervised child (`forkChild` + `join` inside the lease) releases the lease before the child's finalizers run when the caller is interrupted, which would break BEH-BR-084. | Design constraint recorded (CCR-BR-003): the implementation interrupts and awaits the child before release; prototype checks E7a–E7b show the failure and the fix |
 
 ---

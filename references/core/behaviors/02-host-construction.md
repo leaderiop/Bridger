@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-02                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-09): BEH-BR-016 the `hostId` is unique among the hosts that share a store, by the uniqueness rule of BEH-BR-210 (F-03) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-012 the base-key rule scoped to the default realm's resolution scope, an isolating realm may provide a base key, the host-owned keys `Bridger.Host` and `Bridger.Events` never provided or isolated (C-02); BEH-BR-013 made the single source of host signatures: `restart` and `reconfigure` take `HandoffCallOptions`, `reconcile` adds `ApplyRolledBack` and `PartialApply`, `defineRealm` adds `InvalidRealm`, Settled note (C-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-010 `HostLink` reference and BEH-BR-013 `declaredContributions` and `link` (CCR-BR-024); BEH-BR-011 option `mandatoryCatalog` and its domain rule (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-010 `CurrentCorrelation` reference; BEH-BR-013 `offerCallEntry`, Settled item 8; BEH-BR-015 the `RefusalList` port and the `CallLog` fields read at construction (CCR-BR-026)<br>0.5 (2026-11-08): `wake` takes no `OperationContext` and is a class of its own (system transitions only); generic `install`/`replace` overloads take the branded `Plugin` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-011 options `mandatory`, `resolutionTimeout`, `callLogTimeout` (CCR-BR-018), `baseContracts` (CCR-BR-017), `handoffTimeout` (CCR-BR-019); BEH-BR-013 `Plugin.Any` overloads (CCR-BR-020), `wake` (CCR-BR-017), `plan`, `retireRealm`, `PlanStale` (CCR-BR-019), `ResolutionRefused` (CCR-BR-018); BEH-BR-014 `retireRealm` operation; BEH-BR-015 policy ports, context references (CCR-BR-018) and `EntitlementView` (CCR-BR-020)<br>0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.12 (2026-11-10): BEH-BR-010 `HeldPlugins` and `CurrentTransition` hold canonical keys `JSON.stringify([realm, id])`; BEH-BR-013 plugins in different realms are distinct for the re-entrancy check, `WouldDeadlock` carries `realm` (C1); BEH-BR-010 the `ActivePlugin` reference carries `Option<ActivePlugin>` (`pluginId`, `realm`, `report`) (C12) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-010 the `CurrentTransition` reference, exported for hand-offs, `HeldPlugins` for leases only (H1); BEH-BR-014 `shutdown`'s union includes `WouldDeadlock` (H2), and `declaredContributions` and `offerCallEntry` are listed as not mutating (audit round 3, Low) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-011 a `baseContracts` entry naming a key the base does not provide fails construction once the base is built, the other option checks before (audit round 2, Low); BEH-BR-010 `HostLink` is set in every fiber running plugin or callback code (Low); BEH-BR-013 `shutdown` gains `WouldDeadlock` (C6) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-016 the `hostId` is unique among the hosts that share a store, by the uniqueness rule of BEH-BR-210 (F-03) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-012 the base-key rule scoped to the default realm's resolution scope, an isolating realm may provide a base key, the host-owned keys `Bridger.Host` and `Bridger.Events` never provided or isolated (C-02); BEH-BR-013 made the single source of host signatures: `restart` and `reconfigure` take `HandoffCallOptions`, `reconcile` adds `ApplyRolledBack` and `PartialApply`, `defineRealm` adds `InvalidRealm`, Settled note (C-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-010 `HostLink` reference and BEH-BR-013 `declaredContributions` and `link` (CCR-BR-024); BEH-BR-011 option `mandatoryCatalog` and its domain rule (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-010 `CurrentCorrelation` reference; BEH-BR-013 `offerCallEntry`, Settled item 8; BEH-BR-015 the `RefusalList` port and the `CallLog` fields read at construction (CCR-BR-026)<br>0.5 (2026-11-08): `wake` takes no `OperationContext` and is a class of its own (system transitions only); generic `install`/`replace` overloads take the branded `Plugin` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-011 options `mandatory`, `resolutionTimeout`, `callLogTimeout` (CCR-BR-018), `baseContracts` (CCR-BR-017), `handoffTimeout` (CCR-BR-019); BEH-BR-013 `Plugin.Any` overloads (CCR-BR-020), `wake` (CCR-BR-017), `plan`, `retireRealm`, `PlanStale` (CCR-BR-019), `ResolutionRefused` (CCR-BR-018); BEH-BR-014 `retireRealm` operation; BEH-BR-015 policy ports, context references (CCR-BR-018) and `EntitlementView` (CCR-BR-020)<br>0.3 (2026-10-03): BEH-BR-011 `fingerprintTimeout` option and its domain rule; BEH-BR-013 `controls()` observation member and `ConfigFingerprintUnavailable` in the `install` and `reconfigure` unions (per entry for `reconcile`), Settled item 7; BEH-BR-014 `controls` is not mutating; BEH-BR-015 `ConfigFingerprinter` read once at construction, and an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.2 (2026-10-02): HeldPlugins also carried by builds and finalizers; `concurrency` bounds builds only; `retry` and `enable` add `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -90,11 +90,12 @@ Plugin.Config      // "@bridger/core/Plugin.Config"   — per activation, input 
 Bridger.Events     // "@bridger/core/Events"          — typed event bus, a base service (16)
 
 // Context.Reference values (identifiers and defaults are exact)
-HeldPlugins        // "@bridger/core/HeldPlugins"   ReadonlySet<string>, default: empty set (09; leases, builds, finalizers)
-ActivePlugin       // "@bridger/core/ActivePlugin"  default: none (13)
+HeldPlugins        // "@bridger/core/HeldPlugins"   ReadonlySet<string>, default: empty set (09; leases); elements are canonical keys JSON.stringify([realm, id])
+CurrentTransition  // "@bridger/core/CurrentTransition"  Option<string>, default: none (09, BEH-BR-088; builds, `load`, finalizers; exported for hand-offs like HeldPlugins); a canonical key JSON.stringify([realm, id])
+ActivePlugin       // "@bridger/core/ActivePlugin"  Option<ActivePlugin> ({ pluginId, realm, report }), default: none (13, BEH-BR-119)
 CurrentActor       // "@bridger/core/CurrentActor"  default: Actor.unattributed (22)
 CurrentCorrelation // "@bridger/core/CurrentCorrelation"  default: none (22, BEH-BR-187)
-HostLink           // "@bridger/core/HostLink"      Option<HostLink>, default: none (27, BEH-BR-250; set by the host in every fiber it runs code in)
+HostLink           // "@bridger/core/HostLink"      Option<HostLink>, default: none (27, BEH-BR-250; set by the host in every fiber it runs plugin or callback code in)
 ```
 
 ```
@@ -172,13 +173,16 @@ REQUIREMENT: Construction MUST reject an option value outside its domain —
              `fingerprintTimeout`, `resolutionTimeout`, `callLogTimeout` or
              `handoffTimeout` that is not a positive duration (for the last
              four, "forever" is not accepted); a `baseContracts` entry that
-             is invalid or names a `ServiceId` the base does not provide
-             (checked once the base is built; 26 — Versioned Contracts); a
+             is invalid (26 — Versioned Contracts); a
              `drainTimeout`, `gateTimeout` or `stallWarning` that is
              neither a positive duration nor its named keyword; a
              `mandatoryCatalog` entry with an empty id, or two entries with
              one id (18 — Reconciliation and Confluence, BEH-BR-153) — by failing with a defect that names the option, before
-             any base layer is built.
+             any base layer is built. A `baseContracts` entry that names a
+             `ServiceId` the base does not provide can be found only once
+             the base is built: construction MUST then fail with a defect
+             that names the option, before the host is provided and before
+             any plugin is installed.
 ```
 
 ```
@@ -335,7 +339,7 @@ interface Host {
   retireRealm(id: string, operation?: OperationOptions):
     Effect.Effect<void, UnknownRealm | RealmInUse | HostClosed | G>                              // 33
   shutdown(options?: OperationOptions & { readonly timeout?: Duration.Input }):
-    Effect.Effect<CloseReport, Unattributed | ReasonRequired>   // 12; never gated, never blocked by the
+    Effect.Effect<CloseReport, Unattributed | ReasonRequired | WouldDeadlock>   // 12; never gated, never blocked by the
                                                                  // latch or by an unwritable record
   acknowledgeAuditDegraded(options: { readonly context: OperationContext }):
     Effect.Effect<void, HostClosed | G>                                                          // 23
@@ -413,7 +417,11 @@ REQUIREMENT: This behaviour MUST be the single source of every `Host`
 REQUIREMENT: Every operation that names a plugin MUST take a `PluginRef`. A
              bare string MUST mean the plugin of that ID in the "default"
              realm. Two plugins with the same ID in different realms MUST be
-             distinct plugins for every operation.
+             distinct plugins for every operation, and for every check that
+             names plugins, `WouldDeadlock` included: the re-entrancy
+             references name a plugin by its canonical key
+             `JSON.stringify([realm, id])`, and `WouldDeadlock` carries `id` and
+             `realm` (09 — Leases, BEH-BR-088; CCR-BR-036).
 ```
 
 ```
@@ -531,15 +539,17 @@ REQUIREMENT: The error union of every mutating operation MUST include
              `Unattributed | ReasonRequired | AuditUnavailable |
              OperationRejected`, except `reconcile`, whose union is fixed by
              18 — Reconciliation and Confluence, and `shutdown`, whose
-             union is `Unattributed | ReasonRequired` because it MUST NOT be
-             gated or blocked by the audit latch or by an unwritable audit
-             record (12 — Shutdown and Hosting).
+             union is `Unattributed | ReasonRequired | WouldDeadlock`
+             because it MUST NOT be gated or blocked by the audit latch or
+             by an unwritable audit record, and fails `WouldDeadlock` only
+             from a build, `load` or finalizer fiber (12 — Shutdown and
+             Hosting, BEH-BR-105).
 ```
 
 ```
 REQUIREMENT: `snapshot`, `changes`, `events`, `awaitIdle`, `inspect`,
-             `controls`, `plan`, `use`, `useAll` and `lease` are not
-             mutating operations. They
+             `controls`, `plan`, `declaredContributions`, `offerCallEntry`,
+             `use`, `useAll` and `lease` are not mutating operations. They
              MUST NOT require attribution, consult the `OperationGate`, or
              write audit records.
 ```

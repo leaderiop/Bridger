@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-016                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-10-02): The carried reference extended to builds and activation-scope finalizers; check run before any wait and again at the intent; second pass: which forked fibers carry a build's or finalizer's plugin, `retry` and `enable` covered (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-10): Plugins in `HeldPlugins` and `CurrentTransition` are named by the canonical key `JSON.stringify([realm, id])`, `WouldDeadlock` carries `realm` (C1); the claim that splitting the reference changes nothing names its exceptions, the `emit` listener and the record-less refused `shutdown` (CL8); the untracked forked fiber that keeps `CurrentTransition` is a stated limit (C2) (CCR-BR-036)<br>0.3 (2026-11-10): Builds, `load` and finalizers carry their plugin in `@bridger/core/CurrentTransition`, `HeldPlugins` keeps leases, and both references are exported for companion hand-offs; every other call reads both, `shutdown` reads `CurrentTransition` only, before its `requested` record; two alternatives added (H1) (CCR-BR-035)<br>0.2 (2026-10-02): The carried reference extended to builds and activation-scope finalizers; check run before any wait and again at the intent; second pass: which forked fibers carry a build's or finalizer's plugin, `retry` and `enable` covered (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -28,12 +28,13 @@ These waits are the caller's own fault and are fully determined at call time, if
 
 ## Decision
 
-- A fiber that holds a lease on a plugin carries the held plugin IDs in a `Context.Reference<ReadonlySet<string>>` with identifier `@bridger/core/HeldPlugins` (default: the empty set). Forked fibers inherit it, and the supervised child of `use`/`useAll` inherits it from the caller.
-- A call from such a fiber that would wait for a held plugin *P* to drain fails immediately with `WouldDeadlock { id }`. This covers `remove`, `replace`, `restart`, `reconfigure` and `disable` of *P*; `retry` and `enable` of *P* while a system stop of *P* runs, which they wait for ([08 — Operation legality](../behaviors/08-operation-legality.md), BEH-BR-073); the same stopping operations on any provider whose stop must first stop *P* (because *P* depends on it, directly or transitively); and `awaitIdle`.
-- A fiber running *P*'s `build` or one of *P*'s finalizers carries *P*'s ID in the same reference, and so does every fiber it forks and awaits before returning. Fibers forked into the activation scope (`background`, `whenAvailable`) carry only the leases they hold: they outlive the build and are not part of its transition step. A mutating call from a fiber carrying *P* that would wait for a transition step of *P* fails with `WouldDeadlock { id }` in the same way.
-- **When it is checked.** The check runs at step 7 of BEH-BR-188, before the call waits for anything, and again at the linearization point immediately before the intent is recorded, because whether the call joins or supersedes an operation in flight — and so waits for that operation's stop — is known only there.
+- A fiber that holds a lease on a plugin carries the held plugins in a `Context.Reference<ReadonlySet<string>>` with identifier `@bridger/core/HeldPlugins` (default: the empty set), each named by its canonical key `JSON.stringify([realm, id])` (the default realm spelled "default"; no separator join is safe, since neither a realm id, a family member's being `${id}/${K}`, nor a plugin id has a grammar), since a plugin's identity is the pair (id, realm) ([17 — Realms and interception](../behaviors/17-realms-and-interception.md), BEH-BR-147; CCR-BR-036). Forked fibers inherit it, and the supervised child of `use`/`useAll` inherits it from the caller.
+- A call from such a fiber that would wait for a held plugin *P* to drain fails immediately with `WouldDeadlock { id, realm }`; checks compare canonical keys, so a lease on `repo` in one realm never refuses an operation on `repo` in another. This covers `remove`, `replace`, `restart`, `reconfigure` and `disable` of *P*; `retry` and `enable` of *P* while a system stop of *P* runs, which they wait for ([08 — Operation legality](../behaviors/08-operation-legality.md), BEH-BR-073); the same stopping operations on any provider whose stop must first stop *P* (because *P* depends on it, directly or transitively); and `awaitIdle`.
+- A fiber running *P*'s `build` or `load`, or one of *P*'s finalizers, carries *P*'s canonical key in a reference of its own, `Context.Reference<Option<string>>` with identifier `@bridger/core/CurrentTransition` (default: none; set by core, and exported only so that a companion can carry it across a hand-off on the rules that apply to `HeldPlugins`), and so does every fiber it forks and awaits before returning. `HeldPlugins` keeps leases only. Fibers forked into the activation scope (`background`, `whenAvailable`) carry no plugin in `CurrentTransition` and only the leases they hold in `HeldPlugins`: they outlive the build and are not part of its transition step. A mutating call from a fiber carrying *P* in either reference that would wait for *P* to drain or for a transition step of *P* fails with `WouldDeadlock { id, realm }` in the same way, so for every call but `shutdown` the two references are read together and what is refused is what one reference refused before (CCR-BR-035) — with one exception: an `emit` listener, which the dispatcher does not await, inherits `HeldPlugins` but carries no plugin in `CurrentTransition` ([16 — Event bus](../behaviors/16-event-bus.md), BEH-BR-144), so a listener of an event emitted from *P*'s build, `load` or finalizer is no longer refused for *P*; it does not hold up *P*'s step, so its call waits without a cycle.
+- **`shutdown` reads `CurrentTransition` only.** A `shutdown` from a fiber carrying *P* in `CurrentTransition` fails at once with `WouldDeadlock { id, realm }` naming *P*, after attribution and before its `requested` record: it writes no record, begins nothing and does not join a shutdown in progress ([12 — Shutdown and Hosting](../behaviors/12-shutdown-and-hosting.md), BEH-BR-105; [22 — Attributable Operations](../behaviors/22-attributable-operations.md), BEH-BR-188). A lease holder's `shutdown` is not refused: the overall shutdown limit forces its lease and ends its wait.
+- **When it is checked.** For every mutating call but `shutdown`, the check runs at step 7 of BEH-BR-188, before the call waits for anything, and again at the linearization point immediately before the intent is recorded, because whether the call joins or supersedes an operation in flight — and so waits for that operation's stop — is known only there. `shutdown`'s check depends on the calling fiber alone and runs before its `requested` record, as above.
 - `use` of other services remains allowed.
-- **Limit.** The check follows the carried reference only. A wait that goes through another fiber that does not inherit the reference (a callback, build or finalizer that hands work to a queue worker which then calls `remove`, or awaits a fiber started elsewhere) cannot be detected. Such a cycle can be closed only by code that runs inside a lease, a build or a finalizer and calls the host; within the fiber tree the reference catches it, and a hand-off to another fiber remains the residual of [RSK-BR-011](../gxp/03-risk-assessment.md#rsk-br-011), bounded by the drain limits and `buildTimeout`, exactly as for any stuck lease or build.
+- **Limit.** The check follows the carried references only. A fiber a build, `load` or finalizer forks without awaiting it, outside `background` and `whenAvailable` (`forkScoped`, `forkDaemon`), keeps *P* in `CurrentTransition` for life, since the host does not track it; its guarded calls on *P*, its `awaitIdle` and its `shutdown` are refused after the step has returned, a false positive stated as a limit ([09 — Leases](../behaviors/09-leases.md), BEH-BR-088; CCR-BR-036). A wait that goes through another fiber that does not inherit the reference (a callback, build or finalizer that hands work to a queue worker which then calls `remove`, or awaits a fiber started elsewhere) cannot be detected. Such a cycle can be closed only by code that runs inside a lease, a build or a finalizer and calls the host; within the fiber tree the reference catches it, and a hand-off to another fiber remains the residual of [RSK-BR-011](../gxp/03-risk-assessment.md#rsk-br-011), bounded by the drain limits and `buildTimeout`, exactly as for any stuck lease or build.
 
 ## Alternatives considered
 
@@ -42,24 +43,26 @@ These waits are the caller's own fault and are fully determined at call time, if
 - **No detection; rely on `DrainTimeout`.** Rejected: the failure arrives late, names the wrong cause, and never arrives under `drain: "forever"`.
 - **Carry the reference only in lease callbacks** (the first version of this decision). Rejected: a build or a finalizer that calls the host closes the same cycle, and would be caught only by `buildTimeout` or a drain limit, late and under the wrong error.
 - **Check only once, at step 7.** Rejected: a call that turns out to join an operation in flight on a held plugin would wait for that operation's stop, and the join is decided only at the linearization point.
+- **One reference for leases and transition steps** (this decision until CCR-BR-035). Rejected: `shutdown` must refuse a build, `load` or finalizer and allow a lease callback, and one set cannot tell the two apart. Every other guarded call treats both alike, so splitting the reference changes nothing for them, except for an `emit` listener, which carries `HeldPlugins` but not `CurrentTransition` and is no longer refused for the plugin whose step emitted; and a refused `shutdown` now writes no record, where a call refused at step 7 writes a `requested` and a `failed` record.
+- **Decide `shutdown`'s `WouldDeadlock` at step 7, after its `requested` record, like the others.** Rejected: at step 7 a shutdown on a closing host joins the one in progress, and a refused shutdown must not wait for it; the answer depends on the calling fiber only, so nothing is gained by deciding it later.
 
 ## Consequences
 
 **Positive**:
 
-- The common self-deadlock fails at once, with an error naming the plugin, whether it starts in a lease callback, a build or a finalizer.
+- The common self-deadlock fails at once, with an error naming the plugin, whether it starts in a lease callback, a build, a `load` or a finalizer.
 - The same carried-reference pattern serves `@bridger/core/ActivePlugin` and `@bridger/core/CurrentActor`.
 
 **Negative**:
 
 - Detection is incomplete by design: cross-fiber hand-offs are invisible to it.
-- `awaitIdle` cannot be called from inside a lease callback, a build or a finalizer.
+- `awaitIdle` cannot be called from inside a lease callback, a build, a `load` or a finalizer; `shutdown` cannot be called from a build, a `load` or a finalizer.
 
 **Trade-off accepted**: detection limited to the fiber tree, with `DrainTimeout` and `buildTimeout` as the backstops, in exchange for a check that is cheap and exact for the cases it covers.
 
 ## References
 
-- Behaviours: [09 — Leases](../behaviors/09-leases.md), [08 — Operation legality](../behaviors/08-operation-legality.md)
+- Behaviours: [09 — Leases](../behaviors/09-leases.md), [08 — Operation legality](../behaviors/08-operation-legality.md), [12 — Shutdown and hosting](../behaviors/12-shutdown-and-hosting.md), [22 — Attributable operations](../behaviors/22-attributable-operations.md)
 - Invariants: [INV-BR-016](../invariants.md#inv-br-016-a-re-entrant-wait-fails-fast), [INV-BR-017](../invariants.md#inv-br-017-every-drain-is-bounded-unless-declared-forever)
 - Risks: [RSK-BR-011](../gxp/03-risk-assessment.md#rsk-br-011)
 - Decisions: [ADR-BR-015](../decisions/015-leases-one-primitive.md), [ADR-BR-008](../decisions/008-error-taxonomy.md), [ADR-BR-038](../decisions/038-cross-plugin-stop-ordering.md)

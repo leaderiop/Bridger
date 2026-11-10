@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-28                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): BEH-BR-258 a handoff's `export` runs under the old activation's principal, `upgrade` and `import` under the new activation's (U-04) (CCR-BR-033)<br>0.5 (2026-11-09): BEH-BR-260 a failing mandatory `wrap` on an optional or reactive capture has the outcome BEH-BR-152 now states (U-06) (CCR-BR-032)<br>0.4 (2026-11-08): BEH-BR-262 Settled: the call's realm adds to, never replaces, a plugin's own mandatory sets (G-P16 not adopted); BEH-BR-267 only the definition's own digest is submitted, other revocation identifiers are the list's mapping (agent review R3-03), the reconcile diff, `registeredAt` and `plan` with a refused digest (R1-07); BEH-BR-269 `origin` form is the companion's to document (agent review F27); check 104 amended (CCR-BR-029)<br>0.3 (2026-11-08): BEH-BR-267 `RefusalList` port consulted on every start, system transitions included; BEH-BR-268 `AccessPolicy.declaredOnly`; BEH-BR-269 `AccessPolicy.ask` for companion buses and delivery; `AccessRequest` gains `declared`, `origin` and the styles "subscribe", "delivery" and mode "publish"; BEH-BR-263 Open closed (the install request carries `allowChildren` and `mandatoryInterceptions`, 25); BEH-BR-265 reports `refusal`; checks 104, 105 and 109 (CCR-BR-026); BEH-BR-259: root lazy-triggered records carry onBehalfOf (CCR-BR-024); BEH-BR-260 Open settled by the mandatory catalog (CCR-BR-025)<br>0.2 (2026-11-08): `onBehalfOf` defined as the principal of the calling fiber, with the provider case stated; principal retired after the activation's finalizers; `child` access requests carry the parent activation's principal; principal `revision` defined; realms of `Host.use` from plugin code; mandatory interceptions are application-wired and cover host captures only (not base-service reads); `who` before the access check; unwired-sameness reworded (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook calls under the owner's principal and the hook registry's access check (CCR-BR-019) |
+> | Change History | 0.9 (2026-11-10): BEH-BR-267 step 4b skips `Conflict` cells as well as no-op cells, `enable` of `failed` listed as not submitted; check 104 aligned (C6, C7); a `whenAvailable` re-run under "restart" is a consult point and counts as a background restart (C11) (CCR-BR-036)<br>0.8 (2026-11-10): BEH-BR-267 one step-4b criterion: the listed operations except where the BEH-BR-071 cell is a no-op, a `reconfigure` of a `dormant` plugin never submitted; check 104 aligned (C8); BEH-BR-263 mount-check order includes the `InstallError` checks (audit round 3, Low) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-257 a build that supersedes another in `starting` begins a new activation in a new revision, so the principal's revision stays unique (audit round 2, Low); BEH-BR-263 a mount refused by `allowChildren` or the `AccessPolicy` writes no record, one refused by the `RefusalList` writes `start-refused`, and the order of the mount checks (audit round 2, Low); BEH-BR-267 a trigger on a `dormant` plugin is its own consult point, to `waiting` too (C14), and a refused background restart stops with `StopReason` "refused-digest" (C5); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-258 a handoff's `export` runs under the old activation's principal, `upgrade` and `import` under the new activation's (U-04) (CCR-BR-033)<br>0.5 (2026-11-09): BEH-BR-260 a failing mandatory `wrap` on an optional or reactive capture has the outcome BEH-BR-152 now states (U-06) (CCR-BR-032)<br>0.4 (2026-11-08): BEH-BR-262 Settled: the call's realm adds to, never replaces, a plugin's own mandatory sets (G-P16 not adopted); BEH-BR-267 only the definition's own digest is submitted, other revocation identifiers are the list's mapping (agent review R3-03), the reconcile diff, `registeredAt` and `plan` with a refused digest (R1-07); BEH-BR-269 `origin` form is the companion's to document (agent review F27); check 104 amended (CCR-BR-029)<br>0.3 (2026-11-08): BEH-BR-267 `RefusalList` port consulted on every start, system transitions included; BEH-BR-268 `AccessPolicy.declaredOnly`; BEH-BR-269 `AccessPolicy.ask` for companion buses and delivery; `AccessRequest` gains `declared`, `origin` and the styles "subscribe", "delivery" and mode "publish"; BEH-BR-263 Open closed (the install request carries `allowChildren` and `mandatoryInterceptions`, 25); BEH-BR-265 reports `refusal`; checks 104, 105 and 109 (CCR-BR-026); BEH-BR-259: root lazy-triggered records carry onBehalfOf (CCR-BR-024); BEH-BR-260 Open settled by the mandatory catalog (CCR-BR-025)<br>0.2 (2026-11-08): `onBehalfOf` defined as the principal of the calling fiber, with the provider case stated; principal retired after the activation's finalizers; `child` access requests carry the parent activation's principal; principal `revision` defined; realms of `Host.use` from plugin code; mandatory interceptions are application-wired and cover host captures only (not base-service reads); `who` before the access check; unwired-sameness reworded (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook calls under the owner's principal and the hook registry's access check (CCR-BR-019) |
 
 ---
 
@@ -146,7 +146,13 @@ REQUIREMENT: The activation revision of a principal MUST be the
              `HostSnapshot.revision` (04 — States and Snapshots,
              BEH-BR-029) of the snapshot in which that activation entered
              `starting`. It is unique per activation of a registration and
-             is the value written as `PrincipalRef.revision`.
+             is the value written as `PrincipalRef.revision`. A build that
+             supersedes another while the registration stays `starting` (a
+             `replace`, `reconfigure` or `restart` of a starting plugin, 08 —
+             Operation Legality, BEH-BR-071) begins a new activation: the
+             host MUST publish a new snapshot revision when that build
+             begins, even if no other field changed, and that revision is
+             the new activation's.
 ```
 
 ```
@@ -644,8 +650,23 @@ REQUIREMENT: When `allowChildren` permits the mount and an `AccessPolicy`
 ```
 REQUIREMENT: A refused mount MUST be logged at warning level naming the
              parent and the child id, and MUST publish a `child-refused
-             { id, childId }` host event. It is not an audit record: nothing
-             changed.
+             { id, childId }` host event. A mount refused by `allowChildren`
+             or the `AccessPolicy` writes no audit record: nothing changed.
+             A mount refused by the `RefusalList` writes the one
+             `start-refused` record of BEH-BR-267, the evidence that a
+             revoked digest was kept out.
+```
+
+```
+REQUIREMENT: The checks on a mount MUST run in this order, the first
+             refusal winning and no later check being consulted: a lazy
+             definition (`InvalidDefinition`, 14 — Children and Groups),
+             the definition checks of `Host.install` — the other
+             `InstallError` members (03 — Installation, BEH-BR-018) and the
+             cycle check with the mount edge (14) — then `allowChildren`, a
+             wired `AccessPolicy`, a wired `RefusalList`, as an operator
+             call validates (step 4) before its `RefusalList` (step 4b)
+             (CCR-BR-035).
 ```
 
 ```
@@ -826,7 +847,7 @@ the one in which a reviewer believes a control exists.
 REQUIREMENT: With no mandatory interception, no `AccessPolicy`, no
              `RefusalList` and every `allowChildren` at its default, every
              operation MUST behave
-             exactly as files 02–25 specify: the same outcomes, errors,
+             exactly as files 02–20 and 22–34 specify: the same outcomes, errors,
              states and events. Snapshots, requests and records gain only
              additive fields: `allowChildren` and `mandatoryServiceIds` on
              `PluginCommon` (04, BEH-BR-263, BEH-BR-265), `annotations` on
@@ -901,11 +922,16 @@ REQUIREMENT: When wired, the host MUST call `refused` for a definition that
              these points, and MUST NOT cache or reuse an answer:
              - each time a registration would enter `starting`, for any
                cause — the last requirement of a `waiting` plugin becoming
-               available, a trigger applying to a `dormant` plugin, a stop
-               that ends in `starting`, an operator call — before any of
-               its code is loaded or built;
+               available, a stop that ends in `starting`, an operator
+               call — before any of its code is loaded or built;
+             - each time a trigger applies to a `dormant` plugin, whether
+               it would leave for `starting` or for `waiting` (27 —
+               Manifest and Lazy Activation, BEH-BR-245), before any of
+               its code is loaded;
              - before each restart of a `background` fiber under "restart"
-               (10 — Runtime Failure and Health, BEH-BR-090);
+               (10 — Runtime Failure and Health, BEH-BR-090), and before
+               each re-run of a `whenAvailable` run under "restart"
+               (15 — Optional and Reactive, BEH-BR-134);
              - at each child mount through `Plugin.Runtime.install`
                (14 — Children and Groups, BEH-BR-121), for the child's
                definition;
@@ -931,14 +957,27 @@ REQUIREMENT: The host MUST submit only the definition's own digest
 ```
 
 ```
-REQUIREMENT: At step 4b, for each plugin-addressed operator call whose
-             outcome in BEH-BR-071 (08 — Operation Legality) leaves the
-             registration in `dormant`, `waiting` or `starting`, or
-             rebuilds it — `install` without `disabled`, `replace` of a
-             registration that is not disabled by an operator, `enable`,
-             `retry`, `restart` and a `reconfigure` that restarts — the host
-             MUST submit the incoming definition (`install`, `replace`) or
-             the installed one (every other operation). A refusal MUST
+REQUIREMENT: At step 4b, for each plugin-addressed operator call among
+             `install` without `disabled`, `replace` of a registration that
+             is not disabled by an operator, `enable`, `retry`, `restart`
+             and a `reconfigure` that restarts — except where the cell of
+             BEH-BR-071 (08 — Operation Legality) for the registration's
+             state at step 4 is a no-op or a `Conflict` — the host MUST
+             submit the incoming definition (`install`, `replace`) or the
+             installed one (every other operation); no other call is
+             submitted, so step 4b runs only for a call whose outcome
+             leaves the registration in `dormant`, `waiting` or `starting`,
+             or rebuilds it. Not submitted, therefore: `retry` or `enable`
+             of a `dormant`, `waiting`, `starting` or `active`
+             registration, `enable` of a `failed` one and `restart` of a
+             `dormant` or `waiting` one (no-op cells); `replace`, `retry`,
+             `restart`, `reconfigure` or `enable` of a `failed(cleanup)`
+             registration and `retry` or `restart` of a `disabled` one,
+             for either reason (`Conflict` cells, which end with the
+             cell's `Conflict`, CCR-BR-036); and a `reconfigure`
+             that restarts nothing — of a `dormant` registration (it
+             stores the raw override, nothing is loaded), of a `waiting`
+             or `disabled` one, or volatile-only (CCR-BR-035). A refusal MUST
              fail the call with `OperationRejected` whose `reason` is
              "refused-digest: <reason>", MUST change nothing, MUST NOT call
              the `OperationGate`, and with a sink wired MUST write exactly
@@ -971,11 +1010,18 @@ REQUIREMENT: When the list refuses a start that is not an operator call at
 ```
 REQUIREMENT: Before restarting a `background` fiber, a refusal MUST leave
              the fiber stopped and MUST stop the plugin as `disable` stops
-             it — dependents first, drained under
+             it, with `StopReason` "refused-digest" and `next` "disabled"
+             (04 — States and Snapshots, BEH-BR-027; 08, BEH-BR-073) —
+             dependents first, drained under
              `BridgerOptions.drainTimeout`, revoked at the limit as on a
              path with no caller (10 — Runtime Failure and Health,
              BEH-BR-095) — ending in `disabled` with reason
-             "refused-digest".
+             "refused-digest". A re-run of a `whenAvailable` run under
+             "restart" MUST be consulted and refused in the same way, the
+             run left stopped, and MUST count as a background restart
+             wherever this specification names a refused background
+             restart (its cascade, its `StopReason`, the causation of its
+             records) (CCR-BR-036).
 ```
 
 ```
@@ -998,7 +1044,7 @@ REQUIREMENT: With a sink wired, each refusal outside step 4b MUST write one
              22 — the record of the call, of the system transition or of
              the parent's triggering transition — and it MUST be a root
              when that start had none (a `Host.wake`, an event dispatch,
-             a background restart). The records of a stop that follows MUST
+             a background restart or `whenAvailable` re-run). The records of a stop that follows MUST
              take the `start-refused` record as their cause. Every refusal
              MUST be logged at warning level with the id, realm, digest and
              reason.
@@ -1014,7 +1060,7 @@ REQUIREMENT: `refused` MUST be total. A call that throws, or returns a value
 ```
 REQUIREMENT: The list MUST NOT stop a plugin that is `active` on its own: an
              entry added to the list takes effect at that plugin's next
-             start, background restart or mount. Core documentation MUST
+             start, background restart, `whenAvailable` re-run or mount. Core documentation MUST
              state that making a running digest unusable takes a `disable`
              or `remove` (the loader companion's kill switch,
              [`references/loader/`](../../loader/README.md)), and that the
@@ -1264,19 +1310,28 @@ REQUIREMENT: The following checks MUST pass before this file's behaviours
                  method serving another plugin carries the parent
                  activation's principal, a throwing `decide` denies with
                  "policy-defect", and `Host.controls` reports the wiring;
-                 with nothing wired, the suites of files 02–25 pass with
+                 with nothing wired, the suites of files 02–20 and 22–34 pass with
                  only the additive fields of BEH-BR-266 added to the values
                  they compare (BEH-BR-263 to BEH-BR-266).
              104. A wired `RefusalList`: an operator `install`, `replace`,
                  `enable`, `retry`, `restart` or restarting `reconfigure` of
                  a refused digest fails with `OperationRejected`
                  ("refused-digest: ..."), writes one `rejected` record and
-                 never calls the gate; a dependency returning, a lazy
+                 never calls the gate, except where the BEH-BR-071 cell is a
+                 no-op or a `Conflict`, which is not submitted (an `enable`
+                 of an `active` or `failed` plugin, a `retry` or `restart`
+                 of a `dormant` one; a `retry` or `restart` of a plugin
+                 `disabled` with reason "refused-digest" fails with
+                 `Conflict { pending: "disabled" }` and writes no `rejected`
+                 record), and a
+                 `reconfigure` of a `dormant` plugin, which restarts nothing
+                 and is not submitted; a dependency returning, a lazy
                  trigger, a cascade restart and a call whose step 4b passed
                  before the list changed each leave the plugin `disabled`
                  with reason "refused-digest", with no code loaded or built
                  and one `start-refused` record caused as BEH-BR-190 gives;
-                 a background restart of a refused digest stops the plugin
+                 a background restart or `whenAvailable` re-run of a
+                 refused digest stops the plugin
                  into that state, with the stop's records caused by a root
                  `start-refused`; a refused child mount fails with
                  `ChildNotAllowed`, registers nothing and writes one

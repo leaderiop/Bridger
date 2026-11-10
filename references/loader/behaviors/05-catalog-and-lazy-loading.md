@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.5 (2026-11-09): Entries carry first-party signatures and a trust class; `Loader.lazy` fails with `NotFirstParty` for guest entries and guests take `LoaderRemote.link` (file 09); `stampRemote` sets the link manifest and fails with `PackageManifestMismatch` (specification audit F-06, M-02, C-16); BEH-LD-039 heading and text: guests run outside the host's runtime, not necessarily out of process (independent review); BEH-LD-039 `stampRemote` reports a manifest without the guest shape as `GuestEntryInvalid`, as `LoaderRemote.link` does (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Entries verified through `SignaturePolicy.verify` with the publisher binding; manifest roles, targets and `listens` carried for `declaredContributions` and `AccessPolicy.declaredOnly`; `idle`/`holdTimeout` passed through, fresh check on each reload, refused lazy starts (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-LD-035: withdrawing an entry removes only the catalog's acceptance of its digest (PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.5 (2026-11-09): Entries carry first-party signatures and a trust class; `Loader.lazy` fails with `NotFirstParty` for guest entries and guests take `LoaderRemote.link` (file 09); `stampRemote` sets the link manifest and fails with `PackageManifestMismatch` (specification audit F-06, M-02, C-16); BEH-LD-039 heading and text: guests run outside the host's runtime, not necessarily out of process (independent review); BEH-LD-039 `stampRemote` reports a manifest without the guest shape as `GuestEntryInvalid`, as `LoaderRemote.link` does (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Entries verified through `SignaturePolicy.verify` with the publisher binding; manifest roles, targets and `listens` carried for `declaredContributions` and `AccessPolicy.declaredOnly`; `idle`/`holdTimeout` passed through, fresh check on each reload, refused lazy starts (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -160,7 +160,8 @@ REQUIREMENT: The catalog plugin MUST contribute only verified entries to
 REQUIREMENT: For each contributed entry, the catalog MUST record its
              digest in `AcceptedDigests` with `via: "catalog-entry"` and the
              entry's verification record (02, BEH-LD-015), and MUST remove
-             that acceptance when it withdraws the entry. While contributed,
+             that acceptance — its own, leaving a `via: "load"` acceptance of
+             the same digest in place — when it withdraws the entry. While contributed,
              the entry's digest is therefore accepted by `LoaderGate` for
              `install` and `replace` without its code having been fetched.
 ```

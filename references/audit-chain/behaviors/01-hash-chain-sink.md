@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): BEH-AC-006: only an equal entry under a stored `recordId` is an idempotent repeat; a different record under it is kept with its link or refused, never dropped, following core BEH-BR-193 as amended by CCR-BR-031 (CCR-AC-004)<br>0.4 (2026-11-08): The store port's shape renamed `ChainStoreShape` (it was still named `ChainSinkShape`, which 04 uses for the chaining sink); the link type of this file is `ChainLinkV1`, and `ChainLink` is the union with the generic series' `ChainLinkV2` (04, BEH-AC-026); audit links stay version 1 (round-2 agent review R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; `HashChainSink` is the audit instance of `ChainSink<R>`; core's `sanitized`, `auditDropped`, `requestedBy`, `undoes` and new system transitions chained as fields (G54, G59 closed) (round 2: recheck item 13; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.7 (2026-11-10): BEH-AC-001 and BEH-AC-007: `HashChainOptions` gains `keyed`, the `KeyedHasherShape` the sink hashes with, so a keyed hasher reaches `HashChainSink.layer` and `make` (M19) (CCR-AC-006)<br>0.6 (2026-11-10): BEH-AC-007: the key lifecycle of a `KeyedHasher` — `keyId` fixed per sink instance, a key changed only by rebuilding the sink, `KeyedHashFailed` with `keyId` and `permanent`, verification across keys through `verifyChain`'s `keyed` (03, BEH-AC-019) (CCR-AC-005)<br>0.5 (2026-11-09): BEH-AC-006: only an equal entry under a stored `recordId` is an idempotent repeat; a different record under it is kept with its link or refused, never dropped, following core BEH-BR-193 as amended by CCR-BR-031 (CCR-AC-004)<br>0.4 (2026-11-08): The store port's shape renamed `ChainStoreShape` (it was still named `ChainSinkShape`, which 04 uses for the chaining sink); the link type of this file is `ChainLinkV1`, and `ChainLink` is the union with the generic series' `ChainLinkV2` (04, BEH-AC-026); audit links stay version 1 (round-2 agent review R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; `HashChainSink` is the audit instance of `ChainSink<R>`; core's `sanitized`, `auditDropped`, `requestedBy`, `undoes` and new system transitions chained as fields (G54, G59 closed) (round 2: recheck item 13; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -88,6 +88,7 @@ interface HashChainOptions {
   readonly anchorEvery?: { readonly records?: number; readonly interval?: Duration.Input }              // 02
   readonly maxPendingWindows?: number                           // 02, closed windows awaiting anchoring; default 100_000
   readonly closeTimeout?: Duration.Input                        // 02, default 30 seconds
+  readonly keyed?: KeyedHasherShape                             // BEH-AC-007; absent: the plain hash
 }
 
 declare const HashChainSink: {
@@ -134,8 +135,9 @@ includes the cost core states for it (core
 Settled item 0): while a write keeps failing, every later record, system
 records included, waits behind it, and past the 1024-record queue later
 records are dropped. The package therefore fails a write only for a cause that
-can clear — the store or the keyed hasher being unavailable — and never for a
-condition of its own (BEH-AC-008).
+can clear — the store or the keyed hasher being unavailable, or a key that can
+no longer be used, which clears when the sink is rebuilt with another key
+(BEH-AC-007) — and never for a condition of its own (BEH-AC-008).
 
 ## BEH-AC-002: The record reaches the store unchanged
 
@@ -418,21 +420,63 @@ for a record that was never stored.
 ```ts
 // illustrative — not type-checked
 interface KeyedHasherShape {
-  readonly keyId: string
+  readonly keyId: string                  // read once, when the sink is built
   readonly mac: (input: Uint8Array) => Effect.Effect<Uint8Array, KeyedHashFailed>   // for example HMAC-SHA-256 in a hardware module
 }
+// The sink takes the hasher only as options.keyed and never reads this service; it is a tag
+// for consumers that provide their hasher through a layer and pass it on as options.keyed.
 class KeyedHasher extends Context.Service<KeyedHasher, KeyedHasherShape>()("@bridger/audit-chain/KeyedHasher") {}
+class KeyedHashFailed extends Schema.TaggedError<KeyedHashFailed>()("KeyedHashFailed", {
+  keyId: Schema.String,
+  permanent: Schema.Boolean,              // true: the key can never be used again (revoked, retired, destroyed)
+  message: Schema.String
+}) {}
 
 // with continuesFrom = { hostId: h0, auditSeq: n, hash: x }:
 // genesis(hostId) = H(D || "continues\n" || h0 || "\n" || n || "\n" || hexToBytes(x) || "\n" || hostId)
 ```
 
 ```
-REQUIREMENT: When a `KeyedHasher` is wired, the sink MUST compute every link
-             hash with it in place of the plain hash, over the same input,
-             and MUST record its `keyId` in each link. A `KeyedHashFailed`
-             MUST be mapped to `AuditWriteFailed`. The key MUST stay behind
+REQUIREMENT: When `options.keyed` is given (`HashChainOptions.keyed`, or
+             `ChainSinkOptions.keyed` for a generic series, 04), the sink
+             MUST compute every link hash with it in place of the plain
+             hash, over the same input, and MUST record its `keyId` in each
+             link. A `KeyedHashFailed` MUST be mapped to `AuditWriteFailed`
+             (for a generic series, 04, it is `append`'s failure). The key MUST stay behind
              the port; the package MUST NOT read, log or store it.
+```
+
+```
+REQUIREMENT: A sink MUST read `keyId` once, when it is built, and MUST use
+             that key for every link it writes; a sink instance never changes
+             key. A key is changed by building a new sink: for the audit
+             instance, the next host, whose chain the consumer joins to the
+             previous one with `continuesFrom`; for a generic series, a sink
+             that resumes the same series (04, BEH-AC-026), whose links carry
+             the new `keyId` from its first append. Documentation MUST state
+             that a key must not be retired while a sink still writes with it.
+```
+
+```
+REQUIREMENT: A `KeyedHasher` MUST fail with `permanent: true` when the key
+             can never be used again (revoked, retired or destroyed), and
+             with `permanent: false` otherwise. The sink MUST treat both as
+             failures of the port (`AuditWriteFailed` for the audit instance,
+             `KeyedHashFailed` from a generic `append`) and MUST log a
+             permanent one at error level naming the `keyId`. Documentation
+             MUST state that a permanent failure fails every later write
+             until the sink is rebuilt with another key, and that, for the
+             audit instance, core's writer holds and then drops records
+             meanwhile (core BEH-BR-202, BEH-BR-205).
+```
+
+```
+REQUIREMENT: Links written under different keys MUST verify in one run when
+             the verifier's `keyed` function computes each `keyId` they name
+             (03, BEH-AC-019). Documentation MUST state that a consumer keeps
+             a retired key usable for verification (or the MAC service that
+             holds it) for as long as the chain must be verifiable, and that a
+             destroyed key leaves its links reported as "key-unavailable".
 ```
 
 ```
@@ -517,7 +561,8 @@ refused, so that no condition of the sink's own halts core's writer
 (BEH-AC-005, BEH-AC-008). (5a) Unsupported schema versions and strings that
 are not I-JSON are chained with a marker (BEH-AC-002, BEH-AC-003). (5) `split` writes the record before the link
 (BEH-AC-006). (6) Keyed hashing and cross-host continuity are optional and
-consumer-supplied (BEH-AC-007).
+consumer-supplied; a sink keeps one key for its life, and a key change is a
+new sink (BEH-AC-007).
 
 **Open.** (1) Whether to support algorithm agility within one chain (a link
 that changes `alg` mid-chain), which would let a long-lived deployment move

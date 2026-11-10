@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-19                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): `memoryTrailStore` keeps collisions beside the primary; `brokenTrailStore` variants "overwrite-on-collision" and "drop-on-collision"; `GxpTestHost.make` takes `trailGate` (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-151 `GxpTestHost.make` takes `gatePieces` and passes them to `GxpLayer.make`, which requires them since CCR-GX-006; check 44 covers them (PL4) (CCR-GX-007)<br>0.2 (2026-11-09): `memoryTrailStore` keeps collisions beside the primary; `brokenTrailStore` variants "overwrite-on-collision" and "drop-on-collision"; `GxpTestHost.make` takes `trailGate` (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -306,6 +306,7 @@ declare const GxpTestHost: {
     readonly trailGate: Parameters<typeof trailGate>[1] | "not-used"     // 22
     readonly approvals: { readonly policy: ApprovalPolicy; readonly decide: ScriptedDecide } | "not-used"
     readonly fingerprints: { readonly eligibility: FingerprintEligibility; readonly seed: string } | "not-used"
+    readonly gatePieces: Parameters<typeof GxpLayer.make>[0]["gatePieces"]   // 22, BEH-GX-178; passed to GxpLayer.make unchanged
     readonly scope: string
   }): Effect.Effect<{
     readonly host: TestHost                              // core's, BEH-BR-177
@@ -318,9 +319,10 @@ declare const GxpTestHost: {
 ```
 REQUIREMENT: `GxpTestHost.make` MUST build a core `TestHost` (BEH-BR-177)
              with `GxpLayer.make` over the fixtures of this file, with
-             `TestClock` and the counter `IdGenerator` (BEH-BR-179), and
-             MUST attach the approval gate and start the high-water recorder
-             before returning. It MUST NOT replace, wrap or stub any part of
+             `TestClock` and the counter `IdGenerator` (BEH-BR-179), passing
+             `gatePieces` to `GxpLayer.make` unchanged, and MUST attach the
+             approval gate and start the high-water recorder before
+             returning. It MUST NOT replace, wrap or stub any part of
              core.
 ```
 

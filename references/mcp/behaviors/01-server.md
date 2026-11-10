@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): BEH-MC-001 no entry point takes a contract object, so a local contract (core `Contract.local`) never crosses through this package (core CCR-BR-033) (CCR-MC-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-06, A-07, A-17): what a default (tainted) session can do — declared reads and resources on the gate's decision, writes only through an approval the client never applies; the model-facing text of a result rendered through `Command.envelope` with `maxResultBytes`, `structuredContent` capped by `maxStructuredBytes`; command tasks are MCP tasks when negotiated, a deferred call never; a long command awaited with `timeout: "forever"` (CCR-MC-003)<br>0.3 (2026-11-08): Inbound sessions tainted unless the application's resolver marks them trusted (BEH-MC-002); the session's listing record and `expectDigest` refuse a call whose definition changed since it was listed, `ToolChanged` mapped (BEH-MC-003–005); `readOnlyHint` from the descriptor; idempotency key from `_meta`; long commands as tasks; new outcomes mapped; MCP resources as projections of read-only commands (BEH-MC-006, BEH-MC-007) (CCR-MC-003, round 2: recheck items 1, 6, 7, 9; X7, X8)<br>0.2 (2026-11-08): `tools/call` pins per call and passes the toolset; deferred direct calls are `isError` results; `onBehalfOf` wording; `Annotations` type (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.7 (2026-11-10): BEH-MC-008 added: the optional `McpTasks` port, provided by `@bridger/agent`'s `McpTaskBridge`, receives every `tasks/*` request and every long command's task of a session that negotiated the tasks extension, with the session's info and bound actor, and a `notify` channel through which the bridge pushes the extension's `notifications/tasks` status notification to that session, for the task ids the session subscribed to through `subscriptions/listen` and the bridge admitted (MCP tasks extension schema, revision 2026-07-28); the extension is advertised only while the port is resolvable; BEH-MC-001 declares it optional and BEH-MC-004 Settled (2) routes through it; with no port, a subscription's task ids are not acknowledged while the rest proceeds (M8) (CCR-MC-006)<br>0.6 (2026-11-10): BEH-MC-001: the server holds no lease, so its removal interrupts in-flight calls instead of draining them; a host tool cannot stop the server serving it (P24) (CCR-MC-005)<br>0.5 (2026-11-09): BEH-MC-001 no entry point takes a contract object, so a local contract (core `Contract.local`) never crosses through this package (core CCR-BR-033) (CCR-MC-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-06, A-07, A-17): what a default (tainted) session can do — declared reads and resources on the gate's decision, writes only through an approval the client never applies; the model-facing text of a result rendered through `Command.envelope` with `maxResultBytes`, `structuredContent` capped by `maxStructuredBytes`; command tasks are MCP tasks when negotiated, a deferred call never; a long command awaited with `timeout: "forever"` (CCR-MC-003)<br>0.3 (2026-11-08): Inbound sessions tainted unless the application's resolver marks them trusted (BEH-MC-002); the session's listing record and `expectDigest` refuse a call whose definition changed since it was listed, `ToolChanged` mapped (BEH-MC-003–005); `readOnlyHint` from the descriptor; idempotency key from `_meta`; long commands as tasks; new outcomes mapped; MCP resources as projections of read-only commands (BEH-MC-006, BEH-MC-007) (CCR-MC-003, round 2: recheck items 1, 6, 7, 9; X7, X8)<br>0.2 (2026-11-08): `tools/call` pins per call and passes the toolset; deferred direct calls are `isError` results; `onBehalfOf` wording; `Annotations` type (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -22,7 +22,7 @@ from the command catalog, skip the command gate, and order tools however the
 server happened to build them. This file specifies the server as a projection
 of a `@bridger/command` toolset and nothing more
 ([ADR-MC-001](../decisions/001-server-projects-a-toolset.md)). This file owns
-BEH-MC-001–008 and uses 001–007; 008 is reserved.
+BEH-MC-001–008 and uses all eight.
 
 Planned source: `packages/mcp/src/McpServer.ts`, `packages/mcp/src/Session.ts`
 *(Planned)*. Toolsets, their order and pinning are in the command companion
@@ -37,7 +37,7 @@ Planned source: `packages/mcp/src/McpServer.ts`, `packages/mcp/src/Session.ts`
 ```ts
 // illustrative — not type-checked
 McpServer.plugin(options: McpServerOptions):
-  Plugin<[CommandCatalog, McpSessionPrincipal], [], never>
+  Plugin<[CommandCatalog, McpSessionPrincipal], [], never>   // optional: [McpTasks] (BEH-MC-008)
 
 interface McpServerOptions {
   readonly id: string
@@ -59,11 +59,17 @@ REQUIREMENT: `McpServer.plugin` MUST return an ordinary plugin definition. Its
 
 ```
 REQUIREMENT: Removing, restarting or replacing the server plugin MUST end
-             every MCP session it holds: in-flight `tools/call` requests are
-             leases on the commands they dispatch (command companion,
-             02 — Dispatch) and drain under the host's rules; once the scope
-             closes, the transport MUST answer new requests with a
-             JSON-RPC error and close.
+             every MCP session it holds. The server holds no lease for a
+             session or a call (a dispatch holds the command's
+             contribution, not the server), so its stop drains nothing of
+             its own: when its activation scope closes, the transport MUST
+             stop accepting requests, every in-flight `tools/call` and
+             `resources/read` MUST be interrupted — its dispatch ends as an
+             interruption (command BEH-CM-013, BEH-CM-015), while a host
+             operation its handler already started continues under core's
+             rules (core BEH-BR-067) — and the transport MUST then answer
+             new requests with a JSON-RPC error and close. A host tool
+             cannot stop the server serving it (04, BEH-MC-029).
 ```
 
 ```
@@ -90,7 +96,7 @@ A server that is a plugin inherits everything the host already says about
 plugins: it is installed, attributed, gated (core `OperationGate`) and
 audited as a plugin; it can wait for its requirements; `inspect` shows it.
 
-**Settled here.** Session ending on removal is the drain of the server's
+**Settled here.** Session ending on removal is the closing of the server's
 activation scope, not a separate shutdown protocol: an MCP client loses its
 connection exactly when the plugin stops serving.
 
@@ -357,7 +363,8 @@ the dispatch ([INV-MC-005](../invariants.md#inv-mc-005-every-toolscall-is-a-comm
 before the gate, so a name the session was never offered still costs no
 authorization request and no `CallLog` entry. (2) A long command (command
 BEH-CM-052) dispatched for a session that negotiated the tasks extension is
-answered as an MCP task through `@bridger/agent`'s bridge
+answered as an MCP task through the `McpTasks` port (BEH-MC-008), which
+`@bridger/agent`'s bridge provides
 ([BEH-AG-015](../../agent/behaviors/02-tasks.md#beh-ag-015-command-tasks-in-the-bridges));
 otherwise the server awaits the task with `CommandTasks.await(taskId, {
 timeout: "forever" })`, bounded only by the command's own timeout and by the
@@ -561,6 +568,96 @@ signal the catalog does not have.
 
 **Open.** A `prompts` projection of contributed prompt templates (a second
 registry in the command companion) is a candidate for a later revision.
+
+## BEH-MC-008: The server passes the tasks extension to the McpTasks port
+
+> **See:** [ADR-MC-004](../decisions/004-target-mcp-2026-07-28.md), [ADR-MC-001](../decisions/001-server-projects-a-toolset.md)
+> **Core seam:** [15 — Optional and reactive dependencies](../../core/behaviors/15-optional-and-reactive.md)
+
+```ts
+// illustrative — not type-checked
+class McpTasks extends Context.Service<McpTasks, McpTasksShape>()("@bridger/mcp/McpTasks") {}
+interface McpTasksShape {
+  // a tasks/* request of a session that negotiated the tasks extension
+  readonly request: (session: McpTaskSession, method: string, params: unknown) => Effect.Effect<McpRpcAnswer>
+  // the answer to a tools/call whose dispatch returned a long command's task (BEH-MC-004)
+  readonly started: (session: McpTaskSession, taskId: string) => Effect.Effect<McpRpcAnswer>
+}
+interface McpTaskSession {
+  readonly info: McpSessionInfo              // BEH-MC-002
+  readonly actor: Actor                      // the actor bound at initialize (BEH-MC-002)
+  // sends one `notifications/tasks` (params: the full task, as the extension's schema defines) to this session
+  readonly notify: (params: Json) => Effect.Effect<void>
+  readonly ended: Effect.Effect<void>        // completes when the session ends
+}
+type McpRpcAnswer =
+  | { readonly result: Json }
+  | { readonly error: { readonly code: number; readonly message: string } }
+```
+
+```
+REQUIREMENT: `McpServer.plugin` MUST declare `McpTasks` as an optional
+             requirement (core file 15) and MUST advertise the tasks
+             extension at `initialize` only when `McpTasks` is resolvable
+             then. The package MUST NOT provide `McpTasks` other than as a
+             test fixture of its testing entry point; `@bridger/agent`'s
+             `McpTaskBridge` provides it
+             ([BEH-AG-014](../../agent/behaviors/02-tasks.md#beh-ag-014-the-mcp-tasks-bridge)).
+```
+
+```
+REQUIREMENT: For a session that negotiated the tasks extension, the server
+             MUST pass every `tasks/*` request to `McpTasks.request`, and
+             MUST answer a `tools/call` whose dispatch returned a long
+             command's `CommandTaskRef` with `McpTasks.started`, each with
+             the session's `McpSessionInfo` and the actor bound at
+             `initialize`, never a value the client sent in its place. The
+             task part of a `subscriptions/listen` (its `taskIds`) MUST be
+             passed the same way, as `request(session,
+             "subscriptions/listen", { taskIds })`, and the server MUST
+             acknowledge only the task ids the port's `result` lists. It
+             MUST answer with the port's `result` or `error` as given, and
+             MUST NOT read, create, list, subscribe to or cancel a task
+             itself.
+```
+
+```
+REQUIREMENT: `McpTaskSession.notify` MUST send the tasks extension's
+             status notification, method `notifications/tasks`, with the
+             given params, to that session only, in call order, on the
+             session's own outbound queue, so that a slow session never
+             delays another (as list-changed notifications, 02,
+             BEH-MC-011). The server MUST NOT interpret, filter or invent
+             task notifications; which tasks are notified is the bridge's.
+             `notify` MUST be a no-op after the session ended; `ended` MUST
+             complete when the session ends, so the bridge stops its status
+             streams.
+```
+
+```
+REQUIREMENT: When `McpTasks` is not resolvable at a request, or its call
+             fails or dies, the server MUST answer a `tasks/*` request
+             with a JSON-RPC internal error, and MUST await a long command
+             as for a session that did not negotiate the extension
+             (BEH-MC-004). For the `taskIds` of a `subscriptions/listen`
+             it MUST acknowledge no task id and let the rest of the
+             subscription proceed, since the extension acknowledges task
+             ids one by one. A session that did not negotiate the extension
+             MUST get a JSON-RPC "method not found" error for `tasks/*`.
+```
+
+The server speaks the protocol and the bridge owns the tasks: which tasks a
+session may see, how a state maps to an MCP status and what a cancel does are
+`@bridger/agent`'s (BEH-AG-014, BEH-AG-015). Passing the bound actor, not a
+client field, keeps the bridge's actor rule on the same principal the server
+dispatches with. The method name `notifications/tasks`, its params (the full
+task) and the `taskIds` filter of `subscriptions/listen` are those of the
+tasks extension's schema for revision 2026-07-28 (ADR-MC-004 references).
+
+**Settled here.** The port is an optional key rather than a server option,
+so the bridge can be installed, replaced or removed like any plugin without
+rebuilding the server; an MCP session keeps what it negotiated, and a
+request that finds the port gone gets an error instead of a silent fallback.
 
 ---
 

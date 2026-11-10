@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-APP-02                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Appendix — Informative                                       |
-> | Change History | 0.2 (2026-10-03): No "lossless" claim about the audit sequence (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft, moved from `docs/SPEC.md` "Comparison with Cordis" (CCR-BR-001) |
+> | Change History | 0.3 (2026-11-10): Bridger's state list names `dormant` (audit round 2, Low) (CCR-BR-034)<br>0.2 (2026-10-03): No "lossless" claim about the audit sequence (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft, moved from `docs/SPEC.md` "Comparison with Cordis" (CCR-BR-001) |
 
 ---
 
@@ -32,7 +32,7 @@ Bridger's core is built on the same paradigm as Cordis (revertible effects for t
 | Cordis | Bridger | Note |
 | --- | --- | --- |
 | Plugin as function, object or `Service` class | `PluginDefinition` with a `Layer` `build`; service classes are `Context.Service` | One form with static types |
-| Fiber states `PENDING → LOADING → ACTIVE → UNLOADING → DISPOSED`, `FAILED` | `waiting → starting → active → stopping`, `failed`, plus `disabled` | Same machine; removal ends in no state |
+| Fiber states `PENDING → LOADING → ACTIVE → UNLOADING → DISPOSED`, `FAILED` | `waiting → starting → active → stopping`, `failed`, plus `disabled` and, for a lazy plugin, `dormant` before its code is loaded (27) | Same machine; removal ends in no state |
 | `fiber.dispose / restart / update / await` | `PluginHandle.remove / restart`, `reconfigure`, `awaitActive` | `awaitActive` fails fast with the cause |
 | `ctx.effect(disposer)` | `Scope`, `Effect.acquireRelease`, `Layer` finalizers | LIFO, sequential, interruptible; async disposers do not race |
 | Child plugins dispose with the parent | `Plugin.Runtime.install`, `Plugin.group` | Prefixed IDs, scope-owned |

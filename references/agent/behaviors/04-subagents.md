@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-04                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Parent relation via `Actor.narrow` (BEH-BR-337), not `onBehalfOf`; `SubagentParentUnattributed`; error classes declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-AG-025: `isolate` never lists `Tasks`, a base service no plugin provides, so the subagent's task is in its parent's table (02, BEH-AG-011) (T1); BEH-AG-025 and BEH-AG-030: the scope-close cancel passes the hand-off marker `handedDraftId` only for the subagent whose draft is the parent task's pending draft, and a subagent's task ends "handed-to-parent" only under that marker, otherwise it withdraws (H2); BEH-AG-030: the parent's own `Deferred` wins over a subagent's not yet published, and a subagent draft still pending when the turn ends with an answer, `needs-input` or the parent's own deferral is withdrawn by the subagent's own task (T2) (CCR-AG-007)<br>0.4 (2026-11-10): A subagent that defers ends its turn holding nothing, its `SubagentResult` is the deferral, the parent waits on it and is the task the application resumes; the subagent's task then ends `cancelled` with its draft "handed-to-parent", and only an unsettled result fails `parent-ended`; when several subagents of a turn defer, the parent takes the first to settle and the others withdraw their own drafts; from the moment the result settles the draft is pending on the parent, which reports it if cancelled or failed before publishing it (BEH-AG-025, BEH-AG-030, BEH-AG-016) (H3); the ephemeral realm isolates `AgentLoop`, `ModelAdapter` and every key its plugins provide, which are passed as `DesiredPlugin` entries (BEH-AG-025) (M9); the subagent starts a new session `${parent.sessionId}/sub/${segment}` (BEH-AG-025) (M10) (CCR-AG-006)<br>0.3 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — installs run under the parent's context as core `Realm.ephemeral` specifies, the subagent acts with `EphemeralRealm.context`, and `SubagentError` uses core's error unions (BEH-AG-025, BEH-AG-026, P21); the loop is started with `StartRequest.spawn` carrying the restricted toolset, taint and parent task (BEH-AG-025, 027, 029, H10); gate exemption question settled by the loader's wiring (P23) (CCR-AG-005)<br>0.2 (2026-11-08): Parent relation via `Actor.narrow` (BEH-BR-337), not `onBehalfOf`; `SubagentParentUnattributed`; error classes declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -45,7 +45,10 @@ Planned source: `packages/agent/src/Subagent.ts` *(Planned)*.
 ```ts
 // illustrative — not type-checked
 Agent.spawnSubagent(request: {
-  readonly parent: { readonly taskId: string; readonly toolset: PinnedToolset; readonly context: OperationContext }
+  readonly parent: {
+    readonly taskId: string; readonly sessionId: string
+    readonly toolset: PinnedToolset; readonly context: OperationContext
+  }
   readonly plugins: ReadonlyArray<Plugin.Any>      // e.g. a ModelAdapter and an AgentLoop for the subagent
   readonly tools?: ReadonlyArray<string>           // requested subset of the parent's pinned toolset; default: none
   readonly budget?: BudgetShare                    // entitlement companion's sub-reservation request
@@ -56,6 +59,10 @@ interface SubagentHandle {
   readonly taskId: string                          // a Tasks entry of its own (02)
   readonly result: Effect.Effect<SubagentResult, SubagentFailed>
 }
+type SubagentResult =
+  | { readonly _tag: "Done"; readonly answer?: string; readonly tainted: boolean }
+  | { readonly _tag: "Deferred"; readonly draftId: string            // the subagent's awaiting-approval (BEH-AG-030)
+      readonly commands: ReadonlyArray<string>; readonly tainted: boolean }
 
 class SubagentFailed extends Schema.TaggedError<SubagentFailed>()("SubagentFailed", {
   taskId: Schema.String,
@@ -70,7 +77,11 @@ class SubagentParentUnattributed extends Schema.TaggedError<SubagentParentUnattr
 
 type SubagentError =
   | SubagentToolNotInParent | SubagentParentUnattributed
-  | InstallError | BudgetExhausted | BudgetUnavailable    // core 03; entitlement companion
+  | InvalidRealm | DuplicateRealm | FamilyMemberUnavailable          // core Realm.ephemeral (BEH-BR-336)
+  | Unattributed | ReasonRequired | AuditUnavailable | OperationRejected
+  | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout   // core EphemeralRealm.use (BEH-BR-336)
+  | ResolutionRefused | AgentStartError                               // the subagent loop's start (01, BEH-AG-003)
+  | BudgetExhausted | BudgetUnavailable                               // entitlement companion
 ```
 
 ```
@@ -83,24 +94,69 @@ REQUIREMENT: `spawnSubagent` MUST create the subagent's realm with
 ```
 
 ```
-REQUIREMENT: The subagent MUST NOT outlive its parent turn. The
-             `SubagentHandle.result` of a subagent whose realm was removed
-             before it finished MUST fail with
-             `SubagentFailed { reason: "parent-ended" }`.
+REQUIREMENT: `spawnSubagent` MUST take a `segment` from the host's
+             `IdGenerator`, pass it as the `Realm.ephemeral` option
+             `segment`, and pass the realm option `isolate` listing
+             `AgentLoop`, `ModelAdapter` and every other key in the
+             `provides` of `plugins`, so that the subagent's providers
+             occupy the realm's own slots and never collide with the
+             parent's (core BEH-BR-146), and the subagent never resolves
+             the parent's loop or model: one it does not bring fails with
+             `ServiceUnavailable`. `isolate` MUST NOT list `Tasks`, a base
+             service that no plugin provides (02, BEH-AG-011): the
+             subagent's loop resolves the host's one table, so its task is
+             in the same table as its parent's. Each plugin MUST be passed as the `DesiredPlugin`
+             `{ id: plugin.id, plugin, realm: "ephemeral/" + segment }`
+             (core BEH-BR-153, BEH-BR-336).
 ```
 
 ```
-REQUIREMENT: Installing `plugins` MUST go through the host's ordinary
-             `install` path, attributed to the narrowed actor (BEH-AG-026),
-             and therefore through the `OperationGate` when one is wired.
+REQUIREMENT: The subagent MUST NOT outlive its parent turn. When the scope
+             closes, `spawnSubagent` MUST first cancel the subagent's task
+             with `Tasks.cancel(taskId, parent.context, { handedDraftId })`
+             (a no-op when the task has ended, BEH-AG-010), then let the
+             realm be removed. `handedDraftId` MUST be set, to the
+             subagent's `draftId`, only when that draft is the parent
+             task's pending draft at that moment (02, BEH-AG-016), and
+             MUST be absent for every other subagent. A
+             `SubagentHandle.result` that has not settled when the scope
+             closes MUST fail with `SubagentFailed { reason: "parent-ended" }`;
+             a result already settled — an answer, or a deferral the parent
+             now waits on (BEH-AG-030) — is unchanged.
+```
+
+```
+REQUIREMENT: `spawnSubagent` MUST pass `parent.context` as the
+             `Realm.ephemeral` option `context`, so that defining the
+             realm, installing `plugins` and tearing them down are
+             attributed to the parent's actor, as core specifies for the
+             owner of an ephemeral realm (core BEH-BR-336), and pass
+             through the `OperationGate` when one is wired. The narrowed
+             actor of `EphemeralRealm.context` is the subagent's own
+             (BEH-AG-026); it MUST NOT be used for those operations.
+```
+
+```
+REQUIREMENT: `spawnSubagent` MUST start the subagent's loop through
+             `EphemeralRealm.use([AgentLoop], …)` with a `StartRequest`
+             whose `actor` is the actor of `EphemeralRealm.context`, whose
+             `sessionId` is `${parent.sessionId}/sub/${segment}` — a new
+             session, created as BEH-AG-004 says, that names its parent's —
+             whose `input` is `input`, and whose `spawn` carries
+             `parent.taskId`, the restricted toolset (BEH-AG-027) and the
+             parent session's taint labels (BEH-AG-029) (01, BEH-AG-003). A failure of `Realm.ephemeral`,
+             of that `use` or of `start` MUST fail `spawnSubagent` with
+             that error.
 ```
 
 **Settled here.** The default `tools` is empty: a subagent that needs tools
 names them, so widening by omission cannot happen.
 
-**Open.** Whether installing the subagent's plugins should be exempt from the
-`OperationGate` (they are scoped to one turn); v0.1 does not exempt them,
-leaving the decision to the application's gate.
+**Settled here (gate).** Installing the subagent's plugins is not exempt
+from the `OperationGate`: they are ordinary installs by the parent's actor.
+With the loader's gate piece wired, they are allowed only when loaded
+through the loader or exempt by digest (loader
+[BEH-LD-015](../../loader/behaviors/02-load-pipeline.md#beh-ld-015-a-gate-piece-refuses-definitions-that-did-not-come-through-the-loader)).
 
 ## BEH-AG-026: The subagent acts as a narrowed actor
 
@@ -109,8 +165,9 @@ leaving the decision to the application's gate.
 > **Core seam:** [33 — Realm families](../../core/behaviors/33-realm-families.md), [28 — Plugin principal and mandatory policy](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md)
 
 ```
-REQUIREMENT: Every dispatch and host call of the subagent MUST carry an
-             actor obtained by `Actor.narrow` from the parent's actor (core
+REQUIREMENT: Every dispatch and host call of the subagent MUST carry the
+             actor of `EphemeralRealm.context`, obtained by core with
+             `Actor.narrow` from the parent's actor (core BEH-BR-336,
              BEH-BR-337), so that records and gate requests show the
              subagent, and — through the narrowed actor's id — the actor it
              acts for. The parent relation MUST NOT be expressed through
@@ -154,6 +211,8 @@ REQUIREMENT: The subagent's toolset MUST be the parent's pinned toolset
 ```
 REQUIREMENT: The subagent MUST use that one restricted toolset for its whole
              life; it MUST NOT pin a toolset of its own from the catalog.
+             It receives the toolset as `StartRequest.spawn.toolset`
+             (BEH-AG-025, BEH-AG-003).
 ```
 
 ```
@@ -198,8 +257,8 @@ behaviour depends on them and does not define them.
 
 ```
 REQUIREMENT: A subagent's session MUST start with the parent session's
-             taint. A subagent of a tainted parent is tainted from its
-             first step.
+             taint, passed as `StartRequest.spawn.taint` (BEH-AG-003). A
+             subagent of a tainted parent is tainted from its first step.
 ```
 
 ```
@@ -223,10 +282,62 @@ REQUIREMENT: A subagent MUST have its own task in `Tasks`, with a
 ```
 
 ```
-REQUIREMENT: A subagent's `awaiting-approval` MUST also be reflected in the
-             parent: the parent's step waits and the parent publishes
-             `awaiting-approval` with the subagent's draft id.
+REQUIREMENT: A subagent whose tool call is deferred ends its turn as any
+             loop does (02, BEH-AG-012): its task publishes
+             `awaiting-approval` and holds nothing. Its
+             `SubagentHandle.result` MUST then succeed with
+             `Deferred { draftId, commands, tainted }`. The parent's loop
+             MUST treat the first such result of its turn to settle as a
+             `Deferred` tool outcome of its own step: it ends the step and
+             the turn, holding nothing, and publishes `awaiting-approval`
+             with that subagent's `draftId` and `commands` (BEH-AG-012),
+             unless the parent's own tool call defers first or in the same
+             step: the parent's own `Deferred` wins over a subagent's draft
+             not yet published (02, BEH-AG-016).
+             From the moment that result settles, the draft is the parent
+             task's pending draft (BEH-AG-016): a parent cancelled or failed
+             before it publishes `awaiting-approval` reports the draft for
+             withdrawal.
 ```
+
+```
+REQUIREMENT: A parent waits on one draft. When several subagents of one
+             turn defer, only the first `Deferred` to settle is the
+             parent's; the loop MUST decide which is first atomically, and
+             MUST NOT merge drafts, since the package creates none
+             (BEH-AG-012). Every other subagent of the turn is cancelled
+             without the hand-off marker when the turn ends (BEH-AG-025):
+             one still running fails `parent-ended`, and one in
+             `awaiting-approval` whose draft is not the parent's — a later
+             `Deferred`, or any subagent draft when the turn ends with an
+             answer, `needs-input` or the parent's own deferral — MUST end
+             under BEH-AG-016 like any task with a pending draft — it calls `draftWithdrawal.withdraw` with
+             reason "task-cancelled" and its own `DraftReport` carries the
+             answer. The parent's model learns of those drafts only as
+             subagents that did not finish.
+```
+
+```
+REQUIREMENT: The application MUST resume the parent task, never the
+             subagent's: `Approved`, `Refused` or `Stale` with the
+             subagent's `draftId` goes to the parent (BEH-AG-012), and the
+             outcomes or the refusal reach the parent's model as the
+             subagent's result. When the parent turn ends, the task of the
+             subagent whose draft the parent took, still
+             `awaiting-approval`, is cancelled with `handedDraftId` naming
+             that draft (BEH-AG-025) and MUST end
+             `cancelled` with `draft: { draftId, outcome:
+             "handed-to-parent" }`, without calling `draftWithdrawal.withdraw`:
+             the draft is pending on the parent's task, which reports it if
+             it ends without it (BEH-AG-016). A resume sent to the subagent's
+             task then fails with `TaskNotResumable`.
+```
+
+**Settled here.** A subagent is not resumed after an approval. Its realm and
+loop end with the parent turn that waits, as a turn that waits holds nothing
+(BEH-AG-012); keeping them would hold the parent's pin and scope for as long
+as a person takes. The parent receives the outcome and, if it needs more of
+the subagent's work, spawns a new subagent in its next turn.
 
 **Open.** Whether a herdr observer should see subagents as separate agents or
 only the parent; the herdr bridge (BEH-AG-013) reports every task in v0.1.

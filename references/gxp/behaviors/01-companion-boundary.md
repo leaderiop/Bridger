@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-01                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-001 `@bridger/audit-chain` as an optional peer dependency (C-09); BEH-GX-002 canonical domain widened to I-JSON numbers, the integer-only claim corrected (F-01); BEH-GX-004 `trail.gate` and the composed host gate; BEH-GX-007 an unsupported record shape is stored and marked, not refused (F-02); BEH-GX-008 sealing wording points at 21 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-001 the `@bridger/audit-chain` optional peer range is one audit-chain minor line, equal to the compatibility matrix's column (M3); BEH-GX-004 option `gatePieces` for the consumer's gate pieces, composed before "approval" (BEH-GX-178), and `GxpLayerInvalid` section "gatePieces" (M5) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-004: the anchoring fiber of audit-chain's sink is the one fiber the layer starts; one layer per host. BEH-GX-007: the core version is read from `Bridger.version` (H6, low); follow-up: `GxpPlatformUnsupported`, `CanonicalisationFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-001 `@bridger/audit-chain` as an optional peer dependency (C-09); BEH-GX-002 canonical domain widened to I-JSON numbers, the integer-only claim corrected (F-01); BEH-GX-004 `trail.gate` and the composed host gate; BEH-GX-007 an unsupported record shape is stored and marked, not refused (F-02); BEH-GX-008 sealing wording points at 21 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -64,6 +64,17 @@ REQUIREMENT: The `@bridger/core` peer range MUST be one core minor line,
              (appendices/core-interface-map.md). A core release outside that
              line MUST NOT be accepted by widening the range without a CCR-GX
              that records the core revisions re-checked.
+```
+
+```
+REQUIREMENT: The `@bridger/audit-chain` optional peer range MUST likewise be
+             one audit-chain minor line, `>=A.B.C <A.(B+1).0`, and MUST equal
+             the range in the matrix's `@bridger/audit-chain` column. An
+             audit-chain release outside that line MUST NOT be accepted by
+             widening the range without a CCR-GX that records the
+             audit-chain revisions re-checked and maps every break and
+             notice kind they add (BEH-GX-171). Installation check IQ-24
+             (BEH-GX-117) checks the installed version against it.
 ```
 
 ```
@@ -154,6 +165,13 @@ REQUIREMENT: The canonical form MUST be the same byte sequence for the same
              MUST NOT contain the value. A trail record is never refused: the
              sink writes the escaped encoding and marks the entry
              (BEH-GX-018).
+```
+
+```ts
+// illustrative — not type-checked
+class CanonicalisationFailed extends Schema.TaggedError<CanonicalisationFailed>()("CanonicalisationFailed", {
+  path: Schema.String                                   // the position in the value; never the value
+}) {}
 ```
 
 The canonical form is where two parties that must agree on a digest — the
@@ -248,12 +266,18 @@ declare const GxpLayer: {
       readonly keys: FingerprintKeyProvider               // 14
       readonly eligibility: FingerprintEligibility        // 13
     } | "not-used"
+    readonly gatePieces: readonly {                       // 22, BEH-GX-178: e.g. a loader's "signature", an entitlement piece
+      readonly name: string; readonly gate: Gate<OperationRequest>; readonly timeout: Duration.Input
+    }[] | "not-used"
   }): Layer.Layer<AuditSink | TrailSinkStatus | OperationGate | ApprovalGateLink | ConfigFingerprinter, GxpLayerInvalid | GxpPlatformUnsupported | GxpCoreVersionUnsupported>
 }
 
 class GxpLayerInvalid extends Schema.TaggedError<GxpLayerInvalid>()("GxpLayerInvalid", {
-  section: Schema.Literal("scope", "trail", "anchors", "approvals", "fingerprints"),
+  section: Schema.Literal("scope", "trail", "anchors", "approvals", "fingerprints", "gatePieces"),
   message: Schema.String
+}) {}
+class GxpPlatformUnsupported extends Schema.TaggedError<GxpPlatformUnsupported>()("GxpPlatformUnsupported", {
+  missing: Schema.Literal("sha256", "hmac-sha256")      // BEH-GX-002
 }) {}
 ```
 
@@ -271,8 +295,9 @@ REQUIREMENT: The layer MUST provide `AuditSink` and `TrailSinkStatus` built
              `approvalGate` (BEH-GX-089), with the policy and ticket store of
              `approvals` and the top-level `scope`, only when `approvals` is
              used; `OperationGate` composed by BEH-GX-178 from the pieces
-             "trail" (`trail.gate`), "chain" (`trail.sealing.gate`) and
-             "approval", only when at least one of them is used; and `ConfigFingerprinter` built by `hmacFingerprinter`
+             "trail" (`trail.gate`), "chain" (`trail.sealing.gate`), the
+             consumer's `gatePieces` and "approval", only when at least one
+             of them is used; and `ConfigFingerprinter` built by `hmacFingerprinter`
              (BEH-GX-097) only when `fingerprints` is used. A section given as
              "not-used" MUST provide nothing, so that core's behaviour without
              that port applies unchanged (INV-BR-026). A blank `scope` MUST
@@ -294,7 +319,11 @@ REQUIREMENT: Run-time validation of the options MUST fail the layer with
 ```
 REQUIREMENT: `GxpLayer.make` MUST NOT start a fiber, open a connection or call
              a port while the layer is built, except the reachability probes
-             the caller asks for through the installation checks (BEH-GX-113).
+             the caller asks for through the installation checks (BEH-GX-113)
+             and, with sealing on and anchored, the anchoring fiber that
+             audit-chain's `HashChainSink.make` starts in the layer's scope
+             (BEH-AC-011, BEH-GX-170), which calls the anchor and receipt
+             ports off the write path.
 ```
 
 The literal "not-used" is the point of the design: a reviewer reading the
@@ -305,7 +334,8 @@ wired is that someone wants these controls.
 
 The three core ports the layer provides are read once, when the host is
 built ([BEH-BR-015](../../core/behaviors/02-host-construction.md)). The layer therefore has to be provided to
-`Bridger.layer` and not to an individual operation.
+`Bridger.layer` and not to an individual operation, and, since its sink serves
+one host ([BEH-GX-017](./03-trail-sink.md)), each host is given a layer of its own.
 
 **Settled here.** `anchors` may be "not-used". Without it, tail loss is not
 detectable ([BEH-GX-045](./06-high-water-marks-and-anchors.md#beh-gx-045-tailloss-is-reported-when-the-store-holds-less-than-a-mark-says-was-written)), and the checks report this as the finding
@@ -407,7 +437,7 @@ core's port, and it returns only HMACs under a key the consumer holds
 ```ts
 // illustrative — not type-checked
 class GxpCoreVersionUnsupported extends Schema.TaggedError<GxpCoreVersionUnsupported>()("GxpCoreVersionUnsupported", {
-  found: Schema.String,          // the core version read from @bridger/core's exported VERSION
+  found: Schema.String,          // the core version read from @bridger/core's `Bridger.version`
   supported: Schema.String       // the peer range of BEH-GX-001
 }) {}
 
@@ -415,8 +445,8 @@ const SUPPORTED_SCHEMA_VERSIONS = [1] as const
 ```
 
 ```
-REQUIREMENT: Building `GxpLayer` MUST read the version exported by
-             `@bridger/core` and MUST fail with `GxpCoreVersionUnsupported`
+REQUIREMENT: Building `GxpLayer` MUST read the version `@bridger/core`
+             exports as `Bridger.version` and MUST fail with `GxpCoreVersionUnsupported`
              when it lies outside the range of BEH-GX-001.
 ```
 

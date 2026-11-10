@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-06                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-CM-041: the receipt scope gains an application-computed `partition`; every port call receives `services` (the dispatching fiber's `receiptContext` keys, and for a `Success` the wrapper chain's services), so a transaction reaches the port by context and never by fiber-local state; a dispatch from a durable-bus subscription handler joins the inbox's `StoreTransaction` with a key derived from the envelope's `eventId` (M-04); a typed error listed in the command's `retryable` is released, never stored (ERP alignment of the same audit); new BEH-CM-044, admission policies fixed in the catalog layer, consulted at step 6 and settled after step 7 (C-10); BEH-CM-043 returns the probe slot of a dispatch refused by an admission (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-02, A-04, A-09, A-10, A-13, A-14): receipts compare actor first, carry the dispatch digest (`definition-differs`) and a task id (`mode-differs`; a repeat of a task returns its `CommandTaskRef`); `void` for undone batch items; a `Failure` is completed outside the wrappers, a claim is released when the wrapper chain does not end with the completed outcome, and an in-flight claim expires; one flow list for the key annotation and no inherited key in nested dispatches; a probe slot not used is returned (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — idempotency key and `CommandReceipts`, handler wrappers, breaker per command or provider (CCR-CM-003, round 2: recheck items 1, 4, 10) |
+> | Change History | 0.6 (2026-11-10): BEH-CM-042: for a long command's task the wrappers run in the task's fiber, which carries the dispatching fiber's plugin principal unchanged, and a host call under it after that activation ends dies with `PrincipalRetired` (07, BEH-CM-052) (T3) (CCR-CM-007)<br>0.5 (2026-11-10): BEH-CM-042 and BEH-CM-044: wrappers and admissions run under the dispatching fiber's plugin principal, unchanged — none for application code, the dispatching plugin's otherwise — instead of "no plugin principal", which the package cannot arrange; their host calls are recorded and decided for that plugin (core BEH-BR-258) (H5) (CCR-CM-006)<br>0.4 (2026-11-10): BEH-CM-042: `DispatchRunError`, the error of a wrapper's `run`, defined as `CommandOutputInvalid` or `CommandWrapperFailed` (it was used and never defined) (CCR-CM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-CM-041: the receipt scope gains an application-computed `partition`; every port call receives `services` (the dispatching fiber's `receiptContext` keys, and for a `Success` the wrapper chain's services), so a transaction reaches the port by context and never by fiber-local state; a dispatch from a durable-bus subscription handler joins the inbox's `StoreTransaction` with a key derived from the envelope's `eventId` (M-04); a typed error listed in the command's `retryable` is released, never stored (ERP alignment of the same audit); new BEH-CM-044, admission policies fixed in the catalog layer, consulted at step 6 and settled after step 7 (C-10); BEH-CM-043 returns the probe slot of a dispatch refused by an admission (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-02, A-04, A-09, A-10, A-13, A-14): receipts compare actor first, carry the dispatch digest (`definition-differs`) and a task id (`mode-differs`; a repeat of a task returns its `CommandTaskRef`); `void` for undone batch items; a `Failure` is completed outside the wrappers, a claim is released when the wrapper chain does not end with the completed outcome, and an in-flight claim expires; one flow list for the key annotation and no inherited key in nested dispatches; a probe slot not used is returned (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — idempotency key and `CommandReceipts`, handler wrappers, breaker per command or provider (CCR-CM-003, round 2: recheck items 1, 4, 10) |
 
 ---
 
@@ -341,6 +341,11 @@ interface CommandHandlerWrapper {
   ) => Effect.Effect<WrappedOutcome, DispatchRunError | WrapperError>
 }
 class WrapperError extends Schema.TaggedError<WrapperError>()("WrapperError", { message: Schema.String }) {}
+// What `run` can fail with (BEH-CM-041, 02 step 7): the output encoding, and a
+// `CommandWrapperFailed` of an inner wrapper or of the receipt completion of a `Success`
+// ("receipts"). A handler's typed error is a `Failure` outcome; the lease and the dispatch
+// timeout enclose the wrapper chain, so they reach a wrapper as an interruption.
+type DispatchRunError = CommandOutputInvalid | CommandWrapperFailed
 
 // The application's base layers:
 CommandCatalog.layer({
@@ -382,9 +387,27 @@ REQUIREMENT: The services a wrapper passes to `run` MUST be restricted to
              no other key of the dispatcher's or the wrapper's context MAY
              reach the handler. Wrappers MUST run in the dispatching fiber,
              with the dispatch's `CurrentCorrelation` and with the resolved
-             actor and annotations served as for the handler, and with no
-             plugin principal (the application's code is not a plugin).
+             actor and annotations served as for the handler, and under the
+             dispatching fiber's plugin principal, unchanged: none when
+             application code dispatched, the dispatching plugin's (the
+             dispatch's `onBehalfOf`, 02, BEH-CM-010) otherwise. The
+             package MUST NOT set, clear or imitate a principal for them;
+             core offers no way to (core BEH-BR-257, BEH-BR-258). For a
+             long command's task, step 7 runs in the task's fiber, which
+             carries that same principal (07, BEH-CM-052); the outcome
+             when the principal's activation ends while the task runs is
+             BEH-CM-052's.
 ```
+
+A wrapper is the application's code, but it runs for the caller, as a
+provider's method does (core BEH-BR-258): a host call it makes during a
+dispatch by a plugin — the MCP server, an agent loop, a handler's nested
+dispatch — is recorded `onBehalfOf` that plugin and decided for that plugin
+by a wired `AccessPolicy`, and the same call during a dispatch by application
+code is recorded with no `onBehalfOf`. A wrapper whose effect must not depend
+on who dispatched — a transaction, an audit row, an outbox message — does not
+read the principal; work that must run under no plugin's principal is handed
+to application code outside the dispatch.
 
 ```
 REQUIREMENT: A `WrapperError`, a failure of a wrapper other than a
@@ -563,8 +586,9 @@ REQUIREMENT: Step 6 MUST consult the admissions after the receipt claim and
              with a stored outcome or a task handle consults none. Each
              `admit` MUST run in the dispatching fiber, with the dispatch's
              `CurrentCorrelation`, the resolved actor and annotations
-             served as for the handler, no plugin principal, and a scope of
-             its own, bounded by `gateTimeout`.
+             served as for the handler, the dispatching fiber's plugin
+             principal unchanged, as a wrapper runs (BEH-CM-042), and a
+             scope of its own, bounded by `gateTimeout`.
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-021                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-043                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` (CCR-BR-018)<br>0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-10): Status names ADR-BR-043, which amends this ADR (C22) (CCR-BR-034)<br>0.3 (2026-11-08): A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` (CCR-BR-018)<br>0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context

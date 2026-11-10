@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-03                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): The example of BEH-AG-023 carries the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): BEH-AG-020 scoped to commands not declared `readOnly`, following the command catalog's read-only exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): Field-level untrusted output taints the session (label `untrusted-field:`); `TaintGuard.drafts` also drafts batches; provenance reaches core's call-log entries through the dispatch context; BEH-AG-023 tool results reach the model only as size-capped envelopes (CCR-AG-003, round 2: recheck items 5, 8; X8)<br>0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.7 (2026-11-10): BEH-AG-022 a loop started with `StartRequest.spawn` pins no toolset and reads no selector (H10 follow-up) (CCR-AG-005)<br>0.6 (2026-11-09): The example of BEH-AG-023 carries the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): BEH-AG-020 scoped to commands not declared `readOnly`, following the command catalog's read-only exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): Field-level untrusted output taints the session (label `untrusted-field:`); `TaintGuard.drafts` also drafts batches; provenance reaches core's call-log entries through the dispatch context; BEH-AG-023 tool results reach the model only as size-capped envelopes (CCR-AG-003, round 2: recheck items 5, 8; X8)<br>0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -329,7 +329,9 @@ REQUIREMENT: The package MUST NOT, by its own decision, change what the
 ```
 REQUIREMENT: An application that wants a tainted session to see fewer tools
              MUST give a distinct selector for it in
-             `StartRequest.taintedSelector` (BEH-AG-003). The loop MUST pin
+             `StartRequest.taintedSelector` (BEH-AG-003). Unless
+             `StartRequest.spawn` is present (a subagent uses its parent's
+             restricted toolset and pins nothing, BEH-AG-003), the loop MUST pin
              with that selector for every turn that begins while the
              session is tainted, and with `selector` otherwise. The package
              MUST NOT pass taint to a selector: the command companion's

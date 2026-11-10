@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-020                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amended by ADR-BR-032                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-09): The bus is a host-owned base service: no realm can isolate it (C-02) (CCR-BR-032)<br>0.3 (2026-11-08): References: hook points for policied dispatch (ADR-BR-046), the bus unchanged (CCR-BR-019); listeners run under their owner's principal and a wired access policy (CCR-BR-018); the companion `@bridger/durable-bus` is a separate contract (CCR-BR-021)<br>0.2 (2026-10-03): Listeners run with `CurrentActor` reset (BEH-BR-144) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-11-10): Status names ADR-BR-032, which amends this ADR, as its References already did (C22) (CCR-BR-034)<br>0.4 (2026-11-09): The bus is a host-owned base service: no realm can isolate it (C-02) (CCR-BR-032)<br>0.3 (2026-11-08): References: hook points for policied dispatch (ADR-BR-046), the bus unchanged (CCR-BR-019); listeners run under their owner's principal and a wired access policy (CCR-BR-018); the companion `@bridger/durable-bus` is a separate contract (CCR-BR-021)<br>0.2 (2026-10-03): Listeners run with `CurrentActor` reset (BEH-BR-144) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context

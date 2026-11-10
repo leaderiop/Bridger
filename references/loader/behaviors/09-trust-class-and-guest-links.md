@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-09                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.1 (2026-11-09): Initial draft: the "first-party" statement, the trust class of catalog entries, `Loader.lazy` refusing unmarked entries, `LoaderRemote.link` as the catalog-to-guest path, the link manifest derived from the guest's, the `RevokedDigests` view, checks 25–30 (specification audit F-06, M-02, M-06); introduction defines evaluation in the host's process and states where a guest runs, `@bridger/worker` included; BEH-LD-065 documentation states both without an isolation claim (independent review) (CCR-LD-004) |
+> | Change History | 0.2 (2026-11-10): BEH-LD-070: `RevokedDigests.layer` takes `pinned` (the rule's pinned digests and `LoaderGate`'s exempt digests) (L1); "one computation" replaced by agreement on the same inputs (PL14); check 30 (BEH-LD-071) covers exempt digests (SPEC-AUDIT-04) (CCR-LD-007)<br>0.1 (2026-11-09): Initial draft: the "first-party" statement, the trust class of catalog entries, `Loader.lazy` refusing unmarked entries, `LoaderRemote.link` as the catalog-to-guest path, the link manifest derived from the guest's, the `RevokedDigests` view, checks 25–30 (specification audit F-06, M-02, M-06); introduction defines evaluation in the host's process and states where a guest runs, `@bridger/worker` included; BEH-LD-065 documentation states both without an isolation claim (independent review) (CCR-LD-004) |
 
 ---
 
@@ -475,7 +475,9 @@ interface RevokedDigestsShape {
 }
 class RevokedDigests extends Context.Service<RevokedDigests, RevokedDigestsShape>()("@bridger/loader/RevokedDigests") {}
 declare const RevokedDigests: {
-  readonly layer: Layer.Layer<RevokedDigests, RevocationUnavailable, RevocationSource | AcceptedDigests>
+  // pinned: the digests the package rule pins (03, BEH-LD-022) and LoaderGate's exempt.digests (02, BEH-LD-015).
+  readonly layer: (options: { readonly pinned: readonly string[] }) =>
+    Layer.Layer<RevokedDigests, RevocationUnavailable, RevocationSource | AcceptedDigests>
 }
 ```
 
@@ -488,8 +490,10 @@ REQUIREMENT: `RevokedDigests.layer` MUST compute, when a revocation set
              signer through the re-evaluation of BEH-LD-030 over that
              record. `refused(digest)` MUST answer from that computation,
              and MUST answer "verification-unknown" for a digest with no
-             record while the set revokes a signer, unless the package rule
-             pins it — the rule of `filterDesired` (04, BEH-LD-028).
+             record while the set revokes a signer, unless the digest is in
+             `options.pinned` — the digests the package rule pins and the
+             digests `LoaderGate` exempts (02, BEH-LD-015), the same list
+             `filterDesired` is given (04, BEH-LD-028).
 ```
 
 ```
@@ -504,9 +508,12 @@ REQUIREMENT: `current` MUST list every digest of `AcceptedDigests` and of
 REQUIREMENT: `Revocation.refusalList` (07, BEH-LD-056), the kill switch's
              `filterDesired` (04, BEH-LD-028) and `LoaderGate` (02,
              BEH-LD-015) MUST reach the same answer as `refused` for every
-             package digest, and `Revocation.refusalList` MUST be built over
-             this view; there MUST be one computation of which package
-             digests are revoked.
+             package digest, and `Revocation.refusalList` and the remote
+             boundary MUST be built over this view. `filterDesired` and
+             `LoaderGate` compute their answers from the same inputs (the
+             revocation set, `AcceptedDigests` and the pinned and exempt
+             digests); agreement, not a single computation, is what this
+             requirement asks of them.
 ```
 
 ```
@@ -526,8 +533,9 @@ REQUIREMENT: Documentation MUST state that a consumer that refuses by
 
 A revocation list names digests and signers; a consumer at a boundary holds
 only a digest. Mapping one to the other needs the verification records, which
-are the loader's, and doing it once keeps the refusal list, the kill switch,
-the gate and the remote boundary from disagreeing about the same digest. Before
+are the loader's, and one rule applied to the same inputs keeps the refusal
+list, the kill switch, the gate and the remote boundary from disagreeing about
+the same digest. Before
 this view, the remote boundary read the list's digests only, so revoking a
 compromised signer stopped a running guest only when the kill switch removed
 its link.
@@ -572,7 +580,9 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
              30. `RevokedDigests`: digest, statement-digest and signer
                  revocations, and "verification-unknown", give the same
                  answer from `refused`, `Revocation.refusalList`,
-                 `filterDesired` and `LoaderGate`; a revoked first-party
+                 `filterDesired` and `LoaderGate`; a digest in `pinned` or
+                 `exempt.digests` with no record is not refused
+                 "verification-unknown"; a revoked first-party
                  statement does not enter the view; `changes` advances only
                  when the list changes (BEH-LD-070).
 ```

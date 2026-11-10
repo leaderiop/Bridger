@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-OVW                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Overview                                                     |
-> | Change History | 0.2 (2026-11-09): Public surface re-baselined: `TrailEntry` marks, collision and audit-chain link; "stored-collision"; `TrailSinkStatus` and `trailGate`; `verifySeals` through `@bridger/audit-chain`; `GxpLayer.make` `trail.gate` and audit-chain sealing options (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): `GxpLayer.make` option `gatePieces` (M5); `verifySeals` and `readArchive` `keyed` take a pure or an effectful MAC; `readArchive` returns `chain` (audit-chain CCR-AC-006 follow-up) (CCR-GX-006)<br>0.3 (2026-11-10): `GxpLayer.make` returns `TrailSinkStatus`; `verifySeals` options and errors (`ReceiptReader`, `continuesFrom`, `maxEntries`); `approvalGate` `precededBy`; `buildEvidencePack` `sinkStatus`; `exportTrail` `sealing`; `readArchive` `maxEntries` (H4, H7, P15, P17, P18, P19, low) (CCR-GX-005)<br>0.2 (2026-11-09): Public surface re-baselined: `TrailEntry` marks, collision and audit-chain link; "stored-collision"; `TrailSinkStatus` and `trailGate`; `verifySeals` through `@bridger/audit-chain`; `GxpLayer.make` `trail.gate` and audit-chain sealing options (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -192,8 +192,11 @@ declare function checkHighWater(store: TrailStoreShape, anchors: AnchorStoreShap
   Effect.Effect<CheckReport, TrailReadFailed | AnchorReadFailed>
 
 // 21 — seal verification through @bridger/audit-chain (sealing is off by default; import from @bridger/gxp/sealing)
-declare function verifySeals(store: TrailStoreShape, marks: AnchorStoreShape, sealing: VerifySealsInputs, options: { hostId: string; pageSize?: number }):
-  Effect.Effect<CheckReport & { chain: ChainReport }, TrailReadFailed | AnchorReadFailed | ReceiptStoreFailed>
+// VerifySealsInputs: { receipts: ReceiptReaderShape; verifier: AnchorVerifierShape; keyed? } (audit-chain 03, 05)
+//   keyed: a pure (keyId, input) => Uint8Array | undefined, or { mac } run through audit-chain's precomputeMacs first
+declare function verifySeals(store: TrailStoreShape, marks: AnchorStoreShape, sealing: VerifySealsInputs,
+  options: { hostId: string; continuesFrom?: HashChainOptions["continuesFrom"]; pageSize?: number; maxEntries?: number }):
+  Effect.Effect<CheckReport & { chain: ChainReport }, TrailReadFailed | AnchorReadFailed | BundleExportFailed | CheckCapacityExceeded>
 
 interface CheckReport {
   readonly format: "bridger-gx-check/1"
@@ -239,8 +242,9 @@ declare function bindingDigest(binding: Binding): `sha256:${string}`   // "sha25
 // 12 — the OperationGate core consults; policy → ticket → window → digest → separation of duties → consume → allow
 declare function approvalGate(options: {
   policy: ApprovalPolicy; tickets: TicketStoreShape; scope: string; clock?: Clock.Clock; deadline?: Duration.Input
+  precededBy?: Duration.Input             // timeouts of the gate pieces composed before it; default 0
 }): Layer.Layer<OperationGate | ApprovalGateLink, GxpLayerInvalid>
-// ApprovalGateLink.attach(host) reads Host.controls once: fixes hostId and the deadline (default gateTimeout − 5 s)
+// ApprovalGateLink.attach(host) reads Host.controls once: fixes hostId and the deadline (default gateTimeout − precededBy − 5 s)
 ```
 
 ### Fingerprints
@@ -282,9 +286,10 @@ declare function collectOqEvidence(q: {
   traceability: { core: string; gx: string }; installed: InstalledIdentity; conformance?: readonly string[]
 }): Effect.Effect<OqReport, RunnerOutputUnreadable>
 // 17 — deterministic pack: manifest.json (bridger-gx-evidence/1), iq.json, oq.json, coverage.json, checks.json,
-//      deviations.json, adapters.json, attachments/, report.md, report.html
+//      sink-status.json, deviations.json, adapters.json, attachments/, report.md, report.html
 declare function buildEvidencePack(q: {
-  iq?: IqReport; oq?: OqReport; checks?: readonly CheckReport[]; adapterManifests: readonly unknown[]
+  iq?: IqReport; oq?: OqReport; checks?: readonly CheckReport[]; sinkStatus: TrailSinkStatusValue | "no-sink"
+  adapterManifests: readonly unknown[]
   attachments: readonly { path: string; as: string }[]; outDir: string
 }): Effect.Effect<{ readonly packDigest: string }, EvidenceWriteFailed>
 declare function diffPacks(prev: string, next: string): Effect.Effect<PackDiff, EvidenceReadFailed>
@@ -292,11 +297,14 @@ declare function diffPacks(prev: string, next: string): Effect.Effect<PackDiff, 
 declare function exportTrail(q: {
   store: TrailStoreShape; tickets: TicketStoreShape | "not-used"; anchors: AnchorStoreShape | "not-used"
   hostId: string; range: { fromSeq: number; toSeq: number } | "all"; scope: string
-  policy: ApprovalPolicy | "not-used"; outDir: string
-}): Effect.Effect<ArchiveManifest, ExportFailed>
-declare function readArchive(dir: string, options?: { scope?: string; policy?: ApprovalPolicy; pageSize?: number; maxOpenRequests?: number }): Effect.Effect<{
+  policy: ApprovalPolicy | "not-used"
+  sealing: { chain: ChainReaderShape; receipts: ReceiptReaderShape; trustRoots: readonly TrustRoot[] } | "not-used"
+  maxEntries?: number; outDir: string
+}): Effect.Effect<ArchiveManifest, ExportFailed | CheckCapacityExceeded>
+declare function readArchive(dir: string, options?: { scope?: string; policy?: ApprovalPolicy; pageSize?: number; maxOpenRequests?: number; maxEntries?: number; keyed?: VerifySealsInputs["keyed"] }): Effect.Effect<{
   readonly manifest: ArchiveManifest; readonly files: readonly FileCheck[]
-  readonly report: CheckReport; readonly links?: ApprovalLinkReport }, ArchiveUnreadable | CheckCapacityExceeded>
+  readonly report: CheckReport; readonly links?: ApprovalLinkReport
+  readonly chain?: Readonly<Record<string, ChainReport>> }, ArchiveUnreadable | CheckCapacityExceeded>   // chain: when chain-bundle.json is present
 
 // 01 — one layer, every section required; "not-used" is spelled out, never omitted
 declare const GxpLayer: {
@@ -306,7 +314,8 @@ declare const GxpLayer: {
     anchors: { store: AnchorStoreShape; schedule: HighWaterSchedule } | "not-used"
     approvals: { policy: ApprovalPolicy; tickets: TicketStoreShape; signatures: SignatureCaptureShape } | "not-used"
     fingerprints: { keys: FingerprintKeyProviderShape; eligibility: FingerprintEligibility } | "not-used"
-  }): Layer.Layer<AuditSink | OperationGate | ApprovalGateLink | ConfigFingerprinter, GxpLayerInvalid | GxpPlatformUnsupported | GxpCoreVersionUnsupported>
+    gatePieces: readonly { name: string; gate: Gate<OperationRequest>; timeout: Duration.Input }[] | "not-used"   // before "approval" (22)
+  }): Layer.Layer<AuditSink | TrailSinkStatus | OperationGate | ApprovalGateLink | ConfigFingerprinter, GxpLayerInvalid | GxpPlatformUnsupported | GxpCoreVersionUnsupported>
 }
 ```
 

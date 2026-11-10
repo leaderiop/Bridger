@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.15                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-09): BEH-BR-071 `starting` row: a `restart` or `reconfigure` that supersedes a build keeps a held handoff value for the next build, and a call that arrives while a build imports handed-off state waits for the build step and is decided against the state it lands in (U-02) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-073 covers every system stop, the idle return of a lazy plugin (reason "idle", `next` "dormant") named (C-06); BEH-BR-075 every stop under shutdown ends "gone" or `failed(cleanup)` and nothing starts; BEH-BR-080 a resumed stop under shutdown unregisters the plugin (U-01) (CCR-BR-032)<br>0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.15 (2026-11-10): BEH-BR-066 the ordered check list names steps 4a (fingerprints) and 4b (refusal list) (CL3), and `ConfigInvalid` only for a value on a registration already loaded (C8); BEH-BR-074 the resume list and `stop-resumed` `by` name the sub-scope close and `unmount` of a child, with their drain limit; BEH-BR-080 such a resumption is not a cascade (C10) (CCR-BR-036)<br>0.14 (2026-11-10): BEH-BR-066 and BEH-BR-075 `shutdown`'s `WouldDeadlock` is the one decided before the `requested` record, with no record and no join; the carried references named (H1); BEH-BR-079 a refused background restart is a cascade root with no caller (C3) (CCR-BR-035)<br>0.13 (2026-11-10): BEH-BR-068 `replace` and `enable` complete on entering `dormant` too, and a row for a call whose start the `RefusalList` refuses after step 4b (completes on `disabled`, `completed` record, `start-refused` caused by its `requested` record) (H3); BEH-BR-073 names the system stop of a refused background restart, reason "refused-digest", `next` "disabled" (C5) (CCR-BR-034)<br>0.12 (2026-11-09): BEH-BR-071 `starting` row: a `restart` or `reconfigure` that supersedes a build keeps a held handoff value for the next build, and a call that arrives while a build imports handed-off state waits for the build step and is decided against the state it lands in (U-02) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-073 covers every system stop, the idle return of a lazy plugin (reason "idle", `next` "dormant") named (C-06); BEH-BR-075 every stop under shutdown ends "gone" or `failed(cleanup)` and nothing starts; BEH-BR-080 a resumed stop under shutdown unregisters the plugin (U-01) (CCR-BR-032)<br>0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -121,10 +121,14 @@ points in arrival order.
 REQUIREMENT: A call MUST pass, in order: the `HostClosed` check;
              attribution; the audit latch; `UnknownPlugin` and definition
              checks (`InstallError`, `ReplaceError`, and `ConfigInvalid` for
-             a value supplied to `reconfigure`); the `OperationGate`; the
-             `requested` audit record; the `WouldDeadlock` check; and then
-             its linearization point, where its intent is recorded
-             (22 — Attributable Operations, BEH-BR-188).
+             a value supplied to `reconfigure` of a registration already
+             loaded — a value for one not yet loaded is stored undecoded,
+             27 — Manifest and Lazy Activation, BEH-BR-247); the
+             configuration fingerprints (step 4a); the refusal list (step
+             4b); the `OperationGate`; the `requested` audit record; the
+             `WouldDeadlock` check; and then its linearization point, where
+             its intent is recorded (22 — Attributable Operations,
+             BEH-BR-188; CCR-BR-036).
 ```
 
 ```
@@ -133,7 +137,11 @@ REQUIREMENT: `WouldDeadlock` MUST be decided after the `requested` record
              before the call waits for anything, and again at the
              linearization point immediately before the intent is recorded.
              A call that fails with it MUST change nothing and MUST be
-             recorded with a `failed` terminal record.
+             recorded with a `failed` terminal record. The one exception is
+             `shutdown`, which decides `WouldDeadlock` from the calling
+             fiber alone, before its `requested` record, and when refused
+             writes no record and joins nothing (12 — Shutdown and Hosting,
+             BEH-BR-105; 22 — Attributable Operations, BEH-BR-188).
 ```
 
 ```
@@ -162,8 +170,9 @@ activation failure, phase `activation`
 
 `WouldDeadlock` is not one of the early checks. Whether the call would wait
 for a plugin that the calling fiber holds — through a lease, or because the
-fiber runs that plugin's build or one of its finalizers, or was forked and
-awaited by such a fiber ([09 — Leases](./09-leases.md), BEH-BR-088) —
+fiber runs that plugin's build, `load` or one of its finalizers, or was
+forked and awaited by such a fiber ([09 — Leases](./09-leases.md),
+BEH-BR-088) —
 depends on what is in flight when the call gets there, so it is decided
 after the `requested` record and before the intent, and a call refused for
 it leaves a `requested` record answered by a `failed` one. It is checked
@@ -279,12 +288,13 @@ the reconciler has not yet heard of a call that has no intent.
 | --- | --- |
 | `install` | the plugin's first snapshot entry has been published (03) |
 | `remove` | the plugin has no snapshot entry (06) |
-| `replace` | the new definition is registered and the plugin has entered `starting`, `waiting` or `disabled` (07) |
+| `replace` | the new definition is registered and the plugin has entered `starting`, `waiting`, `dormant` or `disabled` (07; 27) |
 | `retry` | the plugin has entered `starting` or `waiting` (07) |
 | `reconfigure` | the plugin has re-entered `starting` or `waiting`; or, for a plugin that is not restarted, the override is stored or cleared (and volatile values published) (11) |
 | `restart` | the plugin has re-entered `starting` or `waiting` (07) |
 | `disable` | the plugin is `disabled` (07) |
-| `enable` | the plugin has entered `starting` or `waiting` (07) |
+| `enable` | the plugin has entered `starting`, `waiting` or `dormant` (07; 27, BEH-BR-247) |
+| a call whose start a wired `RefusalList` refuses after its step 4b passed (28, BEH-BR-267) | the plugin has entered `disabled` with reason "refused-digest", in place of the state named above; the call succeeds, its terminal record is `completed`, and the `start-refused` record takes the call's `requested` record as its cause (22, BEH-BR-190) |
 | any no-op | at its linearization point |
 | any joined call | when the call it joined completes, with the same result — except a call that joins a parked operation, which resumes it (next row) |
 | a call that joins or supersedes a parked operation | when the resumed operation — the operation BEH-BR-072's row names: the one in flight when the call joins, this call's own when it supersedes — reaches the point given above; the call is its owner (BEH-BR-074) |
@@ -596,9 +606,12 @@ operation and records its own outcome.
 REQUIREMENT: When an operator call reaches its linearization point while the
              plugin is `stopping` because of a running system stop — any
              stop the host began without an operator operation: `reason`
-             "dependency-loss" or "runtime-failure", or "idle" with `next`
+             "dependency-loss" or "runtime-failure", "idle" with `next`
              "dormant" for the idle return of a lazy plugin (27 — Manifest
-             and Lazy Activation, BEH-BR-252); not parked — with no
+             and Lazy Activation, BEH-BR-252), or "refused-digest" with
+             `next` "disabled" for a refused background restart (28 —
+             Plugin Principal and Mandatory Policy, BEH-BR-267); not
+             parked — with no
              operator operation in flight, the call MUST wait,
              before its intent is recorded, until that stop has settled, and
              MUST then be decided by BEH-BR-071 against the state the plugin
@@ -716,7 +729,8 @@ REQUIREMENT: While a stop is parked, the plugin's snapshot entry MUST show
              in addition to the call's `drain-timeout` event; every
              resumption MUST emit a `stop-resumed` event
              `{ pluginId, by, endsIntent? }`, with `by` "operator",
-             "cascade" or "shutdown".
+             "cascade", "shutdown", "sub-scope" or "unmount" (13 —
+             Observability and Diagnostics, BEH-BR-114).
 ```
 
 ```
@@ -728,11 +742,16 @@ REQUIREMENT: A parked stop MUST NOT complete by itself, even when its leases
                on a child whose stop removes it, only `remove`);
              - a stop of one of its providers, or of its parent, needs it
                stopped (BEH-BR-080);
-             - shutdown takes it over (BEH-BR-075).
+             - shutdown takes it over (BEH-BR-075);
+             - for a child, the sub-scope it was mounted under closes, or
+               `Plugin.Runtime.unmount` is called for it (14 — Children and
+               Groups, BEH-BR-121, BEH-BR-126).
              A call MUST resume it under that call's `drain` and `force`
              options (or the host default); a cascade and shutdown MUST
              resume it under the limits BEH-BR-080 and 12 — Shutdown and
-             Hosting give them.
+             Hosting give them; a sub-scope close or an `unmount` MUST
+             resume it under `BridgerOptions.drainTimeout`, revoking on
+             expiry and never parking again (BEH-BR-121; CCR-BR-036).
 ```
 
 ```
@@ -852,7 +871,8 @@ calls without a `joined` record.
 ```
 REQUIREMENT: Once shutdown has started, every operation that names a plugin
              MUST fail with `HostClosed`. A `shutdown` call MUST join the
-             shutdown in progress (12 — Shutdown and Hosting).
+             shutdown in progress (12 — Shutdown and Hosting), except one
+             refused with `WouldDeadlock` (BEH-BR-105).
 ```
 
 ```
@@ -1011,12 +1031,14 @@ cycle. Waits run only against those edges — from a provider to its
 dependents, from a parent to its children — so no two host transitions can
 wait on each other, and no lock order has to be maintained to keep it so. A
 cycle can be closed only by code that runs inside a lease, a build or a
-finalizer of an activation scope and calls the host. The carried reference
-`@bridger/core/HeldPlugins` catches it within the fiber tree: a fiber running
-P's build or one of P's finalizers carries P, and so does every fiber it
-forks and awaits before returning, while fibers forked into the activation
-scope (`background`, `whenAvailable`) carry only the leases they hold; such a
-call fails with `WouldDeadlock` ([09 — Leases](./09-leases.md), BEH-BR-088).
+finalizer of an activation scope and calls the host. The carried references
+catch it within the fiber tree: a lease holder carries its provider in
+`@bridger/core/HeldPlugins`; a fiber running P's build, `load` or one of P's
+finalizers carries P in `@bridger/core/CurrentTransition`, and so does every
+fiber it forks and awaits before returning, while fibers forked into the
+activation scope (`background`, `whenAvailable`) carry only the leases they
+hold; such a call fails with `WouldDeadlock`
+([09 — Leases](./09-leases.md), BEH-BR-088).
 A hand-off to another fiber that does not carry the reference remains the
 residual of [RSK-BR-011](../gxp/03-risk-assessment.md#rsk-br-011), bounded by
 the drain limits and `buildTimeout`.
@@ -1073,9 +1095,10 @@ REQUIREMENT: When the cascade root is an operator call, that stop MUST drain
 
 ```
 REQUIREMENT: When the cascade has no caller at its root — a runtime failure,
-             a dependency-loss stop with no operator call at its root, or
-             shutdown — the stop MUST drain under
-             `BridgerOptions.drainTimeout`, MUST NOT park, and MUST revoke
+             a dependency-loss stop with no operator call at its root, a
+             refused background restart (28 — Plugin Principal and
+             Mandatory Policy, BEH-BR-267), or shutdown — the stop MUST
+             drain under `BridgerOptions.drainTimeout`, MUST NOT park, and MUST revoke
              the remaining leases on expiry (09 — Leases, BEH-BR-086;
              10 — Runtime Failure and Health, BEH-BR-095) — under
              shutdown, only once the overall shutdown limit has passed
@@ -1212,6 +1235,16 @@ REQUIREMENT: When a cascade needs D stopped and D's stop is parked
              (or "shutdown") and, when it ends a parked operator intent,
              `endsIntent` naming that operation — the one BEH-BR-072's row
              names for the parked operation.
+```
+
+```
+REQUIREMENT: A child's parked stop resumed by the close of its sub-scope or
+             by `Plugin.Runtime.unmount` is not a cascade: it MUST be
+             resumed as 14 — Children and Groups (BEH-BR-121) states, under
+             `BridgerOptions.drainTimeout`, revoking on expiry and never
+             parking, ending any parked operator intent with its
+             `intent-ended` record, and emitting `stop-resumed` with `by`
+             "sub-scope" or "unmount" (CCR-BR-036).
 ```
 
 ```

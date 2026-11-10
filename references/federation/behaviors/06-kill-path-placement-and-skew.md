@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-06                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-044: the `TestFederation` assertion on step 1 limited to a first attempt, and a retry reopens only the `deliveryImports` (F3); BEH-FD-045: the route's labels fall back to the profile the dialer or listener yielded (H4), and export endpoints are opened with them (F1) (CCR-FD-007)<br>0.4 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M16) — BEH-FD-047: report kind "backlog" (axis "event", this host's origin and `pending`, no versions); `oldest` and `newest` absent on it; an authority raising `minVersion` counts only the current incarnation of each node and uses the evidence of durable-bus BEH-DB-029 (reset windows, then an empty backlog) (CCR-FD-006)<br>0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
 
 ---
 
@@ -279,7 +279,9 @@ REQUIREMENT: `TestFederation` MUST let a test script `settle` to push,
              keep, block and time out, and `install` to fail and to crash
              the host, and MUST assert that no `fetch` or `install` is
              called after a blocked step 1, that links are not suspended
-             during step 1, that `install` is called only through the
+             during step 1 of a first attempt, that a retry with links
+             suspended reopens only the imports named in `deliveryImports`
+             during its step 1, that `install` is called only through the
              settlement, and that a restart after a crash in step 3 resumes
              with links suspended (BEH-FD-048).
 ```
@@ -298,8 +300,9 @@ rule an implementation can be held to.
 ```
 REQUIREMENT: A route's offered labels MUST be the `residency` of its
              `ManifestPeer`, or, absent that, the `residency` of the
-             transport profile of the link's connection; with neither, the
-             route offers none. The plugin MUST evaluate the
+             `profile` the `LinkDialer` or `LinkListener` yielded with the
+             link's connection (03, BEH-FD-017); with neither, the route
+             offers none. The plugin MUST evaluate the
              `PlacementPolicy` (default `PlacementPolicy.exact`):
              - for each import with a `residency`, with `subject.kind`
                "import", against the route to its `from` peer; a refusal
@@ -321,7 +324,12 @@ REQUIREMENT: The endpoint transport of each import, taken from the link's
              BEH-RM-056), so that the import proxy's own placement check
              (remote BEH-RM-068) compares against the labels this package
              compared, and a route that federation accepts is not refused
-             again by the proxy's build.
+             again by the proxy's build. The endpoint transport of each
+             export MUST likewise be opened with the route's offered labels
+             (`MultiplexedGuest.endpoint(name, { residency })`), so that
+             `Remote.serve`'s placement check (remote BEH-RM-069) compares
+             against the same labels and does not refuse the calls of a
+             route this package accepted (04, BEH-FD-025).
 ```
 
 ```
@@ -356,7 +364,7 @@ so a host and a link refuse on the same rule. Core only carries the label
 | Contract major | the contract (`ServiceId`), `contractWindow` | an import names one major; majors older than highest − window are dropped | [BEH-FD-020](./03-links-and-skew-handshake.md#beh-fd-020-each-import-names-one-major-and-the-offer-accepts-or-refuses-it) |
 | Contract minor | the provision's `version` V | a peer at v ≥ V within the major is accepted; add-only evolution (core 26) | BEH-FD-020, core BEH-BR-232 |
 | Event version | `DurableEvent.version`, `publishVersion` | readers read N and N−1; writers write N only after every reader in scope reads it (writers last) | [BEH-DB-031](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-031-one-skew-rule-for-events-writers-last-where-readers-cannot-go-first) |
-| Upcaster chain | `DurableEvent.minVersion` | kept until the oldest version received from every origin is ≥ the new minimum | [BEH-DB-029](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-029-upcasters-are-kept-for-as-long-as-old-envelopes-can-arrive), BEH-DB-032 |
+| Upcaster chain | `DurableEvent.minVersion` | kept until no origin can still hold an envelope below the new minimum, an origin that has not reported counting as holding one; on a host with an event store, also until no event below it is stored there (`UpcasterRemoved`), normally the life of that store | [BEH-DB-029](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-029-upcasters-are-kept-for-as-long-as-old-envelopes-can-arrive), BEH-DB-032, [BEH-ES-027](../../event-store/behaviors/04-versions-publication-and-chaining.md#beh-es-027-upcasters-are-kept-for-as-long-as-events-at-that-version-are-stored) |
 | Manifest and envelope formats | `format` literals | a new format only for changes older readers must not ignore; unknown fields ignored | BEH-FD-001, BEH-DB-002 |
 
 ```
@@ -397,6 +405,19 @@ REQUIREMENT: Documentation MUST state that the authority MAY exclude from
              writer back for ever.
 ```
 
+```
+REQUIREMENT: Documentation MUST state that this exclusion applies to the
+             writer switch only and MUST NOT be used to drop an upcaster.
+             The offline cap bounds how long a host follows unconfirmed
+             desired state, not the age of its outbox: a host past its cap
+             pushes its whole backlog, at the versions it was written at, in
+             step 1 of its re-bootstrap (BEH-FD-014, durable-bus BEH-DB-045).
+             A release that raises `minVersion` MUST NOT be rolled out to a
+             host whose event store holds events below the new minimum: the
+             store refuses the registration with `UpcasterRemoved`
+             (event-store BEH-ES-027).
+```
+
 **Settled here.** Readers-first (BEH-DB-028 as first written) assumes every
 reader can be upgraded before a writer moves; a terminal offline for three
 days cannot, and the authority writes downstream in the meantime. Writers
@@ -414,12 +435,15 @@ every other change, and a rollback is a new revision.
 ```ts
 // illustrative — not type-checked
 interface OldestVersionReport {
-  readonly axis: "event" | "contract" | "protocol" | "wire"
-  readonly kind: "received" | "reader" // received: versions that arrived; reader: the version this host's readers read
-  readonly subject: string             // event type, contract name, "federation" or "remote"
-  readonly origin?: string             // kind "received": the origin or peer the version was received from
-  readonly oldest: number | string     // lowest version received since `since`, or the lowest version read
-  readonly newest: number | string
+  readonly axis: "event" | "contract" | "protocol" | "wire"   // "event" for kind "backlog"
+  readonly kind: "received" | "reader" | "backlog"   // received: versions that arrived; reader: the version this host's
+                                       // readers read; backlog: this host's own outbox (durable-bus BEH-DB-029, BEH-DB-032)
+  readonly subject: string             // event type, contract name, "federation" or "remote"; "outbox" for kind "backlog"
+  readonly origin?: string             // kind "received": the origin or peer the version was received from;
+                                       // kind "backlog": this host's current origin, node#incarnation
+  readonly oldest?: number | string    // lowest version received since `since`, or the lowest version read; absent for "backlog"
+  readonly newest?: number | string    // absent for "backlog"
+  readonly pending?: number            // kind "backlog" only: envelopes still pending; 0 is the empty-backlog evidence
   readonly since: string               // Clock, ISO 8601
 }
 // Context.Service "@bridger/federation/VersionReports" — optional; the event delivery companion provides one
@@ -436,6 +460,20 @@ REQUIREMENT: When a `VersionReports` source is wired, the plugin MUST
 ```
 
 ```
+REQUIREMENT: Every report of kind "received" or "reader" MUST carry `oldest`
+             and `newest`; a report of kind "backlog" MUST carry axis
+             "event", `origin` and `pending`, and no versions. The plugin MUST pass "backlog"
+             reports on unchanged, and an authority that decides when to
+             raise `minVersion` (durable-bus BEH-DB-029) MUST count only the
+             current incarnation of each node: an origin `node#n` whose node
+             has reported from a later incarnation is not waited for. The
+             evidence that an origin no longer holds a version is the one
+             durable-bus BEH-DB-029 states: "received" windows reset with
+             `resetVersions` and free of that version since, and an empty
+             "backlog" report from the origin later than the resets.
+```
+
+```
 REQUIREMENT: Reports MUST carry identifiers, versions and times only —
              never payloads, configuration values or annotation values.
 ```
@@ -444,9 +482,13 @@ REQUIREMENT: Reports MUST carry identifiers, versions and times only —
 writer (BEH-FD-046) and when an upcaster may go (BEH-DB-029); this report is
 the evidence it decides on. Reports of kind "reader" say what each host's
 readers can read, which is what the writers-last switch needs; reports of
-kind "received" say what still arrives, which is what dropping an upcaster
-needs — they catch what deployment records miss: an origin still holding an
-unsent backlog at an old version.
+kind "received" say what still arrives, and reports of kind "backlog" say
+which origins still hold unsent envelopes, which together are what dropping an
+upcaster needs — they catch what deployment records miss: an origin still
+holding an unsent backlog at an old version. A replaced incarnation never
+reports again, so it is not waited for: a re-bootstrap pushed its outbox before
+the raise (durable-bus BEH-DB-048), and a restore lost whatever it had not
+pushed with the old store (durable-bus BEH-DB-004), which no report recovers.
 
 ## BEH-FD-048: Pending kills, the last applied manifest and the re-bootstrap marker are kept in the store
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-05                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-033, 034 kinds `nonCanonical`, `collision`, `auditDropped`, `headMismatch` (F-01, F-02); BEH-GX-036 marked and unmarked unknown shapes; BEH-GX-037 pairing by phase, `superseded` paired without `causationId` (C-08); BEH-GX-038 `auditDropped` on every record, the claim that the acknowledgement is the only place a dropped count appears corrected (F-01); seal kinds from 21 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-033 kind `chainLinkUnchecked` for a keyed link audit-chain reports "key-unavailable", which is an unchecked link, not a break (BEH-AC-019, follow-up of A1) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-033 chain-derived kinds `chainUnanchoredTail`, `chainNonCanonical`, `chainLossCounterRose` and `anchorUnconfirmed`, and the archive kind `bundleMismatch`; BEH-GX-035 numbers below `fromSeq` are outside the range (P7, P14, P15, P16, P20); follow-up: `CheckCapacityExceeded` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-033, 034 kinds `nonCanonical`, `collision`, `auditDropped`, `headMismatch` (F-01, F-02); BEH-GX-036 marked and unmarked unknown shapes; BEH-GX-037 pairing by phase, `superseded` paired without `causationId` (C-08); BEH-GX-038 `auditDropped` on every record, the claim that the acknowledgement is the only place a dropped count appears corrected (F-01); seal kinds from 21 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -50,12 +50,15 @@ type FindingKind =
   | "approvalWithoutRecord" | "recordWithoutApproval"           // BEH-GX-039
   | "tailLoss" | "unanchoredTail"                              // 06
   | "chainBreak" | "anchorMismatch" | "headMismatch"           // 21, from @bridger/audit-chain
+  | "chainUnanchoredTail" | "chainNonCanonical" | "chainLossCounterRose" | "anchorUnconfirmed"   // 21, from @bridger/audit-chain
+  | "chainLinkUnchecked"                                       // 21: a keyed link audit-chain could not check (BEH-AC-019)
+  | "bundleMismatch"                                           // 18, an archive's chain bundle against its entries
 
 interface Finding {
   readonly kind: FindingKind
   readonly hostId: string
   readonly auditSeq?: number          // the entry concerned, or the first of a range
-  readonly toSeq?: number             // last of a range (gap, tailLoss, unanchoredTail)
+  readonly toSeq?: number             // last of a range (gap, tailLoss, unanchoredTail, chainUnanchoredTail, anchorUnconfirmed)
   readonly recordId?: string
   readonly detail?: string            // from a fixed template per kind; never record content
 }
@@ -177,6 +180,11 @@ declare function checkStoredTrail(
     readonly maxOpenRequests?: number   // default 100000
   }
 ): Effect.Effect<CheckReport, TrailReadFailed | CheckCapacityExceeded>
+
+class CheckCapacityExceeded extends Schema.TaggedError<CheckCapacityExceeded>()("CheckCapacityExceeded", {
+  hostId: Schema.String,
+  auditSeq: Schema.Number                 // the first entry, or open request, the check could not hold
+}) {}
 ```
 
 ```
@@ -192,6 +200,15 @@ REQUIREMENT: It MUST run `verifyAuditSequence` page by page, each page
              translate the results to findings so that the report equals,
              finding for finding, the report of `checkTrailEntries` over the
              whole range read at once.
+```
+
+```
+REQUIREMENT: Numbers below `fromSeq` are outside the range. When `fromSeq`
+             is greater than 1, the missing start that `verifyAuditSequence`
+             reports (`after` 0) MUST be reported as a `gap` only from
+             `fromSeq` to the first `auditSeq` read less one, and not at all
+             when the entry at `fromSeq` was read; the report's `scope` MUST
+             show the range's start.
 ```
 
 ```

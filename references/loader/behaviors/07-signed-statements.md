@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-07                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-09): "first-party" reserved for in-process eligibility (file 09, F-06); `Revocation.refusalList` built over the `RevokedDigests` view (M-06) (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.4 (2026-11-10): BEH-LD-056: digests in `LoaderGate`'s `exempt.digests` are not refused "verification-unknown"; wiring passes `pinned` to `RevokedDigests.layer` (L1) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.3 (2026-11-09): "first-party" reserved for in-process eligibility (file 09, F-06); `Revocation.refusalList` built over the `RevokedDigests` view (M-06) (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -627,7 +627,8 @@ declare const Revocation: {
 // Wiring: built before the host with the other shared services and handed over as a Context base.
 const shared = yield* Layer.build(
   Layer.provideMerge(Revocation.refusalList,
-    Layer.provideMerge(RevokedDigests.layer, Layer.merge(AcceptedDigests.layer, revocations))))
+    Layer.provideMerge(RevokedDigests.layer({ pinned }), Layer.merge(AcceptedDigests.layer, revocations))))
+// pinned: the package rule's pinned digests plus LoaderGate's exempt.digests (09, BEH-LD-070).
 ```
 
 ```
@@ -661,8 +662,11 @@ REQUIREMENT: `refused` MUST be synchronous and pure, as core requires: it
 REQUIREMENT: When a signer is revoked and a digest submitted to `refused`
              has no `AcceptedDigests` record, the layer MUST refuse it with
              reason "verification-unknown", unless the digest is pinned by
-             the package rule — the rule `filterDesired` applies (04,
-             BEH-LD-028).
+             the package rule or listed in `LoaderGate`'s `exempt.digests`
+             (02, BEH-LD-015) — the `pinned` list the view is built with and
+             `filterDesired` applies (04, BEH-LD-028; 09, BEH-LD-070). A
+             bundled plugin exempt by digest has no record and would
+             otherwise go `disabled` after any signer revocation.
 ```
 
 ```

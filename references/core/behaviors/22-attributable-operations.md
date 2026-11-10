@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-22                                               |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.14                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-09): BEH-BR-187 a handoff's `export`, `upgrade` and `import` run with `CurrentActor` reset and an empty annotation bag, `export` with the correlation of its stop and `upgrade` and `import` with that of the build (U-04) (CCR-BR-033)<br>0.10 (2026-11-09): BEH-BR-186 table: `restart`, `reconfigure` and `PluginHandle.restart` take `HandoffCallOptions`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.9 (2026-11-08): BEH-BR-185 `sanitized: true` on the call's `requested`, `rejected` and terminal records; a system record the call causes carries the replaced correlation and is flagged only for its own replacements (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): `SystemTransition` gains "start-refused"; lone surrogates replaced in recorded strings (G59); BEH-BR-187 `CurrentCorrelation`, the default correlation of a call and of the work it causes (G58); BEH-BR-188 step 4b, the `RefusalList`; BEH-BR-190 causes of `start-refused` and the attributed child unmount (`requestedBy`, G57); BEH-BR-192 the correlation reaches the call log (CCR-BR-026); `lazy-idle`, root `lazy-triggered` records carry `onBehalfOf`, `Host.wake` reads the caller's principal (CCR-BR-024)<br>0.7 (2026-11-08): `Host.wake` classified (not mutating, not read-only); step 4 and 4a: `reconfigure` of a registration not yet loaded is not decoded and uses form "raw"; BEH-BR-190: a child removed by its sub-scope is caused by its mount record; BEH-BR-192 heading names the call log (CCR-BR-022)<br>0.6 (2026-11-08): `SystemTransition` gains `lazy-triggered` and its cause (CCR-BR-017); `OperationContext.annotations`, annotation resolution and empty bags at plugin entry points, `onBehalfOf` and annotations at step 2, `CurrentPlugin` never an actor, the actor also reaches the `CallLog` (BEH-BR-185, 187, 188, 190, 192; CCR-BR-018); `retireRealm` (thirteen operations), `plan` read-only, `handoff` system transition, `Actor.narrow` a caller-invoked derivation (BEH-BR-185, 186; CCR-BR-019)<br>0.5 (2026-10-03): BEH-BR-188 step 4a — configuration fingerprints from the optional `ConfigFingerprinter` port, after validation and before the gate: when the port is called and never called, `select` before `fingerprint`, only selected values handed over, no attribution to the port, validation of the answer, `fingerprintTimeout`, fail-closed `ConfigFingerprintUnavailable` with a core-written message, interruption outcome, stored fingerprints reused without calling the port; BEH-BR-192 attribution never reaches the fingerprinter, and an unwired fingerprinter changes nothing; BEH-BR-186 `controls` added to the read-only operations; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015)<br>0.4 (2026-10-02): Interruption outcome per stage of the call order; approval-to-`requested` passage uninterruptible; record-only `Interrupted` wins over a later `AuditUnavailable`; `WouldDeadlock` checked before any wait and at the linearization point; resumption of a parked stop is the call's intent; causation of system records in cascades; second review pass: `SystemTransition` "intent-ended" and its cause; a child's removal caused by the cascade root's record; pre-intent waits are a running system stop and the call's turn only; a `requested` record dropped for overflow fails the call at once (CCR-BR-008)<br>0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.14 (2026-11-10): BEH-BR-190 a refused `whenAvailable` re-run is a refused background restart among the cascade roots (C11) (CCR-BR-036)<br>0.13 (2026-11-10): BEH-BR-186 `shutdown`'s union includes `WouldDeadlock` (H2); BEH-BR-188 `shutdown` makes its `WouldDeadlock` check before step 6, writing no record and joining nothing, Settled note (H1); BEH-BR-190 a refused background restart as a cascade root (C3), and causation of a child's resumed stop and `intent-ended` record on a sub-scope close or unmount (C12); BEH-BR-187 and BEH-BR-192 the `HookDecisionRecord.correlationId` is the third exception (C5) (CCR-BR-035)<br>0.12 (2026-11-10): BEH-BR-187 and BEH-BR-192: a call's `correlationId` alone may appear in `inspect().pending` and in a `PartialApply`'s error log and `reconcile-partial` event, and nowhere else (H1); BEH-BR-192 unwired equivalence covers files 02–21 and 26–34 (audit round 2, Low); the GxP companion is cited as a Draft, not as specified later (C20); BEH-BR-192's "to nothing else" names the two correlation exceptions (review of CCR-BR-034) (CCR-BR-034)<br>0.11 (2026-11-09): BEH-BR-187 a handoff's `export`, `upgrade` and `import` run with `CurrentActor` reset and an empty annotation bag, `export` with the correlation of its stop and `upgrade` and `import` with that of the build (U-04) (CCR-BR-033)<br>0.10 (2026-11-09): BEH-BR-186 table: `restart`, `reconfigure` and `PluginHandle.restart` take `HandoffCallOptions`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.9 (2026-11-08): BEH-BR-185 `sanitized: true` on the call's `requested`, `rejected` and terminal records; a system record the call causes carries the replaced correlation and is flagged only for its own replacements (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): `SystemTransition` gains "start-refused"; lone surrogates replaced in recorded strings (G59); BEH-BR-187 `CurrentCorrelation`, the default correlation of a call and of the work it causes (G58); BEH-BR-188 step 4b, the `RefusalList`; BEH-BR-190 causes of `start-refused` and the attributed child unmount (`requestedBy`, G57); BEH-BR-192 the correlation reaches the call log (CCR-BR-026); `lazy-idle`, root `lazy-triggered` records carry `onBehalfOf`, `Host.wake` reads the caller's principal (CCR-BR-024)<br>0.7 (2026-11-08): `Host.wake` classified (not mutating, not read-only); step 4 and 4a: `reconfigure` of a registration not yet loaded is not decoded and uses form "raw"; BEH-BR-190: a child removed by its sub-scope is caused by its mount record; BEH-BR-192 heading names the call log (CCR-BR-022)<br>0.6 (2026-11-08): `SystemTransition` gains `lazy-triggered` and its cause (CCR-BR-017); `OperationContext.annotations`, annotation resolution and empty bags at plugin entry points, `onBehalfOf` and annotations at step 2, `CurrentPlugin` never an actor, the actor also reaches the `CallLog` (BEH-BR-185, 187, 188, 190, 192; CCR-BR-018); `retireRealm` (thirteen operations), `plan` read-only, `handoff` system transition, `Actor.narrow` a caller-invoked derivation (BEH-BR-185, 186; CCR-BR-019)<br>0.5 (2026-10-03): BEH-BR-188 step 4a — configuration fingerprints from the optional `ConfigFingerprinter` port, after validation and before the gate: when the port is called and never called, `select` before `fingerprint`, only selected values handed over, no attribution to the port, validation of the answer, `fingerprintTimeout`, fail-closed `ConfigFingerprintUnavailable` with a core-written message, interruption outcome, stored fingerprints reused without calling the port; BEH-BR-192 attribution never reaches the fingerprinter, and an unwired fingerprinter changes nothing; BEH-BR-186 `controls` added to the read-only operations; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015)<br>0.4 (2026-10-02): Interruption outcome per stage of the call order; approval-to-`requested` passage uninterruptible; record-only `Interrupted` wins over a later `AuditUnavailable`; `WouldDeadlock` checked before any wait and at the linearization point; resumption of a parked stop is the call's intent; causation of system records in cascades; second review pass: `SystemTransition` "intent-ended" and its cause; a child's removal caused by the cascade root's record; pre-intent waits are a running system stop and the call's turn only; a `requested` record dropped for overflow fails the call at once (CCR-BR-008)<br>0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -39,7 +39,7 @@ BEH-BR-185–192 and uses all eight.
 > | E-signature manifestation and record linking | Not done. The `OperationGate` is the seam. | Companion and consumer |
 > | Tamper evidence | Not provided. `verifyAuditSequence` detects gaps and duplicates only. | Consumer's store / companion |
 >
-> Those obligations are specified later in `references/gxp/`. Nothing in core
+> The companion's part is specified as a Draft in [`references/gxp/`](../../gxp/README.md). Nothing in core
 > makes a deployment compliant with any regulation; core provides hooks that
 > *support* the consumer's controls.
 
@@ -189,6 +189,7 @@ interface ReplaceOptions extends RemoveOptions    { /* realm */ }
 //                                                    (gate refusals are per entry; 18)
 // shutdown(options?: { timeout? } & OperationOptions)
 //                                                    Unattributed | ReasonRequired
+//                                                    (its union also has WouldDeadlock; 12)
 // acknowledgeAuditDegraded(options: { context: OperationContext })
 //                                                    G    (context mandatory)
 
@@ -206,8 +207,11 @@ REQUIREMENT: Every mutating operation — the thirteen values of `Operation`,
              `AuditUnavailable` and `OperationRejected`, with exactly these
              exceptions: `reconcile` omits `OperationRejected` (refusals are
              per entry, 18 — Reconciliation and Confluence), and `shutdown`
-             fails only with `Unattributed` or `ReasonRequired` (it is
-             neither latched nor gated, and audit failure never blocks it).
+             fails only with `Unattributed`, `ReasonRequired` or
+             `WouldDeadlock` (it is neither latched nor gated, and audit
+             failure never blocks it; `WouldDeadlock` only from a build,
+             `load` or finalizer fiber, 12 — Shutdown and Hosting,
+             BEH-BR-105).
 ```
 
 ```
@@ -321,7 +325,7 @@ REQUIREMENT: `CurrentCorrelation.with(id)` MUST be available to any code,
              as `CurrentActor` is: a correlation is a caller's claim, not
              an identity. An empty string MUST be treated as unset. The
              value MUST NOT appear in snapshots, `Host.events`, logs, spans
-             or metrics (BEH-BR-192).
+             or metrics, save the three exceptions BEH-BR-192 lists.
 ```
 
 ```
@@ -714,7 +718,17 @@ REQUIREMENT: `shutdown` MUST skip step 3 and step 5. Its `requested` record
              proceed anyway, set the audit-degraded latch, and report
              `CloseReport.auditDegraded: true`. A `shutdown` on a host that
              is already closing MUST join the shutdown in progress (and is
-             recorded with a `joined` terminal record).
+             recorded with a `joined` terminal record), unless it is refused
+             with `WouldDeadlock` as the next requirement states.
+```
+
+```
+REQUIREMENT: `shutdown` MUST make its `WouldDeadlock` check after step 2
+             and before step 6, reading `@bridger/core/CurrentTransition`
+             only (09 — Leases, BEH-BR-088; 12 — Shutdown and Hosting,
+             BEH-BR-105), and MUST make no `WouldDeadlock` check at step 7.
+             A `shutdown` refused there MUST change nothing, MUST write no
+             record and MUST NOT join a shutdown in progress.
 ```
 
 ```
@@ -756,6 +770,13 @@ for anything — a running system stop, or its turn — and again at the
 linearization point before the intent, because whether the call joins an
 operation in flight, and so would wait for that operation's step, is known
 only there ([09 — Leases](./09-leases.md), BEH-BR-088).
+
+**Settled here (CCR-BR-035).** `shutdown` is the one exception. Its
+`WouldDeadlock` depends only on the calling fiber — whether it runs a build,
+`load` or finalizer step — and not on what is in flight, so it is decided
+before the `requested` record and leaves no record, as a refusal for
+attribution does. Deciding it at step 7 would have made a refused shutdown
+join the one in progress, which is the wait the refusal exists to avoid.
 
 `shutdown` is exempt from the latch and the gate, and from fail-closed audit,
 because stopping is the safe direction: refusing to stop a host whose audit
@@ -889,9 +910,13 @@ REQUIREMENT: In a cascade (08 — Operation Legality, BEH-BR-079), the cause
              of a system record MUST be taken from the cascade root:
              - root an operator call (the cascading call): that call's
                `requested` record;
-             - root a runtime failure or shutdown: the `recordId` of the
-               record that began the root — the `runtime-failure` record,
-               or the `requested` record of `shutdown`;
+             - root a runtime failure, shutdown or a refused background
+               restart (a refused `whenAvailable` re-run included, 15 —
+               Optional and Reactive, BEH-BR-134): the `recordId` of the
+               record that began the root —
+               the `runtime-failure` record, the `requested` record of
+               `shutdown`, or the `start-refused` record (28 — Plugin
+               Principal and Mandatory Policy, BEH-BR-267);
              - root a dependency-loss stop with no operator call at its
                root: the `causationId` that stop's own `system-stop` record
                carries, which leads back to one of the roots above.
@@ -901,7 +926,14 @@ REQUIREMENT: In a cascade (08 — Operation Legality, BEH-BR-079), the cause
              the cascade root. The `intent-ended` record of a parked intent
              that a cascade or shutdown ends (23 — Audit Sink and Record,
              BEH-BR-199) MUST take its cause in the same way: the record of
-             the cascade root, or the `requested` record of `shutdown`.
+             the cascade root, or the `requested` record of `shutdown`. A
+             parked stop of a child resumed because its sub-scope closed or
+             because `Plugin.Runtime.unmount` was called for it
+             (14 — Children and Groups, BEH-BR-126) is not a cascade: its
+             records, and the `intent-ended` record of the parked intent it
+             ends, MUST take as `causationId` the child's mount record for
+             a sub-scope close, and the `unmount-requested` record for an
+             unmount.
 ```
 
 ```
@@ -1011,16 +1043,30 @@ REQUIREMENT: The actor, reason and correlation of a call MUST be passed to
              `AuditSink` (as `AuditRecord` fields), and — the calling
              fiber's `CurrentActor` and `CurrentCorrelation` only — to the
              `CallLog` (29 — Capability Grants and Call Log, BEH-BR-276);
-             to nothing else. They, `onBehalfOf` and the
+             to nothing else, save the three exceptions for the
+             `correlationId` below. They, `onBehalfOf` and the
              annotations MUST NOT appear in snapshots, `Host.events`, logs,
              spans or metrics, and MUST NOT reach the `ConfigFingerprinter`
              (BEH-BR-188, step 4a).
 ```
 
 ```
+REQUIREMENT: The `correlationId` alone — never the actor, the reason,
+             `onBehalfOf` or an annotation — is excepted in exactly three
+             places: `inspect().pending` (13 — Observability and
+             Diagnostics, BEH-BR-118); the error-level log and
+             `reconcile-partial` host event of a `PartialApply` (32 —
+             Generic Gate and Plan, BEH-BR-324); and
+             `HookDecisionRecord.correlationId`, the dispatching fiber's
+             `CurrentCorrelation`, on a hook point's `decisions` stream and
+             in `HookOutcome.record` (31 — Hook Points, BEH-BR-305). No
+             other snapshot, event, log, span or metric MAY carry it.
+```
+
+```
 REQUIREMENT: With no `AuditSink`, no `OperationGate`, no
              `ConfigFingerprinter` and default `attribution`, every mutating
-             call MUST behave exactly as specified in files 02–21: the same
+             call MUST behave exactly as specified in files 02–21 and 26–34: the same
              outcomes, errors, snapshots and events, and no additional
              waiting.
 ```

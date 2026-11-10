@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-02                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.5 (2026-11-09): Step 4 also verifies the "first-party" statement, so no package is evaluated in the host's process without it (F-06); the entry is read from `extensions["@bridger/loader"]` (M-03); `PackageManifestMismatch` and `StatementRevoked` in `LoadError` (C-16); guest wording (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Steps 4 and 5 run through `SignaturePolicy.verify` with the publisher binding; system starts of revoked digests refused by core's `RefusalList` backed by the loader (G60 closed); undo requests judged as the operation they issue (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.7 (2026-11-10): BEH-LD-015: an exempt digest is never refused "verification-unknown" and the same `exempt.digests` reach `RevokedDigests.layer` and `filterDesired` (L1); `AcceptedDigests` keeps one acceptance per digest and origin, so a catalog withdrawal leaves a load's acceptance in place (PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.6 (2026-11-10): BEH-LD-015: installs by core realm families and ephemeral realms (agent model adapters, subagents) are judged as any install; the supported wirings are a loader load or an exemption by digest, never by realm (round 2 findings of the specification audit of 2026-11-09, P23); follow-up: `FetchError`, the error of `fetchVerified`, defined as the errors of steps 1–6 (it was used and never defined) (CCR-LD-005)<br>0.5 (2026-11-09): Step 4 also verifies the "first-party" statement, so no package is evaluated in the host's process without it (F-06); the entry is read from `extensions["@bridger/loader"]` (M-03); `PackageManifestMismatch` and `StatementRevoked` in `LoadError` (C-16); guest wording (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Steps 4 and 5 run through `SignaturePolicy.verify` with the publisher binding; system starts of revoked digests refused by core's `RefusalList` backed by the loader (G60 closed); undo requests judged as the operation they issue (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -52,7 +52,7 @@ Planned source: `packages/loader/src/Loader.ts`,
 // illustrative — not type-checked
 interface LoaderShape {
   readonly load: (ref: PackageRef) => Effect.Effect<LoadedPlugin, LoadError>
-  readonly fetchVerified: (ref: PackageRef) => Effect.Effect<VerifiedPackage, FetchError | VerifyError>  // 05, BEH-LD-039
+  readonly fetchVerified: (ref: PackageRef) => Effect.Effect<VerifiedPackage, FetchError>  // 05, BEH-LD-039
 }
 class Loader extends Context.Service<Loader, LoaderShape>()("@bridger/loader/Loader") {}
 ```
@@ -277,6 +277,12 @@ type LoadError =
   | SignatureRejected | PublisherMismatch | Revoked | StatementRevoked | RevocationUnavailable | RevocationStale
   | PackageRefused | EvaluationFailed | NotAPluginDefinition | PackageManifestMismatch | LoadLogFailed
 // StatementRevoked: the "first-party" statement revoked by its statement digest or a signer (09, BEH-LD-065)
+// The errors of steps 1–6, which `fetchVerified` runs (05, BEH-LD-039): `LoadError` without
+// StatementRevoked (no "first-party" statement is verified, 09) and the errors of steps 7–8.
+type FetchError =
+  | FetchFailed | PackageMalformed | UnsupportedDigestAlgorithm | DigestMismatch
+  | SignatureRejected | PublisherMismatch | Revoked | RevocationUnavailable | RevocationStale
+  | PackageRefused | LoadLogFailed
 ```
 
 ```
@@ -311,6 +317,7 @@ and recorded by core when it reaches the host.
 // the gate piece, every Loader instance and the catalog (05). Given to the host
 // as a base service (core 02, BEH-BR-012) so that LoaderPlugin can require it.
 interface AcceptedDigestsShape {
+  // One acceptance per (digest, via); lookup prefers "load" over "catalog-entry".
   readonly lookup: (digest: string) => Option.Option<AcceptedDigest>
   readonly changes: Stream.Stream<number>                      // revision of the store, latest wins
 }
@@ -387,6 +394,34 @@ REQUIREMENT: For `install` and `replace`, the piece MUST return `Refuse`
 ```
 
 ```
+REQUIREMENT: The installs made by core's realm families and ephemeral
+             realms (core BEH-BR-331, BEH-BR-336) — for example the agent
+             companion's model adapter per session and its subagents'
+             plugins — are ordinary `install` requests and MUST be judged
+             by the rule above, with no exception for their realm.
+             Documentation MUST state the two supported wirings: (1) the
+             definitions the family or the ephemeral realm installs are
+             those returned by a load of the current `Loader` instance (or
+             a catalog entry it verified), so their stamped digest is
+             accepted; or (2) the application sets `meta.digest` on each
+             bundled definition it installs that way and lists that digest
+             in `exempt.digests`. Documentation MUST NOT present an
+             exemption by id as the way to admit them.
+```
+
+```
+REQUIREMENT: A digest listed in `exempt.digests` never has an
+             `AcceptedDigests` record, so the rule that refuses a digest
+             with no record while a signer is revoked ("verification-unknown",
+             04, BEH-LD-028; 09, BEH-LD-070) MUST NOT apply to it: the
+             application MUST pass the same `exempt.digests` to
+             `RevokedDigests.layer` (in `pinned`) and to `KillSwitch.run`
+             (as `exemptDigests`, which it adds to `filterDesired`'s
+             `pinned`), and the piece MUST NOT refuse an exempt digest for that reason. An
+             exempt digest revoked by digest is still refused.
+```
+
+```
 REQUIREMENT: For `enable`, `retry`, `restart` and `reconfigure` — every
              operator call that can start an installed plugin's code again
              — the piece MUST return `Refuse` with reason "digest-revoked"
@@ -418,6 +453,15 @@ REQUIREMENT: Each `Loader` instance MUST, at construction, mark every entry
              affected: the gate is not consulted for system transitions.
 ```
 
+```
+REQUIREMENT: `AcceptedDigests` MUST keep at most one acceptance per digest
+             and origin (`via`), and removing an acceptance MUST remove only
+             that origin's: the catalog's withdrawal of an entry (05,
+             BEH-LD-035) MUST leave a load's acceptance of the same digest in
+             place. `lookup` MUST return the `via: "load"` acceptance when
+             one exists, and otherwise the `via: "catalog-entry"` one.
+```
+
 Without this piece, the loader is a convenience: any code holding the raw
 `Host` can `import()` a module and install it, and core will carry whatever
 `meta.digest` it declares. With it, the gate — which core guarantees cannot
@@ -433,7 +477,11 @@ because the very first install — the loader plugin itself — and plugins
 bundled with the application carry no loader-stamped digest. An exemption by
 id lets any definition with that id through and is therefore weaker than an
 exemption by digest; both are configuration a reviewer can read, and
-neither has a default.
+neither has a default. No exemption by realm is offered: a realm is a
+resolution namespace, not a boundary (core
+[BEH-BR-150](../../core/behaviors/17-realms-and-interception.md)), and any
+caller of the host can define one, so exempting `ephemeral/` or a family's
+realms would admit any code installed there.
 
 A catalog entry counts as accepted before its code is fetched because a lazy
 install is the only gated decision for a lazy plugin: leaving `dormant` is a

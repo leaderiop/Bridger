@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-EN-001: `Entitlement.layer` records the application's `essential` list process-locally, where `guard` reads it (E2); BEH-EN-003: mode "unknown" and core's "unmetered" allow only essential uses; BEH-EN-005: under "last-known" with no answer ever known the served state is mode "unknown" with `stale: true` (E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.5 (2026-11-10): BEH-EN-001: `Entitlement.guard` leaves the list of components that require the `Entitlement` service, since it reads the mode from the activation's `Plugin.Runtime.entitled` (02, BEH-EN-014), and is given `essential` in its own options (M25); BEH-EN-005: `checkTimeout` defaults to 4 seconds, shorter than core's 5-second `resolutionTimeout`, so `Entitlement.capabilityPolicy` builds with defaults (M26) (CCR-EN-006)<br>0.4 (2026-11-10): BEH-EN-001: the application's `EntitlementAdapter` is wrapped by `Entitlement.layer(adapter, options)`, the one way `EntitlementOptions` reach the package's components, and the `Entitlement` service carries them; BEH-EN-003 and 004: the adapter's fallback mode is `EntitlementState.fallbackMode` (P13) (CCR-EN-005)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -41,11 +41,17 @@ Planned source: `packages/entitlement/src/Entitlement.ts` *(Planned)*.
 
 ```ts
 // illustrative — not type-checked
-interface EntitlementShape {
+interface EntitlementAdapter {                       // the application's
   readonly check: (subject: EntitlementSubject) => Effect.Effect<EntitlementState, EntitlementUnavailable>
   readonly watch: (subject: EntitlementSubject) => Stream.Stream<EntitlementState, EntitlementUnavailable>
 }
+interface EntitlementShape extends EntitlementAdapter {
+  readonly options: EntitlementOptions               // BEH-EN-005; read by every component that requires the service
+}
 class Entitlement extends Context.Service<Entitlement, EntitlementShape>()("@bridger/entitlement/Entitlement") {}
+declare const Entitlement: {
+  readonly layer: (adapter: EntitlementAdapter, options: EntitlementOptions) => Layer.Layer<Entitlement, EntitlementConfigError>
+}
 
 class EntitlementUnavailable extends Schema.TaggedError<EntitlementUnavailable>()("EntitlementUnavailable", {
   pluginId: Schema.String,
@@ -54,18 +60,36 @@ class EntitlementUnavailable extends Schema.TaggedError<EntitlementUnavailable>(
 ```
 
 ```
-REQUIREMENT: `@bridger/entitlement` MUST NOT export an `Entitlement`
+REQUIREMENT: `@bridger/entitlement` MUST NOT export an `EntitlementAdapter`
              implementation — no "allow all", no "always full", no example
-             layer outside its testing entry point. The only fixture MUST be
+             adapter outside its testing entry point. The only fixture MUST be
              a scripted test adapter exported from
              `@bridger/entitlement/testing`.
 ```
 
 ```
+REQUIREMENT: `Entitlement.layer(adapter, options)` MUST be the only way the
+             `Entitlement` service is provided: it serves the adapter's
+             `check` and `watch` unchanged, with `options`, and gives no
+             answer of its own. It MUST fail with `EntitlementConfigError`
+             (component "Entitlement.layer", 04) when `onUnavailable` is
+             absent or is "last-known" without `staleAfter` (BEH-EN-005).
+             Every component that requires the service reads `labels`,
+             `onUnavailable`, `staleAfter`, `checkTimeout` and `essential`
+             from the service's `options`. `Entitlement.guard` requires no
+             service: `Entitlement.layer` MUST, when built, record
+             `options.essential` in the package's process-local state,
+             where `guard` reads it (02, BEH-EN-014).
+```
+
+```
 REQUIREMENT: Every component of this package that needs the port (the gate
-             of BEH-EN-009, the view of BEH-EN-013, `Entitlement.guard`)
-             MUST require it in its layer's requirements. None MAY fall back
-             to a default answer when it is absent.
+             of BEH-EN-009, the view of BEH-EN-013, `Entitlement.capabilityPolicy`
+             of 04) MUST require it in its layer's requirements. None MAY
+             fall back to a default answer when it is absent.
+             `Entitlement.guard` does not read the port: it reads the mode
+             the activation's `Plugin.Runtime.entitled` gives (02,
+             BEH-EN-014), which the view feeds.
 ```
 
 A shipped "always full" adapter would be the same false affordance the core
@@ -120,12 +144,13 @@ plugin cannot ask about another plugin's entitlement and receive its own.
 type EntitlementMode = "full" | "grace" | "read-only" | "none"
 
 interface EntitlementState {
-  readonly mode: EntitlementMode
+  readonly mode: EntitlementMode | "unknown"   // "unknown": served by the package, never by the adapter (BEH-EN-005)
   readonly validUntil?: string        // ISO-8601 UTC; end of "full"
   readonly graceUntil?: string        // ISO-8601 UTC; end of "grace"
   readonly reason?: string            // free text from the adapter, e.g. "expired"
   readonly asOf: string               // when this state was established, from Clock
   readonly stale?: true               // last-known answer served under onUnavailable (BEH-EN-005)
+  readonly fallbackMode?: "read-only" | "none"   // the adapter's mode after validUntil and graceUntil (BEH-EN-004); "read-only" when absent
 }
 ```
 
@@ -134,7 +159,10 @@ REQUIREMENT: The modes MUST be ordered `full` > `grace` > `read-only` >
              `none` for the purpose of "allows": `grace` MUST allow every
              use `full` allows; `read-only` MUST allow only uses declared
              read-only or essential (BEH-EN-007, BEH-EN-014); `none` MUST
-             allow only essential uses.
+             allow only essential uses. Mode "unknown", which the derived
+             `watch` serves when no answer is known (BEH-EN-005), and core's
+             "unmetered" (02, BEH-EN-013) MUST allow only essential uses, as
+             `none` does.
 ```
 
 ```
@@ -160,7 +188,7 @@ person decides whether to take it out
 REQUIREMENT: When an answer carries `validUntil` or `graceUntil`, the package
              MUST derive the effective mode from the time read from `Clock`:
              `full` until `validUntil`; then `grace` until `graceUntil` when
-             present; then the adapter's stated fallback mode, `read-only`
+             present; then the adapter's stated `fallbackMode`, `read-only`
              when it states none. The package MUST NOT read ambient time.
 ```
 
@@ -194,7 +222,7 @@ interface EntitlementOptions {
   readonly labels: (target: { pluginId: string; realm: string }) => Readonly<Record<string, string>>
   readonly onUnavailable: "last-known" | "read-only" | "none"          // required, no default
   readonly staleAfter?: Duration.Input                                  // with "last-known": required
-  readonly checkTimeout?: Duration.Input                                // default 5 seconds
+  readonly checkTimeout?: Duration.Input                                // default 4 seconds: shorter than core's 5-second resolutionTimeout (04, BEH-EN-025)
   readonly essential?: readonly string[]                                // BEH-EN-007
 }
 ```
@@ -204,7 +232,10 @@ REQUIREMENT: `onUnavailable` MUST be stated explicitly; the package MUST NOT
              choose a default. With "last-known", `staleAfter` MUST be
              stated, and a last-known state older than `staleAfter` (by
              `asOf`, read against `Clock`) MUST be served as `read-only`
-             with `stale: true`.
+             with `stale: true`. Under "last-known", while no answer was
+             ever known for the subject, the served state MUST be
+             `{ mode: "unknown", stale: true, reason:
+             "entitlement-unavailable", asOf }`, `asOf` read from `Clock`.
 ```
 
 ```

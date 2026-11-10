@@ -5,20 +5,21 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-01                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.7 (2026-11-10): BEH-KR-004: `KeyStore` gains `acknowledge`, `acknowledgements` and `unacknowledged` for callback and host acknowledgements and each callback's cursor (K1); BEH-KR-008 declares `NonceSource`, `KeyringPorts`, `Keyring.plugin` and `KeyringConfigError` (PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.6 (2026-11-10): BEH-KR-004 declares `WrappedKey` and `SubjectKeys`; BEH-KR-005 declares the `KeyWrapper` port, whose failures are `KeyStoreUnavailable`; BEH-KR-006: `rewrap` handles only the versions listed at its start, returns a `RewrapReport` naming the versions it could not re-wrap, and a wrap failure of one version does not end the call (M24) (CCR-KR-005)<br>0.5 (2026-11-10): `rotate` and `rewrap`, required by BEH-KR-006, added to `KeyringShape` (BEH-KR-002) and to the members of the `Keyring` contract (BEH-KR-008) (P10); follow-up: BEH-KR-004 `KeyStore` gains `wrappedUnder` and the compare-and-set `replaceWrapped` (`WrappedKeyChanged`), which BEH-KR-006 `rewrap` uses (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
 This file specifies subjects, per-subject data keys, encryption with
 authenticated data, the `KeyStore`, `KeyWrapper` and `NonceSource` ports,
-rotation, backup obligations and access through core grants. This file owns
+rotation, backup obligations, the keyring plugin and access through core
+grants. This file owns
 BEH-KR-001–008 and uses all eight.
 
 Planned source: `packages/keyring/src/Keyring.ts`,
@@ -52,6 +53,8 @@ interface KeyringShape {
     Effect.Effect<Sealed, KeyShredded | KeyStoreUnavailable>
   readonly decrypt: (sealed: Sealed, aad: Uint8Array) =>
     Effect.Effect<Uint8Array, KeyShredded | DecryptFailed | KeyStoreUnavailable>
+  readonly rotate: (subject: string) => Effect.Effect<KeyHandle, KeyShredded | SubjectInvalid | KeyStoreUnavailable>   // BEH-KR-006: the new current handle
+  readonly rewrap: (kekId: string) => Effect.Effect<RewrapReport, KeyStoreUnavailable>                                 // BEH-KR-006
   // shred, onShred, shredStatus: 03
 }
 interface Sealed { readonly v: 1; readonly subject: string; readonly keyId: string; readonly nonce: string; readonly ct: string }  // base64url
@@ -95,10 +98,31 @@ interface KeyStore {
   readonly markStep: (subject: string, shredId: string, step: ShredStep) => Effect.Effect<void, KeyStoreUnavailable>  // 03, BEH-KR-017
   readonly incompleteShreds: Effect.Effect<readonly Tombstone[], KeyStoreUnavailable>                 // tombstones with a pending step
   readonly holders?: (subject: string) => Effect.Effect<readonly string[], KeyStoreUnavailable>       // hosts the consumer gave the key to (BEH-KR-021)
+  // BEH-KR-006: rewrap. Every live key version whose `wrapped.kekId` is `kekId`, tombstoned subjects excluded
+  readonly wrappedUnder: (kekId: string) => Effect.Effect<readonly StoredKeyVersion[], KeyStoreUnavailable>
+  // BEH-KR-006: compare-and-set; replaces the version's wrapped key only while it still equals `expected`
+  readonly replaceWrapped: (subject: string, version: number, expected: WrappedKey, next: WrappedKey) =>
+    Effect.Effect<void, KeyStoreUnavailable | KeyShredded | WrappedKeyChanged>
+  // 03, BEH-KR-019, BEH-KR-020: acknowledgements of a shred, kept beside its tombstone, never in it
+  readonly acknowledge: (subject: string, shredId: string, by: ShredAcknowledger) => Effect.Effect<void, KeyStoreUnavailable>
+  readonly acknowledgements: (subject: string, shredId: string) => Effect.Effect<readonly ShredAcknowledger[], KeyStoreUnavailable>
+  // a callback's cursor: every tombstone the callback has not acknowledged, in the order the tombstones were written
+  readonly unacknowledged: (callback: string) => Effect.Effect<readonly Tombstone[], KeyStoreUnavailable>
   // present only when the KeyStore's database is the durable-bus outbox's: a transaction the OutboxStore accepts
   readonly transaction?: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) => Effect.Effect<A, E | KeyStoreUnavailable, Exclude<R, StoreTransaction>>
 }
 type ShredStep = "destroyed" | "noticed"
+type ShredAcknowledger = { readonly callback: string } | { readonly host: string }   // a callback name; a host's node id
+interface WrappedKey { readonly kekId: string; readonly bytes: string }   // a data key wrapped by the KeyWrapper (BEH-KR-005); base64url
+interface SubjectKeys {                                                    // a live subject: every version kept until shred (BEH-KR-006)
+  readonly subject: string
+  readonly current: number                                                 // the version `encrypt` uses
+  readonly versions: readonly StoredKeyVersion[]
+}
+interface StoredKeyVersion { readonly subject: string; readonly keyId: string; readonly version: number; readonly wrapped: WrappedKey }
+class WrappedKeyChanged extends Schema.TaggedError<WrappedKeyChanged>()("WrappedKeyChanged", {
+  subject: Schema.String, version: Schema.Number            // the stored wrapped key is no longer `expected`; nothing was changed
+}) {}
 ```
 
 ```
@@ -120,14 +144,52 @@ REQUIREMENT: `tombstone` MUST store every field of the `Tombstone` it is
              tombstone; `markStep` MUST change only its `steps`.
 ```
 
+```
+REQUIREMENT: `acknowledge` MUST be committed to the store before it
+             returns, MUST change nothing when the same acknowledgement is
+             already stored, and MUST NOT change any field of the tombstone.
+             `acknowledgements(subject, shredId)` MUST return every
+             acknowledgement committed for that shred, and
+             `unacknowledged(callback)` every tombstone with no committed
+             acknowledgement by that callback, so that acknowledgements and
+             cursors survive a restart (03, BEH-KR-019, BEH-KR-021).
+```
+
+```
+REQUIREMENT: `wrappedUnder(kekId)` MUST return every key version in the
+             store's live data whose wrapped key names `kekId`, and none of
+             a tombstoned subject. `replaceWrapped` MUST, atomically,
+             replace the wrapped key of that subject's `version` with `next`
+             only while the stored one equals `expected`, and MUST change no
+             other field (`keyId`, `version`); otherwise it MUST change
+             nothing and fail with `WrappedKeyChanged { subject, version }`
+             when the stored wrapped key differs or the version is absent,
+             and with `KeyShredded` when the subject is tombstoned. Like
+             `create`, it MUST check the tombstone in the same atomic step.
+```
+
 ## BEH-KR-005: KeyWrapper — the key-encryption key stays outside the store
 
 > **See:** [ADR-KR-004](../decisions/004-key-custody-is-an-obligation.md)
 > **Risk:** [RSK-KR-005](../risks.md#rsk-kr-005)
 
+```ts
+// illustrative — not type-checked
+interface KeyWrapper {                     // the application's adapter: a hardware module or a key-management service
+  readonly kekId: Effect.Effect<string, KeyStoreUnavailable>                          // the current wrapping key
+  readonly wrap: (dataKey: Uint8Array) => Effect.Effect<WrappedKey, KeyStoreUnavailable>   // under the current key
+  readonly unwrap: (wrapped: WrappedKey) => Effect.Effect<Uint8Array, KeyStoreUnavailable>
+  // optional: re-wrap under the current key inside the wrapper, the data key never leaving it
+  readonly rewrap?: (wrapped: WrappedKey) => Effect.Effect<WrappedKey, KeyStoreUnavailable>
+}
 ```
-REQUIREMENT: Data keys MUST be wrapped by a `KeyWrapper` (`wrap`, `unwrap`,
-             `kekId`) before reaching the `KeyStore`. Documentation MUST
+
+```
+REQUIREMENT: Data keys MUST be wrapped by a `KeyWrapper` before reaching the
+             `KeyStore`. A wrapper that cannot wrap or unwrap (its service
+             unreachable, its key disabled or destroyed) MUST fail with
+             `KeyStoreUnavailable` naming the wrapper in `message`; a key
+             unwrapped for `decrypt` is held only for that call. Documentation MUST
              recommend a wrapper whose key is held outside the database
              (a hardware module or key-management service), and MUST state
              that a wrapper key stored beside the keys gives a shred no
@@ -145,7 +207,41 @@ REQUIREMENT: `Keyring.rotate(subject)` MUST add a new key version used for
              are never re-encrypted. `Keyring.rewrap(kekId)` MUST re-wrap
              every stored key version under the wrapper's current key
              without unwrapping it outside the wrapper where the wrapper
-             supports that.
+             supports that (`KeyWrapper.rewrap`); otherwise with `unwrap`
+             and `wrap`.
+```
+
+```
+REQUIREMENT: `rewrap(kekId)` MUST read the versions to re-wrap with
+             `KeyStore.wrappedUnder(kekId)` and store each re-wrapped key
+             with `KeyStore.replaceWrapped`, passing the wrapped key it read
+             as `expected`. A `WrappedKeyChanged` or `KeyShredded` for a
+             version (re-wrapped, or its subject shredded, meanwhile) MUST
+             NOT fail the call: that version is skipped. It MUST handle
+             only the versions of one listing, taken at its start, and MUST
+             NOT list again, so that it ends whatever is written meanwhile.
+             A `KeyStoreUnavailable` from the wrapper for one version MUST
+             NOT fail the call either: that version is left as it is and
+             reported in `failed`, and the call goes on with the next. It
+             MUST succeed at once, changing nothing, when `kekId` is the
+             wrapper's current `kekId`. It fails only with a
+             `KeyStoreUnavailable` from the `KeyStore` or from reading the
+             wrapper's `kekId`; versions already replaced stay replaced,
+             and a repeated `rewrap(kekId)` completes the rest. Documentation MUST state that a version
+             written under `kekId` after the listing, or reported in
+             `failed`, stays under `kekId` until `rewrap(kekId)` is run
+             again, and that the old wrapping key must not be retired
+             while `wrappedUnder(kekId)` still lists a version.
+```
+
+```ts
+// illustrative — not type-checked
+interface RewrapReport {
+  readonly kekId: string                   // the wrapper's current kekId, under which versions were re-wrapped
+  readonly rewrapped: number
+  readonly skipped: number                 // WrappedKeyChanged or KeyShredded: re-wrapped or shredded meanwhile
+  readonly failed: readonly { readonly subject: string; readonly version: number; readonly message: string }[]   // the wrapper failed
+}
 ```
 
 ## BEH-KR-007: Backup obligations
@@ -172,12 +268,50 @@ REQUIREMENT: Documentation MUST state the backup obligations: backups of the
 ```
 REQUIREMENT: The `Keyring` service MUST be declared with core
              `Contract.local` (core BEH-BR-225) listing its members `key`,
-             `encrypt`, `decrypt`, `shred`, `onShred` and `shredStatus`, and
-             provided by a plugin, so that `decrypt` and `shred` can be granted per
-             plugin (BEH-BR-273) and a grant withdrawn through
+             `encrypt`, `decrypt`, `rotate`, `rewrap`, `shred`, `onShred` and
+             `shredStatus`, and provided by a plugin, so that `decrypt`,
+             `rotate`, `rewrap` and `shred` can be granted per plugin
+             (BEH-BR-273) and a grant withdrawn through
              `CapabilityPolicy.changes` narrows live captures (BEH-BR-281).
              Arguments that reach the call log MUST be limited to subject,
              key id and member; plaintext and ciphertext MUST NOT.
+```
+
+```
+```ts
+// illustrative — not type-checked
+interface NonceSource { readonly bytes: (length: number) => Effect.Effect<Uint8Array> }   // 02, BEH-KR-015: cryptographic in production
+interface KeyringPorts {                     // the application's adapters; the same value is given to the plugin and to the codec (02, BEH-KR-009)
+  readonly store: KeyStore
+  readonly wrapper: KeyWrapper
+  readonly nonces: NonceSource
+}
+declare const Keyring: {
+  readonly plugin: (options: KeyringPorts & {
+    readonly id?: string                                  // default "bridger/keyring"; prefixes its subscription names (03, BEH-KR-020)
+    // the durable-bus storage adapter's transaction that publishes the notice when `store.transaction` is absent (03, BEH-KR-017)
+    readonly noticeTransaction?: InboxStore["transaction"]
+  }) => Plugin<readonly [typeof DurableBus], readonly [typeof Keyring], KeyringConfigError, void>
+}
+class KeyringConfigError extends Schema.TaggedError<KeyringConfigError>()("KeyringConfigError", { reason: Schema.String }) {}
+```
+
+```
+REQUIREMENT: `Keyring.plugin(options)` MUST return an ordinary plugin
+             definition that requires `DurableBus`, provides `Keyring` and
+             takes its ports as values in `options`, since a plugin's
+             `build` cannot require the application's adapters (core
+             BEH-BR-002). Its build MUST fail with `KeyringConfigError`
+             when neither `store.transaction` nor `noticeTransaction` is
+             given. It MUST register the subscriptions of 03, BEH-KR-020,
+             in the activation's scope, and MUST resume incomplete shreds
+             (03, BEH-KR-017) and call the redaction callbacks (03,
+             BEH-KR-019) in fibers forked with `Plugin.Runtime.background`.
+             Documentation MUST state
+             that a host installs one keyring plugin, and that the same
+             `KeyringPorts` value MUST be given to `Keyring.fields` (02,
+             BEH-KR-009), so that the codec and the plugin read one
+             `KeyStore`.
 ```
 
 ```

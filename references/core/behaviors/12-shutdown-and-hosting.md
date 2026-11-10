@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-12                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-09): BEH-BR-105 a `starting` plugin whose build has not begun is unregistered without a stop step when shutdown begins, like a `waiting` one, and gets no record of its own; every plugin shutdown moves through `stopping` gets its `system-stop` record (review of CCR-BR-032) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-105 once shutdown begins no plugin enters `starting` and no build or load begins, queued builds are cancelled, every stop ends "gone" (or `failed(cleanup)`), plugins with nothing to stop are unregistered in the first revision, Settled note; BEH-BR-109 the final snapshot defined (U-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.12 (2026-11-10): BEH-BR-108 the wait for a running `reconcile`'s parent record applies only when an `AuditSink` is wired (C3); BEH-BR-108 and BEH-BR-110 a record lost in the close flush, and the shutdown's terminal record, are signalled by the error log and `Host.controls().auditPosition`, not by `CloseReport.auditDegraded`, which is produced before them (C5); BEH-BR-105 `WouldDeadlock` carries `realm` (C1) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-105 `shutdown`'s `WouldDeadlock` read from `CurrentTransition` only, after attribution and before the `requested` record (H1); BEH-BR-108 shutdown waits, bounded, for the parent terminal record of an in-flight `reconcile` before its report and terminal record, Settled note (C14); BEH-BR-109 a refused `shutdown` joins nothing (H1); BEH-BR-110 the union includes `WouldDeadlock` (H2) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-105 `shutdown` from a build, `load` or finalizer fiber of a plugin fails at once with `WouldDeadlock` and begins nothing; the Settled note limited to lease callbacks (C6) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-105 a `starting` plugin whose build has not begun is unregistered without a stop step when shutdown begins, like a `waiting` one, and gets no record of its own; every plugin shutdown moves through `stopping` gets its `system-stop` record (review of CCR-BR-032) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-105 once shutdown begins no plugin enters `starting` and no build or load begins, queued builds are cancelled, every stop ends "gone" (or `failed(cleanup)`), plugins with nothing to stop are unregistered in the first revision, Settled note; BEH-BR-109 the final snapshot defined (U-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -32,7 +32,7 @@ uses all eight.
 ```ts
 // illustrative — not type-checked
 shutdown(options?: { readonly timeout?: Duration.Input } & OperationOptions):
-  Effect.Effect<CloseReport, Unattributed | ReasonRequired>   // never AuditUnavailable or OperationRejected (BEH-BR-110)
+  Effect.Effect<CloseReport, Unattributed | ReasonRequired | WouldDeadlock>   // never AuditUnavailable or OperationRejected (BEH-BR-110)
 ```
 
 ```
@@ -201,12 +201,31 @@ scope, nothing depends on them, and leaving them registered would show
 running is not interrupted, for the reason BEH-BR-039 gives for any stale
 build: its scope's finalizers stay in a known state.
 
+```
+REQUIREMENT: A `shutdown` called from a fiber that carries a plugin in
+             `@bridger/core/CurrentTransition` — one that runs the plugin's
+             `build` or `load`, or one of the finalizers of its activation
+             scope, or a fiber such a fiber forked and awaits (09 — Leases,
+             BEH-BR-088) — MUST fail at once with
+             `WouldDeadlock { id, realm }` naming that plugin, MUST NOT begin shutdown or join one in
+             progress, and MUST write no record. The check MUST be made
+             after attribution and before the `requested` record
+             (22 — Attributable Operations, BEH-BR-188), and MUST read
+             `CurrentTransition` only, never `@bridger/core/HeldPlugins`.
+```
+
 **Settled here.** Because shutdown runs in the host's fibers, a `shutdown`
 called from inside a lease callback does not deadlock on its own lease: the
 caller waits, the overall limit eventually forces the remaining leases
 (including the caller's, which interrupts its wait), and shutdown completes
-and delivers its report to `onClose`. `shutdown` therefore does not fail with
-`WouldDeadlock`.
+and delivers its report to `onClose`. A lease callback's `shutdown`
+therefore does not fail with `WouldDeadlock`; the check reads the
+transition-step reference, which a lease callback does not carry, and not
+the lease holders' set (CCR-BR-035). A finalizer is different: it
+is never abandoned (BEH-BR-107), so a shutdown waiting for its own
+finalizer's stop would wait forever; and a build waiting for a shutdown that
+waits for the build would hold the host for a whole `buildTimeout`. Those
+callers fail fast instead, as every re-entrant wait does.
 
 **Settled here.** A parked stop waits for an operator call; once shutdown
 has begun, every such call fails with `HostClosed`
@@ -366,7 +385,28 @@ REQUIREMENT: When an `AuditSink` is wired, the scope-close path MUST hand
              every record queued by the shutdown — its terminal record
              included — to the sink before the audit writer closes, waiting
              at most `auditTimeout`. A record still unwritten when that limit
-             passes MUST be logged at error level as lost.
+             passes MUST be logged at error level as lost; since the
+             `CloseReport` is produced before this flush, that loss MUST be
+             signalled by the error log and by
+             `Host.controls().auditPosition`, not by
+             `CloseReport.auditDegraded` (CCR-BR-036).
+```
+
+```
+REQUIREMENT: When an `AuditSink` is wired and a `reconcile` is running when
+             shutdown begins, shutdown — by either path — MUST NOT produce its `CloseReport` or queue
+             its own terminal record until that `reconcile`'s parent
+             terminal record has been queued (18 — Reconciliation and
+             Confluence: `failed` with `HostClosed`; with `atomic`,
+             `PartialApply` or `ApplyRolledBack`, 32 — Generic Gate and
+             Plan, BEH-BR-326). The wait MUST end no later than when every
+             stop under shutdown has settled and the overall shutdown limit
+             has passed (BEH-BR-105, BEH-BR-107). When it ends without that
+             record, the parent terminal record MUST NOT be written after the
+             shutdown's terminal record: the host MUST log it at error
+             level as lost, by operation and `correlationId`, and set the
+             audit-degraded latch (23 — Audit Sink and Record, BEH-BR-205),
+             so that the report carries `auditDegraded: true`.
 ```
 
 ```
@@ -392,6 +432,19 @@ host-core prototype lost it this way (URS gap G18, CCR-BR-009). The wait is
 bounded by `auditTimeout` because a scope finalizer cannot wait forever on a
 sink that is down.
 
+**Settled here (CCR-BR-035).** A `reconcile` interrupted by shutdown ends
+with a parent terminal record of its own, which must be written before the
+writer closes (18 — Reconciliation and Confluence). Flushing the queue alone
+did not order it: the reconcile could queue it after the shutdown's terminal
+record, or after the writer closed. Shutdown therefore waits for it before
+producing the report, so the trail still ends with the shutdown's terminal
+record (BEH-BR-109). The reconcile issues no further action once shutdown
+begins and its actions in flight end under shutdown's own limits, so the
+wait is normally short; the overall limit bounds it, and a parent record
+that misses it is reported as lost rather than written out of order.
+Shutdown's own terminal record is still queued last, so the claim of
+BEH-BR-109 that the trail ends with it holds.
+
 **Settled here.** (1) `onClose` is called exactly once per host, with the
 report of the one shutdown that ran, whether that shutdown was started by
 `shutdown()` or by the scope closing. (2) A defect in `onClose` is logged at
@@ -412,7 +465,9 @@ REQUIREMENT: Once shutdown has started, every Host operation that has
 ```
 REQUIREMENT: A `shutdown` call made while a shutdown is in progress MUST
              join it and receive the same `CloseReport` (recorded with a
-             `joined` terminal record when an `AuditSink` is wired).
+             `joined` terminal record when an `AuditSink` is wired) —
+             except a call refused with `WouldDeadlock` (BEH-BR-105), which
+             joins nothing and writes no record.
 ```
 
 ```
@@ -474,9 +529,15 @@ REQUIREMENT: `shutdown` MUST NOT be gated: the `OperationGate` MUST NOT be
 REQUIREMENT: When an `AuditSink` is wired, `shutdown` MUST attempt its
              `requested` and terminal records. A failure to write either MUST
              NOT refuse or abort the shutdown; it MUST set the latch (event
-             `audit-degraded`), be logged at error level, and be reported as
-             `CloseReport.auditDegraded: true`. `shutdown` MUST NOT fail with
-             `AuditUnavailable`.
+             `audit-degraded`) and be logged at error level. A failure known
+             when the report is produced MUST be reported as
+             `CloseReport.auditDegraded: true`; the terminal record, and any
+             record lost in the close flush, are written after the report
+             is produced, and their loss MUST be signalled by the error log
+             and by `Host.controls().auditPosition` (`lastWritten` below
+             their numbers), never by the report (24 — Time, Identifiers and
+             Sequence, BEH-BR-212; CCR-BR-036). `shutdown` MUST NOT fail
+             with `AuditUnavailable`.
 ```
 
 ```
@@ -503,7 +564,8 @@ incomplete — in the value the caller already receives.
 step order of [22 — Attributable Operations](./22-attributable-operations.md)
 (BEH-BR-188: latch check, gate, refusal on an unwritable `requested` record)
 and the rule that every mutating operation's error union carries all four GxP
-errors: `shutdown`'s union is `Unattributed | ReasonRequired`. Attribution
+errors: `shutdown`'s union is `Unattributed | ReasonRequired | WouldDeadlock`,
+the last only from a build, `load` or finalizer fiber (BEH-BR-105). Attribution
 still applies to the explicit call because it is the consumer's own policy,
 not a failure of the audit channel. The scope-close path is attributed to
 `Actor.system` (BEH-BR-108) and is exempt from `attribution.require` and

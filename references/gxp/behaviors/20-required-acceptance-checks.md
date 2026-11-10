@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-20                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.6 (2026-11-10): Check 29 `@bridger/audit-chain` is an optional peer with the compatibility row's audit-chain range, imported only by the sealing entry (PL7); check 44 the consumer's `gatePieces` through `GxpTestHost.make`: order, refusal, a `Defer` refused as "<name>: deferred" without consuming a binding, and validation (PL4, G5) (CCR-GX-007)<br>0.5 (2026-11-10): Check 11 a window whose entries were removed with its receipt kept is reported "window-not-in-entries" (H6); check 12 five vectors (H7); check 15 the rendered `onBehalfOf`, `undo` and `requestOnly` fields (M1); check 26 IQ-01 to IQ-24 (M3); check 34 a rule naming `reconcile` (M4) (CCR-GX-006)<br>0.4 (2026-11-10): Check 11: `chainUnanchoredTail`, `anchorUnconfirmed` and `chainLossCounterRose`; check 26: IQ-01 to IQ-23; check 47: IQ-23 and `sink-status.json` (H7, P7, P14, P16); follow-up: check 11 adds the "unkeyed-link" `chainBreak` of a keyed trail rewritten with unkeyed links (CCR-GX-005)<br>0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -120,9 +120,16 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run
                  entry carries the link audit-chain computed and nothing of
                  the companion's own; `verifySeals` reports `chainBreak` at
                  an altered entry, `anchorMismatch` for each anchor that no
-                 longer matches, `unanchoredTail` above the last confirmed
-                 anchor, and `headMismatch` when the newest anchored windows
-                 and receipts are removed below a high-water mark, each with
+                 longer matches, `chainUnanchoredTail` above the last
+                 confirmed anchor, `anchorUnconfirmed` for a receipt its
+                 verifier cannot confirm, `chainLossCounterRose` (and no
+                 `chainNonCanonical`) where `auditDropped` rises, and
+                 `headMismatch` when the newest anchored windows
+                 and receipts are removed below a high-water mark,
+                 `anchorMismatch` "window-not-in-entries" when the newest
+                 entries are removed and their receipts kept, and, with
+                 `sealing.keyed` given, a `chainBreak` "unkeyed-link" for a
+                 keyed trail rewritten with unkeyed links, each with
                  the `ChainReport` attached unchanged; with no confirmed
                  anchor and no `chainBreak` it states "The chain is
                  internally consistent; no anchor confirms it."; with sealing
@@ -147,7 +154,7 @@ rather than the companion's functions in isolation.
 ```
 REQUIREMENT: The companion's test suite MUST also contain at least one test,
              run as BEH-GX-153 states, for each of the following:
-             12. `bindingDigest` reproduces the four vectors of BEH-GX-066,
+             12. `bindingDigest` reproduces the five vectors of BEH-GX-066,
                  and `bindingOf` over a proposal, the request core passes to
                  the gate and the call's `requested` or `rejected` record
                  gives one digest, and over a terminal record gives None
@@ -165,7 +172,8 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
                  one has `signedAt` equal to the `TestClock` reading
                  (BEH-GX-075, BEH-GX-076, BEH-GX-078).
              15. The rendered text shows each binding's operation, target,
-                 bound definition, paths, requester id and bound reason,
+                 bound definition, paths, requester id, bound `onBehalfOf`,
+                 `undo` and `requestOnly` fields and bound reason,
                  ends with the meaning text and `notAfter`, and shows only
                  the word "fingerprinted" for a fingerprinted path, and
                  `renderManifestation` gives exactly the sentence of
@@ -222,7 +230,7 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
                  list does not admit and a malformed fingerprint (BEH-GX-108,
                  BEH-GX-110).
              26. `runInstallationChecks` on a `GxpTestHost` reports IQ-01 to
-                 IQ-22 and IQ-U1 to IQ-U10 in order, with IQ-10, IQ-11 and
+                 IQ-24 and IQ-U1 to IQ-U10 in order, with IQ-10, IQ-11 and
                  IQ-15 failing because fixtures are wired, and the
                  `Host.controls` snapshot recorded; on a host with
                  `gateTimeout: "forever"` and an explicit gate deadline,
@@ -265,12 +273,16 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
              BEH-GX-153 states, for the following:
              29. The packed `@bridger/gxp` declares `effect` and
                  `@bridger/core` as its only runtime dependencies, both as
-                 peers, with the core range of the compatibility row; no core
+                 peers, with the core range of the compatibility row, and
+                 `@bridger/audit-chain` as an optional peer with the
+                 audit-chain range of that row, imported only by
+                 `@bridger/gxp/sealing`, the main entry point loading without
+                 it installed; no core
                  source file imports the companion; and the main entry point
                  exports no implementation of `TrailStore`, `AnchorStore`,
                  `TicketStore`, `SignatureCapture`, `FingerprintKeyProvider`
                  or `FingerprintEligibility`, and no policy (BEH-GX-001,
-                 BEH-GX-003).
+                 BEH-GX-003, BEH-GX-170).
 ```
 
 A static check over the packed artifact, not the source tree, is the only test
@@ -379,7 +391,8 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
              BEH-GX-153 states, for the following:
              34. Each invalid policy of 08 — a field missing; an exempt rule
                  with a justification under 20 characters or covering every
-                 operation; a rule naming `shutdown` or a system transition;
+                 operation; a rule naming `shutdown`, `reconcile` or a
+                 system transition;
                  no rule for `acknowledgeAuditDegraded`; `requireDigest` with
                  `defineRealm` or `acknowledgeAuditDegraded`;
                  `requireFingerprints` misplaced; `signatures`, `meanings` or
@@ -598,7 +611,14 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
                  BEH-GX-178).
              44. A call refused by "trail" or "chain" consumes no binding: a
                  later call citing the same ticket, after the host is rebuilt,
-                 is allowed by "approval" (BEH-GX-178, BEH-GX-089).
+                 is allowed by "approval"; with `GxpTestHost.make` given
+                 `gatePieces`, the consumer's pieces are consulted after
+                 "chain" and before "approval", a piece that refuses or
+                 returns `Defer` ends the consultation with "<name>: <reason>"
+                 or "<name>: deferred" and consumes no binding, and a piece
+                 with a blank or reserved `name` or a non-finite `timeout`
+                 fails the layer with `GxpLayerInvalid` "gatePieces"
+                 (BEH-GX-178, BEH-GX-089, BEH-GX-151).
              45. Over seeded traces, a `superseded` terminal pairs with its
                  request whatever its `causationId`, a `joined` terminal pairs
                  by its `causationId` and a resumer's `completed` record by
@@ -612,10 +632,13 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
                  rendering says those fields were matched by the gate only;
                  changing a gate-flow annotation or `previousManifest` changes
                  nothing (BEH-GX-065, BEH-GX-082, BEH-GX-083).
-             47. The installation checks report whether `trailGate` and
-                 audit-chain's `ChainGate` are used, with the fixed statement
-                 for a `trailGate` given "not-used", and every evidence pack
-                 carries the sink's counts (BEH-GX-179, BEH-GX-175).
+             47. The installation check IQ-23 reports whether `trailGate` and
+                 audit-chain's `ChainGate` are used, failing when either
+                 differs from `expected.sections`, with the fixed statement
+                 for a `trailGate` given "not-used", and an evidence pack
+                 built with the sink's status carries its counts in
+                 `sink-status.json` (BEH-GX-179, BEH-GX-175, BEH-GX-118,
+                 BEH-GX-129).
 ```
 
 These checks are the executable form of the re-baseline of CCR-GX-002: a sink

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-08                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): Navigation: 07 withdrawn (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-057 `GatedOperation` excludes `reconcile`; BEH-GX-063 a rule naming `reconcile` is refused with `GxpLayerInvalid`, as one naming `shutdown`, since the policy is evaluated per entry action; BEH-GX-060 `requireFingerprints` no longer names `reconcile` (M4) (CCR-GX-006)<br>0.2 (2026-11-09): Navigation: 07 withdrawn (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -47,7 +47,7 @@ Planned source: `packages/gxp/src/approvals/ApprovalPolicy.ts` *(Planned)*.
 
 ```ts
 // illustrative — not type-checked
-type GatedOperation = Exclude<Operation, "shutdown">     // core's Operation (BEH-BR-185) minus shutdown
+type GatedOperation = Exclude<Operation, "shutdown" | "reconcile">   // core's Operation (BEH-BR-185) minus shutdown and reconcile (BEH-GX-063)
 
 interface ApprovalPolicy {
   readonly v: 1
@@ -200,8 +200,8 @@ REQUIREMENT: `validity` MUST be at least 1 minute and at most 30 days.
 
 ```
 REQUIREMENT: `requireFingerprints` MUST be refused with `GxpLayerInvalid` on a
-             rule none of whose operations is `install`, `reconfigure` or
-             `reconcile`, and on any rule when `GxpLayer.make` was given
+             rule none of whose operations is `install` or `reconfigure`,
+             and on any rule when `GxpLayer.make` was given
              `fingerprints: "not-used"` or an eligibility list with no
              entries (BEH-GX-004), since every configuration change under the
              rule would then be refused.
@@ -284,7 +284,7 @@ resuming changes; exempting it keeps the latch clearable during a wider
 outage. Both are defensible, so the companion forces the consumer to choose
 and shows the consequence of the choice, instead of choosing silently.
 
-## BEH-GX-063: Shutdown and system transitions are outside the policy
+## BEH-GX-063: Shutdown, reconcile and system transitions are outside the policy
 
 > **See:** [ADR-GX-014](../decisions/014-deny-by-default-policy.md), [ADR-BR-032](../../core/decisions/032-operation-gate.md)
 > **Satisfies:** [URS-GX-016](../urs.md#urs-gx-016-know-which-obligations-remain-mine)
@@ -292,8 +292,9 @@ and shows the consequence of the choice, instead of choosing silently.
 > **Regulatory:** supports EU GMP Annex 11 §16 (the safe direction stays open)
 
 ```
-REQUIREMENT: A policy rule MUST NOT name `shutdown` or a `SystemTransition`;
-             policy validation MUST refuse such a rule with `GxpLayerInvalid`.
+REQUIREMENT: A policy rule MUST NOT name `shutdown`, `reconcile` or a
+             `SystemTransition`; policy validation MUST refuse such a rule
+             with `GxpLayerInvalid`.
 ```
 
 ```
@@ -303,7 +304,10 @@ REQUIREMENT: Documentation of the policy MUST state that core never submits
              recorded in the trail without a ticket.
 ```
 
-A rule naming `shutdown` would never be consulted. System transitions are
+A rule naming `shutdown` would never be consulted. Nor would one naming
+`reconcile`: core submits each entry action of a reconcile with that
+action's own operation (BEH-GX-058, [BEH-BR-222](../../core/behaviors/25-operation-gate.md)), and a binding's operation is
+never "reconcile" (BEH-GX-072). System transitions are
 recorded as system records ([BEH-BR-199](../../core/behaviors/23-audit-sink-and-record.md)) and pass no gate. Refusing it at
 construction prevents a policy from appearing to control something it does
 not.

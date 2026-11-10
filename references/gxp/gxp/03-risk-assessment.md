@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GXP-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.2 (2026-11-09): RSK-GX-002, 004, 005, 019 controls re-baselined (collisions kept, the sink never refuses for a condition of its own, `trailGate`, sealing through audit-chain, check 18); RSK-GX-023 added (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): the policy-construction control names `GxpLayerInvalid` (BEH-GX-064), not `PolicyInvalid` (CCR-GX-005)<br>0.2 (2026-11-09): RSK-GX-002, 004, 005, 019 controls re-baselined (collisions kept, the sink never refuses for a condition of its own, `trailGate`, sealing through audit-chain, check 18); RSK-GX-023 added (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -239,7 +239,7 @@ Controls cite behaviours ([behaviors/](../behaviors/01-companion-boundary.md)) a
 | Failure mode | A broad target pattern, an exempt rule placed before a required one, or an operation left out lets a regulated change through the gate without a ticket. Trigger: writing or changing the policy. |
 | Effect on GMP data / processes | Unapproved changes to a GMP system that the record shows as allowed (Annex 11 §10). |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | Deny by default; the first matching rule decides and with no match a ticket is required (BEH-GX-057, BEH-GX-058); exemptions explicit and justified (BEH-GX-059); a contradictory rule set, or one leaving an operation without a decision, fails with `PolicyInvalid` at construction (BEH-GX-064); the policy digest is recorded and checked (BEH-GX-061); approvals and records are checked against each other, so gated records without an approval are a finding (BEH-GX-039). Invariant INV-GX-003. |
+| Controls | Deny by default; the first matching rule decides and with no match a ticket is required (BEH-GX-057, BEH-GX-058); exemptions explicit and justified (BEH-GX-059); a contradictory rule set, or one leaving an operation without a decision, fails the layer with `GxpLayerInvalid` at construction (BEH-GX-064); the policy digest is recorded and checked (BEH-GX-061); approvals and records are checked against each other, so gated records without an approval are a finding (BEH-GX-039). Invariant INV-GX-003. |
 | Risks introduced by controls | Construction-time validation can only find structural faults; an exemption that is well-formed but wrong passes it. |
 | Verification | Planned — acceptance scenarios REQ-GX-009, REQ-GX-034 (policy cases: no match, overlapping rules, exempt before required, invalid sets; [traceability](../traceability.md) §7). |
 | Residual scoring | S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4) |

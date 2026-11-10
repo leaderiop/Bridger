@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-AC-019: a "key-unavailable" break is an incomplete check, never an inconsistency (A1); the `precomputeMacs` functions of several series or profiles are merged into one `keyed` function (PL1) (SPEC-AUDIT-04) (CCR-AC-007)<br>0.5 (2026-11-10): BEH-AC-019: `precomputeMacs` runs an effectful MAC (a hardware module, a MAC service) before the pure check and returns the pure `keyed` function, so such a key is usable while `verifyChain` stays pure (M20); `breaks.kind` gains "alg-changed", the break INV-AC-007 requires for a link whose algorithm differs within its host or series (low finding); check 6 extended (CCR-AC-006)<br>0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -51,12 +51,14 @@ Planned source: `packages/audit-chain/src/verifyChain.ts`,
 
 ```ts
 // illustrative — not type-checked
-declare function verifyChain(
-  entries: Iterable<ChainEntry>,                          // in the store's order
+declare function verifyChain<R = AuditRecord>(
+  entries: Iterable<ChainEntry<R>>,                       // in the store's order
   options?: {
+    readonly profile?: ChainProfile<R>                    // how the series is read (04, BEH-AC-031); default auditProfile
     readonly anchors?: Iterable<ConfirmedStatement>       // from confirmAnchors (BEH-AC-020)
     readonly continuesFrom?: ReadonlyMap<string, { readonly hostId: string; readonly auditSeq: number; readonly hash: string }>  // per hostId, as wired (01, BEH-AC-007)
     readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // a pure MAC function, when links are keyed
+    readonly expectKeyed?: boolean                        // the sinks were built with a KeyedHasher: a link without keyId is a break (BEH-AC-019)
     // Per hostId, the head the verifier learned independently of the trail and receipt stores:
     // an anchor service's log, the next host's continuesFrom, a CloseReport.auditLastSeq or
     // Host.controls audit position held apart (BEH-AC-019).
@@ -65,27 +67,34 @@ declare function verifyChain(
 ): ChainReport
 
 interface ChainReport {
-  readonly sequence: ReturnType<typeof verifyAuditSequence>       // core's result, unchanged (BEH-AC-018)
+  readonly sequence: SequenceResult                     // the profile's check; core's verifyAuditSequence, unchanged, for auditProfile (BEH-AC-018)
   readonly hosts: readonly {
-    readonly hostId: string
+    readonly hostId: string                               // the series id for a generic series (04, BEH-AC-026)
     readonly highestSeq: number
     readonly linksCheckedThrough: number                  // highest auditSeq up to which every link recomputes, from 1
     readonly verifiedThrough: number                      // highest toSeq of a matching confirmed anchor at or below linksCheckedThrough; 0 if none
     readonly unanchoredTail: { readonly fromSeq: number; readonly toSeq: number } | undefined
     readonly head: "confirmed" | "head-unconfirmed" | "head-short" | "head-mismatch"   // against expectedHeads (BEH-AC-019)
+    // the windows of the confirmed version 1 statements given for this host, which anchor no loss counter (04, BEH-AC-026)
+    readonly lossCounterUnanchored: readonly { readonly fromSeq: number; readonly toSeq: number; readonly statementHash: string }[]
   }[]
   readonly breaks: readonly {
     readonly hostId: string
     readonly auditSeq: number
     readonly kind: "hash-mismatch" | "prev-mismatch" | "missing-link" | "link-record-mismatch"
                  | "unsupported-version" | "key-unavailable"
+                 | "unkeyed-link"                               // a link without keyId while options.expectKeyed is true (BEH-AC-019)
                  | "sink-marked"                                // the link carries a break marker (01, BEH-AC-004, BEH-AC-005)
+                 | "canon-changed"                              // the link's canon differs from its series' first link (04, BEH-AC-027)
+                 | "alg-changed"                                // the link's alg differs from its host's or series' first link (INV-AC-007)
+                 | "counter-decreased"                          // the profile's loss counter is lower than the previous record's (04, BEH-AC-030)
     readonly marker?: "chain-order" | "retry-mismatch"
   }[]
   readonly notices: readonly {
     readonly hostId: string
     readonly auditSeq: number
     readonly kind: "non-canonical-encoding"                     // link marked canonical "jcs-escaped" (01, BEH-AC-003)
+                 | "loss-counter-rose"                          // the profile's loss counter is higher than the previous record's (04, BEH-AC-030)
   }[]
   readonly anchorMismatches: readonly {
     readonly hostId: string
@@ -122,10 +131,11 @@ genuine — is done before, by `confirmAnchors`, and passed in as data.
 > **Risk:** [RSK-BR-006](../../core/gxp/03-risk-assessment.md#rsk-br-006)
 
 ```
-REQUIREMENT: `verifyChain` MUST call core's `verifyAuditSequence` over the
-             records of the entries and MUST return its result unchanged as
-             `report.sequence`. It MUST NOT re-implement gap, duplicate or
-             order detection.
+REQUIREMENT: With `auditProfile`, the default, `verifyChain` MUST call core's
+             `verifyAuditSequence` over the records of the entries and MUST
+             return its result unchanged as `report.sequence`; with another
+             profile, the profile's `sequence` check (04, BEH-AC-031). It
+             MUST NOT re-implement gap, duplicate or order detection.
 ```
 
 ```
@@ -167,6 +177,80 @@ REQUIREMENT: For every entry, `verifyChain` MUST check that the link's
 ```
 
 ```
+REQUIREMENT: A link with a `keyId` MUST be recomputed with
+             `options.keyed(keyId, input)` over the input of BEH-AC-003, each
+             link with its own `keyId`, so that links written under
+             successive keys (01, BEH-AC-007) verify in one run. When `keyed`
+             is absent, or returns `undefined` for that `keyId`, the link
+             MUST be reported as a "key-unavailable" break, never as a
+             "hash-mismatch". A "key-unavailable" break says that the link
+             was not checked, not that it was found inconsistent: a
+             rendering MUST present it as an incomplete check, and the kit's
+             `bridger verify-chain` maps it to its "incomplete" exit, not to
+             its "inconsistent" one (kit BEH-KT-047). Documentation MUST
+             state that a keyed chain can be verified only while every key
+             its links name, retired ones included, can still be used for
+             verification.
+```
+
+```ts
+// illustrative — not type-checked
+// For a MAC reachable only through an effect (a hardware module, a MAC service): run before the
+// pure check, it returns the pure function verifyChain and verifyBundle take as options.keyed.
+declare function precomputeMacs<R = AuditRecord>(
+  entries: Iterable<ChainEntry<R>>,
+  mac: (keyId: string, input: Uint8Array) => Effect.Effect<Uint8Array, KeyedHashFailed>,   // 01, BEH-AC-007
+  options?: { readonly profile?: ChainProfile<R> }        // as given to verifyChain; default auditProfile
+): Effect.Effect<(keyId: string, input: Uint8Array) => Uint8Array | undefined>
+```
+
+```
+REQUIREMENT: `precomputeMacs` MUST call `mac` once for each distinct pair
+             of `keyId` and input that `verifyChain`, given the same
+             `entries` and `profile`, would pass to `keyed`, and MUST return
+             a pure function that gives the MAC so computed for that pair
+             and `undefined` for any other. A `KeyedHashFailed` for a pair
+             MUST leave that pair absent, so that its link is reported
+             "key-unavailable", and MUST NOT fail the effect; an entry it
+             cannot read MUST be skipped, for `verifyChain` to report.
+             `verifyChain` and `verifyBundle` MUST stay pure: an effectful
+             MAC reaches them only as a function returned by
+             `precomputeMacs`. Documentation MUST state that it holds one
+             MAC per keyed link in memory, and that the functions it returns
+             for several series or profiles are merged into the one
+             `keyed` function `verifyBundle` takes by answering each pair
+             from the first of them that does not return `undefined`;
+             because a MAC depends only on `keyId` and input, the merged
+             function gives every link the MAC its own series' function
+             gives (05, BEH-AC-039).
+```
+
+```
+REQUIREMENT: When `options.expectKeyed` is true, every link without a
+             `keyId`, of every host and series in the input, MUST be
+             reported as an "unkeyed-link" break, whatever its
+             recomputation finds. Documentation MUST state that a link
+             carries no proof that its writer was keyed: a party without
+             the key can rewrite a keyed series with unkeyed links that
+             recompute, so a consumer whose sink was built with a
+             `KeyedHasher` (01, BEH-AC-007) MUST verify with `expectKeyed`,
+             and hosts or series built differently are verified in separate
+             runs.
+```
+
+```
+REQUIREMENT: A link of a generic series whose `canon` differs from the
+             first link of its series MUST be reported as a "canon-changed"
+             break (04, BEH-AC-027), and a link whose `alg` differs from the
+             first link of its host or series as an "alg-changed" break
+             (INV-AC-007). When the profile gives `dropped`, a
+             record whose loss counter is higher than that of the previous
+             entry of its host or series MUST be reported as a
+             "loss-counter-rose" notice at that record, and one whose counter
+             is lower as a "counter-decreased" break (04, BEH-AC-030).
+```
+
+```
 REQUIREMENT: For every confirmed statement of a host, it MUST recompute the
              Merkle root and the head hash from the entries of the window
              and report any difference, and MUST check that statements are
@@ -179,6 +263,16 @@ REQUIREMENT: `verifiedThrough` MUST be the highest `toSeq` of a statement
              that matched, whose window and every earlier window matched, and
              that lies at or below `linksCheckedThrough`. Records above it
              MUST be reported in `unanchoredTail`.
+```
+
+```
+REQUIREMENT: For every confirmed statement of version 1 (02, BEH-AC-009)
+             given for a host, `lossCounterUnanchored` MUST list its window
+             (`fromSeq`, `toSeq`) and `statementHash`, in ascending
+             `fromSeq`, whether or not the statement matched; it MUST be
+             empty when the host has none. A version 2 statement never
+             appears there. Records in those windows have their loss counter
+             covered by the chain alone (04, BEH-AC-026, BEH-AC-030).
 ```
 
 ```
@@ -215,6 +309,7 @@ interface AnchorVerifierShape {
   readonly confirm: (statement: AnchorStatement, receipt: AnchorReceipt) => Effect.Effect<ConfirmedStatement, AnchorUnconfirmed>
 }
 class AnchorVerifier extends Context.Service<AnchorVerifier, AnchorVerifierShape>()("@bridger/audit-chain/AnchorVerifier") {}
+class AnchorUnconfirmed extends Schema.TaggedError<AnchorUnconfirmed>()("AnchorUnconfirmed", { anchor: Schema.String, reason: Schema.String }) {}
 
 interface ConfirmedStatement { readonly statement: AnchorStatement; readonly statementHash: string; readonly confirmedBy: string }
 
@@ -387,7 +482,18 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 record (BEH-AC-006).
              6. Keyed hasher and `continuesFrom`: links carry `keyId`;
                 genesis commits to the previous head; a missing host is
-                visible as a "prev-mismatch" (BEH-AC-007).
+                visible as a "prev-mismatch"; a key reported unusable fails
+                the write with `KeyedHashFailed` `permanent: true`; links
+                written under a first key and, after the sink is rebuilt,
+                under a second verify in one run when `keyed` computes both,
+                and are "key-unavailable" when it does not; a keyed series
+                rewritten with unkeyed links that recompute is reported as
+                "unkeyed-link" breaks with `expectKeyed`, and not without it;
+                `precomputeMacs` over a scripted effectful MAC gives the same
+                report as a pure `keyed`, and a pair whose MAC fails is
+                "key-unavailable"; a link whose `alg` differs from its host's
+                first link is an "alg-changed" break (BEH-AC-007,
+                BEH-AC-019).
              7. Windows: contiguous, in order, never merged or re-windowed;
                 Merkle root and head hash match RFC 6962 test vectors with
                 this package's tags (BEH-AC-010, BEH-AC-014).
@@ -443,10 +549,10 @@ offline-confirmed statements (BEH-AC-033, BEH-AC-034). A generic series of
 under its own profile (BEH-AC-031).
 
 **Open.** (1) A streaming form of `verifyChain` for exports too large to hold
-in memory, with the same result. (2) A portable export format (entries,
-statements, receipts) that an auditor's own tool can read without this
-package. (3) Whether `confirmAnchors` should cache confirmations, which would
-make a later run depend on an earlier one.
+in memory, with the same result. (2) *Settled by 05:* the portable export
+format is the verification bundle (BEH-AC-033, BEH-AC-037). (3) Whether
+`confirmAnchors` should cache confirmations, which would make a later run
+depend on an earlier one.
 
 ---
 

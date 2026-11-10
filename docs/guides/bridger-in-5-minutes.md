@@ -127,11 +127,15 @@ saved src/greeter.ts → replace example/greeter (cold start: no handoff declare
 ```
 
 `bridger dev` replaces changed plugins through the host's own `replace`, on a
-host it owns. It refuses to run against a host with an audit sink or approval
-gate wired.
+host it owns. It refuses to start when the entry wires an audit sink
+(`AuditSink`), an operation gate (`OperationGate`) or a configuration
+fingerprinter (`ConfigFingerprinter`), unless it is the kit's in-memory
+development double.
 
 ## Where next
 
 - Writing plugins: [plugin author guide](./plugin-author-guide.md)
 - Implementing a contract without Effect: [partner SDK guide](./partner-sdk-guide.md)
 - Holding an error tag: [error catalog](./error-catalog.md)
+
+Change log: 2026-11-10, audit round 2 — `bridger dev` refuses any `AuditSink`, `OperationGate` or `ConfigFingerprinter` other than the kit's in-memory doubles, as kit BEH-KT-026 says (CCR-BR-034).

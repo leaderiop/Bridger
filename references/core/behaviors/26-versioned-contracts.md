@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-26                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-09): BEH-BR-225 a *local* contract, `Contract.local(Key, { version, members })`: members without codecs, `local` and `descriptor.local` true, every other rule of this file unchanged, never served, proxied or derived across a host boundary, locality fixed per major; BEH-BR-231 and BEH-BR-234 do not apply to it; BEH-BR-232 a companion refuses a local contract at a boundary (requested by event-store CCR-ES-003 and sequence CCR-SQ-003); the signature of `Contract.local` rejects a `members` list that omits an own key (`MissingMembers`), the example is a self-contained shape, and `Contract.local` is pure like `Contract.make` (CCR-BR-033)<br>0.6 (2026-11-09): BEH-BR-228 a `replace` that leaves the plugin disabled forms no registered pair; pairs checked at `enable` (U-07) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
+> | Change History | 0.8 (2026-11-10): BEH-BR-232 a proxy's accepted range is `"^" + V`, inside the `ContractRange` grammar and, for major 0, within one minor (C9) (CCR-BR-036)<br>0.7 (2026-11-09): BEH-BR-225 a *local* contract, `Contract.local(Key, { version, members })`: members without codecs, `local` and `descriptor.local` true, every other rule of this file unchanged, never served, proxied or derived across a host boundary, locality fixed per major; BEH-BR-231 and BEH-BR-234 do not apply to it; BEH-BR-232 a companion refuses a local contract at a boundary (requested by event-store CCR-ES-003 and sequence CCR-SQ-003); the signature of `Contract.local` rejects a `members` list that omits an own key (`MissingMembers`), the example is a self-contained shape, and `Contract.local` is pure like `Contract.make` (CCR-BR-033)<br>0.6 (2026-11-09): BEH-BR-228 a `replace` that leaves the plugin disabled forms no registered pair; pairs checked at `enable` (U-07) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
 
 ---
 
@@ -705,8 +705,10 @@ REQUIREMENT: Whatever registers a provision of a contract at version V —
              MUST deliver only an implementation that serves every method of
              V. A proxy that learns at run time which version a peer serves
              MUST provide the contract only while the peer serves a version
-             v with the same major as V and v ≥ V (the range
-             `>= V < (major+1).0.0`, built with `Contract.satisfies`); it
+             v that satisfies the range `"^" + V`, decided with
+             `Contract.satisfies` (for a major ≥ 1, the same major and
+             v ≥ V; for major 0, the same minor and v ≥ V, the span
+             add-only evolution covers, BEH-BR-230); it
              MUST NOT provide it, nor fail the host's checks, for any other
              peer. A proxy, server or generator MUST NOT be built for a local
              contract (BEH-BR-225).
@@ -725,8 +727,8 @@ specifies it: the proxy plugin is registered with a provision at the version
 its manifest declares, and its build opens nothing — the link becomes
 `active` whether or not the peer is reachable, and opens sessions in a
 background fiber afterwards. When a session's guest offers the versions it
-speaks, the proxy accepts the session only if one satisfies
-`>= V < (major+1).0.0`; it then mounts the session's child, which provides
+speaks, the proxy accepts the session only if one satisfies `"^" + V`; it
+then mounts the session's child, which provides
 the contract at V. A guest that serves no such version gets no session: the
 contract stays unprovided, its dependents stay `waiting`, and the mismatch
 is reported in the companion's status with an `IncompatibleContract` cause,

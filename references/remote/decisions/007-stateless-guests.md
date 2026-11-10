@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-ADR-007                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — per-call transports: a host-side logical session, no guest table between invocations, idempotent handlers (R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.3 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — deduplication across invocations comes from the `DedupeStore` of BEH-RM-067; one invocation only applies to a guest served with "idempotent-handlers" (PL18) (CCR-RM-007)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — per-call transports: a host-side logical session, no guest table between invocations, idempotent handlers (R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -31,9 +31,13 @@ misreads eviction as a result.
   discardable; losing it ends the session, which the host learns from the
   guest's "stale-epoch" refusal.
 - On per-call transports the session is a logical session held on the host;
-  each invocation carries its epoch and contract version, the guest keeps
-  no table between invocations, and deduplication covers one invocation
-  only, so handlers reached that way must be idempotent.
+  each invocation carries its epoch and contract version, and the guest
+  keeps no table of its own between invocations. Deduplication across
+  invocations comes from a `DedupeStore` the deployment supplies, which
+  keeps a claimed key for its retention (BEH-RM-067); a guest served
+  without one must be given the explicit value "idempotent-handlers",
+  and then deduplication covers one invocation only, so handlers reached
+  that way must be idempotent.
 - State lives in host services reached through granted clients.
 
 ## Alternatives considered

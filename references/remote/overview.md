@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-OVW                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09: `RemoteOptions.manifest` and `disclose`, `LinkStatus` disclosed claims, `OrgOf` on the wire only when disclosed, `Transport.fromBundle`; loader's `RevokedDigests` and `LoaderRemote.link` in the package boundary; error `LocalContractRefused` (BEH-RM-007); call-log entries name the disclosed claims (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): round 2: recheck items 20, 23 and 25 — API rows for file 09, errors `PlacementRefused` and `RemoteBudgetExceeded`, core seams G43, G57, G58 and G60 cited as closed (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, review of the round) — names core's `CurrentTransition` export beside `HeldPlugins` (BEH-RM-022) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: `RemoteOptions.manifest` and `disclose`, `LinkStatus` disclosed claims, `OrgOf` on the wire only when disclosed, `Transport.fromBundle`; loader's `RevokedDigests` and `LoaderRemote.link` in the package boundary; error `LocalContractRefused` (BEH-RM-007); call-log entries name the disclosed claims (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): round 2: recheck items 20, 23 and 25 — API rows for file 09, errors `PlacementRefused` and `RemoteBudgetExceeded`, core seams G43, G57, G58 and G60 cited as closed (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -151,7 +151,8 @@ again. Nothing entered `failed`, and no operator acted.
 - **Core** keeps one plugin model. The remote package needed one
   clarification — what closing a sub-scope does to a child mounted under it —
   now specified in core BEH-BR-121 and BEH-BR-126 (CCR-BR-020), with the
-  export of `HeldPlugins` (BEH-BR-088); otherwise it uses the public API,
+  exports of `HeldPlugins` and `CurrentTransition` (BEH-BR-088,
+  CCR-BR-020, CCR-BR-035); otherwise it uses the public API,
   including the seams CCR-BR-026 added for it: `Plugin.Runtime.unmount` with
   `requestedBy` (G57), `CurrentCorrelation` (G58), `RefusalList` (G60) and
   the call-log entry kinds with `Host.offerCallEntry` and

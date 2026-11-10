@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-22                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-11-09): Initial draft; the sink's status and the `trailGate` piece that refuses operator changes in place of a refused write (CCR-GX-002) |
+> | Change History | 0.4 (2026-11-10): BEH-GX-178 a `Defer` from a consumer's gate piece becomes a refusal "<name>: deferred", so the approval piece cannot consume the binding of a call core then rejects (G5) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-178 the consumer's `gatePieces` (a loader's or an entitlement piece) are composed after "chain" and before "approval", validated, and counted in `precededBy`; BEH-GX-179 IQ-23 records them (M5) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-176 counts are those of the one host the layer serves; BEH-GX-179 names IQ-23 and the evidence pack's `sink-status.json` (H6, H7) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; the sink's status and the `trailGate` piece that refuses operator changes in place of a refused write (CCR-GX-002) |
 
 ---
 
@@ -74,7 +74,9 @@ REQUIREMENT: The status MUST hold counts only: no `hostId`, `recordId`,
              05 are.
 ```
 
-The counts are the sink's only voice besides its answer to core. They carry
+The counts are the sink's only voice besides its answer to core. A layer
+serves one host (BEH-GX-017), so its counts are that host's, and a gate built
+over them refuses only that host's operator changes. They carry
 no identifiers for the reason the logs carry none (BEH-GX-024); the checks on
 read find the entries, which are marked in the store.
 
@@ -158,6 +160,7 @@ its record.
 const hostGate = OperationGate.fromGate(Gate.all([             // core 32, BEH-BR-315, BEH-BR-321
   { name: "trail", gate: trail, timeout: "1 second" },          // BEH-GX-177; omitted when "not-used"
   { name: "chain", gate: chain, timeout: "1 second" },          // BEH-GX-175; omitted when "not-used" or sealing off
+  ...gatePieces.map(deferRefused),                              // the consumer's, in the order given, a Defer made a Refuse; none when "not-used"
   { name: "approval", gate: OperationGate.asGate(approval), timeout: "forever" }   // 12; bounded by its own deadline
 ]))
 ```
@@ -165,10 +168,27 @@ const hostGate = OperationGate.fromGate(Gate.all([             // core 32, BEH-B
 ```
 REQUIREMENT: `GxpLayer.make` MUST provide core's `OperationGate` as
              `OperationGate.fromGate(Gate.all(pieces))` with the pieces that
-             are used, in the order "trail", "chain", "approval". The
-             approval gate MUST be last, so that a refusal by an earlier
-             piece ends the consultation before a binding can be consumed
-             (BEH-BR-321).
+             are used, in the order "trail", "chain", the consumer's
+             `gatePieces` in the order given, "approval". The approval gate
+             MUST be last, so that a refusal by an earlier piece ends the
+             consultation before a binding can be consumed (BEH-BR-321).
+```
+
+```
+REQUIREMENT: `GxpLayer.make` MUST fail with `GxpLayerInvalid` (section
+             "gatePieces") when a piece of `gatePieces` has a blank `name`, a
+             `name` equal to another piece's or to "trail", "chain" or
+             "approval", or a `timeout` that is not a finite duration. Each
+             piece's `timeout` MUST be counted in the approval gate's
+             `precededBy` (BEH-GX-094). `GxpLayer.make` MUST wrap each
+             piece's gate so that a `Defer` it returns becomes `Refuse {
+             reason: "deferred" }`, recorded as "<name>: deferred": core
+             consults the later pieces after a `Defer` (BEH-BR-321), so the
+             approval piece would consume the binding of a call that is
+             then rejected. The companion MUST NOT add any other condition
+             to a consumer's piece; documentation MUST state that such a
+             piece SHOULD never return `Defer` and that it is the
+             consumer's to qualify.
 ```
 
 ```
@@ -198,18 +218,20 @@ consultation ([BEH-BR-221](../../core/behaviors/25-operation-gate.md)).
 > **Regulatory:** supports EU GMP Annex 11 §4.4; 21 CFR 11.10(a) (as evidence the consumer evaluates)
 
 ```
-REQUIREMENT: The installation checks (BEH-GX-113–120) MUST report, as a
-             proof, whether `trailGate` is used and with which `refuseOn`
-             members and `allow` list, and whether audit-chain's `ChainGate`
-             is used; a `trailGate` given "not-used" MUST be reported as a
-             consumer decision, with the statement "Marked entries do not
-             stop operator changes."
+REQUIREMENT: The installation checks (BEH-GX-113–120) MUST report, as the
+             proof IQ-23, whether `trailGate` is used and with which `refuseOn`
+             members and `allow` list, whether audit-chain's `ChainGate`
+             is used and with which options, and the `name` and `timeout` of
+             each of the consumer's `gatePieces`; a `trailGate` given "not-used"
+             MUST be reported as a consumer decision, with the statement
+             "Marked entries do not stop operator changes."
 ```
 
 ```
-REQUIREMENT: Every evidence pack MUST include the current
-             `TrailSinkStatus` counts at the time the pack was made, labelled
-             as counts since the sink was built.
+REQUIREMENT: Every evidence pack made for an assembly with a trail sink MUST
+             include, as `sink-status.json`, the `TrailSinkStatus` counts
+             read when the pack was made, labelled as counts since the sink
+             was built (BEH-GX-129).
 ```
 
 A deployment may decide that a marked entry should not stop changes — a

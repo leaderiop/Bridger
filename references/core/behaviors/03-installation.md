@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-03                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): BEH-BR-017 `install` unions add `ConfigFingerprintUnavailable` and BEH-BR-024 `PluginHandle.restart` takes `HandoffCallOptions`, as BEH-BR-013 (C-01); BEH-BR-018 precedence names steps 4a and 4b; BEH-BR-023 a disabled installation also runs `IncompatibleEngine` and defers `IncompatibleContract`, and a `replace` that leaves the plugin disabled runs the same checks and reserves nothing (U-07, U-08) (CCR-BR-032)<br>0.4 (2026-11-08): generic `install` overload takes the branded `Plugin`; `UnknownRealm` at the linearization point after a retirement (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-017 non-generic `Plugin.Any` overload (CCR-BR-020); BEH-BR-018 `IncompatibleContract`, `IncompatibleEngine` and precedence, BEH-BR-019/020 lazy definitions read from the manifest (CCR-BR-017); BEH-BR-022 `mandatory`, `allowChildren` (CCR-BR-018)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-10): BEH-BR-017 `install` registers a lazy definition `dormant`, and a start refused after step 4b `disabled` with reason "refused-digest" (C3) (CCR-BR-034)<br>0.5 (2026-11-09): BEH-BR-017 `install` unions add `ConfigFingerprintUnavailable` and BEH-BR-024 `PluginHandle.restart` takes `HandoffCallOptions`, as BEH-BR-013 (C-01); BEH-BR-018 precedence names steps 4a and 4b; BEH-BR-023 a disabled installation also runs `IncompatibleEngine` and defers `IncompatibleContract`, and a `replace` that leaves the plugin disabled runs the same checks and reserves nothing (U-07, U-08) (CCR-BR-032)<br>0.4 (2026-11-08): generic `install` overload takes the branded `Plugin`; `UnknownRealm` at the linearization point after a retirement (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-017 non-generic `Plugin.Any` overload (CCR-BR-020); BEH-BR-018 `IncompatibleContract`, `IncompatibleEngine` and precedence, BEH-BR-019/020 lazy definitions read from the manifest (CCR-BR-017); BEH-BR-022 `mandatory`, `allowChildren` (CCR-BR-018)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -65,9 +65,14 @@ BEH-BR-244, BEH-BR-247).
 REQUIREMENT: `install` MUST record the definition when it is called and MUST
              register the plugin in the realm named by `options.realm`
              (default "default"), in exactly one of these states:
-             `disabled` when `options.disabled` is true; otherwise `waiting`
+             `disabled` when `options.disabled` is true; otherwise `dormant`
+             for a lazy definition (27 — Manifest and Lazy Activation,
+             BEH-BR-244); otherwise `waiting`
              when at least one required key has no active provider in its
-             resolution scope; otherwise `starting`.
+             resolution scope; otherwise `starting`. A start that a wired
+             `RefusalList` refuses after step 4b registers it `disabled`
+             with reason "refused-digest" instead (28 — Plugin Principal and
+             Mandatory Policy, BEH-BR-267).
 ```
 
 ```

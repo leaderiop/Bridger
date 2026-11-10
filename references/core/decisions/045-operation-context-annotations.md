@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-045                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amends ADR-BR-030                                 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): flow "wire" and `Annotations.decode` for host boundaries (`Deadline` never crosses); `CallerContext` for served calls; a deadline shortens only a given per-call timeout of `use`/`useAll` (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.3 (2026-11-10): Status names the ADRs this one amends (ADR-BR-030), pairing their "amended by" (C22) (CCR-BR-034)<br>0.2 (2026-11-08): flow "wire" and `Annotations.decode` for host boundaries (`Deadline` never crosses); `CallerContext` for served calls; a deadline shortens only a given per-call timeout of `use`/`useAll` (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 
