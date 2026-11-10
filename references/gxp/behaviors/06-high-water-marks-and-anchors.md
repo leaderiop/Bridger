@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-06                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-042, 048: `HighWaterMark.seal` withdrawn; the anchor store holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-041: `AnchorWriteFailed`, `AnchorReadFailed` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-042, 048: `HighWaterMark.seal` withdrawn; the anchor store holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -63,6 +63,15 @@ interface AnchorStoreShape {
   readonly latest: (q: { readonly hostId: string }) => Effect.Effect<Option.Option<HighWaterMark>, AnchorReadFailed>
 }
 class AnchorStore extends Context.Service<AnchorStore, AnchorStoreShape>()("@bridger/gxp/AnchorStore") {}
+
+class AnchorWriteFailed extends Schema.TaggedError<AnchorWriteFailed>()("AnchorWriteFailed", {
+  reason: Schema.Literal("unavailable", "rejected"),
+  message: Schema.String
+}) {}
+class AnchorReadFailed extends Schema.TaggedError<AnchorReadFailed>()("AnchorReadFailed", {
+  reason: Schema.Literal("unavailable", "rejected"),
+  message: Schema.String
+}) {}
 ```
 
 ```

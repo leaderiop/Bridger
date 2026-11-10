@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-08): The package statement is the "package" instance of the typed statement of file 07; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule" (round 2: recheck items 11, 15) (CCR-LD-003)<br>0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.4 (2026-11-10): round 2 follow-up: `SignatureInvalid` declared (BEH-LD-018) (CCR-LD-005)<br>0.3 (2026-11-08): The package statement is the "package" instance of the typed statement of file 07; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule" (round 2: recheck items 11, 15) (CCR-LD-003)<br>0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -105,6 +105,10 @@ interface VerifiedSigner {
   readonly scheme: string
   readonly signedAt?: string       // only when the scheme supplies a timestamp it verified (e.g. a log inclusion time)
 }
+class SignatureInvalid extends Schema.TaggedError<SignatureInvalid>()("SignatureInvalid", {
+  scheme: Schema.String,
+  message: Schema.String           // never signature bytes, keys or certificate contents
+}) {}
 ```
 
 ```

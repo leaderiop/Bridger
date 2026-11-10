@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-AC-027 and BEH-AC-030 name the report kinds "canon-changed", "loss-counter-rose" and "counter-decreased" (03, BEH-AC-019); BEH-AC-029 restates store idempotence for an equal entry only (BEH-AC-006, CCR-AC-004); BEH-AC-031 passes the profile as `verifyChain`'s `options.profile` and names `SequenceResult`; open item 1 closed (`ChainLinkV2.origin`) (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-06, R3-07, R3-09; R5-08): `ChainLinkV2` with `seriesId`, `seq`, `canon` and its hash inputs, audit links stay version 1; anchor statements version 2 carry `seriesId`, `canon` and `dropped`; a series resumes across hosts with `resumeFrom` or `ChainStore.head`; the erasure wording no longer over-claims; checks 13–16 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
+> | Change History | 0.3 (2026-11-10): BEH-AC-027 and BEH-AC-030 name the report kinds "canon-changed", "loss-counter-rose" and "counter-decreased" (03, BEH-AC-019); BEH-AC-029 restates store idempotence for an equal entry only (BEH-AC-006, CCR-AC-004); BEH-AC-031 passes the profile as `verifyChain`'s `options.profile` and names `SequenceResult`; open item 1 closed (`ChainLinkV2.origin`); follow-up: BEH-AC-026 and check 16 name the report field for version 1 statements, `ChainReport.hosts[].lossCounterUnanchored` (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-06, R3-07, R3-09; R5-08): `ChainLinkV2` with `seriesId`, `seq`, `canon` and its hash inputs, audit links stay version 1; anchor statements version 2 carry `seriesId`, `canon` and `dropped`; a series resumes across hosts with `resumeFrom` or `ChainStore.head`; the erasure wording no longer over-claims; checks 13–16 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
 
 ---
 
@@ -220,7 +220,8 @@ REQUIREMENT: Every anchor statement, of any series, MUST be an
              when the series spec gives `dropped`, `dropped` (02,
              BEH-AC-009). A verifier MUST read version 1 statements written
              before this revision and MUST report for them that no loss
-             counter was anchored.
+             counter was anchored, by listing their windows in
+             `ChainReport.hosts[].lossCounterUnanchored` (03, BEH-AC-019).
 ```
 
 ```
@@ -615,7 +616,8 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  is the last appended record's value, and
                  version 2 statements carry the window's last value, while a
                  version 1 statement is reported as anchoring no loss
-                 counter; a generic profile
+                 counter, its window listed in `lossCounterUnanchored` and
+                 no version 2 window listed; a generic profile
                  uses `verifySeriesSequence` and the audit profile core's
                  `verifyAuditSequence` (BEH-AC-030, BEH-AC-031).
 ```

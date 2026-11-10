@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7) (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7); follow-up: `EvidenceWriteFailed`, `AssessmentRefused`, `EvidenceReadFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -57,6 +57,11 @@ declare function buildEvidencePack(q: {
   readonly attachments: readonly { readonly path: string; readonly as: string }[]   // runner outputs, run and conformance manifests
   readonly outDir: string                                  // must not exist
 }): Effect.Effect<{ readonly packDigest: string }, EvidenceWriteFailed>
+
+class EvidenceWriteFailed extends Schema.TaggedError<EvidenceWriteFailed>()("EvidenceWriteFailed", {
+  path: Schema.String,                    // the file that could not be written
+  reason: Schema.String                   // the file system's error code, e.g. "ENOSPC", "EEXIST"; never file content
+}) {}
 ```
 
 ```
@@ -249,6 +254,11 @@ declare function assessDeviation(
   a: { readonly deviationId: string; readonly by: Actor; readonly assessment: string; readonly reference?: string },
   deps: { readonly clock?: Clock.Clock }
 ): Effect.Effect<void, EvidenceWriteFailed | AssessmentRefused>
+
+class AssessmentRefused extends Schema.TaggedError<AssessmentRefused>()("AssessmentRefused", {
+  deviationId: Schema.String,
+  reason: Schema.Literal("unknown-deviation", "reserved-actor", "blank-assessment")
+}) {}
 ```
 
 ```
@@ -367,6 +377,10 @@ knows a new review is needed.
 ```ts
 // illustrative — not type-checked
 declare function diffPacks(prev: string, next: string): Effect.Effect<PackDiff, EvidenceReadFailed>
+class EvidenceReadFailed extends Schema.TaggedError<EvidenceReadFailed>()("EvidenceReadFailed", {
+  path: Schema.String,                    // the pack directory, or the file that failed
+  reason: Schema.Literal("unreadable", "manifest-mismatch")   // BEH-GX-132
+}) {}
 interface PackDiff {
   readonly format: "bridger-gx-pack-diff/1"
   readonly prev: string; readonly next: string                     // pack digests

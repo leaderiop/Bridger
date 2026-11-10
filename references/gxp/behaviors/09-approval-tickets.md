@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-069 `ProposedRequest` carries the request fields binding version 2 digests (`definition.manifest`, `onBehalfOf`, `undo`, `allowChildren`, `mandatoryInterceptions`); BEH-GX-067 a late or surplus `signed` event is refused by the companion before appending, the store enforcing the version only (H5, low) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-069 `ProposedRequest` carries the request fields binding version 2 digests (`definition.manifest`, `onBehalfOf`, `undo`, `allowChildren`, `mandatoryInterceptions`); BEH-GX-067 a late or surplus `signed` event is refused by the companion before appending, the store enforcing the version only (H5, low); follow-up: `TicketWriteFailed`, `TicketReadFailed`, `TicketVersionConflict`, `IssueRefused`, `RevokeRefused` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -260,6 +260,19 @@ interface TicketStoreShape {
   readonly ticket: (ticketId: string) => Effect.Effect<readonly StoredTicketEvent[], TicketReadFailed>   // [] when unknown
   readonly events: (q: { readonly fromSeq?: number }) => Stream.Stream<StoredTicketEvent, TicketReadFailed>
 }
+
+class TicketWriteFailed extends Schema.TaggedError<TicketWriteFailed>()("TicketWriteFailed", {
+  reason: Schema.Literal("unavailable", "rejected"),
+  message: Schema.String
+}) {}
+class TicketReadFailed extends Schema.TaggedError<TicketReadFailed>()("TicketReadFailed", {
+  reason: Schema.Literal("unavailable", "rejected"),
+  message: Schema.String
+}) {}
+class TicketVersionConflict extends Schema.TaggedError<TicketVersionConflict>()("TicketVersionConflict", {
+  ticketId: Schema.String,
+  expectedVersion: Schema.Number          // the version the append expected; nothing was stored
+}) {}
 ```
 
 ```
@@ -327,6 +340,10 @@ declare function issueTicket(
   proposal: { readonly scope: string; readonly requests: readonly ProposedRequest[]; readonly notBefore?: string; readonly notAfter: string },
   deps: { readonly policy: ApprovalPolicy; readonly tickets: TicketStoreShape; readonly signatures: SignatureCaptureShape }
 ): Effect.Effect<Ticket, IssueRefused | SignatureDeclined | SignatureCaptureFailed | TicketWriteFailed | TicketVersionConflict>
+
+class IssueRefused extends Schema.TaggedError<IssueRefused>()("IssueRefused", {
+  message: Schema.String                  // the rule id and the field name only, never a value
+}) {}
 ```
 
 ```
@@ -403,6 +420,11 @@ declare function revokeTicket(
   q: { readonly ticketId: string; readonly by: Actor; readonly reason: string },
   deps: { readonly tickets: TicketStoreShape }
 ): Effect.Effect<void, RevokeRefused | TicketWriteFailed | TicketVersionConflict>
+
+class RevokeRefused extends Schema.TaggedError<RevokeRefused>()("RevokeRefused", {
+  ticketId: Schema.String,
+  reason: Schema.Literal("reserved-actor", "blank-reason", "unknown-ticket", "not-open")   // not-open: consumed, expired or revoked
+}) {}
 ```
 
 ```

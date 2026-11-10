@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-042                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed — amended by ADR-BR-050                             |
+> | Status         | Proposed — amends ADR-BR-014, ADR-BR-027 and ADR-BR-029; amended by ADR-BR-050 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): Amended by ADR-BR-050 (CCR-BR-024)<br>0.2 (2026-11-08): the lazy definition's digest is supplied beside the manifest (`Plugin.lazy({ manifest, load, digest })`) and is its identity for loading, reconcile and the gate (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
+> | Change History | 0.4 (2026-11-10): Status names the ADRs this one amends (ADR-BR-014, ADR-BR-027 and ADR-BR-029), pairing their "amended by" (C22) (CCR-BR-034)<br>0.3 (2026-11-08): Amended by ADR-BR-050 (CCR-BR-024)<br>0.2 (2026-11-08): the lazy definition's digest is supplied beside the manifest (`Plugin.lazy({ manifest, load, digest })`) and is its identity for loading, reconcile and the gate (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017) |
 
 ---
 

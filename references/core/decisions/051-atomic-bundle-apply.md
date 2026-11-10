@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-051                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed — amends ADR-BR-023                                 |
+> | Status         | Proposed — amends ADR-BR-023 and ADR-BR-030                  |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-BR-025)                 |
+> | Change History | 0.2 (2026-11-10): Status names the ADRs this one amends (ADR-BR-023 and ADR-BR-030), pairing their "amended by" (C22) (CCR-BR-034)<br>0.1 (2026-11-08): Initial draft (CCR-BR-025)                 |
 
 ---
 

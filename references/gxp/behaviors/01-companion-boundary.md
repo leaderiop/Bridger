@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-004: the anchoring fiber of audit-chain's sink is the one fiber the layer starts; one layer per host. BEH-GX-007: the core version is read from `Bridger.version` (H6, low) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-001 `@bridger/audit-chain` as an optional peer dependency (C-09); BEH-GX-002 canonical domain widened to I-JSON numbers, the integer-only claim corrected (F-01); BEH-GX-004 `trail.gate` and the composed host gate; BEH-GX-007 an unsupported record shape is stored and marked, not refused (F-02); BEH-GX-008 sealing wording points at 21 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-004: the anchoring fiber of audit-chain's sink is the one fiber the layer starts; one layer per host. BEH-GX-007: the core version is read from `Bridger.version` (H6, low); follow-up: `GxpPlatformUnsupported`, `CanonicalisationFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-001 `@bridger/audit-chain` as an optional peer dependency (C-09); BEH-GX-002 canonical domain widened to I-JSON numbers, the integer-only claim corrected (F-01); BEH-GX-004 `trail.gate` and the composed host gate; BEH-GX-007 an unsupported record shape is stored and marked, not refused (F-02); BEH-GX-008 sealing wording points at 21 (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -156,6 +156,13 @@ REQUIREMENT: The canonical form MUST be the same byte sequence for the same
              (BEH-GX-018).
 ```
 
+```ts
+// illustrative — not type-checked
+class CanonicalisationFailed extends Schema.TaggedError<CanonicalisationFailed>()("CanonicalisationFailed", {
+  path: Schema.String                                   // the position in the value; never the value
+}) {}
+```
+
 The canonical form is where two parties that must agree on a digest — the
 ticket issuer and the gate, the sink and the checker — can silently disagree
 ([RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015)). Restricting the inputs to what RFC 8785 serialises without
@@ -254,6 +261,9 @@ declare const GxpLayer: {
 class GxpLayerInvalid extends Schema.TaggedError<GxpLayerInvalid>()("GxpLayerInvalid", {
   section: Schema.Literal("scope", "trail", "anchors", "approvals", "fingerprints"),
   message: Schema.String
+}) {}
+class GxpPlatformUnsupported extends Schema.TaggedError<GxpPlatformUnsupported>()("GxpPlatformUnsupported", {
+  missing: Schema.Literal("sha256", "hmac-sha256")      // BEH-GX-002
 }) {}
 ```
 

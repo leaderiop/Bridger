@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does; follow-up: BEH-GX-140 passes `expectKeyed` with `keyed`, as `verifySeals` does (BEH-GX-171); follow-up: `ExportFailed`, `ArchiveUnreadable` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -66,6 +66,12 @@ declare function exportTrail(q: {
   readonly maxEntries?: number                         // default 1,000,000, as verifySeals (BEH-GX-171)
   readonly outDir: string                              // must not exist
 }): Effect.Effect<ArchiveManifest, ExportFailed | CheckCapacityExceeded>
+
+class ExportFailed extends Schema.TaggedError<ExportFailed>()("ExportFailed", {
+  reason: Schema.Literal("read-failed", "bundle-export-failed", "write-failed", "entry-not-canonical"),
+  auditSeq: Schema.optional(Schema.Number),   // with "entry-not-canonical" (BEH-GX-139)
+  message: Schema.String                      // fixed template; never entry content
+}) {}
 ```
 
 ```
@@ -224,10 +230,14 @@ declare function readArchive(dir: string, options?: {
   readonly pageSize?: number                           // default 1000, as checkStoredTrail (BEH-GX-035)
   readonly maxOpenRequests?: number                    // default 100000, as checkStoredTrail
   readonly maxEntries?: number                         // default 1,000,000, as verifySeals (BEH-GX-171)
-  readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // for keyed links; passed to verifyBundle as options.keyed
+  readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // for keyed links; passed to verifyBundle as options.keyed, with options.expectKeyed true (BEH-GX-171)
 }): Effect.Effect<{ readonly manifest: ArchiveManifest; readonly files: readonly FileCheck[]
                     readonly report: CheckReport; readonly links?: ApprovalLinkReport },
                   ArchiveUnreadable | CheckCapacityExceeded>
+
+class ArchiveUnreadable extends Schema.TaggedError<ArchiveUnreadable>()("ArchiveUnreadable", {
+  reason: Schema.Literal("manifest-unparseable", "format-unsupported")   // any other defect is a finding (BEH-GX-140)
+}) {}
 ```
 
 ```

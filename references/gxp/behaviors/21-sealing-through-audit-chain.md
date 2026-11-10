@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
+> | Change History | 0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19); follow-up: BEH-GX-171 passes `expectKeyed: true` with `sealing.keyed`, so an unkeyed link in a keyed trail is a `chainBreak` "unkeyed-link" (audit-chain CCR-AC-005 follow-up) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
 
 ---
 
@@ -140,7 +140,7 @@ declare function verifySeals(
 
 | Finding kind | From audit-chain |
 | --- | --- |
-| `chainBreak` | each entry of the `ChainReport`'s `breaks`, whatever its `kind` ("canon-changed" and "counter-decreased" included), with the `kind` as `detail` |
+| `chainBreak` | each entry of the `ChainReport`'s `breaks`, whatever its `kind` ("canon-changed", "counter-decreased" and "unkeyed-link" included), with the `kind` as `detail` |
 | `anchorMismatch` | each entry of `anchorMismatches` |
 | `chainUnanchoredTail` | `hosts[].unanchoredTail`, when present: entries above the last confirmed anchor |
 | `headMismatch` | `hosts[].head` "head-short" or "head-mismatch" against the expected head taken from the host's highest high-water mark |
@@ -159,6 +159,17 @@ REQUIREMENT: `verifySeals` MUST read the host's statements and receipts with
              `expectedHeads` set from the host's highest high-water mark
              (BEH-GX-042) when one exists. It MUST NOT recompute, re-derive or
              reinterpret any link itself.
+```
+
+```
+REQUIREMENT: When `sealing.keyed` is given, `verifySeals` MUST pass it to
+             `verifyChain` as `keyed` together with `expectKeyed: true`
+             (BEH-AC-019), so that an entry whose link carries no `keyId` is
+             a `chainBreak` with detail "unkeyed-link". The caller MUST give
+             `sealing.keyed` for every host whose sink was built with
+             `SealingOptions.keyed` (BEH-GX-170); documentation MUST state
+             that without it a keyed trail rewritten with unkeyed links that
+             recompute is not reported.
 ```
 
 ```

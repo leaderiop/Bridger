@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05 (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -58,6 +58,7 @@ declare function verifyChain<R = AuditRecord>(
     readonly anchors?: Iterable<ConfirmedStatement>       // from confirmAnchors (BEH-AC-020)
     readonly continuesFrom?: ReadonlyMap<string, { readonly hostId: string; readonly auditSeq: number; readonly hash: string }>  // per hostId, as wired (01, BEH-AC-007)
     readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // a pure MAC function, when links are keyed
+    readonly expectKeyed?: boolean                        // the sinks were built with a KeyedHasher: a link without keyId is a break (BEH-AC-019)
     // Per hostId, the head the verifier learned independently of the trail and receipt stores:
     // an anchor service's log, the next host's continuesFrom, a CloseReport.auditLastSeq or
     // Host.controls audit position held apart (BEH-AC-019).
@@ -74,12 +75,15 @@ interface ChainReport {
     readonly verifiedThrough: number                      // highest toSeq of a matching confirmed anchor at or below linksCheckedThrough; 0 if none
     readonly unanchoredTail: { readonly fromSeq: number; readonly toSeq: number } | undefined
     readonly head: "confirmed" | "head-unconfirmed" | "head-short" | "head-mismatch"   // against expectedHeads (BEH-AC-019)
+    // the windows of the confirmed version 1 statements given for this host, which anchor no loss counter (04, BEH-AC-026)
+    readonly lossCounterUnanchored: readonly { readonly fromSeq: number; readonly toSeq: number; readonly statementHash: string }[]
   }[]
   readonly breaks: readonly {
     readonly hostId: string
     readonly auditSeq: number
     readonly kind: "hash-mismatch" | "prev-mismatch" | "missing-link" | "link-record-mismatch"
                  | "unsupported-version" | "key-unavailable"
+                 | "unkeyed-link"                               // a link without keyId while options.expectKeyed is true (BEH-AC-019)
                  | "sink-marked"                                // the link carries a break marker (01, BEH-AC-004, BEH-AC-005)
                  | "canon-changed"                              // the link's canon differs from its series' first link (04, BEH-AC-027)
                  | "counter-decreased"                          // the profile's loss counter is lower than the previous record's (04, BEH-AC-030)
@@ -184,6 +188,19 @@ REQUIREMENT: A link with a `keyId` MUST be recomputed with
 ```
 
 ```
+REQUIREMENT: When `options.expectKeyed` is true, every link without a
+             `keyId`, of every host and series in the input, MUST be
+             reported as an "unkeyed-link" break, whatever its
+             recomputation finds. Documentation MUST state that a link
+             carries no proof that its writer was keyed: a party without
+             the key can rewrite a keyed series with unkeyed links that
+             recompute, so a consumer whose sink was built with a
+             `KeyedHasher` (01, BEH-AC-007) MUST verify with `expectKeyed`,
+             and hosts or series built differently are verified in separate
+             runs.
+```
+
+```
 REQUIREMENT: A link of a generic series whose `canon` differs from the
              first link of its series MUST be reported as a "canon-changed"
              break (04, BEH-AC-027). When the profile gives `dropped`, a
@@ -206,6 +223,16 @@ REQUIREMENT: `verifiedThrough` MUST be the highest `toSeq` of a statement
              that matched, whose window and every earlier window matched, and
              that lies at or below `linksCheckedThrough`. Records above it
              MUST be reported in `unanchoredTail`.
+```
+
+```
+REQUIREMENT: For every confirmed statement of version 1 (02, BEH-AC-009)
+             given for a host, `lossCounterUnanchored` MUST list its window
+             (`fromSeq`, `toSeq`) and `statementHash`, in ascending
+             `fromSeq`, whether or not the statement matched; it MUST be
+             empty when the host has none. A version 2 statement never
+             appears there. Records in those windows have their loss counter
+             covered by the chain alone (04, BEH-AC-026, BEH-AC-030).
 ```
 
 ```
@@ -242,6 +269,7 @@ interface AnchorVerifierShape {
   readonly confirm: (statement: AnchorStatement, receipt: AnchorReceipt) => Effect.Effect<ConfirmedStatement, AnchorUnconfirmed>
 }
 class AnchorVerifier extends Context.Service<AnchorVerifier, AnchorVerifierShape>()("@bridger/audit-chain/AnchorVerifier") {}
+class AnchorUnconfirmed extends Schema.TaggedError<AnchorUnconfirmed>()("AnchorUnconfirmed", { anchor: Schema.String, reason: Schema.String }) {}
 
 interface ConfirmedStatement { readonly statement: AnchorStatement; readonly statementHash: string; readonly confirmedBy: string }
 
@@ -418,8 +446,10 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 the write with `KeyedHashFailed` `permanent: true`; links
                 written under a first key and, after the sink is rebuilt,
                 under a second verify in one run when `keyed` computes both,
-                and are "key-unavailable" when it does not (BEH-AC-007,
-                BEH-AC-019).
+                and are "key-unavailable" when it does not; a keyed series
+                rewritten with unkeyed links that recompute is reported as
+                "unkeyed-link" breaks with `expectKeyed`, and not without it
+                (BEH-AC-007, BEH-AC-019).
              7. Windows: contiguous, in order, never merged or re-windowed;
                 Merkle root and head hash match RFC 6962 test vectors with
                 this package's tags (BEH-AC-010, BEH-AC-014).

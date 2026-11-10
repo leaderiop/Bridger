@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`) (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
+> | Change History | 0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`); follow-up: `options.expectKeyed`, passed to `verifyChain`; check 20 extended (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
 
 ---
 
@@ -163,6 +163,7 @@ declare function verifyBundle(
     readonly profiles?: ReadonlyMap<string, ChainProfile<unknown>>   // beyond "audit"
     readonly receiptVerifiers?: readonly OfflineReceiptVerifier[]    // BEH-AC-036
     readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // a pure MAC function, for keyed links (BEH-AC-039)
+    readonly expectKeyed?: boolean                                   // passed to verifyChain (03, BEH-AC-019)
   }
 ): BundleReport
 
@@ -204,7 +205,7 @@ REQUIREMENT: `verifyBundle` MUST confirm receipts only with offline receipt
 REQUIREMENT: `chain` MUST be the `ChainReport` of `verifyChain` over the
              bundle's segments, with the profile named by each series as
              `options.profile`, the series' `continuesFrom`, `options.keyed`
-             when given, and `expectedHeads` taken from the
+             and `options.expectKeyed` when given, and `expectedHeads` taken from the
              options when given, otherwise from the bundle — in which case
              each head's `head` result MUST be reported as
              "head-unconfirmed", whatever its `source` says. Only heads
@@ -462,7 +463,8 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  detection matrix of check 11 run through bundles gives the
                  same `verifiedThrough` as `verifyChain`; a bundle over an
                  encrypted series verifies after key destruction; keyed
-                 links are "key-unavailable" without a MAC function
+                 links are "key-unavailable" without a MAC function, and
+                 unkeyed links are "unkeyed-link" breaks with `expectKeyed`
                  (BEH-AC-038, BEH-AC-039).
 ```
 

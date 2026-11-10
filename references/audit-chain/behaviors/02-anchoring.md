@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): `ChainStatus` gains `dropped`, the loss counter 04, BEH-AC-030 requires the status to report; open item 3 closed (statements carry `dropped`) (CCR-AC-005)<br>0.4 (2026-11-08): `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped` for every series, version 1 still read; the windows of a series resumed by another writer (04, BEH-AC-026) (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore` (round 2: recheck item 13) (CCR-AC-003)<br>0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.5 (2026-11-10): `ChainStatus` gains `dropped`, the loss counter 04, BEH-AC-030 requires the status to report; open item 3 closed (statements carry `dropped`); follow-up: BEH-AC-016's keyed column requires the verifier's `expectKeyed` (CCR-AC-005)<br>0.4 (2026-11-08): `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped` for every series, version 1 still read; the windows of a series resumed by another writer (04, BEH-AC-026) (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore` (round 2: recheck item 13) (CCR-AC-003)<br>0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -432,7 +432,7 @@ more: its tail is covered by the chain alone, which is limit 2 of the
 | ----- | ------------------------------ | ----------------------- | ----------------------------- |
 | Storage fault, partial restore | Detected | Detected | Detected |
 | Edit of one record without recomputing links | Detected | Detected | Detected |
-| Insider who can write the store and recomputes links | **Not detected** | Detected only if the key is out of the insider's reach | Detected up to the last confirmed anchor |
+| Insider who can write the store and recomputes links | **Not detected** | Detected only if the key is out of the insider's reach and the verifier is given `expectKeyed` (03 — Verification, BEH-AC-019); otherwise links rewritten unkeyed are not detected | Detected up to the last confirmed anchor |
 | Insider who truncates the tail after the last anchor | Not detected | Not detected | **Not detected** |
 | Insider who deletes the last anchored windows together with their receipts | Not detected | Not detected | **Not detected**, unless the verifier is given the expected head independently (`expectedHeads`, 03 — Verification, BEH-AC-019): then detected |
 | Insider who can rewrite store and anchor store | Not detected | Not detected | **Not detected** |

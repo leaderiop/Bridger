@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-09                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
+> | Change History | 0.4 (2026-11-10): round 2 follow-up: `DedupeUnavailable` declared (BEH-RM-067) (CCR-RM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
 
 ---
 
@@ -172,6 +172,9 @@ interface DedupeStore {
     Effect.Effect<"run" | { readonly running: true } | { readonly result: Uint8Array }, DedupeUnavailable>
   readonly complete: (key: DedupeKey, result: Uint8Array) => Effect.Effect<void, DedupeUnavailable>
 }
+class DedupeUnavailable extends Schema.TaggedError<DedupeUnavailable>()("DedupeUnavailable", {
+  message: Schema.String
+}) {}
 // Guest.serve options gain: dedupe?: DedupeStore | "idempotent-handlers"
 //                           dedupeRetention?: Duration.Input   // default 1 hour
 ```

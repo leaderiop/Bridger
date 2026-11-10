@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-07                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R4 F15) — a multiplexed endpoint may be given the residency labels its route offers, which replace the physical profile's (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — `TransportProfile.residency` and `reportsUsage`, `Connection.usage`; isolation table rows for `Transport.postMessage` and the Workers for Platforms adapter (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — endpoint multiplexer (BEH-RM-056) for several sessions over one physical connection; frames before the handshake per endpoint; per-call transports keep a host-side logical session (R3-01, R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.5 (2026-11-10): round 2 follow-up: `GuestTransportError` declared (BEH-RM-049) (CCR-RM-005)<br>0.4 (2026-11-08): Round-2 agent review (R4 F15) — a multiplexed endpoint may be given the residency labels its route offers, which replace the physical profile's (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — `TransportProfile.residency` and `reportsUsage`, `Connection.usage`; isolation table rows for `Transport.postMessage` and the Workers for Platforms adapter (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — endpoint multiplexer (BEH-RM-056) for several sessions over one physical connection; frames before the handshake per endpoint; per-call transports keep a host-side logical session (R3-01, R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -50,6 +50,10 @@ interface Connection {
 }
 class TransportError  extends Schema.TaggedError<TransportError>()("TransportError", { adapter: Schema.String, message: Schema.String }) {}
 class TransportClosed extends Schema.TaggedError<TransportClosed>()("TransportClosed", { adapter: Schema.String, reason: Schema.String }) {}
+class GuestTransportError extends Schema.TaggedError<GuestTransportError>()("GuestTransportError", {
+  reason: Schema.Literal("accept-failed", "no-dedupe"),   // "no-dedupe": Guest.serve refuses to start (09, BEH-RM-067)
+  message: Schema.String
+}) {}
 ```
 
 ```

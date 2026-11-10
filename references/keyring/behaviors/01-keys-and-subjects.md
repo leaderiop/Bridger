@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): `rotate` and `rewrap`, required by BEH-KR-006, added to `KeyringShape` (BEH-KR-002) and to the members of the `Keyring` contract (BEH-KR-008) (P10) (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.5 (2026-11-10): `rotate` and `rewrap`, required by BEH-KR-006, added to `KeyringShape` (BEH-KR-002) and to the members of the `Keyring` contract (BEH-KR-008) (P10); follow-up: BEH-KR-004 `KeyStore` gains `wrappedUnder` and the compare-and-set `replaceWrapped` (`WrappedKeyChanged`), which BEH-KR-006 `rewrap` uses (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -97,10 +97,19 @@ interface KeyStore {
   readonly markStep: (subject: string, shredId: string, step: ShredStep) => Effect.Effect<void, KeyStoreUnavailable>  // 03, BEH-KR-017
   readonly incompleteShreds: Effect.Effect<readonly Tombstone[], KeyStoreUnavailable>                 // tombstones with a pending step
   readonly holders?: (subject: string) => Effect.Effect<readonly string[], KeyStoreUnavailable>       // hosts the consumer gave the key to (BEH-KR-021)
+  // BEH-KR-006: rewrap. Every live key version whose `wrapped.kekId` is `kekId`, tombstoned subjects excluded
+  readonly wrappedUnder: (kekId: string) => Effect.Effect<readonly StoredKeyVersion[], KeyStoreUnavailable>
+  // BEH-KR-006: compare-and-set; replaces the version's wrapped key only while it still equals `expected`
+  readonly replaceWrapped: (subject: string, version: number, expected: WrappedKey, next: WrappedKey) =>
+    Effect.Effect<void, KeyStoreUnavailable | KeyShredded | WrappedKeyChanged>
   // present only when the KeyStore's database is the durable-bus outbox's: a transaction the OutboxStore accepts
   readonly transaction?: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) => Effect.Effect<A, E | KeyStoreUnavailable, Exclude<R, StoreTransaction>>
 }
 type ShredStep = "destroyed" | "noticed"
+interface StoredKeyVersion { readonly subject: string; readonly keyId: string; readonly version: number; readonly wrapped: WrappedKey }
+class WrappedKeyChanged extends Schema.TaggedError<WrappedKeyChanged>()("WrappedKeyChanged", {
+  subject: Schema.String, version: Schema.Number            // the stored wrapped key is no longer `expected`; nothing was changed
+}) {}
 ```
 
 ```
@@ -120,6 +129,19 @@ REQUIREMENT: `tombstone` MUST store every field of the `Tombstone` it is
              `get` and `incompleteShreds` MUST return them unchanged. A
              `KeyStore` MUST NOT change or remove any field of a stored
              tombstone; `markStep` MUST change only its `steps`.
+```
+
+```
+REQUIREMENT: `wrappedUnder(kekId)` MUST return every key version in the
+             store's live data whose wrapped key names `kekId`, and none of
+             a tombstoned subject. `replaceWrapped` MUST, atomically,
+             replace the wrapped key of that subject's `version` with `next`
+             only while the stored one equals `expected`, and MUST change no
+             other field (`keyId`, `version`); otherwise it MUST change
+             nothing and fail with `WrappedKeyChanged { subject, version }`
+             when the stored wrapped key differs or the version is absent,
+             and with `KeyShredded` when the subject is tombstoned. Like
+             `create`, it MUST check the tombstone in the same atomic step.
 ```
 
 ## BEH-KR-005: KeyWrapper — the key-encryption key stays outside the store
@@ -148,6 +170,20 @@ REQUIREMENT: `Keyring.rotate(subject)` MUST add a new key version used for
              every stored key version under the wrapper's current key
              without unwrapping it outside the wrapper where the wrapper
              supports that.
+```
+
+```
+REQUIREMENT: `rewrap(kekId)` MUST read the versions to re-wrap with
+             `KeyStore.wrappedUnder(kekId)` and store each re-wrapped key
+             with `KeyStore.replaceWrapped`, passing the wrapped key it read
+             as `expected`. A `WrappedKeyChanged` or `KeyShredded` for a
+             version (re-wrapped, or its subject shredded, meanwhile) MUST
+             NOT fail the call: that version is skipped. It MUST repeat the
+             listing until `wrappedUnder(kekId)` returns no version, and MUST
+             succeed at once, changing nothing, when `kekId` is the
+             wrapper's current `kekId`. It fails only with
+             `KeyStoreUnavailable`; versions already replaced stay
+             replaced, and a repeated `rewrap(kekId)` completes the rest.
 ```
 
 ## BEH-KR-007: Backup obligations

@@ -7,12 +7,12 @@
 > | Document ID    | BRIDGER-ADR-043                                              |
 > | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed — amends ADR-BR-019 and ADR-BR-021; amended by ADR-BR-050 and ADR-BR-053 |
+> | Status         | Proposed — amends ADR-BR-019, ADR-BR-021 and ADR-BR-030; amended by ADR-BR-050 and ADR-BR-053 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-10): Amendments marked: `onBehalfOf` on root `lazy-triggered` records, child mounts refused by the `RefusalList`, `ChildNotAllowed` for a denied child request (C22) (CCR-BR-034)<br>0.3 (2026-11-08): Extended by AccessPolicy.declaredOnly, AccessPolicy.ask and the RefusalList port (CCR-BR-026)<br>0.2 (2026-11-08): `onBehalfOf` is the principal of the calling fiber (the provider case stated); retirement after finalizers; mandatory interceptions are application-wired and cover host captures only (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.4 (2026-11-10): Amendments marked: `onBehalfOf` on root `lazy-triggered` records, child mounts refused by the `RefusalList`, `ChildNotAllowed` for a denied child request (C22); Status also names ADR-BR-030, which this ADR amends (C22 follow-up) (CCR-BR-034)<br>0.3 (2026-11-08): Extended by AccessPolicy.declaredOnly, AccessPolicy.ask and the RefusalList port (CCR-BR-026)<br>0.2 (2026-11-08): `onBehalfOf` is the principal of the calling fiber (the provider case stated); retirement after finalizers; mandatory interceptions are application-wired and cover host captures only (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 

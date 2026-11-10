@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-16                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -59,6 +59,11 @@ declare function collectOqEvidence(q: {
   readonly installed: InstalledIdentity              // from the IQ report (BEH-GX-117)
   readonly conformance?: readonly string[]           // conformance-manifest.json files (BEH-GX-031)
 }): Effect.Effect<OqReport, RunnerOutputUnreadable>
+
+class RunnerOutputUnreadable extends Schema.TaggedError<RunnerOutputUnreadable>()("RunnerOutputUnreadable", {
+  path: Schema.String,                    // the runner output file
+  reason: Schema.Literal("unparseable", "truncated", "no-end-marker", "duplicate-test")   // BEH-GX-122
+}) {}
 
 interface OqReport {
   readonly format: "bridger-gx-oq/1"

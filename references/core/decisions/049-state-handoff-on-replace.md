@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-049                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
-> | Status         | Proposed                                                     |
+> | Status         | Proposed — amends ADR-BR-029                                 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-09): Amended to follow BEH-BR-346, 347, 350, 351 and 353: scope includes `restart` and a restarting `reconfigure` under `alsoOn`; export as the stop's final step, in the step that closes the scope (and, for a `replace`, swaps the definition); a `restart` or `reconfigure` superseding the new build keeps the value; the record is caused by the attempting call's `requested` record (C-14, U-02) (CCR-BR-033)<br>0.2 (2026-11-08): Alternative "Hand off on restart and reconfigure too" adopted as an opt-in (BEH-BR-353) (CCR-BR-025)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
+> | Change History | 0.4 (2026-11-10): Status names the ADRs this one amends (ADR-BR-029), pairing their "amended by" (C22) (CCR-BR-034)<br>0.3 (2026-11-09): Amended to follow BEH-BR-346, 347, 350, 351 and 353: scope includes `restart` and a restarting `reconfigure` under `alsoOn`; export as the stop's final step, in the step that closes the scope (and, for a `replace`, swaps the definition); a `restart` or `reconfigure` superseding the new build keeps the value; the record is caused by the attempting call's `requested` record (C-14, U-02) (CCR-BR-033)<br>0.2 (2026-11-08): Alternative "Hand off on restart and reconfigure too" adopted as an opt-in (BEH-BR-353) (CCR-BR-025)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
 
 ---
 
