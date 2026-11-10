@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-05                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`); follow-up: `options.expectKeyed`, passed to `verifyChain`; check 20 extended (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
+> | Change History | 0.4 (2026-11-10): BEH-AC-034: `BundleReport.chain` is one `ChainReport` per series, each from its own `verifyChain` run under the series' profile, and `options.expectKeyed` takes `true` (every series) or the set of series ids whose sinks were keyed (M21); BEH-AC-039: an effectful MAC reaches `verifyBundle` through `precomputeMacs` (03, BEH-AC-019) (M20) (CCR-AC-006)<br>0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`); follow-up: `options.expectKeyed`, passed to `verifyChain`; check 20 extended (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
 
 ---
 
@@ -163,7 +163,8 @@ declare function verifyBundle(
     readonly profiles?: ReadonlyMap<string, ChainProfile<unknown>>   // beyond "audit"
     readonly receiptVerifiers?: readonly OfflineReceiptVerifier[]    // BEH-AC-036
     readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // a pure MAC function, for keyed links (BEH-AC-039)
-    readonly expectKeyed?: boolean                                   // passed to verifyChain (03, BEH-AC-019)
+    // true: every series; a set: those series ids, whose sinks were built with a keyed hasher (03, BEH-AC-019)
+    readonly expectKeyed?: boolean | ReadonlySet<string>
   }
 ): BundleReport
 
@@ -177,7 +178,8 @@ interface BundleReport {
     readonly result: "confirmed-offline" | "not-checked" | "failed"
     readonly reason?: string                                 // "needs-online-check", "no-verifier", "no-trust-root", "signature-invalid", …
   }[]
-  readonly chain: ChainReport                                // verifyChain over the segments, with offline-confirmed statements only (03)
+  // per series id: verifyChain over that series' segments, with offline-confirmed statements only (03)
+  readonly chain: Readonly<Record<string, ChainReport>>
   readonly inclusions: readonly { readonly seriesId: string; readonly seq: number; readonly result: "included" | "not-included" | "not-checked" }[]
   readonly malformed: readonly { readonly path: string; readonly problem: string }[]
 }
@@ -202,10 +204,12 @@ REQUIREMENT: `verifyBundle` MUST confirm receipts only with offline receipt
 ```
 
 ```
-REQUIREMENT: `chain` MUST be the `ChainReport` of `verifyChain` over the
-             bundle's segments, with the profile named by each series as
+REQUIREMENT: `chain` MUST hold, for each series of the bundle, under its
+             series id, the `ChainReport` of one `verifyChain` run over that
+             series' segments, with the profile the series names as
              `options.profile`, the series' `continuesFrom`, `options.keyed`
-             and `options.expectKeyed` when given, and `expectedHeads` taken from the
+             when given, `expectKeyed: true` when `options.expectKeyed` is
+             `true` or contains the series id, and `expectedHeads` taken from the
              options when given, otherwise from the bundle — in which case
              each head's `head` result MUST be reported as
              "head-unconfirmed", whatever its `source` says. Only heads
@@ -409,7 +413,10 @@ REQUIREMENT: A bundle MUST contain only stored records, links, statements,
 REQUIREMENT: For a series with keyed links (01, BEH-AC-007), `verifyBundle`
              MUST report every link as "key-unavailable" (03, BEH-AC-019)
              unless the caller supplies a pure MAC function as
-             `options.keyed`, which it passes to `verifyChain`, and the
+             `options.keyed`, which it passes to `verifyChain`; a caller
+             whose key is reachable only through an effect passes the
+             function `precomputeMacs` (03, BEH-AC-019) returns for the
+             series' segment entries and profile. The
              rendering MUST say that a keyed chain can be recomputed only by
              a holder of the key.
 ```
@@ -464,8 +471,11 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  same `verifiedThrough` as `verifyChain`; a bundle over an
                  encrypted series verifies after key destruction; keyed
                  links are "key-unavailable" without a MAC function, and
-                 unkeyed links are "unkeyed-link" breaks with `expectKeyed`
-                 (BEH-AC-038, BEH-AC-039).
+                 unkeyed links are "unkeyed-link" breaks with `expectKeyed`;
+                 a bundle holding an audit series and a generic series gives
+                 one `ChainReport` per series under its own profile, and
+                 `expectKeyed` given as a set marks unkeyed links only in
+                 the series it names (BEH-AC-034, BEH-AC-038, BEH-AC-039).
 ```
 
 **Settled here.** (1) The bundle is a self-contained, canonical JSON export of

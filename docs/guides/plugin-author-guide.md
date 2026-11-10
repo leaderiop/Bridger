@@ -126,9 +126,11 @@ export const reports = Plugin.lazy({
 ```
 
 Until a trigger applies, the plugin is `dormant` and none of its code has run.
-It wakes when an active plugin requires a key it provides, when `host.wake`
-names one of its declared contributions, or on an event listed in its
-manifest's `activation`. The loaded definition must match the manifest;
+It wakes when a registered plugin that is neither `dormant` nor `disabled`
+requires a key it provides (at once, or when that plugin later leaves
+`dormant` or `disabled`), when `host.wake` names a key it provides or one of
+its declared contributions, or on an event listed in its manifest's
+`activation` (core BEH-BR-245). The loaded definition must match the manifest;
 otherwise the plugin is `failed` with phase "load". A digest refused by a wired
 `RefusalList` is never triggered: the plugin is `disabled` with reason
 "refused-digest".
@@ -267,3 +269,5 @@ turn every save into a recorded change.
 Change log: 2026-11-08, round 2 — normative range extended to core 34; new sections "Lazy plugins" (`Plugin.lazy` with `digest`) and "Hook points" (`policy` replaces `skip`, `settle`, `HostLink`); hosting snippet shows `plan`, `atomic` (default false) and `CurrentCorrelation`, reconcile order and G65.
 
 Change log: 2026-11-10, audit round 2 — `bridger dev` refusal aligned with kit BEH-KT-026: any `AuditSink`, `OperationGate` or `ConfigFingerprinter` other than the kit's in-memory doubles (CCR-BR-034).
+
+Change log: 2026-11-10, audit round 3 — "Lazy plugins": the implicit service trigger applies for any requirer that is neither `dormant` nor `disabled`, not only an active one, and `host.wake` may name a provided key (core 27) (CCR-KT-006).

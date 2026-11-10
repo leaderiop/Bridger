@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-04                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-08): BEH-EN-030: a reservation for a declaration whose wake fails or times out is released at `ttl` and counted "expired", with `ttl` recommended just above the wake window plus the hook `timeout`; the package relies on core asking `policy` once per declaration per dispatch; check 22 extended (round-2 agent review R3-17) (CCR-EN-003)<br>0.1 (2026-11-08): Initial draft (CCR-EN-003)                 |
+> | Change History | 0.3 (2026-11-10): BEH-EN-025 notes that the default `checkTimeout` of 4 seconds is shorter than core's default `resolutionTimeout` (M26); BEH-EN-032: check 17 builds with the defaults (M26), checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.2 (2026-11-08): BEH-EN-030: a reservation for a declaration whose wake fails or times out is released at `ttl` and counted "expired", with `ttl` recommended just above the wake window plus the hook `timeout`; the package relies on core asking `policy` once per declaration per dispatch; check 22 extended (round-2 agent review R3-17) (CCR-EN-003)<br>0.1 (2026-11-08): Initial draft (CCR-EN-003)                 |
 
 ---
 
@@ -107,7 +107,8 @@ REQUIREMENT: `resolve` MUST answer from the subject's latest effective
              unavailable port. `checkTimeout` MUST be shorter than core's
              `resolutionTimeout`; the package cannot read the host's option,
              so the layer MUST take it as `resolutionTimeout` in its options
-             when it differs from core's default of 5 seconds, and MUST fail
+             when it differs from core's default of 5 seconds (the default
+             `checkTimeout` of 4 seconds is shorter), and MUST fail
              with `EntitlementConfigError` when `checkTimeout` is not
              shorter.
 ```
@@ -471,14 +472,16 @@ turning the meter into a ledger.
 ```
 REQUIREMENT: The package's test suite MUST contain at least one test for
              each of the following, run on a `TestHost` under `TestClock`
-             with the scripted `Entitlement` adapter and core's scripted
+             with the scripted `EntitlementAdapter` and core's scripted
              `CapabilityPolicy` fixture as `inner`:
              17. `Entitlement.capabilityPolicy` passes inner refusals
                  through, never refuses or dies for entitlement, answers
                  within `resolutionTimeout`, narrows only plugin consumers,
                  and fails to build without `readOnly`, `onUnclassified` or
                  `onNone`, or with `checkTimeout` not shorter than
-                 `resolutionTimeout` (BEH-EN-025).
+                 `resolutionTimeout`, and builds with the default
+                 `checkTimeout` and core's default `resolutionTimeout`
+                 (BEH-EN-005, BEH-EN-025).
              18. The classifier is the application's: no default, listed
                  names checked against contract methods, duplicates
                  refused; `Bridger.Host` classified like any key

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-06                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): BEH-RM-046 inbound entries fall back to "link:" + `pluginId` when no `onBehalfOf` was disclosed; outbound entries name disclosed claims once core carries `CrossingInfo.disclosed`; BEH-RM-046 crossing entries carry `disclosed` unconditionally (core CCR-BR-033); BEH-RM-043 step 5 refuses a callback to a local contract, `CallbackDenied` reason "local-contract" (BEH-RM-007) (CCR-RM-004)<br>0.5 (2026-11-08): BEH-RM-046 crossing and revocation entries carry the session epoch again, now that core types `epoch` as an opaque string (core BEH-BR-280, CCR-BR-027) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 23 and 25, CORE-DECISIONS-2 — `TokenClaims.org`; `correlationId` from `CurrentCorrelation` and set for callbacks through `CallerContext.serve` (G58 closed); callbacks carry `HostLink.reference`; crossings, refusals and revocations offered with core entry kinds through `Host.offerCallEntry`, callbacks with `onFailure` "refuse" (G43 closed) (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — token labels replaced by core-encoded wire annotations; callbacks deduplicated per parent call (INV-RM-010); the core `CapabilityPolicy` consulted only by the host's own capture, actor admission in a companion `CallbackAdmission`, error renamed `CallbackDenied`; callbacks run inside `CallerContext.serve`; annotations reach records only through core flows (R3-06, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-RM-043: callback placement (step 4a) and budget (step 4b) checks in the ordered list after the duplicate check, with their reasons in the refusal set (M14); BEH-RM-046: "refuse" for a callback withholds the result of a host service that already ran, answered `Refused` tagged "CallLogUnavailable" and surfaced as `CallbackDenied` "call-log-unavailable", residual RSK-RM-017 (M15); `refusal.reason` is a kebab-case `WireRefusal`, never a tag (Low) (CCR-RM-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): BEH-RM-046 inbound entries fall back to "link:" + `pluginId` when no `onBehalfOf` was disclosed; outbound entries name disclosed claims once core carries `CrossingInfo.disclosed`; BEH-RM-046 crossing entries carry `disclosed` unconditionally (core CCR-BR-033); BEH-RM-043 step 5 refuses a callback to a local contract, `CallbackDenied` reason "local-contract" (BEH-RM-007) (CCR-RM-004)<br>0.5 (2026-11-08): BEH-RM-046 crossing and revocation entries carry the session epoch again, now that core types `epoch` as an opaque string (core BEH-BR-280, CCR-BR-027) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 23 and 25, CORE-DECISIONS-2 — `TokenClaims.org`; `correlationId` from `CurrentCorrelation` and set for callbacks through `CallerContext.serve` (G58 closed); callbacks carry `HostLink.reference`; crossings, refusals and revocations offered with core entry kinds through `Host.offerCallEntry`, callbacks with `onFailure` "refuse" (G43 closed) (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — token labels replaced by core-encoded wire annotations; callbacks deduplicated per parent call (INV-RM-010); the core `CapabilityPolicy` consulted only by the host's own capture, actor admission in a companion `CallbackAdmission`, error renamed `CallbackDenied`; callbacks run inside `CallerContext.serve`; annotations reach records only through core flows (R3-06, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -145,7 +145,8 @@ unpredictability is not a security property this specification claims.
 // illustrative — not type-checked
 class CallbackDenied extends Schema.TaggedError<CallbackDenied>()("CallbackDenied", {
   link: Schema.String, contract: Schema.String, method: Schema.String,
-  reason: Schema.String          // "not-granted" | "local-contract" | "invocation-ended" | the admission's reason
+  reason: Schema.String          // "not-granted" | "local-contract" | "invocation-ended" | "call-log-unavailable" (BEH-RM-046)
+                                 // | the admission's reason
 }) {}
 // Context.Service "@bridger/remote/CallbackAdmission", optional, read by Remote.layer
 interface CallbackAdmission {
@@ -164,6 +165,12 @@ REQUIREMENT: The host end MUST handle a `callback` frame in this order, and
                 frame's `parent` (else `TokenInvalid` or `TokenExpired`);
              4. the callback's `callId` has not been seen for this parent
                 call (else the duplicate is handled as BEH-RM-048 states);
+             4a. a residency label in the token's annotations is offered by
+                the link's transport (else `PlacementRefused`, 09,
+                BEH-RM-069);
+             4b. when a `PrincipalBudget` is provided, it admits the
+                callback for the token's subject (else
+                `RemoteBudgetExceeded`, 09, BEH-RM-066);
              5. the contract and method are covered by the link's grants
                 (else `CallbackDenied { reason: "not-granted" }`), and the
                 provision the granted key resolves to is not a local
@@ -198,10 +205,14 @@ REQUIREMENT: A grant whose key has no `active` provider MUST fail the callback
 
 ```
 REQUIREMENT: Every refusal in steps 1–7 MUST be sent to the guest as a
-             `callback-result` whose exit is `Refused` (reason "denied" or
-             "stale-epoch", `tag` the refusal's tag) and nothing else, and
-             MUST NOT lease any service or run any host code other than the
-             checks.
+             `callback-result` whose exit is `Refused` (reason "stale-epoch"
+             for step 1, "placement-refused" for step 4a, "budget-exceeded"
+             for step 4b and "denied" for the others, `tag` the refusal's
+             tag) and nothing else, and MUST NOT lease any service or run
+             any host code other than the checks. Steps 4a and 4b run after
+             the duplicate check, so a duplicate of an admitted callback is
+             answered as BEH-RM-048 states and is never refused or admitted
+             against the budget again.
 ```
 
 The grant check (step 5) is the link's static allow-list; the admission
@@ -277,7 +288,7 @@ REQUIREMENT: A token's `correlationId` MUST be the calling fiber's
 > **Invariant:** [INV-RM-007](../invariants.md#inv-rm-007-a-guest-reaches-only-granted-contracts-under-a-live-token)
 > **See:** [ADR-RM-005](../decisions/005-per-call-capability-tokens.md)
 > **Satisfies:** [URS-BR-021](../../core/urs.md#urs-br-021-know-who-changed-the-plugin-set-when-and-why)
-> **Risk:** [RSK-RM-004](../risks.md#rsk-rm-004)
+> **Risk:** [RSK-RM-004](../risks.md#rsk-rm-004), [RSK-RM-017](../risks.md#rsk-rm-017)
 
 ```ts
 // illustrative — not type-checked
@@ -289,7 +300,9 @@ REQUIREMENT: A token's `correlationId` MUST be the calling fiber's
 //   disclosed = the names of the identity claims that crossed with the call (03, BEH-RM-024; core BEH-BR-280);
 //               omitted when none crossed; never their values; a callback entry names none
 //   refused callback, refused served call, placement or budget refusal
-//                           kind "refusal",  refusal  { stage: "boundary", reason: <refusal tag> }
+//                           kind "refusal",  refusal  { stage: "boundary", reason: <WireRefusal> }
+//                           reason: the kebab-case `WireRefusal` the refusal was answered or failed with (01),
+//                           e.g. "stale-epoch", "denied", "placement-refused", "budget-exceeded"; never a tag
 //   boundary revocation     kind "revocation", revocation { link, epoch?, reason } (BEH-RM-014)
 //
 // common: companion "@bridger/remote"; serviceId = the contract's ServiceId; member = the method;
@@ -335,20 +348,39 @@ REQUIREMENT: An inbound entry's `consumer.principal` MUST be the
 ```
 REQUIREMENT: The `CallLog` failure policy is the core's (core BEH-BR-279).
              For each offer the remote package MUST pass `onFailure`
-             "refuse" for an inbound crossing of a callback — so that a
-             `CallLog` outage refuses the callback with `CallbackDenied`
-             instead of admitting it unlogged — and MUST leave the port's
-             own `onFailure` for every other entry. The remote package MUST
-             NOT buffer entries beyond what that policy allows.
+             "refuse" for an inbound crossing of a callback and MUST leave
+             the port's own `onFailure` for every other entry. The remote
+             package MUST NOT buffer entries beyond what that policy
+             allows.
+```
+
+```
+REQUIREMENT: A callback's entry is offered at its end, after the host
+             service ran in step 8 of BEH-RM-043, so "refuse" cannot keep
+             the service from running; it withholds the callback's result.
+             When the offer fails with `CallLogUnavailable`, the host MUST
+             NOT send the result: it MUST answer the callback with a
+             `Refused` exit, reason "denied", tag "CallLogUnavailable",
+             which the guest runtime surfaces as `CallbackDenied { reason:
+             "call-log-unavailable" }` (05, BEH-RM-036). This is the one
+             `Refused` exit sent after the host service ran: its effects,
+             a write included, may have happened. Documentation MUST state
+             this residual ([RSK-RM-017](../risks.md#rsk-rm-017)) and that a
+             grant whose writes must not be reported that way needs a
+             `CallLog` the deployment keeps available, or an idempotent
+             host service.
 ```
 
 **Settled here.** One log of access: core's entry kinds (core BEH-BR-280)
 cover a call leaving for a guest, a callback arriving, a served call, a
 boundary refusal and a revocation, so a deployment reads remote crossings
 in the same log as captured calls, with the same correlation and identifiers
-(core gap G43, closed by CCR-BR-026). A callback is the one crossing that
-is refused when it cannot be logged: it reaches host services on a guest's
-request, which is the access a per-plugin access log exists to show.
+(core gap G43, closed by CCR-BR-026). A callback is the one crossing whose
+result is withheld when it cannot be logged: it reaches host services on a guest's
+request, which is the access a per-plugin access log exists to show. As
+under core's "refuse" (core BEH-BR-279, Settled 1), the refusal cannot undo
+what the host service did; it keeps the guest from receiving a result whose
+access was not logged.
 
 ## BEH-RM-047: Tokens never become values in logs, status or audit, and annotations follow core flows
 

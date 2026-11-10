@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-05                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): `GuestContext.claims` carries identity claims only when the link discloses them; `Remote.serve` accepts calls without them; `Guest.serve` and `Remote.serve` fail with `LocalContractRefused` for a local contract (BEH-RM-007, core CCR-BR-033) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — a duplicate of a running call is answered `InProgress` instead of dropped; a `DedupeStore` claim runs after the epoch, duplicate, in-flight and deadline checks (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 20 and 23, CORE-DECISIONS-2 — per-call duplicate check across invocations through a `DedupeStore`; served calls set `CurrentCorrelation` and `HostLink.reference`; residency refusal before any lease (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M15 follow-up of the independent review) — BEH-RM-036: a `Refused` exit tagged "CallLogUnavailable" reaches the handler as `CallbackDenied { reason: "call-log-unavailable" }`, never as `CallLogUnavailable` (CCR-RM-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): `GuestContext.claims` carries identity claims only when the link discloses them; `Remote.serve` accepts calls without them; `Guest.serve` and `Remote.serve` fail with `LocalContractRefused` for a local contract (BEH-RM-007, core CCR-BR-033) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — a duplicate of a running call is answered `InProgress` instead of dropped; a `DedupeStore` claim runs after the epoch, duplicate, in-flight and deadline checks (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 20 and 23, CORE-DECISIONS-2 — per-call duplicate check across invocations through a `DedupeStore`; served calls set `CurrentCorrelation` and `HostLink.reference`; residency refusal before any lease (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -195,7 +195,11 @@ REQUIREMENT: A client call MUST be sent as a `callback` frame bound to the
              `CallbackDenied { reason: "invocation-ended" }` once that
              invocation has ended. A refusal returned by the host (BEH-RM-043)
              MUST reach the handler as `CallbackDenied` with the host's
-             reason, or as the host-side tag it names.
+             reason, or as the host-side tag it names, except that a
+             `Refused` exit tagged "CallLogUnavailable" MUST reach it as
+             `CallbackDenied { reason: "call-log-unavailable" }` and never
+             as `CallLogUnavailable` (06, BEH-RM-046): the host service ran
+             and only its result was withheld.
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-12                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-089 option and status `precededBy`; BEH-GX-094 the deadline is set below `gateTimeout` less the timeouts of the pieces composed before the approval gate (P18) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-089–096: the approval gate is the last piece of the companion's composed host gate, and a recorded refusal reason carries the prefix "approval: " (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-094 `precededBy` counts the consumer's `gatePieces` (M5); BEH-GX-096 the gate holds no rule for `reconcile` (M4); BEH-GX-096 rationale states what an atomic reconcile does on a refused entry (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-089 option and status `precededBy`; BEH-GX-094 the deadline is set below `gateTimeout` less the timeouts of the pieces composed before the approval gate (P18) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-089–096: the approval gate is the last piece of the companion's composed host gate, and a recorded refusal reason carries the prefix "approval: " (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -366,7 +366,8 @@ REQUIREMENT: Core's `gateTimeout` bounds the whole consultation, the pieces
              least 1 second shorter than the budget; otherwise `attach`
              MUST fail with "deadline-too-long". `GxpLayer.make` MUST pass
              as `precededBy` the sum of the timeouts of the pieces it
-             composes before "approval".
+             composes before "approval", the consumer's `gatePieces`
+             included (BEH-GX-178).
 ```
 
 ```
@@ -496,8 +497,9 @@ REQUIREMENT: When core interrupts `authorize` because its caller was
 ```
 REQUIREMENT: The gate MUST NOT call any mutating operation of the host
              (BEH-BR-218). It MUST hold no rule for `shutdown` or a system
-             transition (BEH-GX-063), which core never submits to it
-             (BEH-BR-223).
+             transition, which core never submits to it (BEH-BR-223), nor
+             for `reconcile`, which core submits as its entry actions
+             (BEH-GX-063).
 ```
 
 Caching would make a decision outlive the state it was based on: a ticket
@@ -505,7 +507,11 @@ revoked a second ago would still pass. Per-entry decisions are what make a
 bundle work: a reconcile whose actual diff differs from the approved one goes
 ahead for the entries that match and is refused, entry by entry, for the
 rest, which appear in core's `ReconcileReport.rejected` and as open bindings
-in the link report ([RSK-GX-022](../gxp/03-risk-assessment.md#rsk-gx-022)). Interruption is core's to handle: core
+in the link report ([RSK-GX-022](../gxp/03-risk-assessment.md#rsk-gx-022)). The gate decides the same way for an
+atomic reconcile; it is core that stops an atomic apply at the first refused
+entry and reports it in `failed` of `ApplyRolledBack` or `PartialApply`
+([BEH-BR-222](../../core/behaviors/25-operation-gate.md)), so the later entries are never submitted and their bindings
+stay open. Interruption is core's to handle: core
 interrupts the gate, writes the record and changes nothing, and once the gate
 has allowed, core does not let the call be interrupted before its
 `requested` record ([BEH-BR-188](../../core/behaviors/22-attributable-operations.md)), so an allow is never left without a record.

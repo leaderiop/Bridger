@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-011: the package ships `SeriesFacts` (decider, `toFact`, `receive`) for authority-side recording, keeping the issuer's stream and the issuer's `eventId` as fact identifier; BEH-SQ-012: `SeriesEventInput.of` takes the issuer's `eventId` from `causationId` for a recorded received fact (P5) (CCR-SQ-004)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-009 runs the supersession step again when the durable-bus origin changes on a running host, takes the old series from the store being replaced through a durable-bus store-swap participant, refuses calls under the new origin with `SupersessionPending` until the step has committed, and states what a re-bootstrap snapshot may hold (U-10); `lastKnownOnly` is false for series read from the live store at a re-bootstrap (BEH-SQ-009, BEH-SQ-010, BEH-SQ-012); BEH-SQ-011 publishes on the event-store stream by event-store's default (F-05) (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, Low "seen, not assessed") — BEH-SQ-009: the supersession step runs under the service actor `{ kind: "service", id: "sequence:" + node }` through `CallerContext.serve` with `Annotations.empty` and no correlation, so it commits under durable-bus `requireActor: true` (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-011: the package ships `SeriesFacts` (decider, `toFact`, `receive`) for authority-side recording, keeping the issuer's stream and the issuer's `eventId` as fact identifier; BEH-SQ-012: `SeriesEventInput.of` takes the issuer's `eventId` from `causationId` for a recorded received fact (P5) (CCR-SQ-004)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-009 runs the supersession step again when the durable-bus origin changes on a running host, takes the old series from the store being replaced through a durable-bus store-swap participant, refuses calls under the new origin with `SupersessionPending` until the step has committed, and states what a re-bootstrap snapshot may hold (U-10); `lastKnownOnly` is false for series read from the live store at a re-bootstrap (BEH-SQ-009, BEH-SQ-010, BEH-SQ-012); BEH-SQ-011 publishes on the event-store stream by event-store's default (F-05) (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -78,6 +78,22 @@ REQUIREMENT: The plugin MUST run the same step whenever the durable-bus origin
              fail with `SupersessionPending { origin }` and write nothing; the
              step runs in the plugin's own transaction and is retried with
              backoff until it commits.
+```
+
+```
+REQUIREMENT: The supersession step, at start and after an origin change,
+             runs with no caller behind it, so it MUST run inside
+             `CallerContext.serve({ actor, annotations: Annotations.empty
+             })` (core BEH-BR-292), with no `correlationId`, where `actor`
+             is `{ kind: "service", id: "sequence:" + node }` — the
+             service-actor idiom of the federation companion — and under
+             the plugin's own principal (`asSelf`, BEH-SQ-008). Its
+             `SeriesSuperseded` events carry that actor. The actor is not
+             `Actor.unattributed`, so a durable-bus made with `requireActor:
+             true` (durable-bus BEH-DB-006) publishes them; the step MUST
+             NOT run unattributed, which under `requireActor: true` would
+             fail every attempt with `Unattributed` and leave `open`, `next`
+             and `close` failing with `SupersessionPending`.
 ```
 
 ```

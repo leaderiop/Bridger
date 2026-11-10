@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-03                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-AC-019: `precomputeMacs` runs an effectful MAC (a hardware module, a MAC service) before the pure check and returns the pure `keyed` function, so such a key is usable while `verifyChain` stays pure (M20); `breaks.kind` gains "alg-changed", the break INV-AC-007 requires for a link whose algorithm differs within its host or series (low finding); check 6 extended (CCR-AC-006)<br>0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -86,6 +86,7 @@ interface ChainReport {
                  | "unkeyed-link"                               // a link without keyId while options.expectKeyed is true (BEH-AC-019)
                  | "sink-marked"                                // the link carries a break marker (01, BEH-AC-004, BEH-AC-005)
                  | "canon-changed"                              // the link's canon differs from its series' first link (04, BEH-AC-027)
+                 | "alg-changed"                                // the link's alg differs from its host's or series' first link (INV-AC-007)
                  | "counter-decreased"                          // the profile's loss counter is lower than the previous record's (04, BEH-AC-030)
     readonly marker?: "chain-order" | "retry-mismatch"
   }[]
@@ -187,6 +188,32 @@ REQUIREMENT: A link with a `keyId` MUST be recomputed with
              ones included, can still be used for verification.
 ```
 
+```ts
+// illustrative — not type-checked
+// For a MAC reachable only through an effect (a hardware module, a MAC service): run before the
+// pure check, it returns the pure function verifyChain and verifyBundle take as options.keyed.
+declare function precomputeMacs<R = AuditRecord>(
+  entries: Iterable<ChainEntry<R>>,
+  mac: (keyId: string, input: Uint8Array) => Effect.Effect<Uint8Array, KeyedHashFailed>,   // 01, BEH-AC-007
+  options?: { readonly profile?: ChainProfile<R> }        // as given to verifyChain; default auditProfile
+): Effect.Effect<(keyId: string, input: Uint8Array) => Uint8Array | undefined>
+```
+
+```
+REQUIREMENT: `precomputeMacs` MUST call `mac` once for each distinct pair
+             of `keyId` and input that `verifyChain`, given the same
+             `entries` and `profile`, would pass to `keyed`, and MUST return
+             a pure function that gives the MAC so computed for that pair
+             and `undefined` for any other. A `KeyedHashFailed` for a pair
+             MUST leave that pair absent, so that its link is reported
+             "key-unavailable", and MUST NOT fail the effect; an entry it
+             cannot read MUST be skipped, for `verifyChain` to report.
+             `verifyChain` and `verifyBundle` MUST stay pure: an effectful
+             MAC reaches them only as a function returned by
+             `precomputeMacs`. Documentation MUST state that it holds one
+             MAC per keyed link in memory.
+```
+
 ```
 REQUIREMENT: When `options.expectKeyed` is true, every link without a
              `keyId`, of every host and series in the input, MUST be
@@ -203,7 +230,9 @@ REQUIREMENT: When `options.expectKeyed` is true, every link without a
 ```
 REQUIREMENT: A link of a generic series whose `canon` differs from the
              first link of its series MUST be reported as a "canon-changed"
-             break (04, BEH-AC-027). When the profile gives `dropped`, a
+             break (04, BEH-AC-027), and a link whose `alg` differs from the
+             first link of its host or series as an "alg-changed" break
+             (INV-AC-007). When the profile gives `dropped`, a
              record whose loss counter is higher than that of the previous
              entry of its host or series MUST be reported as a
              "loss-counter-rose" notice at that record, and one whose counter
@@ -448,8 +477,12 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 under a second verify in one run when `keyed` computes both,
                 and are "key-unavailable" when it does not; a keyed series
                 rewritten with unkeyed links that recompute is reported as
-                "unkeyed-link" breaks with `expectKeyed`, and not without it
-                (BEH-AC-007, BEH-AC-019).
+                "unkeyed-link" breaks with `expectKeyed`, and not without it;
+                `precomputeMacs` over a scripted effectful MAC gives the same
+                report as a pure `keyed`, and a pair whose MAC fails is
+                "key-unavailable"; a link whose `alg` differs from its host's
+                first link is an "alg-changed" break (BEH-AC-007,
+                BEH-AC-019).
              7. Windows: contiguous, in order, never merged or re-windowed;
                 Merkle root and head hash match RFC 6962 test vectors with
                 this package's tags (BEH-AC-010, BEH-AC-014).

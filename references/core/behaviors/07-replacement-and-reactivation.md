@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-07                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-BR-052, BEH-BR-057 and BEH-BR-062 name the two other landings of a reactivating operation: `dormant` for a lazy registration not yet loaded (BEH-BR-247), and `disabled` ("refused-digest") for a start refused after step 4b (C3) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-050 and BEH-BR-061 a `replace` that leaves the plugin disabled runs the disabled-install checks only and reserves nothing (U-07); BEH-BR-051 and BEH-BR-061 dependents end `waiting` except where their own stop ends otherwise (C-17); BEH-BR-059 `PluginHandle.restart` takes `HandoffCallOptions` (C-01); BEH-BR-062 every `enable` re-check listed in BEH-BR-018's order, with its place in the call order (U-08); BEH-BR-060 shutdown unregisters a disabled plugin when it begins (U-01) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-11-10): BEH-BR-049 `replace` completes on entering `dormant` or `disabled` ("refused-digest") as BEH-BR-068 states; BEH-BR-054, BEH-BR-056, BEH-BR-058 and BEH-BR-062 by-state lists gain `dormant`, phase "load" and the "refused-digest" landings and cases (C1); BEH-BR-060 `disable` split by reason: on "refused-digest" it proceeds without a stop and clears the reason, recorded as a change (C2) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-052, BEH-BR-057 and BEH-BR-062 name the two other landings of a reactivating operation: `dormant` for a lazy registration not yet loaded (BEH-BR-247), and `disabled` ("refused-digest") for a start refused after step 4b (C3) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-050 and BEH-BR-061 a `replace` that leaves the plugin disabled runs the disabled-install checks only and reserves nothing (U-07); BEH-BR-051 and BEH-BR-061 dependents end `waiting` except where their own stop ends otherwise (C-17); BEH-BR-059 `PluginHandle.restart` takes `HandoffCallOptions` (C-01); BEH-BR-062 every `enable` re-check listed in BEH-BR-018's order, with its place in the call order (U-08); BEH-BR-060 shutdown unregisters a disabled plugin when it begins (U-01) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -73,8 +73,13 @@ REQUIREMENT: For a plugin with a live activation, `replace` MUST stop it
 
 ```
 REQUIREMENT: `replace` MUST complete once the new definition is registered
-             and the plugin has entered `starting`, `waiting` or (for a
-             disabled plugin) `disabled`. It MUST NOT wait for the new build.
+             and the plugin has entered `starting` or `waiting`, `dormant`
+             (a lazy definition, 27 — Manifest and Lazy Activation,
+             BEH-BR-247) or `disabled` (a plugin disabled by an operator; or
+             a start a wired `RefusalList` refuses after step 4b, with
+             reason "refused-digest", BEH-BR-057) — the state it lands in
+             (08 — Operation Legality, BEH-BR-068). It MUST NOT wait for the
+             new build.
 ```
 
 ```
@@ -246,15 +251,30 @@ REQUIREMENT: `replace` MUST drop the plugin's configuration override; the
 
 ```
 REQUIREMENT: `replace` MUST, by state:
+             - `dormant`: swap the definition, nothing having been loaded,
+               and enter `dormant` (a lazy definition, its triggers
+               applied again) or `starting` or `waiting` (an eager one)
+               (27 — Manifest and Lazy Activation, BEH-BR-247);
              - `waiting` or `failed` (other than phase "cleanup"): swap the
                definition and enter `starting` or `waiting`;
              - `starting`: let a running build settle, discard its result,
                swap, and enter `starting` or `waiting`;
              - `active`: stop as in BEH-BR-049, swap, and enter `starting`
                or `waiting`;
-             - `disabled`: swap the definition and stay `disabled`;
+             - `disabled` by an operator: swap the definition and stay
+               `disabled`;
+             - `disabled` with reason "refused-digest": fail with
+               `OperationRejected` at step 4b when the list refuses the
+               incoming digest; otherwise swap, clear the reason and enter
+               `starting` or `waiting` (28 — Plugin Principal and
+               Mandatory Policy, BEH-BR-267);
              - `failed` with phase "cleanup": fail with
                `Conflict { pending: "cleanup-failure" }`.
+             Where this list says `starting` or `waiting`, the plugin lands
+             as BEH-BR-057 states, including its two other landings:
+             `dormant` for a lazy definition not loaded, and `disabled`
+             with reason "refused-digest" for a start the list refuses
+             after step 4b.
 ```
 
 The override is dropped because the new definition may declare a different
@@ -307,15 +327,17 @@ retry(ref: PluginRef, options?: OperationOptions):
 ```
 
 ```
-REQUIREMENT: `retry` of a plugin `failed` with phase "build",
+REQUIREMENT: `retry` of a plugin `failed` with phase "load", "build",
              "activation" or "runtime" MUST move it to `starting` when its
-             requirements are available and to `waiting` otherwise, and
-             MUST complete once it has entered that state.
+             requirements are available and to `waiting` otherwise — or to
+             `disabled` with reason "refused-digest" when a wired
+             `RefusalList` refuses the start after step 4b (BEH-BR-057) —
+             and MUST complete once it has entered that state.
 ```
 
 ```
-REQUIREMENT: `retry` MUST be a no-op success on a `waiting`, `starting` or
-             `active` plugin; MUST fail with `Conflict { pending:
+REQUIREMENT: `retry` MUST be a no-op success on a `dormant`, `waiting`,
+             `starting` or `active` plugin; MUST fail with `Conflict { pending:
              "cleanup-failure" }` on a plugin failed with phase "cleanup";
              and MUST fail with `Conflict { pending: "disabled" }` on a
              `disabled` plugin.
@@ -400,19 +422,22 @@ REQUIREMENT: `restart` of an `active` plugin MUST stop it and its dependents
 
 ```
 REQUIREMENT: `restart` MUST, by state:
-             - `waiting`: succeed as a no-op;
+             - `dormant` or `waiting`: succeed as a no-op;
              - `starting`: supersede the in-flight build — let it settle,
                discard its result, and build again;
-             - `failed` (phase "build", "activation" or "runtime"): behave
-               exactly as `retry`;
+             - `failed` (phase "load", "build", "activation" or "runtime"):
+               behave exactly as `retry`;
              - `failed` with phase "cleanup": fail with
                `Conflict { pending: "cleanup-failure" }`;
-             - `disabled`: fail with `Conflict { pending: "disabled" }`.
+             - `disabled`, for either reason: fail with
+               `Conflict { pending: "disabled" }`.
 ```
 
 ```
 REQUIREMENT: `restart` MUST complete once the plugin has re-entered
-             `starting` or `waiting`. It MUST NOT wait for the new build.
+             `starting` or `waiting`, or `disabled` with reason
+             "refused-digest" when a wired `RefusalList` refuses the start
+             after step 4b (BEH-BR-057). It MUST NOT wait for the new build.
 ```
 
 `restart` is the hot-reload primitive for a development adapter whose plugin's
@@ -487,11 +512,18 @@ REQUIREMENT: `disable` MUST stop the plugin through the same
 
 ```
 REQUIREMENT: `disable` MUST, by state:
-             - `waiting` or `failed` (phase "build", "activation" or
-               "runtime"): move to `disabled` at once;
+             - `dormant`, `waiting` or `failed` (phase "load", "build",
+               "activation" or "runtime"): move to `disabled` at once;
              - `starting`: let a running build settle, discard its result,
                and move to `disabled`;
-             - `disabled`: succeed as a no-op;
+             - `disabled` by an operator: succeed as a no-op;
+             - `disabled` with reason "refused-digest": proceed with no stop
+               — the plugin stays `disabled`, now by the operator, and the
+               reason is cleared in that revision (28 — Plugin Principal and
+               Mandatory Policy, BEH-BR-267). This is a change, not a no-op:
+               its terminal record is `completed` without `noop`
+               (23 — Audit Sink and Record, BEH-BR-200), and it changes
+               `registeredAt` (32 — Generic Gate and Plan, BEH-BR-318);
              - `failed` with phase "cleanup": fail with
                `Conflict { pending: "cleanup-failure" }`.
 ```
@@ -583,10 +615,11 @@ REQUIREMENT: On success, `enable` MUST reserve the plugin's provider slots
 ```
 
 ```
-REQUIREMENT: `enable` MUST be a no-op success on a `waiting`, `starting`,
-             `active` or `failed` (phase "build", "activation" or "runtime")
-             plugin, and MUST fail with `Conflict { pending:
-             "cleanup-failure" }` on a plugin failed with phase "cleanup".
+REQUIREMENT: `enable` MUST be a no-op success on a `dormant`, `waiting`,
+             `starting`, `active` or `failed` (phase "load", "build",
+             "activation" or "runtime") plugin, and MUST fail with
+             `Conflict { pending: "cleanup-failure" }` on a plugin failed
+             with phase "cleanup".
 ```
 
 ```

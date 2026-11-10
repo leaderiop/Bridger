@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-07                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-DB-054 property 1: a commit the engine refuses for a conflict fails `transaction` with `CommitConflict`, never with `StoreUnavailable`; BEH-DB-056 exercises it (CCR-DB-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F16, F27) — the delivery check's `origin` documented as `node#incarnation` for every envelope, local ones included, with policies told to match the `node` part (aligned with core BEH-BR-269 as amended by CCR-BR-029); out-of-host readers are checked by the serving side's `HistoryAccess` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck item 24, CORE-DECISIONS-2 — BEH-DB-053 rewritten on core `AccessPolicy.ask` (publish, subscribe, and every delivery with `origin`), `AccessRefused`, denied deliveries parked; `listens` and `declaredOnly`; G55 closed; core held-event note (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — no self-lease in `publish`; callers keep the bus up through core's own rules; adapter properties cover the saved receipt clock, retention and inbox-level stops (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-054 property 6: the incarnation is recorded per node (CCR-DB-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-DB-054 property 1: a commit the engine refuses for a conflict fails `transaction` with `CommitConflict`, never with `StoreUnavailable`; BEH-DB-056 exercises it (CCR-DB-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F16, F27) — the delivery check's `origin` documented as `node#incarnation` for every envelope, local ones included, with policies told to match the `node` part (aligned with core BEH-BR-269 as amended by CCR-BR-029); out-of-host readers are checked by the serving side's `HistoryAccess` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck item 24, CORE-DECISIONS-2 — BEH-DB-053 rewritten on core `AccessPolicy.ask` (publish, subscribe, and every delivery with `origin`), `AccessRefused`, denied deliveries parked; `listens` and `declaredOnly`; G55 closed; core held-event note (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — no self-lease in `publish`; callers keep the bus up through core's own rules; adapter properties cover the saved receipt clock, retention and inbox-level stops (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -220,7 +220,8 @@ REQUIREMENT: A storage adapter MUST provide `StoreTransaction`,
                 backwards, except through a snapshot restore (BEH-DB-044);
                 a watermark passes unstored sequences only through
                 `acceptGap`; inbox-level stops persist until released.
-             6. The incarnation, the highest outbox HLC and the clock saved
+             6. The incarnation recorded per node (BEH-DB-004), the
+                highest outbox HLC and the clock saved
                 by the last committed receipt are recoverable at start; the
                 HLC `stamp` runs inside the serialization of BEH-DB-011.
              The `retained` reads return committed envelopes only, in

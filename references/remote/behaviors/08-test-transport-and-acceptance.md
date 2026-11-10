@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-08                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): Specification audit of 2026-11-09: check 34 amended (`org` on the wire only when disclosed); checks 45–48 added — disclosure, mount refusal, `Transport.fromBundle`, the loader's `RevokedDigests` view and the link manifest; check 48 covers the call-log `disclosed` names; check 49 local contracts (BEH-RM-007) (core CCR-BR-033); check 48: view answers are consulted live and never kept (independent review) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — checks 38 (M13), 42 (M15, Low) and 44 (H8) restated; check 50 added: callback placement and budget after the duplicate check (M14); BEH-RM-060 note: check 3 covers a guest callback of `restart(P)` during P's build (core `CurrentTransition`) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: check 34 amended (`org` on the wire only when disclosed); checks 45–48 added — disclosure, mount refusal, `Transport.fromBundle`, the loader's `RevokedDigests` view and the link manifest; check 48 covers the call-log `disclosed` names; check 49 local contracts (BEH-RM-007) (core CCR-BR-033); check 48: view answers are consulted live and never kept (independent review) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -178,8 +178,10 @@ REQUIREMENT: A core check that cannot be re-run through a proxy MUST be
 Check 4 — every cell of both legality tables — is included because the claim
 is that the link and its session child are ordinary plugins; if any cell
 differs, the claim is false. Check 3 covers `WouldDeadlock` both for a
-host-side callback and for a guest callback that reaches `remove` of the
-link through a granted service (BEH-RM-022).
+host-side callback, for a guest callback that reaches `remove` of the
+link through a granted service, and for a guest callback that reaches
+`restart(P)` from a call made during P's build (BEH-RM-022, `HeldPlugins`
+and `CurrentTransition` carried).
 
 ## BEH-RM-061: Required acceptance checks — remote companion
 
@@ -318,9 +320,12 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  refused; with no required label it is never refused; a
                  throwing policy refuses "policy-defect" (BEH-RM-068).
              38. A call carries `placement/residency` in its encoded
-                 annotations; a serving end whose profile does not offer the
-                 label answers "placement-refused" before any lease and
-                 offers a "refusal" entry; the label reaches the audit
+                 annotations; a serving end whose `GuestTransport` profile
+                 does not offer the label answers "placement-refused"
+                 before any lease — `Remote.serve` offers a "refusal" entry
+                 with `refusal.reason` "placement-refused", `Guest.serve`
+                 logs it in the guest's logger and imports no host-side
+                 module; the label reaches the audit
                  records of a callback's mutating call; a fiber already
                  carrying a label that the link's transport does not offer
                  is refused before any frame is sent, on a link with no
@@ -345,9 +350,13 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  refusing the link's digest, a later restart leaves the
                  link `disabled` ("refused-digest"); one "revocation"
                  entry is offered per matching link (BEH-RM-014).
-             42. Crossings and refusals are offered with core entry kinds;
-                 a callback under a `CallLog` whose `record` fails is
-                 refused with `CallbackDenied`; a served call's and a
+             42. Crossings and refusals are offered with core entry kinds,
+                 each "refusal" entry's `refusal.reason` a `WireRefusal`,
+                 never a tag; a callback under a `CallLog` whose `record`
+                 fails has run its host service and has its result
+                 withheld: the guest receives `CallbackDenied { reason:
+                 "call-log-unavailable" }` from a `Refused` exit tagged
+                 "CallLogUnavailable"; a served call's and a
                  callback's mutating calls carry the caller's correlation;
                  a hook point dispatched from a served call wakes a dormant
                  veto contributor instead of "no-host-link"; a method's
@@ -362,7 +371,11 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  open (BEH-RM-009, BEH-RM-014).
              44. A multiplexed endpoint given residency labels reports
                  them in its profile, and a link over it is placed against
-                 them (BEH-RM-056, BEH-RM-068).
+                 them; a `MultiplexedGuest` endpoint given labels reports
+                 them in its `GuestTransport` profile and the serving end
+                 places calls against them; every other profile field of
+                 an endpoint is the one passed to `multiplex` (BEH-RM-049,
+                 BEH-RM-056, BEH-RM-068, BEH-RM-069).
              45. Disclosure: a link without `disclose` sends `call` claims
                  with no actor, `onBehalfOf`, `org` or `correlationId`
                  while its tokens keep them on the host; a link disclosing
@@ -410,6 +423,16 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  for it is refused "local-contract" before decoding; each
                  entry point rejects a local contract at compile time
                  (BEH-RM-007).
+             50. Callback placement and budget: a callback whose token
+                 carries a residency label the link's transport does not
+                 offer is refused "placement-refused" (tag
+                 `PlacementRefused`), and one the `PrincipalBudget` refuses
+                 is refused "budget-exceeded" (tag `RemoteBudgetExceeded`),
+                 both after the duplicate check and before the grant check,
+                 leasing nothing and offered as "refusal" entries; a
+                 duplicate of a callback that succeeded is answered with the
+                 stored result without calling `admit` or the policy again
+                 (BEH-RM-043, BEH-RM-048, BEH-RM-066, BEH-RM-069).
 ```
 
 A check that is listed here and has no executed test is a gap in the

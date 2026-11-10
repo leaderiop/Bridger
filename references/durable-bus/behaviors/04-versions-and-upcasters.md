@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-04                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-029: the offline cap no longer bounds the backlog; an origin that has not reported counts as still holding the old version; the event store's stored-version refusal named (P4) (CCR-DB-005)<br>0.4 (2026-11-08): Round-2 agent review (R4 F22, F25) — readers' versions reported per event type as "reader" reports that reach the authority; `DowncastRefused` fails the caller's transaction, with round-trip defaults recommended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 22 — writers last where readers cannot go first: `publishVersion`, round-trip-checked `downcast`, `DowncastRefused` (BEH-DB-031); oldest version received per origin (BEH-DB-032); BEH-DB-028 heading changed (old anchor kept); BEH-DB-029 open item settled; BEH-DB-030 amended (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — an unknown version halts or parks per the subscription's `onPoison` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M16) — BEH-DB-029: the empty-backlog evidence is a "backlog" version report with `pending` 0, and only the current incarnation of each node is counted; the evidence is a version window reset with `resetVersions`, "received" reports free of that version since, and a "backlog" report with `pending` 0 later than the resets; BEH-DB-032: the bus offers one "backlog" report, axis "event", for its current origin (CCR-DB-006)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-029: the offline cap no longer bounds the backlog; an origin that has not reported counts as still holding the old version; the event store's stored-version refusal named (P4) (CCR-DB-005)<br>0.4 (2026-11-08): Round-2 agent review (R4 F22, F25) — readers' versions reported per event type as "reader" reports that reach the authority; `DowncastRefused` fails the caller's transaction, with round-trip defaults recommended (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 22 — writers last where readers cannot go first: `publishVersion`, round-trip-checked `downcast`, `DowncastRefused` (BEH-DB-031); oldest version received per origin (BEH-DB-032); BEH-DB-028 heading changed (old anchor kept); BEH-DB-029 open item settled; BEH-DB-030 amended (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — an unknown version halts or parks per the subscription's `onPoison` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -130,8 +130,26 @@ REQUIREMENT: Raising `minVersion` (dropping upcasters) MUST be treated as a
              breaking change of the event. It SHOULD happen only when no
              origin can still hold an unacknowledged envelope below the new
              `minVersion`: every origin that may have published that version
-             has reported an empty outbox backlog (`backlog`) since it last
-             published that version. An origin that has not MUST be counted
+             has reported an empty outbox backlog — a version report of kind
+             "backlog" with `pending` 0 (BEH-DB-032, federation
+             BEH-FD-047) — after its version window was reset. For each
+             receiving host, the window of (type, origin) MUST have been
+             restarted with `resetVersions` (BEH-DB-032), every "received"
+             report since that reset MUST show no envelope of the old
+             version from that origin, and the origin's "backlog" report
+             with `pending` 0 MUST have a `since` later than every such
+             reset. The reports
+             carry no time of last arrival, so the reset is what dates
+             them: an envelope at the old version published before an empty
+             backlog was acknowledged by then, and one arriving after the
+             reset shows in the window. Only the
+             current incarnation of each node MUST be counted: an origin
+             `node#n` whose node reports from a later incarnation `node#m`
+             (m > n) is not waited for, because a whole-store install
+             raises the incarnation only after that origin's outbox was
+             pushed (BEH-DB-048), and a restore loses with the old store
+             whatever it had not pushed (BEH-DB-004), which no report could
+             recover. An origin that has not reported so MUST be counted
              as still holding the old version, whatever the federation
              offline cap: the cap bounds how long a host follows unconfirmed
              desired state, not the age of its outbox, which is never
@@ -143,7 +161,8 @@ REQUIREMENT: Raising `minVersion` (dropping upcasters) MUST be treated as a
 
 The bus cannot know every origin's backlog; the application, or a
 federation authority that sees every host's status, decides when an old
-version is gone, from the oldest version received per origin (BEH-DB-032,
+version is gone, from the oldest version received per origin and each
+origin's own "backlog" report (BEH-DB-032,
 federation [BEH-FD-047](../../federation/behaviors/06-kill-path-placement-and-skew.md#beh-fd-047-the-oldest-version-received-per-origin-is-reported-to-the-authority)).
 
 ## BEH-DB-030: Encoding uses the current version only
@@ -244,7 +263,8 @@ interface ReaderVersion {
 }
 // DurableBus.status.versions: readonly VersionSeen[]; DurableBus.status.readers: readonly ReaderVersion[]
 // DurableBus.versionReports: the federation VersionReports source — kind "received" from VersionSeen,
-//   kind "reader" from ReaderVersion (federation BEH-FD-047)
+//   kind "reader" from ReaderVersion, and one kind "backlog" report for this host's own origin
+//   (federation BEH-FD-047)
 ```
 
 ```
@@ -266,6 +286,19 @@ REQUIREMENT: The bus MUST offer the same values as a federation
              reach the authority through the federation status report and
              it can tell when every reader in scope knows N, and when no
              origin still sends below a `minVersion` it wants to raise.
+```
+
+```
+REQUIREMENT: The bus MUST also offer on the same source one report of kind
+             "backlog" for its current origin (`DurableBus.origin`), with
+             axis "event", subject "outbox", `origin` that origin, `pending`
+             the largest `OutboxStore.backlog` count over its destinations
+             — 0 exactly
+             when nothing is pending for any destination — and `since` the
+             time the counts were read; it carries no versions. A
+             destination retired by `retireDestination` (BEH-DB-013) is not
+             counted. When the backlog cannot be read, the report MUST be
+             left out, never sent with `pending` 0.
 ```
 
 **Settled here.** A metric of what arrived is the evidence both rollout

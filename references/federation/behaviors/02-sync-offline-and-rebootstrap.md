@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-02                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-014: `OutboxSettlement.install` restated with the event delivery companion's error union and `InstallContext` (its `StoreTransaction`); what step 3a does for each error (P1); the outcome of a call cut by a link suspension follows the remote companion's frame-state rule (CCR-FD-005)<br>0.5 (2026-11-09): BEH-FD-009 `contracts` rejects a local contract at compile time, and one passed untyped fails the plugin's build with the remote companion's `LocalContractRefused` before the store is read (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-FD-014: a step-1 failure on a retry after a failed step 3a keeps links suspended, only a first attempt has none suspended (M18); step 3a runs the install under the federation actor, recorded on its `GapRecord`s with reason "rebootstrap:" + `replaces` (Low); the event delivery companion's `follow` is paused from step 1 to the end of step 3a and backs off over suspended links until step 4 (Low, seen not assessed) (CCR-FD-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-014: `OutboxSettlement.install` restated with the event delivery companion's error union and `InstallContext` (its `StoreTransaction`); what step 3a does for each error (P1); the outcome of a call cut by a link suspension follows the remote companion's frame-state rule (CCR-FD-005)<br>0.5 (2026-11-09): BEH-FD-009 `contracts` rejects a local contract at compile time, and one passed untyped fails the plugin's build with the remote companion's `LocalContractRefused` before the store is read (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -373,7 +373,12 @@ REQUIREMENT: On `ResyncRequired`, or when BEH-FD-013 requires it, the plugin
                  `OutboxSettlement.install`, so that the guarded path of the
                  event delivery companion (outbox comparison in one
                  transaction, or frozen outbox and a raised incarnation)
-                 covers it; record the returned revision in the marker
+                 covers it, with `CurrentActor` set to the federation actor
+                 `{ kind: "service", id: "federation:" + authority }`
+                 (BEH-FD-008), which the event delivery companion records
+                 on every `GapRecord` of the install, with reason
+                 "rebootstrap:" + `replaces` (durable-bus BEH-DB-044);
+                 record the returned revision in the marker
                  (step "installed");
              (3b) fetch and apply the latest manifest in full, which clears
                  pending kills up to its revision (BEH-FD-048); when its
@@ -388,8 +393,10 @@ REQUIREMENT: On `ResyncRequired`, or when BEH-FD-013 requires it, the plugin
 ```
 REQUIREMENT: A failure of step 1 — `RebootstrapBlocked`, a timeout, a
              defect — MUST stop the re-bootstrap before step 2: no snapshot
-             is fetched or installed, no link was suspended and no local
-             fact is dropped. The plugin MUST report status
+             is fetched or installed and no local fact is dropped. On a
+             first attempt no link was suspended, and links stay up; on a
+             retry after a failed step 3a, links stay suspended, since
+             local state may be half replaced. The plugin MUST report status
              `rebootstrap-blocked` with the pending count and reason, keep
              the applied manifest in force and keep applying kills
              (BEH-FD-042).
@@ -511,7 +518,15 @@ whole-store swap gets a frozen outbox and a new origin incarnation
 
 For the event delivery companion, the positions a snapshot restores are the
 inbox watermarks from which its pull port, `HistorySource`, resumes
-([BEH-DB-047](../../durable-bus/behaviors/06-replay-and-snapshots.md#beh-db-047-historysource--the-pull-port-for-downstream-history));
+([BEH-DB-047](../../durable-bus/behaviors/06-replay-and-snapshots.md#beh-db-047-historysource--the-pull-port-for-downstream-history)).
+Its `follow` pulls are paused by the bus while the settlement of step 1 is
+held, that is from step 1 to the end of step 3a, and resume from the
+watermarks the install left. During step 3b, until links resume in step 4,
+a `HistorySource` reached through a suspended link answers
+`HistoryUnavailable` and `follow` backs off; one reached by another route is
+not suspended. Between a failed step 3a and the retry's settlement,
+`follow` may pull into a half-replaced store; the next install's watermarks
+replace what it pulled, which is pulled again afterwards;
 a source that no longer retains them answers `SnapshotRequired`, which is
 where this re-bootstrap starts. Its `RebootstrapOutbox` is
 `DurableBus.rebootstrapOutbox` ([BEH-DB-048](../../durable-bus/behaviors/06-replay-and-snapshots.md#beh-db-048-before-a-snapshot-the-outbox-is-pushed-or-kept)).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-06                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
+> | Change History | 0.4 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M16) — BEH-FD-047: report kind "backlog" (axis "event", this host's origin and `pending`, no versions); `oldest` and `newest` absent on it; an authority raising `minVersion` counts only the current incarnation of each node and uses the evidence of durable-bus BEH-DB-029 (reset windows, then an empty backlog) (CCR-FD-006)<br>0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
 
 ---
 
@@ -427,12 +427,15 @@ every other change, and a rollback is a new revision.
 ```ts
 // illustrative — not type-checked
 interface OldestVersionReport {
-  readonly axis: "event" | "contract" | "protocol" | "wire"
-  readonly kind: "received" | "reader" // received: versions that arrived; reader: the version this host's readers read
-  readonly subject: string             // event type, contract name, "federation" or "remote"
-  readonly origin?: string             // kind "received": the origin or peer the version was received from
-  readonly oldest: number | string     // lowest version received since `since`, or the lowest version read
-  readonly newest: number | string
+  readonly axis: "event" | "contract" | "protocol" | "wire"   // "event" for kind "backlog"
+  readonly kind: "received" | "reader" | "backlog"   // received: versions that arrived; reader: the version this host's
+                                       // readers read; backlog: this host's own outbox (durable-bus BEH-DB-029, BEH-DB-032)
+  readonly subject: string             // event type, contract name, "federation" or "remote"; "outbox" for kind "backlog"
+  readonly origin?: string             // kind "received": the origin or peer the version was received from;
+                                       // kind "backlog": this host's current origin, node#incarnation
+  readonly oldest?: number | string    // lowest version received since `since`, or the lowest version read; absent for "backlog"
+  readonly newest?: number | string    // absent for "backlog"
+  readonly pending?: number            // kind "backlog" only: envelopes still pending; 0 is the empty-backlog evidence
   readonly since: string               // Clock, ISO 8601
 }
 // Context.Service "@bridger/federation/VersionReports" — optional; the event delivery companion provides one
@@ -449,6 +452,20 @@ REQUIREMENT: When a `VersionReports` source is wired, the plugin MUST
 ```
 
 ```
+REQUIREMENT: Every report of kind "received" or "reader" MUST carry `oldest`
+             and `newest`; a report of kind "backlog" MUST carry axis
+             "event", `origin` and `pending`, and no versions. The plugin MUST pass "backlog"
+             reports on unchanged, and an authority that decides when to
+             raise `minVersion` (durable-bus BEH-DB-029) MUST count only the
+             current incarnation of each node: an origin `node#n` whose node
+             has reported from a later incarnation is not waited for. The
+             evidence that an origin no longer holds a version is the one
+             durable-bus BEH-DB-029 states: "received" windows reset with
+             `resetVersions` and free of that version since, and an empty
+             "backlog" report from the origin later than the resets.
+```
+
+```
 REQUIREMENT: Reports MUST carry identifiers, versions and times only —
              never payloads, configuration values or annotation values.
 ```
@@ -457,9 +474,13 @@ REQUIREMENT: Reports MUST carry identifiers, versions and times only —
 writer (BEH-FD-046) and when an upcaster may go (BEH-DB-029); this report is
 the evidence it decides on. Reports of kind "reader" say what each host's
 readers can read, which is what the writers-last switch needs; reports of
-kind "received" say what still arrives, which is what dropping an upcaster
-needs — they catch what deployment records miss: an origin still holding an
-unsent backlog at an old version.
+kind "received" say what still arrives, and reports of kind "backlog" say
+which origins still hold unsent envelopes, which together are what dropping an
+upcaster needs — they catch what deployment records miss: an origin still
+holding an unsent backlog at an old version. A replaced incarnation never
+reports again, so it is not waited for: a re-bootstrap pushed its outbox before
+the raise (durable-bus BEH-DB-048), and a restore lost whatever it had not
+pushed with the old store (durable-bus BEH-DB-004), which no report recovers.
 
 ## BEH-FD-048: Pending kills, the last applied manifest and the re-bootstrap marker are kept in the store
 

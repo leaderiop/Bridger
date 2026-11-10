@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): round 2 follow-up: `UnreachableViolation` declared (BEH-AG-037) (CCR-AG-005)<br>0.4 (2026-11-09): BEH-AG-036's example passes the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.3 (2026-11-08): `EvalHook` written with core 31's options (no veto codes, an application `who`, advisory registrations, dormant advisers skipped) (CCR-AG-003, round 2: core round 2 alignment)<br>0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-AG-034: `ReplayModel` fails a mismatched or unrecorded request as `ScriptedModel` does, with `ModelError` "other" and a recorded `ScriptMismatch` (M11); BEH-AG-037: the paired dispatch of an excluded command ends in `ToolNotInToolset` or `CommandRefused`, not a gate outcome name (low finding) (CCR-AG-006)<br>0.5 (2026-11-10): round 2 follow-up: `UnreachableViolation` declared (BEH-AG-037) (CCR-AG-005)<br>0.4 (2026-11-09): BEH-AG-036's example passes the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.3 (2026-11-08): `EvalHook` written with core 31's options (no veto codes, an application `who`, advisory registrations, dormant advisers skipped) (CCR-AG-003, round 2: core round 2 alignment)<br>0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -91,8 +91,12 @@ REQUIREMENT: `Transcript.record` MUST capture, in order, every model request
 
 ```
 REQUIREMENT: `ReplayModel` MUST answer the n-th request with the n-th
-             recorded events, and MUST fail with `ScriptMismatch` when the
-             digest of the n-th request differs from the recorded one.
+             recorded events. When the digest of the n-th request differs
+             from the recorded one, or there is no n-th recording, the call
+             MUST fail as a `ScriptedModel` call does (BEH-AG-033): with
+             `ModelError { kind: "other" }` whose message names n, and a
+             recorded `ScriptMismatch` with reason "expect-failed" or
+             "script-exhausted" that the test can read.
 ```
 
 **Settled here.** Requests are compared by digest (canonical JSON of the
@@ -219,8 +223,8 @@ REQUIREMENT: The check MUST NOT be described as proving that an excluded
 
 **Settled here.** The check is stated as "not offered", because the toolset is
 not an authorization (command companion); a full test pairs it with a
-dispatch of each excluded command that must end in `Refuse` or
-`ToolNotInToolset`.
+dispatch of each excluded command that must fail with `ToolNotInToolset` or
+`CommandRefused`.
 
 ## BEH-AG-038: The required suite runs with no live model
 

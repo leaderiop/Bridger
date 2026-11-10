@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-05                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Check 1: server removal interrupts in-flight calls; check 12: the host calls' actor and `PlanAffectsCaller` (P22, P24) (CCR-MC-005)<br>0.5 (2026-11-09): Checks 8, 9 and 10 follow the import as a link: session child, background handshake, `SessionLost` outcomes, disclosure; check 15 and REQ-MC-015: no contract object, local contracts, call-log `disclosed` (core CCR-BR-033); check 9: `McpClientStatus` and no session after a refused mount (independent review) (CCR-MC-004)<br>0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.7 (2026-11-10): Check 12: `PlanStale` at step 3 when a stored ref re-resolves to another digest (low finding), and the plugin in `CurrentTransition` on the call path (H4, final review); check 16 and REQ-MC-016: the `McpTasks` port, task subscriptions, its `notifications/tasks` channel and `ended` signal (BEH-MC-008, M8) (CCR-MC-006)<br>0.6 (2026-11-10): Check 1: server removal interrupts in-flight calls; check 12: the host calls' actor and `PlanAffectsCaller` (P22, P24) (CCR-MC-005)<br>0.5 (2026-11-09): Checks 8, 9 and 10 follow the import as a link: session child, background handshake, `SessionLost` outcomes, disclosure; check 15 and REQ-MC-015: no contract object, local contracts, call-log `disclosed` (core CCR-BR-033); check 9: `McpClientStatus` and no session after a refused mount (independent review) (CCR-MC-004)<br>0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -121,7 +121,10 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  always regulated.
              12. `reconcile-apply` passes the command gate, fails with
                  `PlanUnknown` for an unknown, expired, evicted or
-                 pre-restart `planId`, fails with
+                 pre-restart `planId`, fails with `PlanStale` at step 3
+                 when a stored ref re-resolves to a definition with another
+                 digest (one mismatch per changed entry, no `reconcile`
+                 called), fails with
                  `PlanStale` after a host change that alters the plan's diff, and then
                  consults the `OperationGate` once per entry action; a
                  refused entry appears in `rejected`; with `atomic`, a
@@ -132,7 +135,8 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  actor of every lifecycle record (never unattributed or
                  `Actor.system`); a plan whose entry action would stop the
                  host-tools plugin, the dispatching plugin (`onBehalfOf`), a
-                 plugin the fiber holds, or a provider of one of them fails
+                 plugin the fiber holds or builds (`CurrentTransition`), or
+                 a provider of one of them fails
                  with `PlanAffectsCaller` naming them and calls no
                  `reconcile`; host tools write no `AuditSink` record of
                  their own.
@@ -158,6 +162,22 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  call-log entry names in `disclosed` exactly the claims
                  sent with the call, and omits it when none was
                  (BEH-MC-022).
+             16. Tasks port: the tasks extension is advertised only while
+                 `McpTasks` is resolvable; every `tasks/*` request of a
+                 negotiating session, and every long command's task, reaches
+                 the port with the session's info and bound actor, and the
+                 port's answer is returned as given; a client field never
+                 replaces the actor; with the port gone or failing,
+                 `tasks/*` gets an internal error and a long command is
+                 awaited; a session that did not negotiate gets "method not
+                 found"; a `subscriptions/listen` with `taskIds` reaches the
+                 port and only the ids it admits are acknowledged, none
+                 with the port gone while the rest of the subscription
+                 proceeds; a
+                 `notifications/tasks` sent through `notify` reaches only
+                 its session, in order, without delaying another session,
+                 `notify` after the session ended does nothing, and `ended`
+                 completes when it ends.
 ```
 
 | REQ | Check | Behaviours | Status |
@@ -177,6 +197,7 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
 | REQ-MC-013 | 13. Resources as projections of read-only commands | [BEH-MC-007](./01-server.md#beh-mc-007-read-models-are-served-as-resources-each-read-a-dispatch) | Not run |
 | REQ-MC-014 | 14. Inbound taint reaches the taint floor | [BEH-MC-002](./01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application), [BEH-MC-004](./01-server.md#beh-mc-004-toolscall-is-a-command-dispatch) | Not run |
 | REQ-MC-015 | 15. No contract object accepted; a local contract never crosses; disclosed claims named in the call log | [BEH-MC-001](./01-server.md#beh-mc-001-the-mcp-server-is-an-ordinary-plugin), [BEH-MC-022](./03-client-import.md#beh-mc-022-the-proxy-forwards-no-identity-unless-the-import-discloses-it-and-never-annotations) | Not run |
+| REQ-MC-016 | 16. Tasks extension through the `McpTasks` port | [BEH-MC-008](./01-server.md#beh-mc-008-the-server-passes-the-tasks-extension-to-the-mcptasks-port) | Not run |
 
 Every `BEH-MC` identifier of this companion appears in at least one row;
 BEH-MC-033 is this list itself.

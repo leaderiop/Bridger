@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-02                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-EN-009 declares `EntitlementGate.check(request, options)`, which the text already required; BEH-EN-011 reads `checkTimeout` from the `Entitlement` service's options (01, BEH-EN-001); BEH-EN-014 defines `EntitlementInspection` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-016 uses core `HookPointOptions.policy` (`ContributionPolicy`, `Run`/`Skip`/`Deny`) with `Entitlement.contributionPolicy` (`onNotEntitled: "skip" \| "deny"`) and `Policies.first`, replacing `Entitlement.skipPolicy`, `SkipPolicy` and `Skip.first` (G62 closed in core); G64 limit stated; BEH-EN-009 allows `undo` requests and ignores `allowChildren` and `mandatoryInterceptions`; BEH-EN-015 points to grant narrowing (CCR-EN-003)<br>0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-EN-014: `Entitlement.guard` reads the mode from the activation's `Plugin.Runtime.entitled`, passed as `options.entitled`, takes the essential labels as `options.essential`, counts in the package's process-local `inspect` counters, which gain `essentialOverdraft` and `narrowed` for the counts 03 and 04 require, and does not require the `Entitlement` service; core's modes "unmetered" and "unknown" allow only essential uses (M25); BEH-EN-009 names the `Entitlement` service and the application's `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.5 (2026-11-10): BEH-EN-009 declares `EntitlementGate.check(request, options)`, which the text already required; BEH-EN-011 reads `checkTimeout` from the `Entitlement` service's options (01, BEH-EN-001); BEH-EN-014 defines `EntitlementInspection` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-016 uses core `HookPointOptions.policy` (`ContributionPolicy`, `Run`/`Skip`/`Deny`) with `Entitlement.contributionPolicy` (`onNotEntitled: "skip" \| "deny"`) and `Policies.first`, replacing `Entitlement.skipPolicy`, `SkipPolicy` and `Skip.first` (G62 closed in core); G64 limit stated; BEH-EN-009 allows `undo` requests and ignores `allowChildren` and `mandatoryInterceptions`; BEH-EN-015 points to grant narrowing (CCR-EN-003)<br>0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -75,7 +75,8 @@ interface EntitlementGateOptions {
 ```
 
 ```
-REQUIREMENT: The gate MUST consult the `Entitlement` port for `install`
+REQUIREMENT: The gate MUST consult the `Entitlement` service (the
+             application's `EntitlementAdapter`, 01) for `install`
              requests — the operation that adds a plugin's behaviour to the
              host — and, when `onReplace` is "consult", for `replace`
              requests, which add a new version of it; including each such
@@ -293,14 +294,24 @@ port" for a licence.
 declare const Entitlement: {
   readonly guard: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-    options: { readonly requires: "full" | "read-only"; readonly labels?: readonly string[] }
-  ) => Effect.Effect<A, E | NotEntitled, R>
+    options: {
+      readonly requires: "full" | "read-only"
+      readonly labels?: readonly string[]
+      readonly entitled: Stream.Stream<EntitlementState>   // the activation's Plugin.Runtime.entitled (BEH-EN-013)
+      readonly essential?: readonly string[]               // the application's EntitlementOptions.essential (01, BEH-EN-007)
+    }
+  ) => Effect.Effect<A, E | NotEntitled, R>                // requires no service of this package
   readonly inspect: Effect.Effect<EntitlementInspection>    // essential passes per label, refusals per plugin
 }
-interface EntitlementInspection {                            // process-local counters (01, BEH-EN-007; BEH-EN-014)
+interface EntitlementInspection {                            // process-local counters of the package, not of the service (01, BEH-EN-007; BEH-EN-014)
   readonly essentialPasses: Readonly<Record<string, number>>  // per essential label
   readonly refusals: Readonly<Record<string, number>>         // per plugin id: gate refusals and NotEntitled
   readonly noPrincipal: number                                // guard calls outside plugin code
+  // essential reservations beyond what a limit can cover (03, BEH-EN-020); `limit` is the
+  // limit's position in the list given to Budget.layer
+  readonly essentialOverdraft: readonly { readonly limit: number; readonly label: string; readonly amount: number }[]
+  // narrowed capability answers (04, BEH-EN-027)
+  readonly narrowed: readonly { readonly pluginId: string; readonly serviceId: string; readonly mode: string; readonly count: number }[]
 }
 class NotEntitled extends Schema.TaggedError<NotEntitled>()("NotEntitled", {
   pluginId: Schema.String,
@@ -318,10 +329,25 @@ REQUIREMENT: `guard` MUST identify the plugin from the calling fiber's
 ```
 
 ```
-REQUIREMENT: `guard` MUST run the effect when the current effective mode
-             allows `requires` (01, BEH-EN-003) or when `labels` contains an
-             essential label; otherwise it MUST fail with `NotEntitled`
-             without running the effect.
+REQUIREMENT: `guard` MUST take the current mode from the first element of
+             `options.entitled`, the latest state core holds for the
+             activation (core BEH-BR-089), and MUST NOT require the
+             `Entitlement` service or any other service of this package, so
+             that plugin code can call it. It MUST run the effect when that
+             mode allows `requires` (01, BEH-EN-003) or when `labels`
+             contains a label of `options.essential`; otherwise it MUST
+             fail with `NotEntitled` without running the effect. Core's
+             modes "unmetered" and "unknown" (BEH-EN-013) MUST allow only
+             essential uses, as `none` does. `guard` MUST count its
+             essential passes, its `NotEntitled` refusals and its
+             "no-principal" calls in the package's process-local counters
+             that `Entitlement.inspect` reads, which belong to the package,
+             not to the `Entitlement` service. Documentation MUST tell
+             authors to pass their own activation's `Plugin.Runtime.entitled`
+             and the application's `EntitlementOptions.essential` (for
+             example from the plugin's configuration), and MUST state that
+             `guard` cannot check that the list it is given is the
+             application's.
 ```
 
 ```

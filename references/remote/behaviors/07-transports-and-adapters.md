@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-07                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): round 2 follow-up: `GuestTransportError` declared (BEH-RM-049) (CCR-RM-005)<br>0.4 (2026-11-08): Round-2 agent review (R4 F15) — a multiplexed endpoint may be given the residency labels its route offers, which replace the physical profile's (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — `TransportProfile.residency` and `reportsUsage`, `Connection.usage`; isolation table rows for `Transport.postMessage` and the Workers for Platforms adapter (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — endpoint multiplexer (BEH-RM-056) for several sessions over one physical connection; frames before the handshake per endpoint; per-call transports keep a host-side logical session (R3-01, R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H8) — BEH-RM-049: `GuestTransport.profile`; BEH-RM-052: both ends of an adapter declare a profile; BEH-RM-056: `MultiplexedGuest.endpoint` takes `options.residency`, and both `multiplex` functions take the physical profile (CCR-RM-006)<br>0.5 (2026-11-10): round 2 follow-up: `GuestTransportError` declared (BEH-RM-049) (CCR-RM-005)<br>0.4 (2026-11-08): Round-2 agent review (R4 F15) — a multiplexed endpoint may be given the residency labels its route offers, which replace the physical profile's (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — `TransportProfile.residency` and `reportsUsage`, `Connection.usage`; isolation table rows for `Transport.postMessage` and the Workers for Platforms adapter (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — endpoint multiplexer (BEH-RM-056) for several sessions over one physical connection; frames before the handshake per endpoint; per-call transports keep a host-side logical session (R3-01, R3-05) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -40,6 +40,7 @@ interface Transport {
   readonly open: Effect.Effect<Connection, TransportError, Scope.Scope>   // bounded by connectTimeout
 }
 interface GuestTransport {
+  readonly profile: TransportProfile        // this end's profile (BEH-RM-050): its liveness and residency are read by the guest side
   readonly accept: Stream.Stream<Connection, GuestTransportError, Scope.Scope>
 }
 interface Connection {
@@ -149,7 +150,9 @@ REQUIREMENT: Frames received on a connection (on a multiplexed endpoint, on
 ```
 REQUIREMENT: An adapter package MUST:
              1. implement `Transport` and `GuestTransport` as BEH-RM-049
-                states, with a truthful `TransportProfile`;
+                states, each with a truthful `TransportProfile`; the two
+                ends of one adapter MUST declare the same `liveness`, and
+                each end its own `residency`;
              2. create the guest's execution environment (thread, process,
                 isolate) only in `open`, never at import or at
                 `Remote.define`;
@@ -283,11 +286,13 @@ interface Multiplexed {
   readonly closed: Effect.Effect<{ readonly reason: string }>
 }
 interface MultiplexedGuest {
-  readonly endpoint: (name: string) => GuestTransport
+  // a logical GuestTransport; its profile is the physical end's, with `residency` replaced when given
+  readonly endpoint: (name: string, options?: { readonly residency?: readonly string[] }) => GuestTransport
   readonly closed: Effect.Effect<{ readonly reason: string }>
 }
-Transport.multiplex: (physical: Connection) => Effect.Effect<Multiplexed, never, Scope.Scope>
-GuestTransport.multiplex: (physical: Connection) => Effect.Effect<MultiplexedGuest, never, Scope.Scope>
+// `profile`: the profile of the transport end that made `physical`
+Transport.multiplex: (physical: Connection, profile: TransportProfile) => Effect.Effect<Multiplexed, never, Scope.Scope>
+GuestTransport.multiplex: (physical: Connection, profile: TransportProfile) => Effect.Effect<MultiplexedGuest, never, Scope.Scope>
 ```
 
 ```
@@ -306,7 +311,12 @@ REQUIREMENT: An endpoint's `profile` MUST be the physical transport's
              `endpoint`, when given, so that a caller who knows what the
              route offers (the federation companion's `ManifestPeer`
              residency) makes the link's placement check (BEH-RM-068)
-             compare against the same labels it compared.
+             compare against the same labels it compared. The same MUST
+             hold for a `MultiplexedGuest` endpoint, whose profile the
+             serving end's placement check reads (09, BEH-RM-069). The
+             physical profile on either side MUST be the `profile` passed
+             to `multiplex`, the profile of the transport end that made the
+             physical `Connection`.
 ```
 
 ```

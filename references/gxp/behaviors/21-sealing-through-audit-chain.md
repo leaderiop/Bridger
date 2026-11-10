@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-21                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19); follow-up: BEH-GX-171 passes `expectKeyed: true` with `sealing.keyed`, so an unkeyed link in a keyed trail is a `chainBreak` "unkeyed-link" (audit-chain CCR-AC-005 follow-up) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
+> | Change History | 0.3 (2026-11-10): BEH-GX-171 `sealing.keyed` is a pure MAC function or `{ mac }`, an effectful one turned into the pure function by audit-chain's `precomputeMacs` (audit-chain CCR-AC-006 follow-up); BEH-GX-170 passes `SealingOptions.keyed` to the sink as `HashChainOptions.keyed` (M19); BEH-GX-171 reads every receipt the reader holds for the host (`toSeq` `Number.MAX_SAFE_INTEGER`), not only up to the store's last entry, so a window above a cut-off tail is reported "window-not-in-entries" (H6); BEH-GX-172 does not apply to a range archive above `auditSeq` 1 (M2) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19); follow-up: BEH-GX-171 passes `expectKeyed: true` with `sealing.keyed`, so an unkeyed link in a keyed trail is a `chainBreak` "unkeyed-link" (audit-chain CCR-AC-005 follow-up) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
 
 ---
 
@@ -64,11 +64,15 @@ declare function trailChainStore(store: TrailStoreShape): ChainStoreShape
 ```
 REQUIREMENT: With sealing on, `trailSink` (BEH-GX-022) MUST build its
              `AuditSink` with `@bridger/audit-chain`'s
-             `HashChainSink.make(trailChainStore(store), options.chain)`,
-             given `anchoring.anchor` and `anchoring.receipts` as its `Anchor`
-             and `ReceiptStore`, when `anchoring` names them; and with
-             `HashChainSink.layerUnanchored(options.chain)` over
-             `trailChainStore(store)` when `anchoring` is "unanchored". Only
+             `HashChainSink.make(trailChainStore(store), { ...options.chain,
+             keyed: options.keyed })`, given `anchoring.anchor` and
+             `anchoring.receipts` as its `Anchor` and `ReceiptStore`, when
+             `anchoring` names them; and with
+             `HashChainSink.layerUnanchored({ ...options.chain, keyed:
+             options.keyed })` over `trailChainStore(store)` when `anchoring`
+             is "unanchored". `options.keyed`, when given, is thus the
+             sink's `KeyedHasher` (`HashChainOptions.keyed`, BEH-AC-007),
+             and every link it writes carries a `keyId`. Only
              the first returns the sink's `ChainStatusView` (BEH-AC-012),
              which `ChainGate` reads (BEH-GX-175); the second exposes no
              status. Like the trail sink it is part of, the chain sink serves
@@ -126,7 +130,9 @@ declare function verifySeals(
   sealing: {
     readonly receipts: ReceiptReaderShape          // audit-chain 05, the read side of the ReceiptStore; series id = hostId
     readonly verifier: AnchorVerifierShape         // audit-chain 03, BEH-AC-020
-    readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined
+    readonly keyed?:                               // BEH-AC-019; never SealingOptions.keyed itself, which is the sink's KeyedHasherShape
+      | ((keyId: string, input: Uint8Array) => Uint8Array | undefined)                          // a pure MAC
+      | { readonly mac: (keyId: string, input: Uint8Array) => Effect.Effect<Uint8Array, KeyedHashFailed> }   // an effectful MAC (a hardware module, a MAC service)
   },
   options: {
     readonly hostId: string
@@ -149,11 +155,17 @@ declare function verifySeals(
 | `anchorUnconfirmed` | each entry of `confirmAnchors`'s `unconfirmed`, with the window of its statement as `auditSeq` and `toSeq` and `detail` "statement <statementHash> not confirmed"; the verifier's `reason` is not copied (NFR-GX-007) |
 
 ```
-REQUIREMENT: `verifySeals` MUST read the host's statements and receipts with
-             `sealing.receipts.read(hostId, 1, s)`, `s` the highest
-             `auditSeq` read from the store, confirm them with audit-chain's
-             `confirmAnchors`, and then call `verifyChain` over the host's
-             entries as `{ record, link }`, in ascending `auditSeq`, with
+REQUIREMENT: `verifySeals` MUST read every statement and receipt the
+             receipt reader holds for the host, with
+             `sealing.receipts.read(hostId, 1, Number.MAX_SAFE_INTEGER)`,
+             and MUST NOT bound the read by the highest `auditSeq` read from
+             the store: a window above the store's last entry (its entries
+             removed, its receipt kept) MUST reach `verifyChain`, which
+             reports it as an `anchorMismatches` entry of kind
+             "window-not-in-entries" (BEH-AC-019). It MUST confirm them with
+             audit-chain's `confirmAnchors`, and then call `verifyChain` over
+             the host's entries as `{ record, link }`, in ascending
+             `auditSeq`, with
              the confirmed statements, the default profile (`auditProfile`,
              BEH-AC-031), `continuesFrom` keyed by `hostId` when given, and
              `expectedHeads` set from the host's highest high-water mark
@@ -162,9 +174,17 @@ REQUIREMENT: `verifySeals` MUST read the host's statements and receipts with
 ```
 
 ```
-REQUIREMENT: When `sealing.keyed` is given, `verifySeals` MUST pass it to
-             `verifyChain` as `keyed` together with `expectKeyed: true`
-             (BEH-AC-019), so that an entry whose link carries no `keyId` is
+REQUIREMENT: When `sealing.keyed` is given, `verifySeals` MUST pass a pure
+             MAC function to `verifyChain` as `keyed` together with
+             `expectKeyed: true` (BEH-AC-019): `sealing.keyed` itself when it
+             is a function, and when it is `{ mac }` the function returned by
+             audit-chain's `precomputeMacs(entries, mac, { profile:
+             auditProfile })` over the entries it holds, run before
+             `verifyChain`. A `KeyedHashFailed` for a link leaves that link
+             reported "key-unavailable" (BEH-AC-019). A caller holding the
+             sink's `KeyedHasherShape` `h` (BEH-GX-170) passes `{ mac }` that
+             answers `h.mac(input)` for `keyId` equal to `h.keyId` and fails
+             with `KeyedHashFailed` for any other `keyId`. This is so that an entry whose link carries no `keyId` is
              a `chainBreak` with detail "unkeyed-link". The caller MUST give
              `sealing.keyed` for every host whose sink was built with
              `SealingOptions.keyed` (BEH-GX-170); documentation MUST state
@@ -235,7 +255,9 @@ like a window that was never anchored.
 REQUIREMENT: When `verifiedThrough` is 0 for the host and the report has no
              `chainBreak`, the report MUST state "The chain is internally
              consistent; no anchor confirms it." and MUST report
-             `chainUnanchoredTail` for the whole trail.
+             `chainUnanchoredTail` for the whole trail. This does not apply
+             to an archive of a range starting above `auditSeq` 1, whose
+             chain report checks no link (BEH-GX-140).
 ```
 
 ```

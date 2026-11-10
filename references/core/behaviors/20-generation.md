@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-20                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): BEH-BR-169 `Generation.revocations` feed of `GenerationRevoked` notices and `GenerationOptions.name` default "generation"; BEH-BR-174 a forced revocation is published on that feed and logged, never on `Host.events` (C7; audit round 2, Low) (CCR-BR-034)<br>0.3 (2026-11-08): `changes` feed of published revisions and the read-only `GenerationView` for non-owners (CCR-BR-022)<br>0.2 (2026-10-02): A forced drain revokes an `acquire` lease by interrupting the acquiring fiber, as host leases are revoked (prototype finding G26) (CCR-BR-011)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-BR-169 `GenerationRevoked.owner` is an `EntryOwner`, and `revocations` ends only after the scope-close revocation is published (audit round 3, Low) (CCR-BR-035)<br>0.4 (2026-11-10): BEH-BR-169 `Generation.revocations` feed of `GenerationRevoked` notices and `GenerationOptions.name` default "generation"; BEH-BR-174 a forced revocation is published on that feed and logged, never on `Host.events` (C7; audit round 2, Low) (CCR-BR-034)<br>0.3 (2026-11-08): `changes` feed of published revisions and the read-only `GenerationView` for non-owners (CCR-BR-022)<br>0.2 (2026-10-02): A forced drain revokes an `acquire` lease by interrupting the acquiring fiber, as host leases are revoked (prototype finding G26) (CCR-BR-011)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -54,7 +54,7 @@ interface Generation<A> {
 
 interface GenerationRevoked {
   readonly generation: string        // GenerationOptions.name
-  readonly owner?: string            // the plugin id `ActivePlugin` held at `make`, when set
+  readonly owner?: EntryOwner        // { pluginId, realm } of `ActivePlugin` at `make`, when set (19, BEH-BR-162)
   readonly revision: number          // the value whose leases were revoked
   readonly leases: number            // leases revoked
   readonly at: string                // Clock, ISO-8601 UTC with ms
@@ -117,7 +117,11 @@ REQUIREMENT: `view` MUST expose exactly `acquire`, `use`, `current` and
 REQUIREMENT: When the scope given to `make` closes, the generation MUST close
              admission, and MUST drain every value still held — current and
              retired — under `drainTimeout`, revoking at the limit as in
-             BEH-BR-174, before the scope finishes closing.
+             BEH-BR-174, before the scope finishes closing. `revocations`
+             MUST end only after that drain: the `GenerationRevoked` of a
+             scope-close revocation MUST be published before the stream
+             ends, so that a subscriber still subscribed sees it before the
+             end (CCR-BR-035).
 ```
 
 **Settled here.** SPEC.md does not say what closing a generation's own scope

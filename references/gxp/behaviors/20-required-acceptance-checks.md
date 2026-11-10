@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-20                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): Check 11: `chainUnanchoredTail`, `anchorUnconfirmed` and `chainLossCounterRose`; check 26: IQ-01 to IQ-23; check 47: IQ-23 and `sink-status.json` (H7, P7, P14, P16); follow-up: check 11 adds the "unkeyed-link" `chainBreak` of a keyed trail rewritten with unkeyed links (CCR-GX-005)<br>0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-10): Check 11 a window whose entries were removed with its receipt kept is reported "window-not-in-entries" (H6); check 12 five vectors (H7); check 15 the rendered `onBehalfOf`, `undo` and `requestOnly` fields (M1); check 26 IQ-01 to IQ-24 (M3); check 34 a rule naming `reconcile` (M4) (CCR-GX-006)<br>0.4 (2026-11-10): Check 11: `chainUnanchoredTail`, `anchorUnconfirmed` and `chainLossCounterRose`; check 26: IQ-01 to IQ-23; check 47: IQ-23 and `sink-status.json` (H7, P7, P14, P16); follow-up: check 11 adds the "unkeyed-link" `chainBreak` of a keyed trail rewritten with unkeyed links (CCR-GX-005)<br>0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -125,7 +125,9 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run
                  verifier cannot confirm, `chainLossCounterRose` (and no
                  `chainNonCanonical`) where `auditDropped` rises, and
                  `headMismatch` when the newest anchored windows
-                 and receipts are removed below a high-water mark, and, with
+                 and receipts are removed below a high-water mark,
+                 `anchorMismatch` "window-not-in-entries" when the newest
+                 entries are removed and their receipts kept, and, with
                  `sealing.keyed` given, a `chainBreak` "unkeyed-link" for a
                  keyed trail rewritten with unkeyed links, each with
                  the `ChainReport` attached unchanged; with no confirmed
@@ -152,7 +154,7 @@ rather than the companion's functions in isolation.
 ```
 REQUIREMENT: The companion's test suite MUST also contain at least one test,
              run as BEH-GX-153 states, for each of the following:
-             12. `bindingDigest` reproduces the four vectors of BEH-GX-066,
+             12. `bindingDigest` reproduces the five vectors of BEH-GX-066,
                  and `bindingOf` over a proposal, the request core passes to
                  the gate and the call's `requested` or `rejected` record
                  gives one digest, and over a terminal record gives None
@@ -170,7 +172,8 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
                  one has `signedAt` equal to the `TestClock` reading
                  (BEH-GX-075, BEH-GX-076, BEH-GX-078).
              15. The rendered text shows each binding's operation, target,
-                 bound definition, paths, requester id and bound reason,
+                 bound definition, paths, requester id, bound `onBehalfOf`,
+                 `undo` and `requestOnly` fields and bound reason,
                  ends with the meaning text and `notAfter`, and shows only
                  the word "fingerprinted" for a fingerprinted path, and
                  `renderManifestation` gives exactly the sentence of
@@ -227,7 +230,7 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
                  list does not admit and a malformed fingerprint (BEH-GX-108,
                  BEH-GX-110).
              26. `runInstallationChecks` on a `GxpTestHost` reports IQ-01 to
-                 IQ-23 and IQ-U1 to IQ-U10 in order, with IQ-10, IQ-11 and
+                 IQ-24 and IQ-U1 to IQ-U10 in order, with IQ-10, IQ-11 and
                  IQ-15 failing because fixtures are wired, and the
                  `Host.controls` snapshot recorded; on a host with
                  `gateTimeout: "forever"` and an explicit gate deadline,
@@ -384,7 +387,8 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
              BEH-GX-153 states, for the following:
              34. Each invalid policy of 08 — a field missing; an exempt rule
                  with a justification under 20 characters or covering every
-                 operation; a rule naming `shutdown` or a system transition;
+                 operation; a rule naming `shutdown`, `reconcile` or a
+                 system transition;
                  no rule for `acknowledgeAuditDegraded`; `requireDigest` with
                  `defineRealm` or `acknowledgeAuditDegraded`;
                  `requireFingerprints` misplaced; `signatures`, `meanings` or

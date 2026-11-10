@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-03                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — check 8 covers authority-side recording with `SeriesFacts` (P5); check 12 covers appends under `asSelf` (CCR-SQ-004)<br>0.3 (2026-11-09): BEH-SQ-019 adds a `rebootstrap` fixture; BEH-SQ-020 check 1 covers handles of an earlier origin, checks 11 (re-bootstrap on a running host) and 12 (grants on the `Sequence` members) added (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — check 11 covers the supersession step's service actor under `requireActor: true` (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — check 8 covers authority-side recording with `SeriesFacts` (P5); check 12 covers appends under `asSelf` (CCR-SQ-004)<br>0.3 (2026-11-09): BEH-SQ-019 adds a `rebootstrap` fixture; BEH-SQ-020 check 1 covers handles of an earlier origin, checks 11 (re-bootstrap on a running host) and 12 (grants on the `Sequence` members) added (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -115,7 +115,11 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  superseded once, with its highest number and
                  `lastKnownOnly: false`; a series also present in the
                  snapshot is not superseded twice; a name reopened writes
-                 `previous` (BEH-SQ-002, BEH-SQ-009, BEH-SQ-010).
+                 `previous`; with a bus made with `requireActor: true`, the
+                 step commits and its `SeriesSuperseded` events carry the
+                 actor `{ kind: "service", id: "sequence:" + node }`, at
+                 start and after the install (BEH-SQ-002, BEH-SQ-009,
+                 BEH-SQ-010).
              12. Grants: a capture of `Sequence` granted `open` and `next`
                  issues numbers through a `Series` handle and is refused
                  `close`; the plugin appends through its own `EventStore`

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-10                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-10): BEH-GX-074 the rendered text shows every field binding version 2 locks in: `onBehalfOf`, `undo`, the manifest digest, `allowChildren` and `mandatoryInterceptions` (M1) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -111,8 +111,14 @@ REQUIREMENT: `rendered.text` MUST be produced by the companion's
              the target id and realm; the definition version and digest when
              bound; each configuration path, with "fingerprinted" against the
              paths whose value is bound by a fingerprint; the requester's id;
-             and the reason when bound. It MUST end with the meaning's `text`
-             and the ticket's `notAfter`.
+             when bound, the `onBehalfOf` plugin's id, realm, version and
+             digest, "undo action" for `undo`, and the `requestOnly`
+             manifest digest, `allowChildren` and each mandatory
+             interception's `serviceId` and `id` (or "none" for an empty
+             list), marked "matched by the gate only" (BEH-GX-083); and the
+             reason when bound. It MUST end with the meaning's `text` and the
+             ticket's `notAfter`. A field the binding locks in MUST NOT be
+             left out of the text.
 ```
 
 ```

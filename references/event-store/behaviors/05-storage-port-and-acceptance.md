@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-ES-034: what the store does at a re-bootstrap install — every write refused with `OutboxFrozen` during a whole-store freeze, followers read their checkpoint each batch, stop at a whole-store swap and restart from the new store's checkpoints, chain followers wait for the application, positions never translated (P6); BEH-ES-040 check 18 (CCR-ES-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — BEH-ES-034: every write of the store calls durable-bus `DurableBus.fence(tx)` inside its own write transaction during a whole-store install instead of following the sliding `outbox-frozen`/`outbox-thawed` feed; check 18 restated (CCR-ES-005)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-ES-034: what the store does at a re-bootstrap install — every write refused with `OutboxFrozen` during a whole-store freeze, followers read their checkpoint each batch, stop at a whole-store swap and restart from the new store's checkpoints, chain followers wait for the application, positions never translated (P6); BEH-ES-040 check 18 (CCR-ES-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -114,15 +114,19 @@ through durable-bus `OutboxSettlement.install`, either in one transaction
 ("in-store") or by replacing the database ("whole-store", BEH-DB-048).
 
 ```
-REQUIREMENT: From the moment durable-bus reports `outbox-frozen` for a
-             whole-store install until it reports `outbox-thawed`, every
-             write of the store — `Stream.append`, `Aggregate.handle`,
-             `run`, `record` and `recordFact`, and the handlers of `receive`
-             and `receiveVerbatim` — MUST fail with durable-bus
-             `OutboxFrozen` and write nothing, whether or not its types are
-             published: the store being replaced would take the write with
-             it. An in-store install refuses no write; the engine orders the
-             install transaction with every other (above).
+REQUIREMENT: During a whole-store install, every write of the store —
+             `Stream.append`, `Aggregate.handle`, `run`, `record` and
+             `recordFact`, and the handlers of `receive` and
+             `receiveVerbatim` — MUST fail with durable-bus `OutboxFrozen`
+             and write nothing, whether or not its types are published: the
+             store being replaced would take the write with it. Each such
+             write MUST call durable-bus `DurableBus.fence(tx)` (BEH-DB-048)
+             inside its own write transaction, before its first write, and
+             fail with the fence's `OutboxFrozen`; the `outbox-frozen` and
+             `outbox-thawed` reports are a sliding status feed and MUST NOT
+             be used to decide. An in-store install refuses no write; the
+             engine orders the install transaction with every other
+             (above).
 ```
 
 ```
@@ -392,7 +396,9 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  (BEH-ES-038).
              18. Re-bootstrap install: during a whole-store freeze an
                  append of an unpublished type fails with `OutboxFrozen` and
-                 writes nothing; followers stop at the swap and projections
+                 writes nothing, decided by `DurableBus.fence` inside its
+                 transaction, so a write whose transaction began before the
+                 freeze is either committed before it or refused; followers stop at the swap and projections
                  resume from the new store's checkpoints, or rebuild where
                  there is none; a chain follower stays halted with
                  "store-replaced" until `chain` is called again; after an

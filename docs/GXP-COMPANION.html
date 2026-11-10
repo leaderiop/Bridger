@@ -193,9 +193,12 @@ footer { font-size: 14px; color: var(--muted); border-top: 1px solid var(--line)
   <span class="kicker">Bridger · roadmap phase P6</span>
   <h1>Bridger GxP Companion</h1>
   <p class="lede">A friendly guide to <code>@bridger/gxp</code>: why a regulated team needs it next to the Bridger plugin host, how each of its parts is meant to work, and six scenarios that show it in action.</p>
+  <div class="callout limit">
+    <h4>Superseded</h4>
+    <p>This guide predates the companion's specification, which now lives in <code>references/gxp/</code>. Where the two differ, the specification governs; the guide is kept as background reading only.</p>
+  </div>
   <div class="chips">
-    <span class="chip warn">Proposal</span>
-    <span class="chip">Not specified yet</span>
+    <span class="chip warn">Superseded by references/gxp</span>
     <span class="chip">Not implemented</span>
     <span class="chip">October 2026</span>
   </div>
@@ -492,40 +495,45 @@ interface OperationRequest {
           <line x1="380" y1="170" x2="119" y2="170" class="a-bad dash"/><text x="247" y="162" text-anchor="middle" class="ts t-bad">AuditWriteFailed (timed out)</text>
           <text x="124" y="196" class="ts">the core waits, then retries the same record</text>
           <line x1="115" y1="238" x2="376" y2="238" class="a"/><text x="247" y="230" text-anchor="middle" class="tm">retry: the same record #41</text>
-          <line x1="380" y1="266" x2="641" y2="266" class="a"/><text x="512" y="258" text-anchor="middle" class="tm">insert … on conflict do nothing</text>
+          <line x1="380" y1="266" x2="641" y2="266" class="a"/><text x="512" y="258" text-anchor="middle" class="tm">insert … equal copy already there</text>
           <line x1="645" y1="294" x2="384" y2="294" class="a-ok dash"/><text x="512" y="286" text-anchor="middle" class="ts t-ok">ok, stored exactly once</text>
           <line x1="380" y1="322" x2="119" y2="322" class="a-ok dash"/><text x="247" y="314" text-anchor="middle" class="ts t-ok">success</text>
         </svg>
       </div>
-      <figcaption>The retry the contract has to make safe. Because the retry carries the same record identifier, the database can ignore the second copy.</figcaption>
+      <figcaption>The retry the contract has to make safe. Because the retry carries the same record with the same digest, the database can recognise the second copy as equal and store nothing. A different record under the same identifier is never ignored: it is kept beside the first.</figcaption>
     </figure>
     <div class="read">
       <p>The rules the contract is expected to contain:</p>
       <ul>
-        <li><strong>Store each record once.</strong> Writing the same <code>recordId</code> twice must change nothing.</li>
+        <li><strong>Store each record once.</strong> Writing an equal record twice must change nothing. A different record under a stored <code>recordId</code> is kept beside the first as a collision entry, never dropped and never written over it.</li>
         <li><strong>Never fake success.</strong> Any write that cannot be confirmed must fail with <code>AuditWriteFailed</code>.</li>
         <li><strong>Keep every field.</strong> Records are stored exactly as given, including their format version.</li>
         <li><strong>Only add.</strong> The adapter never edits or deletes a stored record.</li>
         <li><strong>Order by number.</strong> Records are read back in sequence-number order, never by timestamp, because clocks can jump.</li>
       </ul>
     </div>
-<pre><span class="label">Illustrative · an adapter you would write, following the future contract</span>const postgresSink = (sql: Sql): AuditSink["Service"] =&gt; ({
-  record: (r) =&gt;
-    sql`insert into audit_trail (record_id, host_id, audit_seq, body)
-        values (${r.recordId}, ${r.hostId}, ${r.auditSeq}, ${JSON.stringify(r)})
-        on conflict (record_id) do nothing`          <span class="cm">// a retry is harmless</span>
-      .pipe(
-        Effect.asVoid,
-        Effect.mapError((e) =&gt; new AuditWriteFailed({ message: String(e) }))  <span class="cm">// report failure honestly</span>
-      )
-})
+<pre><span class="label">Illustrative · a trail store you would write (references/gxp, 02 — Trail Store Port)</span><span class="cm">// unique (record_id, digest); unique (record_id) and unique (host_id, audit_seq) where collision is null</span>
+const append = (sql: Sql) =&gt; (e: TrailEntry) =&gt;
+  sql`insert into audit_trail (record_id, host_id, audit_seq, digest, canonical)
+      values (${e.recordId}, ${e.hostId}, ${e.auditSeq}, ${e.digest}, ${e.canonical})
+      on conflict (record_id, digest) do nothing returning 1`   <span class="cm">// only an EQUAL copy is skipped</span>
+    .pipe(
+      Effect.map((rows) =&gt; rows.length ? "stored" : "already-stored"),
+      Effect.catchIf(isUniqueViolation, () =&gt;                     <span class="cm">// a DIFFERENT record under a stored id or number</span>
+        sql`insert into audit_trail (record_id, host_id, audit_seq, digest, canonical, collision)
+            values (${e.recordId}, ${e.hostId}, ${e.auditSeq}, ${e.digest}, ${e.canonical},
+                    ${sql.json(collisionOf(e))})`                  <span class="cm">// kept beside the first, never dropped</span>
+          .pipe(Effect.as("stored-collision"))),
+      Effect.mapError(() =&gt; new TrailWriteFailed({ reason: "unavailable", message: "write not confirmed" }))   <span class="cm">// report failure honestly</span>
+    )
 
 <span class="cm">// Illustrative · the companion's conformance tests (proposed name)</span>
 import { sinkConformance } from "@bridger/gxp/testing"
 
-sinkConformance("postgres trail", () =&gt; postgresSink(testDb))
-<span class="cm">//  ✓ a retried record is stored once
-//  ✓ a database error surfaces as AuditWriteFailed, never as success
+sinkConformance("postgres trail", () =&gt; append(testDb))
+<span class="cm">//  ✓ a retried equal record is stored once
+//  ✓ a different record under a stored id is kept as a collision entry
+//  ✓ a database error surfaces as TrailWriteFailed, never as success
 //  ✓ every field round-trips unchanged</span></pre>
     <div class="callout limit">
       <h4>What it cannot do</h4>
@@ -781,7 +789,7 @@ const host = yield* Bridger.make(options).pipe(
   <span class="kicker">Section 8</span>
   <h2>Questions still open</h2>
   <div class="read">
-    <p>The companion's specification has not been written yet. These are the questions it will have to answer. Raising them now helps the core be built in a way that leaves room for good answers.</p>
+    <p>When this guide was written the companion's specification did not exist yet. It now does, in <code>references/gxp/</code>, and answers these questions there; they are kept here as they were first raised.</p>
   </div>
   <div class="cards">
     <div class="card">

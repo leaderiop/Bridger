@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-012                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-09): Binding version 2: `onBehalfOf`, `undo` and request-only `manifestDigest`, `allowChildren`, `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately not bound (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): An empty value the request carries is bound as carried, not dropped (H7) (CCR-GX-006)<br>0.2 (2026-11-09): Binding version 2: `onBehalfOf`, `undo` and request-only `manifestDigest`, `allowChildren`, `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately not bound (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -49,7 +49,7 @@ A signature must be bound to exactly the change it approves (URS-GX-007; Part 11
   }
   ```
 
-  Optional members are absent, never `null` or empty, when the request has no such field; `fingerprints` is absent when `configChange` carries none ([BEH-GX-065](../behaviors/09-approval-tickets.md)).
+  Optional members are absent, never `null`, when the request has no such field, and bound as the request carries them when it has one, an empty array or object included (`mandatoryInterceptions: []`, `definition: {}`), so that an issuer and a gate never disagree on whether an empty value is "absent"; `fingerprints` is absent when `configChange` carries none, and `requestOnly` is present exactly when one of its fields is ([BEH-GX-065](../behaviors/09-approval-tickets.md)).
 - **The digest.** `bindingDigest = "sha256:" + hex(SHA-256(JCS(binding)))`, lower-case hex, with JCS and SHA-256 as in [ADR-GX-005](../decisions/005-jcs-and-sha256.md). The issuer computes it from the binding it renders to the signer; the gate recomputes it from the request and the checks from the record, all three with the one function `bindingOf(source, { scope, bindReason })` ([BEH-GX-082](../behaviors/11-signature-linking.md)).
 - **Scope.** `scope` is a string set once in the gate's configuration (for example `"lims-prod-eu"`) and in the issuer's. A ticket issued for one scope never matches a request in another, so a ticket for a test system cannot be replayed on production ([RSK-GX-006](../gxp/03-risk-assessment.md#rsk-gx-006)).
 - **Version 2 (CCR-GX-002).** Since CCR-BR-017 to CCR-BR-026 the `OperationRequest` also carries `onBehalfOf`, `undo`, a `manifest` in `definition`, `previousManifest`, `allowChildren`, `mandatoryInterceptions` and gate-flow `annotations` ([BEH-BR-219](../../core/behaviors/25-operation-gate.md)). A binding that left them out would approve a `replace` from plugin code as if an operator made it, an undo as if it were the forward change, and a definition without its manifest. Version 2 binds `onBehalfOf` (without `revision`, which a proposal cannot know), `undo`, and, under `requestOnly`, the manifest's digest, `allowChildren` and `mandatoryInterceptions`. Records carry `onBehalfOf` and `undoes` but none of the `requestOnly` fields ([BEH-BR-195](../../core/behaviors/23-audit-sink-and-record.md)), so the record-side link takes `requestOnly` from the consumed binding and every rendering says those fields were matched by the gate only ([BEH-GX-083](../behaviors/11-signature-linking.md)). Gate-flow annotations are left out: they are call-time context for gate pieces, not part of the change, and a policy that needs one decides on it in its own piece ([BEH-BR-292](../../core/behaviors/30-operation-context-annotations.md)). `previousManifest` is left out: it describes what is replaced, which `target` and the record's `before` already name.

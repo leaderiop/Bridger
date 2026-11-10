@@ -44,7 +44,7 @@ export interface GreeterHandlers {
   greet(input: { name: string; locale?: string }, ctx: CallContext): Promise<{ text: string }>
 }
 export class GreeterNotFound extends ContractError<"NotFound", { name: string }> {}
-export function serve(handlers: GreeterHandlers): GuestEntry
+export function serve(handlers: GreeterHandlers, options?: { onUnexpected?: (method: string, thrown: unknown) => void }): GuestEntry
 ```
 
 Values are in their wire form: dates are strings, decimals are strings.
@@ -164,3 +164,5 @@ Change log: 2026-11-08, round 2 — section "If you ship a user interface" (sand
 Change log: 2026-11-09, independent review — "How your code is reached" and §3 no longer claim your code never runs in the host's process: it is never evaluated in the host's runtime, and may run in a worker thread of that process; first-party is the application's decision (CCR-KT-004).
 
 Change log: 2026-11-09, `ctx.claims` holds only the claims the product's link discloses, none by default; callbacks come from `requested.capabilities` and a request is not a grant; guest-shaped packages are never marked first-party (CCR-KT-004).
+
+Change log: 2026-11-10, audit round 3 — the generated `serve` signature shows its `options` (`onUnexpected`), as kit 05 declares and §2 uses (CCR-KT-006).

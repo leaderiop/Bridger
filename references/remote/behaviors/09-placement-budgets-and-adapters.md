@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-09                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): round 2 follow-up: `DedupeUnavailable` declared (BEH-RM-067) (CCR-RM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
+> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-RM-066 and BEH-RM-069: callback budget and placement checks at steps 4b and 4a of BEH-RM-043 (M14); BEH-RM-069: only `Remote.serve` decodes through `Remote.layer` and offers to the `CallLog`, `Guest.serve` decodes with its own key list, takes `options.placement` and logs refusals locally (M13); BEH-RM-067 and BEH-RM-070 read the `GuestTransport` profile (H8) (CCR-RM-006)<br>0.4 (2026-11-10): round 2 follow-up: `DedupeUnavailable` declared (BEH-RM-067) (CCR-RM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
 
 ---
 
@@ -144,8 +144,11 @@ REQUIREMENT: The link MUST call `charge` once per call with the usage the
 
 ```
 REQUIREMENT: Callbacks MUST be admitted against the same budget with the
-             token's subject before step 4 of BEH-RM-043; a refusal answers
-             the callback with `Refused`, reason "budget-exceeded".
+             token's subject at step 4b of BEH-RM-043, after the duplicate
+             check, so that a duplicate of an admitted callback is answered
+             from BEH-RM-048 and never admitted or refused again; a refusal
+             answers the callback with `Refused`, reason "budget-exceeded",
+             tag "RemoteBudgetExceeded" (06).
 ```
 
 **Settled here.** The budget's arithmetic — windows, quotas, what a CPU
@@ -180,10 +183,11 @@ class DedupeUnavailable extends Schema.TaggedError<DedupeUnavailable>()("DedupeU
 ```
 
 ```
-REQUIREMENT: On a transport with `liveness: "per-call"`, `Guest.serve` MUST
-             be given either a `DedupeStore` or the explicit value
-             "idempotent-handlers"; with neither, it MUST fail to start
-             with `GuestTransportError { reason: "no-dedupe" }`.
+REQUIREMENT: On a transport with `liveness: "per-call"` (the `profile` of
+             its `GuestTransport`, 07), `Guest.serve` MUST be given either
+             a `DedupeStore` or the explicit value "idempotent-handlers";
+             with neither, it MUST fail to start with
+             `GuestTransportError { reason: "no-dedupe" }`.
 ```
 
 ```
@@ -318,6 +322,7 @@ same policy; that composition is the application's.
 Placement.Residency    // Annotation.key<string>("placement/residency", {
                        //   schema: Schema.String, combine: (first, _) => first, monotonic: true,
                        //   flows: ["gate", "policy", "callLog", "audit", "wire"] })
+// Guest.serve options gain: placement?: PlacementPolicy   // default PlacementPolicy.exact (guest side only)
 ```
 
 ```
@@ -347,20 +352,30 @@ REQUIREMENT: Before sending each host-to-guest call, the link MUST also
 
 ```
 REQUIREMENT: `Guest.serve` and `Remote.serve` MUST decode
-             `Placement.Residency` (it is among the keys `Remote.layer`
-             declares) and, when the call carries a label, MUST evaluate the
-             `PlacementPolicy` with `subject.kind` "served", `required` the
-             label and `offered` the labels of their own `GuestTransport`
-             profile. A refusal MUST be answered with a `Refused` exit,
-             reason "placement-refused", before the payload is decoded and
-             before any lease, and offered to the `CallLog` as a "refusal"
-             entry with `refusal.reason` "placement-refused".
+             `Placement.Residency` and, when the call carries a label, MUST
+             evaluate a `PlacementPolicy` with `subject.kind` "served",
+             `required` the label and `offered` the labels of their own
+             `GuestTransport` profile (07, BEH-RM-049). A refusal MUST be
+             answered with a `Refused` exit, reason "placement-refused",
+             before the payload is decoded and before any lease.
+             `Remote.serve` decodes the key among those `Remote.layer`
+             declares, uses the policy `Remote.layer` provides, and offers
+             the refusal to the `CallLog` as a "refusal" entry with
+             `refusal.reason` "placement-refused" (06, BEH-RM-046).
+             `Guest.serve`, whose entry point depends on neither
+             `Remote.layer` nor `Bridger.Host` (05, BEH-RM-033), decodes
+             the key with its own key list, uses `options.placement`
+             (default `PlacementPolicy.exact`; both exported by
+             `@bridger/remote/guest`), and logs the refusal in the guest's
+             logger as BEH-RM-037 states; it offers nothing to a `CallLog`.
 ```
 
 ```
 REQUIREMENT: A label received in a callback's token MUST be checked the
              same way by the host against the profile of the link's
-             transport before step 4 of BEH-RM-043.
+             transport at step 4a of BEH-RM-043, after the duplicate check;
+             a refusal answers the callback with `Refused`, reason
+             "placement-refused", tag "PlacementRefused" (06).
 ```
 
 **Settled here.** Carrying the label as an annotation, not as a frame field,
@@ -405,7 +420,7 @@ GuestTransport.postMessage(options: {
 //   2. host checks event.source === frame.contentWindow and ready === the nonce it issued for this frame, then consumes it
 //   3. host → frame.contentWindow.postMessage({ bridger: "remote-postmessage/1", endpoint, nonce }, "*", [port2]) — once
 // in both modes every later frame travels on the MessagePort, never on window.postMessage
-// profile: { adapter: "@bridger/remote/postMessage", liveness: "heartbeat", ordered: true, reliable: true,
+// profile, both ends (`residency` each end's own option): { adapter: "@bridger/remote/postMessage", liveness: "heartbeat", ordered: true, reliable: true,
 //            isolationProvidedBy: "the browser's sandboxing of the frame, as configured by the consumer" }
 ```
 

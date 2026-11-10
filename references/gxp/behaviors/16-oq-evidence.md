@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-16                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -266,13 +266,14 @@ where the consumer records why that is acceptable for their store, if it is.
 // illustrative — not type-checked
 interface InstalledIdentity {
   readonly packages: readonly { readonly name: string; readonly version: string; readonly registryHash: string
-                                readonly filesDigest: string; readonly resolvedFrom: string }[]  // @bridger/core, @bridger/gxp, effect
+                                readonly filesDigest: string; readonly resolvedFrom: string }[]  // @bridger/core, @bridger/gxp, effect; @bridger/audit-chain with sealing on
 }
 ```
 
 ```
 REQUIREMENT: A runner output MUST be counted only when its run manifest
-             records, for `@bridger/core`, `@bridger/gxp` and `effect`, the
+             records, for `@bridger/core`, `@bridger/gxp` and `effect`, and
+             for `@bridger/audit-chain` when the assembly has sealing on, the
              same name, version, registry hash and installed-files digest as
              `installed`, and a resolved location inside an installed
              dependency directory, not a source tree or a workspace link.

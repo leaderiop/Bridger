@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): `forPrincipal` returns a `GenerationView`; followers read its `changes` feed (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-CM-019 prose: a pinned tool never runs a different definition (INV-CM-003); a command contributed again by another plugin with an identical descriptor runs without `ToolChanged`, since the owner is not in the digest (M12) (CCR-CM-006)<br>0.3 (2026-11-08): `forPrincipal` returns a `GenerationView`; followers read its `changes` feed (CCR-CM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-CM-001)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -177,9 +177,13 @@ The pin stabilises what was **shown**, not what exists: an agent turn sees one
 list from its first model call to its last, so the model is never offered a
 tool in one step that is gone or different in the next without an error that
 says so. A pinned tool whose plugin was removed mid-turn fails with a typed
-error; it never resolves to a different handler that happens to carry the
-same id. That is the property a turn needs — the model's choice is executed
-as described, or not at all.
+error; it never runs a different definition under the same id
+([INV-CM-003](../invariants.md#inv-cm-003-a-pinned-tool-never-runs-a-different-definition)).
+That is the property a turn needs — the model's choice is executed as
+described, or not at all. It is a property of the description, not of the
+code: the owner is not in the digest (BEH-CM-005), so the same id contributed
+again by another plugin with an identical descriptor runs that plugin's
+handler without `ToolChanged`.
 
 **Settled here.** A pin does not hold the command's contribution: holding
 every contribution of a toolset for the length of a turn would let a long

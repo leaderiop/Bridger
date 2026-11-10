@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-035                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-11-10): Mutation testing runs the acceptance scenarios against packed mutants, so the kill rule can count the OQ suite (C16) (CCR-BR-035)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -29,7 +29,7 @@ The precedent is specific. Qadi ADR-QD-016 records that its predecessor's IQ/OQ/
 - **Never hand-written or hardcoded results.** The evidence report is generated from the test runner's machine-readable output. A step whose result is fixed in code, or entered by hand, is not evidence.
 - **Traceable.** Each evidence item names the test, the requirement and behaviour IDs it covers (URS, BEH, INV), the result, the package version and commit, the environment, and the time (from `Clock`).
 - **Gaps are reported as gaps.** A requirement with no executing test is reported as *not covered*, never as passed. A skipped test is reported as skipped.
-- **Tests must be able to fail.** Mutation testing (NFR-BR-008) is the check that the suite's assertions detect changed behaviour; a test that survives every mutant of the code it covers is not counted as evidence for that code.
+- **Tests must be able to fail.** Mutation testing (NFR-BR-008) is the check that the suite's assertions detect changed behaviour; a test that survives every mutant of the code it covers is not counted as evidence for that code. The acceptance scenarios offered as OQ evidence import the installed package, so mutation testing runs them against each mutant built, packed and installed as the release is, and their kills are counted ([validation plan](../gxp/04-validation-plan.md) §5.2).
 - **Scope.** Bridger's evidence covers Bridger's specified behaviour. Performance qualification, and qualification of the user's sink, gate, store and integration, are the regulated user's.
 
 ## Alternatives considered
@@ -50,6 +50,7 @@ The precedent is specific. Qadi ADR-QD-016 records that its predecessor's IQ/OQ/
 
 - Building and maintaining the evidence generator is real work, and it must itself be tested so that it cannot report a pass the runner did not.
 - Behaviour that `TestHost` cannot reach deterministically (true parallelism, a real slow store) needs separate tests and may remain partially covered; that is reported, not hidden.
+- Running the acceptance scenarios against packed mutants makes a mutation run far slower than one on the source tree alone.
 - No evidence exists until code and tests exist ([ADR-BR-036](../decisions/036-prospective-specification.md)).
 
 **Trade-off accepted**: less evidence, all of it real, rather than a complete-looking package in which some passes are not tests.

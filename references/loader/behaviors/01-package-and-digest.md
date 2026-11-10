@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.5 (2026-11-09): The entry file and export named in the reserved key `extensions["@bridger/loader"]` of core's manifest (M-03); the stamped definition carries the signed manifest (M-02); `ManifestMismatch` renamed `PackageManifestMismatch`, which also covers `optional` (C-16) (CCR-LD-004)<br>0.4 (2026-11-08): Open question 2 answered by the data-pack kind of file 08 (round 2: recheck item 12) (CCR-LD-003)<br>0.3 (2026-11-08): A package manifest carries no `digest`; the lazy definition carries the package digest beside it (core BEH-BR-244) (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-LD-003: "sha256" is the only digest algorithm, since BEH-LD-002 fixes the construction to SHA-256; "sha512" withdrawn (low finding of SPEC-AUDIT-03) (CCR-LD-006)<br>0.5 (2026-11-09): The entry file and export named in the reserved key `extensions["@bridger/loader"]` of core's manifest (M-03); the stamped definition carries the signed manifest (M-02); `ManifestMismatch` renamed `PackageManifestMismatch`, which also covers `optional` (C-16) (CCR-LD-004)<br>0.4 (2026-11-08): Open question 2 answered by the data-pack kind of file 08 (round 2: recheck item 12) (CCR-LD-003)<br>0.3 (2026-11-08): A package manifest carries no `digest`; the lazy definition carries the package digest beside it (core BEH-BR-244) (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -163,7 +163,7 @@ loaders.
 
 ```ts
 // illustrative — not type-checked
-type DigestAlgorithm = "sha256" | "sha512"
+type DigestAlgorithm = "sha256"              // the only algorithm of the "bridger-package-v1" construction
 class UnsupportedDigestAlgorithm extends Schema.TaggedError<UnsupportedDigestAlgorithm>()("UnsupportedDigestAlgorithm", {
   algorithm: Schema.String
 }) {}
@@ -171,9 +171,10 @@ class UnsupportedDigestAlgorithm extends Schema.TaggedError<UnsupportedDigestAlg
 
 ```
 REQUIREMENT: Every digest string MUST carry its algorithm as a prefix
-             ("sha256:", "sha512:"). The loader MUST support "sha256" and
-             MAY support "sha512"; the same algorithm MUST be used for the
-             three sub-digests and the package digest of one package.
+             ("sha256:"). The loader MUST support "sha256" and MUST NOT
+             accept another algorithm in this revision: the construction of
+             BEH-LD-002 is fixed to SHA-256, and another algorithm needs a
+             new construction under a new domain string.
 ```
 
 ```

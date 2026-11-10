@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-15                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): IQ-23 added: the gate pieces "trail" and "chain" used as `expected.sections` declares, with their options recorded (BEH-GX-179); IQ-19 counts the timeouts of the pieces composed before the approval gate; deviation range IQ-01 to IQ-23 (H7, P18) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): `expected.sections.gatePieces`, checked by IQ-10, and IQ-23 records each of the consumer's gate pieces (M5); IQ-24 added: with sealing on, the installed `@bridger/audit-chain` identity matches the lockfile and its version lies in the compatibility row's audit-chain range (BEH-GX-117); deviation range IQ-01 to IQ-24 (M3) (CCR-GX-006)<br>0.3 (2026-11-10): IQ-23 added: the gate pieces "trail" and "chain" used as `expected.sections` declares, with their options recorded (BEH-GX-179); IQ-19 counts the timeouts of the pieces composed before the approval gate; deviation range IQ-01 to IQ-23 (H7, P18) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -92,7 +92,8 @@ declare function runInstallationChecks(
 | IQ-20 | The approval gate is attached to this host | companion | proof |
 | IQ-21 | The high-water recorder's `status` reports no consecutive failures; its `lastMarked` is recorded | companion | probe |
 | IQ-22 | Where `Host.controls.idGenerator` is "provided", a draw of `idDraw.count` values from each generator of `idDraw` finds no value repeated within or across them | core #8 (b) | probe |
-| IQ-23 | The host gate's pieces "trail" (`trailGate`) and "chain" (audit-chain's `ChainGate`) are used or "not-used" as `expected`; the options of each used piece are recorded | companion | proof |
+| IQ-23 | The host gate's pieces "trail" (`trailGate`) and "chain" (audit-chain's `ChainGate`) are used or "not-used" as `expected`; the options of each used piece, and the name and timeout of each of the consumer's `gatePieces`, are recorded | companion | proof |
+| IQ-24 | With sealing on, `@bridger/audit-chain` name, version and registry hash match the lockfile, and its version lies in the compatibility row's audit-chain range | companion | proof |
 
 ```
 REQUIREMENT: `runInstallationChecks` MUST produce exactly one result for each
@@ -176,7 +177,7 @@ REQUIREMENT: The items of the second table MUST always be listed with outcome
 ```
 
 ```
-REQUIREMENT: Every "fail", and every "not-executed" result of IQ-01 to IQ-23,
+REQUIREMENT: Every "fail", and every "not-executed" result of IQ-01 to IQ-24,
              MUST also be recorded as a deviation in the evidence pack
              (BEH-GX-133). A "not-applicable" result MUST NOT be recorded as
              a deviation, but its reason MUST be shown in every rendering.
@@ -245,7 +246,8 @@ interface InstallationRequirements {
   readonly fingerprintTimeout: Duration.Input
   readonly sections: { readonly anchors: "used" | "not-used"; readonly approvals: "used" | "not-used"
                        readonly fingerprints: "used" | "not-used"; readonly sealing: "on" | "off"
-                       readonly trailGate: "used" | "not-used"; readonly chainGate: "used" | "not-used" }   // IQ-23
+                       readonly trailGate: "used" | "not-used"; readonly chainGate: "used" | "not-used"   // IQ-23
+                       readonly gatePieces: "used" | "not-used" }                                          // IQ-10, IQ-23
 }
 ```
 
@@ -347,6 +349,17 @@ REQUIREMENT: IQ-09 MUST NOT consult a network service. A row not compiled
              into the installed package MUST NOT be used.
 ```
 
+```
+REQUIREMENT: IQ-24 MUST be "not-applicable", with the reason "sealing off",
+             when `expected.sections.sealing` is "off". Otherwise it MUST read
+             the installed `@bridger/audit-chain` `package.json` as resolved
+             from `packageRoot`, as IQ-01 does for core, and MUST pass only
+             when its name, version and registry hash match the `lockfile`
+             and its version lies in the audit-chain range of the compiled
+             compatibility row (BEH-GX-001). It MUST NOT consult a network
+             service, and the result MUST show the version as observed.
+```
+
 The pair of versions is the one fact on which every leveraged OQ result
 depends: a pack produced against core 1.4.2 says nothing about core 1.5.0.
 The companion already refuses to build outside its range (BEH-GX-007); IQ
@@ -362,8 +375,9 @@ the OQ evidence can be matched by version ([BEH-GX-126](./16-oq-evidence.md)).
 > **Regulatory:** supports EU GMP Annex 11 §4.4, §4.5; 21 CFR 11.10(d)
 
 ```
-REQUIREMENT: IQ-10 MUST fail when a section of `GxpLayer.make` is used where
-             `expected.sections` says "not-used" or the reverse; when the
+REQUIREMENT: IQ-10 MUST fail when a section of `GxpLayer.make`, `gatePieces`
+             included, is used where `expected.sections` says "not-used" or
+             the reverse; when the
              trail store's manifest has `commit: "in-memory"` (BEH-GX-016);
              or when the anchor store's `name` equals the trail store's or
              its `custodian` is blank (BEH-GX-047).
@@ -382,7 +396,9 @@ REQUIREMENT: IQ-23 MUST fail when the piece "trail" or "chain" of the host
              gate (BEH-GX-178) is used where `expected.sections` says
              "not-used" or the reverse, read from `options.gxp`. It MUST
              record, as `observed`, the `refuseOn` members and `allow` list
-             of a used `trailGate` and the options of a used `ChainGate`; for
+             of a used `trailGate`, the options of a used `ChainGate`, and
+             the `name` and `timeout` of each piece of a used `gatePieces`,
+             in order (BEH-GX-178); for
              a `trailGate` given "not-used" its result MUST carry the
              statement "Marked entries do not stop operator changes."
              (BEH-GX-179).
@@ -454,7 +470,7 @@ interface IqReport {
   readonly hostId: string
   readonly runAt: string                              // from Clock
   readonly controls: HostControls                     // the snapshot every core check was derived from
-  readonly results: readonly IqResult[]               // IQ-01 … IQ-23, then IQ-U1 … IQ-U10
+  readonly results: readonly IqResult[]               // IQ-01 … IQ-24, then IQ-U1 … IQ-U10
   readonly statement: string
 }
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-01                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-BR-003 rule (h) also rejects a `health.every` or `health.timeout` that is not a positive finite duration, rule (j) names the contract causes of 26, and the Settled note no longer claims a complete set, pointing to the manifest and `idle` causes of 27 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-08): BEH-BR-001 Settled: `Plugin.Any` re-checked against effect 4.0.0; host-core prototype finding G-P15 not adopted, with reason (CCR-BR-029)<br>0.5 (2026-11-08): BEH-BR-007 Settled: the distribution-layer reference points to behaviours 26 and 27 and the loader companion instead of docs/ERP-DISTRIBUTION.md (CCR-BR-027)<br>0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-11-10): BEH-BR-001 names `manifest` and `handoff` among the optional fields (audit round 3, Low); the note on `meta.digest` points to the exceptions of BEH-BR-104 (C4) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-003 rule (h) also rejects a `health.every` or `health.timeout` that is not a positive finite duration, rule (j) names the contract causes of 26, and the Settled note no longer claims a complete set, pointing to the manifest and `idle` causes of 27 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-08): BEH-BR-001 Settled: `Plugin.Any` re-checked against effect 4.0.0; host-core prototype finding G-P15 not adopted, with reason (CCR-BR-029)<br>0.5 (2026-11-08): BEH-BR-007 Settled: the distribution-layer reference points to behaviours 26 and 27 and the loader companion instead of docs/ERP-DISTRIBUTION.md (CCR-BR-027)<br>0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -100,8 +100,9 @@ Activation](./27-manifest-and-lazy-activation.md), BEH-BR-244).
 ```
 REQUIREMENT: A plugin MUST be described by a `PluginDefinition` carrying
              `id`, `requires`, `provides` and `build`. The fields `config`,
-             `volatile`, `optional`, `meta` and `health` are optional and are
-             specified in the behaviour files named beside them above.
+             `volatile`, `optional`, `meta`, `health`, `manifest` and
+             `handoff` are optional and are specified in the behaviour files
+             named beside them above.
 ```
 
 ```
@@ -451,9 +452,10 @@ it and does not know where it gets its code. The loader companion
 verify packages before evaluation.
 
 The core performs no integrity check on loaded code. `meta.digest` is opaque
-to it except for `reconcile`'s comparison ([18 — Reconciliation and
-Confluence](./18-reconciliation-and-confluence.md)); the core neither computes
-nor verifies it. Verifying what was loaded — signature, digest, provenance —
+to it except where [11 — Configuration](./11-configuration.md), BEH-BR-104,
+names an exception — `reconcile`'s comparison, a plan and its `expect`, the
+manifest and lazy-load checks, and the `RefusalList` subject — each of which
+compares the label as given; the core neither computes nor verifies it. Verifying what was loaded — signature, digest, provenance —
 is the loader companion's and the consumer's responsibility (RSK-BR-017), and
 nothing in this specification should be read as Bridger performing it.
 

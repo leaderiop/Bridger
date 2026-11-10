@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-09                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-069 `ProposedRequest` carries the request fields binding version 2 digests (`definition.manifest`, `onBehalfOf`, `undo`, `allowChildren`, `mandatoryInterceptions`); BEH-GX-067 a late or surplus `signed` event is refused by the companion before appending, the store enforcing the version only (H5, low); follow-up: `TicketWriteFailed`, `TicketReadFailed`, `TicketVersionConflict`, `IssueRefused`, `RevokeRefused` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-065 a field the request carries is bound as carried, an empty array or object included (`mandatoryInterceptions: []`, `definition: {}`), "absent" only for fields it does not carry, `requestOnly` present exactly when one of its fields is; binding version 2 is unreleased, so `v` stays 2 (H7); BEH-GX-066 fifth vector, a version 2 binding with `definition: {}` and `mandatoryInterceptions: []` (H7); BEH-GX-072 rationale states what an atomic reconcile does on a refused entry (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-069 `ProposedRequest` carries the request fields binding version 2 digests (`definition.manifest`, `onBehalfOf`, `undo`, `allowChildren`, `mandatoryInterceptions`); BEH-GX-067 a late or surplus `signed` event is refused by the companion before appending, the store enforcing the version only (H5, low); follow-up: `TicketWriteFailed`, `TicketReadFailed`, `TicketVersionConflict`, `IssueRefused`, `RevokeRefused` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -100,8 +100,14 @@ REQUIREMENT: A binding MUST contain exactly the fields that apply to the
              request's `definition` will carry a `manifest`, and
              `allowChildren` and `mandatoryInterceptions` whenever the request
              will carry them; and `reason` exactly when the governing rule has
-             `bindReason`. A field that does not apply MUST be absent, never
-             `null` or empty. The request's gate-flow `annotations` and its
+             `bindReason`. A field the request will not carry MUST be absent,
+             never `null`. A field the request will carry MUST be bound as
+             the request carries it, an empty array or object included
+             (`mandatoryInterceptions: []`, a `definition` that declares no
+             version or digest as `definition: {}`): "absent" applies only to
+             fields the request does not carry. `requestOnly`, which no single
+             request field corresponds to, MUST be present exactly when at
+             least one of its fields is. The request's gate-flow `annotations` and its
              `previousManifest` MUST NOT be bound (ADR-GX-012).
 ```
 
@@ -145,7 +151,7 @@ REQUIREMENT: The companion's test suite MUST include the vectors below, each
              specification checker MUST recompute them (check 17), and a
              vector MUST NOT be changed except with a new binding version `v`.
              The three vectors of binding version 1 stay as canonical-form
-             vectors; the fourth is a version 2 binding.
+             vectors; the fourth and fifth are version 2 bindings.
 ```
 
 The vectors cover a bound `install` with a definition digest and a
@@ -153,7 +159,10 @@ fingerprint, a `reconfigure` whose identifiers and reason contain non-ASCII
 characters, a quotation mark, a backslash, U+2028 and a control character,
 an `acknowledgeAuditDegraded` with no target, and a version 2 `replace` made
 from plugin code as an undo action, with a bound manifest digest, children
-refused and one mandatory interception. Each block is one JSON
+refused and one mandatory interception, and a version 2 `restart` of a
+plugin whose definition declares no version or digest, with children allowed
+and no mandatory interception, bound as the request carries them
+(`definition: {}`, `mandatoryInterceptions: []`). Each block is one JSON
 object; `canonical` is the exact canonical text and `sha256` the hexadecimal
 digest without the "sha256:" prefix.
 
@@ -171,6 +180,10 @@ digest without the "sha256:" prefix.
 
 ```vector
 {"input": {"v": 2, "scope": "lims-prod", "operation": "replace", "target": {"id": "sample-registry", "realm": "default"}, "definition": {"version": "2.5.0", "digest": "sha256:4d7a1c9e0b3f5a2c8e6d4b0a9f1e3c5d7b9a1f3e5c7d9b1a3f5e7c9d1b3a5f7e"}, "requester": {"id": "u:jrivera", "kind": "user"}, "onBehalfOf": {"id": "plugin:batch-scheduler", "realm": "default", "version": "1.4.2"}, "undo": true, "requestOnly": {"manifestDigest": "sha256:0c1e3a5f7b9d2c4e6a8f0b1d3c5e7a9f2b4d6c8e0a1f3b5d7c9e2a4f6b8d0c1e", "allowChildren": false, "mandatoryInterceptions": [{"serviceId": "lims.audit-tap", "id": "tap-1"}]}, "reason": "CC-2026-131: roll back registry 2.5.0"}, "canonical": "{\"definition\":{\"digest\":\"sha256:4d7a1c9e0b3f5a2c8e6d4b0a9f1e3c5d7b9a1f3e5c7d9b1a3f5e7c9d1b3a5f7e\",\"version\":\"2.5.0\"},\"onBehalfOf\":{\"id\":\"plugin:batch-scheduler\",\"realm\":\"default\",\"version\":\"1.4.2\"},\"operation\":\"replace\",\"reason\":\"CC-2026-131: roll back registry 2.5.0\",\"requestOnly\":{\"allowChildren\":false,\"mandatoryInterceptions\":[{\"id\":\"tap-1\",\"serviceId\":\"lims.audit-tap\"}],\"manifestDigest\":\"sha256:0c1e3a5f7b9d2c4e6a8f0b1d3c5e7a9f2b4d6c8e0a1f3b5d7c9e2a4f6b8d0c1e\"},\"requester\":{\"id\":\"u:jrivera\",\"kind\":\"user\"},\"scope\":\"lims-prod\",\"target\":{\"id\":\"sample-registry\",\"realm\":\"default\"},\"undo\":true,\"v\":2}", "sha256": "8cffefdb774aed048e6855ff7e040323ae9b398933c203ba2758471b72773769"}
+```
+
+```vector
+{"input": {"v": 2, "scope": "lims-prod", "operation": "restart", "target": {"id": "label-printer", "realm": "default"}, "definition": {}, "requester": {"id": "u:okafor", "kind": "user"}, "requestOnly": {"allowChildren": true, "mandatoryInterceptions": []}}, "canonical": "{\"definition\":{},\"operation\":\"restart\",\"requestOnly\":{\"allowChildren\":true,\"mandatoryInterceptions\":[]},\"requester\":{\"id\":\"u:okafor\",\"kind\":\"user\"},\"scope\":\"lims-prod\",\"target\":{\"id\":\"label-printer\",\"realm\":\"default\"},\"v\":2}", "sha256": "7adbf7d0977b108d500b3619177858fcb6689739e7c6e5504b127528cf7e2a60"}
 ```
 
 The second vector is the one most implementations get wrong: RFC 8785
@@ -539,7 +552,13 @@ reconcile whose diff turned out different from the one approved is refused
 entry by entry, not as a whole: the entries that match go ahead under their
 approvals, those that do not are refused and recorded as `rejected`, and the
 open bindings stay visible in the ticket store, where `checkApprovals`
-reports them ([RSK-GX-022](../gxp/03-risk-assessment.md#rsk-gx-022)).
+reports them ([RSK-GX-022](../gxp/03-risk-assessment.md#rsk-gx-022)). An atomic reconcile (`atomic: true`) is
+the exception on core's side: the first refused entry stops the apply, which
+core reports in `failed` of `ApplyRolledBack` or `PartialApply`
+([BEH-BR-222](../../core/behaviors/25-operation-gate.md)); the bindings consumed before it stay consumed, the entries
+after it are never submitted, and their bindings stay open. Each undo action
+core then runs is gated as its own request with `undo: true` and needs a
+binding of its own.
 
 ---
 

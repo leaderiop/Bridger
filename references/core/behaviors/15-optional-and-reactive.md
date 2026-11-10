@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-15                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-09): BEH-BR-130 a key is declared for the optional members only when listed in `optional`; BEH-BR-132 `whenAvailable` with an undeclared key never runs and warns once (U-13); BEH-BR-134 a failing `wrap` fails the run under `onFailure` (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-BR-136 a `whenAvailable` run carries no plugin in `CurrentTransition` (H1) (CCR-BR-035)<br>0.4 (2026-11-09): BEH-BR-130 a key is declared for the optional members only when listed in `optional`; BEH-BR-132 `whenAvailable` with an undeclared key never runs and warns once (U-13); BEH-BR-134 a failing `wrap` fails the run under `onFailure` (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -322,8 +322,9 @@ REQUIREMENT: Fibers running a `useOptional` callback or a `whenAvailable` run
              `@bridger/core/HeldPlugins`, so that the `WouldDeadlock` rules
              of behaviour 09 apply to them. A `whenAvailable` run is forked
              into the activation scope, so it MUST carry only the leases it
-             holds, not the ID of the plugin whose build registered it
-             (09 — Leases, BEH-BR-088).
+             holds in `HeldPlugins` and no plugin in
+             `@bridger/core/CurrentTransition`, not the ID of the plugin
+             whose build registered it (09 — Leases, BEH-BR-088).
 ```
 
 ```

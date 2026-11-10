@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-029                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-09): Initial draft (supersedes ADR-GX-009) (CCR-GX-002) |
+> | Change History | 0.2 (2026-11-10): the sink is built with `SealingOptions.keyed` passed as `HashChainOptions.keyed`, as BEH-GX-170 requires (M19) (CCR-GX-006)<br>0.1 (2026-11-09): Initial draft (supersedes ADR-GX-009) (CCR-GX-002) |
 
 ---
 
@@ -25,7 +25,7 @@ The companion's own chain also had a defect the specification audit of 2026-11-0
 ## Decision
 
 - **Adopt.** `@bridger/audit-chain` is the companion's only sealing mechanism. The companion specifies no chain, envelope, seal format, anchoring schedule or chain verifier of its own. ADR-GX-009, INV-GX-013 and BEH-GX-049–056 are withdrawn and their identifiers reserved.
-- **The trail store is the inner store.** With sealing on, `trailSink` is `HashChainSink.make(trailChainStore(store), options.chain)`; `trailChainStore` performs the companion's sink steps on the record and stores audit-chain's link beside it in `TrailEntry.link` ([BEH-GX-170](../behaviors/21-sealing-through-audit-chain.md)).
+- **The trail store is the inner store.** With sealing on, `trailSink` is `HashChainSink.make(trailChainStore(store), { ...options.chain, keyed: options.keyed })` (BEH-GX-170); `trailChainStore` performs the companion's sink steps on the record and stores audit-chain's link beside it in `TrailEntry.link` ([BEH-GX-170](../behaviors/21-sealing-through-audit-chain.md)).
 - **Verification wraps audit-chain's.** `verifySeals` confirms receipts and calls `verifyChain`, passing the companion's high-water marks as expected heads, and maps every item of the `ChainReport` to one finding, attaching the report unchanged ([BEH-GX-171](../behaviors/21-sealing-through-audit-chain.md)).
 - **Anchoring and its gate are audit-chain's.** Audit-chain's `Anchor` and `ReceiptStore` ports hold the chain's anchors; the companion's `AnchorStore` holds high-water marks only ([ADR-GX-008](./008-high-water-anchors.md)). Fail-closed anchoring is audit-chain's `ChainGate`, composed into the companion's host gate ([BEH-GX-175](../behaviors/21-sealing-through-audit-chain.md)).
 - **Optional peer dependency.** `@bridger/audit-chain` is imported only by the entry `@bridger/gxp/sealing` ([BEH-GX-001](../behaviors/01-companion-boundary.md)); a consumer who does not seal does not install it.

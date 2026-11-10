@@ -45,7 +45,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### UnknownRealm
 
-*error* · origin: core · raised by: `install`, `replace`, `use`, `useAll`, `lease`
+*error* · origin: core · raised by: `install`, `replace`, `use`, `useAll`, `lease`, `wake`
 
 - **Cause.** The realm was never defined.
 - **Example.** `host.install(repo, { realm: "tenant-a" })` before `defineRealm("tenant-a", …)`.
@@ -117,11 +117,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### WouldDeadlock
 
-*error* · origin: core · raised by: stopping operations, `retry`, `enable`, `awaitIdle`; `shutdown` from a plugin's own fibers
+*error* · origin: core · raised by: stopping operations, `retry`, `enable`, `awaitIdle`; `shutdown` from a build, `load` or finalizer fiber (BEH-BR-105)
 
 - **Cause.** The call would wait for something its own lease or transition blocks (ADR-BR-016). A `shutdown` called from a fiber running a plugin's `build` or `load`, or a finalizer of its activation scope (or a fiber such a fiber awaits), fails at once naming that plugin, begins nothing and writes no record (BEH-BR-105).
 - **Example.** Inside `host.use(Logger, …)`, the callback calls `host.remove("example/logger")`.
-- **Fix.** Do not stop your own provider from inside a call to it; fork the operation outside the lease. Call `shutdown` from the application, never from a plugin's build, `load` or finalizer.
+- **Fix.** Do not stop your own provider from inside a call to it; a fiber forked from the call carries its lease too (BEH-BR-088). Run the operation from a fiber that holds no lease on that plugin — the application's, or `Plugin.Runtime.background` of another plugin. Call `shutdown` from the application, never from a plugin's build, `load` or finalizer.
 
 ### IdleTimeout
 
@@ -810,9 +810,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: loader/01 · raised by: digest check
 
-- **Cause.** The digest names an algorithm the loader does not accept.
-- **Example.** A package digested with an unknown algorithm.
-- **Fix.** Repack with a supported algorithm.
+- **Cause.** The digest names an algorithm the loader does not accept; only SHA-256 is accepted.
+- **Example.** A package digested with SHA-512.
+- **Fix.** Repack with a SHA-256 digest.
 
 ### DigestMismatch
 
@@ -920,7 +920,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### EntitlementUnavailable
 
-*port-error* · origin: entitlement/01 · raised by: `Entitlement` port
+*port-error* · origin: entitlement/01 · raised by: the application's `EntitlementAdapter` (`check`, `watch`), served by the `Entitlement` service
 
 - **Cause.** The entitlement service could not answer (`pluginId`, `message`); handled by the configured unavailability policy.
 - **Example.** The licence server is down.
@@ -962,9 +962,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: remote/06 · raised by: guest callbacks
 
-- **Cause.** The callback was refused at the host boundary (`link`, `contract`, `method`, `reason`: not-granted, local-contract, invocation-ended, or the admission's reason); nothing was resolved.
+- **Cause.** The callback was refused at the host boundary (`link`, `contract`, `method`, `reason`: not-granted, local-contract, invocation-ended, call-log-unavailable, or the admission's reason); for every reason but call-log-unavailable nothing was resolved; with call-log-unavailable the host service ran and its result was withheld because the call log could not record it (BEH-RM-046).
 - **Example.** A guest calls back a contract its call token does not grant.
-- **Fix.** Make the callback within the call, or ask the integrator for a grant or an admission rule that covers it.
+- **Fix.** Make the callback within the call, or ask the integrator for a grant or an admission rule that covers it; for call-log-unavailable, restore the call log, and do not retry a non-idempotent callback without checking whether its effect happened.
 
 ### MethodNotServed
 
@@ -1208,11 +1208,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### SessionNotFound
 
-*error* · origin: agent/01 · raised by: `SessionStore.read`, `AgentLoop.start`
+*error* · origin: agent/01 · raised by: `SessionStore.read`
 
 - **Cause.** No session with this id in the store (`sessionId`).
 - **Example.** Resuming `s-1` after the in-memory test store was discarded.
-- **Fix.** Start a new session or check the id.
+- **Fix.** Check the id; `AgentLoop.start` with an unknown id starts a new session (BEH-AG-004).
 
 ### StoreError
 
@@ -1296,11 +1296,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### ScriptMismatch
 
-*error* · origin: agent/05 · raised by: agent test script
+*error* · origin: agent/05 · raised by: recorded by `ScriptedModel` and `ReplayModel`, never raised (the call fails with `ModelError { kind: "other" }`)
 
-- **Cause.** A scripted model step did not match (`step`, `reason`: expect-failed, script-exhausted).
+- **Cause.** A scripted model step or a replayed request did not match (`step`, `reason`: expect-failed, script-exhausted). The `generate` call fails with `ModelError { kind: "other" }` naming the step, and the mismatch is recorded for the test to read (BEH-AG-033, BEH-AG-034).
 - **Example.** The agent called a tool the script did not expect.
-- **Fix.** Fix the agent or the script.
+- **Fix.** Read the recorded mismatch in the test; fix the agent, the script or the transcript.
 
 ### UnreachableViolation
 
@@ -1528,9 +1528,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### OutboxFrozen
 
-*error* · origin: event-delivery/06 (BEH-DB-048) · raised by: `publish`; every event-store write (`Stream.append`, `Aggregate.handle`, `run`, `record`, `recordFact`, the handlers of `receive` and `receiveVerbatim`)
+*error* · origin: event-delivery/06 (BEH-DB-048) · raised by: `publish`, `DurableBus.fence(tx)`; every event-store write (`Stream.append`, `Aggregate.handle`, `run`, `record`, `recordFact`, the handlers of `receive` and `receiveVerbatim`)
 
-- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`); nothing is written and the caller's transaction fails with it. Event-store writes fail with it whether or not their types are published. While the raised incarnation cannot be recorded, it persists after the scope closes (`origin-unrecorded`).
+- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`), or while the raised incarnation is not yet recorded; `DurableBus.fence(tx)` checks this inside the write transaction; nothing is written and the caller's transaction fails with it. Event-store writes fail with it whether or not their types are published. While the raised incarnation cannot be recorded, it persists after the scope closes (`origin-unrecorded`).
 - **Example.** A terminal records a sale while it installs a fresh snapshot from the hub.
 - **Fix.** Retry the write after the re-bootstrap ends; on `origin-unrecorded`, restore the store so the raised incarnation can be recorded.
 
@@ -1572,9 +1572,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: event-delivery/01 · raised by: reading envelopes
 
-- **Cause.** The codec can no longer read the payload (for example its key was destroyed); the envelope is parked for that subscription and the stream is not halted.
+- **Cause.** The codec can no longer read the payload: with the keyring's field codec, an `Encrypted` form whose key is absent from the key store without a tombstone (a shredded subject decodes as a `Shredded` marker instead, and a key store that cannot be read gives `PayloadDecodeFailed`; keyring BEH-KR-012). Handled under the subscription's `onUnreadable`: "park", the default, parks the envelope for that subscription and the stream goes on; "halt" stops that (origin, stream) until `resume` (BEH-DB-008, BEH-DB-021).
 - **Example.** An envelope whose every encrypted field's key is gone without a tombstone.
-- **Fix.** Expected after a deliberate key destruction; otherwise restore the key store.
+- **Fix.** Not expected after a shred: find why the key is gone without a tombstone and restore it from the key store's backup; then `unpark` the envelope or `resume` the stream.
 
 ### WrongExpectedVersion
 
@@ -1690,17 +1690,17 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### KeyStoreUnavailable
 
-*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, `rotate`, `rewrap`, `shred`; the `KeyStore` port's methods, `wrappedUnder` and `replaceWrapped` included
+*error* · origin: keyring/01 · raised by: `Keyring.key`, `encrypt`, `decrypt`, `rotate`, `rewrap`, `shred`; the `KeyStore` port's methods, `wrappedUnder` and `replaceWrapped` included; the `KeyWrapper` port (`kekId`, `wrap`, `unwrap`, `rewrap`)
 
-- **Cause.** The application's key store could not be reached (`message`).
+- **Cause.** The application's key store or key wrapper could not be used (`message`). On a host receiving a shred notice, it halts the keyring's applying subscription; the notice is applied when the plugin starts again or `DurableBus.resume` is called (BEH-KR-020).
 - **Example.** The key vault is down.
-- **Fix.** Restore the key store; nothing was encrypted or destroyed. A `rewrap` that failed keeps the versions it already replaced, and running `rewrap(kekId)` again completes the rest (BEH-KR-006).
+- **Fix.** Restore the key store or wrapper; nothing was encrypted or destroyed. A `rewrap` that failed on the key store keeps the versions it already replaced, and running `rewrap(kekId)` again completes the rest; a wrapper failure for one version does not fail `rewrap`, which lists that version in `RewrapReport.failed` (BEH-KR-005, BEH-KR-006).
 
 ### WrappedKeyChanged
 
 *port-error* · origin: keyring/01 (BEH-KR-004) · raised by: `KeyStore.replaceWrapped`
 
-- **Cause.** The compare-and-set found the version's stored wrapped key no longer equal to `expected`, or the version absent (`subject`, `version`); nothing was changed. `Keyring.rewrap` skips that version and lists again (BEH-KR-006), so its caller never sees this tag.
+- **Cause.** The compare-and-set found the version's stored wrapped key no longer equal to `expected`, or the version absent (`subject`, `version`); nothing was changed. `Keyring.rewrap` skips that version (BEH-KR-006), so its caller never sees this tag.
 - **Example.** `rewrap("kek-2024")` reads a version with `wrappedUnder("kek-2024")` while a concurrent `rewrap` replaces the same version first; its own `replaceWrapped(subject, version, expected, next)` fails with `WrappedKeyChanged { subject, version }` and the version is skipped (BEH-KR-004, BEH-KR-006).
 - **Fix.** None for `rewrap`. A `KeyStore` adapter must make the comparison and the replacement one atomic step, checking the tombstone in it too (`KeyShredded` for a tombstoned subject).
 
@@ -1716,7 +1716,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: keyring/03 (BEH-KR-017, BEH-KR-020) · raised by: `Keyring.shred`; the keyring's handler of a received shred notice
 
-- **Cause.** The shred's resolved actor is `Actor.unattributed`, `Actor.system`, a "bridger:" actor or blank (`subject`); nothing is written, whatever core's `attribution.require` says. A received notice whose actor would be refused, or whose `reason` is blank, is neither applied nor acknowledged and is parked (BEH-KR-020).
+- **Cause.** The shred's resolved actor is `Actor.unattributed`, `Actor.system`, a "bridger:" actor or blank (`subject`); nothing is written, whatever core's `attribution.require` says. A received notice whose actor would be refused, or whose `reason` is blank, is neither applied nor acknowledged and is parked by the keyring's refusal subscription; no other notice is parked (BEH-KR-020).
 - **Example.** A shred run from a background job with no actor.
 - **Fix.** Run the shred under an attributed actor; for a parked notice, shred again at its origin under an attributed actor with a reason.
 
@@ -1756,7 +1756,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: gxp/01 (BEH-GX-004) · raised by: `GxpLayer.make`; `approvalGate`, `hmacFingerprinter`, `trailGate`, `recordHighWater`
 
-- **Cause.** The options are refused (`section`, and a `message` naming the section and member, never a value): a port value lacks a method; a blank `scope`; an invalid approval policy (BEH-GX-064); a `requireFingerprints` rule with `fingerprints` "not-used" or no eligibility entry; an invalid eligibility list; a high-water `schedule` outside 1 second to 1 hour; a `trailGate` refusing on nothing; or `trail.sealing.gate` configured while `anchoring` is "unanchored" (BEH-GX-175).
+- **Cause.** The options are refused (`section`, and a `message` naming the section and member, never a value): a port value lacks a method; a blank `scope`; an invalid approval policy (BEH-GX-064); a `requireFingerprints` rule with `fingerprints` "not-used" or no eligibility entry; an invalid eligibility list; a high-water `schedule` outside 1 second to 1 hour; a `trailGate` refusing on nothing; `trail.sealing.gate` configured while `anchoring` is "unanchored" (BEH-GX-175); or, in section "gatePieces", a piece with a blank `name`, a `name` equal to another piece's or to "trail", "chain" or "approval", or a `timeout` that is not a finite duration (BEH-GX-178).
 - **Example.** `GxpLayer.make({ scope: "", … })` fails with `GxpLayerInvalid { section: "scope", message }` (BEH-GX-004).
 - **Fix.** Correct the section and member the message names; give a section that is not used as "not-used".
 
@@ -2081,3 +2081,5 @@ Change log: 2026-11-08, round-2 integration — entries `OutboxFrozen` and `Inca
 Change log: 2026-11-09, audit — the loader's `ManifestMismatch` renamed `PackageManifestMismatch`; entries `NotFirstParty`, `GuestEntryInvalid` (CCR-KT-004), `DraftWithdrawalFailed` (CCR-AG-004) and `InvalidRealm` (core's CCR-BR-032, entry under CCR-KT-004); entries `CommitConflict` (CCR-DB-004), `SupersessionPending` (CCR-SQ-003) and `ShredUnattributed` (CCR-KR-003), `NotOwner` aligned and `CommandRefused` admission refusals and `receiptPartition` failures (CCR-CM-004), entries under CCR-KT-004; entries `SnapshotFailed`, `MalformedBatch`, `UnknownEnvelopeFormat`, `EvolveFailed`, `UpcasterRemoved` and `LedgerUnavailable`, missing before this audit (CCR-KT-004); `InvalidDefinition` raised by `enable` and as a phase "load" cause, entry `LocalContractRefused` and `CallbackDenied` reason "local-contract" (core CCR-BR-033, entries under CCR-KT-004).
 
 Change log: 2026-11-10, audit round 2 — catalog completed (H11): entries for the 27 GxP companion tags, audit-chain `AnchorUnconfirmed`, mcp `PlanAffectsCaller`, agent `UnreachableViolation`, loader `SignatureInvalid` and `RevocationStoreFailed`, remote `GuestTransportError` and `DedupeUnavailable`, federation `ResolveFailed`, `DialFailed` and `ListenFailed`, and core's record-only handoff loss tags; `DependencyCycle`, `HostClosed`, `WouldDeadlock`, `NoImplementation`, `PlanStale`, `ApplyRolledBack`, `KeyedHashFailed`, `BundleExportFailed`, `EntitlementConfigError`, `RebootstrapBlocked`, `OutboxFrozen`, `IncarnationUnavailable`, `PayloadDecodeFailed`, `KeyShredded`, `KeyStoreUnavailable`, `SubjectInvalid` and `ShredUnattributed` updated (CCR-BR-034; kit entries under CCR-KT-005). Follow-up the same day: the Example lines of those 44 entries rewritten from placeholders into the calls and situations their defining behaviours describe, with the errors' declared fields; Fix lines aligned with the specification's stated remedy (the handoff loss tags — an import failure fails the activation rather than starting cold — `DialFailed`, `ListenFailed`, `ResolveFailed`, `SignatureInvalid`, `RevocationStoreFailed`, `UnreachableViolation`, `DedupeUnavailable`, `TrailWriteFailed`, `TicketWriteFailed`, `TicketVersionConflict`, `SignatureDeclined`, `FingerprintMalformed`, `RunnerOutputUnreadable`); GxP causes name the fields declared since; entry `WrappedKeyChanged`; `KeyShredded` and `KeyStoreUnavailable` raised by the `KeyStore` port; `GuestTransportError` cause names the fields remote declares (`reason` "accept-failed" or "no-dedupe", `message`; remote CCR-RM-005) (CCR-BR-034; kit entries under CCR-KT-005).
+
+Change log: 2026-11-10, audit round 3 — no tag added or removed; entries aligned with the round's fixes: `UnknownRealm` raised by `wake`; `EntitlementUnavailable` raised by the application's `EntitlementAdapter`; `PayloadUnreadable` handled under `onUnreadable` and not expected after a shred (a shredded subject decodes as `Shredded`); `KeyStoreUnavailable` covers the `KeyWrapper` port and the halted shred-notice subscription; `WrappedKeyChanged` (`rewrap` lists once) and `ShredUnattributed` (parked by the refusal subscription only); `SessionNotFound` (BEH-AG-004), `ScriptMismatch` (`ReplayModel`), `UnsupportedDigestAlgorithm` (SHA-256 only); `CallbackDenied` reason "call-log-unavailable", for which the host service ran and its result was withheld (remote BEH-RM-046); `OutboxFrozen` raised by `DurableBus.fence(tx)` and while the raised incarnation is not yet recorded (durable-bus BEH-DB-048); `GxpLayerInvalid` section "gatePieces" (BEH-GX-178); `WouldDeadlock` for `shutdown` from a build, `load` or finalizer fiber, and its fix no longer advises forking, since a forked fiber carries the lease (BEH-BR-088); `ScriptMismatch` is recorded, never raised (CCR-KT-006).

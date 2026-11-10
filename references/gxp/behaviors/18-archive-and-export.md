@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-18                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does; follow-up: BEH-GX-140 passes `expectKeyed` with `keyed`, as `verifySeals` does (BEH-GX-171); follow-up: `ExportFailed`, `ArchiveUnreadable` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-140 `readArchive` returns the bundle's chain reports as `chain`; `expectKeyed: true` only with `keyed`; `keyed` takes a pure or an effectful MAC, the latter through audit-chain's `precomputeMacs`, and each series' `ChainReport` of `BundleReport.chain` is mapped (audit-chain CCR-AC-006 follow-up); a range archive starting above `auditSeq` 1 maps no chain-derived finding but `anchorUnconfirmed` and lists the others as not checked, since audit-chain verifies links and anchors from `auditSeq` 1; seal verification of an archive needs a range from 1 (M2) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does; follow-up: BEH-GX-140 passes `expectKeyed` with `keyed`, as `verifySeals` does (BEH-GX-171); follow-up: `ExportFailed`, `ArchiveUnreadable` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -230,9 +230,12 @@ declare function readArchive(dir: string, options?: {
   readonly pageSize?: number                           // default 1000, as checkStoredTrail (BEH-GX-035)
   readonly maxOpenRequests?: number                    // default 100000, as checkStoredTrail
   readonly maxEntries?: number                         // default 1,000,000, as verifySeals (BEH-GX-171)
-  readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined   // for keyed links; passed to verifyBundle as options.keyed, with options.expectKeyed true (BEH-GX-171)
+  readonly keyed?:                                     // for keyed links, in either form verifySeals takes (BEH-GX-171)
+    | ((keyId: string, input: Uint8Array) => Uint8Array | undefined)
+    | { readonly mac: (keyId: string, input: Uint8Array) => Effect.Effect<Uint8Array, KeyedHashFailed> }
 }): Effect.Effect<{ readonly manifest: ArchiveManifest; readonly files: readonly FileCheck[]
-                    readonly report: CheckReport; readonly links?: ApprovalLinkReport },
+                    readonly report: CheckReport; readonly links?: ApprovalLinkReport
+                    readonly chain?: Readonly<Record<string, ChainReport>> },   // BundleReport.chain, unchanged; present exactly when chain-bundle.json is
                   ArchiveUnreadable | CheckCapacityExceeded>
 
 class ArchiveUnreadable extends Schema.TaggedError<ArchiveUnreadable>()("ArchiveUnreadable", {
@@ -247,11 +250,18 @@ REQUIREMENT: `readArchive` MUST recompute the digest of every file and
              entries from `trail.jsonl` and `seals.jsonl` — `canonical` from
              the line's bytes, `record` by parsing them — and run
              `checkTrailEntries` (BEH-GX-034) bounded by the `requested`
-             range, audit-chain's `verifyBundle`
-             over `chain-bundle.json` when present (BEH-AC-034, mapped as
-             BEH-GX-171 maps a chain report), the
-             high-water comparison (BEH-GX-045) and, with `scope` and
-             `policy`, `linkApprovals` over the archived tickets (BEH-GX-087).
+             range; audit-chain's `verifyBundle` over `chain-bundle.json`
+             when present (BEH-AC-034), with `keyed`, when given, as
+             `options.keyed` — itself when it is a function, else the
+             function audit-chain's `precomputeMacs` returns over the
+             bundle's segment entries — and, when `keyed` is given,
+             `expectKeyed: true`; the high-water comparison (BEH-GX-045);
+             and, with `scope` and `policy`, `linkApprovals` over the
+             archived tickets (BEH-GX-087). It MUST map each series'
+             `ChainReport` in `BundleReport.chain` as BEH-GX-171 maps a chain
+             report (an archive's bundle holds one series, the manifest's
+             `hostId`) and return `BundleReport.chain` unchanged as `chain`,
+             present exactly when `chain-bundle.json` is.
 ```
 
 ```
@@ -264,6 +274,22 @@ REQUIREMENT: When `chain-bundle.json` is present, `readArchive` MUST compare
              `bundleMismatch` finding. Receipts `verifyBundle` reports
              "not-checked" or "failed" MUST be reported as
              `anchorUnconfirmed`, as BEH-GX-171 reports unconfirmed receipts.
+```
+
+```
+REQUIREMENT: Audit-chain counts `linksCheckedThrough` and `verifiedThrough`
+             from `auditSeq` 1 (BEH-AC-018, BEH-AC-019), so over a bundle
+             whose segment starts above 1 it checks no link and confirms no
+             anchor. When the manifest's `requested` range has a `fromSeq`
+             above 1, `readArchive` MUST still run `verifyBundle`, the
+             comparison above and the mapping of `anchorUnconfirmed`, and
+             attach the chain reports unchanged, but MUST NOT map their other
+             items into findings and MUST list `chainBreak`,
+             `anchorMismatch`, `chainUnanchoredTail`, `headMismatch`,
+             `chainNonCanonical` and `chainLossCounterRose` in
+             `notCheckedKinds`. Documentation MUST state that seal
+             verification of an archive needs a range starting at
+             `auditSeq` 1, or "all".
 ```
 
 ```

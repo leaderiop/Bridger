@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-005                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): Failure phase "load" of a lazy plugin is sticky (CCR-BR-017); a capability policy fails closed (CCR-BR-018); a hook point's breaker is hook-level state, not plugin failure (CCR-BR-019)<br>0.2 (2026-10-03): Dependency loss of a `starting` plugin whose build has not begun (BEH-BR-035) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-10): Shutdown's unregistration named as the one exit from `failed` that is not an operation (audit round 3, Low) (CCR-BR-035)<br>0.3 (2026-11-08): Failure phase "load" of a lazy plugin is sticky (CCR-BR-017); a capability policy fails closed (CCR-BR-018); a hook point's breaker is hook-level state, not plugin failure (CCR-BR-019)<br>0.2 (2026-10-03): Dependency loss of a `starting` plugin whose build has not begun (BEH-BR-035) (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -28,7 +28,7 @@ A plugin that merely *lost a dependency* is a different case. It did not fail; i
 **`failed` is sticky, and the host never retries by itself** (SPEC.md "API decisions" row 3):
 
 - A `failed` plugin holds no live scope. If its requirements disappear or return while it is failed, it stays `failed`; its snapshot keeps `missingServiceIds` current so an adapter can show whether `retry` would land in `starting` or in `waiting`.
-- A plugin leaves `failed` only through an explicit operation: `retry`, `restart`, `replace`, `reconfigure`, `disable` or `remove`. This holds for every failure phase, including `runtime`. (SPEC.md's runtime-failure section omits `disable` from this list; its state-and-lifecycle section and the state diagram include it. This ADR resolves the inconsistency in favour of including `disable`.)
+- A plugin leaves `failed` only through an explicit operation: `retry`, `restart`, `replace`, `reconfigure`, `disable` or `remove`, or — with any phase other than `cleanup` — by being unregistered when shutdown begins, which ends the host rather than recovering the plugin ([12 — Shutdown and hosting](../behaviors/12-shutdown-and-hosting.md), BEH-BR-105; CCR-BR-035). This holds for every failure phase, including `runtime`. (SPEC.md's runtime-failure section omits `disable` from this list; its state-and-lifecycle section and the state diagram include it. This ADR resolves the inconsistency in favour of including `disable`.)
 - `retry`, `restart`, `replace` and `reconfigure` on a failed plugin go to `starting` when its requirements are available and to `waiting` otherwise.
 - A failure with phase `cleanup` is narrower still: the scope is already closed and its finalizers cannot run again, so only `remove` is allowed, and it records the leak as acknowledged rather than claiming recovery ([ADR-BR-013](../decisions/013-total-operation-legality.md)).
 - Dependency loss moves only `starting` and `active` plugins to `waiting` — directly when a `starting` plugin's build has not begun (BEH-BR-035), otherwise through `stopping`; a `waiting` plugin whose requirements appear starts by itself.
