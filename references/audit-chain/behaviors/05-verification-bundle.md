@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-05                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): BEH-AC-034: `BundleReport.chain` is one `ChainReport` per series, each from its own `verifyChain` run under the series' profile, and `options.expectKeyed` takes `true` (every series) or the set of series ids whose sinks were keyed (M21); BEH-AC-039: an effectful MAC reaches `verifyBundle` through `precomputeMacs` (03, BEH-AC-019) (M20) (CCR-AC-006)<br>0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`); follow-up: `options.expectKeyed`, passed to `verifyChain`; check 20 extended (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
+> | Change History | 0.5 (2026-11-10): BEH-AC-039: one `precomputeMacs` call per keyed series, the results merged, and the kit's `--keyed` and `--expect-keyed` named (A1, PL1); check 20 extended (SPEC-AUDIT-04) (CCR-AC-007)<br>0.4 (2026-11-10): BEH-AC-034: `BundleReport.chain` is one `ChainReport` per series, each from its own `verifyChain` run under the series' profile, and `options.expectKeyed` takes `true` (every series) or the set of series ids whose sinks were keyed (M21); BEH-AC-039: an effectful MAC reaches `verifyBundle` through `precomputeMacs` (03, BEH-AC-019) (M20) (CCR-AC-006)<br>0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`); follow-up: `options.expectKeyed`, passed to `verifyChain`; check 20 extended (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
 
 ---
 
@@ -414,11 +414,14 @@ REQUIREMENT: For a series with keyed links (01, BEH-AC-007), `verifyBundle`
              MUST report every link as "key-unavailable" (03, BEH-AC-019)
              unless the caller supplies a pure MAC function as
              `options.keyed`, which it passes to `verifyChain`; a caller
-             whose key is reachable only through an effect passes the
-             function `precomputeMacs` (03, BEH-AC-019) returns for the
-             series' segment entries and profile. The
-             rendering MUST say that a keyed chain can be recomputed only by
-             a holder of the key.
+             whose key is reachable only through an effect calls
+             `precomputeMacs` (03, BEH-AC-019) once for each keyed series,
+             with that series' segment entries and profile, and passes the
+             functions it returns merged into one as 03, BEH-AC-019, states.
+             The kit's `bridger verify-chain` takes this function from its
+             `--keyed <module>` and `expectKeyed` from `--expect-keyed` (kit
+             BEH-KT-047). The rendering MUST say that a keyed chain can be
+             recomputed only by a holder of the key.
 ```
 
 ```
@@ -475,7 +478,9 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  a bundle holding an audit series and a generic series gives
                  one `ChainReport` per series under its own profile, and
                  `expectKeyed` given as a set marks unkeyed links only in
-                 the series it names (BEH-AC-034, BEH-AC-038, BEH-AC-039).
+                 the series it names; two keyed series under different
+                 profiles verify with the merged `precomputeMacs`
+                 functions of both (BEH-AC-034, BEH-AC-038, BEH-AC-039).
 ```
 
 **Settled here.** (1) The bundle is a self-contained, canonical JSON export of

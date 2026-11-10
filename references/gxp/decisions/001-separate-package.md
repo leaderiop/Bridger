@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-001                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-10): Decision: `@bridger/core` and `effect` are peer dependencies, and `@bridger/audit-chain` an optional peer with its own one-minor-line range, imported only by `@bridger/gxp/sealing`, as BEH-GX-001 states since CCR-GX-006 (PL7) (CCR-GX-007)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -27,7 +27,7 @@ The question is where the regulated machinery lives: in core behind flags, in co
 ## Decision
 
 - **One package, one direction.** The companion is the package `@bridger/gxp`, source planned at `packages/gxp/src/` *(Planned)*. It imports `@bridger/core` and `effect`; `@bridger/core` imports nothing from it, at runtime or in types. A core build, test run or type check never needs the companion to be present.
-- **Runtime dependencies are exactly two.** `dependencies` hold `@bridger/core` (a range of one core minor line, [ADR-GX-025](../decisions/025-core-version-range.md)) and `effect` (the version core pins). Hashing and HMAC use the platform's Web Crypto (`crypto.subtle`), which is not a package dependency. Anything else is a CCR-GX change, measured by NFR-GX-002.
+- **Runtime dependencies are exactly two, plus one optional peer.** The peer dependencies hold `@bridger/core` (a range of one core minor line, [ADR-GX-025](../decisions/025-core-version-range.md)) and `effect` (the version core pins). `@bridger/audit-chain` is an optional peer with a range of its own, one audit-chain minor line, imported only by the sealing entry `@bridger/gxp/sealing`; the main entry point loads without it ([ADR-GX-029](../decisions/029-sealing-through-audit-chain.md), [BEH-GX-001](../behaviors/01-companion-boundary.md)). Hashing and HMAC use the platform's Web Crypto (`crypto.subtle`), which is not a package dependency. Anything else is a CCR-GX change, measured by NFR-GX-002.
 - **Only public core API.** The companion uses only what core exports from its public entry points and its documented testing entry point. It never reaches into core internals, never patches core objects and never relies on undocumented record fields. Every core identifier the companion relies on is listed in `appendices/core-interface-map.md`.
 - **Plugs in as a consumer would.** Each companion part is a `Layer` that provides one of core's ports (`trailSink` provides `AuditSink`, `approvalGate` provides `OperationGate`, `hmacFingerprinter` provides `ConfigFingerprinter`) or a function over stored data. A consumer wires them like any port they wrote themselves; core cannot tell the difference.
 - **Coupling is recorded, not implicit.** A core change that alters any interface listed in the core-interface map needs a CCR-GX cross-reference, and a companion change that needs a core change needs a CCR-BR cross-reference (PROC-GX-03).

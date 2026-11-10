@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-15                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): `expected.sections.gatePieces`, checked by IQ-10, and IQ-23 records each of the consumer's gate pieces (M5); IQ-24 added: with sealing on, the installed `@bridger/audit-chain` identity matches the lockfile and its version lies in the compatibility row's audit-chain range (BEH-GX-117); deviation range IQ-01 to IQ-24 (M3) (CCR-GX-006)<br>0.3 (2026-11-10): IQ-23 added: the gate pieces "trail" and "chain" used as `expected.sections` declares, with their options recorded (BEH-GX-179); IQ-19 counts the timeouts of the pieces composed before the approval gate; deviation range IQ-01 to IQ-23 (H7, P18) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-GX-117 IQ-01, IQ-03 and IQ-24 compute the installed-files digest as IQ-08 does, the four record each package's resolved location, and BEH-GX-120 `IqReport.installed` carries the identity OQ runs are matched against (G3) (CCR-GX-007)<br>0.4 (2026-11-10): `expected.sections.gatePieces`, checked by IQ-10, and IQ-23 records each of the consumer's gate pieces (M5); IQ-24 added: with sealing on, the installed `@bridger/audit-chain` identity matches the lockfile and its version lies in the compatibility row's audit-chain range (BEH-GX-117); deviation range IQ-01 to IQ-24 (M3) (CCR-GX-006)<br>0.3 (2026-11-10): IQ-23 added: the gate pieces "trail" and "chain" used as `expected.sections` declares, with their options recorded (BEH-GX-179); IQ-19 counts the timeouts of the pieces composed before the approval gate; deviation range IQ-01 to IQ-23 (H7, P18) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -70,9 +70,9 @@ declare function runInstallationChecks(
 
 | Id | Check | Source | Kind |
 | --- | --- | --- | --- |
-| IQ-01 | `@bridger/core` name, version and registry hash match the lockfile and the released artifact | core gxp/04 §5.1 #1 | proof |
+| IQ-01 | `@bridger/core` name, version and registry hash match the lockfile and the released artifact; its installed-files digest and resolved location are recorded | core gxp/04 §5.1 #1 | proof |
 | IQ-02 | Every documented entry point of `@bridger/core` and `@bridger/gxp` resolves from `packageRoot` | core #2 | proof |
-| IQ-03 | The installed `effect` version is the one of the compatibility row, and core's only runtime dependency | core #3 | proof |
+| IQ-03 | The installed `effect` version is the one of the compatibility row, and core's only runtime dependency; its installed-files digest and resolved location are recorded | core #3 | proof |
 | IQ-04 | `Host.controls.wired.audit` is as `expected` | core #4 | proof |
 | IQ-05 | `Host.controls.idGenerator` is as `expected` | core #5 (identifier source) | proof |
 | IQ-06 | `attribution`, `auditTimeout`, `gateTimeout` and `wired.gate` are as `expected` | core #6 | proof |
@@ -93,7 +93,7 @@ declare function runInstallationChecks(
 | IQ-21 | The high-water recorder's `status` reports no consecutive failures; its `lastMarked` is recorded | companion | probe |
 | IQ-22 | Where `Host.controls.idGenerator` is "provided", a draw of `idDraw.count` values from each generator of `idDraw` finds no value repeated within or across them | core #8 (b) | probe |
 | IQ-23 | The host gate's pieces "trail" (`trailGate`) and "chain" (audit-chain's `ChainGate`) are used or "not-used" as `expected`; the options of each used piece, and the name and timeout of each of the consumer's `gatePieces`, are recorded | companion | proof |
-| IQ-24 | With sealing on, `@bridger/audit-chain` name, version and registry hash match the lockfile, and its version lies in the compatibility row's audit-chain range | companion | proof |
+| IQ-24 | With sealing on, `@bridger/audit-chain` name, version and registry hash match the lockfile, and its version lies in the compatibility row's audit-chain range; its installed-files digest and resolved location are recorded | companion | proof |
 
 ```
 REQUIREMENT: `runInstallationChecks` MUST produce exactly one result for each
@@ -336,6 +336,19 @@ REQUIREMENT: IQ-08 MUST compare the installed `@bridger/gxp` name, version
 ```
 
 ```
+REQUIREMENT: IQ-01, IQ-03 and IQ-24 MUST also compute the installed-files
+             digest of `@bridger/core`, `effect` and `@bridger/audit-chain`
+             as IQ-08 computes it for `@bridger/gxp`, and each of the four
+             checks MUST record the package's resolved location, the real
+             path of its directory as resolved from `packageRoot`. The IQ
+             report's `installed` MUST list, for each package these checks
+             read, its name, version, registry hash, installed-files digest
+             and resolved location as observed, whatever the check's
+             outcome, and nothing else: it is the identity OQ runs are
+             matched against (BEH-GX-126).
+```
+
+```
 REQUIREMENT: IQ-09 MUST pass only when the installed `@bridger/core` version
              is one of the versions of the companion's compiled compatibility
              row (BEH-GX-001, BEH-GX-007), the installed `effect` version is
@@ -471,6 +484,7 @@ interface IqReport {
   readonly runAt: string                              // from Clock
   readonly controls: HostControls                     // the snapshot every core check was derived from
   readonly results: readonly IqResult[]               // IQ-01 … IQ-24, then IQ-U1 … IQ-U10
+  readonly installed: InstalledIdentity               // 16, BEH-GX-126: as observed by IQ-01, IQ-03, IQ-08 and IQ-24 (BEH-GX-117)
   readonly statement: string
 }
 ```

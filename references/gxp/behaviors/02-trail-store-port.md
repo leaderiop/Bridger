@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-009–012, 014, 015 (F-02): `append` answers "stored-collision" and keeps a colliding entry beside the primary instead of failing with "conflict" (reason withdrawn); idempotence on `recordId` and digest; `TrailEntry` gains `marks`, `collision` and audit-chain's `link`, `seal` withdrawn (C-09); `HostExtent.collisions` (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-GX-011 the append table has a row for a `recordId` held only by collision entries: stored as a further collision entry, reason "record-id", never as a primary; BEH-GX-010, BEH-GX-012 `collision.with` names the first such entry's digest (PL5) (CCR-GX-007)<br>0.2 (2026-11-09): BEH-GX-009–012, 014, 015 (F-02): `append` answers "stored-collision" and keeps a colliding entry beside the primary instead of failing with "conflict" (reason withdrawn); idempotence on `recordId` and digest; `TrailEntry` gains `marks`, `collision` and audit-chain's `link`, `seal` withdrawn (C-09); `HostExtent.collisions` (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -134,7 +134,7 @@ interface TrailEntry {
   }
   readonly collision?: {             // set by the store (BEH-GX-012); absent on a primary entry
     readonly reason: "record-id" | "host-seq"
-    readonly with: string            // `digest` of the primary entry it collided with
+    readonly with: string            // `digest` of the primary entry it collided with; for a recordId held only by collision entries, of the first of them
   }
   readonly link?: ChainLinkV1        // only when sealing is on: @bridger/audit-chain's link (21, BEH-GX-170)
 }
@@ -196,6 +196,7 @@ report any entry where they disagree as `canonicalMismatch`.
 | No entry with `e.recordId` and none at `(e.hostId, e.auditSeq)` | commit `e` as the primary entry, then `"stored"` |
 | An entry (primary or collision) with `e.recordId` and `e.digest` exists | `"already-stored"`, nothing written |
 | A primary entry with `e.recordId` exists with a different `digest` | commit `e` as a collision entry, `collision.reason` "record-id", then `"stored-collision"` |
+| No primary entry with `e.recordId`, but collision entries with it, none with `e.digest` | commit `e` as a collision entry, `collision.reason` "record-id", `collision.with` the `digest` of the first entry stored with `e.recordId`, then `"stored-collision"`; `e` never becomes a primary entry |
 | No entry with `e.recordId`, but a primary entry at `(e.hostId, e.auditSeq)` | commit `e` as a collision entry, `collision.reason` "host-seq", then `"stored-collision"` |
 | `e.canonical` exceeds `manifest.maxEntryBytes` | `TrailWriteFailed { reason: "too-large" }`, nothing written |
 | The store cannot decide (connection lost, timeout, server refusal) | `TrailWriteFailed { reason: "unavailable" }` or a defect; the entry may or may not have been committed |
@@ -253,8 +254,10 @@ REQUIREMENT: A store MUST hold at most one primary entry per `recordId`,
 ```
 REQUIREMENT: An `append` of a different entry under a stored `recordId` or
              `(hostId, auditSeq)` MUST store it as a collision entry, with
-             `collision` naming the reason and the primary's `digest`, and
-             answer "stored-collision". It MUST leave the primary entry
+             `collision` naming the reason and the primary's `digest` (for a
+             `recordId` held only by collision entries, the `digest` of the
+             first of them, as the table of BEH-GX-011 states), and answer
+             "stored-collision". It MUST leave the primary entry
              exactly as it was. No store MAY resolve a collision by keeping
              the newer entry as primary, merging the two, renumbering either,
              or dropping the newer one.

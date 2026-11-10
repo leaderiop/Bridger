@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-08                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — checks 38 (M13), 42 (M15, Low) and 44 (H8) restated; check 50 added: callback placement and budget after the duplicate check (M14); BEH-RM-060 note: check 3 covers a guest callback of `restart(P)` during P's build (core `CurrentTransition`) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: check 34 amended (`org` on the wire only when disclosed); checks 45–48 added — disclosure, mount refusal, `Transport.fromBundle`, the loader's `RevokedDigests` view and the link manifest; check 48 covers the call-log `disclosed` names; check 49 local contracts (BEH-RM-007) (core CCR-BR-033); check 48: view answers are consulted live and never kept (independent review) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — check 4 uses the range `"^" + V` (C9); check 36: a copy refused "placement-refused" holds no claim (PL15) (CCR-RM-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — checks 38 (M13), 42 (M15, Low) and 44 (H8) restated; check 50 added: callback placement and budget after the duplicate check (M14); BEH-RM-060 note: check 3 covers a guest callback of `restart(P)` during P's build (core `CurrentTransition`) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: check 34 amended (`org` on the wire only when disclosed); checks 45–48 added — disclosure, mount refusal, `Transport.fromBundle`, the loader's `RevokedDigests` view and the link manifest; check 48 covers the call-log `disclosed` names; check 49 local contracts (BEH-RM-007) (core CCR-BR-033); check 48: view answers are consulted live and never kept (independent review) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -199,8 +199,9 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                 dependents of the contract stay `waiting`.
              3. A handshake mounts one session child providing exactly the
                 contract's key, audited as `system-start`.
-             4. A guest serving a version outside `>= V < (major+1).0.0` —
-                a lower minor of the same major included — or outside a
+             4. A guest serving a version outside `"^" + V` — a lower minor
+                of the same major included, and for major 0 a higher minor
+                too — or outside a
                 narrower `accepts` is refused with an `IncompatibleContract`
                 cause in `RemoteStatus`; the link stays `active`, no
                 session child is mounted, and dependents stay `waiting`.
@@ -308,12 +309,13 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  answered with the stored result, or with `InProgress`
                  while the first runs, and the link keeps the call in
                  flight on `InProgress` (outcome "unknown" at its
-                 deadline); a copy refused "busy" or "deadline-passed"
-                 holds no claim; a copy delivered after the retention
+                 deadline); a copy refused "busy", "deadline-passed" or
+                 "placement-refused" holds no claim, and its duplicate is
+                 refused the same way, never answered `InProgress`; a copy delivered after the retention
                  expired runs again (the stated residual); a guest started
                  with neither a store nor "idempotent-handlers" fails to
                  start; a failing `claim` refuses "busy" and runs nothing
-                 (BEH-RM-020, BEH-RM-035, BEH-RM-067, INV-RM-009).
+                 (BEH-RM-020, BEH-RM-035, BEH-RM-067, BEH-RM-069, INV-RM-009).
              37. A link whose manifest `residency` is not among its
                  transport's labels fails its build with `PlacementRefused`
                  and opens no session; with no labels declared it is

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-EN-001: `Entitlement.guard` leaves the list of components that require the `Entitlement` service, since it reads the mode from the activation's `Plugin.Runtime.entitled` (02, BEH-EN-014), and is given `essential` in its own options (M25); BEH-EN-005: `checkTimeout` defaults to 4 seconds, shorter than core's 5-second `resolutionTimeout`, so `Entitlement.capabilityPolicy` builds with defaults (M26) (CCR-EN-006)<br>0.4 (2026-11-10): BEH-EN-001: the application's `EntitlementAdapter` is wrapped by `Entitlement.layer(adapter, options)`, the one way `EntitlementOptions` reach the package's components, and the `Entitlement` service carries them; BEH-EN-003 and 004: the adapter's fallback mode is `EntitlementState.fallbackMode` (P13) (CCR-EN-005)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-EN-001: `Entitlement.layer` records the application's `essential` list process-locally, where `guard` reads it (E2); BEH-EN-003: mode "unknown" and core's "unmetered" allow only essential uses; BEH-EN-005: under "last-known" with no answer ever known the served state is mode "unknown" with `stale: true` (E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.5 (2026-11-10): BEH-EN-001: `Entitlement.guard` leaves the list of components that require the `Entitlement` service, since it reads the mode from the activation's `Plugin.Runtime.entitled` (02, BEH-EN-014), and is given `essential` in its own options (M25); BEH-EN-005: `checkTimeout` defaults to 4 seconds, shorter than core's 5-second `resolutionTimeout`, so `Entitlement.capabilityPolicy` builds with defaults (M26) (CCR-EN-006)<br>0.4 (2026-11-10): BEH-EN-001: the application's `EntitlementAdapter` is wrapped by `Entitlement.layer(adapter, options)`, the one way `EntitlementOptions` reach the package's components, and the `Entitlement` service carries them; BEH-EN-003 and 004: the adapter's fallback mode is `EntitlementState.fallbackMode` (P13) (CCR-EN-005)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -76,9 +76,10 @@ REQUIREMENT: `Entitlement.layer(adapter, options)` MUST be the only way the
              absent or is "last-known" without `staleAfter` (BEH-EN-005).
              Every component that requires the service reads `labels`,
              `onUnavailable`, `staleAfter`, `checkTimeout` and `essential`
-             from the service's `options`; `Entitlement.guard`, which
-             requires no service, is given `essential` in its own options
-             (02, BEH-EN-014).
+             from the service's `options`. `Entitlement.guard` requires no
+             service: `Entitlement.layer` MUST, when built, record
+             `options.essential` in the package's process-local state,
+             where `guard` reads it (02, BEH-EN-014).
 ```
 
 ```
@@ -143,7 +144,7 @@ plugin cannot ask about another plugin's entitlement and receive its own.
 type EntitlementMode = "full" | "grace" | "read-only" | "none"
 
 interface EntitlementState {
-  readonly mode: EntitlementMode
+  readonly mode: EntitlementMode | "unknown"   // "unknown": served by the package, never by the adapter (BEH-EN-005)
   readonly validUntil?: string        // ISO-8601 UTC; end of "full"
   readonly graceUntil?: string        // ISO-8601 UTC; end of "grace"
   readonly reason?: string            // free text from the adapter, e.g. "expired"
@@ -158,7 +159,10 @@ REQUIREMENT: The modes MUST be ordered `full` > `grace` > `read-only` >
              `none` for the purpose of "allows": `grace` MUST allow every
              use `full` allows; `read-only` MUST allow only uses declared
              read-only or essential (BEH-EN-007, BEH-EN-014); `none` MUST
-             allow only essential uses.
+             allow only essential uses. Mode "unknown", which the derived
+             `watch` serves when no answer is known (BEH-EN-005), and core's
+             "unmetered" (02, BEH-EN-013) MUST allow only essential uses, as
+             `none` does.
 ```
 
 ```
@@ -228,7 +232,10 @@ REQUIREMENT: `onUnavailable` MUST be stated explicitly; the package MUST NOT
              choose a default. With "last-known", `staleAfter` MUST be
              stated, and a last-known state older than `staleAfter` (by
              `asOf`, read against `Clock`) MUST be served as `read-only`
-             with `stale: true`.
+             with `stale: true`. Under "last-known", while no answer was
+             ever known for the subject, the served state MUST be
+             `{ mode: "unknown", stale: true, reason:
+             "entitlement-unavailable", asOf }`, `asOf` read from `Clock`.
 ```
 
 ```

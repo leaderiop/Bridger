@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-03                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-AC-019: `precomputeMacs` runs an effectful MAC (a hardware module, a MAC service) before the pure check and returns the pure `keyed` function, so such a key is usable while `verifyChain` stays pure (M20); `breaks.kind` gains "alg-changed", the break INV-AC-007 requires for a link whose algorithm differs within its host or series (low finding); check 6 extended (CCR-AC-006)<br>0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-AC-019: a "key-unavailable" break is an incomplete check, never an inconsistency (A1); the `precomputeMacs` functions of several series or profiles are merged into one `keyed` function (PL1) (SPEC-AUDIT-04) (CCR-AC-007)<br>0.5 (2026-11-10): BEH-AC-019: `precomputeMacs` runs an effectful MAC (a hardware module, a MAC service) before the pure check and returns the pure `keyed` function, so such a key is usable while `verifyChain` stays pure (M20); `breaks.kind` gains "alg-changed", the break INV-AC-007 requires for a link whose algorithm differs within its host or series (low finding); check 6 extended (CCR-AC-006)<br>0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -183,9 +183,14 @@ REQUIREMENT: A link with a `keyId` MUST be recomputed with
              successive keys (01, BEH-AC-007) verify in one run. When `keyed`
              is absent, or returns `undefined` for that `keyId`, the link
              MUST be reported as a "key-unavailable" break, never as a
-             "hash-mismatch". Documentation MUST state that a keyed chain
-             can be verified only while every key its links name, retired
-             ones included, can still be used for verification.
+             "hash-mismatch". A "key-unavailable" break says that the link
+             was not checked, not that it was found inconsistent: a
+             rendering MUST present it as an incomplete check, and the kit's
+             `bridger verify-chain` maps it to its "incomplete" exit, not to
+             its "inconsistent" one (kit BEH-KT-047). Documentation MUST
+             state that a keyed chain can be verified only while every key
+             its links name, retired ones included, can still be used for
+             verification.
 ```
 
 ```ts
@@ -211,7 +216,13 @@ REQUIREMENT: `precomputeMacs` MUST call `mac` once for each distinct pair
              `verifyChain` and `verifyBundle` MUST stay pure: an effectful
              MAC reaches them only as a function returned by
              `precomputeMacs`. Documentation MUST state that it holds one
-             MAC per keyed link in memory.
+             MAC per keyed link in memory, and that the functions it returns
+             for several series or profiles are merged into the one
+             `keyed` function `verifyBundle` takes by answering each pair
+             from the first of them that does not return `undefined`;
+             because a MAC depends only on `keyId` and input, the merged
+             function gives every link the MAC its own series' function
+             gives (05, BEH-AC-039).
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-INV                                                  |
-> | Revision       | 0.15                                                         |
+> | Revision       | 0.16                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.15 (2026-11-10): INV-BR-016 statement, Source and verification: `CurrentTransition` for builds, `load` and finalizers, `shutdown` refused from it before its `requested` record (H1); INV-BR-030 Source aligned (H1); INV-BR-043 `expect` binds code only through `meta.digest`, the Implication narrowed (C6); INV-BR-022 and INV-BR-027 cover steps 4a and 4b and the refused `shutdown`; INV-BR-007 shutdown's unregistration; INV-BR-050 the `dormant` trigger, including a move to `waiting` (audit round 3, Low) (CCR-BR-035)<br>0.14 (2026-11-10): INV-BR-026 covers files 02–21 and 26–34, and its differential test compares generated identifiers by order of first appearance (C12; audit round 2, Low); INV-BR-043 names what `expect` compares and that configuration values are outside a plan (H2); INV-BR-037 statement and verification cover files 02–20 and 22–34 (review of CCR-BR-034) (CCR-BR-034)<br>0.13 (2026-11-09): INV-BR-024 generated identifiers are unique within their host and across hosts sharing a store, an obligation on the generator that core does not check (F-03); INV-BR-004 the staleness of a build that imports handed-off state is decided before the import (U-02); INV-BR-045 covers `restart` and `reconfigure` under `alsoOn`, the stop's final step, and a superseded build that leaves the value held (C-14, U-02) (CCR-BR-033)<br>0.12 (2026-11-09): INV-BR-018 the final snapshot holds exactly the `failed(cleanup)` plugins of the report (U-01); INV-BR-020 verification: no realm isolates the host or its bus (C-02) (CCR-BR-032)<br>0.11 (2026-11-08): INV-BR-046 covers idling and refused declarations, `HostLink.none` and failed reads, and states its scope (forged links, gap G64); INV-BR-052 retitled to Effect members with the residual named (CCR-BR-029)<br>0.10 (2026-11-08): INV-BR-046–047; INV-BR-040 and INV-BR-032 amended (CCR-BR-024); INV-BR-048–049 (CCR-BR-025); INV-BR-050–052 (CCR-BR-026)<br>0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.16 (2026-11-10): INV-BR-009 a child's parked stop is also resumed by its sub-scope close or `unmount` (C10); INV-BR-017 the paths with no caller name the refused background restart and a sub-scope close or `unmount` that removes a child itself, and one that waits on the parent's stop follows that stop's limits (H1); INV-BR-016 and INV-BR-030 name plugins by the canonical key `JSON.stringify([realm, id])`, `WouldDeadlock` carries `realm` (C1), and INV-BR-016 Source and verification state the `emit` exception and the record-less refused `shutdown` (CL8); INV-BR-022 and INV-BR-029 name the running `reconcile`'s parent record lost at shutdown (C4); INV-BR-023 a record mid-retry at close keeps its number, and a loss at close is signalled by the error log and `auditPosition`, not `CloseReport.auditDegraded` (CL7, C5); INV-BR-050 statement and Source name the `whenAvailable` re-run beside the background restart (C11) (CCR-BR-036)<br>0.15 (2026-11-10): INV-BR-016 statement, Source and verification: `CurrentTransition` for builds, `load` and finalizers, `shutdown` refused from it before its `requested` record (H1); INV-BR-030 Source aligned (H1); INV-BR-043 `expect` binds code only through `meta.digest`, the Implication narrowed (C6); INV-BR-022 and INV-BR-027 cover steps 4a and 4b and the refused `shutdown`; INV-BR-007 shutdown's unregistration; INV-BR-050 the `dormant` trigger, including a move to `waiting` (audit round 3, Low) (CCR-BR-035)<br>0.14 (2026-11-10): INV-BR-026 covers files 02–21 and 26–34, and its differential test compares generated identifiers by order of first appearance (C12; audit round 2, Low); INV-BR-043 names what `expect` compares and that configuration values are outside a plan (H2); INV-BR-037 statement and verification cover files 02–20 and 22–34 (review of CCR-BR-034) (CCR-BR-034)<br>0.13 (2026-11-09): INV-BR-024 generated identifiers are unique within their host and across hosts sharing a store, an obligation on the generator that core does not check (F-03); INV-BR-004 the staleness of a build that imports handed-off state is decided before the import (U-02); INV-BR-045 covers `restart` and `reconfigure` under `alsoOn`, the stop's final step, and a superseded build that leaves the value held (C-14, U-02) (CCR-BR-033)<br>0.12 (2026-11-09): INV-BR-018 the final snapshot holds exactly the `failed(cleanup)` plugins of the report (U-01); INV-BR-020 verification: no realm isolates the host or its bus (C-02) (CCR-BR-032)<br>0.11 (2026-11-08): INV-BR-046 covers idling and refused declarations, `HostLink.none` and failed reads, and states its scope (forged links, gap G64); INV-BR-052 retitled to Effect members with the residual named (CCR-BR-029)<br>0.10 (2026-11-08): INV-BR-046–047; INV-BR-040 and INV-BR-032 amended (CCR-BR-024); INV-BR-048–049 (CCR-BR-025); INV-BR-050–052 (CCR-BR-026)<br>0.9 (2026-11-08): INV-BR-035 implication: principal of the calling fiber; INV-BR-026: unwired entitlement mode `unmetered`; INV-BR-041 verification: no host events for breakers (CCR-BR-022)<br>0.8 (2026-11-08): INV-BR-031–034 added, INV-BR-001, 007, 011 and 015 amended for contracts, manifests and lazy activation (CCR-BR-017); INV-BR-035–039 added for the plugin principal, mandatory policy, grants, call log and annotations (CCR-BR-018); INV-BR-040–045 added for hook points, plans, realm retirement and state handoff (CCR-BR-019); INV-BR-026 covers an unwired `EntitlementView` (CCR-BR-020)<br>0.7 (2026-10-03): INV-BR-013 and INV-BR-028 except the fingerprints produced by the consumer's `ConfigFingerprinter` port at step 4a (core computes no hash); INV-BR-026 an unwired fingerprinter changes nothing (CCR-BR-014)<br>0.6 (2026-10-03): INV-BR-006 distinguishes revoked callbacks from interrupted holders; INV-BR-009 notes a child's parked removal (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): INV-BR-002 graph includes mount edges, child→parent; INV-BR-009 per transition step and operation in flight, a parked stop resumed by a call, a cascade or shutdown; INV-BR-010 interruption outcomes per stage; INV-BR-016 and INV-BR-030 cover builds and finalizers (and the fibers a build or finalizer forks and awaits), INV-BR-016 also `retry` and `enable`; INV-BR-017 parks every unsettled stop a failing operator call drives, revokes paths with no caller, never parks once shutdown has begun; INV-BR-022 no record for a `requested` record dropped for overflow, verification pairs records by call and covers resumption and `Interrupted`; INV-BR-025 `reconcile` re-checks `requireReason` on the diff recomputed at its intent; INV-BR-030 bound per cascade drain limit plus `buildTimeout` per build step, finalizers that return, stops take no `concurrency` slot (CCR-BR-008, both review passes)<br>0.4 (2026-10-02): INV-BR-010 source: interruption before intent writes a failed (Interrupted) record (CCR-BR-007)<br>0.3 (2026-10-02): INV-BR-030 added (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -312,8 +312,9 @@ order; the plugin runs at most one transition step (one build, or one stop)
 at a time, whether the step serves an operator or the system; and it has at
 most one operator operation in flight (BEH-BR-072). A parked stop — a parked
 operation or a parked system stop — is the one case of a stop in flight with
-no step running: it runs none until a call, a cascade or shutdown resumes it
-(BEH-BR-074, BEH-BR-080, BEH-BR-105).
+no step running: it runs none until a call, a cascade or shutdown resumes it,
+or, for a child, the close of its sub-scope or `Plugin.Runtime.unmount` of it
+(BEH-BR-074, BEH-BR-080, BEH-BR-105, BEH-BR-121; CCR-BR-036).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — a per-plugin operation
 order keyed by (realm, ID), owned by the reconciler, through which every route
@@ -327,8 +328,10 @@ against the state the plugin landed in (BEH-BR-073); a call that arrives on a
 parked system stop, or whose awaited system stop parks while it waits,
 resumes it, or, for `retry` and `enable`, fails with
 `Conflict { pending: "dependency-loss" }` (BEH-BR-073, BEH-BR-074); a child's
-parked stop that removes it is resumed by no operator call but `remove`
-(BEH-BR-125). Once
+parked stop that removes it is resumed by no operator call but `remove`, and
+otherwise only by a cascade, shutdown, the close of its sub-scope or its
+`unmount`, the last two under `drainTimeout`, revoking and never parking
+again (BEH-BR-121, BEH-BR-125). Once
 shutdown has begun, no stop parks: shutdown takes over every stop under its
 own limits (BEH-BR-105, BEH-BR-107).
 
@@ -556,14 +559,18 @@ A call that would wait for a transition step of plugin P — P's drain, its
 build or its stop — made from a fiber that carries P in
 `@bridger/core/HeldPlugins` (a lease on P) or in
 `@bridger/core/CurrentTransition` (P's build, `load` or finalizer step),
-fails immediately with `WouldDeadlock` without recording intent. A
+fails immediately with `WouldDeadlock` without recording intent. Both
+references name a plugin by its canonical key `JSON.stringify([realm, id])` (no
+separator join: neither name has a grammar), so a lease or
+step in one realm never refuses an operation on the same ID in another, and
+`WouldDeadlock` names the plugin's `id` and `realm` (BEH-BR-088; CCR-BR-036). A
 `shutdown` made from a fiber that carries a plugin in `CurrentTransition`
 fails with `WouldDeadlock` before its `requested` record, writes no record
 and joins no shutdown in progress; a `shutdown` from a fiber that carries
 plugins in `HeldPlugins` only does not fail with it.
 
 **Source**: `packages/core/src/Lease.ts` *(Planned)* — admitting a lease adds
-the provider's ID to the `HeldPlugins` fiber reference of the callback's
+the provider's canonical key to the `HeldPlugins` fiber reference of the callback's
 fiber, inherited by every fiber it forks, by `useOptional` callbacks and
 `whenAvailable` runs. `packages/core/src/Lifecycle.ts` *(Planned)* runs each
 build and `load` of P, and each finalizer of P's activation scope, in a fiber
@@ -572,8 +579,10 @@ forks and awaits before returning; it never adds P to `HeldPlugins`. Fibers
 forked into the activation scope (`background`, `whenAvailable`) carry no
 plugin in `CurrentTransition` and only the leases they hold in
 `HeldPlugins`. `packages/core/src/EventBus.ts` *(Planned)*
-dispatches listeners in the dispatcher's fiber context, so the references
-follow the call. `packages/core/src/Host.ts` *(Planned)* checks both
+dispatches `serial`, `parallel` and `waterfall` listeners in the dispatcher's
+fiber context, so both references follow the call; `emit` listeners, which the
+dispatcher does not await, inherit `HeldPlugins` but carry no plugin in
+`CurrentTransition` (BEH-BR-144). `packages/core/src/Host.ts` *(Planned)* checks both
 references for `remove`, `replace`, `restart`, `disable`, `reconfigure` of P
 or of a provider whose stopping would first stop P, and for `retry` and
 `enable` of P while a system stop of P is running, at step 7 of the call
@@ -596,15 +605,19 @@ detected, and this invariant does not claim it is
 **Verification** *(Planned)*: one scenario per guarded operation and for
 `awaitIdle` from a lease callback, a forked fiber, a `whenAvailable` run, an
 event listener, a build, a `load`, a fiber a build forks and awaits, and a
-finalizer of the activation scope (acceptance check 48 of BEH-BR-184); for
+finalizer of the activation scope (acceptance check 48 of BEH-BR-184), and
+an `emit` listener of an event emitted from a build, which is not refused for
+that build's plugin; for
 `shutdown`, a scenario from a build and from a finalizer, each failing with
 `WouldDeadlock`, writing no record and leaving a shutdown in progress
 unjoined, and one from a lease callback, which proceeds and is ended by the
 overall shutdown limit; a scenario in which
 the join that would make the call wait is known only at the linearization
 point; with a sink wired, a scenario asserting that a mutating call refused
-with `WouldDeadlock` leaves exactly one `requested` and one `failed` record
-and an unchanged snapshot; a scenario pinning the stated limit, in which the
+with `WouldDeadlock` — every one but `shutdown`, which writes none — leaves
+exactly one `requested` and one `failed` record and an unchanged snapshot;
+a scenario with the same plugin ID in two realms, a lease on one not refusing
+an operation on the other; a scenario pinning the stated limit, in which the
 request is relayed through an unrelated fiber and is not detected.
 
 **Related**: [BEH-BR-040](behaviors/05-activation.md), [BEH-BR-078](behaviors/08-operation-legality.md), [BEH-BR-088](behaviors/09-leases.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-136](behaviors/15-optional-and-reactive.md), [BEH-BR-144](behaviors/16-event-bus.md), [BEH-BR-188](behaviors/22-attributable-operations.md), [ADR-BR-016](decisions/016-reentrancy-detection.md).
@@ -630,8 +643,10 @@ depth — parks in the same revision, leaving those plugins `stopping`
 parked system stop (`reason` "dependency-loss"). The cascading call's drain
 limit also runs while it waits for a dependent's running build step, and
 expires as `DrainTimeout` with `leases` 0. A path with no caller — a runtime
-failure, a cascade whose root is a runtime failure, or a dependency-loss stop
-with no operator call at its root — never parks: it revokes the remaining
+failure, a refused background restart (BEH-BR-267), a cascade whose root is
+one of these, a dependency-loss stop with no operator call at its root, or a
+sub-scope close or `unmount` that itself removes a child or resumes its
+parked stop (BEH-BR-121, BEH-BR-126) — never parks: it revokes the remaining
 leases, including those on dependents (BEH-BR-086, BEH-BR-095), and an expiry
 while it waits for a build continues the wait under `buildTimeout`. Shutdown,
 whose limits are in `packages/core/src/Host.ts` *(Planned)*, never parks
@@ -639,7 +654,12 @@ either: once it has begun, no drain expiry parks a stop; shutdown takes the
 stop over, drains under `drainTimeout` and revokes only once its overall limit
 has passed (BEH-BR-105, BEH-BR-107). A parked stop met by a path with no
 caller, or by shutdown, is resumed under those limits and revoked on
-expiry. `packages/core/src/ContributionRegistry.ts` and
+expiry. A sub-scope close or `unmount` that waits for a child removal its
+parent's stop already began sets no limit of its own: it waits under that
+stop's limits — parked with an operator call at its root, revoked only once
+the overall limit has passed under shutdown, revoked at `drainTimeout` only
+on a path with no caller (BEH-BR-086, BEH-BR-121; CCR-BR-036).
+`packages/core/src/ContributionRegistry.ts` and
 `packages/core/src/Generation.ts` *(both Planned)* apply the same rule.
 
 **Implication**: a lease that is never released cannot hang an operator call,
@@ -654,7 +674,8 @@ a duration or the literal `"forever"`; scenarios on the test host with
 operator-rooted paths, including a cascade whose dependent's stop becomes a
 parked system stop; and revocation on every path with no caller, including a
 runtime-failure cascade and a parked stop it meets (acceptance check 47 of
-BEH-BR-184).
+BEH-BR-184); and a sub-scope close waiting on a parent's operator-rooted stop
+that revokes nothing the call did not force (check 89).
 
 **Related**: [BEH-BR-045](behaviors/06-removal.md), [BEH-BR-074](behaviors/08-operation-legality.md), [BEH-BR-079](behaviors/08-operation-legality.md), [BEH-BR-080](behaviors/08-operation-legality.md), [BEH-BR-085](behaviors/09-leases.md), [BEH-BR-086](behaviors/09-leases.md), [BEH-BR-095](behaviors/10-runtime-failure-and-health.md), [BEH-BR-105](behaviors/12-shutdown-and-hosting.md), [BEH-BR-107](behaviors/12-shutdown-and-hosting.md), [BEH-BR-167](behaviors/19-contribution-registry.md), [BEH-BR-173](behaviors/20-generation.md), [BEH-BR-174](behaviors/20-generation.md), [BEH-BR-176](behaviors/20-generation.md), [ADR-BR-015](decisions/015-leases-one-primitive.md), [ADR-BR-017](decisions/017-runtime-failure-one-transition.md), [ADR-BR-024](decisions/024-shared-state-helpers.md).
 
@@ -803,6 +824,10 @@ pair for the call and one pair (or one `rejected` record) per entry action.
 `shutdown` is not gated; its `requested` record is attempted, and when it
 cannot be written shutdown proceeds and the latch is set
 ([INV-BR-029](#inv-br-029-the-audit-degraded-latch-blocks-operator-mutations)).
+A `reconcile` running when shutdown begins may end with no parent terminal
+record: when shutdown's wait for that record ends without it, the record is
+logged as lost and the latch is set rather than written after shutdown's own
+terminal record (BEH-BR-108; CCR-BR-036).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — the fixed call pipeline
 (`HostClosed`, attribution, latch, validation, configuration fingerprints,
@@ -866,9 +891,13 @@ starts again at 1 with a new `hostId`.
 wall clock that may step ([RSK-BR-021](gxp/03-risk-assessment.md#rsk-br-021)),
 and a missing number between two present ones reveals a lost record
 ([RSK-BR-006](gxp/03-risk-assessment.md#rsk-br-006)). The guarantee has stated
-limits: a record dropped for writer overflow, or left unwritten when the
-process ends, was never numbered and leaves no gap; those losses are signalled
-by the latch, the error log and `CloseReport.auditDegraded`.
+limits: a record dropped for writer overflow, or still queued when the
+process ends, was never numbered and leaves no gap, and a record whose write
+was being retried when the host closed holds a number no later record
+follows, so it leaves none either; an overflow drop is signalled by the latch
+and the error log, a record unwritten at close by the error log and
+`Host.controls().auditPosition`, never by `CloseReport.auditDegraded`, which is
+produced before the close flush (BEH-BR-213; CCR-BR-036).
 `verifyAuditSequence` detects gaps, duplicates and disorder only — it is not
 tamper evidence, and records altered, renumbered consistently or removed from
 the end of the trail pass it.
@@ -1115,8 +1144,10 @@ and `acknowledgeAuditDegraded` fails with `AuditUnavailable` until an
 
 **Source**: `packages/core/src/Audit.ts` *(Planned)* — the latch is a host
 `Ref` set when a terminal, `rejected` or system record is not written within
-`auditTimeout`, when `shutdown`'s `requested` record is not written, and when
-a record is dropped for writer overflow; setting it publishes
+`auditTimeout`, when `shutdown`'s `requested` record is not written, when
+a record is dropped for writer overflow, and when a running `reconcile`'s
+parent terminal record is lost because shutdown's wait for it ended without
+it (BEH-BR-108; CCR-BR-036); setting it publishes
 `HostSnapshot.auditDegraded: true` (`packages/core/src/Snapshot.ts`
 *(Planned)*) and emits one `audit-degraded` event
 (`packages/core/src/Events.ts` *(Planned)*). `packages/core/src/Host.ts`
@@ -1164,7 +1195,7 @@ a parked stop under the cascading call's options, or the no-caller limits
 start and wait for no transition of another plugin (a free `concurrency` slot
 aside), and stops take no `concurrency` slot and never wait for one
 (BEH-BR-078). Each build, `load` and finalizer of an activation scope runs
-with its plugin's ID in `CurrentTransition`, and so does every fiber it forks
+with its plugin's canonical key in `CurrentTransition`, and so does every fiber it forks
 and awaits before returning. The child-install cycle check is in
 `packages/core/src/PluginRuntime.ts` *(Planned)*.
 
@@ -1708,12 +1739,12 @@ method-missing and undeclared contributions; check 102.
 While a wired `RefusalList` refuses a digest, no registration whose
 definition carries that digest enters `starting`, leaves `dormant` (for
 `starting` or for `waiting`), has its code loaded or built, or has a
-background fiber restarted, and every refusal outside an operator call
+background fiber or `whenAvailable` run restarted, and every refusal outside an operator call
 leaves one `start-refused` record (with a sink wired).
 
 **Source**: `packages/core/src/Host.ts` *(Planned)* — the move into
 `starting`, a trigger applied to a `dormant` plugin whether it would leave
-for `starting` or for `waiting` (BEH-BR-245), the background restart and the
+for `starting` or for `waiting` (BEH-BR-245), the background restart, the `whenAvailable` re-run (BEH-BR-134) and the
 child mount consult the list; step 4b of the call path.
 
 **Implication**: revocation holds across system starts; a refused plugin is

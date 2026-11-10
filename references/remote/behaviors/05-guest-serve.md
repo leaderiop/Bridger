@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-05                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M15 follow-up of the independent review) — BEH-RM-036: a `Refused` exit tagged "CallLogUnavailable" reaches the handler as `CallbackDenied { reason: "call-log-unavailable" }`, never as `CallLogUnavailable` (CCR-RM-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): `GuestContext.claims` carries identity claims only when the link discloses them; `Remote.serve` accepts calls without them; `Guest.serve` and `Remote.serve` fail with `LocalContractRefused` for a local contract (BEH-RM-007, core CCR-BR-033) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — a duplicate of a running call is answered `InProgress` instead of dropped; a `DedupeStore` claim runs after the epoch, duplicate, in-flight and deadline checks (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 20 and 23, CORE-DECISIONS-2 — per-call duplicate check across invocations through a `DedupeStore`; served calls set `CurrentCorrelation` and `HostLink.reference`; residency refusal before any lease (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-RM-039: `Remote.serve` checks the resolved provision against `"^" + contract.version` (C9) (CCR-RM-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M15 follow-up of the independent review) — BEH-RM-036: a `Refused` exit tagged "CallLogUnavailable" reaches the handler as `CallbackDenied { reason: "call-log-unavailable" }`, never as `CallLogUnavailable` (CCR-RM-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): `GuestContext.claims` carries identity claims only when the link discloses them; `Remote.serve` accepts calls without them; `Guest.serve` and `Remote.serve` fail with `LocalContractRefused` for a local contract (BEH-RM-007, core CCR-BR-033) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — a duplicate of a running call is answered `InProgress` instead of dropped; a `DedupeStore` claim runs after the epoch, duplicate, in-flight and deadline checks (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck items 20 and 23, CORE-DECISIONS-2 — per-call duplicate check across invocations through a `DedupeStore`; served calls set `CurrentCorrelation` and `HostLink.reference`; residency refusal before any lease (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — host-side serving end `Remote.serve` (BEH-RM-039) for hosts that serve a local provider; epoch echo and `maxInFlight` in `welcome`; per-call transports keep no table across invocations; `CallbackDenied`; decoded wire annotations in `GuestContext`; endpoints may be multiplexed (R3-01, R3-03, R3-04, R3-05, R3-10, R3-11, R3-15) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -306,7 +306,7 @@ REQUIREMENT: For every other call it MUST decode the payload, then reach
              its duration and a local `remove`, `replace` or stop of the
              provider drains it as a local call. When `Host.use` fails with
              `ServiceUnavailable`, or the provision it resolves is not at a
-             version satisfying `>= contract.version < (major+1).0.0` (core
+             version satisfying `"^" + contract.version` (core
              BEH-BR-232), the call MUST be answered with a `Refused` exit,
              reason "unavailable"; `Remote.serve` MUST NOT start, install or
              enable a provider.

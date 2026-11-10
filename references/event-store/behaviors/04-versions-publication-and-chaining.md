@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-04                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-025: every change of the encoded payload raises the version, an added optional field included (C-11; heading changed, old anchor kept); BEH-ES-028 passes the delivery stream and causation to durable-bus `publish` and takes the published event's attribution from the returned envelope (F-05, C-20); BEH-ES-030 cites durable-bus BEH-DB-020 for both subscription forms, adds `receiveVerbatimOptions`, drops the interim rule for encrypted types, leaves commit-time conflicts to durable-bus `CommitConflict` and states which origin a re-published fact carries (C-12, C-18, C-20) (CCR-ES-003)<br>0.5 (2026-11-08): BEH-ES-028 fails the append on every durable-bus `publish` error, including `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-028 states that idempotency rests on `factId`; BEH-ES-030 records received facts with `decider.factId`, requires halting subscription options, states the key precondition, and adds `receiveVerbatim`; BEH-ES-031 hashes the stored event without `position` and requires JSON payloads; BEH-ES-032 stores an existing `Shredded` marker without a key (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-028 cites URS-BR-056 and BEH-ES-032 URS-BR-059 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-032 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape, codec id stored, one encode for published events, read order and failures); BEH-ES-028 lists `PayloadEncodeFailed` (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-ES-030: the `receive` and `receiveVerbatim` handlers take the transaction's `Scope` that the scoped `DurableBus.fence` needs; a whole-store freeze pauses them and never halts a stream (H3, F4) (CCR-ES-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-025: every change of the encoded payload raises the version, an added optional field included (C-11; heading changed, old anchor kept); BEH-ES-028 passes the delivery stream and causation to durable-bus `publish` and takes the published event's attribution from the returned envelope (F-05, C-20); BEH-ES-030 cites durable-bus BEH-DB-020 for both subscription forms, adds `receiveVerbatimOptions`, drops the interim rule for encrypted types, leaves commit-time conflicts to durable-bus `CommitConflict` and states which origin a re-published fact carries (C-12, C-18, C-20) (CCR-ES-003)<br>0.5 (2026-11-08): BEH-ES-028 fails the append on every durable-bus `publish` error, including `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-028 states that idempotency rests on `factId`; BEH-ES-030 records received facts with `decider.factId`, requires halting subscription options, states the key precondition, and adds `receiveVerbatim`; BEH-ES-031 hashes the stored event without `position` and requires JSON payloads; BEH-ES-032 stores an existing `Shredded` marker without a key (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-028 cites URS-BR-056 and BEH-ES-032 URS-BR-059 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-032 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape, codec id stored, one encode for published events, read order and failures); BEH-ES-028 lists `PayloadEncodeFailed` (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -164,10 +164,10 @@ declare const EventStore: {
   // decoded: the bus decodes (codec, upcast, schema) before the handler
   readonly receive: <S, F, E, Events extends readonly DurableEvent<any, any>[]>(
     decider: FactDecider<S, F, E>, toFact: (event: EventOf<Events>, envelope: Envelope) => F) =>
-    (event: EventOf<Events>, envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction>
+    (event: EventOf<Events>, envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction | Scope.Scope>
   // verbatim: the payload is stored as received, never decoded or re-encoded
   readonly receiveVerbatim: (options?: { readonly stream?: (envelope: Envelope) => string }) =>
-    (envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction>
+    (envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction | Scope.Scope>
   // the subscription options each handler requires (durable-bus BEH-DB-020, BEH-DB-021)
   readonly receiveOptions: { readonly onPoison: "halt"; readonly onUnreadable: "halt" }   // DurableBus.subscribe
   readonly receiveVerbatimOptions: { readonly onPoison: "halt" }                         // DurableBus.subscribeEnvelopes
@@ -203,7 +203,12 @@ REQUIREMENT: A handler from `receive` MUST be registered with durable-bus
              meets `PayloadUnreadable` and takes no `onUnreadable`
              (BEH-DB-020). The package cannot see how a handler is
              registered; documentation MUST state the rule, and the
-             acceptance checks exercise it (BEH-ES-040).
+             acceptance checks exercise it (BEH-ES-040). During a
+             whole-store re-bootstrap the bus pauses these subscriptions,
+             and a handler that fails with `OutboxFrozen` is retried after
+             the settlement without counting toward `maxAttempts`, so
+             `onPoison: "halt"` never halts a stream for the freeze
+             (durable-bus BEH-DB-021, BEH-DB-048).
 ```
 
 ```

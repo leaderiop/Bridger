@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bridger Spec Audit 4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Schibsted+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* Layout concept: an engineering drawing sheet. Title block on top, ruled sections, diagrams as figures on a drafting ground. */
+:root{
+  --bg:#F1F4F6; --surface:#FFFFFF; --ink:#14222E; --muted:#566673; --line:#C9D3DB;
+  --accent:#1F5FBF; --accent-soft:#E2ECFA; --ok:#1B7A4D; --gap:#C03E28; --warn:#9A6200;
+  --code-bg:#E7ECF0; --ok-soft:#E1F2E9; --gap-soft:#FBE7E2; --warn-soft:#F8EBD3;
+  --sans:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C1B2B; --surface:#12263A; --ink:#E4EDF5; --muted:#93A7B9; --line:#2A4560;
+    --accent:#6EB0FF; --accent-soft:#16365A; --ok:#5FCB93; --gap:#FF8670; --warn:#E8B04A;
+    --code-bg:#0A1624; --ok-soft:#12372A; --gap-soft:#3C1E1B; --warn-soft:#3A2E12; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C1B2B; --surface:#12263A; --ink:#E4EDF5; --muted:#93A7B9; --line:#2A4560;
+  --accent:#6EB0FF; --accent-soft:#16365A; --ok:#5FCB93; --gap:#FF8670; --warn:#E8B04A;
+  --code-bg:#0A1624; --ok-soft:#12372A; --gap-soft:#3C1E1B; --warn-soft:#3A2E12; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 17px/1.65 var(--sans);margin:0;padding-inline:20px;padding-block:32px 72px}
+.sheet{max-width:980px;margin-inline:auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--sans);text-wrap:balance;margin:0}
+h1{font-weight:800;font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;letter-spacing:-.02em}
+h2{font-weight:800;font-size:clamp(1.5rem,3vw,2rem);line-height:1.15;letter-spacing:-.01em}
+h3{font-weight:600;font-size:1.15rem;line-height:1.3}
+p{margin:0}
+a{color:var(--accent)}
+code{font:600 .88em var(--mono);background:var(--code-bg);padding:.1em .35em;border-radius:3px}
+pre{font:400 13.5px/1.55 var(--mono);background:var(--code-bg);padding:14px 16px;border-radius:4px;margin:0;overflow-x:auto;border-left:3px solid var(--line)}
+pre code{background:none;padding:0;font-weight:400;font-size:inherit}
+.k{color:var(--accent);font-weight:600}.s{color:var(--ok)}.e{color:var(--gap);font-weight:600}.c{color:var(--muted)}
+.titleblock{display:grid;grid-template-columns:2fr 1fr 1fr;border:1.5px solid var(--ink);background:var(--surface)}
+.titleblock>div{padding:10px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.titleblock>div:last-child{border-right:0}
+.titleblock .lab{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block}
+.titleblock .big{grid-column:1/-1;padding:22px 18px 20px;border-right:0}
+.titleblock .big p{margin-top:12px;max-width:62ch;color:var(--muted)}
+.toc{display:flex;flex-wrap:wrap;gap:8px 18px;font:600 14px var(--mono);padding:0;margin:0;list-style:none}
+.toc a{text-decoration:none;color:var(--ink);border-bottom:2px solid var(--line)}
+.toc a:hover{border-color:var(--accent)}
+section{display:flex;flex-direction:column;gap:20px}
+.part{font:600 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);border-top:2px solid var(--ink);padding-top:10px}
+.lead{font-size:1.12rem;max-width:66ch}
+.text{max-width:68ch}
+.plain{background:var(--accent-soft);border-left:4px solid var(--accent);padding:14px 18px;max-width:72ch}
+.plain b{display:block;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.warnbox{background:var(--warn-soft);border-left:4px solid var(--warn);padding:14px 18px;max-width:72ch}
+.warnbox b{display:block;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:4px}
+.verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.verdict>div{background:var(--surface);border:1px solid var(--line);padding:16px 18px;min-width:0}
+.verdict h3{margin-bottom:6px}
+.verdict .tag{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.tag.ok{color:var(--ok)}.tag.gap{color:var(--gap)}.tag.warn{color:var(--warn)}
+figure{margin:0;display:flex;flex-direction:column;gap:10px}
+.fig{overflow-x:auto;background:var(--surface);border:1px solid var(--line);padding:12px}
+.fig svg{display:block;width:100%;min-width:660px;height:auto;color:var(--ink)}
+figcaption{font-size:.92rem;color:var(--muted);max-width:72ch}
+figcaption b{color:var(--ink)}
+/* svg vocabulary (page CSS styles inline svg) */
+svg .box{fill:var(--surface);stroke:var(--ink);stroke-width:1.5}
+svg .box.acc{fill:var(--accent-soft);stroke:var(--accent)}
+svg .box.ok{fill:var(--ok-soft);stroke:var(--ok)}
+svg .box.gap{fill:var(--gap-soft);stroke:var(--gap);stroke-dasharray:6 4}
+svg .box.warn{fill:var(--warn-soft);stroke:var(--warn)}
+svg .panel{fill:none;stroke:var(--line);stroke-width:1.5}
+svg .lbl{font:600 14px var(--sans);fill:var(--ink)}
+svg .sub{font:400 12px var(--mono);fill:var(--muted)}
+svg .small{font:400 12.5px var(--sans);fill:var(--ink)}
+svg .ttl{font:600 11.5px var(--mono);letter-spacing:.1em;fill:var(--muted);text-transform:uppercase}
+svg .edge{stroke:var(--ink);stroke-width:1.5;fill:none}
+svg .edge.acc{stroke:var(--accent)}
+svg .edge.gap{stroke:var(--gap);stroke-dasharray:6 4}
+svg .edge.ok{stroke:var(--ok)}
+svg .edge.warn{stroke:var(--warn);stroke-dasharray:6 4}
+svg .edge.thin{stroke:var(--line)}
+svg .elbl{font:400 12px var(--mono);fill:var(--muted)}
+svg .okt{fill:var(--ok);font:600 13px var(--sans)}
+svg .gapt{fill:var(--gap);font:600 13px var(--sans)}
+svg .warnt{fill:var(--warn);font:600 13px var(--sans)}
+svg .mid{text-anchor:middle}
+svg .end{text-anchor:end}
+table{border-collapse:collapse;width:100%;font-size:.95rem;background:var(--surface)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line)}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+td:first-child{white-space:nowrap}
+.pill{display:inline-block;font:600 11.5px var(--mono);padding:2px 8px;border-radius:99px;letter-spacing:.03em}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.gap{background:var(--gap-soft);color:var(--gap)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.new{background:var(--accent-soft);color:var(--accent)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.cols>*{min-width:0}
+.glossary{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.glossary div{background:var(--surface);border:1px solid var(--line);padding:12px 14px}
+.glossary dt{font:600 13px var(--mono);color:var(--accent)}
+.glossary dd{margin:2px 0 0;font-size:.95rem}
+dl{margin:0}
+ul.tight{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;max-width:68ch}
+.foot{font-size:.9rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+@media (max-width:640px){.titleblock{grid-template-columns:1fr 1fr}.titleblock>div:first-child{grid-column:1/-1}}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+<style>
+.find{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--gap);padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.find.con{border-left-color:var(--warn)}
+.find h3{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}
+.find .id{font:600 13px var(--mono);color:var(--muted)}
+.find dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:.95rem}
+.find dt{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:3px}
+.find dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.stack{display:flex;flex-direction:column;gap:14px}
+td code,dd code{font-weight:400;overflow-wrap:anywhere}
+.count{font:800 2.4rem/1 var(--sans)}
+@media (max-width:640px){.find dl{grid-template-columns:1fr}}
+</style>
+<style>.id{font:600 13px var(--mono);color:var(--muted)}</style>
+</head>
+<body>
+<main class="sheet">
+<header class="titleblock">
+  <div class="big">
+    <h1>Bridger spec audit, round 4: contradictions and gaps</h1>
+    <p>A fourth semantic pass over all 15 spec trees and the user guides, run on the working tree after the round-3 fixes (CCR-BR-035 and companion CCRs, uncommitted). It checks that each round-3 fix reached every place it applies, and reads the files earlier rounds skipped. The mechanical verifiers pass; everything here is a problem of meaning.</p>
+  </div>
+  <div><span class="lab">Document</span>SPEC-AUDIT-04</div>
+  <div><span class="lab">Date</span>2026-11-10</div>
+  <div><span class="lab">Subject</span><code>references/</code> at <code>c3fc08d</code> + uncommitted round-3 fixes, plus <code>docs/guides</code></div>
+  <div><span class="lab">Status</span>Resolved in CCR-BR-036 and the companion CCRs of the round (uncommitted)</div>
+  <div><span class="lab">Evidence</span>8 parallel read-only reviews, quoted file:line</div>
+  <div><span class="lab">Changes to repo</span>fixes in <code>references/</code> and <code>docs/guides</code>, not yet committed</div>
+</header>
+<nav aria-label="Contents"><ul class="toc">
+  <li><a href="#summary">Summary</a></li><li><a href="#patterns">Patterns</a></li><li><a href="#high">High</a></li>
+  <li><a href="#med-core">Medium: core</a></li><li><a href="#med-comp">Medium: companions</a></li><li><a href="#low">Low</a></li><li><a href="#method">Method and limits</a></li>
+</ul></nav>
+
+<section id="summary">
+  <div class="part">01 · Summary</div>
+  <div class="verdict">
+    <div><span class="tag gap">High</span><div class="count">4</div><p>Cannot be implemented as written, or breaks a stated guarantee.</p></div>
+    <div><span class="tag warn">Medium</span><div class="count">36</div><p>Two rules disagree, or a common case has no defined outcome.</p></div>
+    <div><span class="tag ok">Low</span><div class="count">31</div><p>Stale summaries, missing fields, naming drift.</p></div>
+    <div><span class="tag ok">Verifiers</span><div class="count">0</div><p>failures in <code>verify-traceability.sh</code>, <code>verify-companions.sh</code> and gxp <code>verify-traceability.sh --strict</code>.</p></div>
+  </div>
+  <div class="plain"><b>How to read this</b>Each finding is tagged <span class="pill warn">contradiction</span>, <span class="pill gap">gap</span> or <span class="pill warn">regression</span> (a round-3 fix that is incomplete or opened a new hole). <span class="pill ok">verified</span> means the coordinator re-read both sides in the source and the finding held; the rest are agent-reported with quoted evidence and should be confirmed when fixed. Duplicates are merged. Paths are relative to <code>references/</code> unless they start with <code>docs/</code>.</div>
+  <p class="text">Round 3 had 9 high, 42 medium and 34 low. The round-3 fixes for <code>shutdown</code>/<code>WouldDeadlock</code>/<code>CurrentTransition</code> were checked across 02, 08, 09, 12, 22, 23, INV-BR-016/022, ADR-008/016 and RSK-BR-011 and are consistent. So are the outbox incarnations, the install <code>GapRecord</code>, callback steps 4a/4b and <code>SessionStore</code> creation.</p>
+</section>
+
+<section id="patterns">
+  <div class="part">02 · Patterns</div>
+  <p class="lead">Most findings trace back to four causes.</p>
+  <div class="cols">
+    <div class="warnbox"><b>Round-3 fixes not carried through</b>The largest group again. The sub-scope/unmount stop path (H1, C10), the reconcile record lost at shutdown (C3, C4), the narrowed INV-BR-043 (C13), the shutdown exit from <code>failed</code>, the receipt read range (G1), residency labels (H4, F1), link suspension on retry (F2, F3), steps 4a/4b and keyed verification (A1) were each fixed where they started and not where they reach.</div>
+    <div class="plain"><b>Rules that need a mechanism nobody declared</b>The bus cannot see a transaction end (H3). Federation has no transport profile (H4). A subagent has no hand-off marker (H2). <code>Tasks</code> has no provider (T1). <code>ActivePlugin</code> has no type (C12). Shred acknowledgements have no store (K1). IQ produces no files digest (G3).</div>
+    <div class="plain"><b>Identity too coarse</b>Bare plugin IDs in the re-entrancy references (C1), one <code>AcceptedDigests</code> record per digest, one <code>shredId</code> per subject (K2).</div>
+    <div class="warnbox"><b>Entitlement <code>guard</code></b>Wrong principal (E1), a trusted optional essential list (E2), an unbounded first wait (E3), and policies that need a service plugins cannot require (E4).</div>
+  </div>
+</section>
+
+<section id="high">
+  <div class="part">03 · High severity</div>
+  <div class="stack">
+<article class="find con"><h3><span class="id">H1</span>A sub-scope close or <code>unmount</code> revokes leases inside a stop rooted in an operator call or in shutdown <span class="pill warn">regression</span><span class="pill ok">verified</span></h3><dl><dt>Where</dt><dd><code>core/behaviors/14-children-and-groups.md:73-83</code> (and <code>:422-427</code>) vs <code>09-leases.md:416-433</code>, <code>invariants.md:632-643</code> (INV-BR-017)</dd><dt>Evidence</dt><dd>14 (round-3 fix): when the parent's stop is already removing the child, the finalizer's wait "MUST be bounded by <code>BridgerOptions.drainTimeout</code> … at the limit the host MUST revoke the leases still held on the child, as a removal with no caller does". 09: <code>force</code> "MUST NOT be applied unless the caller passed <code>force: true</code>, except where this specification names a path with no caller" (runtime failure, shutdown limit, refused background restart, cascades so rooted), and "A path whose cascade root is an operator call MUST NOT revoke without that call's <code>force: true</code>: on expiry it MUST fail the call with <code>DrainTimeout</code> and park the stop". For shutdown, revocation waits for the overall limit. Neither list names a sub-scope close or <code>unmount</code>, and INV-BR-017 also still omits the refused background restart.</dd><dt>Fix</dt><dd>Make the finalizer's wait follow the limits of the parent's stop (park with the operator call, the overall limit for shutdown) instead of its own <code>drainTimeout</code>. Or name the sub-scope and unmount paths in BEH-BR-086 and INV-BR-017 and say they override <code>force: false</code>.</dd></dl></article>
+<article class="find"><h3><span class="id">H2</span>A subagent cannot tell whether its parent took its draft, so it cannot choose between "handed-to-parent" and withdrawing <span class="pill gap">gap</span><span class="pill ok">verified</span></h3><dl><dt>Where</dt><dd><code>agent/behaviors/02-tasks.md:528-531</code>, <code>04-subagents.md:313-318</code> vs <code>04-subagents.md:299-304</code>, <code>02-tasks.md:169</code>, <code>01-agent-seams.md:145</code></dd><dt>Evidence</dt><dd>The subagent whose draft the parent took "MUST end <code>cancelled</code> with … "handed-to-parent", without calling <code>draftWithdrawal.withdraw</code>". A sibling whose draft is not the parent's "MUST end under BEH-AG-016" and calls <code>withdraw</code>. Both are ended the same way, through <code>Tasks.cancel(taskId, parent.context)</code>. The signatures carry no marker: <code>cancel: (taskId, context?)</code> and <code>AgentLoop.cancel: (taskId)</code>. Only the parent loop knows which draft it took, and the subagent's loop runs in its own ephemeral realm. A wrong guess withdraws the draft the parent waits on, or leaves a draft unreported (INV-AG-008). This is the round-3 H3 fix.</dd><dt>Fix</dt><dd>Give the cancel a hand-off marker (for example <code>Tasks.cancel(taskId, ctx, { handedDraftId })</code>). <code>spawnSubagent</code> passes it only for the subagent the parent took.</dd></dl></article>
+<article class="find"><h3><span class="id">H3</span><code>DurableBus.fence</code> must wait for open transactions to end, but no port lets the bus see a transaction end <span class="pill gap">gap</span><span class="pill ok">verified</span></h3><dl><dt>Where</dt><dd><code>durable-bus/behaviors/06-replay-and-snapshots.md:447-460</code>, <code>08-testing-and-acceptance.md:115</code> (check 45) vs <code>02-transactional-outbox.md:36-38</code>, <code>:153-170</code>, <code>03:79-100</code></dd><dt>Evidence</dt><dd>06: "Setting the freeze MUST wait … until every transaction that has passed <code>fence</code> has committed or rolled back". But <code>fence(tx)</code> returns <code>Effect&lt;void, OutboxFrozen&gt;</code> and needs no <code>Scope</code>. <code>StoreTransaction</code> is <code>{ readonly handle: unknown }</code>, and neither <code>OutboxStore</code> nor <code>InboxStore</code> has an operation that reports a transaction's end or holds a freeze row. Check 45's wording ("the freeze is set only after every transaction that passed the fence before it has ended") can wait for ever under steady writes, since new transactions keep passing the fence.</dd><dt>Fix</dt><dd>Add an adapter obligation, for example a freeze flag the adapter checks inside <code>transaction</code> that serialises with open writers, or a scoped <code>fence</code> whose finalizer runs at the transaction's end. Reword check 45: the freeze refuses new transactions first, then waits for those already admitted.</dd></dl></article>
+<article class="find con"><h3><span class="id">H4</span><code>multiplex</code> now needs the physical end's <code>TransportProfile</code>, but federation's links have none to pass <span class="pill warn">regression</span><span class="pill ok">verified</span></h3><dl><dt>Where</dt><dd><code>remote/behaviors/07-transports-and-adapters.md:293-295</code>, <code>:313-322</code> vs <code>federation/behaviors/03-links-and-skew-handshake.md:43</code>, <code>:47</code>, <code>:82-83</code>; <code>06-kill-path-placement-and-skew.md:300-301</code></dd><dt>Evidence</dt><dd>Remote (round-3 H8 fix): <code>Transport.multiplex: (physical: Connection, profile: TransportProfile)</code>, the same for <code>GuestTransport.multiplex</code>, with <code>profile</code> "the profile of the transport end that made <code>physical</code>". Federation's <code>dial</code> and <code>accept</code> yield bare <code>Connection</code>s, links "MUST be split with … <code>Transport.multiplex</code> … <code>GuestTransport.multiplex</code>", and 06 relies on "the transport profile of the link's connection". The word <code>profile</code> appears nowhere else in federation.</dd><dt>Fix</dt><dd>Add <code>profile: TransportProfile</code> to <code>LinkDialer</code> and <code>LinkListener</code> (or to what they yield) and pass it to both <code>multiplex</code> calls in BEH-FD-017.</dd></dl></article>
+  </div>
+</section>
+
+<section id="med-core">
+  <div class="part">04 · Medium: core</div>
+<div class="tablewrap"><table><thead><tr><th>ID</th><th>Kind</th><th>Finding</th><th>Where</th><th>Suggested fix</th></tr></thead><tbody>
+<tr><td>C1</td><td><span class="pill gap">gap</span> <span class="pill ok">✔</span></td><td><code>HeldPlugins</code>, <code>CurrentTransition</code> and <code>WouldDeadlock { id }</code> hold bare plugin IDs, but a plugin's identity is (id, realm). A lease on <code>repo</code> in one realm either refuses <code>remove</code> of <code>repo</code> in another, or the check is realm-blind in a way never stated. Found by two reviews.</td><td><code>core/behaviors/09:502-536</code>, <code>02:93</code> vs <code>17:199-212</code>, <code>02:418-420</code> (BEH-BR-013)</td><td>Carry <code>{ id, realm }</code> (or a canonical key) in both references and add <code>realm</code> to <code>WouldDeadlock</code>.</td></tr>
+<tr><td>C2</td><td><span class="pill gap">gap</span></td><td>Fibers that <code>build</code> forks with <code>forkScoped</code>/<code>forkDaemon</code> (not <code>background</code>) keep <code>CurrentTransition</code> for life, because the host does not track them; their <code>shutdown</code> and <code>awaitIdle</code> are refused with no deadlock possible. RSK-BR-011 still says "None material". Round 3's split made this sharper.</td><td><code>core/behaviors/09:505-525</code> vs <code>10:216-217</code>, <code>12:205-228</code>, <code>gxp/03-risk-assessment.md:247</code></td><td>Carry a step token (plugin plus step id) and refuse only while that step runs, or state the false positive as a limit in RSK-BR-011.</td></tr>
+<tr><td>C3</td><td><span class="pill warn">con</span> <span class="pill ok">✔</span></td><td>The new wait for a running <code>reconcile</code>'s parent record has no "when an <code>AuditSink</code> is wired" condition; with no sink there is no record, so every such shutdown waits out its limit and reports <code>auditDegraded: true</code>, contradicting "false … including when no <code>AuditSink</code> is wired".</td><td><code>core/behaviors/12:392-405</code> vs <code>12:290-294</code>, <code>18:557-559</code></td><td>Prefix the rule with "When an <code>AuditSink</code> is wired".</td></tr>
+<tr><td>C4</td><td><span class="pill warn">reg</span></td><td>That same loss path (the reconcile parent record dropped at shutdown) is missing from INV-BR-022's "exactly one <code>requested</code> and one terminal record", from the closed latch-trigger lists (INV-BR-029, ADR-031, BEH-BR-205, glossary), from RSK-BR-006's "three paths", and from CCR-BR-035's impact entry.</td><td><code>core/behaviors/12:392-406</code> vs <code>invariants.md:786-788</code>, <code>:1116-1119</code>, <code>decisions/031:29</code>, <code>23:1115-1118</code>, <code>glossary.md:483-486</code>, <code>gxp/03:175</code></td><td>Name it in all five places and make it RSK-BR-006's fourth loss path.</td></tr>
+<tr><td>C5</td><td><span class="pill warn">con</span> <span class="pill ok">✔</span></td><td><code>CloseReport.auditDegraded</code> must reflect records lost in the close flush, but the report is produced before the flush, and the shutdown's own terminal record is written after it.</td><td><code>core/behaviors/23:1262-1266</code>, <code>24:352-353</code> vs <code>12:290-294</code>, <code>12:302-305</code></td><td>Signal flush losses through the error log and <code>auditPosition</code>, not the report, or produce the report after the flush.</td></tr>
+<tr><td>C6</td><td><span class="pill warn">reg</span> <span class="pill ok">✔</span></td><td>Step 4b (round-3 C8) skips only no-op cells, so Conflict cells are submitted. A <code>retry</code> of a plugin still disabled for "refused-digest" now fails with <code>OperationRejected</code> and a <code>rejected</code> record instead of the table's <code>Conflict</code>. This breaks check 104 and 22's own condition for 4b.</td><td><code>core/behaviors/28:958-971</code> vs <code>08:440-442</code>, <code>28:1322-1323</code>, <code>22:410-413</code></td><td>Exclude Conflict cells too, or say 4b overrides them and amend the 08 rows and check 104.</td></tr>
+<tr><td>C7</td><td><span class="pill warn">con</span></td><td><code>enable</code> of a plugin failed in phase "load" both reruns <code>load</code> (27) and is a no-op (08's failed row); 28's not-submitted list also omits <code>enable</code> of <code>failed</code>.</td><td><code>core/behaviors/27:664-668</code> vs <code>08:439</code>, <code>28:966-968</code></td><td>Drop <code>enable</code> from 27:666 and add it to 28's not-submitted list.</td></tr>
+<tr><td>C8</td><td><span class="pill warn">con</span></td><td><code>reconfigure</code> with a value must decode first and fail <code>ConfigInvalid</code> with nothing touched, with no exception for a registration not yet loaded, where the raw value is stored undecoded. Round 3 added the exception only to the no-value rule.</td><td><code>core/behaviors/11:218-221</code>, <code>11:321-322</code>, <code>08:121-124</code> vs <code>27:731-737</code>, <code>22:539-542</code></td><td>Add the same not-yet-loaded clause to the value rule, BEH-BR-102 and BEH-BR-066.</td></tr>
+<tr><td>C9</td><td><span class="pill warn">con</span> <span class="pill ok">✔</span></td><td>The proxy's accepted range <code>&gt;= V &lt; (major+1).0.0</code> is outside the <code>ContractRange</code> grammar, which <code>satisfies</code> must reject, and for major 0 it admits 0.5.0 against a 0.2.0 provision although add-only holds only within one minor.</td><td><code>core/behaviors/26:703-712</code>, <code>:726-729</code> vs <code>26:289-311</code>, <code>:575-577</code>; copied in <code>remote/01:52</code>, <code>remote/02:45</code>, <code>federation/03:242</code></td><td>Use <code>"^" + V</code>, and update remote and federation.</td></tr>
+<tr><td>C10</td><td><span class="pill warn">reg</span></td><td>Sub-scope close and <code>unmount</code> now resume a parked child stop (with <code>stop-resumed</code> <code>by</code> "sub-scope"/"unmount"), but the exclusive resume lists and <code>by</code> unions were not widened. Found by two reviews.</td><td><code>core/behaviors/14:98-101</code>, <code>:318-321</code>, <code>13:101,172-176</code> vs <code>08:726-744</code>, <code>21:134-135</code>, <code>invariants.md:313-316</code> (INV-BR-009)</td><td>Add both triggers, their <code>by</code> values and their drain limits to BEH-BR-074/080, BEH-BR-178 and INV-BR-009.</td></tr>
+<tr><td>C11</td><td><span class="pill gap">gap</span></td><td><code>whenAvailable</code> with <code>onFailure: "restart"</code> has "the same meanings as <code>background</code>" but never consults the <code>RefusalList</code>, so code of a revoked digest keeps re-running.</td><td><code>core/behaviors/15:266-288</code> vs <code>10:193-199</code>, <code>28:920-938</code></td><td>Add <code>whenAvailable</code> re-runs to 28's consult points and to BEH-BR-190's cause roots.</td></tr>
+<tr><td>C12</td><td><span class="pill gap">gap</span></td><td>Registries and the event bus must report ownership "to the host through <code>ActivePlugin</code>", but the reference's type is never given, the registry is built before the host, and 20 says a helper cannot reach the host that way.</td><td><code>core/behaviors/13:399-412</code>, <code>19:177-181</code>, <code>:409-412</code> vs <code>19:121-122</code>, <code>20:342-344</code>, <code>27:913-918</code></td><td>Declare <code>ActivePlugin</code>'s value type with its report operation, or add one to <code>HostLink</code>.</td></tr>
+<tr><td>C13</td><td><span class="pill warn">reg</span></td><td>INV-BR-043 was narrowed to definitions with <code>meta.digest</code>, but RSK-BR-033 ("the change made is not the change approved", Low residual) and URS-BR-037's rationale still claim what is applied is what was reviewed.</td><td><code>invariants.md:1520-1537</code> vs <code>gxp/03:573-580</code>, <code>urs.md:308-316</code></td><td>Add the digest-less case and its consumer control to RSK-BR-033 and reassess it; add a URS gap row.</td></tr>
+<tr><td>C14</td><td><span class="pill warn">con</span></td><td>ADR-035 and the validation plan §5.2 say a test that kills no mutant does not count toward the OQ, but the only evidence generator (BEH-GX-124) says "No other rule, weighting or threshold MAY apply" and takes no mutation report.</td><td><code>decisions/035:32</code>, <code>gxp/04-validation-plan.md:87,95</code> vs <code>gxp/behaviors/16:189-193</code>, <code>gxp/decisions/021</code></td><td>Give the generator the mutation report, or make the kill rule a review criterion outside generated evidence.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="med-comp">
+  <div class="part">05 · Medium: companions</div>
+  <p class="text">IDs: E entitlement, K keyring, A audit-chain/kit, G GxP, T agent/command, L loader/kit, F federation/event-store.</p>
+<div class="tablewrap"><table><thead><tr><th>ID</th><th>Kind</th><th>Finding</th><th>Where</th><th>Suggested fix</th></tr></thead><tbody>
+<tr><td>E1</td><td><span class="pill gap">gap</span></td><td><code>Entitlement.guard</code> identifies the plugin from the fiber's principal, but a provided method runs under the caller's principal (none for application code). The overview's own example is therefore unguarded for application callers and attributed to the wrong plugin otherwise.</td><td><code>entitlement/behaviors/02:324-328</code>, <code>overview.md:144</code> vs <code>core/behaviors/28:218-221</code></td><td>Always guard on the passed <code>entitled</code>; take <code>pluginId</code> from the runtime.</td></tr>
+<tr><td>E2</td><td><span class="pill warn">con</span></td><td><code>guard</code> trusts an optional, caller-supplied <code>essential</code> list it "cannot check", while INV-EN-005 and BEH-EN-007 promise an application-essential use is never refused by <code>guard</code>.</td><td><code>entitlement/behaviors/02:301,336-350</code> vs <code>invariants.md:124-131</code>, <code>01:288-295</code></td><td>Narrow the invariant for <code>guard</code>, or make <code>essential</code> required and come from the application.</td></tr>
+<tr><td>E3</td><td><span class="pill gap">gap</span></td><td><code>guard</code> waits without a bound for the first element of <code>entitled</code> (core does not bound it), and "last-known" defines no first state when no answer was ever known. Every guarded call can hang. Raised by two reviews.</td><td><code>entitlement/behaviors/02:332-334</code> vs <code>core/behaviors/10:136-138</code>, <code>entitlement/01:227-259</code></td><td>Bound <code>guard</code> (<code>checkTimeout</code> → <code>NotEntitled</code> "unknown") and define the initial last-known state.</td></tr>
+<tr><td>E4</td><td><span class="pill warn">reg</span></td><td><code>Entitlement.contributionPolicy</code> and <code>Budget.contributionPolicy</code> still require services a plugin cannot require, which is the M25 cause, fixed only for <code>guard</code>.</td><td><code>entitlement/02:418-433</code>, <code>03:287-288</code> vs <code>core/behaviors/01:172-174</code>, <code>entitlement/01:70-71</code></td><td>Say hook-point owners using them are application code, or give the policy a runtime seam.</td></tr>
+<tr><td>K1</td><td><span class="pill gap">gap</span></td><td>Shred receipts need persisted callback acknowledgements, per-callback cursors and host acknowledgements, but <code>KeyStore</code> has no operation for them and <code>markStep</code> may change only <code>steps</code>.</td><td><code>keyring/behaviors/03:179-185,212-215,282-286</code> vs <code>01:91-107,136-137</code></td><td>Add <code>KeyStore</code> operations or a <code>ShredLedger</code> port; specify the acknowledgement subscription.</td></tr>
+<tr><td>K2</td><td><span class="pill gap">gap</span></td><td>A received notice for a subject already tombstoned under another <code>shredId</code> has no outcome: no second tombstone may be written, and the originator counts only its own <code>shredId</code>, so its receipt stays pending for ever.</td><td><code>keyring/behaviors/03:200-211</code> vs <code>03:107-110</code>, <code>01:92</code></td><td>Write nothing, rerun steps 2 and 4 idempotently, and acknowledge the notice's own <code>shredId</code>.</td></tr>
+<tr><td>A1</td><td><span class="pill warn">reg</span></td><td><code>bridger verify-chain</code> cannot pass <code>keyed</code> or <code>expectKeyed</code>, so the round-3 keyed-verification fixes never reach the tool that BEH-AC-034 says uses <code>verifyBundle</code>.</td><td><code>kit/behaviors/06:214-221,256-258</code> vs <code>audit-chain/behaviors/05:165-167,413-421</code>, <code>03:218-227</code></td><td>Add <code>--keyed &lt;module&gt;</code> and <code>--expect-keyed</code>; map "key-unavailable" to exit 4.</td></tr>
+<tr><td>G1</td><td><span class="pill warn">reg</span></td><td>The H6 fix reached <code>verifySeals</code> but not <code>exportTrail</code>: an archive asks for receipts only over the range read, so the kept receipts of deleted newest windows are left out and <code>readArchive</code> never reports "window-not-in-entries".</td><td><code>gxp/behaviors/18:100-104</code> vs <code>21:158-165</code>, <code>audit-chain/05:120-122</code></td><td>For <code>range: "all"</code>, export receipts up to <code>Number.MAX_SAFE_INTEGER</code>.</td></tr>
+<tr><td>G2</td><td><span class="pill gap">gap</span></td><td>A range archive that ends inside an anchored window reports a false <code>anchorMismatch</code>: the bundle holds the window's statement but only the in-range entries, and the M2 mapping covers only <code>fromSeq &gt; 1</code>.</td><td><code>gxp/behaviors/18:100-104,279-302</code> vs <code>audit-chain/05:120-122</code>, <code>03:243-247</code></td><td>Skip mismatches for windows past <code>toSeq</code>, or widen the segment to the window's end.</td></tr>
+<tr><td>G3</td><td><span class="pill gap">gap</span></td><td>OQ runs must match installed-files digests and resolved locations that no IQ item produces (IQ-01–03 and IQ-24 compare name, version and hash only), and <code>IqReport</code> has no identity field.</td><td><code>gxp/behaviors/16:56,266-280</code> vs <code>15:263-268,352-360,465-472</code></td><td>Add <code>installed</code> to <code>IqReport</code> and compute <code>filesDigest</code> in IQ-01/03/24 as IQ-08 does.</td></tr>
+<tr><td>G4</td><td><span class="pill warn">con</span></td><td>The H7 fix binds <code>definition: {}</code> from records, but core 23 says a field that does not apply "MUST be absent, never … empty". A core that omits it breaks the record-side digest (vector 5).</td><td><code>gxp/behaviors/11:130</code>, <code>09:103-110</code> vs <code>core/behaviors/23:227-229,245-251</code></td><td>Exempt <code>definition</code> in core 23:229, or treat absent and empty alike in <code>bindingOf</code>.</td></tr>
+<tr><td>G5</td><td><span class="pill gap">gap</span></td><td>A consumer gate piece that returns <code>Defer</code> lets the later "approval" piece consume the binding (core consults pieces after a <code>Defer</code>), and the call is then rejected, so the binding is burned.</td><td><code>gxp/behaviors/22:171-204</code> vs <code>core/behaviors/32:680-684</code></td><td>Wrap consumer pieces so that <code>Defer</code> becomes <code>Refuse</code>, or refuse such pieces at build.</td></tr>
+<tr><td>T1</td><td><span class="pill gap">gap</span></td><td><code>Tasks</code> has no declared provider, and the round-3 rule to isolate every key a subagent's plugins provide would put a subagent's task in a separate table if <code>AgentLoop.plugin</code> provides <code>Tasks</code>. <code>Tasks.cancel</code> would then fail <code>TaskNotFound</code> and the bridges would never see the task.</td><td><code>agent/behaviors/04:97-114,272-274</code> vs <code>02:159-170,385-391</code>, <code>overview.md:86-99</code></td><td>Say who provides <code>Tasks</code> and exclude it from <code>isolate</code>.</td></tr>
+<tr><td>T2</td><td><span class="pill gap">gap</span></td><td>The pending-draft rule covers one subagent deferral racing another, but not the parent's own <code>Deferred</code>, a <code>done</code> answer or <code>needs-input</code>; the parent can hold two drafts or end with an unreported one.</td><td><code>agent/behaviors/02:516-524</code> vs <code>02:55,225-230,528</code>, <code>04:283-286</code></td><td>Define precedence, and have a still-pending subagent draft withdrawn when the turn ends any other way.</td></tr>
+<tr><td>T3</td><td><span class="pill warn">reg</span></td><td>Wrappers run "in the dispatching fiber … under the dispatching fiber's principal" (H5 fix), but a long command's steps are forked into the catalog scope and outlive that fiber, perhaps the dispatcher's activation (<code>PrincipalRetired</code>).</td><td><code>command/behaviors/06:384-394</code> vs <code>07:448-458</code>, <code>core/behaviors/28:136-139</code></td><td>State the task fiber's principal and the outcome when that activation ends.</td></tr>
+<tr><td>L1</td><td><span class="pill gap">gap</span></td><td>"verification-unknown" refuses bundled plugins exempt by digest (they never get an <code>AcceptedDigests</code> record), so subagents and family members go <code>disabled</code> after any signer revocation, although check 6 says they succeed.</td><td><code>loader/behaviors/07:661-665</code>, <code>09:~490</code> vs <code>02:401-407</code>, <code>06:299-305</code></td><td>Exclude <code>exempt.digests</code> from "verification-unknown", or require them pinned in the package rule.</td></tr>
+<tr><td>L2</td><td><span class="pill warn">con</span></td><td>The kill switch's revocation reconcile uses the last applied list minus the revoked entries, so core's diff also re-installs pending or hand-removed entries under the revocation actor; check 12 says it issues no other action.</td><td><code>loader/behaviors/04:435-441</code>, <code>06:331-334</code> vs <code>04:457-461</code>, <code>core/behaviors/18:225-232</code></td><td>Build the reconcile from the current scope contents minus the dropped entries.</td></tr>
+<tr><td>L3</td><td><span class="pill gap">gap</span></td><td>The kit's <code>definePlugin</code> cannot produce <code>manifest</code> or <code>handoff</code>, and its copy of <code>Plugin.Any</code> omits both; a kit-authored plugin cannot declare a manifest or a state hand-off.</td><td><code>kit/behaviors/01:35-63,139-152</code> vs <code>core/behaviors/01:58-59,86-101</code></td><td>Add both, passed through unchanged, to every form and to the <code>PluginAny</code> copy.</td></tr>
+<tr><td>F1</td><td><span class="pill warn">reg</span></td><td>The H8 fix stopped at the remote side: federation opens only import endpoints with residency labels, so <code>Remote.serve</code> on an export evaluates placement with no offered labels and refuses every call of an accepted route.</td><td><code>federation/behaviors/06:317-322</code>, <code>04:41-47</code> vs <code>remote/07:288-290</code>, <code>remote/09:354-360</code></td><td>Open export endpoints with <code>MultiplexedGuest.endpoint(name, { residency })</code> too.</td></tr>
+<tr><td>F2</td><td><span class="pill gap">gap</span></td><td>On a retry after a failed install, links stay suspended (M18 fix), but step 1 must push the outbox over them when delivery rides peer links; <code>settle</code> then fails "outbox-unsettled" for ever.</td><td><code>federation/behaviors/02:397-400,425-428</code> vs <code>02:460-463,508-511</code>, <code>durable-bus/06:378-384</code></td><td>Resume delivery links in a retry's step 1, or let it settle with <code>pushed-or-kept</code>.</td></tr>
+<tr><td>F3</td><td><span class="pill warn">reg</span></td><td>ADR-FD-007, BEH-FD-044's <code>TestFederation</code> assertion and 02's own step text still say links are not suspended during step 1, against the retry rule and check 43.</td><td><code>federation/decisions/007:28</code>, <code>06:279-283</code>, <code>02:362,366,459-460</code> vs <code>02:397-400</code>, <code>05:130</code></td><td>Limit each statement to a first attempt.</td></tr>
+<tr><td>F4</td><td><span class="pill gap">gap</span></td><td>A whole-store freeze makes every event-store <code>receive</code> handler fail <code>OutboxFrozen</code> with <code>onPoison: "halt"</code>; after five attempts each stream with traffic halts and needs an operator. Only <code>follow</code> was paused.</td><td><code>event-store/behaviors/05:117-124</code>, <code>04:172</code> vs <code>durable-bus/03:339-355</code>, <code>06:294-302</code></td><td>Pause subscriptions during the settlement, or not count <code>OutboxFrozen</code> toward <code>maxAttempts</code>.</td></tr>
+</tbody></table></div>
+</section>
+
+<section id="low">
+  <div class="part">06 · Low</div>
+  <div class="cols">
+<div><h3>Core</h3><ul class="tight"><li><span class="id">CL1</span> BEH-BR-096 still lists six exits from a runtime <code>failed</code> and omits shutdown, which INV-BR-007, ADR-005 and BEH-BR-031 now name (10:507-526). Found by two reviews.</li><li><span class="id">CL2</span> The error catalog says to <code>retry</code> after a <code>CleanupError</code>, which <code>failed(cleanup)</code> always refuses; only <code>remove</code> is accepted (docs/guides/error-catalog.md:108 vs 08:440).</li><li><span class="id">CL3</span> BEH-BR-066's ordered check list omits steps 4a (fingerprints) and 4b (refusal list) (08:121-127 vs 22:409-415).</li><li><span class="id">CL4</span> <code>Realm.ephemeral</code>'s error union omits <code>HostClosed</code>, and creation with rejected reconcile entries has no stated error (33:529-531).</li><li><span class="id">CL5</span> <code>family.evict</code>/<code>reset</code> cannot report the new "refused" eviction outcome or <code>RealmInUse</code>; <code>FamilyEvictionError</code> carries only <code>DrainTimeout</code> or a reconcile rejection (33:82-83,356-367; ADR-008:83).</li><li><span class="id">CL6</span> <code>useOptional</code> lists <code>LeaseTimeout</code> but takes no <code>timeout</code>, so the error is unreachable, the case 19 already settled for registries (15:132-135).</li><li><span class="id">CL7</span> A record mid-retry at close "was never numbered", but <code>auditSeq</code> is assigned before the first attempt (24:347 vs 24:213, 23:933-937).</li><li><span class="id">CL8</span> INV-BR-016's Source and verification and ADR-016's "nothing changes" claim ignore the <code>emit</code> exception for <code>CurrentTransition</code> and the record-less refused <code>shutdown</code> (invariants 574-607, ADR-016:33 vs 16:326-329). Found by two reviews.</li><li><span class="id">CL9</span> 17 exempts only application code's <code>Host.use</code> from interception; 28 says ordinary interceptions never apply to <code>Host.use</code> (17:376-381 vs 28:578-580).</li><li><span class="id">CL10</span> Migration-map items 83 and 97 still say <code>shutdown</code> never fails with <code>WouldDeadlock</code> and that every re-entrancy refusal is recorded (appendices/spec-md-migration-map.md:462,524).</li><li><span class="id">CL11</span> RSK-BR-061's controls do not cover the widened INV-BR-050 (<code>dormant</code> → <code>waiting</code>) (gxp/03:996).</li><li><span class="id">CL12</span> Traceability §7 rows for RSK-BR-008, 011 and 012 lack the behaviours their controls now cite (traceability.md:371-386).</li></ul></div>
+<div><h3>Companions</h3><ul class="tight"><li><span class="id">PL1</span> <code>verifyBundle</code> takes one bundle-wide <code>keyed</code> function, while <code>precomputeMacs</code> produces one per series and profile (audit-chain/05:165 vs 03:195-199).</li><li><span class="id">PL2</span> The keyring's two shred subscriptions are never named (so <code>DurableBus.resume</code> cannot target them), and no keyring plugin or layer, configuration or <code>NonceSource</code> is declared (keyring/03:226-247,88).</li><li><span class="id">PL3</span> The <code>NotEntitled</code> catalog entry misses that "unmetered" means no <code>EntitlementView</code> is wired, where renewing does not help (error-catalog.md:931-935, kit/07:232).</li><li><span class="id">PL4</span> <code>GxpTestHost.make</code> cannot take the now-required <code>gatePieces</code>, and no acceptance check covers them (gxp/19:302-324 vs 01:269-285).</li><li><span class="id">PL5</span> The trail store's append table has no row for a <code>recordId</code> held only by a collision entry (gxp/02:194-226).</li><li><span class="id">PL6</span> GxP check 11 asserts <code>anchorMismatch</code> "window-not-in-entries", but the mapping drops <code>kind</code> (gxp/20:128-130 vs 21:149-150).</li><li><span class="id">PL7</span> ADR-GX-001, ADR-GX-025 and check 29 do not carry audit-chain as an optional peer with its own range (M3 fix).</li><li><span class="id">PL8</span> ADR-GX-004 still has <code>append</code> without "stored-collision" and says the store refuses a colliding entry.</li><li><span class="id">PL9</span> ADR-GX-023 names the archive format both "/2" (line 25) and "/1" (line 26). Verified.</li><li><span class="id">PL10</span> ADR-GX-022's pack layout omits <code>sink-status.json</code>, <code>assessments.json</code> and <code>signatures.json</code>.</li><li><span class="id">PL11</span> The GxP sink's metric outcomes have no value for a keyed-hasher failure or a "rejected" store failure (gxp/03:384).</li><li><span class="id">PL12</span> <code>AcceptedDigests</code> holds one record per digest, so a catalog withdrawal erases a load's acceptance (loader/05:160-163).</li><li><span class="id">PL13</span> <code>DraftReport</code> text in agent 02, the error catalog and kit 07 still says "ended while awaiting approval".</li><li><span class="id">PL14</span> Loader BEH-LD-070's "one computation" of revoked digests cannot hold: <code>LoaderGate</code> and <code>filterDesired</code> each compute it.</li><li><span class="id">PL15</span> On the remote guest, the order of the placement check and <code>DedupeStore.claim</code> is not set; a claim first leaves duplicates <code>InProgress</code> (remote/09:194-206).</li><li><span class="id">PL16</span> <code>LinkAgreement.refused</code> has no "placement-refused" reason, which BEH-FD-045 requires (federation/03:144). Verified.</li><li><span class="id">PL17</span> INV-RM-007 and ADR-RM-005 give the callback admission order without steps 4a and 4b.</li><li><span class="id">PL18</span> ADR-RM-007 still says per-call deduplication covers one invocation only, against BEH-RM-067's <code>DedupeStore</code>.</li><li><span class="id">PL19</span> The durable-bus overview omits <code>DurableBus.fence</code>, and BEH-DB-046's status has no paused state for a paused <code>follow</code>.</li></ul></div>
+  </div>
+</section>
+
+<section id="method">
+  <div class="part">07 · Method and limits</div>
+  <p class="text">Eight read-only reviews ran in parallel with the same split as rounds 2 and 3. Each first read the uncommitted round-3 diff for its slice and grepped every other place a changed rule appears, then read the files earlier rounds had skipped. Duplicates (bare plugin IDs, the parked-stop resume lists, BEH-BR-096, INV-BR-016, the unbounded <code>entitled</code> wait) are merged. The coordinator re-read the four highs and seven other findings in the source; all held. A suspected loss of nested transitions in the single-valued <code>CurrentTransition</code> was checked and dropped: a lazy plugin's <code>load</code> runs in its own build step, and <code>wake</code> does not wait (27:556, 27:678).</p>
+  <div class="warnbox"><b>Not read line by line</b>core 01, 04, 05, 07 (in part), 13, 14, 18, 21–23 (in part), 31–32 (in part); loader 03, 07–08 (in part); kit 02, 03, 07, 08 and appendices; command 01–04 (in part); mcp 02, 04, 05 (in part); agent 03, 05; gxp 06, 13, 14 and most decisions; federation 01, 04, 05 (in part); remote 02, 04, 08; durable-bus 03, 05, 07 (in part); event-store 01–04 (in part); sequence 01, 03; most companion ADRs, risk and traceability files; core URS and gxp/01–02 (in part).</div>
+  <p class="foot">Bridger · specification audit round 4 · findings only, nothing in <code>references/</code> was changed.</p>
+</section>
+</main>
+</body>
+</html>

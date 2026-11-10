@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-022                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-10): Layout lists `sink-status.json`, `assessments.json` and `signatures.json`, as BEH-GX-129 does (PL10) (CCR-GX-007)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -30,11 +30,14 @@ IQ results ([ADR-GX-020](../decisions/020-iq-proof-and-probe.md)), OQ results ([
   oq.json            OQ results per requirement (ADR-GX-021)
   coverage.json      requirement → tests → outcome, including "not covered"; behaviour → requirements
   checks.json        the check reports given, in input order
+  sink-status.json   the trail sink's counts, unless "no-sink" (BEH-GX-179)
   deviations.json    every deviation, with kind and source
   adapters.json      the wired ports' manifests, copied unchanged
   attachments/       the runner output files exactly as read, plus run and conformance manifests
   report.html        derived rendering
   report.md          derived rendering
+  assessments.json   added later by assessDeviation; outside the manifest's file list
+  signatures.json    added later by signEvidencePack; outside the manifest's file list
   ```
 
 - **The manifest.** `manifest.json` holds `{ format: "bridger-gx-evidence/1", package: { name, version, filesDigest }, core: { version }, generatedAt, inputs: [{ as, digest }], files: [{ path, digest, bytes }], statement }`, with `digest` = `"sha256:"` + hex SHA-256 of each file's bytes, listing every file of the pack except `manifest.json`, `signatures.json` and `assessments.json`, sorted by path. `generatedAt` comes from `Clock`.

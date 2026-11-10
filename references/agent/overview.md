@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-OVW                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): Public API: `AgentLoop.plugin` takes the required `draftWithdrawal`; `DraftWithdrawal`, `DraftWithdrawal.none`, `DraftWithdrawalFailed`; worked example passes the approval store's withdrawal (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Worked example: the taint floor withholds automatic allow of changes; declared reads keep the gate's decision (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): API surface: model family, batches of tool calls, envelopes, command tasks in the bridges, idempotency option; seams: realm families, `CurrentCorrelation` (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `TaintGuard.drafts` wired through the command catalog layer; neutral example input; seams updated (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.6 (2026-11-10): Public API and worked example: `Tasks` is a base service built with `Tasks.layer()` into `base`, provided by no plugin, so a subagent's task is in its parent's table (BEH-AG-011, BEH-AG-025) (T1) (CCR-AG-007)<br>0.5 (2026-11-09): Public API: `AgentLoop.plugin` takes the required `draftWithdrawal`; `DraftWithdrawal`, `DraftWithdrawal.none`, `DraftWithdrawalFailed`; worked example passes the approval store's withdrawal (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Worked example: the taint floor withholds automatic allow of changes; declared reads keep the gate's decision (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): API surface: model family, batches of tool calls, envelopes, command tasks in the bridges, idempotency option; seams: realm families, `CurrentCorrelation` (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `TaintGuard.drafts` wired through the command catalog layer; neutral example input; seams updated (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -66,7 +66,7 @@ The package's only runtime dependencies are `effect`, `@bridger/core` and
 | `AgentLoop`, `AgentLoop.plugin({ draftWithdrawal, models?, batchToolCalls?, maxToolResultBytes?, longToolWait?, evalWho?, maxSteps? })` | service key, reference plugin | [BEH-AG-003](./behaviors/01-agent-seams.md#beh-ag-003-a-turn-pins-one-toolset-and-runs-every-tool-call-through-dispatch), [BEH-AG-007](./behaviors/01-agent-seams.md#beh-ag-007-the-model-adapter-is-resolved-per-session-through-a-realm-family), [BEH-AG-008](./behaviors/01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch), [BEH-AG-023](./behaviors/03-taint-and-provenance.md#beh-ag-023-tool-results-reach-the-model-only-as-size-capped-envelopes) |
 | `SessionStore`, `MemoryStore` | service keys | [BEH-AG-004](./behaviors/01-agent-seams.md#beh-ag-004-sessionstore-and-memorystore-keep-data-with-its-provenance) |
 | `ToolRunner`, `ToolRunner.plugin({ idempotency? })`, `ToolRunner.runBatch` | service key, reference plugin | [BEH-AG-005](./behaviors/01-agent-seams.md#beh-ag-005-toolrunner-is-dispatch-with-the-turns-pinned-toolset), [BEH-AG-008](./behaviors/01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch) |
-| `TaskSnapshot`, `Tasks`, `Tasks.await` | types, service | [02 — Tasks](./behaviors/02-tasks.md) |
+| `TaskSnapshot`, `Tasks`, `Tasks.layer()`, `Tasks.await` | types, base service (provided by no plugin) | [02 — Tasks](./behaviors/02-tasks.md) |
 | `DraftWithdrawal`, `DraftWithdrawal.none`, `DraftWithdrawalFailed` | port of the application's draft flow, explicit no-op, error | [BEH-AG-016](./behaviors/02-tasks.md#beh-ag-016-a-task-that-ends-while-awaiting-approval-reports-its-draft-for-withdrawal) |
 | `HerdrBridge.plugin`, `McpTaskBridge` (agent runs and command tasks) | adapters | [BEH-AG-013](./behaviors/02-tasks.md#beh-ag-013-the-herdr-bridge-maps-states-and-adds-none), [BEH-AG-014](./behaviors/02-tasks.md#beh-ag-014-the-mcp-tasks-bridge), [BEH-AG-015](./behaviors/02-tasks.md#beh-ag-015-command-tasks-in-the-bridges) |
 | `Taint`, `Provenance`, `TaintPolicy`, `TaintGuard.drafts` | read view over core keys, port, draft source for the command catalog | [03 — Taint and provenance](./behaviors/03-taint-and-provenance.md) |
@@ -83,7 +83,10 @@ import { AgentLoop, ToolRunner, Tasks, TaintGuard } from "@bridger/agent"
 
 // Base services, built by the application: the catalog's taint floor takes its
 // drafts from the application's approval store through TaintGuard.drafts.
+// Tasks is a base service, not a plugin's: every loop, a subagent's included,
+// writes the one table (BEH-AG-011, BEH-AG-025).
 const base = Layer.mergeAll(
+  Tasks.layer(),
   CommandCatalog.layer({ drafts: TaintGuard.drafts(myApprovalStore) }),
   myCommandGateLayer                       // the application's CommandGate
 )

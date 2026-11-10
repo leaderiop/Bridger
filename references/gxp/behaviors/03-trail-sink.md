@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-017: one `trailSink` layer and its status serve exactly one host, as audit-chain's chain sink does; a second host's record is stored, never refused (H6) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-024 metric outcomes "rejected" (a `TrailWriteFailed` of that reason) and "keyed-hash-failed" (audit-chain's keyed hasher failed), so every failure row of the sink's table has an outcome (PL11) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-017: one `trailSink` layer and its status serve exactly one host, as audit-chain's chain sink does; a second host's record is stored, never refused (H6) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -381,7 +381,8 @@ store, marked, where the checks find them.
 // illustrative — not type-checked
 // Effect metrics, labelled by adapter name and outcome only
 //   bridger_gxp_trail_append_total{adapter, outcome}
-//   outcome: "stored" | "stored-collision" | "already-stored" | "too-large" | "unavailable" | "defect" | "readback-mismatch"
+//   outcome: "stored" | "stored-collision" | "already-stored" | "too-large" | "unavailable" | "rejected" | "defect" | "readback-mismatch"
+//            | "keyed-hash-failed"                         // one value per outcome of the table of BEH-GX-019; the last with sealing on only
 //   bridger_gxp_trail_marked_total{adapter, mark}      mark: "schema-unsupported" | "jcs-escaped"
 //   bridger_gxp_trail_append_duration_ms{adapter}
 ```

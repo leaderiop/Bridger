@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-20                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): Check 11 a window whose entries were removed with its receipt kept is reported "window-not-in-entries" (H6); check 12 five vectors (H7); check 15 the rendered `onBehalfOf`, `undo` and `requestOnly` fields (M1); check 26 IQ-01 to IQ-24 (M3); check 34 a rule naming `reconcile` (M4) (CCR-GX-006)<br>0.4 (2026-11-10): Check 11: `chainUnanchoredTail`, `anchorUnconfirmed` and `chainLossCounterRose`; check 26: IQ-01 to IQ-23; check 47: IQ-23 and `sink-status.json` (H7, P7, P14, P16); follow-up: check 11 adds the "unkeyed-link" `chainBreak` of a keyed trail rewritten with unkeyed links (CCR-GX-005)<br>0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.6 (2026-11-10): Check 29 `@bridger/audit-chain` is an optional peer with the compatibility row's audit-chain range, imported only by the sealing entry (PL7); check 44 the consumer's `gatePieces` through `GxpTestHost.make`: order, refusal, a `Defer` refused as "<name>: deferred" without consuming a binding, and validation (PL4, G5) (CCR-GX-007)<br>0.5 (2026-11-10): Check 11 a window whose entries were removed with its receipt kept is reported "window-not-in-entries" (H6); check 12 five vectors (H7); check 15 the rendered `onBehalfOf`, `undo` and `requestOnly` fields (M1); check 26 IQ-01 to IQ-24 (M3); check 34 a rule naming `reconcile` (M4) (CCR-GX-006)<br>0.4 (2026-11-10): Check 11: `chainUnanchoredTail`, `anchorUnconfirmed` and `chainLossCounterRose`; check 26: IQ-01 to IQ-23; check 47: IQ-23 and `sink-status.json` (H7, P7, P14, P16); follow-up: check 11 adds the "unkeyed-link" `chainBreak` of a keyed trail rewritten with unkeyed links (CCR-GX-005)<br>0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -273,12 +273,16 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
              BEH-GX-153 states, for the following:
              29. The packed `@bridger/gxp` declares `effect` and
                  `@bridger/core` as its only runtime dependencies, both as
-                 peers, with the core range of the compatibility row; no core
+                 peers, with the core range of the compatibility row, and
+                 `@bridger/audit-chain` as an optional peer with the
+                 audit-chain range of that row, imported only by
+                 `@bridger/gxp/sealing`, the main entry point loading without
+                 it installed; no core
                  source file imports the companion; and the main entry point
                  exports no implementation of `TrailStore`, `AnchorStore`,
                  `TicketStore`, `SignatureCapture`, `FingerprintKeyProvider`
                  or `FingerprintEligibility`, and no policy (BEH-GX-001,
-                 BEH-GX-003).
+                 BEH-GX-003, BEH-GX-170).
 ```
 
 A static check over the packed artifact, not the source tree, is the only test
@@ -607,7 +611,14 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
                  BEH-GX-178).
              44. A call refused by "trail" or "chain" consumes no binding: a
                  later call citing the same ticket, after the host is rebuilt,
-                 is allowed by "approval" (BEH-GX-178, BEH-GX-089).
+                 is allowed by "approval"; with `GxpTestHost.make` given
+                 `gatePieces`, the consumer's pieces are consulted after
+                 "chain" and before "approval", a piece that refuses or
+                 returns `Defer` ends the consultation with "<name>: <reason>"
+                 or "<name>: deferred" and consumes no binding, and a piece
+                 with a blank or reserved `name` or a non-finite `timeout`
+                 fails the layer with `GxpLayerInvalid` "gatePieces"
+                 (BEH-GX-178, BEH-GX-089, BEH-GX-151).
              45. Over seeded traces, a `superseded` terminal pairs with its
                  request whatever its `causationId`, a `joined` terminal pairs
                  by its `causationId` and a resumer's `completed` record by

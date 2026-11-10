@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-01                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): Each turn runs under the loop plugin's own principal through `Plugin.Runtime.asSelf`, so a tool call's `onBehalfOf` names the loop (BEH-AG-003, BEH-AG-005, core BEH-BR-258) (H4); `AgentLoop.start` with an unknown session id starts a new session, created by its first `append`, and `AgentStartError` loses `SessionNotFound` (BEH-AG-003, BEH-AG-004) (M10); a tool withdrawn mid-turn never runs a different definition under the same id, while an identical descriptor contributed by another plugin runs (BEH-AG-003, command INV-CM-003) (M12) (CCR-AG-006)<br>0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — `StartRequest.spawn` carries a subagent's restricted toolset, taint and parent task, and forbids pinning (BEH-AG-003, H10); a tool withdrawn mid-turn fails with `CommandNotFound`, `ContributionUnavailable` or `ToolChanged` as command dispatch decides (low finding); `onBehalfOf` of a tool call names the loop's plugin, and a tool call that would stop its own loop is settled (BEH-AG-005, core BEH-BR-258; P24); `spawn` is trusted input, set by `spawnSubagent` (review of the round) (CCR-AG-005)<br>0.5 (2026-11-09): The `AgentLoop.plugin` options of BEH-AG-007 and the example of BEH-AG-008 carry the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-08, A-09, A-16): `Started` chosen by the descriptor's `long`, never by the output's shape; the idempotency key covers a resubmission within the process, not crash recovery of the run; a step with a long call is not batched; a batch of declared reads from a tainted session runs on the gate's decision, other batches need an approval that also covers their compensations (CCR-AG-003)<br>0.3 (2026-11-08): Steps run under core `CurrentCorrelation`; tool calls carry an idempotency key; tool results reach the model as envelopes; long commands and batches in `ToolOutcome`; `ResumeInput.Approved` carries one outcome per drafted command; BEH-AG-007 model adapter per session through a realm family; BEH-AG-008 a step's tool calls as one batch (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.8 (2026-11-10): BEH-AG-003: `AgentLoop.cancel` takes the hand-off marker `handedDraftId` as `Tasks.cancel` does (02, BEH-AG-016) (H2); BEH-AG-001: `Tasks` is a base service, not one of the five keys (02, BEH-AG-011) (T1) (CCR-AG-007)<br>0.7 (2026-11-10): Each turn runs under the loop plugin's own principal through `Plugin.Runtime.asSelf`, so a tool call's `onBehalfOf` names the loop (BEH-AG-003, BEH-AG-005, core BEH-BR-258) (H4); `AgentLoop.start` with an unknown session id starts a new session, created by its first `append`, and `AgentStartError` loses `SessionNotFound` (BEH-AG-003, BEH-AG-004) (M10); a tool withdrawn mid-turn never runs a different definition under the same id, while an identical descriptor contributed by another plugin runs (BEH-AG-003, command INV-CM-003) (M12) (CCR-AG-006)<br>0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — `StartRequest.spawn` carries a subagent's restricted toolset, taint and parent task, and forbids pinning (BEH-AG-003, H10); a tool withdrawn mid-turn fails with `CommandNotFound`, `ContributionUnavailable` or `ToolChanged` as command dispatch decides (low finding); `onBehalfOf` of a tool call names the loop's plugin, and a tool call that would stop its own loop is settled (BEH-AG-005, core BEH-BR-258; P24); `spawn` is trusted input, set by `spawnSubagent` (review of the round) (CCR-AG-005)<br>0.5 (2026-11-09): The `AgentLoop.plugin` options of BEH-AG-007 and the example of BEH-AG-008 carry the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-08, A-09, A-16): `Started` chosen by the descriptor's `long`, never by the output's shape; the idempotency key covers a resubmission within the process, not crash recovery of the run; a step with a long call is not batched; a batch of declared reads from a tainted session runs on the gate's decision, other batches need an approval that also covers their compensations (CCR-AG-003)<br>0.3 (2026-11-08): Steps run under core `CurrentCorrelation`; tool calls carry an idempotency key; tool results reach the model as envelopes; long commands and batches in `ToolOutcome`; `ResumeInput.Approved` carries one outcome per drafted command; BEH-AG-007 model adapter per session through a realm family; BEH-AG-008 a step's tool calls as one batch (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -47,7 +47,9 @@ REQUIREMENT: The package MUST declare exactly these five keys with the
              identifiers shown. Each MUST be an ordinary core service key:
              provided by a plugin's `provides`, resolved with `Host.use` or
              a plugin's `requires`, subject to one provider per key per
-             realm, leases, drain and `replace` as every other key.
+             realm, leases, drain and `replace` as every other key. The
+             package's `Tasks` service is not one of them: it is a base
+             service that no plugin provides (02, BEH-AG-011).
 ```
 
 ```
@@ -142,7 +144,8 @@ passes it to `Budget` unchanged (BEH-AG-006).
 interface AgentLoopShape {
   readonly start: (request: StartRequest) => Effect.Effect<{ readonly taskId: string }, AgentStartError>
   readonly resume: (taskId: string, input: ResumeInput) => Effect.Effect<void, TaskNotFound | TaskNotResumable>
-  readonly cancel: (taskId: string) => Effect.Effect<void, TaskNotFound>
+  readonly cancel: (taskId: string, options?: { readonly handedDraftId?: string }) =>   // the hand-off marker (02, BEH-AG-016)
+    Effect.Effect<void, TaskNotFound>
 }
 interface StartRequest {
   readonly sessionId: string

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-OVW                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.6 (2026-11-10): `Entitlement.guard` is given the activation's `Plugin.Runtime.entitled` and the essential labels in the example and the API rows; `EntitlementInspection` row names the overdraft and narrowing counts (M25) (CCR-EN-006)<br>0.5 (2026-11-10): API rows `EntitlementAdapter`, `Entitlement.layer`, `EntitlementGate.check`, `Entitlement.inspect`; `EntitlementOptions` and `EntitlementState` rows complete; worked example supplies the options through `Entitlement.layer` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — mission item 5 (grant narrowing), API rows `Entitlement.capabilityPolicy`, `ReadOnly`, `Entitlement.contributionPolicy`, `Policies.first`, `Budget.contributionPolicy`, `Budget.usage`; core `policy` and `settle` replace `skip`; limits updated (CCR-EN-003)<br>0.3 (2026-11-08): Gate scope (`install`, optional `replace`); core seam specified (BEH-BR-089); core modes `unmetered`/`unknown`; API rows `EntitlementGate.piece`, `Entitlement.skipPolicy`, `Skip.first`, `Budget.skipPolicy`; worked example options corrected (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.7 (2026-11-10): `EntitlementState`, `Entitlement.layer`, `Entitlement.guard`, `Entitlement.inspect` and the two contribution-policy rows, and the worked example, follow the reworked `guard` and the application-code hook points (E1-E4) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.6 (2026-11-10): `Entitlement.guard` is given the activation's `Plugin.Runtime.entitled` and the essential labels in the example and the API rows; `EntitlementInspection` row names the overdraft and narrowing counts (M25) (CCR-EN-006)<br>0.5 (2026-11-10): API rows `EntitlementAdapter`, `Entitlement.layer`, `EntitlementGate.check`, `Entitlement.inspect`; `EntitlementOptions` and `EntitlementState` rows complete; worked example supplies the options through `Entitlement.layer` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — mission item 5 (grant narrowing), API rows `Entitlement.capabilityPolicy`, `ReadOnly`, `Entitlement.contributionPolicy`, `Policies.first`, `Budget.contributionPolicy`, `Budget.usage`; core `policy` and `settle` replace `skip`; limits updated (CCR-EN-003)<br>0.3 (2026-11-08): Gate scope (`install`, optional `replace`); core seam specified (BEH-BR-089); core modes `unmetered`/`unknown`; API rows `EntitlementGate.piece`, `Entitlement.skipPolicy`, `Skip.first`, `Budget.skipPolicy`; worked example options corrected (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -74,9 +74,9 @@ All signatures are illustrative until code exists.
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
 | `EntitlementAdapter` | port | `check(subject)` and `watch(subject)`; the application's adapter |
-| `Entitlement`, `Entitlement.layer(adapter, options)` | service, layer | The adapter with its `EntitlementOptions`, required by every component of the package except `guard`; the only way the options reach those components (`guard` is given `essential` in its own options) |
+| `Entitlement`, `Entitlement.layer(adapter, options)` | service, layer | The adapter with its `EntitlementOptions`, required by every component of the package except `guard`; the only way the options reach those components (it records `essential` process-locally, where `guard` reads it) |
 | `EntitlementSubject` | type | `{ pluginId, realm?, labels }` — labels opaque |
-| `EntitlementState` | type | `{ mode: "full" \| "grace" \| "read-only" \| "none", validUntil?, graceUntil?, reason?, asOf, stale?, fallbackMode? }`; core adds its own modes `"unmetered"` and `"unknown"` on `Plugin.Runtime.entitled` (BEH-BR-089), which the port never produces |
+| `EntitlementState` | type | `{ mode: "full" \| "grace" \| "read-only" \| "none", validUntil?, graceUntil?, reason?, asOf, stale?, fallbackMode? }`; the package's derived `watch` serves `"unknown"` (with `stale: true`) under "last-known" while no answer was ever known (BEH-EN-005); core adds `"unmetered"` and its own `"unknown"` on `Plugin.Runtime.entitled` (BEH-BR-089) |
 | `EntitlementUnavailable`, `NotEntitled` | errors | The port cannot answer; an operation needs more than the current mode |
 | `EntitlementOptions` | type | `labels`, `onUnavailable`, `staleAfter`, `checkTimeout`, `essential` |
 
@@ -88,9 +88,9 @@ All signatures are illustrative until code exists.
 | `EntitlementGate.layer` | layer | Provides it as the host's `OperationGate` when it is the only gate |
 | `EntitlementGate.check` | function | The piece's decision for an application's own `authorize`: fails with `OperationRejected` exactly when the piece would refuse |
 | `EntitlementView.layer` | layer | Provides the core port behind `Plugin.Runtime.entitled` |
-| `Entitlement.guard` | function | Fails an effect with `NotEntitled` unless the mode of the activation's `Plugin.Runtime.entitled`, passed to it, allows it; skips essential operations; requires no service |
-| `Entitlement.inspect`, `EntitlementInspection` | member, type | Essential passes per label, refusals per plugin, guard calls outside plugin code, essential overdraft per limit and label, narrowed answers per plugin, service id and mode |
-| `Entitlement.contributionPolicy`, `Policies.first` | functions | A hook point's `policy` (and `settle`): a not-entitled contribution is skipped ("skipped-policy") or, under `onNotEntitled: "deny"`, denies a veto phase ("denied-policy"); bundles combined in order, a reserving bundle last |
+| `Entitlement.guard` | function | Fails an effect with `NotEntitled` unless the mode of `Plugin.Runtime.entitled` of the activation's runtime, passed to it, allows it, or when no state arrives within `checkTimeout` (mode "unknown"); names the plugin from that runtime's principal; skips essential operations (the application's list from `Entitlement.layer`, plus any it adds); requires no service |
+| `Entitlement.inspect`, `EntitlementInspection` | member, type | Essential passes per label, refusals per plugin, essential overdraft per limit and label, narrowed answers per plugin, service id and mode |
+| `Entitlement.contributionPolicy`, `Policies.first` | functions | A hook point's `policy` (and `settle`), for a hook point made by application code (it requires the `Entitlement` service): a not-entitled contribution is skipped ("skipped-policy") or, under `onNotEntitled: "deny"`, denies a veto phase ("denied-policy"); bundles combined in order, a reserving bundle last |
 
 ### Budgets — [behaviour 03](./behaviors/03-budgets.md)
 
@@ -101,7 +101,7 @@ All signatures are illustrative until code exists.
 | `Reservation` | type | `commit(actual)`, `release`; released on scope close if not committed |
 | `BudgetExhausted` | error | `{ key, requested, remaining, resetsAt? }` |
 | `BudgetLedger` | port | Optional shared or persisted ledger behind `Budget` |
-| `Budget.contributionPolicy` | function | A hook point's `policy` and `settle`: reserves a per-call quota per contributor at admission, commits or releases it after the call |
+| `Budget.contributionPolicy` | function | A hook point's `policy` and `settle`, for a hook point made by application code (it requires the `Budget` service): reserves a per-call quota per contributor at admission, commits or releases it after the call |
 | `Budget.usage`, `UsageExport` | function, type | Amounts and counts per limit and period, a process-local diagnostic report |
 
 ### Grant narrowing and usage — [behaviour 04](./behaviors/04-grant-narrowing-and-usage.md)
@@ -115,7 +115,7 @@ All signatures are illustrative until code exists.
 
 ```ts
 // illustrative — not type-checked
-const essential = ["duty:legal"]            // the application's essential labels, given to the layer and to guard
+const essential = ["duty:legal"]            // the application's essential labels; guard reads them from the layer
 const entitlement = Entitlement.layer({
   check: (s) => tokens.verify(s),           // application adapter: signed tokens checked offline
   watch: (s) => tokens.watch(s)
@@ -141,7 +141,7 @@ const reports = Plugin.define({
     yield* rt.background("entitlement", Stream.runForEach(rt.entitled, (s) => SubscriptionRef.set(mode, s.mode)))
     return {
       read: (q) => query(q),                                     // always allowed
-      export: (q) => Entitlement.guard(exportCsv(q), { requires: "full", entitled: rt.entitled, essential })   // no Entitlement service needed
+      export: (q) => Entitlement.guard(exportCsv(q), { requires: "full", runtime: rt })   // no Entitlement service needed
     }
   }))
 })

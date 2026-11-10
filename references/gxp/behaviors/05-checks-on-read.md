@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-05                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-033 chain-derived kinds `chainUnanchoredTail`, `chainNonCanonical`, `chainLossCounterRose` and `anchorUnconfirmed`, and the archive kind `bundleMismatch`; BEH-GX-035 numbers below `fromSeq` are outside the range (P7, P14, P15, P16, P20); follow-up: `CheckCapacityExceeded` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-033, 034 kinds `nonCanonical`, `collision`, `auditDropped`, `headMismatch` (F-01, F-02); BEH-GX-036 marked and unmarked unknown shapes; BEH-GX-037 pairing by phase, `superseded` paired without `causationId` (C-08); BEH-GX-038 `auditDropped` on every record, the claim that the acknowledgement is the only place a dropped count appears corrected (F-01); seal kinds from 21 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-GX-033 kind `chainLinkUnchecked` for a keyed link audit-chain reports "key-unavailable", which is an unchecked link, not a break (BEH-AC-019, follow-up of A1) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-033 chain-derived kinds `chainUnanchoredTail`, `chainNonCanonical`, `chainLossCounterRose` and `anchorUnconfirmed`, and the archive kind `bundleMismatch`; BEH-GX-035 numbers below `fromSeq` are outside the range (P7, P14, P15, P16, P20); follow-up: `CheckCapacityExceeded` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-033, 034 kinds `nonCanonical`, `collision`, `auditDropped`, `headMismatch` (F-01, F-02); BEH-GX-036 marked and unmarked unknown shapes; BEH-GX-037 pairing by phase, `superseded` paired without `causationId` (C-08); BEH-GX-038 `auditDropped` on every record, the claim that the acknowledgement is the only place a dropped count appears corrected (F-01); seal kinds from 21 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -51,6 +51,7 @@ type FindingKind =
   | "tailLoss" | "unanchoredTail"                              // 06
   | "chainBreak" | "anchorMismatch" | "headMismatch"           // 21, from @bridger/audit-chain
   | "chainUnanchoredTail" | "chainNonCanonical" | "chainLossCounterRose" | "anchorUnconfirmed"   // 21, from @bridger/audit-chain
+  | "chainLinkUnchecked"                                       // 21: a keyed link audit-chain could not check (BEH-AC-019)
   | "bundleMismatch"                                           // 18, an archive's chain bundle against its entries
 
 interface Finding {

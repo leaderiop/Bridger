@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-03                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-EN-024: check 12 covers `guard` reading the mode from `Plugin.Runtime.entitled` without the `Entitlement` service (M25); checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.6 (2026-11-10): Acceptance checks 1, 4 and 8 cover `Entitlement.layer` and its option checks, `fallbackMode` and `EntitlementGate.check` (P13) (CCR-EN-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.8 (2026-11-10): BEH-EN-023: a hook point using `Budget.contributionPolicy` is made by application code (E4); BEH-EN-024: check 12 covers `guard` on the passed runtime, the layer's essential list and `checkTimeout`, and "unknown" under "last-known" (E1-E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.7 (2026-11-10): BEH-EN-024: check 12 covers `guard` reading the mode from `Plugin.Runtime.entitled` without the `Entitlement` service (M25); checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.6 (2026-11-10): Acceptance checks 1, 4 and 8 cover `Entitlement.layer` and its option checks, `fallbackMode` and `EntitlementGate.check` (P13) (CCR-EN-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -321,6 +321,14 @@ REQUIREMENT: The package MUST NOT offer a wrapper around a contributor's
 ```
 
 ```
+REQUIREMENT: Documentation MUST state that `Budget.contributionPolicy`
+             requires the `Budget` service, which a plugin's `build` cannot
+             require (core BEH-BR-002), so a hook point that uses it MUST be
+             made by application code, as for
+             `Entitlement.contributionPolicy` (02, BEH-EN-016).
+```
+
+```
 REQUIREMENT: The package MUST NOT use a budget to bound time inside a
              dispatch; per-call timeout and per-dispatch deadline remain the
              hook point's. The entitlement gate MUST NOT consult budgets.
@@ -410,12 +418,19 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  the package's derived `watch` never ends while the scope is
                  open; an unwired host yields core's mode "unmetered"
                  (BEH-EN-013).
-             12. `guard` identifies the plugin from `CurrentPlugin`, reads
-                 the mode from the `entitled` stream it is given, in a
-                 plugin that does not require the `Entitlement` service,
-                 fails with `NotEntitled` without running the effect, under
-                 "unmetered" and "unknown" too, and runs essential uses
-                 (BEH-EN-014).
+             12. `guard` names the plugin from the principal of the
+                 runtime it is given, also inside a provided method called
+                 by application code, reads the mode only from that
+                 runtime's `entitled`, in a plugin that does not require the
+                 `Entitlement` service, fails with `NotEntitled` without
+                 running the effect, under "unmetered" and "unknown" too,
+                 and with mode "unknown" when no state arrives within
+                 `checkTimeout`; it runs uses labelled with an essential
+                 label given to `Entitlement.layer` without waiting, even
+                 when its own `essential` option omits that label; under
+                 "last-known" with no answer ever known, `watch` serves
+                 mode "unknown" with `stale: true` (BEH-EN-005,
+                 BEH-EN-014).
              13. A lapse to `none` while calls hold leases changes no
                  plugin state, interrupts nothing, and calls no host
                  operation (BEH-EN-015).

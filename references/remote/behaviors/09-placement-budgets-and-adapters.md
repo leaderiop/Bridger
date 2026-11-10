@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-09                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-RM-066 and BEH-RM-069: callback budget and placement checks at steps 4b and 4a of BEH-RM-043 (M14); BEH-RM-069: only `Remote.serve` decodes through `Remote.layer` and offers to the `CallLog`, `Guest.serve` decodes with its own key list, takes `options.placement` and logs refusals locally (M13); BEH-RM-067 and BEH-RM-070 read the `GuestTransport` profile (H8) (CCR-RM-006)<br>0.4 (2026-11-10): round 2 follow-up: `DedupeUnavailable` declared (BEH-RM-067) (CCR-RM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-RM-067: the guest calls `DedupeStore.claim` only after the placement check of BEH-RM-069, and a copy refused there holds no claim (PL15) (CCR-RM-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-RM-066 and BEH-RM-069: callback budget and placement checks at steps 4b and 4a of BEH-RM-043 (M14); BEH-RM-069: only `Remote.serve` decodes through `Remote.layer` and offers to the `CallLog`, `Guest.serve` decodes with its own key list, takes `options.placement` and logs refusals locally (M13); BEH-RM-067 and BEH-RM-070 read the `GuestTransport` profile (H8) (CCR-RM-006)<br>0.4 (2026-11-10): round 2 follow-up: `DedupeUnavailable` declared (BEH-RM-067) (CCR-RM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
 
 ---
 
@@ -193,8 +193,8 @@ REQUIREMENT: On a transport with `liveness: "per-call"` (the `profile` of
 ```
 REQUIREMENT: With a `DedupeStore`, after the four checks of BEH-RM-035
              (epoch, duplicate within the invocation, in-flight limit,
-             positive `remaining`) and before decoding the payload, the
-             guest MUST call `claim` with (link, epoch, `callId`) and a
+             positive `remaining`) and the placement check of BEH-RM-069,
+             and before decoding the payload, the guest MUST call `claim` with (link, epoch, `callId`) and a
              `retention` of the larger of `dedupeRetention` and the call's
              `remaining` plus the adapter's `closeNotice`. It MUST run the
              handler only on "run"; on a stored result it MUST resend that
@@ -203,7 +203,9 @@ REQUIREMENT: With a `DedupeStore`, after the four checks of BEH-RM-035
              runtime a dropped answer surfaces at the host as a transport
              failure. After the handler ends it MUST call `complete` with
              the encoded `result` frame before sending it. A copy refused
-             by one of the four checks MUST NOT call `claim`.
+             by one of the four checks or by the placement check MUST NOT
+             call `claim`, so that a refused call leaves no key claimed and
+             answers its copies with the same refusal, never `InProgress`.
 ```
 
 ```

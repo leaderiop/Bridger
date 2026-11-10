@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-20                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-BR-169 `GenerationRevoked.owner` is an `EntryOwner`, and `revocations` ends only after the scope-close revocation is published (audit round 3, Low) (CCR-BR-035)<br>0.4 (2026-11-10): BEH-BR-169 `Generation.revocations` feed of `GenerationRevoked` notices and `GenerationOptions.name` default "generation"; BEH-BR-174 a forced revocation is published on that feed and logged, never on `Host.events` (C7; audit round 2, Low) (CCR-BR-034)<br>0.3 (2026-11-08): `changes` feed of published revisions and the read-only `GenerationView` for non-owners (CCR-BR-022)<br>0.2 (2026-10-02): A forced drain revokes an `acquire` lease by interrupting the acquiring fiber, as host leases are revoked (prototype finding G26) (CCR-BR-011)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-10): BEH-BR-174 note: `ActivePlugin.report` lists a registration for `inspect` and publishes nothing (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-169 `GenerationRevoked.owner` is an `EntryOwner`, and `revocations` ends only after the scope-close revocation is published (audit round 3, Low) (CCR-BR-035)<br>0.4 (2026-11-10): BEH-BR-169 `Generation.revocations` feed of `GenerationRevoked` notices and `GenerationOptions.name` default "generation"; BEH-BR-174 a forced revocation is published on that feed and logged, never on `Host.events` (C7; audit round 2, Low) (CCR-BR-034)<br>0.3 (2026-11-08): `changes` feed of published revisions and the read-only `GenerationView` for non-owners (CCR-BR-022)<br>0.2 (2026-10-02): A forced drain revokes an `acquire` lease by interrupting the acquiring fiber, as host leases are revoked (prototype finding G26) (CCR-BR-011)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -341,7 +341,9 @@ scoped host lease (URS gaps G12 and G26, CCR-BR-011).
 SPEC.md says forcing "emits a `lease-revoked` event through
 the owning coordinator", but a generation has no reference to a host.
 Revisions before CCR-BR-034 routed it to `Host.events` through the
-`ActivePlugin` reference, which a helper outside the host may not do;
+`ActivePlugin` reference, which a helper outside the host may not do:
+the reference's `report` only lists a registration for `inspect` (13,
+BEH-BR-119) and publishes nothing;
 the generation's own `revocations` feed, as a registry has, keeps the
 revocation visible with or without an owner. Not auditing it is the
 conservative reading: core does not claim a record it cannot attribute to an

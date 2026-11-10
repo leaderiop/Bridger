@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-021                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.2 (2026-11-10): Decision: the mutation kill rule of ADR-BR-035 is a review criterion applied outside the generated evidence; the generator takes no mutation report and stays mechanical (C14) (CCR-GX-007)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -33,6 +33,7 @@ Core decided that qualification evidence comes only from executed tests ([ADR-BR
   - A test that crashed the runner or produced no result entry is **fail** for every requirement it claims.
 - **Self-test against a known-bad corpus.** The generator's own test suite runs it over a fixed corpus of runner outputs containing a failed test, a skipped-only requirement, an unknown tag, a duplicate test id, a run against a different package version and a truncated file, and asserts the exact outcome for each. The corpus ships in the companion's repository as fixed files.
 - **No suppression.** The generator has no option to exclude a requirement, accept a failure or relabel an outcome. Deviations are acted on in the user's deviation procedure, outside the generator.
+- **The mutation kill rule is a review criterion, not a generator rule.** The generator stays mechanical: it takes no mutation report and applies no weighting ([BEH-GX-124](../behaviors/16-oq-evidence.md)). Core's rule that a test killing no mutant of the code it covers is not counted as evidence for that code ([ADR-BR-035](../../core/decisions/035-evidence-from-executed-tests.md); [validation plan](../gxp/04-validation-plan.md) §5.1) is applied by the pack's reviewer against the run's mutation report ([core gxp/04](../../core/gxp/04-validation-plan.md) §6.1), outside the generated evidence; a "pass" means a test passed, not that it killed a mutant.
 
 ## Alternatives considered
 

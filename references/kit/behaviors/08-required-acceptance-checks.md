@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-08                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): Check 28 and REQ-KT-028: disclosed claims, callback clients from `requested.capabilities`, the loader entry key, guest-shaped partner manifests, first-party countersigning (F-06, F-07, C-19, M-03); check 29 and REQ-KT-029: local contracts (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Checks 25–27 and REQ-KT-025–027 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.4 (2026-11-10): BEH-KT-057: check 1 (REQ-KT-001) covers `manifest` and `handoff` passed through (L3); check 26 covers `--keyed`, `--expect-keyed` and exit 4 for "key-unavailable" (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-09): Check 28 and REQ-KT-028: disclosed claims, callback clients from `requested.capabilities`, the loader entry key, guest-shaped partner manifests, first-party countersigning (F-06, F-07, C-19, M-03); check 29 and REQ-KT-029: local contracts (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Checks 25–27 and REQ-KT-025–027 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -34,8 +34,9 @@ errors are asserted by message.
 REQUIREMENT: The kit test suite MUST contain at least one test for each of
              the following:
              1. definePlugin returns a core definition equal to its
-                Plugin.define equivalent for all four forms; nothing runs at
-                definition.
+                Plugin.define equivalent for all four forms, `manifest` and
+                `handoff` included and passed through unchanged; nothing
+                runs at definition.
              2. requires/provides inferred as tuples without as const;
                 omitted requires is [].
              3. Undeclared requirement, unreturned provide, key both
@@ -103,8 +104,11 @@ REQUIREMENT: The kit test suite MUST contain at least one test for each of
                 `listens`.
              26. verify-chain calls `verifyBundle` with the pinned roots,
                 makes no network or clock access, prints no record content
-                and no overall verdict, maps reports to exit codes 0, 1
-                and 3, and prints `--json` as the report's encoding.
+                and no overall verdict, maps reports to exit codes 0, 1,
+                3 and 4 ("key-unavailable" links give 4), passes `--keyed`
+                as `keyed` and `--expect-keyed` as `expectKeyed` (true, or
+                the set of series given), and prints `--json` as the
+                report's encoding.
              27. The inspector shows "refused-digest", `plugin-idled`,
                 `held-event-dropped`, `reconcile-partial` and breaker scope
                 by name and unknown tags raw; `PluginTest` re-exports core's
@@ -137,7 +141,7 @@ REQUIREMENT: The kit test suite MUST contain at least one test for each of
 
 | REQ | Check | Behaviours | Status |
 | --- | --- | --- | --- |
-| REQ-KT-001 | 1. definePlugin returns a core definition equal to its Plugin.define equivalent for all four forms; nothing runs at definition | [BEH-KT-001](./01-plugin-facade.md#beh-kt-001-defineplugin-returns-a-core-definition-and-nothing-more) | Not run |
+| REQ-KT-001 | 1. definePlugin returns a core definition equal to its Plugin.define equivalent for all four forms (`manifest` and `handoff` passed through); nothing runs at definition | [BEH-KT-001](./01-plugin-facade.md#beh-kt-001-defineplugin-returns-a-core-definition-and-nothing-more) | Not run |
 | REQ-KT-002 | 2. requires/provides inferred as tuples without as const; omitted requires is [] | [BEH-KT-002](./01-plugin-facade.md#beh-kt-002-requires-and-provides-are-inferred-as-tuples-without-as-const) | Not run |
 | REQ-KT-003 | 3. Undeclared requirement, unreturned provide, key both required and provided, bad volatile, non-literal id each give the specified KitTypeError message | [BEH-KT-003](./01-plugin-facade.md#beh-kt-003-the-keys-a-build-uses-are-checked-against-requires-with-a-readable-error) | Not run |
 | REQ-KT-004 | 4. Every definePlugin value, including provides-nothing, is assignable to Plugin.Any; an unbranded literal is not; no run-time brand | [BEH-KT-004](./01-plugin-facade.md#beh-kt-004-pluginany-accepts-every-definition-and-only-definitions) | Not run |

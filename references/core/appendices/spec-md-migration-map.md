@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-APP-01                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Appendix — Informative                                       |
-> | Change History | 0.5 (2026-11-10): Item 22: `shutdown`'s union includes `WouldDeadlock` (H2, independent review of the round-3 fixes) (CCR-BR-035)<br>0.4 (2026-10-03): The review recorded as CCR-BR-002 was not the independent review of PROC-03 §5 (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Items 31 and 72 and the Concurrency and scheduling row widened; items 12 and 24 narrowed (callers already answered; child causation); ended intents and `resumes` in item 72 (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-10): Item 83: `shutdown` fails with `WouldDeadlock` from a build, `load` or finalizer fiber, before its `requested` record; item 97: every re-entrancy refusal is recorded except `shutdown`'s (CL10) (CCR-BR-036)<br>0.5 (2026-11-10): Item 22: `shutdown`'s union includes `WouldDeadlock` (H2, independent review of the round-3 fixes) (CCR-BR-035)<br>0.4 (2026-10-03): The review recorded as CCR-BR-002 was not the independent review of PROC-03 §5 (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Items 31 and 72 and the Concurrency and scheduling row widened; items 12 and 24 narrowed (callers already answered; child causation); ended intents and `resumes` in item 72 (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -459,8 +459,11 @@ CCR-BR-002 (an agent review, not the independent review of PROC-03 §5).
 82. **`reconfigure` drain behaviour.** SPEC.md was silent → `reconfigure`
     takes no `drain`/`force`, drains under `drainTimeout` and never forces;
     an unchanged value is a no-op success — *BEH-BR-101, BEH-BR-102*.
-83. **Shutdown details.** SPEC.md was silent → `shutdown` never fails with
-    `WouldDeadlock`; `CloseReport` lists are not exclusive; a finalizer that
+83. **Shutdown details.** SPEC.md was silent → `shutdown` fails with
+    `WouldDeadlock` only from a fiber running a build, `load` or finalizer
+    (it reads `CurrentTransition`, never `HeldPlugins`), before its
+    `requested` record and writing no record — a lease callback's `shutdown`
+    proceeds (CCR-BR-035, CCR-BR-036); `CloseReport` lists are not exclusive; a finalizer that
     never completes delays the report; `onClose` runs exactly once; a
     `shutdown` after completion returns the original report — *BEH-BR-105,
     BEH-BR-106, BEH-BR-107, BEH-BR-108, BEH-BR-109*.
@@ -526,8 +529,9 @@ CCR-BR-002 (an agent review, not the independent review of PROC-03 §5).
     → a mutating call is checked for re-entrancy after its `requested` record
     is written and before its intent is recorded, so the refusal is not a
     pre-gate check; the call ends with a `failed` terminal record carrying
-    `WouldDeadlock` — *BEH-BR-188 (step 7), BEH-BR-066, BEH-BR-088,
-    INV-BR-016*.
+    `WouldDeadlock`. The exception is `shutdown`, refused before its
+    `requested` record and so recorded nowhere (CCR-BR-035, CCR-BR-036) —
+    *BEH-BR-188 (step 7), BEH-BR-066, BEH-BR-088, BEH-BR-105, INV-BR-016*.
 98. **Scope-close shutdown and the attribution policy.** SPEC.md: closing the
     host scope performs the same shutdown → the host-originated `shutdown`
     performed by closing the scope is exempt from `attribution.require` and

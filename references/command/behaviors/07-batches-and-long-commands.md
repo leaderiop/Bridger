@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-07                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 (C-10) — phase C of batch admission consults the admission policies per item; items that never run, and items admitted before a phase-C failure, are settled `NotRun`; a task settles its admissions when it ends (BEH-CM-044) (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-01, A-02, A-03, A-08, A-09, A-11, A-15, A-16): batch admission in three phases, so that no receipt claim or probe slot is taken before every item passed the gate, the floor and the hooks; receipts of undone items voided and replayed items never compensated; each item's request carries its planned compensation, bound by digest in the batch draft and approval, and compensations of an approved batch carry an `ApprovalRef` derived from it; the floor drafts nothing for an item of a batch; `long` items refused in a batch; a repeated keyed task returns its handle; BEH-CM-054 `CommandTaskStore` port, in memory by default, with lost tasks reported (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — batch dispatch admitted whole, run in order and undone by compensation; batch drafts approved all or none and re-planned when stale; long commands run as tasks with progress, await and cancel (CCR-CM-003, round 2: recheck items 5, 7) |
+> | Change History | 0.4 (2026-11-10): BEH-CM-052: the task's fiber carries the dispatching fiber's plugin principal unchanged (none for application code); when that principal's activation ends while the task runs, the task keeps running, a mutating host call, access decision or `asSelf` under the retired principal dies with `PrincipalRetired` (core BEH-BR-257), and the task then ends `failed` with error tag "PrincipalRetired" after its finalizers (T3) (CCR-CM-007)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (C-10) — phase C of batch admission consults the admission policies per item; items that never run, and items admitted before a phase-C failure, are settled `NotRun`; a task settles its admissions when it ends (BEH-CM-044) (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-01, A-02, A-03, A-08, A-09, A-11, A-15, A-16): batch admission in three phases, so that no receipt claim or probe slot is taken before every item passed the gate, the floor and the hooks; receipts of undone items voided and replayed items never compensated; each item's request carries its planned compensation, bound by digest in the batch draft and approval, and compensations of an approved batch carry an `ApprovalRef` derived from it; the floor drafts nothing for an item of a batch; `long` items refused in a batch; a repeated keyed task returns its handle; BEH-CM-054 `CommandTaskStore` port, in memory by default, with lost tasks reported (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — batch dispatch admitted whole, run in order and undone by compensation; batch drafts approved all or none and re-planned when stale; long commands run as tasks with progress, await and cancel (CCR-CM-003, round 2: recheck items 5, 7) |
 
 ---
 
@@ -453,7 +453,9 @@ REQUIREMENT: `Command.make` MUST reject as a defect a spec with `long: true`
              caller as for a dispatch — and then MUST create the task in
              `running` with a `taskId` from the host's `IdGenerator`, fork
              steps 7 and 8 into the catalog layer's scope with the
-             dispatch's served context and `CurrentCorrelation`, and return
+             dispatch's served context, `CurrentCorrelation` and the
+             dispatching fiber's plugin principal, unchanged (none when
+             application code dispatched; core BEH-BR-257), and return
              the `CommandTaskRef`. The admissions that admitted at step 6
              MUST be settled in the task's fiber when the task ends, and
              their scopes MUST stay open until then (BEH-CM-044). With an idempotency key, the `taskId`
@@ -480,6 +482,19 @@ REQUIREMENT: The task's fiber MUST hold the contribution lease, apply the
              cause), or `cancelled`. `done`, `failed` and `cancelled` MUST
              be terminal; `revision` MUST increase by one on each change
              and never regress.
+```
+
+```
+REQUIREMENT: The task MUST NOT be tied to the activation that minted its
+             fiber's principal: when that activation ends while the task
+             runs, the task MUST keep running. A mutating host call, an
+             access decision or `Plugin.Runtime.asSelf` that the handler,
+             a wrapper or an admission's settlement makes in the task's
+             fiber after then dies with `PrincipalRetired` (core
+             BEH-BR-257); unless the handler recovers, the task MUST then
+             end `failed` with error tag "PrincipalRetired", after its
+             finalizers and the settlement of its admissions. A task that
+             makes no such call is unaffected.
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-04                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-026: the no-identity statement narrowed to proxy calls; what event envelopes routed to a peer disclose (CCR-FD-005)<br>0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-025: an export endpoint is opened with the route's offered labels through `MultiplexedGuest.endpoint(name, { residency })` (F1) (CCR-FD-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-026: the no-identity statement narrowed to proxy calls; what event envelopes routed to a peer disclose (CCR-FD-005)<br>0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -44,7 +44,9 @@ REQUIREMENT: On an incoming link from peer P whose offer exchange has
              `Remote.serve(contract, { transport, realm: "default",
              methods, context })`, where `contract` is the contract of the
              plugin's `contracts` with that name and major, `transport` is
-             the link's "import:" + K + "@" + M endpoint, `methods` is the
+             the link's "import:" + K + "@" + M endpoint, opened with the
+             route's offered labels (`MultiplexedGuest.endpoint(name, {
+             residency })`, remote BEH-RM-056; 06, BEH-FD-045), `methods` is the
              entry's `methods` (all when absent), and `context` is that of
              BEH-FD-023. `Remote.serve` reaches the provider with a core
              lease per call (BEH-RM-039).

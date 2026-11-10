@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-01                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.3 (2026-11-10): BEH-KT-001: every form takes `manifest` and `handoff` and passes them through unchanged; BEH-KT-004: the `PluginAny` copy carries both, as core 01 does (L3) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -48,6 +48,8 @@ definePlugin<const Id extends string, const R extends readonly KeyRef[], K exten
   readonly volatile?: readonly (keyof C & string)[]
   readonly meta?: PluginDefinition<any, any, any, any>["meta"]
   readonly health?: HealthSpec<R>
+  readonly manifest?: PluginManifest                      // core 27, BEH-BR-242; passed through unchanged
+  readonly handoff?: Handoff<any, any, any>               // core 34, BEH-BR-345; passed through unchanged
   readonly make: MakeFn<ShapeOf<K>, E, IdentifiersOf<R> | Plugin.Runtime | Scope.Scope, C>
 }): Plugin<R, readonly [K], E, C>
 
@@ -70,8 +72,10 @@ type MakeFn<A, E, R, C> = Effect.Effect<A, E, R> | ((ctx: { readonly config: C }
 ```
 REQUIREMENT: `definePlugin` MUST return a value that is a core
              `PluginDefinition` with the same `id`, `requires`, `optional`,
-             `provides`, `config`, `volatile`, `meta` and `health` as the
-             spec, and a `build` Layer derived as follows: Form 1
+             `provides`, `config`, `volatile`, `meta`, `health`, `manifest`
+             and `handoff` as the spec — in every form, `manifest` and
+             `handoff` passed through unchanged and absent when the spec
+             omits them — and a `build` Layer derived as follows: Form 1
              `Layer.effect(K, make)`; Form 2 a `Layer.effectContext` that
              runs `make` once and adds each implementation under its key;
              Form 3 `Layer.effectDiscard(run)`; Form 4 the given `build`.
@@ -202,6 +206,8 @@ interface PluginAny {                                    // exported by core as 
   readonly config?: Schema.Codec<any, unknown>
   readonly volatile?: readonly string[]
   readonly meta?: PluginDefinition<any, any, any, any>["meta"]
+  readonly manifest?: PluginManifest
+  readonly handoff?: Handoff<any, any, any>
   readonly health?: unknown
   readonly build: Layer.Layer<never, unknown, any>      // `in ROut`: never is the top
 }

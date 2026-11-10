@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-OVW                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.7 (2026-11-10): `KeyedHasher` passed as the sink option `keyed` (BEH-AC-007); `precomputeMacs` for an effectful MAC (BEH-AC-019); `BundleReport.chain` per series (BEH-AC-034) (CCR-AC-006)<br>0.6 (2026-11-10): `ChainStore` idempotent for an equal entry only (BEH-AC-006); `verifyChain` takes a profile and a `KeyedHasher` keeps one key per sink (CCR-AC-005)<br>0.5 (2026-11-09): Package boundary: the GxP companion adopts this package as its only sealing mechanism (CCR-GX-002) (CCR-AC-004)<br>0.4 (2026-11-08): `ChainLink` (`ChainLinkV1` audit, `ChainLinkV2` generic), `AnchorStatement` version 2, `resumeFrom` and `ChainStore.head` in the API surface (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Generic chain and verification bundle in the API surface; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `ChainGate` in the API surface and worked example (no `failClosed` option); `expectedHeads`; limits gain deletion of trailing windows and control of the process before the sink (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.8 (2026-11-10): `precomputeMacs` row: one call per series and profile, merged for a bundle (PL1) (SPEC-AUDIT-04) (CCR-AC-007)<br>0.7 (2026-11-10): `KeyedHasher` passed as the sink option `keyed` (BEH-AC-007); `precomputeMacs` for an effectful MAC (BEH-AC-019); `BundleReport.chain` per series (BEH-AC-034) (CCR-AC-006)<br>0.6 (2026-11-10): `ChainStore` idempotent for an equal entry only (BEH-AC-006); `verifyChain` takes a profile and a `KeyedHasher` keeps one key per sink (CCR-AC-005)<br>0.5 (2026-11-09): Package boundary: the GxP companion adopts this package as its only sealing mechanism (CCR-GX-002) (CCR-AC-004)<br>0.4 (2026-11-08): `ChainLink` (`ChainLinkV1` audit, `ChainLinkV2` generic), `AnchorStatement` version 2, `resumeFrom` and `ChainStore.head` in the API surface (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Generic chain and verification bundle in the API surface; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `ChainGate` in the API surface and worked example (no `failClosed` option); `expectedHeads`; limits gain deletion of trailing windows and control of the process before the sink (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -88,7 +88,7 @@ All signatures are illustrative until code exists.
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
 | `verifyChain` | function | Pure, total check of stored entries against links, sequence, confirmed anchors and, when supplied, independently learned heads; any series through `options.profile` |
-| `precomputeMacs` | function | Runs an effectful MAC (a hardware module, a MAC service) over the keyed links before the pure check and returns the pure `keyed` function `verifyChain` and `verifyBundle` take |
+| `precomputeMacs` | function | Runs an effectful MAC (a hardware module, a MAC service) over the keyed links before the pure check and returns the pure `keyed` function `verifyChain` and `verifyBundle` take; one call per series and profile, the results merged for a bundle (first answer that is not `undefined`) |
 | `AnchorVerifier` | port | Confirm a receipt with its anchor service (an effect, kept out of `verifyChain`) |
 | `proveInclusion`, `verifyInclusion` | functions | Show that one record is covered by an anchored Merkle root without disclosing the others |
 | `ChainReport`, `InclusionProof` | types | Verification results |

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-03                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): round 2 follow-up: `DialFailed` and `ListenFailed` declared (BEH-FD-017) (CCR-FD-005)<br>0.6 (2026-11-09): BEH-FD-023 reads identity claims only when present; provenance entry without `ref` when no actor is disclosed (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F5) — the `kill` frame precedes the offer on every new link; a suspended link keeps its control endpoint open for kill frames only; `SignedRevocationList` is the loader's (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck item 18 and CORE-DECISIONS-2 — `kill` control frame with one schema across protocol versions; asserted principals decoded with `PrincipalRef.decode` and kept as provenance; served calls carry the peer's correlation; peer selection through core `Selector.make` with a range (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-017: `LinkDialer.dial` and `LinkListener.accept` yield a `LinkConnection` with the `TransportProfile` of the end that made it, passed to both `multiplex` calls (H4); BEH-FD-018: `LinkAgreement.refused` gains "placement-refused" (PL16); BEH-FD-020: the accepted range is `"^" + V` (C9) (CCR-FD-007)<br>0.7 (2026-11-10): round 2 follow-up: `DialFailed` and `ListenFailed` declared (BEH-FD-017) (CCR-FD-005)<br>0.6 (2026-11-09): BEH-FD-023 reads identity claims only when present; provenance entry without `ref` when no actor is disclosed (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F5) — the `kill` frame precedes the offer on every new link; a suspended link keeps its control endpoint open for kill frames only; `SignedRevocationList` is the loader's (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck item 18 and CORE-DECISIONS-2 — `kill` control frame with one schema across protocol versions; asserted principals decoded with `PrincipalRef.decode` and kept as provenance; served calls carry the peer's correlation; peer selection through core `Selector.make` with a range (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -38,13 +38,16 @@ Planned source: `packages/federation/src/Link.ts` and
 
 ```ts
 // illustrative — not type-checked
+// A physical connection with the profile of the transport end that made it (remote companion
+// `Connection`, `TransportProfile`, BEH-RM-050); the profile is what `multiplex` takes (BEH-RM-056).
+interface LinkConnection { readonly connection: Connection; readonly profile: TransportProfile }
 interface LinkDialer {
-  // Opens one physical connection to a peer's opaque address (remote companion `Connection`).
-  readonly dial: (peer: ManifestPeer) => Effect.Effect<Connection, DialFailed, Scope.Scope>
+  // Opens one physical connection to a peer's opaque address.
+  readonly dial: (peer: ManifestPeer) => Effect.Effect<LinkConnection, DialFailed, Scope.Scope>
 }
 interface LinkListener {
   // Physical connections dialled by peers. Who they claim to be is learnt from the offer (BEH-FD-018).
-  readonly accept: Stream.Stream<Connection, ListenFailed, Scope.Scope>
+  readonly accept: Stream.Stream<LinkConnection, ListenFailed, Scope.Scope>
 }
 class DialFailed extends Schema.TaggedError<DialFailed>()("DialFailed", {
   peer: Schema.String, message: Schema.String          // peer: the ManifestPeer's id
@@ -80,8 +83,10 @@ REQUIREMENT: The federation plugin MUST keep one outgoing link to each peer
 
 ```
 REQUIREMENT: Each link MUST be split with the remote companion's multiplexer:
-             `Transport.multiplex` on the dialling end, `GuestTransport.multiplex`
-             on the accepting end. The "control" endpoint MUST carry only
+             `Transport.multiplex(connection, profile)` on the dialling end,
+             `GuestTransport.multiplex(connection, profile)` on the accepting
+             end, each passing the `profile` its `LinkDialer` or
+             `LinkListener` yielded with the connection. The "control" endpoint MUST carry only
              this package's `ControlFrame` schema; every "import:" endpoint
              MUST carry only remote sessions of the remote companion.
 ```
@@ -141,7 +146,7 @@ type ControlFrame =
 interface LinkAgreement {
   readonly protocol: number
   readonly accepted: readonly { readonly serviceId: string; readonly version: string; readonly fence?: ExportFence }[]
-  readonly refused: readonly { readonly serviceId: string; readonly reason: "no-export" | "unavailable" | "incompatible-contract" | "killed" | "stale-export" | "export-conflict"; readonly cause?: IncompatibleContract }[]
+  readonly refused: readonly { readonly serviceId: string; readonly reason: "no-export" | "unavailable" | "incompatible-contract" | "killed" | "stale-export" | "export-conflict" | "placement-refused"; readonly cause?: IncompatibleContract }[]
 }
 ```
 
@@ -239,7 +244,9 @@ REQUIREMENT: Each import names one contract major through its `version` V
              contract at V (04). For each import from the peer, the
              importing end MUST accept it in `LinkAgreement.accepted` only
              when the peer's offer lists an export of the same key and
-             major whose `version` v satisfies `>= V < (major+1).0.0`, whose
+             major whose `version` v satisfies the range `"^" + V` (core
+             `Contract.satisfies`, BEH-BR-226; the range core BEH-BR-232
+             gives a proxy), whose
              digest is not killed (BEH-FD-027) and whose fence is not stale
              or in conflict (BEH-FD-029); otherwise it MUST list it in
              `LinkAgreement.refused` with the reason, with an

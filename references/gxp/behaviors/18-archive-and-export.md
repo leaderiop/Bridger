@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-18                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): BEH-GX-140 `readArchive` returns the bundle's chain reports as `chain`; `expectKeyed: true` only with `keyed`; `keyed` takes a pure or an effectful MAC, the latter through audit-chain's `precomputeMacs`, and each series' `ChainReport` of `BundleReport.chain` is mapped (audit-chain CCR-AC-006 follow-up); a range archive starting above `auditSeq` 1 maps no chain-derived finding but `anchorUnconfirmed` and lists the others as not checked, since audit-chain verifies links and anchors from `auditSeq` 1; seal verification of an archive needs a range from 1 (M2) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does; follow-up: BEH-GX-140 passes `expectKeyed` with `keyed`, as `verifySeals` does (BEH-GX-171); follow-up: `ExportFailed`, `ArchiveUnreadable` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-10): BEH-GX-137 with `range: "all"` the bundle is exported up to `Number.MAX_SAFE_INTEGER`, so receipts of windows above the last stored entry reach `readArchive` and are reported "window-not-in-entries", as BEH-GX-171 does (G1); BEH-GX-140 an anchor mismatch of a window ending above a range archive's `requested` `toSeq` is reported as `anchorUnconfirmed`, not `anchorMismatch` (G2) (CCR-GX-007)<br>0.4 (2026-11-10): BEH-GX-140 `readArchive` returns the bundle's chain reports as `chain`; `expectKeyed: true` only with `keyed`; `keyed` takes a pure or an effectful MAC, the latter through audit-chain's `precomputeMacs`, and each series' `ChainReport` of `BundleReport.chain` is mapped (audit-chain CCR-AC-006 follow-up); a range archive starting above `auditSeq` 1 maps no chain-derived finding but `anchorUnconfirmed` and lists the others as not checked, since audit-chain verifies links and anchors from `auditSeq` 1; seal verification of an archive needs a range from 1 (M2) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does; follow-up: BEH-GX-140 passes `expectKeyed` with `keyed`, as `verifySeals` does (BEH-GX-171); follow-up: `ExportFailed`, `ArchiveUnreadable` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -99,10 +99,16 @@ REQUIREMENT: It MUST hold in memory at most one page of entries, the set of
 ```
 REQUIREMENT: With `sealing`, the archive MUST contain `chain-bundle.json`,
              written by audit-chain's `exportBundle({ series: [hostId],
-             range: the range read, disclose: "segments", trustRoots })`
-             with `sealing.chain` and `sealing.receipts` as its `ChainReader`
-             and `ReceiptReader`; a `BundleExportFailed` MUST fail the export
-             with `ExportFailed`. `exportBundle` returns the whole bundle, so
+             range, disclose: "segments", trustRoots })` with `sealing.chain`
+             and `sealing.receipts` as its `ChainReader` and
+             `ReceiptReader`, where `range` is `q.range` when it is a range
+             and, with "all", `{ fromSeq: 1, toSeq: Number.MAX_SAFE_INTEGER }`,
+             so that, as for `verifySeals` (BEH-GX-171), the bundle holds
+             every statement and receipt the reader holds for the host,
+             including those of windows above the last stored entry (their
+             entries removed, their receipts kept), which `readArchive` then
+             reports as `anchorMismatch` "window-not-in-entries"; a
+             `BundleExportFailed` MUST fail the export with `ExportFailed`. `exportBundle` returns the whole bundle, so
              a sealed export MUST fail with `CheckCapacityExceeded` before
              calling it when the range holds more than `maxEntries` entries.
              With "not-used" the file MUST be absent.
@@ -290,6 +296,22 @@ REQUIREMENT: Audit-chain counts `linksCheckedThrough` and `verifiedThrough`
              `notCheckedKinds`. Documentation MUST state that seal
              verification of an archive needs a range starting at
              `auditSeq` 1, or "all".
+```
+
+```
+REQUIREMENT: When the manifest's `requested` range is a range, the bundle
+             holds the statement of a window that overlaps it but only the
+             entries inside it (BEH-AC-033). An `anchorMismatches` entry of
+             kind "root-mismatch", "head-mismatch" or
+             "window-not-in-entries" whose statement's window ends above
+             the `requested` `toSeq` MUST NOT be mapped to `anchorMismatch`,
+             since the archive does not hold that window's entries; it MUST
+             be reported as one `anchorUnconfirmed` finding with the window
+             as `auditSeq` and `toSeq` and `detail` "statement
+             <statementHash> not confirmed: window ends above the archived
+             range", and kept unchanged in the attached chain report.
+             Documentation MUST state that a window crossing the end of the
+             range is verified only by an archive whose range covers it.
 ```
 
 ```

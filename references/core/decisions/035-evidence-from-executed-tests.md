@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-035                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-10): Mutation testing runs the acceptance scenarios against packed mutants, so the kill rule can count the OQ suite (C16) (CCR-BR-035)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-10): The mutation kill rule is a review criterion applied to the mutation report, outside the generated evidence; the generator (BEH-GX-124) stays mechanical (C14) (CCR-BR-036)<br>0.2 (2026-11-10): Mutation testing runs the acceptance scenarios against packed mutants, so the kill rule can count the OQ suite (C16) (CCR-BR-035)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -29,7 +29,7 @@ The precedent is specific. Qadi ADR-QD-016 records that its predecessor's IQ/OQ/
 - **Never hand-written or hardcoded results.** The evidence report is generated from the test runner's machine-readable output. A step whose result is fixed in code, or entered by hand, is not evidence.
 - **Traceable.** Each evidence item names the test, the requirement and behaviour IDs it covers (URS, BEH, INV), the result, the package version and commit, the environment, and the time (from `Clock`).
 - **Gaps are reported as gaps.** A requirement with no executing test is reported as *not covered*, never as passed. A skipped test is reported as skipped.
-- **Tests must be able to fail.** Mutation testing (NFR-BR-008) is the check that the suite's assertions detect changed behaviour; a test that survives every mutant of the code it covers is not counted as evidence for that code. The acceptance scenarios offered as OQ evidence import the installed package, so mutation testing runs them against each mutant built, packed and installed as the release is, and their kills are counted ([validation plan](../gxp/04-validation-plan.md) §5.2).
+- **Tests must be able to fail.** Mutation testing (NFR-BR-008) is the check that the suite's assertions detect changed behaviour; a test that survives every mutant of the code it covers is not counted as evidence for that code. This is a review criterion applied to the mutation report when the evidence is reviewed, outside the generated evidence: the evidence generator ([BEH-GX-124](../../gxp/behaviors/16-oq-evidence.md)) takes no mutation report and stays mechanical, and the reviewer records each test that kills no mutant and the requirement it no longer supports (CCR-BR-036). The acceptance scenarios offered as OQ evidence import the installed package, so mutation testing runs them against each mutant built, packed and installed as the release is, and their kills are counted ([validation plan](../gxp/04-validation-plan.md) §5.2).
 - **Scope.** Bridger's evidence covers Bridger's specified behaviour. Performance qualification, and qualification of the user's sink, gate, store and integration, are the regulated user's.
 
 ## Alternatives considered

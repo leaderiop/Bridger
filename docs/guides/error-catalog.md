@@ -85,7 +85,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### HostClosed
 
-*error* · origin: core · raised by: every operation once shutdown begins; a `reconcile` without `atomic` cut by shutdown
+*error* · origin: core · raised by: every operation once shutdown begins (`Realm.ephemeral` creation included); a `reconcile` without `atomic` cut by shutdown
 
 - **Cause.** The host is shutting down or closed. A `reconcile` without `atomic` that shutdown cuts issues no further action and fails with it; the entry actions already completed stay applied and recorded (BEH-BR-157).
 - **Example.** A background fiber calls `host.use(...)` after the scope closed.
@@ -105,7 +105,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 - **Cause.** A finalizer failed while the plugin stopped; it ended `failed` (cleanup).
 - **Example.** A plugin whose finalizer closes a socket that throws.
-- **Fix.** Fix the finalizer; the resource may be leaked; `retry` after fixing.
+- **Fix.** Fix the finalizer; the resource may be leaked. A plugin `failed` in cleanup accepts only `remove` (every other operation is a `Conflict`, BEH-BR-071): `remove` it, acknowledging the leak, then install the fixed version.
 
 ### DrainTimeout
 
@@ -119,7 +119,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core · raised by: stopping operations, `retry`, `enable`, `awaitIdle`; `shutdown` from a build, `load` or finalizer fiber (BEH-BR-105)
 
-- **Cause.** The call would wait for something its own lease or transition blocks (ADR-BR-016). A `shutdown` called from a fiber running a plugin's `build` or `load`, or a finalizer of its activation scope (or a fiber such a fiber awaits), fails at once naming that plugin, begins nothing and writes no record (BEH-BR-105).
+- **Cause.** The call would wait for something its own lease or transition blocks (ADR-BR-016); the error names the plugin by `id` and `realm`. A `shutdown` called from a fiber running a plugin's `build` or `load`, or a finalizer of its activation scope (or a fiber such a fiber awaits), fails at once naming that plugin, begins nothing and writes no record (BEH-BR-105).
 - **Example.** Inside `host.use(Logger, …)`, the callback calls `host.remove("example/logger")`.
 - **Fix.** Do not stop your own provider from inside a call to it; a fiber forked from the call carries its lease too (BEH-BR-088). Run the operation from a fiber that holds no lease on that plugin — the application's, or `Plugin.Runtime.background` of another plugin. Call `shutdown` from the application, never from a plugin's build, `load` or finalizer.
 
@@ -422,7 +422,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### FamilyMemberUnavailable
 
-*error* · origin: core/33 · raised by: `Realm.family` use
+*error* · origin: core/33 · raised by: `Realm.family` use; `Realm.ephemeral` creation (`family` "ephemeral", `key` the segment)
 
 - **Cause.** The member realm for `key` could not be used (`reason`: rejected, failed, activation-timeout, options-changed, invalid-key, closed).
 - **Example.** A failed member is not recreated until reset.
@@ -432,9 +432,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core/33 · raised by: `family.evict`, `family.reset`
 
-- **Cause.** Eviction could not complete; carries the `DrainTimeout` or the reconcile rejection.
-- **Example.** A long lease on a member's provider outlasts the drain limit.
-- **Fix.** Wait for the lease to end and evict again; eviction never forces.
+- **Cause.** Eviction could not complete; carries the eviction's `outcome` ("incomplete" for a `DrainTimeout`, "realm-kept" for `RealmInUse`, "refused" for any other error), the `step` that stopped it (`reconcile` or `retireRealm`) and that step's `error` (a gate refusal, the audit latch, `HostClosed` among them).
+- **Example.** A long lease on a member's provider outlasts the drain limit; or a plugin the family does not own is installed in the member's realm.
+- **Fix.** Act on the carried error: wait for the lease to end, get the operation approved, or remove the foreign plugin, then evict again; eviction never forces and never bypasses the gate or the latch.
 
 ### HandoffError
 
@@ -930,9 +930,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: entitlement/02 · raised by: `Entitlement.guard`
 
-- **Cause.** The plugin's mode does not allow this use and the use carries no essential label.
+- **Cause.** The plugin's mode (`mode`, read from `entitled` of the activation's `Plugin.Runtime` passed to `guard` as `runtime`, which also names the plugin) does not allow this use, and the use carries no essential label (the application's list given to `Entitlement.layer`, plus any `options.essential`). Mode "unknown": no state arrived within `guard`'s `checkTimeout` (default 4 seconds), or "last-known" has never known an answer. Mode "unmetered": no `EntitlementView` is wired in the host.
 - **Example.** A paid feature after a licence lapse.
-- **Fix.** Renew, or label the use essential if it must always run.
+- **Fix.** Renew, or label the use essential if it must always run. Under "unmetered" renewing does not help: wire the entitlement port. Under "unknown", find why the port has not answered (`EntitlementUnavailable`), or raise `checkTimeout`.
 
 ### BudgetExhausted
 
@@ -1250,7 +1250,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *port-error* · origin: agent/02 · raised by: `DraftWithdrawal.withdraw`
 
-- **Cause.** The application's draft flow could not withdraw the pending draft of a task that ended while awaiting approval (`draftId`, `message`). The task still ends; its terminal snapshot says "not-withdrawn" and the loop logs it at error level.
+- **Cause.** The application's draft flow could not withdraw the draft of a task that ended with a pending draft (BEH-AG-016) (`draftId`, `message`). The task still ends; its terminal snapshot says "not-withdrawn" and the loop logs it at error level.
 - **Example.** The approval store is unreachable when a person cancels the task; or the loop was built with `DraftWithdrawal.none`.
 - **Fix.** Withdraw the draft in the approval store by hand before anyone approves it; then fix the draft flow.
 
@@ -1530,7 +1530,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: event-delivery/06 (BEH-DB-048) · raised by: `publish`, `DurableBus.fence(tx)`; every event-store write (`Stream.append`, `Aggregate.handle`, `run`, `record`, `recordFact`, the handlers of `receive` and `receiveVerbatim`)
 
-- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`), or while the raised incarnation is not yet recorded; `DurableBus.fence(tx)` checks this inside the write transaction; nothing is written and the caller's transaction fails with it. Event-store writes fail with it whether or not their types are published. While the raised incarnation cannot be recorded, it persists after the scope closes (`origin-unrecorded`).
+- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`), or while the raised incarnation is not yet recorded; `DurableBus.fence(tx)` checks this inside the write transaction; nothing is written and the caller's transaction fails with it. Event-store writes fail with it whether or not their types are published. While the raised incarnation cannot be recorded, it persists after the scope closes (`origin-unrecorded`). `fence` is scoped: its admission ends when the write transaction's `Scope` closes at commit or rollback, and setting the freeze first refuses new admissions, then waits for the admitted ones (BEH-DB-048, BEH-DB-054). A subscription handler that fails with it is not counted toward `maxAttempts` and never halts or parks its stream: subscriptions are paused while a whole-store settlement's scope is open (BEH-DB-021, BEH-DB-048).
 - **Example.** A terminal records a sale while it installs a fresh snapshot from the hub.
 - **Fix.** Retry the write after the re-bootstrap ends; on `origin-unrecorded`, restore the store so the raised incarnation can be recorded.
 
@@ -1751,6 +1751,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** A `FieldSpec`'s subject function reads a path listed for encryption.
 - **Example.** The subject is read from the `customerId` field that is also encrypted.
 - **Fix.** Read the subject from an unencrypted field.
+
+### KeyringConfigError
+
+*error* · origin: keyring/01 (BEH-KR-008) · raised by: `Keyring.plugin` (build)
+
+- **Cause.** The plugin was given neither `store.transaction` nor `noticeTransaction`, so it has no transaction in which to apply received shred notices (`reason`).
+- **Example.** A deployment wires a `KeyStore` adapter without a transaction combinator and passes no `noticeTransaction`.
+- **Fix.** Give the `KeyStore` a `transaction`, or pass `noticeTransaction` to `Keyring.plugin`.
 
 ### GxpLayerInvalid
 
@@ -2083,3 +2091,5 @@ Change log: 2026-11-09, audit — the loader's `ManifestMismatch` renamed `Packa
 Change log: 2026-11-10, audit round 2 — catalog completed (H11): entries for the 27 GxP companion tags, audit-chain `AnchorUnconfirmed`, mcp `PlanAffectsCaller`, agent `UnreachableViolation`, loader `SignatureInvalid` and `RevocationStoreFailed`, remote `GuestTransportError` and `DedupeUnavailable`, federation `ResolveFailed`, `DialFailed` and `ListenFailed`, and core's record-only handoff loss tags; `DependencyCycle`, `HostClosed`, `WouldDeadlock`, `NoImplementation`, `PlanStale`, `ApplyRolledBack`, `KeyedHashFailed`, `BundleExportFailed`, `EntitlementConfigError`, `RebootstrapBlocked`, `OutboxFrozen`, `IncarnationUnavailable`, `PayloadDecodeFailed`, `KeyShredded`, `KeyStoreUnavailable`, `SubjectInvalid` and `ShredUnattributed` updated (CCR-BR-034; kit entries under CCR-KT-005). Follow-up the same day: the Example lines of those 44 entries rewritten from placeholders into the calls and situations their defining behaviours describe, with the errors' declared fields; Fix lines aligned with the specification's stated remedy (the handoff loss tags — an import failure fails the activation rather than starting cold — `DialFailed`, `ListenFailed`, `ResolveFailed`, `SignatureInvalid`, `RevocationStoreFailed`, `UnreachableViolation`, `DedupeUnavailable`, `TrailWriteFailed`, `TicketWriteFailed`, `TicketVersionConflict`, `SignatureDeclined`, `FingerprintMalformed`, `RunnerOutputUnreadable`); GxP causes name the fields declared since; entry `WrappedKeyChanged`; `KeyShredded` and `KeyStoreUnavailable` raised by the `KeyStore` port; `GuestTransportError` cause names the fields remote declares (`reason` "accept-failed" or "no-dedupe", `message`; remote CCR-RM-005) (CCR-BR-034; kit entries under CCR-KT-005).
 
 Change log: 2026-11-10, audit round 3 — no tag added or removed; entries aligned with the round's fixes: `UnknownRealm` raised by `wake`; `EntitlementUnavailable` raised by the application's `EntitlementAdapter`; `PayloadUnreadable` handled under `onUnreadable` and not expected after a shred (a shredded subject decodes as `Shredded`); `KeyStoreUnavailable` covers the `KeyWrapper` port and the halted shred-notice subscription; `WrappedKeyChanged` (`rewrap` lists once) and `ShredUnattributed` (parked by the refusal subscription only); `SessionNotFound` (BEH-AG-004), `ScriptMismatch` (`ReplayModel`), `UnsupportedDigestAlgorithm` (SHA-256 only); `CallbackDenied` reason "call-log-unavailable", for which the host service ran and its result was withheld (remote BEH-RM-046); `OutboxFrozen` raised by `DurableBus.fence(tx)` and while the raised incarnation is not yet recorded (durable-bus BEH-DB-048); `GxpLayerInvalid` section "gatePieces" (BEH-GX-178); `WouldDeadlock` for `shutdown` from a build, `load` or finalizer fiber, and its fix no longer advises forking, since a forked fiber carries the lease (BEH-BR-088); `ScriptMismatch` is recorded, never raised (CCR-KT-006).
+
+Change log: 2026-11-10, audit round 4 — `KeyringConfigError` added; entries aligned with the round's fixes: `CleanupError`'s fix is `remove` (a plugin `failed` in cleanup accepts nothing else); `WouldDeadlock` names the plugin by `id` and `realm`; `FamilyEvictionError` carries the eviction's `outcome`, the `step` that stopped it and that step's `error`; `NotEntitled` covers mode "unknown" after `guard`'s `checkTimeout` and mode "unmetered" (no `EntitlementView` wired, where renewing does not help); `DraftWithdrawalFailed` concerns a task that ended with a pending draft; `NotEntitled` reads the mode from the `runtime` passed to `guard`; `OutboxFrozen` covers the scoped `fence` and paused subscriptions; `KeyringConfigError` added; `FamilyMemberUnavailable` and `HostClosed` are raised by `Realm.ephemeral` creation, a rejected reconcile entry failing it with `FamilyMemberUnavailable` "rejected" (CL4) (CCR-KT-007).

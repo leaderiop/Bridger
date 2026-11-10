@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-04                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): BEH-KT-029: `pack` writes the entry in `extensions["@bridger/loader"].entry` and refuses a partner manifest without the guest shape (M-03, F-06); BEH-KT-032: `countersign --statement first-party` signs the loader's "first-party" statement (F-06) (CCR-KT-004)<br>0.5 (2026-11-08): `publish` takes `--signer`; without the deployment's rules it prints "policy unknown" and runs no verification, with them it needs an explicit revocation source or `--revocation unbounded` and writes no `LoadLog`; `verify-chain` synopsis gains `--verifier`, `--profile` and `--expect-head`, and exit code 4 (round-2 agent review R3-10–R3-13) (CCR-KT-003)<br>0.4 (2026-11-08): `publish` signs through the loader's `Statement.signingInput` and `StatementSigner` and reports with `SignaturePolicy.verify` (G56 closed for the kit); BEH-KT-032 `countersign`; `verify-chain` listed (06); manifests carry `role`, `target`, `listens`; `dev --cold`, non-atomic reloads and G65 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.3 (2026-11-08): `dev` digests aligned with core's lazy and manifest digest rules (CCR-KT-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.7 (2026-11-10): Synopsis: `verify-chain` takes `--keyed <module>` and `--expect-keyed [<seriesId>]` (06, BEH-KT-047) (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.6 (2026-11-09): BEH-KT-029: `pack` writes the entry in `extensions["@bridger/loader"].entry` and refuses a partner manifest without the guest shape (M-03, F-06); BEH-KT-032: `countersign --statement first-party` signs the loader's "first-party" statement (F-06) (CCR-KT-004)<br>0.5 (2026-11-08): `publish` takes `--signer`; without the deployment's rules it prints "policy unknown" and runs no verification, with them it needs an explicit revocation source or `--revocation unbounded` and writes no `LoadLog`; `verify-chain` synopsis gains `--verifier`, `--profile` and `--expect-head`, and exit code 4 (round-2 agent review R3-10–R3-13) (CCR-KT-003)<br>0.4 (2026-11-08): `publish` signs through the loader's `Statement.signingInput` and `StatementSigner` and reports with `SignaturePolicy.verify` (G56 closed for the kit); BEH-KT-032 `countersign`; `verify-chain` listed (06); manifests carry `role`, `target`, `listens`; `dev --cold`, non-atomic reloads and G65 (round 2: recheck items 11, 14, 17; core alignment) (CCR-KT-003)<br>0.3 (2026-11-08): `dev` digests aligned with core's lazy and manifest digest rules (CCR-KT-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -31,7 +31,7 @@ bridger check  [--contracts-only]
 bridger pack   [--out <dir>]
 bridger publish <package> --target <name> [--signer <adapter>] [--rules <file>] [--revocation <file>|unbounded] [--partial]
 bridger countersign <package> [--statement package|first-party] [--signer <adapter>] [--rules <file>] [--revocation <file>|unbounded]
-bridger verify-chain <bundle> [--trust-roots <file>] [--verifier <module>]... [--profile <name>=<module>]... [--expect-head <seriesId>=<seq>[:<hash>]]... [--json]
+bridger verify-chain <bundle> [--trust-roots <file>] [--verifier <module>]... [--profile <name>=<module>]... [--expect-head <seriesId>=<seq>[:<hash>]]... [--keyed <module>] [--expect-keyed [<seriesId>]]... [--json]
 bridger inspect [--json] [--entry <module>] [<plugin>]
 bridger sdk generate <contract-package> [--out <dir>]
 ```

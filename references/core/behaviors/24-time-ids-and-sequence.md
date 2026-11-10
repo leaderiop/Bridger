@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-24                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): The GxP companion is cited as a Draft, not as specified later (C20) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-210 every value an `IdGenerator` returns is unique within its host and across every host whose identified outputs reach a common store; a provided generator carries that obligation, the default meets it with high probability only, and the testing counter within one `TestHost` (F-03); the requirement states what a conforming design is — unique by construction, or at least 122 bits per value drawn independently and uniformly from a cryptographically secure source — so that the default conforms (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.8 (2026-11-10): BEH-BR-213 a record mid-retry when the host closes holds its number and leaves no gap, rather than "was never numbered" (CL7); a record unwritten at close is signalled by the error log and `auditPosition`, not `CloseReport.auditDegraded` (C5) (CCR-BR-036)<br>0.7 (2026-11-10): The GxP companion is cited as a Draft, not as specified later (C20) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-210 every value an `IdGenerator` returns is unique within its host and across every host whose identified outputs reach a common store; a provided generator carries that obligation, the default meets it with high probability only, and the testing counter within one `TestHost` (F-03); the requirement states what a conforming design is — unique by construction, or at least 122 bits per value drawn independently and uniformly from a cryptographically secure source — so that the default conforms (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -345,14 +345,19 @@ REQUIREMENT: The sequence of `auditSeq` values handed to the sink MUST
 
 ```
 REQUIREMENT: Core documentation MUST state the limits of that guarantee: a
-             record dropped for writer overflow, or left unwritten when the
-             process ends, was never numbered and leaves no gap. An overflow
-             drop is signalled by the latch, the error log,
-             `HostSnapshot.auditDropped` and `droppedSinceAck` (23 — Audit
-             Sink and Record, BEH-BR-196); a record unwritten when the host
-             closes, by the error log and `CloseReport.auditDegraded`; a
-             record still queued when the process dies abruptly, by nothing
-             core can emit. None of them is signalled by the sequence.
+             record dropped for writer overflow, or still queued when the
+             process ends, was never numbered and leaves no gap; a record
+             whose write was being retried when the host closed or the
+             process ended holds its number, which no later record follows,
+             so it too leaves no gap among the numbers the
+             sink accepted. An overflow drop is signalled by the latch, the
+             error log, `HostSnapshot.auditDropped` and `droppedSinceAck`
+             (23 — Audit Sink and Record, BEH-BR-196); a record unwritten
+             when the host closes, by the error log and by `auditPosition`,
+             whose `lastWritten` stays below its number (CCR-BR-036); a
+             record still queued or mid-retry when the process dies
+             abruptly, by nothing core can emit. None of them is signalled
+             by the sequence.
 ```
 
 The consequence for a reader of a stored trail is precise. If the sink kept

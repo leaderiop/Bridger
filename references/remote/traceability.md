@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-TRACE                                             |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — REQ-RM-050; REQ-RM-038, 042 and 044 restated; RSK-RM-017 row; INV-RM-010 and INV-RM-011 rows extended (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: file 09 to BEH-RM-072; INV-RM-012; REQ-RM-045–048; RSK-RM-016; REQ-RM-034 summary; BEH-RM-007 in file 01; REQ-RM-048 widened and REQ-RM-049 added; RSK-RM-016 row (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-RM-043, 044; REQ-RM-036, 038, 039 restated; INV-RM-011 row extended (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — BEH-RM-065–071, INV-RM-011, ADR-RM-010, REQ-RM-034–042, RSK-RM-014 and 015 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — REQ-RM-036 restated: a placement refusal holds no claim (PL15) (CCR-RM-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — REQ-RM-050; REQ-RM-038, 042 and 044 restated; RSK-RM-017 row; INV-RM-010 and INV-RM-011 rows extended (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: file 09 to BEH-RM-072; INV-RM-012; REQ-RM-045–048; RSK-RM-016; REQ-RM-034 summary; BEH-RM-007 in file 01; REQ-RM-048 widened and REQ-RM-049 added; RSK-RM-016 row (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-RM-043, 044; REQ-RM-036, 038, 039 restated; INV-RM-011 row extended (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — BEH-RM-065–071, INV-RM-011, ADR-RM-010, REQ-RM-034–042, RSK-RM-014 and 015 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -108,7 +108,7 @@ order. Planned location `packages/remote/test/` *(Planned)*. None has run.
 | REQ-RM-033 | 33. Wire annotations cross without the deadline and combine on receipt | [BEH-RM-024](behaviors/03-remote-calls.md), [BEH-RM-041](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-045](behaviors/06-capability-tokens-and-call-log.md) | Not run |
 | REQ-RM-034 | 34. With `OrgOf`, tokens carry `org` and claims carry it only when disclosed; never in status | [BEH-RM-065](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-035 | 35. A budget refusal fails the call before any frame; `charge` uses reported measures only | [BEH-RM-066](behaviors/09-placement-budgets-and-adapters.md) | Not run |
-| REQ-RM-036 | 36. A duplicated per-call `call` runs once with a shared `DedupeStore`, the copy answered with the result or `InProgress`; refused copies hold no claim; retention residual; no store and no statement refuses to start | [BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-036 | 36. A duplicated per-call `call` runs once with a shared `DedupeStore`, the copy answered with the result or `InProgress`; refused copies, placement refusals included, hold no claim; retention residual; no store and no statement refuses to start | [BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-037 | 37. A residency label not offered by the transport fails the link's build with `PlacementRefused` | [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-038 | 38. The residency label crosses as a wire annotation and a serving end refuses a mismatch before any lease (`Remote.serve` logs to the `CallLog`, `Guest.serve` locally); the host refuses a fiber's own label before sending | [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 | REQ-RM-039 | 39. `Transport.postMessage` origin checks, "opaque" mode source and nonce checks, one port per connection, new epoch per frame load | [BEH-RM-070](behaviors/09-placement-budgets-and-adapters.md) | Not run |
