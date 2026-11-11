@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-16                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-11): BEH-GX-127 a package the running suite resolves elsewhere than from `packageRoot` is left out, so the run raises `package-mismatch` (G6) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes `packageRoot` and `lockfile` and records each package's identity by BEH-GX-117's algorithm, with the code the installation checks use, and the lockfile's digest (G5) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-121, BEH-GX-126 `installed` is the IQ report's `installed`, produced by IQ-01, IQ-03, IQ-08 and IQ-24 (G3); BEH-GX-124 the generator takes no mutation report: the mutation kill rule is a review criterion outside the generated evidence (C14) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.7 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes the suite's `resolve` and resolves each package with it, never from its own location (G2) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.6 (2026-11-11): BEH-GX-127 a package the running suite resolves elsewhere than from `packageRoot` is left out, so the run raises `package-mismatch` (G6) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes `packageRoot` and `lockfile` and records each package's identity by BEH-GX-117's algorithm, with the code the installation checks use, and the lockfile's digest (G5) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-121, BEH-GX-126 `installed` is the IQ report's `installed`, produced by IQ-01, IQ-03, IQ-08 and IQ-24 (G3); BEH-GX-124 the generator takes no mutation report: the mutation kill rule is a review criterion outside the generated evidence (C14) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -315,6 +315,8 @@ declare function captureRunEnvironment(q: {
   readonly executor: string; readonly suiteVersion: string
   readonly packageRoot: string                        // as runInstallationChecks takes it (15): where module resolution starts
   readonly lockfile: string                           // the lockfile the installation was made from
+  readonly resolve: (specifier: string) => string     // the suite's own module resolution: the file a bare specifier loads,
+                                                      // e.g. (s) => fileURLToPath(import.meta.resolve(s)) in the suite's module; throws when unresolved
 }): Effect.Effect<RunManifest>                        // called by the consumer's test setup, before the run
 interface RunManifest {
   readonly format: "bridger-gx-run/1"
@@ -347,11 +349,15 @@ REQUIREMENT: `captureRunEnvironment` MUST fill `packages` for `@bridger/core`,
              A package it cannot resolve MUST be left out of `packages`, so
              that the run raises `package-mismatch`, never filled from
              another source. It MUST also resolve each package as the
-             running suite's own module resolution loads it, and MUST leave
-             out of `packages` a package whose real path so resolved differs
-             from the one resolved from `packageRoot`, so that a suite
-             importing from a source tree while naming the installation's
-             root raises `package-mismatch`.
+             running suite's own module resolution loads it, with the
+             suite's `resolve`, never with its own location's resolution:
+             `resolve(name)` gives the file, and the package's location is
+             the real path of the nearest directory above that file whose
+             `package.json` has that `name`. It MUST leave out of `packages`
+             a package `resolve` throws for, and a package whose real path
+             so resolved differs from the one resolved from `packageRoot`,
+             so that a suite importing from a source tree while naming the
+             installation's root raises `package-mismatch`.
 ```
 
 ```

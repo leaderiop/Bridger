@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-01                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-004: `KeyStore.transaction` runs the `onEnd` effects of its `StoreTransaction` at commit or rollback, which ends fence admissions (H3); the keyring gives `tombstone`, `destroy`, `markStep` and `acknowledge` a transaction only from its own `KeyStore.transaction` or its own handlers, never a caller's (K3) (CCR-KR-008)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-KR-004: `tombstone`, `destroy`, `markStep` and `acknowledge` write in an ambient `KeyStore.transaction` when one is present, committed with it, so a handler on a database shared with the outbox never waits on a second writer (B5); `KeyStore.tombstones` lists every tombstone for the store-swap participant (B6); BEH-KR-008: the plugin registers that participant when `store.transaction` is given (B6); `KeyStore.transaction` keeps its signature and ends the fence admissions taken on it as the durable-bus adapter does (H2) (CCR-KR-007)<br>0.7 (2026-11-10): BEH-KR-004: `KeyStore` gains `acknowledge`, `acknowledgements` and `unacknowledged` for callback and host acknowledgements and each callback's cursor (K1); BEH-KR-008 declares `NonceSource`, `KeyringPorts`, `Keyring.plugin` and `KeyringConfigError` (PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.6 (2026-11-10): BEH-KR-004 declares `WrappedKey` and `SubjectKeys`; BEH-KR-005 declares the `KeyWrapper` port, whose failures are `KeyStoreUnavailable`; BEH-KR-006: `rewrap` handles only the versions listed at its start, returns a `RewrapReport` naming the versions it could not re-wrap, and a wrap failure of one version does not end the call (M24) (CCR-KR-005)<br>0.5 (2026-11-10): `rotate` and `rewrap`, required by BEH-KR-006, added to `KeyringShape` (BEH-KR-002) and to the members of the `Keyring` contract (BEH-KR-008) (P10); follow-up: BEH-KR-004 `KeyStore` gains `wrappedUnder` and the compare-and-set `replaceWrapped` (`WrappedKeyChanged`), which BEH-KR-006 `rewrap` uses (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07 residual) — BEH-KR-002 and BEH-KR-006: `key`, `encrypt`, `rotate` and `rewrap` may fail with `OutboxFrozen` under a caller's `StoreTransaction` on an outbox-sharing `KeyStore`; BEH-KR-004: `create`, `addVersion` and `replaceWrapped` write in the ambient `KeyStore.transaction` when given one, which the keyring gives them from its own transactions or a caller's (03, BEH-KR-017) (CCR-KR-009)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-KR-004: a `KeyStore` that offers `transaction` runs its `onEnd` functions as durable-bus BEH-DB-054 property 8 requires, given the outcome, stated as a requirement (PL9, K3); the keyring also gives `KeyStore` writes the store-swap `apply` transaction and, for step 1 of a `shred` on an outbox-sharing `KeyStore`, its caller's transaction (H3, H4) (CCR-KR-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-004: `KeyStore.transaction` runs the `onEnd` effects of its `StoreTransaction` at commit or rollback, which ends fence admissions (H3); the keyring gives `tombstone`, `destroy`, `markStep` and `acknowledge` a transaction only from its own `KeyStore.transaction` or its own handlers, never a caller's (K3) (CCR-KR-008)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-KR-004: `tombstone`, `destroy`, `markStep` and `acknowledge` write in an ambient `KeyStore.transaction` when one is present, committed with it, so a handler on a database shared with the outbox never waits on a second writer (B5); `KeyStore.tombstones` lists every tombstone for the store-swap participant (B6); BEH-KR-008: the plugin registers that participant when `store.transaction` is given (B6); `KeyStore.transaction` keeps its signature and ends the fence admissions taken on it as the durable-bus adapter does (H2) (CCR-KR-007)<br>0.7 (2026-11-10): BEH-KR-004: `KeyStore` gains `acknowledge`, `acknowledgements` and `unacknowledged` for callback and host acknowledgements and each callback's cursor (K1); BEH-KR-008 declares `NonceSource`, `KeyringPorts`, `Keyring.plugin` and `KeyringConfigError` (PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.6 (2026-11-10): BEH-KR-004 declares `WrappedKey` and `SubjectKeys`; BEH-KR-005 declares the `KeyWrapper` port, whose failures are `KeyStoreUnavailable`; BEH-KR-006: `rewrap` handles only the versions listed at its start, returns a `RewrapReport` naming the versions it could not re-wrap, and a wrap failure of one version does not end the call (M24) (CCR-KR-005)<br>0.5 (2026-11-10): `rotate` and `rewrap`, required by BEH-KR-006, added to `KeyringShape` (BEH-KR-002) and to the members of the `Keyring` contract (BEH-KR-008) (P10); follow-up: BEH-KR-004 `KeyStore` gains `wrappedUnder` and the compare-and-set `replaceWrapped` (`WrappedKeyChanged`), which BEH-KR-006 `rewrap` uses (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — BEH-KR-004: `tombstone` stores the shred's attribution with it, and no field of a tombstone changes afterwards; `markStep` changes the step state only (M-01); BEH-KR-008: `Keyring` is declared with core `Contract.local` and never crosses a host (core CCR-BR-033) (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-004 `KeyStore` gains `markStep`, `incompleteShreds`, optional `holders` and an optional outbox-sharing `transaction` for resumable shreds; Open (2) moved to a stated limit (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-002 and 008 cite URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -47,14 +47,15 @@ REQUIREMENT: A subject MUST be a string of 1–128 characters of
 ```ts
 // illustrative — not type-checked
 interface KeyHandle { readonly subject: string; readonly keyId: string; readonly version: number; readonly alg: "aes-256-gcm" }
+// OutboxFrozen (durable-bus BEH-DB-048) only under a caller's StoreTransaction on an outbox-sharing KeyStore (03, BEH-KR-017)
 interface KeyringShape {
-  readonly key: (subject: string) => Effect.Effect<KeyHandle, KeyShredded | SubjectInvalid | KeyStoreUnavailable>
+  readonly key: (subject: string) => Effect.Effect<KeyHandle, KeyShredded | SubjectInvalid | KeyStoreUnavailable | OutboxFrozen>
   readonly encrypt: (subject: string, plaintext: Uint8Array, aad: Uint8Array) =>
-    Effect.Effect<Sealed, KeyShredded | KeyStoreUnavailable>
+    Effect.Effect<Sealed, KeyShredded | KeyStoreUnavailable | OutboxFrozen>
   readonly decrypt: (sealed: Sealed, aad: Uint8Array) =>
     Effect.Effect<Uint8Array, KeyShredded | DecryptFailed | KeyStoreUnavailable>
-  readonly rotate: (subject: string) => Effect.Effect<KeyHandle, KeyShredded | SubjectInvalid | KeyStoreUnavailable>   // BEH-KR-006: the new current handle
-  readonly rewrap: (kekId: string) => Effect.Effect<RewrapReport, KeyStoreUnavailable>                                 // BEH-KR-006
+  readonly rotate: (subject: string) => Effect.Effect<KeyHandle, KeyShredded | SubjectInvalid | KeyStoreUnavailable | OutboxFrozen>   // BEH-KR-006: the new current handle
+  readonly rewrap: (kekId: string) => Effect.Effect<RewrapReport, KeyStoreUnavailable | OutboxFrozen>                                 // BEH-KR-006
   // shred, onShred, shredStatus: 03
 }
 interface Sealed { readonly v: 1; readonly subject: string; readonly keyId: string; readonly nonce: string; readonly ct: string }  // base64url
@@ -110,8 +111,8 @@ interface KeyStore {
   // a callback's cursor: every tombstone the callback has not acknowledged, in the order the tombstones were written
   readonly unacknowledged: (callback: string) => Effect.Effect<readonly Tombstone[], KeyStoreUnavailable>
   // present only when the KeyStore's database is the durable-bus outbox's: a transaction the OutboxStore accepts,
-  // whose StoreTransaction runs its `onEnd` effects at commit or rollback, which ends every DurableBus.fence
-  // admission taken on it (durable-bus BEH-DB-009, BEH-DB-054, property 8)
+  // whose StoreTransaction runs its `onEnd` functions at commit or rollback, given the outcome, which ends every
+  // DurableBus.fence admission taken on it (below; durable-bus BEH-DB-009, BEH-DB-054, property 8)
   readonly transaction?: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) => Effect.Effect<A, E | KeyStoreUnavailable, Exclude<R, StoreTransaction>>
 }
 type ShredStep = "destroyed" | "noticed"
@@ -134,8 +135,9 @@ REQUIREMENT: A `KeyStore` MUST store only wrapped keys, MUST make `create`
              with the tombstone check), and after `destroy` MUST hold no
              copy of the subject's wrapped keys in its live data. It MUST
              document how deleted rows are removed from the engine's files
-             (vacuum, compaction) and in what time. `tombstone`, `destroy`,
-             `markStep` and `acknowledge`, when given a `KeyStore.transaction`
+             (vacuum, compaction) and in what time. `create`, `addVersion`,
+             `replaceWrapped`, `tombstone`, `destroy`, `markStep` and
+             `acknowledge`, when given a `KeyStore.transaction`
              in their environment (the `StoreTransaction` of the `KeyStore`'s
              database, which the transaction of the keyring's own
              subscription handlers is when that database is the outbox's,
@@ -143,9 +145,28 @@ REQUIREMENT: A `KeyStore` MUST store only wrapped keys, MUST make `create`
              committed with it; without one, `markStep` and `acknowledge`
              MUST be committed to the store before they return. The keyring
              gives them such a transaction only from a `KeyStore.transaction`
-             it opened itself or from one of its own subscription handlers;
-             no caller's transaction reaches them, since `shred` ignores an
-             ambient transaction (03, BEH-KR-017).
+             it opened itself, from one of its own subscription handlers,
+             from its store-swap participant's `apply` (03, BEH-KR-020), or,
+             for step 1 of a `shred`, and for the `create`, `addVersion` and
+             `replaceWrapped` writes of `key`, `encrypt`, `rotate`, `rewrap`
+             and the codec's encode, called with a `StoreTransaction` in
+             its environment on a `KeyStore` that offers `transaction`, from
+             that caller's transaction (03, BEH-KR-017); no other caller's
+             transaction reaches them.
+```
+
+```
+REQUIREMENT: A `KeyStore` that offers `transaction` MUST run every function
+             registered with the `onEnd` of the `StoreTransaction` it
+             provides as durable-bus BEH-DB-054 property 8 requires of a
+             storage adapter: once that transaction has committed or rolled
+             back, on every exit (success, failure, a failed commit, a
+             defect, an interruption), in registration order, and not
+             before, passing "committed" only when the commit succeeded and
+             "rolled-back" otherwise (durable-bus BEH-DB-009). A
+             `DurableBus.fence` admission taken on it ends then, and the
+             steps a `shred` leaves to its caller's commit run then (03,
+             BEH-KR-017).
 ```
 
 ```
@@ -240,7 +261,9 @@ REQUIREMENT: `rewrap(kekId)` MUST read the versions to re-wrap with
              MUST succeed at once, changing nothing, when `kekId` is the
              wrapper's current `kekId`. It fails only with a
              `KeyStoreUnavailable` from the `KeyStore` or from reading the
-             wrapper's `kekId`; versions already replaced stay replaced,
+             wrapper's `kekId`, or with `OutboxFrozen` under a caller's
+             `StoreTransaction` on an outbox-sharing `KeyStore` (03,
+             BEH-KR-017); versions already replaced stay replaced,
              and a repeated `rewrap(kekId)` completes the rest. Documentation MUST state that a version
              written under `kekId` after the listing, or reported in
              `failed`, stays under `kekId` until `rewrap(kekId)` is run

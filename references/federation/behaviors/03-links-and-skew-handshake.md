@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-03                                            |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-021: a link that drops while `suspended` or `delivery-only` keeps that state, is redialled, and sends its `kill` frame and no offer (the delivery-only offer while `delivery-only`); BEH-FD-018: the offer rule names that exception (F3); `LinkAgreement.refused` loses "placement-refused", since a placement-refused import is dropped in the projection (F1) (CCR-FD-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-017: `PeerLinkStatus` state `delivery-only`, its only use in step 1 of a re-bootstrap attempt that starts with links suspended (H4); BEH-FD-018: the step-1 exception to the suspended control endpoint, with an offer listing only the delivery imports and no export (F1) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-017: `LinkDialer.dial` and `LinkListener.accept` yield a `LinkConnection` with the `TransportProfile` of the end that made it, passed to both `multiplex` calls (H4); BEH-FD-018: `LinkAgreement.refused` gains "placement-refused" (PL16); BEH-FD-020: the accepted range is `"^" + V` (C9) (CCR-FD-007)<br>0.7 (2026-11-10): round 2 follow-up: `DialFailed` and `ListenFailed` declared (BEH-FD-017) (CCR-FD-005)<br>0.6 (2026-11-09): BEH-FD-023 reads identity claims only when present; provenance entry without `ref` when no actor is disclosed (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F5) — the `kill` frame precedes the offer on every new link; a suspended link keeps its control endpoint open for kill frames only; `SignedRevocationList` is the loader's (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck item 18 and CORE-DECISIONS-2 — `kill` control frame with one schema across protocol versions; asserted principals decoded with `PrincipalRef.decode` and kept as provenance; served calls carry the peer's correlation; peer selection through core `Selector.make` with a range (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-018, BEH-FD-021: the redial-while-suspended rule (kill frame first, no offer) is scoped to the re-bootstrapping host's own outgoing links; on an incoming connection a peer dials meanwhile, that host reads the peer's offer only for its `host` and `authority`, to identify the peer and run the listing check, and ignores the rest until step 4 (F3) (CCR-FD-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-021: a link that drops while `suspended` or `delivery-only` keeps that state, is redialled, and sends its `kill` frame and no offer (the delivery-only offer while `delivery-only`); BEH-FD-018: the offer rule names that exception (F3); `LinkAgreement.refused` loses "placement-refused", since a placement-refused import is dropped in the projection (F1) (CCR-FD-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-017: `PeerLinkStatus` state `delivery-only`, its only use in step 1 of a re-bootstrap attempt that starts with links suspended (H4); BEH-FD-018: the step-1 exception to the suspended control endpoint, with an offer listing only the delivery imports and no export (F1) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-017: `LinkDialer.dial` and `LinkListener.accept` yield a `LinkConnection` with the `TransportProfile` of the end that made it, passed to both `multiplex` calls (H4); BEH-FD-018: `LinkAgreement.refused` gains "placement-refused" (PL16); BEH-FD-020: the accepted range is `"^" + V` (C9) (CCR-FD-007)<br>0.7 (2026-11-10): round 2 follow-up: `DialFailed` and `ListenFailed` declared (BEH-FD-017) (CCR-FD-005)<br>0.6 (2026-11-09): BEH-FD-023 reads identity claims only when present; provenance entry without `ref` when no actor is disclosed (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F5) — the `kill` frame precedes the offer on every new link; a suspended link keeps its control endpoint open for kill frames only; `SignedRevocationList` is the loader's (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck item 18 and CORE-DECISIONS-2 — `kill` control frame with one schema across protocol versions; asserted principals decoded with `PrincipalRef.decode` and kept as provenance; served calls carry the peer's correlation; peer selection through core `Selector.make` with a range (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -166,8 +166,8 @@ interface LinkAgreement {
 ```
 REQUIREMENT: On every new link, before any remote session starts on an
              "import:" endpoint, each end MUST send a `ControlFrame` offer on
-             the "control" endpoint (but on a link redialled while
-             `suspended` or `delivery-only`, BEH-FD-021) — right after its `kill` frame, which
+             the "control" endpoint (but the re-bootstrapping host, on a
+             link it holds `suspended` or `delivery-only`, BEH-FD-021) — right after its `kill` frame, which
              comes first (06, BEH-FD-043) — and MUST decode the other's with an
              Effect Schema that ignores unknown fields. A later offer on the
              same link (sent when the sender applies a new manifest) MUST be
@@ -192,7 +192,10 @@ REQUIREMENT: The offer's `exports` MUST list only what the offering host's
 REQUIREMENT: While links are suspended for a re-bootstrap (02, BEH-FD-014),
              the "control" endpoint of each link MUST stay open and MUST
              carry only `kill` frames; offers received meanwhile MUST be
-             ignored and answered by a new offer exchange at resumption.
+             ignored — but for the `host` and `authority` of the first
+             offer on an incoming connection, read only to identify the
+             peer (BEH-FD-021) — and answered by a new offer exchange at
+             resumption.
              The one exception is a link in state `delivery-only` (step 1 of
              an attempt that starts with links suspended, BEH-FD-017): on
              it, this host MUST send an offer whose `imports` list only the
@@ -338,12 +341,24 @@ REQUIREMENT: Redials MUST back off with jitter drawn from `Random`, as in
 REQUIREMENT: A link whose connection closes while it is `suspended` or
              `delivery-only` (02, BEH-FD-014) MUST keep that state in
              `Federation.Status`, not become `partitioned`, and MUST be
-             redialled under the backoff above. On the new connection each
-             end MUST send its `kill` frame first (06, BEH-FD-043) and then
-             no offer while the link is `suspended`, its "control" endpoint
-             carrying only `kill` frames, or the delivery-only offer of
-             BEH-FD-018 while it is `delivery-only`; the full offer
-             exchange happens when the re-bootstrap resumes links (step 4).
+             redialled under the backoff above by whichever end dialled it.
+             This rule is the re-bootstrapping host's, for its own end of
+             the link: on a new connection of an outgoing link it MUST send
+             its `kill` frame first (06, BEH-FD-043) and then no offer while
+             the link is `suspended`, its "control" endpoint carrying only
+             `kill` frames, or the delivery-only offer of BEH-FD-018 while
+             it is `delivery-only`. The peer, which is not re-bootstrapping,
+             follows BEH-FD-018 unchanged and sends its `kill` frame and its
+             offer. On an incoming connection a peer dials while this host's
+             links are suspended, this host MUST send its `kill` frame first
+             and no offer, MUST read the peer's first offer only for its
+             `host` and `authority` — to identify the peer, apply the
+             listing check of BEH-FD-017 (refusing "not-a-peer") and the
+             `wrong-authority` check of BEH-FD-018 — and MUST ignore the
+             rest of it, holding the link `suspended` with its "control"
+             endpoint carrying only `kill` frames. The full offer exchange
+             happens on both kinds of link when the re-bootstrap resumes
+             links (step 4).
 ```
 
 This restates per host the rules of the review's §7: availability across

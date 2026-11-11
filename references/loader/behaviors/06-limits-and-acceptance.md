@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-06                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.9 (2026-11-11): Check 6: a `reconfigure` is not refused "verification-unknown", and a set older than the piece's `maxAge` refuses install "revocation-stale" (PL17, L4); check 10: a saved list whose signer window closed after acceptance is still restored (PL20); check 12: a revocation removes the dropped installed plugins with `Host.remove`, reconciles nothing, leaves an operator's direct changes in place, and runs on `AcceptedDigests` and pinned changes (H6, L3); check 13: re-evaluation counts the accepting branch's signers and re-checks the publisher binding (L1, H5) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.8 (2026-11-11): Check 6: `enable`/`restart` of an installed digest with no record refused "verification-unknown" after a signer revocation unless pinned or exempt (L3), and a current catalog acceptance admits an install after a loader replacement (L1); check 12: a pending entry still installed survives a revocation reconcile (H8); check 13: re-evaluation from the record alone, after the accepting loader was replaced (H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.7 (2026-11-10): Checks 6 and 12 (BEH-LD-048): exempt digests after a signer revocation, per-origin acceptances, and the revocation reconcile with pending or hand-removed entries (L1, L2, PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.6 (2026-11-10): Check 6 adds the cross-companion scenario: subagent and model-family installs under `LoaderGate` (P23) (CCR-LD-005)<br>0.5 (2026-11-09): Checks 5, 15 and 16 follow `PackageManifestMismatch`, the stamped manifest, the entry key, `Loader.lazy`'s refusal of guest entries and the link manifest; checks 25–30 are in file 09; `statementRules` carries the "first-party" rule (specification audit F-06, M-02, M-03, C-16); check 16: `stampRemote` refuses a non-guest manifest with `GuestEntryInvalid` (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Check 10 covers first boot, the separate revocation trust root, self-revocation and envelope mismatch (round-2 agent review R3-02) (CCR-LD-003)<br>0.3 (2026-11-08): The loader plugin reads `buildTimeout` from `Host.controls` (G61 closed) and provides `StatementVerifier`; open question 2 answered (core alignment) (CCR-LD-003)<br>0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.10 (2026-11-11): Check 6: install and replace of a digest published under a "@bridger/federation:<id>" source admitted, refused once revoked by digest (H2, PL7); check 9: an `anyOf` repeating an `id` refused (PL14); check 12: a catalog withdrawal removes nothing under `revocationActor` and a catalog update is one `replace` (L1), a plugin reinstalled by hand is outside the scope (L4), a start run, `drain` and `force` (PL15), the cap and `release` per run (L2), the kill switch's `pinned` option (PL13) (SPEC-AUDIT-07); follow-up: check 6: two loaders keep their own "@bridger/loader:<id>" lists and a stopped one clears its own (C1); check 12: plugins outside the scope reported in `status.outsideScope`, never removed or counted (C4) (SPEC-AUDIT-07 residual) (CCR-LD-010)<br>0.9 (2026-11-11): Check 6: a `reconfigure` is not refused "verification-unknown", and a set older than the piece's `maxAge` refuses install "revocation-stale" (PL17, L4); check 10: a saved list whose signer window closed after acceptance is still restored (PL20); check 12: a revocation removes the dropped installed plugins with `Host.remove`, reconciles nothing, leaves an operator's direct changes in place, and runs on `AcceptedDigests` and pinned changes (H6, L3); check 13: re-evaluation counts the accepting branch's signers and re-checks the publisher binding (L1, H5) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.8 (2026-11-11): Check 6: `enable`/`restart` of an installed digest with no record refused "verification-unknown" after a signer revocation unless pinned or exempt (L3), and a current catalog acceptance admits an install after a loader replacement (L1); check 12: a pending entry still installed survives a revocation reconcile (H8); check 13: re-evaluation from the record alone, after the accepting loader was replaced (H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.7 (2026-11-10): Checks 6 and 12 (BEH-LD-048): exempt digests after a signer revocation, per-origin acceptances, and the revocation reconcile with pending or hand-removed entries (L1, L2, PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.6 (2026-11-10): Check 6 adds the cross-companion scenario: subagent and model-family installs under `LoaderGate` (P23) (CCR-LD-005)<br>0.5 (2026-11-09): Checks 5, 15 and 16 follow `PackageManifestMismatch`, the stamped manifest, the entry key, `Loader.lazy`'s refusal of guest entries and the link manifest; checks 25–30 are in file 09; `statementRules` carries the "first-party" rule (specification audit F-06, M-02, M-03, C-16); check 16: `stampRemote` refuses a non-guest manifest with `GuestEntryInvalid` (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Check 10 covers first boot, the separate revocation trust root, self-revocation and envelope mismatch (round-2 agent review R3-02) (CCR-LD-003)<br>0.3 (2026-11-08): The loader plugin reads `buildTimeout` from `Host.controls` (G61 closed) and provides `StatementVerifier`; open question 2 answered (core alignment) (CCR-LD-003)<br>0.2 (2026-11-08): BEH-LD-046 limited to direct loads; a lazy load runs in the build slot with the loader's timeouts inside `buildTimeout`; `LoaderPlugin` requires `AcceptedDigests`; acceptance checks 5, 6, 7, 12, 13, 15 and 16 extended (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -300,7 +300,16 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                 unless it is pinned or exempt by digest, while a
                 volatile-only `reconfigure` of it is allowed; a set older
                 than the piece's `maxAge` refuses install
-                "revocation-stale"; remove and disable are never refused, and
+                "revocation-stale"; an install and a replace of a digest
+                with no record published under a "@bridger/federation:<id>"
+                source (`setPinned`) are admitted, also after a signer
+                revocation, and refused "digest-revoked" once it is revoked
+                by digest, while a digest published only under another
+                source is not admitted by that rule; `pinnedFrom` returns
+                one prefix's sources only; two loaders with distinct ids
+                publish under "@bridger/loader:<id>" each, neither replaces
+                the other's list, and a stopped loader's pinned digests are
+                no longer pinned while the other's still are; remove and disable are never refused, and
                 shutdown never reaches the gate; with the agent companion,
                 a subagent spawn (`Realm.ephemeral`) whose plugins carry no
                 accepted digest fails with the refusal and leaves no realm,
@@ -322,9 +331,9 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                 double-signing policy, duplicate signatures counted once,
                 validity windows, signatures over a different id or version
                 not counting (BEH-LD-017–021).
-             9. No permissive rule: zero thresholds, empty pinned lists and
-                duplicate signer keys are refused at construction
-                (BEH-LD-019, BEH-LD-022).
+             9. No permissive rule: zero thresholds, empty pinned lists,
+                duplicate signer keys and an `anyOf` whose rules repeat an
+                `id` are refused at construction (BEH-LD-019, BEH-LD-022).
              10. Revocation lists: an unsigned or rolled-back list is
                  ignored; an unsaved list is not published; a restart keeps
                  the last saved list; at first boot, with no set held, a
@@ -350,19 +359,32 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
                  left as the operator left it; a pending entry still
                  installed (a refused replace, a parked stop) whose digest
                  is not dropped stays installed as before; an
-                 `AcceptedDigests` change (a record removed, a loader
-                 replacement changing the pinned digests) that makes
+                 `AcceptedDigests` change of a load record or of the pinned
+                 digests (a loader replacement changing them) that makes
                  `filterDesired` drop an installed plugin removes it under
-                 `revocationActor`; a desired-list change is reconciled under the
+                 `revocationActor`, while a catalog withdrawal (`remove(digest,
+                 "catalog-entry")`) after a signer revocation removes nothing
+                 under `revocationActor` and a v1→v2 catalog update is one
+                 `replace` under `actor`; a plugin of the last applied list
+                 that an operator removed and installed again by hand is not
+                 of the scope and is reported, not removed; a restarted kill
+                 switch judges its scope at start; the removals use the
+                 `drain` and `force` given to `run`; a desired-list change is reconciled under the
                  application's actor and names no revocation; a gate
                  refusal, a drain timeout and the audit latch leave it in
-                 `pending` and it is retried; plugins outside the scope are
-                 reported, or removed with "remove"; a revision above
-                 `maxDroppedPerRevision` is held until released; an
+                 `pending` and it is retried; an installed plugin outside the
+                 scope whose digest the set drops is reported in
+                 `status.outsideScope` with its `{ id, realm }`, its scope
+                 and the dropped digest, is not removed, and is not counted
+                 against `maxDroppedPerRun`; a run above
+                 `maxDroppedPerRun` — a revocation change or an
+                 `AcceptedDigests` change alike — is held until
+                 `release(run)`, which removes only that run's held plugins
+                 still dropped, and a later run is counted on its own; an
                  un-revoked entry is reported and reinstalls nothing; an
                  entry with no verification record is dropped
                  "verification-unknown" when a signer is revoked, unless
-                 pinned or in `exemptDigests` (BEH-LD-026, BEH-LD-028, BEH-LD-029, BEH-LD-031,
+                 pinned or in the kill switch's `pinned` option (BEH-LD-026, BEH-LD-028, BEH-LD-029, BEH-LD-031,
                  BEH-LD-032).
              13. Signer revocation, by identity, withdraws exactly the
                  digests whose policy becomes unsatisfied at the time of

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-07                                            |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-054 property 8 restated against `StoreTransaction.onEnd`: the adapter runs every registered effect once the transaction has committed or rolled back, on every exit, in registration order, and a fence admission ends through it; BEH-DB-056 checks it (H3) (CCR-DB-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-054 property 8 restated: the adapter ends every `DurableBus.fence` admission taken on a transaction when that transaction has committed or rolled back, on every exit (H2, B1); BEH-DB-056: the conformance suite exercises properties 1–6 and 8 (B3) (CCR-DB-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-054 property 8: the adapter's `transaction` provides the transaction's own `Scope` and closes it when the transaction ends, so that a `DurableBus.fence` admission ends with it (H3) (CCR-DB-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-054 property 6: the incarnation is recorded per node (CCR-DB-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-DB-054 property 1: a commit the engine refuses for a conflict fails `transaction` with `CommitConflict`, never with `StoreUnavailable`; BEH-DB-056 exercises it (CCR-DB-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F16, F27) — the delivery check's `origin` documented as `node#incarnation` for every envelope, local ones included, with policies told to match the `node` part (aligned with core BEH-BR-269 as amended by CCR-BR-029); out-of-host readers are checked by the serving side's `HistoryAccess` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck item 24, CORE-DECISIONS-2 — BEH-DB-053 rewritten on core `AccessPolicy.ask` (publish, subscribe, and every delivery with `origin`), `AccessRefused`, denied deliveries parked; `listens` and `declaredOnly`; G55 closed; core held-event note (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — no self-lease in `publish`; callers keep the bus up through core's own rules; adapter properties cover the saved receipt clock, retention and inbox-level stops (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-DB-054 property 8 and BEH-DB-056: the adapter passes each `onEnd` function the outcome, "committed" only when the commit succeeded (K3) (CCR-DB-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-054 property 8 restated against `StoreTransaction.onEnd`: the adapter runs every registered effect once the transaction has committed or rolled back, on every exit, in registration order, and a fence admission ends through it; BEH-DB-056 checks it (H3) (CCR-DB-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-054 property 8 restated: the adapter ends every `DurableBus.fence` admission taken on a transaction when that transaction has committed or rolled back, on every exit (H2, B1); BEH-DB-056: the conformance suite exercises properties 1–6 and 8 (B3) (CCR-DB-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-054 property 8: the adapter's `transaction` provides the transaction's own `Scope` and closes it when the transaction ends, so that a `DurableBus.fence` admission ends with it (H3) (CCR-DB-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-054 property 6: the incarnation is recorded per node (CCR-DB-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-DB-054 property 1: a commit the engine refuses for a conflict fails `transaction` with `CommitConflict`, never with `StoreUnavailable`; BEH-DB-056 exercises it (CCR-DB-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F16, F27) — the delivery check's `origin` documented as `node#incarnation` for every envelope, local ones included, with policies told to match the `node` part (aligned with core BEH-BR-269 as amended by CCR-BR-029); out-of-host readers are checked by the serving side's `HistoryAccess` (CCR-DB-003)<br>0.4 (2026-11-08): round 2: recheck item 24, CORE-DECISIONS-2 — BEH-DB-053 rewritten on core `AccessPolicy.ask` (publish, subscribe, and every delivery with `origin`), `AccessRefused`, denied deliveries parked; `listens` and `declaredOnly`; G55 closed; core held-event note (CCR-DB-003)<br>0.3 (2026-11-08): Resolutions of the agent review of 2026-11-08 — no self-lease in `publish`; callers keep the bus up through core's own rules; adapter properties cover the saved receipt clock, retention and inbox-level stops (CCR-DB-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-DB-001)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -229,11 +229,13 @@ REQUIREMENT: A storage adapter MUST provide `StoreTransaction`,
              7. Its persistence after a process crash and after a power loss
                 is stated explicitly, with the engine settings it depends
                 on; this specification makes no such claim itself.
-             8. The adapter runs every effect registered with
+             8. The adapter runs every function registered with
                 `StoreTransaction.onEnd` (02, BEH-DB-009) once that
                 transaction has committed or rolled back, on every exit
                 (success, failure, a failed commit, a defect, an
-                interruption), in registration order, and not before; a
+                interruption), in registration order, and not before,
+                passing "committed" only when the commit succeeded and
+                "rolled-back" otherwise; a
                 `DurableBus.fence` admission (06, BEH-DB-048) ends through
                 it, so it is bound to the transaction, not to any `Scope` of
                 the effect.
@@ -282,11 +284,11 @@ REQUIREMENT: The package MUST export, from its testing entry point, a
              append and commit (where the adapter's test harness can
              simulate it), duplicate inserts, a conflict at commit reported
              as `CommitConflict` with nothing committed (where the engine
-             can refuse a commit for a conflict), and `onEnd` effects, a fence
+             can refuse a commit for a conflict), and `onEnd` functions, a fence
              admission's among them, that run in registration order at
-             commit, at rollback, at a failed commit, at a defect and at an
-             interruption, and not when a scope opened inside the
-             transaction closes.
+             commit (given "committed"), at rollback, at a failed commit, at
+             a defect and at an interruption (given "rolled-back"), and not
+             when a scope opened inside the transaction closes.
 ```
 
 ```

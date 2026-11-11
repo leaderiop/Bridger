@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-05                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-AC-039: one `precomputeMacs` call per keyed series, the results merged, and the kit's `--keyed` and `--expect-keyed` named (A1, PL1); check 20 extended (SPEC-AUDIT-04) (CCR-AC-007)<br>0.4 (2026-11-10): BEH-AC-034: `BundleReport.chain` is one `ChainReport` per series, each from its own `verifyChain` run under the series' profile, and `options.expectKeyed` takes `true` (every series) or the set of series ids whose sinks were keyed (M21); BEH-AC-039: an effectful MAC reaches `verifyBundle` through `precomputeMacs` (03, BEH-AC-019) (M20) (CCR-AC-006)<br>0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`); follow-up: `options.expectKeyed`, passed to `verifyChain`; check 20 extended (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
+> | Change History | 0.6 (2026-11-11): BEH-AC-034 heads and `continuesFrom` passed to `verifyChain` in its form, `seq` as `auditSeq` and the series id as `hostId` (PL22) (SPEC-AUDIT-07) (CCR-AC-009)<br>0.5 (2026-11-10): BEH-AC-039: one `precomputeMacs` call per keyed series, the results merged, and the kit's `--keyed` and `--expect-keyed` named (A1, PL1); check 20 extended (SPEC-AUDIT-04) (CCR-AC-007)<br>0.4 (2026-11-10): BEH-AC-034: `BundleReport.chain` is one `ChainReport` per series, each from its own `verifyChain` run under the series' profile, and `options.expectKeyed` takes `true` (every series) or the set of series ids whose sinks were keyed (M21); BEH-AC-039: an effectful MAC reaches `verifyBundle` through `precomputeMacs` (03, BEH-AC-019) (M20) (CCR-AC-006)<br>0.3 (2026-11-10): `verifyBundle` takes `options.keyed`, the pure MAC function BEH-AC-039 relies on, and passes it and each series' profile to `verifyChain` (`options.keyed`, `options.profile`); follow-up: `options.expectKeyed`, passed to `verifyChain`; check 20 extended (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-08, R3-16): expected heads carried in a bundle are always "head-unconfirmed", only the inspector's own heads confirm; the bundle signature uses the loader's reserved "chain-bundle" statement type and its `id`/`version` convention; check 19 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
 
 ---
 
@@ -217,6 +217,13 @@ REQUIREMENT: `chain` MUST hold, for each series of the bundle, under its
              confirm a head. `source` is a label written by the bundle's
              producer; `verifyBundle` MUST NOT treat it as evidence, and the
              rendering MUST print it as "stated by the bundle".
+             `verifyBundle` MUST pass each head and the series'
+             `continuesFrom` in `verifyChain`'s form (03, BEH-AC-017), keyed
+             by the series id: a head `{ seq, hash }` as `{ auditSeq: seq,
+             hash }` and `continuesFrom` `{ seriesId, seq, hash }` as
+             `{ hostId: seriesId, auditSeq: seq, hash }`, `auditSeq` and
+             `hostId` there naming the series' `seq` and series id for every
+             profile.
 ```
 
 ```

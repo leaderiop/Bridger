@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-09                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-11): BEH-LD-070: the view reads the package rule's pinned digests live from `AcceptedDigests.pinned` (the union over its sources, federation's proxy digests included), its `pinned` option naming exempt and further pinned digests only (L2); the gate's "verification-unknown" agreement covers `enable`, `retry` and `restart`, not `reconfigure` (PL17); check 30 extended (SPEC-AUDIT-06) (CCR-LD-009)<br>0.3 (2026-11-11): BEH-LD-070: the view computes from the record `AcceptedDigests.lookup` returns, re-evaluating its recorded signers and requirement without a policy, over `AcceptedDigests.entries` (H7, L2); `LoaderGate` reaches the same answer for install, replace and the operator calls that start code again, "verification-unknown" included (L3); Settled (5) and the rationale say agreement on the same inputs, not one computation (PL16); check 30 covers the gate's restart-like refusals and a replaced loader's records; the introduction says the same (SPEC-AUDIT-05) (CCR-LD-008)<br>0.2 (2026-11-10): BEH-LD-070: `RevokedDigests.layer` takes `pinned` (the rule's pinned digests and `LoaderGate`'s exempt digests) (L1); "one computation" replaced by agreement on the same inputs (PL14); check 30 (BEH-LD-071) covers exempt digests (SPEC-AUDIT-04) (CCR-LD-007)<br>0.1 (2026-11-09): Initial draft: the "first-party" statement, the trust class of catalog entries, `Loader.lazy` refusing unmarked entries, `LoaderRemote.link` as the catalog-to-guest path, the link manifest derived from the guest's, the `RevokedDigests` view, checks 25–30 (specification audit F-06, M-02, M-06); introduction defines evaluation in the host's process and states where a guest runs, `@bridger/worker` included; BEH-LD-065 documentation states both without an isolation claim (independent review) (CCR-LD-004) |
+> | Change History | 0.5 (2026-11-11): BEH-LD-070: the package rule's pinned digests are those of each running `Loader`, each under "@bridger/loader:" + its plugin id (SPEC-AUDIT-07 residual) (CCR-LD-010)<br>0.4 (2026-11-11): BEH-LD-070: the view reads the package rule's pinned digests live from `AcceptedDigests.pinned` (the union over its sources, federation's proxy digests included), its `pinned` option naming exempt and further pinned digests only (L2); the gate's "verification-unknown" agreement covers `enable`, `retry` and `restart`, not `reconfigure` (PL17); check 30 extended (SPEC-AUDIT-06) (CCR-LD-009)<br>0.3 (2026-11-11): BEH-LD-070: the view computes from the record `AcceptedDigests.lookup` returns, re-evaluating its recorded signers and requirement without a policy, over `AcceptedDigests.entries` (H7, L2); `LoaderGate` reaches the same answer for install, replace and the operator calls that start code again, "verification-unknown" included (L3); Settled (5) and the rationale say agreement on the same inputs, not one computation (PL16); check 30 covers the gate's restart-like refusals and a replaced loader's records; the introduction says the same (SPEC-AUDIT-05) (CCR-LD-008)<br>0.2 (2026-11-10): BEH-LD-070: `RevokedDigests.layer` takes `pinned` (the rule's pinned digests and `LoaderGate`'s exempt digests) (L1); "one computation" replaced by agreement on the same inputs (PL14); check 30 (BEH-LD-071) covers exempt digests (SPEC-AUDIT-04) (CCR-LD-007)<br>0.1 (2026-11-09): Initial draft: the "first-party" statement, the trust class of catalog entries, `Loader.lazy` refusing unmarked entries, `LoaderRemote.link` as the catalog-to-guest path, the link manifest derived from the guest's, the `RevokedDigests` view, checks 25–30 (specification audit F-06, M-02, M-06); introduction defines evaluation in the host's process and states where a guest runs, `@bridger/worker` included; BEH-LD-065 documentation states both without an isolation claim (independent review) (CCR-LD-004) |
 
 ---
 
@@ -496,8 +496,9 @@ REQUIREMENT: `RevokedDigests.layer` MUST compute, when a revocation set
              and MUST answer "verification-unknown" for a digest with no
              record while the set revokes a signer, unless the digest is in
              `AcceptedDigests.pinned` — the union over its sources: the
-             digests the package rule of the last constructed `Loader` pins
-             and those the federation companion publishes for its import
+             digests the package rule of each running `Loader` pins, each
+             published under "@bridger/loader:" + its plugin id, and those
+             each federation plugin publishes for its import
              proxies (federation BEH-FD-007), read at each computation (02,
              BEH-LD-015) — or in `options.pinned`, the digests `LoaderGate`
              exempts and any further pinned digests; together, the same

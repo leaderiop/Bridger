@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-08                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — check 41: a failed revocation unmount is logged at warning level, keeps the boundary refusal, records no `unmount-requested`, and the child goes with the parent's stop or shutdown (PL8, R1) (CCR-RM-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — check 30: a provision whose version does not satisfy `"^" + V` is refused "unavailable", as BEH-RM-039 states (F4) (CCR-RM-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — check 4 uses the range `"^" + V` (C9); check 36: a copy refused "placement-refused" holds no claim (PL15) (CCR-RM-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — checks 38 (M13), 42 (M15, Low) and 44 (H8) restated; check 50 added: callback placement and budget after the duplicate check (M14); BEH-RM-060 note: check 3 covers a guest callback of `restart(P)` during P's build (core `CurrentTransition`) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: check 34 amended (`org` on the wire only when disclosed); checks 45–48 added — disclosure, mount refusal, `Transport.fromBundle`, the loader's `RevokedDigests` view and the link manifest; check 48 covers the call-log `disclosed` names; check 49 local contracts (BEH-RM-007) (core CCR-BR-033); check 48: view answers are consulted live and never kept (independent review) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — check 41: a failed revocation unmount's child goes by cause — `WouldDeadlock` by the removal under way or the session's sub-scope close, `HostClosed` by shutdown, `UnknownPlugin` nothing left (PL8) (CCR-RM-010)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — check 41: a failed revocation unmount is logged at warning level, keeps the boundary refusal, records no `unmount-requested`, and the child goes with the parent's stop or shutdown (PL8, R1) (CCR-RM-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — check 30: a provision whose version does not satisfy `"^" + V` is refused "unavailable", as BEH-RM-039 states (F4) (CCR-RM-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — check 4 uses the range `"^" + V` (C9); check 36: a copy refused "placement-refused" holds no claim (PL15) (CCR-RM-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — checks 38 (M13), 42 (M15, Low) and 44 (H8) restated; check 50 added: callback placement and budget after the duplicate check (M14); BEH-RM-060 note: check 3 covers a guest callback of `restart(P)` during P's build (core `CurrentTransition`) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: check 34 amended (`org` on the wire only when disclosed); checks 45–48 added — disclosure, mount refusal, `Transport.fromBundle`, the loader's `RevokedDigests` view and the link manifest; check 48 covers the call-log `disclosed` names; check 49 local contracts (BEH-RM-007) (core CCR-BR-033); check 48: view answers are consulted live and never kept (independent review) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F15, F17, F19, F20, F23, F28) — checks 36, 38, 39 restated; checks 43 (wire negotiation, revocation epoch) and 44 (endpoint residency) added (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — checks 34–42 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — re-run checks assert the core records plus the session child's mount records; check 1 exempted under partition; checks 27–33 for the epoch echo, callback deduplication, per-call sessions, `Remote.serve`, the multiplexer, persistent revocation and wire annotations (R3-01, R3-04, R3-05, R3-06, R3-07, R3-09, R3-10, R3-13, R3-17) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -354,10 +354,13 @@ REQUIREMENT: The remote package's test suite MUST contain at least one test,
                  refusing the link's digest, a later restart leaves the
                  link `disabled` ("refused-digest"); one "revocation"
                  entry is offered per matching link; an unmount that fails
-                 (`WouldDeadlock`, `HostClosed`) is logged at warning level,
-                 keeps the boundary refusal in force, records no
-                 `unmount-requested`, and the child is removed by the
-                 parent's stop when it resumes, or by shutdown (BEH-RM-014).
+                 is logged at warning level, keeps the boundary refusal in
+                 force and records no `unmount-requested`; after
+                 `WouldDeadlock`, the child is removed by the parent's stop
+                 already under way, or, with no removal under way, by the
+                 session's sub-scope close; after `HostClosed`, by
+                 shutdown; after `UnknownPlugin`, nothing is left to remove
+                 (BEH-RM-014).
              42. Crossings and refusals are offered with core entry kinds,
                  each "refusal" entry's `refusal.reason` a `WireRefusal`,
                  never a tag; a callback under a `CallLog` whose `record`

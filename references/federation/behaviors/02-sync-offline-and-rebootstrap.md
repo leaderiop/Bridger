@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-02                                            |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-009: the plugin no longer requires the `outbox` port, it lists it in `optional` and resolves it at step 1 with `useOptional` (absent: `RebootstrapBlocked` "no-outbox-port"); the build no longer reads the host's plugin set; `acceptedDigests` option (H7, H8, H9); BEH-FD-011: a `ResyncRequired` while a marker is stored neither rewrites it nor restarts, and one from step 3b's fetch is a step-3b failure (F2); BEH-FD-014: the relay reaches a delivery import through `optional` and a per-send `useOptional`, "depends on" means `requires` on its contract key, a delivery import has no local dependent, the projection refuses manifest dependents and step 1 still blocks on a hand-installed one; `DeliveryImportRefused` keeps only "not-an-import-id"; `pending` is 0 for the reasons this plugin raises itself (H7, H8, PL11) (CCR-FD-009)<br>0.9 (2026-11-11): the build refusal of a `deliveryImports` entry is the declared `DeliveryImportRefused`, not core's `InvalidDefinition`, which is an install error of the host (follow-up); Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-014: an attempt that starts with links suspended (the marker's `installAttempted` true) moves only the links of the delivery imports to `delivery-only`, whose offer lists only those imports and no export, and step 2 returns them to `suspended` (H4, F1); a step-2 `RebootstrapFailed` resumes links only when no install has begun (F2); `deliveryImports` holds import ids, a delivery import may have no local dependent but the event delivery companion's relay, checked at build (`DeliveryImportRefused`) and before step 1 (`RebootstrapBlocked` "delivery-import-dependents") (PL8, F3); `installAttempted` stored with step "installing" (H6); BEH-FD-009: the build reads the host's plugin set for that check; `RebootstrapFailed` declared (PL11) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-014: `FederationOptions.deliveryImports`; an attempt that starts with links suspended reopens only those imports in step 1, so the outbox can be pushed over a peer link, and step 2 closes them again (F2); "links stay up" in steps 0 and 1 and the step-1 failure rule limited to a first attempt, and `suspended` shown through the retries (F3) (CCR-FD-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-FD-014: a step-1 failure on a retry after a failed step 3a keeps links suspended, only a first attempt has none suspended (M18); step 3a runs the install under the federation actor, recorded on its `GapRecord`s with reason "rebootstrap:" + `replaces` (Low); the event delivery companion's `follow` is paused from step 1 to the end of step 3a and backs off over suspended links until step 4 (Low, seen not assessed) (CCR-FD-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-014: `OutboxSettlement.install` restated with the event delivery companion's error union and `InstallContext` (its `StoreTransaction`); what step 3a does for each error (P1); the outcome of a call cut by a link suspension follows the remote companion's frame-state rule (CCR-FD-005)<br>0.5 (2026-11-09): BEH-FD-009 `contracts` rejects a local contract at compile time, and one passed untyped fails the plugin's build with the remote companion's `LocalContractRefused` before the store is read (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-009: `FederationOptions.outbox` accepts the literal "none" in place of the value `RebootstrapOutbox.none` (F4); `ManifestStore` keeps `acceptedAt` with the highest and the last applied manifest (L3); `acceptedDigests` comment names the source "@bridger/federation:" + id (PL7); the build registers the finalizer that clears its pinned list before forking (H2); BEH-FD-010: the stored manifest is re-verified under `reverify` (L3); BEH-FD-014: step 3b sends the marker's `installedRevision` as `known`, and a step-3b `ResyncRequired` once the backoff has reached `rebootstrapRetryMax` restarts from step 1 (F1); step 3a handles `SnapshotFailed` "apply-failed" (whole-store, after the raise) as a failure of `run` after the raise (durable-bus BEH-DB-048 handoff); the delivery transport maps `LeaseRevoked` and `LeaseTimeout` of `useOptional` to `DeliveryFailed` (PL5) (CCR-FD-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-009: the plugin no longer requires the `outbox` port, it lists it in `optional` and resolves it at step 1 with `useOptional` (absent: `RebootstrapBlocked` "no-outbox-port"); the build no longer reads the host's plugin set; `acceptedDigests` option (H7, H8, H9); BEH-FD-011: a `ResyncRequired` while a marker is stored neither rewrites it nor restarts, and one from step 3b's fetch is a step-3b failure (F2); BEH-FD-014: the relay reaches a delivery import through `optional` and a per-send `useOptional`, "depends on" means `requires` on its contract key, a delivery import has no local dependent, the projection refuses manifest dependents and step 1 still blocks on a hand-installed one; `DeliveryImportRefused` keeps only "not-an-import-id"; `pending` is 0 for the reasons this plugin raises itself (H7, H8, PL11) (CCR-FD-009)<br>0.9 (2026-11-11): the build refusal of a `deliveryImports` entry is the declared `DeliveryImportRefused`, not core's `InvalidDefinition`, which is an install error of the host (follow-up); Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-014: an attempt that starts with links suspended (the marker's `installAttempted` true) moves only the links of the delivery imports to `delivery-only`, whose offer lists only those imports and no export, and step 2 returns them to `suspended` (H4, F1); a step-2 `RebootstrapFailed` resumes links only when no install has begun (F2); `deliveryImports` holds import ids, a delivery import may have no local dependent but the event delivery companion's relay, checked at build (`DeliveryImportRefused`) and before step 1 (`RebootstrapBlocked` "delivery-import-dependents") (PL8, F3); `installAttempted` stored with step "installing" (H6); BEH-FD-009: the build reads the host's plugin set for that check; `RebootstrapFailed` declared (PL11) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-014: `FederationOptions.deliveryImports`; an attempt that starts with links suspended reopens only those imports in step 1, so the outbox can be pushed over a peer link, and step 2 closes them again (F2); "links stay up" in steps 0 and 1 and the step-1 failure rule limited to a first attempt, and `suspended` shown through the retries (F3) (CCR-FD-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-FD-014: a step-1 failure on a retry after a failed step 3a keeps links suspended, only a first attempt has none suspended (M18); step 3a runs the install under the federation actor, recorded on its `GapRecord`s with reason "rebootstrap:" + `replaces` (Low); the event delivery companion's `follow` is paused from step 1 to the end of step 3a and backs off over suspended links until step 4 (Low, seen not assessed) (CCR-FD-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-014: `OutboxSettlement.install` restated with the event delivery companion's error union and `InstallContext` (its `StoreTransaction`); what step 3a does for each error (P1); the outcome of a call cut by a link suspension follows the remote companion's frame-state rule (CCR-FD-005)<br>0.5 (2026-11-09): BEH-FD-009 `contracts` rejects a local contract at compile time, and one passed untyped fails the plugin's build with the remote companion's `LocalContractRefused` before the store is read (core CCR-BR-033) (CCR-FD-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1–F3, F6, F8–F12) — `revocation` required, `maxDisabledPerRevision`, `rebootstrapRetryMax`; `ManifestStore` keeps the last applied manifest's bytes, pending kills and the re-bootstrap marker; boot and freshness re-applies use the last applied manifest minus pending kills; re-bootstrap re-ordered — settle with links up, suspend only for fetch and install (control endpoint kept for kills), install only through `OutboxSettlement.install` (guarded, `replaces` declared), install revision mismatch defined, per-step retry points with their own backoff; install must not roll back the manifest, revocation or fence stores (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 (X10) — a kill never waits on the cap or a re-bootstrap; re-bootstrap order fixed as outbox, snapshot fetch, projection replace, link resume, with `RebootstrapOutbox` and `RebootstrapBlocked`; `Rebootstrap` split into `fetch` and `install`; options and status for revocation, placement and atomic applies; heading of BEH-FD-014 changed (old anchor kept) (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — the offline cap measured from a first-activation time kept in the store; re-bootstrap suspends links (imports and exports) instead of an undefined admission switch; transient retries at each sync; status gains `pending` and peer links (R3-19, R3-20, R3-25) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -49,10 +49,11 @@ interface FederationOptions {
   readonly listener?: Context.Key<any, LinkListener>   // required when the manifest names exports
   readonly reporter?: Context.Key<any, StatusReporter>
   readonly rebootstrap?: Context.Key<any, Rebootstrap>
-  readonly outbox?: Context.Key<any, RebootstrapOutbox>  // step 1 of a re-bootstrap (BEH-FD-014, BEH-FD-044); listed in `optional`, not `requires`, resolved at step 1
+  readonly outbox?: Context.Key<any, RebootstrapOutbox> | "none"  // step 1 of a re-bootstrap (BEH-FD-014, BEH-FD-044); a key is listed in `optional`, not `requires`, resolved at step 1;
+                                                       // "none": the application holds no local facts (BEH-FD-014)
   readonly deliveryImports?: readonly string[]          // import ids ("import:" + from + ":" + K + "@" + M, BEH-FD-026) of imports that carry the outbox's delivery; default none (BEH-FD-014)
   readonly revocation: Context.Key<any, RevocationSource>    // the loader's; required — RevocationSource.constant when none (BEH-FD-041)
-  readonly acceptedDigests: Context.Key<any, AcceptedDigestsShape>   // the loader's shared store, the instance given to the host as a Context base; the import proxies' digests are published to it with setPinned (01, BEH-FD-007)
+  readonly acceptedDigests: Context.Key<any, AcceptedDigestsShape>   // the loader's shared store, the instance given to the host as a Context base; the import proxies' digests are published to it with setPinned("@bridger/federation:" + id, …) (01, BEH-FD-007)
   readonly maxDisabledPerRevision?: number              // blast-radius guard of the kill path, no default (BEH-FD-042)
   readonly revocationActor?: Actor                      // kind "service"; default { kind: "service", id: "federation-revocation:" + authority }
   readonly placement?: Context.Key<any, PlacementPolicy> // remote companion's; default PlacementPolicy.exact (BEH-FD-045)
@@ -73,10 +74,12 @@ interface ManifestSource {
 }
 
 interface ManifestStore {
-  readonly highest: Effect.Effect<Option.Option<SignedManifest>, StoreUnavailable>
-  readonly putHighest: (m: SignedManifest, revision: number) => Effect.Effect<void, StoreUnavailable>
-  readonly lastApplied: Effect.Effect<Option.Option<{ manifest: SignedManifest; revision: number; at: string }>, StoreUnavailable>
-  readonly putLastApplied: (manifest: SignedManifest, revision: number, at: string) => Effect.Effect<void, StoreUnavailable>
+  // acceptedAt: the `at` of the VerificationRecord that first accepted the manifest (01, BEH-FD-004); a stored
+  // manifest is re-verified with `reverify: { acceptedAt }` (01, BEH-FD-002). Written with the manifest, in one write.
+  readonly highest: Effect.Effect<Option.Option<{ manifest: SignedManifest; revision: number; acceptedAt: string }>, StoreUnavailable>
+  readonly putHighest: (m: SignedManifest, revision: number, acceptedAt: string) => Effect.Effect<void, StoreUnavailable>
+  readonly lastApplied: Effect.Effect<Option.Option<{ manifest: SignedManifest; revision: number; at: string; acceptedAt: string }>, StoreUnavailable>
+  readonly putLastApplied: (manifest: SignedManifest, revision: number, at: string, acceptedAt: string) => Effect.Effect<void, StoreUnavailable>
   readonly pendingKills: Effect.Effect<ReadonlyArray<PendingKill>, StoreUnavailable>                 // BEH-FD-048
   readonly putPendingKills: (kills: ReadonlyArray<PendingKill>) => Effect.Effect<void, StoreUnavailable>
   readonly rebootstrap: Effect.Effect<Option.Option<RebootstrapMarker>, StoreUnavailable>            // BEH-FD-048
@@ -97,8 +100,9 @@ declare const Federation: {
 ```
 REQUIREMENT: `Federation.plugin` MUST return an ordinary plugin definition
              that requires `Bridger.Host` and the ports named in its options
-             but `outbox`, which it lists in `optional` and resolves at step
-             1 of a re-bootstrap (BEH-FD-014), and provides
+             but `outbox`, which, when it is a key, it lists in `optional`
+             and resolves at step 1 of a re-bootstrap (BEH-FD-014), and
+             which, when it is "none", names no port, and provides
              `Federation.Status`. It MUST be installed by the
              application, outside the federation reconcile scope.
 ```
@@ -124,7 +128,8 @@ REQUIREMENT: The plugin's build MUST NOT call the `ManifestSource`, the
              `LinkDialer` or any other network port, and MUST NOT call
              `reconcile`. It MUST only read the `ManifestStore`, check that
              each `deliveryImports` entry is an import id (BEH-FD-014),
-             verify, and fork the boot apply (BEH-FD-010) and the sync loop
+             verify, register the finalizer that clears its pinned list
+             (01, BEH-FD-007), and then fork the boot apply (BEH-FD-010) and the sync loop
              (BEH-FD-011) with `Plugin.Runtime.background`.
 ```
 
@@ -155,7 +160,9 @@ start, which no manifest can repair. Failing the build makes it visible at
 
 ```
 REQUIREMENT: At activation the plugin MUST read the highest verified manifest
-             from the `ManifestStore`, verify it again (BEH-FD-002), and
+             from the `ManifestStore`, verify it again with `reverify:
+             { acceptedAt }` and the `acceptedAt` stored with it
+             (BEH-FD-002), and
              apply it (BEH-FD-008) in the background before the first sync
              — unless a re-bootstrap marker is stored, in which case it MUST
              apply the last applied manifest minus the pending kills, and
@@ -212,8 +219,10 @@ REQUIREMENT: A received manifest MUST pass BEH-FD-002, BEH-FD-003 and
              (BEH-FD-014), except while a re-bootstrap marker is stored
              (BEH-FD-048): then it MUST neither rewrite the marker nor
              restart the re-bootstrap, whose pending retry handles it. A
-             `ResyncRequired` answering the fetch of step 3b is a failure
-             of step 3b, retried as BEH-FD-014 states.
+             `ResyncRequired` answering the fetch of step 3b — which sends
+             the marker's `installedRevision` as `known` — is a failure of
+             step 3b, retried, or restarted from step 1, as BEH-FD-014
+             states.
 ```
 
 ```
@@ -376,7 +385,9 @@ REQUIREMENT: On `ResyncRequired`, or when BEH-FD-013 requires it, the plugin
              (0) store the marker (step "required"), set the status
                  `rebootstrapping` and apply the newest released revocation
                  set (BEH-FD-042); on a first attempt links stay up;
-             (1) push or keep the outbox: resolve the `outbox` port with
+             (1) push or keep the outbox: with `outbox: "none"`, use the
+                 settlement of the "none" rule below and resolve nothing;
+                 otherwise resolve the `outbox` port with
                  `Plugin.Runtime.useOptional` (core BEH-BR-131), whose lease
                  keeps its provider up until step 3a ends (absent: the
                  "no-outbox-port" rule below; a `LeaseRevoked` is handled
@@ -420,7 +431,12 @@ REQUIREMENT: On `ResyncRequired`, or when BEH-FD-013 requires it, the plugin
                  "rebootstrap:" + `replaces` (durable-bus BEH-DB-044);
                  record the returned revision in the marker
                  (step "installed");
-             (3b) fetch and apply the latest manifest in full, which clears
+             (3b) fetch the latest manifest with `ManifestSource.latest({
+                 host, known })`, `known` the marker's `installedRevision` —
+                 the revision the installed snapshot matches, not the highest
+                 verified revision — bounded by `syncTimeout`, take the
+                 answer through BEH-FD-002–004, then apply the highest
+                 verified manifest in full, which clears
                  pending kills up to its revision (BEH-FD-048); when its
                  revision differs from the installed revision, report
                  `rebootstrap-revision-mismatch { installed, applied }`
@@ -458,6 +474,12 @@ REQUIREMENT: A failure of step 3a MUST leave the applied manifest in force,
              - `SnapshotFailed` "prepare-failed" (whole-store): a store-swap
                participant failed before the incarnation was raised;
                nothing was raised or replaced;
+             - `SnapshotFailed` "apply-failed" (whole-store): a store-swap
+               participant's post-switch `apply` failed after `run`, after
+               the raise (durable-bus BEH-DB-048); the bus has moved to the
+               raised origin and local state may already be replaced, so it
+               is handled as a `RebootstrapFailed` after the raise —
+               `install` runs again over that state;
              - `IncarnationUnavailable` (whole-store): the incarnation
                could not be raised; nothing was replaced.
              A defect is handled as `RebootstrapFailed`. Whichever store the
@@ -477,7 +499,12 @@ REQUIREMENT: Retries of a re-bootstrap MUST back off on their own schedule,
              kept suspended (local state may be half replaced, so `install`
              runs again over it), but for the `delivery-only` links of step
              1; a failure of step 3b retries step 3b only, with links kept
-             suspended.
+             suspended, except that a step-3b fetch answered
+             `ResyncRequired` once the backoff has reached
+             `rebootstrapRetryMax` MUST restart the re-bootstrap from step
+             1, links kept suspended (the marker's `installAttempted` is
+             true), since the authority no longer serves a manifest from the
+             installed revision and only a new snapshot can move it.
 ```
 
 ```
@@ -486,10 +513,10 @@ REQUIREMENT: When the application wires a `Rebootstrap` but no
              provider of that key available when step 1 resolves it — step
              1 MUST fail with `RebootstrapBlocked { pending: 0, reason:
              "no-outbox-port" }` unless `FederationOptions.outbox`
-             is explicitly set to `RebootstrapOutbox.none` — a value whose
-             `settle` returns `{ pushed: 0, kept: 0 }` and documents that the
-             application holds no local facts, and whose settlement's
-             `install` runs `run` and fails with nothing of its own,
+             is explicitly set to the literal "none" — which states that the
+             application holds no local facts; step 1 then resolves no port
+             and uses a settlement built in, with `pushed: 0` and `kept: 0`,
+             whose `install` runs `run` and fails with nothing of its own,
              providing an `InstallContext` whose every use dies with a
              defect — so that skipping the outbox is a written decision.
 ```
@@ -534,8 +561,10 @@ REQUIREMENT: Each entry of `FederationOptions.deliveryImports` MUST be an
              that provides the bus's `DeliveryTransport` over that import
              MUST list the import's contract key in `optional`, not
              `requires`, and reach it at each `send` with
-             `Plugin.Runtime.useOptional` (core BEH-BR-131), a `None`
-             being a `DeliveryFailed`, so that the relay backs off and
+             `Plugin.Runtime.useOptional` (core BEH-BR-131), a `None`, a
+             `LeaseRevoked` or a `LeaseTimeout` it returns being a
+             `DeliveryFailed`, the only error `send` may fail with
+             (durable-bus BEH-DB-017), so that the relay backs off and
              resends (durable-bus BEH-DB-017, BEH-DB-051) and neither the
              bus nor this plugin waits on the other. The projection refuses
              a manifest plugin that depends on a delivery import (01,

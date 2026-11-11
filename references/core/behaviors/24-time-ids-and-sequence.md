@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-24                                               |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-11): BEH-BR-212 `HostControlsData`, `HostControls` without `closed`, the data-only projection a serialized report embeds (for the GxP companion's and the kit's reports, G1); BEH-BR-212 and BEH-BR-213 a terminal, `rejected` or system record lost in the close flush, numbered or not, sets `CloseTail.auditDegraded`, the error log alone only for a never-numbered `requested` record (C2) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.9 (2026-11-11): BEH-BR-212 `HostControls.closed` and `CloseTail`, `auditPosition.lastNumbered`, Settled note (C3, C5); BEH-BR-213 limits restated with `CloseTail` (C5); BEH-BR-210 the ephemeral realm segment is checked, never altered (C7) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-213 a record mid-retry when the host closes holds its number and leaves no gap, rather than "was never numbered" (CL7); a record unwritten at close is signalled by the error log and `auditPosition`, not `CloseReport.auditDegraded` (C5) (CCR-BR-036)<br>0.7 (2026-11-10): The GxP companion is cited as a Draft, not as specified later (C20) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-210 every value an `IdGenerator` returns is unique within its host and across every host whose identified outputs reach a common store; a provided generator carries that obligation, the default meets it with high probability only, and the testing counter within one `TestHost` (F-03); the requirement states what a conforming design is — unique by construction, or at least 122 bits per value drawn independently and uniformly from a cryptographically secure source — so that the default conforms (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.11 (2026-11-11): BEH-BR-212 `HostControlsData` declared as the JSON encoding of `HostControls` without `closed`, durations in milliseconds and "forever" as the string, with a requirement (CL3); BEH-BR-213 `shutdown`'s own `requested` record unwritten at close is signalled by `CloseTail.auditDegraded` (CL1) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.10 (2026-11-11): BEH-BR-212 `HostControlsData`, `HostControls` without `closed`, the data-only projection a serialized report embeds (for the GxP companion's and the kit's reports, G1); BEH-BR-212 and BEH-BR-213 a terminal, `rejected` or system record lost in the close flush, numbered or not, sets `CloseTail.auditDegraded`, the error log alone only for a never-numbered `requested` record (C2) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.9 (2026-11-11): BEH-BR-212 `HostControls.closed` and `CloseTail`, `auditPosition.lastNumbered`, Settled note (C3, C5); BEH-BR-213 limits restated with `CloseTail` (C5); BEH-BR-210 the ephemeral realm segment is checked, never altered (C7) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-213 a record mid-retry when the host closes holds its number and leaves no gap, rather than "was never numbered" (CL7); a record unwritten at close is signalled by the error log and `auditPosition`, not `CloseReport.auditDegraded` (C5) (CCR-BR-036)<br>0.7 (2026-11-10): The GxP companion is cited as a Draft, not as specified later (C20) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-210 every value an `IdGenerator` returns is unique within its host and across every host whose identified outputs reach a common store; a provided generator carries that obligation, the default meets it with high probability only, and the testing counter within one `TestHost` (F-03); the requirement states what a conforming design is — unique by construction, or at least 122 bits per value drawn independently and uniformly from a cryptographically secure source — so that the default conforms (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-212 `HostControls` gains `buildTimeout` (G61), `policy.refusal` and the call-log counters `dropped` and `refused` with the effective `onFailure` and `queue` (CCR-BR-026)<br>0.4 (2026-11-08): BEH-BR-215 prose points to the audit-chain companion's `verifyChain` (CCR-BR-021); BEH-BR-212 `HostControls` gains the `policy` block of BEH-BR-265 and the `callLog.failed` counter of BEH-BR-276 (CCR-BR-018)<br>0.3 (2026-10-03): BEH-BR-212 `HostControls` through `Host.controls`, with the audit position `lastWritten` (highest `auditSeq` the sink accepted; per host; never decreases); `Host.controls` stays readable after close (prototype finding G34) (CCR-BR-014)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -270,8 +270,26 @@ interface HostControls {
     readonly queue: number                             // hand-off queue capacity; 0 when no CallLog is wired
   }
 }
-// HostControlsData: HostControls without `closed` — the data-only projection a serialized report embeds
-type HostControlsData = Omit<HostControls, "closed">
+// HostControlsData: the JSON encoding of HostControls without `closed`, the form a serialized report embeds
+// (CCR-BR-039): every Duration as its number of milliseconds (Duration.toMillis), "forever" kept as the string
+interface HostControlsData {
+  readonly hostId: string
+  readonly wired: { readonly audit: boolean; readonly gate: boolean; readonly fingerprinter: boolean }
+  readonly attribution: { readonly require: boolean; readonly requireReason: readonly Operation[] }
+  readonly auditTimeout: number                        // milliseconds
+  readonly gateTimeout: number | "forever"             // milliseconds, or "forever"
+  readonly fingerprintTimeout: number                  // milliseconds
+  readonly buildTimeout: number                        // milliseconds
+  readonly idGenerator: "default" | "provided"
+  readonly auditPosition?: { readonly lastWritten: number; readonly lastNumbered: number }
+  readonly policy: {                                   // as HostControls.policy (28, BEH-BR-265); ServiceIds as strings
+    readonly access: "wired" | "unwired"; readonly refusal: "wired" | "unwired"
+    readonly capability: "wired" | "unwired"; readonly callLog: "wired" | "unwired"
+    readonly mandatory: readonly { readonly scope: "host" | `realm:${string}`; readonly serviceIds: readonly string[] }[]
+  }
+  readonly callLog: { readonly failed: number; readonly dropped: number; readonly refused: number;
+                      readonly onFailure: "drop" | "refuse"; readonly queue: number }
+}
 interface CloseTail {
   readonly auditDegraded: boolean                      // the audit latch was set when the final flush ended
   readonly lastNumbered: number                        // auditPosition.lastNumbered then; 0 with no AuditSink
@@ -289,6 +307,15 @@ REQUIREMENT: `Host.controls` MUST return the host's `hostId`, which of
              Construction, BEH-BR-011), and
              whether an `IdGenerator` was supplied or the default is used.
              None of these MUST change for the life of the host.
+```
+
+```
+REQUIREMENT: A report that embeds the host's controls as data MUST embed a
+             `HostControlsData`: the fields of `HostControls` other than
+             `closed`, unchanged, except that each `Duration` MUST be
+             encoded as its number of milliseconds and `gateTimeout`'s
+             "forever" as that string, so that the value is plain JSON and
+             one canonical encoding serves every report (CCR-BR-039).
 ```
 
 ```
@@ -403,7 +430,9 @@ REQUIREMENT: Core documentation MUST state the limits of that guarantee: a
              below `lastNumbered` (CCR-BR-037); a terminal, `rejected` or
              system record unwritten when the close flush ends, numbered or
              not, also by `CloseTail.auditDegraded` (BEH-BR-205;
-             CCR-BR-038); a `requested` record still queued, never
+             CCR-BR-038), as is `shutdown`'s own `requested` record
+             unwritten then (12 — Shutdown and Hosting, BEH-BR-110;
+             CCR-BR-039); any other `requested` record still queued, never
              numbered, when the close flush ends, by the error log only; a
              record still queued or mid-retry when the process dies
              abruptly, by nothing core can emit. None of them is signalled

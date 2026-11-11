@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-22                                               |
-> | Revision       | 0.15                                                         |
+> | Revision       | 0.16                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.15 (2026-11-11): BEH-BR-186 `ReplaceOptions` copy names `cold` (H9); BEH-BR-187 and BEH-BR-192 the lost reconcile parent record's log is the fourth `correlationId` exception (C4); BEH-BR-188 step 4b's "able to start" decided by the cell of BEH-BR-071 or BEH-BR-072 (C9), `select` receives `form` (G3) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.14 (2026-11-10): BEH-BR-190 a refused `whenAvailable` re-run is a refused background restart among the cascade roots (C11) (CCR-BR-036)<br>0.13 (2026-11-10): BEH-BR-186 `shutdown`'s union includes `WouldDeadlock` (H2); BEH-BR-188 `shutdown` makes its `WouldDeadlock` check before step 6, writing no record and joining nothing, Settled note (H1); BEH-BR-190 a refused background restart as a cascade root (C3), and causation of a child's resumed stop and `intent-ended` record on a sub-scope close or unmount (C12); BEH-BR-187 and BEH-BR-192 the `HookDecisionRecord.correlationId` is the third exception (C5) (CCR-BR-035)<br>0.12 (2026-11-10): BEH-BR-187 and BEH-BR-192: a call's `correlationId` alone may appear in `inspect().pending` and in a `PartialApply`'s error log and `reconcile-partial` event, and nowhere else (H1); BEH-BR-192 unwired equivalence covers files 02–21 and 26–34 (audit round 2, Low); the GxP companion is cited as a Draft, not as specified later (C20); BEH-BR-192's "to nothing else" names the two correlation exceptions (review of CCR-BR-034) (CCR-BR-034)<br>0.11 (2026-11-09): BEH-BR-187 a handoff's `export`, `upgrade` and `import` run with `CurrentActor` reset and an empty annotation bag, `export` with the correlation of its stop and `upgrade` and `import` with that of the build (U-04) (CCR-BR-033)<br>0.10 (2026-11-09): BEH-BR-186 table: `restart`, `reconfigure` and `PluginHandle.restart` take `HandoffCallOptions`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.9 (2026-11-08): BEH-BR-185 `sanitized: true` on the call's `requested`, `rejected` and terminal records; a system record the call causes carries the replaced correlation and is flagged only for its own replacements (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): `SystemTransition` gains "start-refused"; lone surrogates replaced in recorded strings (G59); BEH-BR-187 `CurrentCorrelation`, the default correlation of a call and of the work it causes (G58); BEH-BR-188 step 4b, the `RefusalList`; BEH-BR-190 causes of `start-refused` and the attributed child unmount (`requestedBy`, G57); BEH-BR-192 the correlation reaches the call log (CCR-BR-026); `lazy-idle`, root `lazy-triggered` records carry `onBehalfOf`, `Host.wake` reads the caller's principal (CCR-BR-024)<br>0.7 (2026-11-08): `Host.wake` classified (not mutating, not read-only); step 4 and 4a: `reconfigure` of a registration not yet loaded is not decoded and uses form "raw"; BEH-BR-190: a child removed by its sub-scope is caused by its mount record; BEH-BR-192 heading names the call log (CCR-BR-022)<br>0.6 (2026-11-08): `SystemTransition` gains `lazy-triggered` and its cause (CCR-BR-017); `OperationContext.annotations`, annotation resolution and empty bags at plugin entry points, `onBehalfOf` and annotations at step 2, `CurrentPlugin` never an actor, the actor also reaches the `CallLog` (BEH-BR-185, 187, 188, 190, 192; CCR-BR-018); `retireRealm` (thirteen operations), `plan` read-only, `handoff` system transition, `Actor.narrow` a caller-invoked derivation (BEH-BR-185, 186; CCR-BR-019)<br>0.5 (2026-10-03): BEH-BR-188 step 4a — configuration fingerprints from the optional `ConfigFingerprinter` port, after validation and before the gate: when the port is called and never called, `select` before `fingerprint`, only selected values handed over, no attribution to the port, validation of the answer, `fingerprintTimeout`, fail-closed `ConfigFingerprintUnavailable` with a core-written message, interruption outcome, stored fingerprints reused without calling the port; BEH-BR-192 attribution never reaches the fingerprinter, and an unwired fingerprinter changes nothing; BEH-BR-186 `controls` added to the read-only operations; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015)<br>0.4 (2026-10-02): Interruption outcome per stage of the call order; approval-to-`requested` passage uninterruptible; record-only `Interrupted` wins over a later `AuditUnavailable`; `WouldDeadlock` checked before any wait and at the linearization point; resumption of a parked stop is the call's intent; causation of system records in cascades; second review pass: `SystemTransition` "intent-ended" and its cause; a child's removal caused by the cascade root's record; pre-intent waits are a running system stop and the call's turn only; a `requested` record dropped for overflow fails the call at once (CCR-BR-008)<br>0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.16 (2026-11-11): BEH-BR-190 a sub-scope close gives the child's mount record as cause to the `system-stop` records of the child's dependents too (SPEC-AUDIT-07 residual of round 6); BEH-BR-185 a companion may attribute to `Actor.system` an end the host caused by stopping its plugin or closing a layer it built (PL1); BEH-BR-190 `unmount-requested` is written only when the unmount begins or takes over the child's removal, never for a refused or joining unmount (C5); step-4b row names the order BEH-BR-072, BEH-BR-073, BEH-BR-071 of 28 (CL4); system-record list: `handoff` also for a handoff skipped by `cold: true` (CL5) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.15 (2026-11-11): BEH-BR-186 `ReplaceOptions` copy names `cold` (H9); BEH-BR-187 and BEH-BR-192 the lost reconcile parent record's log is the fourth `correlationId` exception (C4); BEH-BR-188 step 4b's "able to start" decided by the cell of BEH-BR-071 or BEH-BR-072 (C9), `select` receives `form` (G3) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.14 (2026-11-10): BEH-BR-190 a refused `whenAvailable` re-run is a refused background restart among the cascade roots (C11) (CCR-BR-036)<br>0.13 (2026-11-10): BEH-BR-186 `shutdown`'s union includes `WouldDeadlock` (H2); BEH-BR-188 `shutdown` makes its `WouldDeadlock` check before step 6, writing no record and joining nothing, Settled note (H1); BEH-BR-190 a refused background restart as a cascade root (C3), and causation of a child's resumed stop and `intent-ended` record on a sub-scope close or unmount (C12); BEH-BR-187 and BEH-BR-192 the `HookDecisionRecord.correlationId` is the third exception (C5) (CCR-BR-035)<br>0.12 (2026-11-10): BEH-BR-187 and BEH-BR-192: a call's `correlationId` alone may appear in `inspect().pending` and in a `PartialApply`'s error log and `reconcile-partial` event, and nowhere else (H1); BEH-BR-192 unwired equivalence covers files 02–21 and 26–34 (audit round 2, Low); the GxP companion is cited as a Draft, not as specified later (C20); BEH-BR-192's "to nothing else" names the two correlation exceptions (review of CCR-BR-034) (CCR-BR-034)<br>0.11 (2026-11-09): BEH-BR-187 a handoff's `export`, `upgrade` and `import` run with `CurrentActor` reset and an empty annotation bag, `export` with the correlation of its stop and `upgrade` and `import` with that of the build (U-04) (CCR-BR-033)<br>0.10 (2026-11-09): BEH-BR-186 table: `restart`, `reconfigure` and `PluginHandle.restart` take `HandoffCallOptions`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.9 (2026-11-08): BEH-BR-185 `sanitized: true` on the call's `requested`, `rejected` and terminal records; a system record the call causes carries the replaced correlation and is flagged only for its own replacements (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): `SystemTransition` gains "start-refused"; lone surrogates replaced in recorded strings (G59); BEH-BR-187 `CurrentCorrelation`, the default correlation of a call and of the work it causes (G58); BEH-BR-188 step 4b, the `RefusalList`; BEH-BR-190 causes of `start-refused` and the attributed child unmount (`requestedBy`, G57); BEH-BR-192 the correlation reaches the call log (CCR-BR-026); `lazy-idle`, root `lazy-triggered` records carry `onBehalfOf`, `Host.wake` reads the caller's principal (CCR-BR-024)<br>0.7 (2026-11-08): `Host.wake` classified (not mutating, not read-only); step 4 and 4a: `reconfigure` of a registration not yet loaded is not decoded and uses form "raw"; BEH-BR-190: a child removed by its sub-scope is caused by its mount record; BEH-BR-192 heading names the call log (CCR-BR-022)<br>0.6 (2026-11-08): `SystemTransition` gains `lazy-triggered` and its cause (CCR-BR-017); `OperationContext.annotations`, annotation resolution and empty bags at plugin entry points, `onBehalfOf` and annotations at step 2, `CurrentPlugin` never an actor, the actor also reaches the `CallLog` (BEH-BR-185, 187, 188, 190, 192; CCR-BR-018); `retireRealm` (thirteen operations), `plan` read-only, `handoff` system transition, `Actor.narrow` a caller-invoked derivation (BEH-BR-185, 186; CCR-BR-019)<br>0.5 (2026-10-03): BEH-BR-188 step 4a — configuration fingerprints from the optional `ConfigFingerprinter` port, after validation and before the gate: when the port is called and never called, `select` before `fingerprint`, only selected values handed over, no attribution to the port, validation of the answer, `fingerprintTimeout`, fail-closed `ConfigFingerprintUnavailable` with a core-written message, interruption outcome, stored fingerprints reused without calling the port; BEH-BR-192 attribution never reaches the fingerprinter, and an unwired fingerprinter changes nothing; BEH-BR-186 `controls` added to the read-only operations; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015)<br>0.4 (2026-10-02): Interruption outcome per stage of the call order; approval-to-`requested` passage uninterruptible; record-only `Interrupted` wins over a later `AuditUnavailable`; `WouldDeadlock` checked before any wait and at the linearization point; resumption of a parked stop is the call's intent; causation of system records in cascades; second review pass: `SystemTransition` "intent-ended" and its cause; a child's removal caused by the cascade root's record; pre-intent waits are a running system stop and the call's turn only; a `requested` record dropped for overflow fails the call at once (CCR-BR-008)<br>0.3 (2026-10-02): Interruption before intent is allowed and ends with a failed (Interrupted) record (prototype finding G14) (CCR-BR-007)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -91,8 +91,8 @@ type SystemTransition =
 [33 — Realm Families](./33-realm-families.md) (BEH-BR-335); `lazy-triggered`
 is recorded when a lazy plugin leaves `dormant`
 ([27 — Manifest and Lazy Activation](./27-manifest-and-lazy-activation.md),
-BEH-BR-248), `lazy-idle` when an idle loaded plugin returns to it (BEH-BR-252), `handoff` once per attempted state handoff
-([34 — State Handoff](./34-state-handoff.md), BEH-BR-350), and
+BEH-BR-248), `lazy-idle` when an idle loaded plugin returns to it (BEH-BR-252), `handoff` once per attempted state handoff, or skipped by
+`cold: true` ([34 — State Handoff](./34-state-handoff.md), BEH-BR-350), and
 `start-refused` when a wired `RefusalList` refuses a start that no operator
 call asked for
 ([28 — Plugin Principal and Mandatory Policy](./28-plugin-principal-and-mandatory-policy.md),
@@ -103,7 +103,12 @@ children on someone's request with `Plugin.Runtime.unmount`
 ```
 REQUIREMENT: `Actor.system` and `Actor.unattributed` MUST be the only actors
              whose `id` begins with "bridger:". `Actor.system` MUST be used
-             only for records the host originates (BEH-BR-190).
+             only for records the host originates (BEH-BR-190), except that
+             a companion MAY attribute to `Actor.system`, in its own records
+             and states, an end the host caused by stopping the companion's
+             plugin or closing a layer it built — work that stop or close
+             ended and that no caller asked to end — and MUST NOT use it
+             for an end a caller asked for (CCR-BR-039).
              `Actor.unattributed` MUST be the actor of a call made with no
              context and no `CurrentActor`.
 ```
@@ -411,10 +416,13 @@ step  check / action                  failure                    records written
       RefusalList is wired and the    ("refused-digest: ...")
       call would leave a digest-
       bearing definition able to
-      start, by the cell of 08's
-      BEH-BR-071 or BEH-BR-072
-      that decides it; 28,
-      BEH-BR-267)
+      start, by the outcome of 08
+      that decides it, in the
+      order BEH-BR-072 (an
+      operation in flight), then
+      BEH-BR-073 (a system stop),
+      then BEH-BR-071 (the state);
+      28, BEH-BR-267)
  5    OperationGate.authorize         OperationRejected          one `rejected`
       (when wired)                    (also "caller-interrupted")
  6    `requested` record              AuditUnavailable;          `requested`, or none yet
@@ -955,15 +963,18 @@ REQUIREMENT: Mounting a child through `Plugin.Runtime.install` MUST be
              call's `requested` record. A child removed because the
              sub-scope it was mounted under closed (14 — Children and
              Groups, BEH-BR-121, BEH-BR-126) is not a cascade: its
-             `system-stop` record MUST take as `causationId` the record id
-             of the child's own mount record. The mount and the removal MUST NOT
+             `system-stop` record, and the `system-stop` records of the
+             child's dependents that its removal stops first, MUST take as
+             `causationId` the record id of the child's own mount record
+             and share its `correlationId`. The mount and the removal MUST NOT
              be gated.
 ```
 
 ```
 REQUIREMENT: A child removed with `Plugin.Runtime.unmount` (14 — Children
              and Groups, BEH-BR-126) MUST first be recorded, when the
-             unmount is requested, by one `unmount-requested` system record:
+             unmount begins the child's removal or takes over a stop of it
+             (BEH-BR-121), by one `unmount-requested` system record:
              actor `Actor.system`, `target` the child, `causationId` the
              child's mount record, `requestedBy` the actor and reason of the
              unmount's context, and the `correlationId` resolved for that
@@ -972,7 +983,11 @@ REQUIREMENT: A child removed with `Plugin.Runtime.unmount` (14 — Children
              removal writes MUST take the `unmount-requested` record as
              their `causationId` and share its `correlationId`. The unmount
              MUST NOT be gated, and MUST NOT fail for missing attribution:
-             it removes code, the safe direction, like `shutdown`.
+             it removes code, the safe direction, like `shutdown`. An
+             unmount that fails, with `WouldDeadlock` among others, or that
+             waits for a removal already begun by the parent's stop, a
+             sub-scope close or another unmount, MUST write no record
+             (CCR-BR-039).
 ```
 
 ```

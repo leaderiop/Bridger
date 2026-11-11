@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-03                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.6 (2026-11-11): BEH-LD-018: `RecordedSigner` gains `policyId` (the policy, or `anyOf` branch, it was verified under) and `publisherBound` (its publisher binding held at acceptance) (L1, H5); BEH-LD-019: re-evaluation reads the recorded `inWindow` and checks no window again; BEH-LD-020: re-evaluation is a pure function of the record and the set, over the signers of the record's `policyId`, and re-checks the publisher binding (PL18, L1, H5) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): BEH-LD-018: `VerifiedSigner` carries the signer's `identity`, and the record keeps each signer as a `RecordedSigner` (its roles and window outcome); BEH-LD-020: the record keeps the requirement that was evaluated, so a policy is re-evaluated from the record alone, without the policy (H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-10): round 2 follow-up: `SignatureInvalid` declared (BEH-LD-018) (CCR-LD-005)<br>0.3 (2026-11-08): The package statement is the "package" instance of the typed statement of file 07; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule" (round 2: recheck items 11, 15) (CCR-LD-003)<br>0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.7 (2026-11-11): BEH-LD-022: loader construction refuses an `anyOf` whose rules repeat an `id`, so a record's `policyId` names one branch (PL14) (SPEC-AUDIT-07) (CCR-LD-010)<br>0.6 (2026-11-11): BEH-LD-018: `RecordedSigner` gains `policyId` (the policy, or `anyOf` branch, it was verified under) and `publisherBound` (its publisher binding held at acceptance) (L1, H5); BEH-LD-019: re-evaluation reads the recorded `inWindow` and checks no window again; BEH-LD-020: re-evaluation is a pure function of the record and the set, over the signers of the record's `policyId`, and re-checks the publisher binding (PL18, L1, H5) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): BEH-LD-018: `VerifiedSigner` carries the signer's `identity`, and the record keeps each signer as a `RecordedSigner` (its roles and window outcome); BEH-LD-020: the record keeps the requirement that was evaluated, so a policy is re-evaluated from the record alone, without the policy (H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-10): round 2 follow-up: `SignatureInvalid` declared (BEH-LD-018) (CCR-LD-005)<br>0.3 (2026-11-08): The package statement is the "package" instance of the typed statement of file 07; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule" (round 2: recheck items 11, 15) (CCR-LD-003)<br>0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -360,6 +360,15 @@ REQUIREMENT: A `pinned` rule MUST accept only the exact digests listed. A
              threshold of zero, an empty signer list with a non-zero
              threshold, or an empty pinned list MUST be refused when the
              loader is constructed.
+```
+
+```
+REQUIREMENT: An `anyOf` whose rules, nested `anyOf` included, repeat an
+             `id` — a `pinned` rule's `id` or a signed rule's policy `id` —
+             MUST be refused when the loader is constructed, so that the
+             `policyId` a record carries names exactly one branch and
+             re-evaluation by `policyId` (BEH-LD-020) counts that branch's
+             signers only.
 ```
 
 The reasoning is core's, for its gate ([ADR-BR-032](../../core/decisions/032-operation-gate.md)):
