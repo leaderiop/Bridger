@@ -59,7 +59,7 @@ flowchart TB
 | --- | --- | --- |
 | `Storage` | `transaction`, `catalog`, `planner`, `outbox`, `locks` | Adapter lifecycle, capability negotiation, transaction service. |
 | Physical model catalog | `resolve(modelId, generation)` | Model/field → table/column mapping and name allocation. |
-| DDL planner | `plan`, `apply`, `resume`, `status` | Serialized schema changes per physical model. |
+| DDL planner | `plan`, `apply`, `resume`, `status` | Serialized schema changes per physical table. |
 | Write path | `insert`, `patch`, `remove` | Portable scoped statements with revision compare. |
 | Read path | `list`, `get` | Explicit column lists, cursors, predicate composition. |
 | Receipts | The command `CommandReceipts` port: `claim`, `complete`, `release`, `void` | Idempotency and retained outcomes; the contract is [`@bridger/command`](../references/command/README.md) BEH-CM-041 (§10). |
@@ -238,11 +238,12 @@ type Where = Predicate /* qadi Predicate: Compare | MemberOf | And | Or | Negate
 
 // Select also supports (ERP-RECORDS.md §5):
 //   joins:     { table, on: [leftColumn, rightColumn], targetPolicy: Where }   // single-valued references, depth <= 2
+//   extension: { table, on: [tenant_id, company_id, id, same on the base], columns: [{ column, absent }] }   // left join to an extension table; absent is COALESCEd; emitted only when a column is selected, filtered, sorted or used by a policy
 //   aggregate: { groupBy: ColumnRef[]; measures: Measure[]; having?: Where }     // count, sum, avg, min, max
 //   text ops:  contains / startsWith / endsWith with escaped wildcards and a declared case behavior
 ```
 
-- **Predicates come from qadi.** `toPredicate` yields a `Predicate`; the core adds `Scope` and `revision = ?` conditions as further `Where` nodes. Attribute paths are mapped to physical columns through the catalog (§6), not by string.
+- **Predicates come from qadi.** `toPredicate` yields a `Predicate`; the core adds `Scope` and `revision = ?` conditions as further `Where` nodes. Attribute paths are mapped to physical columns through the catalog (§6), not by string. An extension field maps to an expression over the extension table's left join, `COALESCE(column, absent)`, never to a bare column.
 - **Rendering.** Each adapter has a renderer from IR to its dialect: placeholders, quoting, limit/offset syntax (`LIMIT`, `FETCH FIRST`, `TOP`), `returning`/`OUTPUT` or fallback, lock hints (`FOR UPDATE`, `UPDLOCK`), and boolean/decimal/date literal handling. `@qadi/predicate-sql` renders predicates for PostgreSQL, MySQL and SQLite; adapters for other dialects supply their own `PredicateRenderer`. A renderer is certified only if the **differential suite** shows it agrees with qadi's reference interpreter `evaluatePredicate` on generated policies and rows.
 - **No raw SQL in modules.** Modules use Records, queries and the IR. An escape hatch (`Sql.raw`) exists only inside an adapter-specific extension module that declares `storage.dialects: ["postgres"]`; the manager refuses to activate it on another dialect.
 - **Statements are parameterized.** Values never appear in SQL text.
@@ -273,7 +274,8 @@ The catalog is durable metadata about physical storage. It is written by the DDL
 | Table | Key | Content |
 | --- | --- | --- |
 | `bridger_model_catalog` | `model_id` | owning module, scope (`tenant` or `company`), physical table name, created-by migration ID. |
-| `bridger_field_catalog` | `field_id` (qualified, e.g. `planning.task.priority`) | model ID, contributor, SQL column name, abstract type, nullability, `status` (`active`, `dormant`, `retired`), created-by migration ID. |
+| `bridger_extension_table_catalog` | `(model_id, extension_id)` | physical table name, scope, `status` (`active`, `dormant`, `retired`), created-by migration ID. |
+| `bridger_field_catalog` | `field_id` (qualified, e.g. `planning.task.priority`) | model ID, contributor, table (the base table or the extension table), SQL column name, abstract type, nullability, absent value (extension fields), `status` (`active`, `dormant`, `retired`), created-by migration ID. |
 | `bridger_migration_journal` | `(module_id, migration_id)` | checksum, state, current step, last error, applied-at. One row set per physical database. |
 | `bridger_tenant_activation` | `(tenant_id, extension_id)` | extension version, phase (`pending`, `backfilling`, `fenced`, `ready`, `disabled`), progress cursor, ready-at. |
 | Other platform tables | — | Defined with their features: `bridger_external_ids`, `bridger_data_migrations`, `bridger_sequences`, `bridger_settings`, `bridger_translations` ([ERP-RECORDS.md](ERP-RECORDS.md) §12); `bridger_companies`, `bridger_grants`, `bridger_session_context` ([ERP-IDENTITY.md](ERP-IDENTITY.md)); module, artifact and journal tables ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md)). |
@@ -285,9 +287,9 @@ Identifiers are allocated **once** and recorded; never recomputed from labels or
 
 1. Table: `m_` + model ID with `.` → `_`, lowercased, restricted to `[a-z0-9_]`.
 2. Base-model column: the field name in snake case.
-3. Extension column: `x_` + extension ID segment + `__` + field name.
+3. Extension table: `x_` + extension ID segment + `__` + base model ID with `.` → `_`. Its columns are the field names in snake case, with no prefix.
 4. If the result exceeds `dialect.maxIdentifierBytes` (counting bytes, not characters), truncate and append `_` + the first 8 hex characters of the SHA-256 of the qualified field ID. Allocation is **dialect-independent in structure** but uses the running dialect's limit; the allocated name is stored, so a later change of limit never renames anything.
-5. On collision with an existing catalog entry or a name in `dialect.reservedWords`, append a numeric suffix and record it. Allocation takes the physical-model lock (§7).
+5. On collision with an existing catalog entry or a name in `dialect.reservedWords`, append a numeric suffix and record it. Allocation takes the catalog's name lock (§7), never a lock on a base table.
 6. Reserved columns (`id`, `tenant_id`, `company_id`, `revision`, `created_at`, `updated_at`, `created_by`, `updated_by`) are never allocated to a field.
 7. Case: names are lowercase ASCII, so case-insensitive and case-sensitive dialects behave identically.
 
@@ -296,6 +298,8 @@ A rename is an explicit identity-preserving catalog update, never a drop plus ad
 ### Standard columns
 
 Every model table has `id`, `tenant_id`, `company_id` (not null for company scope), `revision` (integer, starts at 1), `created_at`, `updated_at` (`instant`), `created_by`, `updated_by`. Indexes: `(tenant_id, company_id, created_at, id)` for default listing and `(tenant_id, company_id, created_by)` when the model's access uses an owner rule. Foreign keys to `bridger_companies` are `(tenant_id, company_id)`.
+
+An extension table has `tenant_id`, `company_id` (not null for company scope), `id` (the base record's id; the primary key with the scope columns), `created_at` and `updated_at`. It has no `revision` of its own (the base row's revision covers the record) and no foreign key to the base table, and it carries the same tenant policy where row-level security is enabled (§12). Its indexes lead with the scope columns.
 
 ## 7. DDL IR and planner
 
@@ -322,13 +326,13 @@ Every step carries a stable ID within its migration and is **idempotent by const
 
 Rules:
 
-1. **Single flight.** `apply` takes the named lock `physical-model:<id>` for each affected model, in sorted order, plus a module-level lock. Two plugins extending one table are one plan.
+1. **Single flight.** `apply` takes the named lock `physical-table:<table>` for each physical table it creates or alters, in sorted order, plus a module-level lock. An extension's plan touches only its own tables, so two plugins extending one model are two plans and neither locks the base table; only the module that owns a model locks that model's table.
 2. **Checksums.** Each migration's descriptor is canonicalized and hashed. A changed checksum for an applied migration stops activation (`MigrationChecksumMismatch`).
 3. **Step journal.** Before running a step the planner writes `state = running`; after, `state = done`. A crash leaves `running`; `resume` re-executes it.
 4. **Transaction policy.** With `transactionalDdl`, a step and its journal update commit together. Without it (several dialects), the step is a single DDL statement bracketed by the journal rows; on `resume` the planner inspects the physical object (`describe`) and **adopts** it if it matches the plan (type, nullability), otherwise fails with `SchemaDrift`. Index builds use the `onlineIndex` form when available, otherwise the model is fenced during the build. An interrupted concurrent build can leave an invalid index (PostgreSQL); `resume` detects it through introspection, drops it and rebuilds.
-5. **Expand then contract.** Module migrations are additive: `add-column` is nullable, constraints are added unvalidated then validated where the dialect supports it, and dropping or retyping a column is rejected (`DestructiveStepRejected`). Destructive changes happen only through a reviewed contract plan (§7a).
-6. **Cross-tenant safety.** A plan that adds a constraint is accepted only if it is valid for every tenant row and every retained generation ([ERP-MODELS.md](ERP-MODELS.md) §5): extension-only uniqueness, restrictive FKs and triggers are rejected unless the owner declared a persistent invariant. Partial-index-based uniqueness is allowed only when `partialIndex` exists.
-7. **Backfill.** The value of a `backfill` step comes from the migration's explicit `backfill` entry ([ERP-MODELS.md](ERP-MODELS.md) §5), never from a field's create default. Tenant-level backfills are separate steps recorded in `bridger_tenant_activation`: batches by primary-key cursor, each in its own short transaction, with a final fenced catch-up (writes to the affected tenant and model are refused with `ModelFenced` for the catch-up only).
+5. **Expand then contract.** Module migrations are additive: `add-column` is nullable, constraints are added unvalidated then validated where the dialect supports it, and dropping or retyping a column is rejected (`DestructiveStepRejected`). Destructive changes happen only through a reviewed contract plan (§7a). A migration creates or alters only tables its module owns: an extension's fields go to an extension table, never to the base model's table.
+6. **Cross-tenant safety.** A plan that adds a constraint is accepted only if it is valid for every tenant row and every retained generation ([ERP-MODELS.md](ERP-MODELS.md) §5): an extension table may carry tenant-scoped unique indexes and check constraints on its own columns, but never a foreign key to another module's table, and triggers are rejected on every table. Partial-index-based uniqueness is allowed only when `partialIndex` exists.
+7. **Absent value and backfill.** The value a record with no extension row reads as is the migration's explicit `backfill` entry ([ERP-MODELS.md](ERP-MODELS.md) §5), never a field's create default, so enabling writes no row for existing records and needs no fenced catch-up. A value that must be stored per record (a derived value) is a `backfill` step: tenant-level steps are recorded in `bridger_tenant_activation`, run in batches by primary-key cursor, each in its own short transaction, with a final fenced catch-up (writes to the affected tenant and model are refused with `ModelFenced` for the catch-up only).
 8. **Failure after DDL.** DDL committed but catalog or activation not recorded: the next `apply` sees a `running` journal row, uses `describe`, and adopts or fails with `SchemaDrift`.
 9. **DDL privilege.** DDL runs under the `ddlRole` connection when the dialect separates roles; the application role has no DDL rights where the adapter can arrange it.
 
@@ -351,15 +355,16 @@ Schema drift check: at startup and on demand, the planner compares the adapter's
 A contract plan removes or retires physical schema that earlier migrations expanded. It is a separate administrative workflow, never part of a module install.
 
 1. **Proposal.** `schema.proposeContract` names the physical model, field IDs or columns to retire, and the reason. The planner records a plan (`bridger_contract_plans`: id, objects, state, proposed_by, approvals, retire_after).
-2. **Preconditions** (all checked): no active or retained registry generation on any live node references the field (the module `schema.compatible` window has passed on all nodes, [ERP-OPERATIONS.md](ERP-OPERATIONS.md) §3); no installed dependent module's declared contract uses it; no policy, index, search document or export references the column; for columns holding data, a snapshot export exists or `discardData: true` is explicitly approved.
+2. **Preconditions** (all checked): no active or retained registry generation on any live node references the field (the module `schema.compatible` window has passed on all nodes, [ERP-OPERATIONS.md](ERP-OPERATIONS.md) §3); no installed dependent module's declared contract uses it; no policy, index, search document or export references the column; for columns holding data, a snapshot export exists or `discardData: true` is explicitly approved; an extension table is retired only when no tenant has its extension enabled or retained, and in a database shared by several tenants a tenant's rows are removed by a tenant-scoped delete instead of retiring the table.
 3. **Two approvals** by different administrators with `bridger.schema:contract`.
-4. **Soft retire first.** The catalog marks the field `retired` and the column is renamed to `retired_<timestamp>_<original>` (or marked unusable where renaming is not supported). Reads and writes cannot address it. The plan stays `soft-retired` for a retention period (default 30 days).
+4. **Soft retire first.** The catalog marks the field `retired` and the column is renamed to `retired_<timestamp>_<original>` (or marked unusable where renaming is not supported). Reads and writes cannot address it. The plan stays `soft-retired` for a retention period (default 30 days). For an extension table the catalog marks the table `retired` and the table is renamed `retired_<timestamp>_<original>`.
 5. **Hard drop** after the retention period via a second command that re-checks the preconditions. A plan can be cancelled and the column restored while soft-retired.
 6. Every state change is audited. Retyping uses expand (new column), backfill, switch contracts, then retire the old column through this flow.
 
 ## 8. Read path
 
 - Every query selects an **explicit column list** built from the active generation's projection plus system columns. A wildcard select is never used, so inactive extension columns can never leak.
+- Extension fields are read by a left join to the extension table on `(tenant_id, company_id, id)`, emitted only when a query selects, filters, sorts or applies a policy to one of its fields. A missing row reads as the field's absent value.
 - Scope is `tenant_id = ?` plus, for company-scoped models, `company_id = ?`. Both come from the immutable request context, never from client input.
 - The row predicate is the qadi `Predicate` for the caller's policy ([ERP-ACCESS.md](ERP-ACCESS.md) §5), with attribute paths mapped to columns through the catalog. An unknown path, or a path for an inactive field, rejects the operation when it is compiled.
 - Ordering and filters accept only declared, authorized fields. The default order is `created_at` descending, then `id` descending.
@@ -389,9 +394,10 @@ Outcome handling:
 
 Other rules:
 
-- **Insert** sets `id` (UUIDv7 generated in the core, so no dialect-specific key generation is needed), scope columns, `revision = 1`, `created_by = updated_by = actor`, timestamps from one transaction clock, and applies `createDefault` values for every active extension ([ERP-SCHEMA-DESIGN.md](ERP-SCHEMA-DESIGN.md)). Only supplied keys are written; an omitted patch key is never written.
+- **Insert** sets `id` (UUIDv7 generated in the core, so no dialect-specific key generation is needed), scope columns, `revision = 1`, `created_by = updated_by = actor`, timestamps from one transaction clock, and applies `createDefault` values for every active extension ([ERP-SCHEMA-DESIGN.md](ERP-SCHEMA-DESIGN.md)), writing each extension's values to its extension table in the same transaction. Only supplied keys are written; an omitted patch key is never written.
 - **Active constraints.** For a base-model write that touches an extended record, Records loads the full authorized row with `rowLocking`, validates the merged result, then issues the patch. Models without active constraints use the single statement.
-- **Delete** is one `Delete` statement with the same `where` and outcome table. Soft delete is a per-model option (`softDelete: true` adds `deleted_at`), never the default.
+- **Delete** is one `Delete` statement with the same `where` and outcome table. Soft delete is a per-model option (`softDelete: true` adds `deleted_at`), never the default. Extension rows are not touched by it: the owning extension removes them when it handles the delete event ([ERP-RECORDS.md](ERP-RECORDS.md) §4, `detach`).
+- **Extension fields.** An update that changes only extension fields still issues the `Update` of the base row, which raises `revision` and sets `updated_*` under the revision check, then upserts the extension row in the same transaction. The extension table has no revision of its own.
 - **Uniqueness** uses declarative unique indexes; the adapter's `classify` maps the violation to `UniqueViolation`. Check-then-insert is never used.
 - **Nested writes** from a custom command reuse the same `Tx`.
 - Reserved columns cannot appear in a `set` list; this is checked before the statement is built.
@@ -521,6 +527,8 @@ bridger_audit
 
 Application predicates are the primary control. Where the adapter provides `rowLevelSecurity` (PostgreSQL, SQL Server), deployments may enable a database-enforced tenant policy as a second layer; the transaction service sets the tenant session setting at transaction start (mirroring awthaq's `TenantScope.enableRls()` for its own tables). RLS guards against a missing predicate, not against a missing policy; it does not replace the qadi row rules. On PostgreSQL the request role must not be a superuser, hold the bypass attribute or own the tables (unless the policy is forced for owners); on SQL Server `db_owner` is subject to the policy. Without the capability, only application predicates apply, and this is stated in the adapter's capability notes. Platform tables that are cross-tenant (`bridger_model_catalog`, journals) are not under tenant policies.
 
+Extension tables carry the same database tenant policy as base tables, which is why they have the scope columns (§6).
+
 ### Outbox (superseded by `@bridger/durable-bus`)
 
 > **Superseded (2026-11-08).** The outbox contract is governed by [`@bridger/durable-bus`](../references/durable-bus/README.md), not by this document: the envelope ([01](../references/durable-bus/behaviors/01-events-and-envelope.md), BEH-DB-001–007), publishing inside the caller's transaction and the `OutboxStore` port ([02](../references/durable-bus/behaviors/02-transactional-outbox.md), BEH-DB-009–015), delivery, acknowledgement, inbox deduplication, retry and parking of failed envelopes ([03](../references/durable-bus/behaviors/03-delivery-and-inbox.md), BEH-DB-017–024), order ([05](../references/durable-bus/behaviors/05-order-and-clocks.md), BEH-DB-033) and replay ([06](../references/durable-bus/behaviors/06-replay-and-snapshots.md)). This application no longer defines its own leases, retry states or dead letters. The earlier text of this section is withdrawn: the `bridger_outbox` table with `leased_until`, `leased_by`, `attempts` and the `pending | delivered | dead` states; the `OutboxStore { append, lease, settle }` interface; the `skipLocked` and optimistic-claim leasing rules; the exhausted-to-`dead` retry rule; and the `bridger_event_handled` table. Durable-bus is itself a Draft specification with nothing implemented.
@@ -580,15 +588,17 @@ These are the checks every adapter must pass (the **conformance suite**), run ag
 - A subscription handler dispatches a command with the key `${subscription}:${eventId}`; a fault at the inbox commit leaves no business row, no receipt and no cursor advance, and the redelivery claims `Fresh` and commits all three together.
 - The same key in two partitions (two tenants, or two companies of one tenant) names two receipts; a `release` or `complete` of one never touches the other.
 - Kill the process after a claim commits and before completion: the key answers `in-flight` until `claim_expires_at`, then a new claim runs the handler; a late `complete` of the old ticket fails and leaves the new claim intact.
-- Kill the process after a DDL step commits but before the journal write: `resume` adopts the object once; no duplicate column or lost value (with and without `transactionalDdl`).
-- Two plugins adding columns to one table concurrently: the planner serializes; both columns exist; catalog names are unique and within `maxIdentifierBytes`.
+- Kill the process after a DDL step commits but before the journal write: `resume` adopts the object once; no duplicate table, column or lost value (with and without `transactionalDdl`).
+- Two plugins extending one model concurrently: each plan creates its own extension table, neither locks the base table, and the base table is unchanged; catalog names are unique and within `maxIdentifierBytes`.
 - Name allocation: two fields whose truncated names collide get distinct stable names; restart preserves them; a changed identifier limit renames nothing.
 - Outbox: rollback leaves no event; a committed event is published exactly when the business change commits. Delivery, redelivery after a crash and deduplication are checked by the durable-bus acceptance checks ([durable-bus 08](../references/durable-bus/behaviors/08-testing-and-acceptance.md)) against this adapter's port implementation; the earlier lease-race check is superseded.
-- Disable then re-enable a module: catalog, columns, values and tenant activation state are preserved.
+- Disable then re-enable a module: catalog, extension tables, values and tenant activation state are preserved.
 - The rendered predicate agrees with qadi's reference interpreter on generated policies and rows (differential).
 - Capability negotiation: a module requiring `exactDecimal` refuses to install on an adapter without it; a Tier 2 adapter refuses production mode by default.
 - Receipts and acknowledged outbox envelopes are removed by retention jobs without touching business rows.
 - The empty-string sentinel rule holds: no platform key depends on distinguishing `''` from null.
+- A record with no extension row reads as the absent value in a list, a filter, a sort and a row policy, and the rendered statement agrees with qadi's reference interpreter on policies over extension fields (differential).
+- Deleting a base record is not blocked by rows in an extension table, whether the extension is enabled or disabled.
 
 These are design acceptance scenarios, not tests already executed.
 
@@ -609,3 +619,5 @@ These are design acceptance scenarios, not tests already executed.
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions; `bridger_event_handled` removed from the platform-table list, as §12 withdraws it (R5-20, R5-22).
 
 Change log: 2026-11-09, audit fixes — §10 rewritten as the ERP's implementation of the command `CommandReceipts` port (BEH-CM-041): receipts scoped by (partition, command, key) with the partition `<tenant>/<company>` computed by `receiptPartition` from the gate's request and the actor compared first; every port call receives `services` and writes through the `StoreTransaction` it finds there, otherwise in its own short transaction (command CCR-CM-004); the claim refused while in flight instead of awaited; typed failures stored and replayed, except the platform's `retryable` errors (`ModelFenced`, `ExtensionUnavailable`, `LockTimeout`, `HookTimeout`, `SerializationConflict`), which release the claim; a dispatch from a subscription joins the inbox transaction with the key `${subscription}:${eventId}`; claim expiry and superseded tickets; §1, §2, §9, §12–§15 follow, and §15 replaces the 50-request race check with the BEH-CM-041 outcome (E-01). §1 links the event-store companion instead of calling it "planned, not yet drafted"; the adapter's `claim` and the `skipLocked` fallback now point at the job queue of ERP-BUSINESS §3, not at the withdrawn outbox leases (E-05). §6 records the durable-bus incarnation the database was created under, which decides the `{series}` marker of sequences (E-06). §7 rule 7 takes the backfill value from the migration's explicit `backfill` entry (E-10). Review fixes: `ErpAnnotations.Scope` is declared with core's `Annotation.key` (flows gate and audit, monotonic) and added by every dispatch site, not only the gateway; the transaction wrapper provides `Tx` and `StoreTransaction`, which §3.1 defines; the claim reads without locking and takes over an expired row with a token-guarded update, so a duplicate never waits for a command transaction; `release` reports no error and a failed one leaves the key in flight until expiry (E-01). §14 lists `BackfillRequired` (E-10).
+
+Change log: 2026-11-11, extension tables — §4 query IR gains a left join to an extension table with an absent value; §6 catalog, name allocation and standard columns cover extension tables (scope columns, no revision, no foreign key to the base table); §7 locks follow the tables touched, a migration creates or alters only tables its module owns, rule 7 is the absent value plus data-migration backfill; §7a retires whole tables and handles shared databases; §8, §9, §12 and §15 follow.

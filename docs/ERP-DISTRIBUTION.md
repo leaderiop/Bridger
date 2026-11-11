@@ -254,7 +254,7 @@ This is the state machine of [ERP-SPEC.md](ERP-SPEC.md) §6; this document adds 
 1. Write `bridger_module_desired` (enabled, digest, bumped `target_generation`), then return control to the **reconciler**.
 2. **artifact** phase: `load` the artifact (§5). Journal `artifact/done`.
 3. **dependency check**: every `dependsOn` module must be `active` for the tenant at a compatible version, else `DependencyMissing` (the module is not installed; `ensure` does not install dependencies implicitly. `modules.plan` returns the missing list for the administrator).
-4. **schema** phase: `Planner.plan` + `apply` for unapplied migrations ([ERP-STORAGE.md](ERP-STORAGE.md) §7), holding the physical-model locks. Journal `schema/done`.
+4. **schema** phase: `Planner.plan` + `apply` for unapplied migrations ([ERP-STORAGE.md](ERP-STORAGE.md) §7), holding the physical-table locks of the tables it creates or alters. Journal `schema/done`.
 5. **data** phase: required seeds, `onEnable` hooks and data migrations ([ERP-RECORDS.md](ERP-RECORDS.md) §6), run as the module's system subject; resumable with their own cursors. Journal `data/done`.
 6. **catalog** phase: tenant activation/backfill for extensions; compile models, operations, UI into the next immutable registry value.
 7. **runtime** phase: ensure the module's activation exists in the process host, then build and publish the tenant generation ([ERP-RUNTIME.md](ERP-RUNTIME.md) §5): validate the assembled registry; `closeAdmission` if the change is incompatible; `publish`; await the old generation's `drained`.

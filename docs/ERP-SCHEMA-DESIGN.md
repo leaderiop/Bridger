@@ -50,7 +50,7 @@ Effect's Model offers `select`, `insert`, `update`, `json`, `jsonCreate` and `js
 
 | Bridger contract | Purpose | Implementation direction |
 | --- | --- | --- |
-| Internal stored row | Decode SQL driver values into domain values | Storage-specific select codec, including physical nullable extension columns. |
+| Internal stored row | Decode SQL driver values into domain values | Storage-specific select codec over the base row and the left-joined extension rows, applying each field's absent value when a row is missing. |
 | Authorized `Row` | Typed caller projection | Select requested active fields, authorize, then encode public output. Never publish the full storage schema. |
 | Internal insert | Encode a complete initialized row | Defaults and server-owned fields supplied before persistence. |
 | Public `Create` | Accept writable user fields | Public create variant, excluding identity, ownership and computed values. |
@@ -67,7 +67,7 @@ flowchart TD
     Registry --> SQL[SQL select and write codecs]
     Registry --> Public[Authorized create, patch and row projections]
     Public --> Catalog[Portable catalog and FoldKit forms]
-    SQL --> Storage[(Shared physical table)]
+    SQL --> Storage[(Base table and extension tables)]
 ```
 
 ## 4. Missing, null and defaults are distinct
@@ -124,9 +124,9 @@ Checked against Effect v4 documentation (version-specific rc.112 pages and the c
 
 - Verify each supported codec's transport and database round trips separately.
 - Decode public input strictly: reject extra fields instead of relying on decoder defaults that can discard them.
-- Prove that an omitted patch does not invoke a create default or erase an extension column.
+- Prove that an omitted patch does not invoke a create default or delete or null an extension row.
 - Prove that public schemas never expose a sensitive or unauthorized field.
-- Test inactive nullable storage against active required fields and interrupted backfill.
+- Test absent extension rows against active required fields and an interrupted data migration.
 - Confirm static projection types remain stable after runtime installation.
 - Confirm conflicts fail before schema merging and old requests retain their generation's codecs.
 
@@ -135,3 +135,5 @@ Examples remain design sketches until pinned Effect dependencies and implementat
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
 
 Change log: 2026-11-09, audit fixes — a migration snapshot's `default` is not a backfill value; backfill comes from the migration's explicit `backfill` entry (E-10).
+
+Change log: 2026-11-11, extension tables — §3 and §7: the stored row is the base row plus left-joined extension rows, and an omitted patch never deletes or nulls an extension row.

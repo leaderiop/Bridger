@@ -273,7 +273,7 @@ interface CompiledAccess {
 
 Rules:
 
-1. **Column mapping.** `toPredicate` emits `column: "<path>"`. The compiler maps `<path>` through the physical model catalog ([ERP-STORAGE.md](ERP-STORAGE.md) §6). Base fields map by name, extension fields by qualified ID, reserved fields (`createdBy`, `companyId`, …) by their standard columns. An unknown path or a path to an inactive field rejects module compilation (`UnknownAttributePath`).
+1. **Column mapping.** `toPredicate` emits `column: "<path>"`. The compiler maps `<path>` through the physical model catalog ([ERP-STORAGE.md](ERP-STORAGE.md) §6). Base fields map by name, extension fields by qualified ID to an expression over the extension table's left join (`COALESCE(column, absent)`, so a record with no extension row is judged on the absent value, never on NULL), reserved fields (`createdBy`, `companyId`, …) by their standard columns. An unknown path or a path to an inactive field rejects module compilation (`UnknownAttributePath`).
 2. **Row/field split.** A `Policy` carrying a `fields` clause is refused by `toPredicate`. The compiler partitions each operation's policy into a row policy (no `fields`) and a field policy (the `fields` projections, evaluated after fetch with `decide` + `project`, and applied to filters, sorts, exports and writes by field name). The split must preserve meaning: the conjunction of row and field policies is equivalent to the original.
 3. **Untranslatable rows.** `PolicyNotTranslatable` at compile time fails activation unless the model declares `rowFallback: "load-and-enforce"`, in which case Records loads a write lock (`rowLocking`) and calls `enforce(policy, { resource: row })`; lists using a fallback are rejected unless a bounded scan limit is declared.
 4. **Scope is outside qadi.** Tenant and company predicates are added by the storage layer, never expressed as plugin policy.
@@ -283,7 +283,7 @@ Rules:
 
 | Area | Check |
 | --- | --- |
-| Column mapping | Owner rule on `createdBy` and a rule on an extension field compile to the catalog columns; renamed physical column keeps working; unknown path rejected. |
+| Column mapping | Owner rule on `createdBy` and a rule on an extension field compile to the catalog columns and expressions; renamed physical column keeps working; a record with no extension row is decided on the absent value (property test against the reference interpreter); unknown path rejected. |
 | Inactive extension | A policy on `planning.task.priority` fails compile while Planning is disabled and works when re-enabled. |
 | Row/field split | For generated policies (property test), `row ∧ fields` decisions equal the unsplit policy on a sample table. |
 | One-statement composition | The update SQL contains scope, row predicate and `revision = $n` in one parameterized `WHERE`; a `False` predicate issues no query. |
@@ -336,3 +336,5 @@ These are design acceptance scenarios, not tests already executed.
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
 
 Change log: 2026-11-09, audit fixes — §4, §7, §10 and §11: `companies.ensure` takes the three required company columns (time zone, default locale, functional currency), may not change the first or the last, and fails with `CompanyConflict` if asked to (E-07); `functional_currency` refers to the platform's `bridger.currency` (E-12). §4 states the tenant and company ID rule the receipt partition relies on (E-01). §8 points to ERP-SPEC §5 for `ErpNode` (E-07).
+
+Change log: 2026-11-11, extension tables — §9 column mapping and test matrix: extension fields map to an expression with the absent value.
