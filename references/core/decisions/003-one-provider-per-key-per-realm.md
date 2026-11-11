@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-003                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): Contract versions do not change the one-provider rule (ADR-BR-040) (CCR-BR-017); several implementations per site through a registry and `Selector` (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.3 (2026-11-11): `DuplicateProvider` shows `providerRealm` (CL2) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.2 (2026-11-08): Contract versions do not change the one-provider rule (ADR-BR-040) (CCR-BR-017); several implementations per site through a registry and `Selector` (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -27,7 +27,7 @@ The legitimate need behind multiple providers is multiplexing: several implement
 
 **At most one active or reserved provider exists per service key per resolution scope (realm).** Concretely:
 
-- A second provider of a key already provided in the plugin's resolution scope, by an installed plugin or by the base `Context`, is rejected at `install` with `DuplicateProvider { serviceId, providerId }` (`providerId` is a plugin ID or `"base"`), and nothing is registered.
+- A second provider of a key already provided in the plugin's resolution scope, by an installed plugin or by the base `Context`, is rejected at `install` with `DuplicateProvider { serviceId, providerId, providerRealm? }` (`providerId` is a plugin ID or `"base"`; `providerRealm` the provider's realm, absent for `"base"`), and nothing is registered.
 - The same check applies to the keys a `replace` adds (checked against the installed set excluding the old definition, before anything stops) and to `enable`, which re-checks a disabled plugin against plugins that may have claimed its keys meanwhile.
 - A `disabled` plugin reserves no provider slot, so another plugin may provide its keys while it is disabled; `enable` then fails with `DuplicateProvider`.
 - Base services occupy their slot in the default realm for the life of the host and cannot be replaced by a plugin.

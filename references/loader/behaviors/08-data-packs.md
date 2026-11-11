@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-08                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-11): BEH-LD-061: `DataPacks.layer(options: DataPacksOptions)` declared, with its error and requirements (PL22) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.3 (2026-11-09): Footer links file 09 (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.5 (2026-11-11): BEH-LD-062: `StoredDataPack.acceptedAt`, passed as `reverify.acceptedAt` at the construction re-verification, so a signer window that closed after acceptance does not withhold a saved pack (PL20); check 18 extended (SPEC-AUDIT-06) (CCR-LD-009)<br>0.4 (2026-11-11): BEH-LD-061: `DataPacks.layer(options: DataPacksOptions)` declared, with its error and requirements (PL22) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.3 (2026-11-09): Footer links file 09 (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -335,6 +335,7 @@ interface StoredDataPack {
   readonly payload: Uint8Array
   readonly signatures: readonly Signature[]
   readonly digest: string                     // the data-pack digest computed at acceptance
+  readonly acceptedAt: string                 // the `at` of the acceptance's record (07, BEH-LD-055)
 }
 interface DataPackStoreShape {                            // the application's persistence port
   // highest accepted version of an id, with that version's digest
@@ -381,7 +382,8 @@ REQUIREMENT: At construction, before `current` answers, each saved pack
              shape checks and the digest of BEH-LD-057 and BEH-LD-058
              recomputed from `manifestBytes` and `payload` and compared with
              the saved `digest`, then `SignaturePolicy.verify` with the saved
-             `signatures` and `reverify: true` (07, BEH-LD-050), then the
+             `signatures` and `reverify: { acceptedAt }` from the saved
+             `acceptedAt` (07, BEH-LD-050), then the
              schema-id check. The held revocation set's entries therefore
              apply, and its age does not: a restart without network keeps
              the data it had however long ago the last list arrived, and
@@ -477,7 +479,8 @@ REQUIREMENT: The loader test suite MUST also contain at least one test for
                  `StatementVerifier` with a "revocation-list" rule is
                  refused and `verify` of that type fails "no-rule";
                  `reverify` ignores the set's age and still honours its
-                 entries (BEH-LD-050, BEH-LD-051).
+                 entries, and a signer window that closed after
+                 `acceptedAt` does not refuse it (BEH-LD-050, BEH-LD-051).
              19. Revocation of statements: a subject digest revokes every
                  statement about it; a statement digest revokes every
                  statement of that type, id and version about those bytes

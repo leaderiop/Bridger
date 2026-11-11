@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-03                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.5 (2026-11-11): BEH-LD-018: `VerifiedSigner` carries the signer's `identity`, and the record keeps each signer as a `RecordedSigner` (its roles and window outcome); BEH-LD-020: the record keeps the requirement that was evaluated, so a policy is re-evaluated from the record alone, without the policy (H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-10): round 2 follow-up: `SignatureInvalid` declared (BEH-LD-018) (CCR-LD-005)<br>0.3 (2026-11-08): The package statement is the "package" instance of the typed statement of file 07; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule" (round 2: recheck items 11, 15) (CCR-LD-003)<br>0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.6 (2026-11-11): BEH-LD-018: `RecordedSigner` gains `policyId` (the policy, or `anyOf` branch, it was verified under) and `publisherBound` (its publisher binding held at acceptance) (L1, H5); BEH-LD-019: re-evaluation reads the recorded `inWindow` and checks no window again; BEH-LD-020: re-evaluation is a pure function of the record and the set, over the signers of the record's `policyId`, and re-checks the publisher binding (PL18, L1, H5) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): BEH-LD-018: `VerifiedSigner` carries the signer's `identity`, and the record keeps each signer as a `RecordedSigner` (its roles and window outcome); BEH-LD-020: the record keeps the requirement that was evaluated, so a policy is re-evaluated from the record alone, without the policy (H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-10): round 2 follow-up: `SignatureInvalid` declared (BEH-LD-018) (CCR-LD-005)<br>0.3 (2026-11-08): The package statement is the "package" instance of the typed statement of file 07; `TrustedSigner.publishers`; `SignatureRejected` gains `statementType` and reason "no-rule" (round 2: recheck items 11, 15) (CCR-LD-003)<br>0.2 (2026-11-08): Sigstore offline verification checks the log's signed checkpoint or entry timestamp against a pinned log key and uses its time; signers carry a scheme-defined `identity` used by revocation lists; re-evaluation uses the acceptance time; double signing means two distinct signer entries, not two people (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -111,6 +111,9 @@ interface VerifiedSigner {
 interface RecordedSigner extends VerifiedSigner {
   readonly roles: readonly string[]  // the TrustedSigner's roles at acceptance
   readonly inWindow: boolean         // its validity window held at the time used at step 4 (BEH-LD-019)
+  readonly policyId: string          // the SignaturePolicy (under anyOf, the signed branch) it verified under (BEH-LD-022)
+  readonly publisherBound: boolean   // the request's publisher is in its `publishers` or equals its identity (07, BEH-LD-053);
+                                     // false when the request carried no publisher
 }
 class SignatureInvalid extends Schema.TaggedError<SignatureInvalid>()("SignatureInvalid", {
   scheme: Schema.String,
@@ -203,11 +206,11 @@ REQUIREMENT: A signer's validity window MUST be checked against the
              verifier's `signedAt` when present, and otherwise against the
              time read from `Clock` at step 4. A signature outside its
              signer's window MUST NOT count. When a policy is re-evaluated
-             later from a verification record (04, BEH-LD-030), the window
-             MUST be checked against the same time as at acceptance — the
-             signer's recorded `signedAt`, otherwise the record's `at` —
-             so that a window that closes after acceptance never withdraws
-             a package by itself.
+             later from a verification record (04, BEH-LD-030), no window
+             MUST be checked again: re-evaluation reads each signer's
+             recorded `inWindow`, the outcome at acceptance, so that a
+             window that closes after acceptance never withdraws a package
+             by itself.
 ```
 
 Roles are opaque labels the application chooses; the loader never knows what
@@ -253,23 +256,28 @@ REQUIREMENT: Two signatures that verify to the same `signerId` MUST count
 ```
 
 ```
-REQUIREMENT: Policy evaluation MUST be a pure function of the policy, the
-             list of `VerifiedSigner` values and the time used for validity
-             windows (BEH-LD-019: at step 4, `signedAt` or `Clock`; at
-             re-evaluation, the time recorded at acceptance). It MUST NOT
-             perform I/O.
+REQUIREMENT: Policy evaluation at step 4 MUST be a pure function of the
+             policy, the list of `VerifiedSigner` values and the time used
+             for validity windows (BEH-LD-019: `signedAt` or `Clock`).
+             Re-evaluation (04, BEH-LD-030) MUST be a pure function of the
+             verification record and the revocation set alone, with no
+             policy and no time. Neither MUST perform I/O.
 ```
 
 ```
 REQUIREMENT: The `VerificationRecord` (02, BEH-LD-016) MUST list every
              verified signer, not only those the assignment used, each as a
-             `RecordedSigner` — its `identity`, its roles and whether its
-             validity window held at the time used at step 4 — and MUST
-             carry the `Requirement` that was evaluated (`require`), so that
+             `RecordedSigner` — its `identity`, its roles, whether its
+             validity window held at the time used at step 4, the `policyId`
+             it verified under and whether it binds the request's publisher
+             — and MUST carry the `Requirement` that was evaluated
+             (`require`) and, in `policyId`, the policy that accepted it
+             (under `anyOf`, the accepting branch, 07, BEH-LD-053), so that
              the policy can be re-evaluated later from the record alone,
              without the signatures and without the policy (04,
              BEH-LD-030). Re-evaluation MUST count only recorded signers
-             with `inWindow` true, which is the window check at the time
+             whose `policyId` is the record's `policyId` and whose
+             `inWindow` is true, which is the window check at the time
              recorded at acceptance (BEH-LD-019).
 ```
 
@@ -282,7 +290,8 @@ application's trust configuration and key custody
 ([RSK-BR-043](../../core/gxp/03-risk-assessment.md#rsk-br-043)), which the
 loader cannot check. Re-evaluation from recorded signers is what lets the revocation
 of one signer's key withdraw exactly the packages that depended on it. The
-record carries the identities, roles and requirement because its readers —
+record carries the identities, roles, policy tags, publisher bindings and
+requirement because its readers —
 the gate piece, `filterDesired` and the revoked-digest view — are given no
 policy, and the records of a replaced loader outlive its policy (02,
 BEH-LD-015).

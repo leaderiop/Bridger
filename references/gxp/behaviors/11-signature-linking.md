@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-11                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-082 `bindingOf` copies an empty `definition` as `{}` and an empty `mandatoryInterceptions` as `[]`, and builds `requestOnly` exactly when one of its fields is present (H7) (CCR-GX-006)<br>0.2 (2026-11-09): BEH-GX-082, 083: `bindingOf` builds binding version 2 (`onBehalfOf`, `undo`, `requestOnly`); the record-side link takes `requestOnly` from the consumed binding and says so (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-11): BEH-GX-082 `config.form` labels the operation, also for a `reconfigure` of a registration not yet loaded whose fingerprints are of form "raw" (PL6); BEH-GX-082 `cold` bound, absent unless the source carries `cold: true` (core CCR-BR-038 coupling) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.3 (2026-11-10): BEH-GX-082 `bindingOf` copies an empty `definition` as `{}` and an empty `mandatoryInterceptions` as `[]`, and builds `requestOnly` exactly when one of its fields is present (H7) (CCR-GX-006)<br>0.2 (2026-11-09): BEH-GX-082, 083: `bindingOf` builds binding version 2 (`onBehalfOf`, `undo`, `requestOnly`); the record-side link takes `requestOnly` from the consumed binding and says so (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -128,10 +128,11 @@ declare function bindingOf(
 | `operation` | `operation` |
 | `target` | `target`, when present |
 | `definition` | `definition`, with exactly the fields present in the source; `{}` when the source carries a `definition` that declares neither (BEH-GX-065) |
-| `config` | when `configChange` is present: `form` "raw" for `install`, "decoded" for `reconfigure`; `paths` as given; `fingerprints` as given, absent when the source has none |
+| `config` | when `configChange` is present: `form` "raw" for `install`, "decoded" for `reconfigure` — a label of the operation, derived alike on every side, also for a `reconfigure` of a registration not yet loaded, whose fingerprints are of the raw value (BEH-GX-102); `paths` as given; `fingerprints` as given, absent when the source has none |
 | `requester` | `{ id, kind }` of `actor`; `display` is never copied |
 | `onBehalfOf` | `onBehalfOf` without `revision`, when present |
 | `undo` | `true` when a request carries `undo: true` or a record carries `undoes` |
+| `cold` | `true` when the source carries `cold: true` (request and records alike, BEH-BR-219, BEH-BR-195); absent otherwise |
 | `requestOnly` | proposal and request only: `manifestDigest` = `bindingDigest`'s hash over the canonical `definition.manifest`, `allowChildren` and `mandatoryInterceptions` as given, `[]` included; present exactly when one of its fields is; never built from a record |
 | `reason` | `reason`, only when `options.bindReason` is true and the source has one |
 

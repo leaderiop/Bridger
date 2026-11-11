@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-19                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-11-11): BEH-BR-162 `Options.report` (default true); BEH-BR-163 a registry made with `report: false` reports nothing (CL4); BEH-BR-168 excepts such registries (C4); BEH-BR-163 `ActivePlugin` also gives an `IncompatibleContract` its `providerRealm` (CL7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -108,6 +108,8 @@ namespace ContributionRegistry {
   interface Options {
     readonly drainTimeout?: Duration.Input | "forever"   // default 30 seconds
     readonly name?: string                               // shown by inspect; default "registry"
+    readonly report?: boolean                            // default true; false: entries are not reported to inspect
+                                                         // (the event bus's listener lists, 16, BEH-BR-140)
   }
   function make<A>(options?: Options): Effect.Effect<Registry<A>, never, Scope.Scope>
   function make<Self, Shape, M extends Record<string, MethodSpec>>(options: Options & {
@@ -182,14 +184,15 @@ REQUIREMENT: When `add` is called inside a plugin's activation (the
              contribution is withdrawn (13 — Observability and
              Diagnostics, BEH-BR-119), and MUST carry the value's
              `pluginId` and `realm` as the entry's `owner` (BEH-BR-165).
-             A registry the event bus keeps a listener list in MUST NOT
-             report its entries: the bus reports each listener itself, once,
-             as a `listener` registration (16 — Event Bus, BEH-BR-140;
-             CCR-BR-037). The registry reaches the host only through the
+             A registry made with `report: false` — the event bus makes each
+             registry it keeps a listener list in so — MUST NOT report its
+             entries: the bus reports each listener itself, once, as a
+             `listener` registration (16 — Event Bus, BEH-BR-140;
+             CCR-BR-037, CCR-BR-038). The registry reaches the host only through the
              value the calling fiber carries, never through a reference to
              a host, which it is built before. It MUST NOT use the
-             reference for anything other than these and the `providerId` of
-             an `IncompatibleContract` it raises (26 — Versioned Contracts,
+             reference for anything other than these and the `providerId`
+             and `providerRealm` of an `IncompatibleContract` it raises (26 — Versioned Contracts,
              BEH-BR-233) (CCR-BR-036, CCR-BR-037).
 ```
 
@@ -420,8 +423,10 @@ REQUIREMENT: Multiplexing — several implementations behind one service key —
 REQUIREMENT: A registry MUST report each contribution's owning plugin and
              registry name to the host, through `ActivePlugin.report`
              (BEH-BR-163), so that `inspect` lists `{ registry, id }` for
-             that plugin. It MUST report names and ids only, never
-             values.
+             that plugin, except a registry made with `report: false` (the
+             event bus's listener lists, whose listeners the bus reports as
+             `listener` registrations; BEH-BR-163; CCR-BR-038). It MUST
+             report names and ids only, never values.
 ```
 
 One provider per key ([ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md))

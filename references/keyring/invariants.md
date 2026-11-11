@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-KR-002 holds across a whole-store re-bootstrap install through the store-swap participant (B6) (CCR-KR-007)<br>0.2 (2026-11-08): INV-KR-002 notes that storing an existing marker uses no key (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.4 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — INV-KR-002: keyring writes on the outbox database take the durable-bus fence (H4); `decrypt` and the codec refuse every subject from the `OriginChange` until the re-apply commits (K1); the store-swap crash window stated as a named residual (K2) (CCR-KR-008)<br>0.3 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-KR-002 holds across a whole-store re-bootstrap install through the store-swap participant (B6) (CCR-KR-007)<br>0.2 (2026-11-08): INV-KR-002 notes that storing an existing marker uses no key (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -43,10 +43,20 @@ before the payload leaves encode; encode fails rather than passing plaintext.
 **Source**: tombstone checked before every key use *(Planned)*. Storing an
 existing `Shredded` marker uses no key and encrypts nothing (BEH-KR-012). A
 whole-store re-bootstrap install that replaces a `KeyStore` sharing the
-outbox's database does not reopen a subject: the keyring's store-swap
-participant reads every tombstone before the swap, treats those subjects as
-shredded from then on, and writes the tombstones again to the new store
-before it serves `decrypt` (BEH-KR-020).
+outbox's database does not reopen a subject: every keyring write on that
+database takes the durable-bus fence, so no tombstone commits during the
+freeze (BEH-KR-017); the keyring's store-swap participant reads every
+tombstone before the swap, treats those subjects as shredded from then on,
+and from the `OriginChange` until it has written the tombstones again to the
+new store `decrypt` and the codec refuse every subject with
+`KeyStoreUnavailable` (BEH-KR-012, BEH-KR-020).
+
+**Residual (store-swap crash window)**: what the participant read lives in
+memory only, and durable-bus offers no participant step after the swap and
+before the `OriginChange`. A process that stops between the swap and the
+re-apply's commit restarts on a store without those tombstones, and a
+subject shredded only in the replaced store decrypts again until the
+restored-host rule re-applies them (BEH-KR-007, BEH-KR-020; RSK-KR-001).
 
 **Implication**: no new plaintext is produced for a shredded subject while its
 redaction is still running.

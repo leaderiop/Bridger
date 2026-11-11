@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-URS                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | User Requirements Specification                              |
-> | Change History | 0.2 (2026-11-09): URS-GX-001 (no record refused for a condition the store could keep), URS-GX-003 (marked and colliding entries), URS-GX-005 (one sealing mechanism, possibly a sibling package), NFR-GX-002 (`@bridger/audit-chain` optional peer); §6 rows for files 21 and 22, INV-GX-013 withdrawn, INV-GX-016; gaps GX-G10 and GX-G11 (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-11): NFR-GX-006 seal verification and sealed export bounded by `maxEntries`, the streaming paths by page size and open-request limit (PL4) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.2 (2026-11-09): URS-GX-001 (no record refused for a condition the store could keep), URS-GX-003 (marked and colliding entries), URS-GX-005 (one sealing mechanism, possibly a sibling package), NFR-GX-002 (`@bridger/audit-chain` optional peer); §6 rows for files 21 and 22, INV-GX-013 withdrawn, INV-GX-016; gaps GX-G10 and GX-G11 (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -193,9 +193,11 @@ vector ([PROC-GX-01](./process/requirement-id-scheme.md) §5).
 
 ### NFR-GX-006: Bounded memory on read
 
-Checks on read, seal verification and export stream a host's entries and use
-memory bounded by configuration (page size, open-request limit), not by the
-length of the trail; exceeding a bound fails the run with an error
+Checks on read and unsealed export stream a host's entries and use memory
+bounded by configuration (page size, open-request limit); seal verification
+and sealed export, which hold a host's entries whole, are bounded by
+`maxEntries`. Memory is bounded by these settings, not by the length of the
+trail; exceeding a bound fails the run with an error
 (`CheckCapacityExceeded`), never a partial report.
 
 ### NFR-GX-007: No secrets in any output

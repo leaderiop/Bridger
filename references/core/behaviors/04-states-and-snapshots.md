@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-04                                               |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-11): BEH-BR-026 the `active → stopping` edge names the refused `whenAvailable` re-run and a child's sub-scope close or unmount (CL8), and the settled legality of `failed` (cleanup) cites BEH-BR-071 (CL7); BEH-BR-027 a child removal by its sub-scope close or unmount shows `reason` "remove", `parked` is cleared by them only for a stop parked outside the parent's stop (H1, CL1), `providerIds` name plugins as `{ id, realm }` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.11 (2026-11-10): BEH-BR-027 `StopReason` "refused-digest" also covers a refused `whenAvailable` re-run (C11) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-031 dependency loss leaves a `dormant` plugin unchanged, and shutdown's unregistration is named as the one other exit from `failed` (audit round 3, Low) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-026 `starting` may also be left by unregistration when shutdown begins before its build (C2); diagram edge `active → stopping` for a refused background restart; BEH-BR-027 `StopReason` gains "refused-digest" (C5) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-026 edge `starting` → unregistered when shutdown begins while its build has not begun (12, BEH-BR-105) (review of CCR-BR-032) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-026 the unregistration edges name shutdown; BEH-BR-027 under shutdown every `stopping` entry shows `reason` "shutdown" and `next` "gone" (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): idle return edges and `StopReason` "idle" (27, BEH-BR-252) (CCR-BR-024); disabled reason "refused-digest" and start-refused edges (CCR-BR-026)<br>0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.13 (2026-11-11): BEH-BR-027 `parentId` is the parent's `{ id, realm }` (C5); a child stop the parent's stop parked keeps `reason` "dependency-loss" (CL1) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.12 (2026-11-11): BEH-BR-026 the `active → stopping` edge names the refused `whenAvailable` re-run and a child's sub-scope close or unmount (CL8), and the settled legality of `failed` (cleanup) cites BEH-BR-071 (CL7); BEH-BR-027 a child removal by its sub-scope close or unmount shows `reason` "remove", `parked` is cleared by them only for a stop parked outside the parent's stop (H1, CL1), `providerIds` name plugins as `{ id, realm }` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.11 (2026-11-10): BEH-BR-027 `StopReason` "refused-digest" also covers a refused `whenAvailable` re-run (C11) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-031 dependency loss leaves a `dormant` plugin unchanged, and shutdown's unregistration is named as the one other exit from `failed` (audit round 3, Low) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-026 `starting` may also be left by unregistration when shutdown begins before its build (C2); diagram edge `active → stopping` for a refused background restart; BEH-BR-027 `StopReason` gains "refused-digest" (C5) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-026 edge `starting` → unregistered when shutdown begins while its build has not begun (12, BEH-BR-105) (review of CCR-BR-032) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-026 the unregistration edges name shutdown; BEH-BR-027 under shutdown every `stopping` entry shows `reason` "shutdown" and `next` "gone" (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): idle return edges and `StopReason` "idle" (27, BEH-BR-252) (CCR-BR-024); disabled reason "refused-digest" and start-refused edges (CCR-BR-026)<br>0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -180,7 +180,7 @@ type PluginSnapshot = PluginCommon & (
 interface PluginCommon {
   readonly id: string
   readonly realm: string
-  readonly parentId?: string
+  readonly parentId?: { readonly id: string; readonly realm: string }   // the parent, as a record: a child may sit in another realm (17, BEH-BR-147)
   readonly meta?: { readonly version?: string; readonly digest?: string; readonly description?: string }
   readonly lazy?: { readonly loaded: boolean }   // exactly for a registration made from a lazy definition (27, BEH-BR-244)
   readonly allowChildren: boolean                // effective value (28, BEH-BR-263)
@@ -199,8 +199,8 @@ REQUIREMENT: Every entry of `HostSnapshot.plugins` MUST be a
 
 ```
 REQUIREMENT: `realm` MUST be "default" unless the plugin was installed into
-             another realm; `parentId` MUST be set exactly for child plugins
-             (14 — Children and Groups); `meta` MUST carry the version,
+             another realm; `parentId` MUST be set exactly for child plugins,
+             as the parent's `{ id, realm }` (14 — Children and Groups); `meta` MUST carry the version,
              digest and description of the definition currently registered
              under the ID, and nothing else from it.
 ```
@@ -231,9 +231,10 @@ REQUIREMENT: On a `stopping` entry, `reason` MUST name what began the stop,
              "gone", both when it begins the child's stop and when it
              resumes a stop parked outside the parent's stop, from the
              revision in which it begins or resumes it (14 — Children and
-             Groups, BEH-BR-121); a child stop the parent's stop parked
-             keeps the parent's stop's `reason` while a sub-scope close or
-             an `unmount` waits for it. `next` MUST
+             Groups, BEH-BR-121); a child stop the parent's stop parked —
+             a parked system stop of the cascade (08 — Operation Legality,
+             BEH-BR-080) — keeps `reason` "dependency-loss"; a sub-scope
+             close or an `unmount` does not change it. `next` MUST
              name where the plugin will go when the stop completes ("gone"
              for removal), and MUST be updated in the same revision as any
              change to the stop's destination, parked or not.

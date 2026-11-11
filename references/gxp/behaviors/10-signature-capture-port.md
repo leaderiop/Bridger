@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-10                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-10): BEH-GX-074 the rendered text shows every field binding version 2 locks in: `onBehalfOf`, `undo`, the manifest digest, `allowChildren` and `mandatoryInterceptions` (M1) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-11): BEH-GX-074 `renderBinding` shows a bound `cold` (core CCR-BR-038 coupling) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.2 (2026-11-10): BEH-GX-074 the rendered text shows every field binding version 2 locks in: `onBehalfOf`, `undo`, the manifest digest, `allowChildren` and `mandatoryInterceptions` (M1) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -112,7 +112,8 @@ REQUIREMENT: `rendered.text` MUST be produced by the companion's
              bound; each configuration path, with "fingerprinted" against the
              paths whose value is bound by a fingerprint; the requester's id;
              when bound, the `onBehalfOf` plugin's id, realm, version and
-             digest, "undo action" for `undo`, and the `requestOnly`
+             digest, "undo action" for `undo`, "cold start, no state
+             handoff" for `cold`, and the `requestOnly`
              manifest digest, `allowChildren` and each mandatory
              interception's `serviceId` and `id` (or "none" for an empty
              list), marked "matched by the gate only" (BEH-GX-083); and the

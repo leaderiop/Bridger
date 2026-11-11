@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-014                                              |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amended by ADR-BR-042, ADR-BR-050 and ADR-BR-053  |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.6 (2026-11-11): `providerIds` name plugins as `{ id, realm }` (C2); a child's sub-scope close or unmount shows `reason` "remove" and resumes only a stop parked outside its parent's stop (H1, CL1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): Amended by ADR-BR-042, ADR-BR-050 and ADR-BR-053 marked; the union and `StopReason` defer to BEH-BR-027 (C22, C5) (CCR-BR-034)<br>0.4 (2026-11-08): The snapshot union gains `dormant` (ADR-BR-042) (CCR-BR-017); state handoff adds no snapshot field (CCR-BR-019)<br>0.3 (2026-10-03): `HostSnapshot.auditDropped` listed (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` of a resumed or parked stop (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-11): `parentId` is the parent's `{ id, realm }` (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.6 (2026-11-11): `providerIds` name plugins as `{ id, realm }` (C2); a child's sub-scope close or unmount shows `reason` "remove" and resumes only a stop parked outside its parent's stop (H1, CL1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): Amended by ADR-BR-042, ADR-BR-050 and ADR-BR-053 marked; the union and `StopReason` defer to BEH-BR-027 (C22, C5) (CCR-BR-034)<br>0.4 (2026-11-08): The snapshot union gains `dormant` (ADR-BR-042) (CCR-BR-017); state handoff adds no snapshot field (CCR-BR-019)<br>0.3 (2026-10-03): `HostSnapshot.auditDropped` listed (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` of a resumed or parked stop (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -35,7 +35,7 @@ type PluginSnapshot = PluginCommon & (
   | { readonly state: "failed";   readonly failure: { readonly phase: "build" | "activation" | "runtime" | "cleanup"; readonly message: string }; readonly missingServiceIds: readonly ServiceId[] }
   | { readonly state: "disabled" }
 )
-interface PluginCommon { readonly id: string; readonly realm: string; readonly parentId?: string; readonly meta?: { readonly version?: string; readonly digest?: string; readonly description?: string } }
+interface PluginCommon { readonly id: string; readonly realm: string; readonly parentId?: { readonly id: string; readonly realm: string }; readonly meta?: { readonly version?: string; readonly digest?: string; readonly description?: string } }
 type StopReason = "dependency-loss" | "remove" | "replace" | "restart" | "reconfigure" | "disable" | "runtime-failure" | "shutdown"
 ```
 

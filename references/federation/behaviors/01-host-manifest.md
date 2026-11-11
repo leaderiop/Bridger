@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-01                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): round 2 follow-up: `ResolveFailed` declared (BEH-FD-005) (CCR-FD-005)<br>0.6 (2026-11-09): `ManifestImport.disclose` (BEH-FD-001) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1, F2) — `SignedManifest` is the loader's `SignedStatement` ("host-manifest", id JCS([authority, host]), version the decimal revision, loader `Signature` shape) verified by exactly the loader's call, with the envelope checked against the decoded manifest; revocation lists no longer verified here; a newer manifest held behind a re-bootstrap records pending kills; every apply subtracts pending kills and passes `Revocation.filterDesired`; the last applied manifest's bytes are recorded (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18 and 20, CORE-DECISIONS-2 — verification through the loader's `SignaturePolicy.verify({ statementType: "host-manifest" })`; kill entries are no longer the only kill path (BEH-FD-041); `residency` on imports, exports and peers; `mandatoryInterceptions` and `allowChildren` carried as manifest data; `atomic` off by default with `PartialApply` reported; core reconcile order and G65 stated (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-005: the projection drops, at every apply, a manifest plugin that depends on a delivery import ("delivery-import-dependent"), and `Manifest.toDesired` takes `deliveryImports` (H8); BEH-FD-007: the import proxies' synthesized digests are passed in `filterDesired`'s `pinned` and published with `AcceptedDigests.setPinned("@bridger/federation", digests)` for the gate, the view and the kill switch (H9) (CCR-FD-009)<br>0.7 (2026-11-10): round 2 follow-up: `ResolveFailed` declared (BEH-FD-005) (CCR-FD-005)<br>0.6 (2026-11-09): `ManifestImport.disclose` (BEH-FD-001) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1, F2) — `SignedManifest` is the loader's `SignedStatement` ("host-manifest", id JCS([authority, host]), version the decimal revision, loader `Signature` shape) verified by exactly the loader's call, with the envelope checked against the decoded manifest; revocation lists no longer verified here; a newer manifest held behind a re-bootstrap records pending kills; every apply subtracts pending kills and passes `Revocation.filterDesired`; the last applied manifest's bytes are recorded (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18 and 20, CORE-DECISIONS-2 — verification through the loader's `SignaturePolicy.verify({ statementType: "host-manifest" })`; kill entries are no longer the only kill path (BEH-FD-041); `residency` on imports, exports and peers; `mandatoryInterceptions` and `allowChildren` carried as manifest data; `atomic` off by default with `PartialApply` reported; core reconcile order and G65 stated (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -287,7 +287,7 @@ declare const Manifest: {
     manifest: HostManifest,
     resolved: ReadonlyMap<string, PluginDefinition<any, any, any, any>>,  // digest -> definition
     local: readonly (Partial<DesiredPlugin> & { readonly id: string })[],
-    options: { readonly fresh: boolean }
+    options: { readonly fresh: boolean; readonly deliveryImports: readonly string[] }   // FederationOptions.deliveryImports (02, BEH-FD-014)
   ): { readonly desired: readonly DesiredPlugin[]; readonly dropped: readonly { id: string; reason: string }[] }
 }
 ```
@@ -341,6 +341,16 @@ REQUIREMENT: The projection MUST copy `mandatoryInterceptions` and
              `Federation.Status.rejected` and MUST NOT be retried: changing
              installation policy takes a remove and an install, which the
              authority expresses as two revisions.
+```
+
+```
+REQUIREMENT: At every apply, the projection MUST drop, with reason
+             "delivery-import-dependent", and report every
+             `ManifestPlugin` whose resolved definition depends on an
+             import named in `deliveryImports` — lists that import's
+             contract key in `requires` in the import's realm (02,
+             BEH-FD-014) — so that no apply installs a dependent of a
+             delivery import.
 ```
 
 ```
@@ -429,7 +439,21 @@ REQUIREMENT: Every desired list MUST also have removed every entry that a
              released revocation set (06, BEH-FD-042), so that a digest the
              set revokes — by digest, statement digest or signer — is
              treated as a kill entry at every apply, whether or not the
-             manifest lists it.
+             manifest lists it. Its `pinned` MUST hold the synthesized
+             `meta.digest` of every import proxy of the list (04,
+             BEH-FD-026): a proxy carries no package code, its trust comes
+             from the signed manifest, and it has no `AcceptedDigests`
+             record, so it is revoked by digest only, never dropped
+             "verification-unknown". Before handing the list to
+             `reconcile`, the plugin MUST publish the same digests, with
+             those of the import proxies its scope still has installed,
+             with `AcceptedDigests.setPinned("@bridger/federation",
+             digests)` on the loader's shared store
+             (`FederationOptions.acceptedDigests`), from whose `pinned`
+             `LoaderGate`, `RevokedDigests` and the kill switch read pinned
+             digests live (loader BEH-LD-015, BEH-LD-070), so that no gate
+             or link refuses an import proxy "verification-unknown"; the
+             application passes nothing more to them.
 ```
 
 A kill entry is part of desired state and is applied at the next apply like

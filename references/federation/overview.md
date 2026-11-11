@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-OVW                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): errors table gains `DeliveryImportRefused`; Specification audit of 2026-11-11 (SPEC-AUDIT-05) — errors table gains `RebootstrapFailed`, `ResolveFailed`, `DialFailed` and `ListenFailed` (PL11); `IncompatibleContract` by `"^" + V` (F4); `PeerLinkStatus` names `delivery-only` (H4) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — `LinkConnection` and the profile on dialled and accepted connections in the API table (H4) (CCR-FD-007)<br>0.7 (2026-11-10): errors: the event delivery companion's `SnapshotFailed` and `IncarnationUnavailable` reused for `OutboxSettlement.install` (BEH-FD-014, P1) (CCR-FD-005)<br>0.6 (2026-11-09): errors: the remote companion's `LocalContractRefused` is reused for a local contract in `contracts` (BEH-FD-009, core CCR-BR-033) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1–F4, F8–F10, F22) — API rows for the extended `ManifestStore`, `OutboxSettlement`, `releaseRevocation` and the loader's `RevocationSource.offer` (the `revocationFeed` row withdrawn), reader-version reports; worked example wires the required `revocation` and the outbox port (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18–20 and 22 — API rows for `RebootstrapOutbox`, `Federation.revocationFeed`, `VersionReports`; errors `RebootstrapBlocked`, `RevocationListStale`; `PlacementRefused` reused; core seams used (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links on the remote companion's multiplexer and `Remote.serve`; single-major imports; per-import peer realms; listener port and `contracts` option; worked example updated (R3-01, R3-02, R3-18) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — the plugin uses the `outbox` port if present instead of requiring it, and the example wires `acceptedDigests` (H7, H9); errors table: `RebootstrapBlocked` names a hand-installed dependent and a missing outbox port, `DeliveryImportRefused` keeps only "not-an-import-id" (H8, PL11), `RevocationSourceMissing` added (PL12) (CCR-FD-009)<br>0.9 (2026-11-11): errors table gains `DeliveryImportRefused`; Specification audit of 2026-11-11 (SPEC-AUDIT-05) — errors table gains `RebootstrapFailed`, `ResolveFailed`, `DialFailed` and `ListenFailed` (PL11); `IncompatibleContract` by `"^" + V` (F4); `PeerLinkStatus` names `delivery-only` (H4) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — `LinkConnection` and the profile on dialled and accepted connections in the API table (H4) (CCR-FD-007)<br>0.7 (2026-11-10): errors: the event delivery companion's `SnapshotFailed` and `IncarnationUnavailable` reused for `OutboxSettlement.install` (BEH-FD-014, P1) (CCR-FD-005)<br>0.6 (2026-11-09): errors: the remote companion's `LocalContractRefused` is reused for a local contract in `contracts` (BEH-FD-009, core CCR-BR-033) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1–F4, F8–F10, F22) — API rows for the extended `ManifestStore`, `OutboxSettlement`, `releaseRevocation` and the loader's `RevocationSource.offer` (the `revocationFeed` row withdrawn), reader-version reports; worked example wires the required `revocation` and the outbox port (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18–20 and 22 — API rows for `RebootstrapOutbox`, `Federation.revocationFeed`, `VersionReports`; errors `RebootstrapBlocked`, `RevocationListStale`; `PlacementRefused` reused; core seams used (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links on the remote companion's multiplexer and `Remote.serve`; single-major imports; per-import peer realms; listener port and `contracts` option; worked example updated (R3-01, R3-02, R3-18) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -71,7 +71,7 @@ All signatures are illustrative until code exists.
 | `HostManifest`, `ManifestPlugin`, `ManifestRealm`, `ManifestPeer`, `ManifestExport`, `ManifestImport`, `KillEntry` | Schemas, types | The manifest as data, decoded with Effect Schema | [01](./behaviors/01-host-manifest.md) |
 | `SignedManifest` | type | Canonical bytes plus signatures, as received | [01](./behaviors/01-host-manifest.md) |
 | `Manifest.toDesired` | function | Pure projection of a verified manifest and local patches to `DesiredPlugin[]` | [01](./behaviors/01-host-manifest.md) |
-| `Federation.plugin` | function | The federation plugin; requires `Bridger.Host` and the ports below | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
+| `Federation.plugin` | function | The federation plugin; requires `Bridger.Host` and the ports below, but uses the `outbox` port only if present | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Federation.Status` | service | `current`, `changes`: applied revision, freshness, links, conflicts | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Federation.sync` | method | Fetch, verify and apply now | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `ManifestSource` | port | Fetches the latest signed manifest for this host from the authority | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
@@ -96,9 +96,10 @@ All signatures are illustrative until code exists.
 | `ExportConflict { key, owners }` | Two owners present the same fence for one single-owner export |
 | `StaleExport { key, fence, highest }` | An owner presents a fence lower than the highest the importer has seen |
 | `ResyncRequired { host, since }` | The authority, or the offline cap, demands a snapshot re-bootstrap |
-| `RebootstrapBlocked { pending, reason }` | Step 1 of a re-bootstrap could neither push nor keep the local facts, or a delivery import gained another dependent; nothing was fetched or replaced |
+| `RebootstrapBlocked { pending, reason }` | Step 1 of a re-bootstrap could neither push nor keep the local facts, found no outbox port, or found a hand-installed dependent of a delivery import (`pending` 0 for those two); nothing was fetched or replaced |
 | `RebootstrapFailed { reason }` | The application's `Rebootstrap.fetch` (step 2) or `install` (step 3a) failed; the applied manifest stays in force and the re-bootstrap is retried on its own backoff, with links resumed only when no install had begun |
-| `DeliveryImportRefused { entry, reason, dependent? }` | A `FederationOptions.deliveryImports` entry is not an import id, or another local plugin depends on that import; the federation plugin's build fails (BEH-FD-014) |
+| `DeliveryImportRefused { entry, reason }` | A `FederationOptions.deliveryImports` entry is not an import id; the federation plugin's build fails (BEH-FD-014) |
+| `RevocationSourceMissing` | `FederationOptions.revocation` is not wired; the federation plugin's build fails (BEH-FD-041) |
 | `ResolveFailed { digest, message }` | The `PluginResolver` could not resolve an entry's digest; the entry is dropped, an installed plugin is not pruned |
 | `DialFailed { peer, message }` | The `LinkDialer` could not open a link to a peer; redialled with backoff |
 | `ListenFailed { message }` | The `LinkListener` failed to accept links; retried |
@@ -133,7 +134,8 @@ const federation = Federation.plugin({
   syncEvery: "1 minute",
   maxOffline: "72 hours",
   revocation: "@app/Revocation",                             // the loader's RevocationSource key (required)
-  outbox: "@app/RebootstrapOutbox",                           // DurableBus.rebootstrapOutbox() (event delivery companion)
+  outbox: "@app/RebootstrapOutbox",                           // DurableBus.rebootstrapOutbox() (event delivery companion); optional, resolved at step 1
+  acceptedDigests: "@bridger/loader/AcceptedDigests",          // the loader's shared store; import proxies' digests pinned there (BEH-FD-007)
   rebootstrap: AppSnapshot.rebootstrap                        // application; declares `replaces`
 })
 

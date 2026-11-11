@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-03                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-11): BEH-GX-022 with sealing on the sink is the companion's sink around audit-chain's, given a wrapper of the keyed hasher that notes a `KeyedHashFailed`, so the "keyed-hash-failed" outcome and metric value can be produced; BEH-GX-017 and BEH-GX-019 `store.append` is not called on that path, the only exception to "exactly once" (G2) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-024 metric outcomes "rejected" (a `TrailWriteFailed` of that reason) and "keyed-hash-failed" (audit-chain's keyed hasher failed), so every failure row of the sink's table has an outcome (PL11) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-017: one `trailSink` layer and its status serve exactly one host, as audit-chain's chain sink does; a second host's record is stored, never refused (H6) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.6 (2026-11-11): BEH-GX-020 the append-once rule excepts the keyed-hash-failed path (G5); BEH-GX-022 other outcomes reach core unchanged because audit-chain forwards the inner store's `AuditWriteFailed` unchanged (audit-chain CCR-AC-008) (PL7) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-11): BEH-GX-022 with sealing on the sink is the companion's sink around audit-chain's, given a wrapper of the keyed hasher that notes a `KeyedHashFailed`, so the "keyed-hash-failed" outcome and metric value can be produced; BEH-GX-017 and BEH-GX-019 `store.append` is not called on that path, the only exception to "exactly once" (G2) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-024 metric outcomes "rejected" (a `TrailWriteFailed` of that reason) and "keyed-hash-failed" (audit-chain's keyed hasher failed), so every failure row of the sink's table has an outcome (PL11) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-017: one `trailSink` layer and its status serve exactly one host, as audit-chain's chain sink does; a second host's record is stored, never refused (H6) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -231,7 +231,9 @@ stored the record; it is the one store limit core's latch must make loud.
 ```
 REQUIREMENT: Each `AuditSink.record` call MUST call `store.append` exactly
              once, in the fiber of that call, and MUST answer only after
-             `append` has returned. The sink MUST NOT hold a record in a
+             `append` has returned, except on the keyed-hash-failed path of
+             BEH-GX-022, on which audit-chain fails before it calls its inner
+             store and `store.append` is not called (BEH-AC-001, BEH-AC-007). The sink MUST NOT hold a record in a
              buffer, batch records, or answer from a cache.
 ```
 
@@ -355,7 +357,9 @@ REQUIREMENT: With sealing on, the `AuditSink` that `trailSink` provides MUST
              so neither `trailChainStore` nor `store.append` is called and
              nothing else is counted for the attempt. Every other outcome is
              counted by `trailChainStore`, which performs the steps of
-             BEH-GX-018 to BEH-GX-021, and passed to core unchanged. The
+             BEH-GX-018 to BEH-GX-021, and passed to core unchanged:
+             audit-chain forwards the inner store's `AuditWriteFailed`
+             unchanged, message included (BEH-AC-001, BEH-AC-008). The
              companion's sink MUST tell a keyed-hash failure apart only
              through `k`, never by reading an `AuditWriteFailed` message.
 ```

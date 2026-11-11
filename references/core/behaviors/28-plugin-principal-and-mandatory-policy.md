@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-28                                               |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-11): BEH-BR-267 step 4b submits exactly the calls able to start, decided by the cell of BEH-BR-071 or, for `stopping`, BEH-BR-072 or BEH-BR-073, so `Conflict` cells of BEH-BR-072 and joins are not submitted; check 104 aligned (C9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.9 (2026-11-10): BEH-BR-267 step 4b skips `Conflict` cells as well as no-op cells, `enable` of `failed` listed as not submitted; check 104 aligned (C6, C7); a `whenAvailable` re-run under "restart" is a consult point and counts as a background restart (C11) (CCR-BR-036)<br>0.8 (2026-11-10): BEH-BR-267 one step-4b criterion: the listed operations except where the BEH-BR-071 cell is a no-op, a `reconfigure` of a `dormant` plugin never submitted; check 104 aligned (C8); BEH-BR-263 mount-check order includes the `InstallError` checks (audit round 3, Low) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-257 a build that supersedes another in `starting` begins a new activation in a new revision, so the principal's revision stays unique (audit round 2, Low); BEH-BR-263 a mount refused by `allowChildren` or the `AccessPolicy` writes no record, one refused by the `RefusalList` writes `start-refused`, and the order of the mount checks (audit round 2, Low); BEH-BR-267 a trigger on a `dormant` plugin is its own consult point, to `waiting` too (C14), and a refused background restart stops with `StopReason` "refused-digest" (C5); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-258 a handoff's `export` runs under the old activation's principal, `upgrade` and `import` under the new activation's (U-04) (CCR-BR-033)<br>0.5 (2026-11-09): BEH-BR-260 a failing mandatory `wrap` on an optional or reactive capture has the outcome BEH-BR-152 now states (U-06) (CCR-BR-032)<br>0.4 (2026-11-08): BEH-BR-262 Settled: the call's realm adds to, never replaces, a plugin's own mandatory sets (G-P16 not adopted); BEH-BR-267 only the definition's own digest is submitted, other revocation identifiers are the list's mapping (agent review R3-03), the reconcile diff, `registeredAt` and `plan` with a refused digest (R1-07); BEH-BR-269 `origin` form is the companion's to document (agent review F27); check 104 amended (CCR-BR-029)<br>0.3 (2026-11-08): BEH-BR-267 `RefusalList` port consulted on every start, system transitions included; BEH-BR-268 `AccessPolicy.declaredOnly`; BEH-BR-269 `AccessPolicy.ask` for companion buses and delivery; `AccessRequest` gains `declared`, `origin` and the styles "subscribe", "delivery" and mode "publish"; BEH-BR-263 Open closed (the install request carries `allowChildren` and `mandatoryInterceptions`, 25); BEH-BR-265 reports `refusal`; checks 104, 105 and 109 (CCR-BR-026); BEH-BR-259: root lazy-triggered records carry onBehalfOf (CCR-BR-024); BEH-BR-260 Open settled by the mandatory catalog (CCR-BR-025)<br>0.2 (2026-11-08): `onBehalfOf` defined as the principal of the calling fiber, with the provider case stated; principal retired after the activation's finalizers; `child` access requests carry the parent activation's principal; principal `revision` defined; realms of `Host.use` from plugin code; mandatory interceptions are application-wired and cover host captures only (not base-service reads); `who` before the access check; unwired-sameness reworded (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook calls under the owner's principal and the hook registry's access check (CCR-BR-019) |
+> | Change History | 0.11 (2026-11-11): BEH-BR-263 `ChildNotAllowed.parentId`/`childId` and `child-refused.childId` are `{ id, realm }` records, the `child` access request gains `childRealm` (C5); BEH-BR-267 step 4b keys its cell on an operator operation in flight (BEH-BR-072, whatever the state), then a system stop (BEH-BR-073), then the state (BEH-BR-071) (C6) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.10 (2026-11-11): BEH-BR-267 step 4b submits exactly the calls able to start, decided by the cell of BEH-BR-071 or, for `stopping`, BEH-BR-072 or BEH-BR-073, so `Conflict` cells of BEH-BR-072 and joins are not submitted; check 104 aligned (C9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.9 (2026-11-10): BEH-BR-267 step 4b skips `Conflict` cells as well as no-op cells, `enable` of `failed` listed as not submitted; check 104 aligned (C6, C7); a `whenAvailable` re-run under "restart" is a consult point and counts as a background restart (C11) (CCR-BR-036)<br>0.8 (2026-11-10): BEH-BR-267 one step-4b criterion: the listed operations except where the BEH-BR-071 cell is a no-op, a `reconfigure` of a `dormant` plugin never submitted; check 104 aligned (C8); BEH-BR-263 mount-check order includes the `InstallError` checks (audit round 3, Low) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-257 a build that supersedes another in `starting` begins a new activation in a new revision, so the principal's revision stays unique (audit round 2, Low); BEH-BR-263 a mount refused by `allowChildren` or the `AccessPolicy` writes no record, one refused by the `RefusalList` writes `start-refused`, and the order of the mount checks (audit round 2, Low); BEH-BR-267 a trigger on a `dormant` plugin is its own consult point, to `waiting` too (C14), and a refused background restart stops with `StopReason` "refused-digest" (C5); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-258 a handoff's `export` runs under the old activation's principal, `upgrade` and `import` under the new activation's (U-04) (CCR-BR-033)<br>0.5 (2026-11-09): BEH-BR-260 a failing mandatory `wrap` on an optional or reactive capture has the outcome BEH-BR-152 now states (U-06) (CCR-BR-032)<br>0.4 (2026-11-08): BEH-BR-262 Settled: the call's realm adds to, never replaces, a plugin's own mandatory sets (G-P16 not adopted); BEH-BR-267 only the definition's own digest is submitted, other revocation identifiers are the list's mapping (agent review R3-03), the reconcile diff, `registeredAt` and `plan` with a refused digest (R1-07); BEH-BR-269 `origin` form is the companion's to document (agent review F27); check 104 amended (CCR-BR-029)<br>0.3 (2026-11-08): BEH-BR-267 `RefusalList` port consulted on every start, system transitions included; BEH-BR-268 `AccessPolicy.declaredOnly`; BEH-BR-269 `AccessPolicy.ask` for companion buses and delivery; `AccessRequest` gains `declared`, `origin` and the styles "subscribe", "delivery" and mode "publish"; BEH-BR-263 Open closed (the install request carries `allowChildren` and `mandatoryInterceptions`, 25); BEH-BR-265 reports `refusal`; checks 104, 105 and 109 (CCR-BR-026); BEH-BR-259: root lazy-triggered records carry onBehalfOf (CCR-BR-024); BEH-BR-260 Open settled by the mandatory catalog (CCR-BR-025)<br>0.2 (2026-11-08): `onBehalfOf` defined as the principal of the calling fiber, with the provider case stated; principal retired after the activation's finalizers; `child` access requests carry the parent activation's principal; principal `revision` defined; realms of `Host.use` from plugin code; mandatory interceptions are application-wired and cover host captures only (not base-service reads); `who` before the access check; unwired-sameness reworded (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook calls under the owner's principal and the hook registry's access check (CCR-BR-019) |
 
 ---
 
@@ -612,8 +612,8 @@ wrap happens once per activation.
 interface InstallOptions { /* ... */ readonly allowChildren?: boolean }   // default true
 
 class ChildNotAllowed extends Schema.TaggedError<ChildNotAllowed>()("ChildNotAllowed", {
-  parentId: Schema.String,
-  childId: Schema.String,      // the prefixed id the child would have had
+  parentId: Schema.Struct({ id: Schema.String, realm: Schema.String }),
+  childId: Schema.Struct({ id: Schema.String, realm: Schema.String }),   // the prefixed id and realm the child would have had (CCR-BR-038)
   reason: Schema.String        // "allowChildren: false" or the AccessPolicy's reason
 }) {}
 
@@ -649,8 +649,8 @@ REQUIREMENT: When `allowChildren` permits the mount and an `AccessPolicy`
 
 ```
 REQUIREMENT: A refused mount MUST be logged at warning level naming the
-             parent and the child id, and MUST publish a `child-refused
-             { id, childId }` host event. A mount refused by `allowChildren`
+             parent and the child id, and MUST publish a `child-refused` host event (13,
+             BEH-BR-114; `childId` a `{ id, realm }` record). A mount refused by `allowChildren`
              or the `AccessPolicy` writes no audit record: nothing changed.
              A mount refused by the `RefusalList` writes the one
              `start-refused` record of BEH-BR-267, the evidence that a
@@ -708,7 +708,7 @@ type AccessRequest =
       readonly mode: "emit" | "parallel" | "serial" | "waterfall" | "publish" }   // "publish": companion buses
   | { readonly kind: "contribute"; readonly principal?: PrincipalRef; readonly registry: string; readonly id: string;
       readonly declared?: DeclaredAccess }                              // BEH-BR-268
-  | { readonly kind: "child";      readonly principal: PrincipalRef;  readonly childId: string;   // principal: the parent activation's
+  | { readonly kind: "child";      readonly principal: PrincipalRef;  readonly childId: string; readonly childRealm: string;   // principal: the parent activation's
       readonly definition: { readonly version?: string; readonly digest?: string } }
 
 type AccessDecision = "allow" | { readonly deny: string }
@@ -966,13 +966,15 @@ REQUIREMENT: At step 4b, for each plugin-addressed operator call among
              digest-bearing definition *able to start* (22 — Attributable
              Operations, BEH-BR-188, step 4b): when the outcome that decides
              it leaves the registration in `dormant`, `waiting` or
-             `starting`, or rebuilds it. That outcome is the cell of
-             BEH-BR-071 (08 — Operation Legality) for the registration's
-             state at step 4, or, when that state is `stopping`, the cell of
-             BEH-BR-072 for the operator operation in flight, or the rule of
-             BEH-BR-073 for a system stop (a call that waits for a running
-             system stop is submitted, its outcome being decided only once
-             the stop settles). No other call is submitted, so no-op cells,
+             `starting`, or rebuilds it. That outcome is, when an operator
+             operation is in flight on the registration at step 4 —
+             whatever state its snapshot shows — the cell of BEH-BR-072
+             (08 — Operation Legality) for that operation; otherwise, when
+             the registration is `stopping` under a system stop, the rule
+             of BEH-BR-073 (a call that waits for a running system stop is
+             submitted, its outcome being decided only once the stop
+             settles); otherwise the cell of BEH-BR-071 for the
+             registration's state at step 4. No other call is submitted, so no-op cells,
              `Conflict` cells and joins never reach the list (CCR-BR-037).
              Not submitted, therefore: `retry` or `enable`
              of a `dormant`, `waiting`, `starting` or `active`

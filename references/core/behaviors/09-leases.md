@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-09                                               |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-11): BEH-BR-086 a sub-scope close or unmount resumes only a child stop parked outside its parent's stop, never one the parent's stop parked, and fails with `WouldDeadlock` when its fiber holds a lease on the child while that stop is parked with an operator call (H1); the no-caller list names the refused `whenAvailable` re-run (CL3); BEH-BR-085 `DrainTimeout` carries `realm` and `target` as `{ id, realm }` (C2); BEH-BR-088 the fibers without `CurrentTransition` are those the host forks through `background` or `whenAvailable`, a `forkScoped` fiber following the untracked-fork rule (C1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.11 (2026-11-10): BEH-BR-086 a sub-scope close or `unmount` that removes a child itself is a path with no caller, and one that waits for a removal the parent's stop began follows that stop's limits (H1); BEH-BR-088 `HeldPlugins` and `CurrentTransition` name plugins by the canonical key `JSON.stringify([realm, id])`, never a separator join, which two (realm, id) pairs could share since neither name has a grammar, `WouldDeadlock` carries `realm` (C1); an untracked fiber a step forks keeps `CurrentTransition` for life, a documented false positive (C2) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-088 builds, `load` and finalizers carry their plugin in the new `@bridger/core/CurrentTransition` reference, `HeldPlugins` keeps leases only, and `CurrentTransition` is exported for companions to carry across a hand-off on the rules of `HeldPlugins`; `shutdown` fails `WouldDeadlock` from `CurrentTransition` alone, before its `requested` record (H1); BEH-BR-084 the child inherits `CurrentTransition`; BEH-BR-086 a refused background restart is a no-caller revocation (C3) (CCR-BR-035)<br>0.9 (2026-11-09): BEH-BR-081–083 the unions of `use`, `useAll` and `lease` add `ResolutionRefused`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-087: a deadline shortens only a given per-call timeout, never `lease`; BEH-BR-088: `HeldPlugins` provided only with a holder's set (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-087 lease wait shortened by `Annotation.Deadline` (CCR-BR-018); BEH-BR-088 `HeldPlugins` exported for companions (CCR-BR-020)<br>0.6 (2026-10-02): Builds and finalizers carry HeldPlugins (forks they await too, not fibers forked into the activation scope); WouldDeadlock rechecked at linearization and raised by `retry`/`enable`; DrainTimeout `id`/`target`, `leases` 0 while waiting on a build; one parking rule; no-caller cascades revoke (CCR-BR-008)<br>0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.13 (2026-11-11): BEH-BR-086 a sub-scope finalizer never fails or waits on a lease of its closing fiber, and `unmount` fails with `WouldDeadlock` before any wait while the parent's operator-rooted stop removes the child (H1, H2, C1); the no-caller list names the stops of a child's own dependents during its sub-scope close or unmount (CL3); BEH-BR-085 the `drain-timeout` and `stop-parked` events carry `realm` (CL6) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.12 (2026-11-11): BEH-BR-086 a sub-scope close or unmount resumes only a child stop parked outside its parent's stop, never one the parent's stop parked, and fails with `WouldDeadlock` when its fiber holds a lease on the child while that stop is parked with an operator call (H1); the no-caller list names the refused `whenAvailable` re-run (CL3); BEH-BR-085 `DrainTimeout` carries `realm` and `target` as `{ id, realm }` (C2); BEH-BR-088 the fibers without `CurrentTransition` are those the host forks through `background` or `whenAvailable`, a `forkScoped` fiber following the untracked-fork rule (C1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.11 (2026-11-10): BEH-BR-086 a sub-scope close or `unmount` that removes a child itself is a path with no caller, and one that waits for a removal the parent's stop began follows that stop's limits (H1); BEH-BR-088 `HeldPlugins` and `CurrentTransition` name plugins by the canonical key `JSON.stringify([realm, id])`, never a separator join, which two (realm, id) pairs could share since neither name has a grammar, `WouldDeadlock` carries `realm` (C1); an untracked fiber a step forks keeps `CurrentTransition` for life, a documented false positive (C2) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-088 builds, `load` and finalizers carry their plugin in the new `@bridger/core/CurrentTransition` reference, `HeldPlugins` keeps leases only, and `CurrentTransition` is exported for companions to carry across a hand-off on the rules of `HeldPlugins`; `shutdown` fails `WouldDeadlock` from `CurrentTransition` alone, before its `requested` record (H1); BEH-BR-084 the child inherits `CurrentTransition`; BEH-BR-086 a refused background restart is a no-caller revocation (C3) (CCR-BR-035)<br>0.9 (2026-11-09): BEH-BR-081–083 the unions of `use`, `useAll` and `lease` add `ResolutionRefused`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-087: a deadline shortens only a given per-call timeout, never `lease`; BEH-BR-088: `HeldPlugins` provided only with a holder's set (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-087 lease wait shortened by `Annotation.Deadline` (CCR-BR-018); BEH-BR-088 `HeldPlugins` exported for companions (CCR-BR-020)<br>0.6 (2026-10-02): Builds and finalizers carry HeldPlugins (forks they await too, not fibers forked into the activation scope); WouldDeadlock rechecked at linearization and raised by `retry`/`enable`; DrainTimeout `id`/`target`, `leases` 0 while waiting on a build; one parking rule; no-caller cascades revoke (CCR-BR-008)<br>0.5 (2026-10-02): WouldDeadlock decided before any wait (ADR-BR-038) (CCR-BR-006)<br>0.4 (2026-10-02): Scoped-lease revocation mechanism stated (prototype finding G12) (CCR-BR-004)<br>0.3 (2026-10-02): Prototype finding on supervised-child interruption ordering (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -339,10 +339,12 @@ REQUIREMENT: An unbounded drain MUST be requested explicitly with
 
 ```
 REQUIREMENT: A `DrainTimeout` MUST emit a `drain-timeout` host event whose
-             `pluginId` is the error's `id` and whose `target` is the error's
-             `target`, and each stop that parks MUST emit a `stop-parked`
-             event whose `target` names the plugin named by the one failing
-             call (13 — Observability and Diagnostics).
+             `pluginId` and `realm` are the error's `id` and `realm` and
+             whose `target` is the error's `target`, and each stop that
+             parks MUST emit a `stop-parked` event whose `pluginId` and
+             `realm` name the plugin whose stop parked and whose `target`
+             names the plugin named by the one failing call, when it
+             differs (13 — Observability and Diagnostics).
 ```
 
 A lease is held for as long as a callback runs, so a stuck callback would
@@ -428,7 +430,9 @@ REQUIREMENT: `force` MUST NOT be applied unless the caller passed
              is a runtime failure, a
              dependency-loss stop with no operator call at its root, a
              refused background restart (a refused `whenAvailable` re-run
-             included), or shutdown (08 — Operation Legality, BEH-BR-080).
+             included), shutdown, or a child's removal by its sub-scope
+             close or `unmount` — the stops of the child's own dependents
+             (08 — Operation Legality, BEH-BR-080).
              On such a path the host MUST revoke the
              leases still held when the drain limit expires — for shutdown,
              only once the overall shutdown limit has passed (BEH-BR-107) —
@@ -450,12 +454,21 @@ REQUIREMENT: A sub-scope close or `Plugin.Runtime.unmount` that waits for a
              limit under shutdown, revocation at the drain limit only on a
              path with no caller (14 — Children and Groups, BEH-BR-121;
              CCR-BR-036). It MUST NOT resume a child stop that the parent's
-             stop parked. When that stop is parked with an operator call at
-             its root while the fiber that closes the sub-scope or calls
-             `unmount`, or a fiber it awaits, holds a lease on the child,
-             the finalizer or the `unmount` MUST fail with
-             `WouldDeadlock { id, realm }` naming the child, and the stop
-             MUST stay parked with the call (CCR-BR-037).
+             stop parked. A sub-scope finalizer MUST NOT fail and MUST NOT
+             wait on a lease held by the fiber that closes the sub-scope or
+             by a fiber it awaits: when that fiber's `HeldPlugins`
+             (BEH-BR-088) shows such a lease on the child, the finalizer
+             does not wait — a removal it would run itself goes to the host
+             as a removal with no caller (10 — Runtime Failure and Health,
+             BEH-BR-095), forked outside the closing fiber, a removal the
+             parent's stop began stays the parent's — and logs a warning
+             naming the child. `unmount` MUST fail with
+             `WouldDeadlock { id, realm }` naming the child, at the call and
+             before any wait, when the parent's operator-rooted stop has
+             begun removing the child (draining or parked) and the calling
+             fiber, or a fiber it awaits, holds a lease on the child; the
+             child's stop is left to the parent's stop (14, BEH-BR-121,
+             BEH-BR-126; CCR-BR-038).
 ```
 
 Interruption does **not** undo external effects. A callback interrupted

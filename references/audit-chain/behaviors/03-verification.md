@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-03                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): BEH-AC-019: a "key-unavailable" break is an incomplete check, never an inconsistency (A1); the `precomputeMacs` functions of several series or profiles are merged into one `keyed` function (PL1) (SPEC-AUDIT-04) (CCR-AC-007)<br>0.5 (2026-11-10): BEH-AC-019: `precomputeMacs` runs an effectful MAC (a hardware module, a MAC service) before the pure check and returns the pure `keyed` function, so such a key is usable while `verifyChain` stays pure (M20); `breaks.kind` gains "alg-changed", the break INV-AC-007 requires for a link whose algorithm differs within its host or series (low finding); check 6 extended (CCR-AC-006)<br>0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.7 (2026-11-11): BEH-AC-024 checks 1 and 6: the inner store's `AuditWriteFailed` reaches core unchanged, and a failing keyed hasher fails the write before the inner store is called (G5, PL7) (SPEC-AUDIT-06) (CCR-AC-008)<br>0.6 (2026-11-10): BEH-AC-019: a "key-unavailable" break is an incomplete check, never an inconsistency (A1); the `precomputeMacs` functions of several series or profiles are merged into one `keyed` function (PL1) (SPEC-AUDIT-04) (CCR-AC-007)<br>0.5 (2026-11-10): BEH-AC-019: `precomputeMacs` runs an effectful MAC (a hardware module, a MAC service) before the pure check and returns the pure `keyed` function, so such a key is usable while `verifyChain` stays pure (M20); `breaks.kind` gains "alg-changed", the break INV-AC-007 requires for a link whose algorithm differs within its host or series (low finding); check 6 extended (CCR-AC-006)<br>0.4 (2026-11-10): `verifyChain` takes `options.profile` (04, BEH-AC-031) and reports the canonicaliser change and loss-counter kinds 04 requires ("canon-changed", "counter-decreased", "loss-counter-rose"); keyed links verified per `keyId`, "key-unavailable" defined; check 6 extended; open item 2 closed by 05; follow-ups: `options.expectKeyed` and the "unkeyed-link" break, so that a keyed series rewritten with unkeyed links is reported; `hosts[].lossCounterUnanchored` reports the windows of version 1 statements, which anchor no loss counter (04, BEH-AC-026); check 6 extended; `AnchorUnconfirmed` declared (BEH-AC-020) (CCR-AC-005)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; offline bundles in 05 (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): `verifyChain` takes `expectedHeads` and reports `head` per host; marked links reported as "sink-marked" breaks and escaped encodings as notices; undetectable cases listed; acceptance checks 1–4, 8 and 11 updated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -458,8 +458,9 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
              each of the following (planned acceptance scenarios
              REQ-AC-001–012, traceability §2):
              1. Wrapping: records written through core reach the inner
-                `ChainStore` unchanged, each with one link; an inner failure
-                surfaces as `AuditWriteFailed` and sets core's latch after
+                `ChainStore` unchanged, each with one link; an inner
+                `AuditWriteFailed` surfaces to core unchanged, message
+                included, and sets core's latch after
                 `auditTimeout`; no other condition fails a write; an
                 unsupported `schemaVersion` is appended with its marker
                 (BEH-AC-001, BEH-AC-002, BEH-AC-008).
@@ -482,8 +483,9 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 record (BEH-AC-006).
              6. Keyed hasher and `continuesFrom`: links carry `keyId`;
                 genesis commits to the previous head; a missing host is
-                visible as a "prev-mismatch"; a key reported unusable fails
-                the write with `KeyedHashFailed` `permanent: true`; links
+                visible as a "prev-mismatch"; a key reported unusable
+                (`KeyedHashFailed` `permanent: true`) fails the write with
+                `AuditWriteFailed` without calling the inner store; links
                 written under a first key and, after the sink is rebuilt,
                 under a second verify in one run when `keyed` computes both,
                 and are "key-unavailable" when it does not; a keyed series

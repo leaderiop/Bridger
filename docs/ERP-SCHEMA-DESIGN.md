@@ -77,7 +77,7 @@ flowchart TD
 | Key omitted | Apply declared create default, or reject if required | Leave unchanged | Adapter does not write omitted patch columns. |
 | Explicit `null` | Accept only if domain schema permits null | Clear only a nullable field | Encode SQL NULL through the storage codec. |
 | Explicit `undefined` | Reject at JSON ingress; domain calls obey an explicit schema | Do not silently reinterpret as delete | No implicit SQL NULL conversion. |
-| Physically NULL inactive extension | Not part of an inactive public model | Extension is not addressable | Retained until activation backfill makes its active contract valid. |
+| No row in an extension table | Not part of an inactive public model; for an active extension it reads as the field's absent value (the migration's `backfill` entry) | Extension is not addressable while inactive; the first write creates the row | Retained as is; no row is written by enabling. |
 
 Schema optionality is not the same as SQL nullability. Constructor defaults, decoding defaults, server create defaults and database defaults also execute at different points. The compiler must not substitute one for another. Persisted data is validated after backfill; public output must not silently manufacture a default to conceal incomplete migration.
 

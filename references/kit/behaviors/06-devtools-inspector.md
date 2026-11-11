@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-06                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): BEH-KT-047: `--keyed <module>` passes a pure MAC function as `keyed` and `--expect-keyed [<seriesId>]` passes `expectKeyed` (true, or the set of series); "key-unavailable" links give exit 4, not 1 (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.5 (2026-11-11): BEH-KT-042, BEH-KT-046: `InspectorReport.controls` is core's `HostControlsData`, `HostControls` without the `closed` effect, so the report's `Schema` encodes to JSON (G1) (SPEC-AUDIT-06) (CCR-KT-009)<br>0.4 (2026-11-10): BEH-KT-047: `--keyed <module>` passes a pure MAC function as `keyed` and `--expect-keyed [<seriesId>]` passes `expectKeyed` (true, or the set of series); "key-unavailable" links give exit 4, not 1 (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -76,7 +76,7 @@ interface InspectorReport {
                                readonly leases: number; readonly parked: boolean; readonly pending?: string }[]
   readonly edges: readonly { readonly from: string; readonly to: string; readonly serviceId: string
                              readonly kind: "requires" | "optional"; readonly bound: boolean }[]   // from: dependent "id@realm", to: provider or "base" or "missing"
-  readonly controls: HostControls
+  readonly controls: HostControlsData            // HostControls without the `closed` effect (core 24, BEH-BR-212), so the report stays JSON
 }
 ```
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-02                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-009: `publish` requires `StoreTransaction` only; the `DurableBus.fence` admission is bounded by the transaction handle, not a `Scope` (H2, B1) (CCR-DB-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-009: `publish` also requires the transaction's `Scope`, which the adapter's `transaction` provides, for the scoped `DurableBus.fence` (H3) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-012: `OutboxStore.incarnation(node)` and `recordIncarnation(tx, node, n)`, keyed by node (CCR-DB-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — `publish` takes `PublishOptions` (`stream`, `causationId`), which change nothing but the envelope's stream and causation (F-05, C-20) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-009: `StoreTransaction` gains `onEnd(effect)`, an effect the adapter runs once the transaction has committed or rolled back, on every exit, in registration order (H3) (CCR-DB-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-009: `publish` requires `StoreTransaction` only; the `DurableBus.fence` admission is bounded by the transaction handle, not a `Scope` (H2, B1) (CCR-DB-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-009: `publish` also requires the transaction's `Scope`, which the adapter's `transaction` provides, for the scoped `DurableBus.fence` (H3) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-012: `OutboxStore.incarnation(node)` and `recordIncarnation(tx, node, n)`, keyed by node (CCR-DB-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — `publish` takes `PublishOptions` (`stream`, `causationId`), which change nothing but the envelope's stream and causation (F-05, C-20) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -34,8 +34,11 @@ Planned source: `packages/durable-bus/src/Outbox.ts` *(Planned)*.
 ```ts
 // illustrative — not type-checked
 // Provided by the storage adapter inside its own `transaction(effect)` combinator.
-class StoreTransaction extends Context.Service<StoreTransaction, { readonly handle: unknown }>()(
-  "@bridger/durable-bus/StoreTransaction") {}
+class StoreTransaction extends Context.Service<StoreTransaction, {
+  readonly handle: unknown
+  // registers an effect the adapter runs once this transaction has committed or rolled back (below)
+  readonly onEnd: (effect: Effect.Effect<void>) => Effect.Effect<void>
+}>()("@bridger/durable-bus/StoreTransaction") {}
 
 interface PublishOptions {
   readonly stream?: string        // 01, BEH-DB-003: the envelope's stream, in place of event.stream(payload)
@@ -60,6 +63,17 @@ type PublishError =
 REQUIREMENT: `publish` MUST require `StoreTransaction` in its environment, so
              that a call outside a transaction is a compile error. The bus
              MUST NOT open, commit or roll back a transaction.
+```
+
+```
+REQUIREMENT: `StoreTransaction.onEnd(effect)` MUST register `effect` with
+             the transaction, and the storage adapter MUST run every effect
+             so registered once that transaction has committed or rolled
+             back, on every exit (success, failure, a failed commit, a
+             defect, an interruption), in registration order, and not
+             before. This is the only way the bus observes a transaction's
+             end (`DurableBus.fence`, 06, BEH-DB-048; BEH-DB-054, property
+             8).
 ```
 
 ```

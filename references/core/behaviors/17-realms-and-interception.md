@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-17                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-11): BEH-BR-147 the structured fields of errors, reports and snapshots name a plugin as `{ id, realm }` (or `id` and `realm` side by side); the canonical key only where one string is required, map keys included (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-147 a plugin named by one string outside a `PluginRef` (`HeldPlugins`, `CurrentTransition`) uses the canonical key `JSON.stringify([realm, id])`, not a separator join (C1); BEH-BR-151 ordinary interception never applies to `Host.use`, `useAll` or `lease`, from plugin code included, as BEH-BR-262 states, Settled (3) (CL9) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-145 `defineRealm` refuses a realm that isolates a host-owned key with `InvalidRealm`, Settled (3); BEH-BR-146 Settled (2) a plugin in an isolating realm may provide a base key (C-02); BEH-BR-152 the outcome of a failing `wrap` on an optional or reactive capture, Settled note (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-145 `RealmOptions.mandatory`, BEH-BR-151 mandatory interceptions never replaced, composed outside, and applied to `Host.use` (CCR-BR-018); BEH-BR-145 a realm may be retired while empty by `retireRealm` (CCR-BR-019)<br>0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-11): `InvalidRealm` comment names the `Realm.ephemeral` segment and owner-actor reasons beside the host-owned `ServiceId` (CL8) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.6 (2026-11-11): BEH-BR-147 the structured fields of errors, reports and snapshots name a plugin as `{ id, realm }` (or `id` and `realm` side by side); the canonical key only where one string is required, map keys included (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-147 a plugin named by one string outside a `PluginRef` (`HeldPlugins`, `CurrentTransition`) uses the canonical key `JSON.stringify([realm, id])`, not a separator join (C1); BEH-BR-151 ordinary interception never applies to `Host.use`, `useAll` or `lease`, from plugin code included, as BEH-BR-262 states, Settled (3) (CL9) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-145 `defineRealm` refuses a realm that isolates a host-owned key with `InvalidRealm`, Settled (3); BEH-BR-146 Settled (2) a plugin in an isolating realm may provide a base key (C-02); BEH-BR-152 the outcome of a failing `wrap` on an optional or reactive capture, Settled note (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-145 `RealmOptions.mandatory`, BEH-BR-151 mandatory interceptions never replaced, composed outside, and applied to `Host.use` (CCR-BR-018); BEH-BR-145 a realm may be retired while empty by `retireRealm` (CCR-BR-019)<br>0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -56,7 +56,9 @@ interface Host {
 }
 
 class InvalidRealm extends Schema.TaggedError<InvalidRealm>()("InvalidRealm",
-  { id: Schema.String, reason: Schema.String }) {}               // reason names the offending ServiceId
+  { id: Schema.String, reason: Schema.String }) {}               // reason names the host-owned ServiceId the realm would
+                                                                 // isolate, or the segment or owner-actor rule a
+                                                                 // Realm.ephemeral id breaks (33, BEH-BR-336)
 
 host.defineRealm("tenant-a", { isolate: [Database] })
 host.install(repository, { realm: "tenant-a" })

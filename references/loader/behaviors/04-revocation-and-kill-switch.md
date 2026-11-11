@@ -5,23 +5,23 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-04                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.8 (2026-11-11): BEH-LD-028 and BEH-LD-030: re-evaluation reads the recorded signer identities, roles and requirement of the record `AcceptedDigests.lookup` returns, never a policy; the kill switch reads the rule's pinned digests from `Loader.pinnedDigests` (H7, L1, L2); BEH-LD-029: the revocation reconcile keeps every entry installed in `Host.snapshot`, as its last completed action left it, whatever its pending status, and leaves out only entries absent from the snapshot (H8); `KillSwitchStatus` names plugins by `{ id, realm }` records (PL2); Settled (4) states the pinned and exempt exemption (PL17) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.7 (2026-11-10): BEH-LD-028: `pinned` includes `LoaderGate`'s exempt digests and `KillSwitch.run` takes `exemptDigests` (L1); BEH-LD-029: the revocation reconcile is built from the scope's current contents (completed entries still installed) minus the dropped entries, not from the last applied list (L2) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.6 (2026-11-10): round 2 follow-up: `RevocationStoreFailed` declared (BEH-LD-026) (CCR-LD-005)<br>0.5 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03; offline review F3, F4, F29): `SignedRevocationList`, its canonical encoding and `issuer` defined here; lists verified under a separate revocation trust root with no revocation step, ending the cycle with `StatementVerifier`; a list may revoke its own signers for later lists; `RevocationSource.offer` replaces the constructor-time feed as the way other companions hand lists in; statement digests reach `filterDesired`; `Revoked.by` gains "statement-digest"; the kill switch's scope is exclusive of other actuators (CCR-LD-003)<br>0.4 (2026-11-08): Revocation digests match subject and statement digests of every statement type; revocation lists verified as "revocation-list" statements; the set backs core's `RefusalList` (round 2: recheck item 11; core alignment K4) (CCR-LD-003)<br>0.3 (2026-11-08): Signers revoked by identity; un-revocation and store rollback stated; `filterDesired` drops digests with no verification record when a signer is revoked; re-evaluation at acceptance time; the kill switch is the scope's one reconciler, with the application's actor for desired-list changes and the revocation actor for removals only; blast-radius guard (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.9 (2026-11-11): BEH-LD-029: a revocation no longer reconciles: the kill switch calls `Host.remove`, under `revocationActor`, for each installed plugin of its scope whose digest the new set drops, skips entries not installed, and keeps no `ReconcileResult` (H6, PL19); it also runs on `AcceptedDigests.changes`, pinned changes included (L3); BEH-LD-028: the rule's pinned digests are read live from `AcceptedDigests.pinned`, the union over its sources (L2); BEH-LD-030: re-evaluation counts the signers of the record's `policyId` and re-checks the publisher binding from `publisherBound` (L1, H5); BEH-LD-026: `RevocationStore` keeps `acceptedAt`, against which a saved list's signer windows are re-checked (PL20); BEH-LD-032 and Settled restated (SPEC-AUDIT-06) (CCR-LD-009)<br>0.8 (2026-11-11): BEH-LD-028 and BEH-LD-030: re-evaluation reads the recorded signer identities, roles and requirement of the record `AcceptedDigests.lookup` returns, never a policy; the kill switch reads the rule's pinned digests from `Loader.pinnedDigests` (H7, L1, L2); BEH-LD-029: the revocation reconcile keeps every entry installed in `Host.snapshot`, as its last completed action left it, whatever its pending status, and leaves out only entries absent from the snapshot (H8); `KillSwitchStatus` names plugins by `{ id, realm }` records (PL2); Settled (4) states the pinned and exempt exemption (PL17) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.7 (2026-11-10): BEH-LD-028: `pinned` includes `LoaderGate`'s exempt digests and `KillSwitch.run` takes `exemptDigests` (L1); BEH-LD-029: the revocation reconcile is built from the scope's current contents (completed entries still installed) minus the dropped entries, not from the last applied list (L2) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.6 (2026-11-10): round 2 follow-up: `RevocationStoreFailed` declared (BEH-LD-026) (CCR-LD-005)<br>0.5 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03; offline review F3, F4, F29): `SignedRevocationList`, its canonical encoding and `issuer` defined here; lists verified under a separate revocation trust root with no revocation step, ending the cycle with `StatementVerifier`; a list may revoke its own signers for later lists; `RevocationSource.offer` replaces the constructor-time feed as the way other companions hand lists in; statement digests reach `filterDesired`; `Revoked.by` gains "statement-digest"; the kill switch's scope is exclusive of other actuators (CCR-LD-003)<br>0.4 (2026-11-08): Revocation digests match subject and statement digests of every statement type; revocation lists verified as "revocation-list" statements; the set backs core's `RefusalList` (round 2: recheck item 11; core alignment K4) (CCR-LD-003)<br>0.3 (2026-11-08): Signers revoked by identity; un-revocation and store rollback stated; `filterDesired` drops digests with no verification record when a signer is revoked; re-evaluation at acceptance time; the kill switch is the scope's one reconciler, with the application's actor for desired-list changes and the revocation actor for removals only; blast-radius guard (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
 A signature, once given, cannot be taken back; a release found to be
 defective must still be stopped. This file specifies revocation: a
 `RevocationSource` delivers signed sets of revoked digests and signers; the
-loader refuses to load anything revoked; and a kill switch feeds the
-revocation set into the desired state, so that `reconcile` removes revoked
-plugins through the host's ordinary, gated and audited path
+loader refuses to load anything revoked; and a kill switch filters the
+desired list by the revocation set and removes the revoked plugins of its
+scope with `Host.remove`, through the host's ordinary, gated and audited path
 ([ADR-LD-004](../decisions/004-revocation-acts-through-desired-state.md),
 core [ADR-BR-023](../../core/decisions/023-desired-state-reconcile.md)).
 This file owns BEH-LD-025–032 and uses all eight.
@@ -150,8 +150,9 @@ declare const RevocationSource: {
   readonly constant: (set: RevocationSet) => Layer.Layer<RevocationSource>
 }
 interface RevocationStoreShape {
-  readonly load: Effect.Effect<Option.Option<SignedRevocationList>, RevocationStoreFailed>
-  readonly save: (list: SignedRevocationList) => Effect.Effect<void, RevocationStoreFailed>
+  // acceptedAt: the time read from Clock when the source accepted the list (ISO-8601 UTC)
+  readonly load: Effect.Effect<Option.Option<{ readonly list: SignedRevocationList; readonly acceptedAt: string }>, RevocationStoreFailed>
+  readonly save: (list: SignedRevocationList, acceptedAt: string) => Effect.Effect<void, RevocationStoreFailed>
 }
 class RevocationStoreFailed extends Schema.TaggedError<RevocationStoreFailed>()("RevocationStoreFailed", {
   operation: Schema.Literal("load", "save"),     // "load": cannot be read; "save": cannot be written
@@ -226,7 +227,10 @@ REQUIREMENT: At construction, the last saved list MUST be loaded and
              re-verified before any package is loaded, so that a restart
              without network keeps every revocation it had. Because the
              lists before it are not kept, it MUST be re-verified against
-             `trustRoot` with no signer removed. A saved list that fails
+             `trustRoot` with no signer removed, each signer's validity
+             window checked against its `signedAt` when present and
+             otherwise against the saved `acceptedAt`, never against the
+             time read from `Clock` (03, BEH-LD-019). A saved list that fails
              re-verification, or a store that cannot be read, MUST leave the
              source with no current set (`current` fails with
              `RevocationUnavailable`) and MUST be logged at error level; the
@@ -329,9 +333,9 @@ declare const Revocation: {
     set: RevocationSet,
     options: {
       // The record of AcceptedDigests.lookup (02, BEH-LD-015): it carries the signer identities,
-      // roles and requirement that re-evaluation reads (03, BEH-LD-020).
+      // roles, policy tags, publisher bindings and requirement that re-evaluation reads (03, BEH-LD-020).
       readonly verification: (digest: string) => Option.Option<VerificationRecord>
-      readonly pinned: readonly string[]          // Loader.pinnedDigests (03, BEH-LD-022) and LoaderGate's exempt.digests (02, BEH-LD-015); may be empty
+      readonly pinned: readonly string[]          // AcceptedDigests.pinned (the union over its sources: the rule's pinned digests, federation's proxy digests; 02, BEH-LD-015) and LoaderGate's exempt.digests; may be empty
     }
   ) => { readonly kept: readonly DesiredPlugin[]; readonly dropped: readonly { readonly id: string; readonly realm?: string; readonly digest?: string; readonly reason: string }[] }
 }
@@ -355,8 +359,8 @@ REQUIREMENT: When `set` revokes at least one signer and `verification`
              with reason "verification-unknown", unless the digest is in
              `pinned` (a pinned acceptance, and an exemption by digest,
              depends on no signer; the kill switch passes
-             `Loader.pinnedDigests` (02, BEH-LD-009) and its
-             `exemptDigests`). It MUST NOT
+             `AcceptedDigests.pinned` as it reads it at each run (02,
+             BEH-LD-015) and its `exemptDigests`). It MUST NOT
              keep an entry whose dependence on a revoked signer it cannot
              rule out.
 ```
@@ -383,6 +387,8 @@ Revocation changes what is wanted; `reconcile` changes what is. Expressing the
 kill switch as a filter on the desired list means it inherits everything core
 already specifies for `reconcile`: per-entry gating, per-entry audit records,
 ownership scopes, and idempotence ([BEH-BR-159](../../core/behaviors/18-reconciliation-and-confluence.md#beh-br-159-reconcile-is-idempotent-and-convergent)).
+The removals a new set causes are ordinary `Host.remove` calls, gated and
+audited the same way (BEH-LD-029).
 
 ## BEH-LD-029: The kill switch is the scope's one reconciler, and attributes each change to its cause
 
@@ -438,28 +444,24 @@ REQUIREMENT: Documentation MUST state that `KillSwitch.run` MUST NOT be
 ```
 
 ```
-REQUIREMENT: When the revocation set changes and `filterDesired` drops
-             entries that the last applied list kept, `KillSwitch.run` MUST
-             call `Host.reconcile` with the scope's current contents minus
-             those entries, the given `scope`, and an `OperationContext`
-             whose `actor` is `revocationActor` and whose `reason` names the
-             revocation revision and the dropped digests — so that its only
-             actions are the prune removals of the dropped entries. The
-             current contents MUST hold every entry of the scope installed
-             in `Host.snapshot` when the call is built, as its last
-             completed reconcile action left it (definition, override,
-             `disabled`), kept by the kill switch from each
-             `ReconcileResult`, whatever its `status.pending` state: an
-             entry whose replace was refused, or whose stop is parked, is
-             still installed and owned by the scope, and leaving it out
-             would let core's prune (18, BEH-BR-155) remove a plugin whose
-             digest was never revoked. Only an entry absent from the
-             snapshot — its install never completed, or it was removed by
-             hand — MUST be left out, or core's diff (18, BEH-BR-154) would
-             install it under the revocation actor; and since each kept
-             entry is passed as its last completed action left it, the diff
-             replaces or reconfigures nothing. A revocation change that
-             drops nothing new MUST NOT call `reconcile`.
+REQUIREMENT: When the revocation set changes, and when `AcceptedDigests`
+             changes (`AcceptedDigests.changes`, which also publishes a
+             change of the pinned digests, 02, BEH-LD-015), `KillSwitch.run`
+             MUST apply the rule of `filterDesired` (BEH-LD-028), under the
+             current set, to every plugin of its scope — an entry of the
+             list it last applied that is installed in `Host.snapshot` —
+             judged by the installed definition's `meta.digest`, and MUST
+             call `Host.remove` for each plugin dropped, with an
+             `OperationContext` whose `actor` is `revocationActor` and whose
+             `reason` names the revocation revision and the dropped
+             digests, so that its only actions are the removals of the
+             dropped entries. An entry not installed in the snapshot — its
+             install never completed, or it was removed by hand — MUST be
+             skipped. The kill switch MUST NOT call `Host.reconcile` for a
+             revocation: it installs, replaces, reconfigures, enables and
+             disables nothing, and leaves every operator change made since
+             its last reconcile in place. A change that drops no installed
+             plugin MUST call nothing.
 ```
 
 ```
@@ -468,12 +470,13 @@ REQUIREMENT: When the desired list changes, `KillSwitch.run` MUST call
              `actor`, with a reason supplied by the application's stream
              element or, absent one, "desired-list-change". It MUST NOT use
              `revocationActor` or name a revocation revision for these
-             changes. When both change together, the revocation reconcile
+             changes. When both change together, the revocation removals
              MUST run first.
 ```
 
 ```
-REQUIREMENT: A reconcile entry that does not complete — refused by the gate,
+REQUIREMENT: A reconcile entry or a revocation removal that does not
+             complete — refused by the gate,
              failed with `DrainTimeout`, parked, refused by the audit latch —
              MUST appear in `status.pending` with its error tag, and MUST be
              retried at the next change or after `retryInterval`, under the
@@ -502,13 +505,14 @@ catalog update was not caused by a revocation, and recording it under the
 revocation actor, with a reason naming a revocation revision, would misstate
 who changed the plugin set and why (21 CFR 11.10(e)) — and would let a gate
 that trusts the revocation actor approve installs it was never meant to see.
-Building the revocation reconcile from what the scope holds now, rather than
-the newest desired list or even the last applied one, keeps a revocation from
-carrying along changes nobody has reviewed: the last applied list can still
-name an entry whose install was refused or that an operator removed, and
-core's diff would install it again. Keeping every installed entry, pending or
-not, keeps it from removing more than was revoked: a scope's plugin that is
-absent from the list is pruned. One reconciler per scope keeps two callers from undoing each
+Removing the dropped plugins one by one, rather than reconciling a list
+under the revocation actor, keeps a revocation from carrying along changes
+nobody has reviewed: any list the kill switch could build — the newest
+desired list, the last applied one, or the scope's entries as its last
+reconcile left them — can differ from what an operator has since installed,
+replaced, reconfigured, enabled or disabled by hand, and core's diff would
+move those back under the revocation actor. A removal touches only the plugin
+whose digest was dropped. One reconciler per scope keeps two callers from undoing each
 other's lists, which core's ownership rule would otherwise turn into a
 `reconcile` that prunes what the other just installed.
 
@@ -523,12 +527,17 @@ REQUIREMENT: When a set revokes a signer, the loader MUST re-evaluate the
              `AcceptedDigests.entries` (02, BEH-LD-015) whose record — the
              one `lookup` returns for it — shows `acceptedBy: "signed"`,
              from that record alone: its `require` over its recorded
-             signers with `inWindow` true (the window check at the time
-             recorded at acceptance, 03, BEH-LD-019) minus every signer
-             whose recorded `identity` the set revokes, and MUST treat as
-             revoked, with `by: "signer"`, each digest whose requirement is
-             then unsatisfied. Re-evaluation MUST NOT need the policy, which
-             a replaced loader no longer holds.
+             signers whose `policyId` is the record's `policyId` (under
+             `anyOf`, the accepting branch's signers, 03, BEH-LD-020) and
+             whose `inWindow` is true (the window check at the time recorded
+             at acceptance, 03, BEH-LD-019), minus every signer whose
+             recorded `identity` the set revokes; and, when the record
+             carries a `publisher`, at least one of those remaining signers
+             MUST have `publisherBound` true (07, BEH-LD-053). It MUST
+             treat as revoked, with `by: "signer"`, each digest whose
+             requirement or publisher binding then fails. Re-evaluation
+             MUST NOT need the policy, which a replaced loader no longer
+             holds.
 ```
 
 ```
@@ -545,7 +554,7 @@ REQUIREMENT: A digest that still satisfies the policy without the revoked
 ```
 
 This is why the verification record keeps every verified signer, with its
-identity and roles, and the requirement (BEH-LD-020): a release signed by three of a two-of-three policy survives the
+identity, roles, policy and publisher binding, and the requirement (BEH-LD-020): a release signed by three of a two-of-three policy survives the
 loss of one key; a release signed by exactly two does not. Re-evaluation needs
 no network and no signatures, only the record. Re-evaluating at the time of
 acceptance matters as much: a routine key expiry is not a revocation, and a
@@ -560,7 +569,7 @@ removal. A digest with no record is handled by BEH-LD-028.
 
 ```
 REQUIREMENT: The kill switch MUST read `Host.snapshot` after each
-             revocation reconcile and report, in `status.pending`, every
+             revocation run (BEH-LD-029) and report, in `status.pending`, every
              installed plugin whose `meta.digest` is revoked but which is not
              an entry of the list the kill switch last applied (so not owned
              by its scope). With `outsideScope: "remove"`, it MUST call
@@ -610,8 +619,8 @@ REQUIREMENT: Documentation MUST state that a wired gate is consulted for
 
 ```
 REQUIREMENT: When `maxDroppedPerRevision` is given and one revision would
-             drop more entries than it allows, the kill switch MUST NOT call
-             `reconcile` for that revision; it MUST report every such entry
+             drop more entries than it allows, the kill switch MUST NOT
+             remove anything for that revision; it MUST report every such entry
              in `status.pending` with reason "blast-radius" and the revision
              in `status.held`, and MUST act on it only after
              `KillSwitch.release(revision)`. Documentation MUST recommend a
@@ -641,11 +650,14 @@ under a separate revocation trust root with no revocation step, enter only
 through `offer`, and may revoke their own signers for later lists. (2) `maxAge` has no
 default. (3) The kill switch is the one reconciler of its scope: desired-list
 changes are reconciled under the application's actor, and revocation removals
-under the revocation actor with a reason naming the revision, gated and
-audited like any operator change. (4) A digest whose dependence on a revoked
+are `Host.remove` calls for the scope's installed plugins whose digest the set
+drops, under the revocation actor with a reason naming the revision, gated and
+audited like any operator change; a revocation never reconciles. (4) A digest whose dependence on a revoked
 signer cannot be ruled out is dropped ("verification-unknown"), unless the
 acceptance rule pins it or `LoaderGate` exempts it by digest. (5)
-Re-evaluation uses the acceptance time and removes only revoked signers. (6)
+Re-evaluation reads the record alone — the accepting policy's signers, their
+window outcomes at acceptance and their publisher bindings — and removes only
+revoked signers. (6)
 Plugins outside the scope are reported by default, not removed. (7) Resident
 revoked code is reported; a restart is the only remedy.
 

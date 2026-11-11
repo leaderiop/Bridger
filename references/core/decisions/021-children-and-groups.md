@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-021                                              |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amended by ADR-BR-043                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-10): Status names ADR-BR-043, which amends this ADR (C22) (CCR-BR-034)<br>0.3 (2026-11-08): A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` (CCR-BR-018)<br>0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.5 (2026-11-11): `parentId` is the parent's `{ id, realm }` (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.4 (2026-11-10): Status names ADR-BR-043, which amends this ADR (C22) (CCR-BR-034)<br>0.3 (2026-11-08): A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` (CCR-BR-018)<br>0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -25,7 +25,7 @@ Cordis disposes child plugins with their parent. Applications also want to treat
 
 **Children** are installed with `Plugin.Runtime.install(child, options)`, which requires the parent's activation `Scope`. The child is an ordinary plugin with its own state, requirements, leases and failures, plus four rules:
 
-- Its ID is prefixed with the parent's (`parent/child`) and its snapshot records `parentId`. It installs into the parent's realm and inherits the parent's interceptions unless `options` say otherwise.
+- Its ID is prefixed with the parent's (`parent/child`) and its snapshot records `parentId`, the parent's `{ id, realm }`. It installs into the parent's realm and inherits the parent's interceptions unless `options` say otherwise.
 - It is removed as a dependent of the parent when the parent stops, in reverse dependency order and before the parent's activation scope begins to close (BEH-BR-121). Removing, replacing, disabling or restarting the parent therefore removes its children, and the next activation mounts them again.
 - A failing child does not fail its parent; the failure is visible in the snapshot. A parent that must not run without a child awaits `handle.awaitActive` and reports the failure itself through `Plugin.Runtime.reportFailure`.
 - A child may require services its parent provides. The parent publishes only after its `build` succeeds, so such a child waits until then, and dependents-first removal keeps the parent's services alive for the child's teardown.

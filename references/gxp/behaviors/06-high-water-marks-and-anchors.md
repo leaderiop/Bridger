@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-06                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-11): BEH-GX-044 `recordClose` waits for `HostControls.closed` (core CCR-BR-037) and takes the close mark from `CloseTail.lastWritten`, since core writes the terminal record and flushes after the report; a close-flush loss (`lastWritten` below `lastNumbered`) and `CloseTail.auditDegraded` are logged and still marked (G4) (CCR-GX-008)<br>0.3 (2026-11-10): BEH-GX-041: `AnchorWriteFailed`, `AnchorReadFailed` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-042, 048: `HighWaterMark.seal` withdrawn; the anchor store holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-11): BEH-GX-043 and BEH-GX-044 `recordClose` works after the recorder's scope, the host's, has closed, using only the host handle and the anchor store; the pattern shown: host and recorder in an inner scope, the report handed out of `onClose` through a `Deferred` (G4) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-11): BEH-GX-044 `recordClose` waits for `HostControls.closed` (core CCR-BR-037) and takes the close mark from `CloseTail.lastWritten`, since core writes the terminal record and flushes after the report; a close-flush loss (`lastWritten` below `lastNumbered`) and `CloseTail.auditDegraded` are logged and still marked (G4) (CCR-GX-008)<br>0.3 (2026-11-10): BEH-GX-041: `AnchorWriteFailed`, `AnchorReadFailed` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-042, 048: `HighWaterMark.seal` withdrawn; the anchor store holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -189,6 +189,8 @@ REQUIREMENT: A failed `put` MUST NOT affect the host: it MUST NOT call a host
 REQUIREMENT: The recorder MUST run in the scope it is given and stop when that
              scope closes. It MUST NOT read `host.controls` after the host has
              begun shutting down, except as BEH-GX-044 states.
+             `recordClose` is not part of the periodic recorder: it MUST work
+             when called after the recorder's scope has closed.
 ```
 
 ```
@@ -218,7 +220,26 @@ REQUIREMENT: `recordClose(report)` MUST wait for `closed` of the host's
              ended, and MUST put one mark with `source: "close"` and
              `lastWritten` equal to `CloseTail.lastWritten`. It MUST be run
              outside the host's scope, after it; documentation MUST say so,
-             since a `recordClose` the host scope waits for never ends.
+             since a `recordClose` the host scope waits for — `onClose`
+             included — never ends. It MUST use only the host handle, which
+             stays readable after close (BEH-BR-212), and the anchor store,
+             so that it works after the recorder's scope, the host's, has
+             closed. Documentation MUST show the pattern: host and recorder
+             in an inner scope, `onClose` completing a `Deferred` with the
+             report, and `recordClose` called with it once the inner scope
+             has closed.
+```
+
+```ts
+// illustrative — not type-checked
+const report = yield* Deferred.make<CloseReport>()
+const recorder = yield* Effect.scoped(Effect.gen(function* () {
+  const host = yield* Bridger.make({ ...options, onClose: (r) => Deferred.succeed(report, r) })
+  const recorder = yield* recordHighWater(host, anchors, { every: "1 minute" })
+  // ... run the application until it stops ...
+  return recorder
+}))                                                   // the recorder stops, then the host closes
+yield* recorder.recordClose(yield* Deferred.await(report))   // outside the host's scope, after it
 ```
 
 ```

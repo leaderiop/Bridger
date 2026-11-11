@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-OVW                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.6 (2026-11-11): `RevokedDigests` row says agreement on the same inputs, not one view read by every consumer (PL16); `Loader.pinnedDigests`; `AcceptedDigests` operations; `DataPacks.layer` and `DataPacksOptions` (PL22); errors list adds `RevocationStoreFailed` and `SignatureInvalid` (PL21) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.5 (2026-11-09): "first-party" statement, trust class, `Loader.lazy` refusing guest entries, `LoaderRemote.link` and `linkManifest`, `RevokedDigests`, the manifest's `extensions["@bridger/loader"]` entry, `PackageManifestMismatch`, `NotFirstParty`, `GuestEntryInvalid`; worked example maps entries by trust class (specification audit F-06, M-02, M-03, M-06, C-16); guest wording: outside the host's runtime, in the deployment's bundle runtime (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): `SignedStatement`, `SignedRevocationList`, `RevocationSet.encode`/`decode`, `RevocationSource.offer` and `.constant`, "chain-bundle" and `RevocationListMalformed` in the API surface (round-2 agent review) (CCR-LD-003)<br>0.3 (2026-11-08): Signed statements, `SignaturePolicy.verify`, `StatementSigner`, `Revocation.refusalList` and data packs in the API surface and errors (round 2: recheck items 11, 12, 15) (CCR-LD-003)<br>0.2 (2026-11-08): API surface: `AcceptedDigests`, `LoaderGate.make`/`piece`, `Loader.stampRemote`, `KillSwitch.release`; worked example wires the gate before the host and leaves the scope to the kill switch alone (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.7 (2026-11-11): `AcceptedDigests` row names `setPinned` (keyed by source) and `pinned` (their union) (L2); the example passes the gate's `maxAge` (L4); kill switch row: revocation removals through `Host.remove` (H6) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.6 (2026-11-11): `RevokedDigests` row says agreement on the same inputs, not one view read by every consumer (PL16); `Loader.pinnedDigests`; `AcceptedDigests` operations; `DataPacks.layer` and `DataPacksOptions` (PL22); errors list adds `RevocationStoreFailed` and `SignatureInvalid` (PL21) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.5 (2026-11-09): "first-party" statement, trust class, `Loader.lazy` refusing guest entries, `LoaderRemote.link` and `linkManifest`, `RevokedDigests`, the manifest's `extensions["@bridger/loader"]` entry, `PackageManifestMismatch`, `NotFirstParty`, `GuestEntryInvalid`; worked example maps entries by trust class (specification audit F-06, M-02, M-03, M-06, C-16); guest wording: outside the host's runtime, in the deployment's bundle runtime (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): `SignedStatement`, `SignedRevocationList`, `RevocationSet.encode`/`decode`, `RevocationSource.offer` and `.constant`, "chain-bundle" and `RevocationListMalformed` in the API surface (round-2 agent review) (CCR-LD-003)<br>0.3 (2026-11-08): Signed statements, `SignaturePolicy.verify`, `StatementSigner`, `Revocation.refusalList` and data packs in the API surface and errors (round 2: recheck items 11, 12, 15) (CCR-LD-003)<br>0.2 (2026-11-08): API surface: `AcceptedDigests`, `LoaderGate.make`/`piece`, `Loader.stampRemote`, `KillSwitch.release`; worked example wires the gate before the host and leaves the scope to the kill switch alone (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -23,8 +23,8 @@ an answer: **which bytes** were loaded (a digest that commits to manifest,
 SBOM and code), **who vouched for them** (a policy of N-of-M signer entries, so that
 a release can require a publisher's key and an independent reviewer's key —
 that the keys belong to different people is the application's configuration), and **how to
-stop them** (revocation that refuses new loads and drives `reconcile` to
-remove what is running). The loader answers them before evaluation, because
+stop them** (revocation that refuses new loads and removes what is running
+through the host's ordinary `remove`). The loader answers them before evaluation, because
 in JavaScript evaluating a module runs it. The same three questions are
 answered for every other signed thing a deployment judges — host manifests,
 licence tokens, and data packs of reference data, which are verified and
@@ -56,8 +56,8 @@ All signatures are illustrative until code exists.
 | `SignaturePolicy.pinned`, `.signed`, `.anyOf`, `SignaturePolicy`, `TrustedSigner`, `Requirement` | functions, types | Acceptance rules; no permissive rule exists ([03](./behaviors/03-signature-policy.md)) |
 | `SignatureVerifier`, `VerifiedSigner` | port, type | Scheme adapters (Ed25519, Sigstore) |
 | `RevocationSource`, `RevocationSource.verified`, `.constant`, `RevocationSourceShape.offer`, `RevocationStore`, `RevocationSet`, `RevocationSet.encode`, `.decode`, `SignedRevocationList`, `RawRevocationFeed` | port, functions, port, types | Signed, monotonic revocation sets persisted by the application, verified under their own trust root with no revocation step; other companions hand lists in through `offer` ([04](./behaviors/04-revocation-and-kill-switch.md)) |
-| `Revocation.filterDesired`, `KillSwitch.run`, `KillSwitch.status`, `KillSwitch.release` | functions, stream | Kill switch through `reconcile`, the one reconciler of its scope; blast-radius release |
-| `AcceptedDigests`, `AcceptedDigests.layer` | service, layer | Store of accepted digests and their verification records, one acceptance per digest and origin (`record`, `remove`, `markNotCurrent`, `lookup`, `entries`), built before the host and shared by the gate piece, the loader and the catalog |
+| `Revocation.filterDesired`, `KillSwitch.run`, `KillSwitch.status`, `KillSwitch.release` | functions, stream | Kill switch: desired lists through `reconcile`, the one reconciler of its scope; revocation removals through `Host.remove`; blast-radius release |
+| `AcceptedDigests`, `AcceptedDigests.layer` | service, layer | Store of accepted digests and their verification records, one acceptance per digest and origin (`record`, `remove`, `markNotCurrent`, `lookup`, `entries`), and the pinned digests published per source — the current loader's, federation's proxies' (`setPinned(source, digests)`, `pinned` as their union), built before the host and shared by the gate piece, the loader and the catalog |
 | `LoaderGate.make`, `LoaderGate.piece` | functions | Core `Gate<OperationRequest>` piece refusing installs whose digest the loader did not accept, and operator restarts of revoked digests; explicit exemptions |
 | `LoadLog`, `VerificationRecord` | port, type | The loader's own record, separate from core's trail |
 | `Catalog.verifyEntry`, `Catalog.resolve`, `CatalogRegistry`, `CatalogEntry`, `VerifiedEntry` | functions, registry, types | Signed manifests verified without code ([05](./behaviors/05-catalog-and-lazy-loading.md)) |
@@ -105,7 +105,7 @@ const loader = LoaderPlugin({
 // Built once, before the host: the gate piece and the host share these instances.
 const main = Effect.gen(function* () {
   const shared = yield* Layer.build(Layer.merge(AcceptedDigests.layer, revocations))
-  const signature = yield* LoaderGate.piece({ exempt: { ids: ["loader", "catalog"] }, timeout: "2 seconds" })
+  const signature = yield* LoaderGate.piece({ exempt: { ids: ["loader", "catalog"] }, maxAge: "7 days", timeout: "2 seconds" })
     .pipe(Effect.provide(shared))
   const gate = OperationGate.fromGate(Gate.all([signature, approvalPiece]))
   const HostLive = Bridger.layer({ base: shared /* , ... */ }).pipe(Layer.provide(Layer.succeed(OperationGate, gate)))
