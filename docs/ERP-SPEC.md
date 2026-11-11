@@ -438,6 +438,8 @@ For custom logic, use a named ERP command:
 
 > **Superseded (2026-11-08).** The command model below is governed by [`@bridger/command`](../references/command/README.md): a command is a value with an id and schemas ([01 — Command definition](../references/command/behaviors/01-command-definition.md), BEH-CM-001), its handler is a contribution for the lifetime of a scope (BEH-CM-003), and every caller goes through one dispatch path ([02 — Dispatch](../references/command/behaviors/02-dispatch.md), BEH-CM-009). Approval is a gate `Defer` (BEH-CM-011, core [32](../references/core/behaviors/32-generic-gate-and-plan.md)). The sketch is kept to show the ERP author experience.
 
+> **Mapping to `@bridger/command` (decision D3, [ERP-APOTHEKA-DECISIONS.md](ERP-APOTHEKA-DECISIONS.md), 2026-11-11).** The ERP form below is the author API; the ERP compiles it. `Command.contract(id, { input, output })` becomes `Command.make(id, { input, output, ... })`, with `tags` from the module and `regulated` set for commands that touch a register. `Command.implement(contract, { permission, execute })` becomes `Command.contribute(command, handler)`, where the handler runs `execute(input)` inside a `CommandHandlerWrapper` that supplies the transaction, request context and scoped `Records`; `permission` becomes the command's `permission` option, enforced by the `CommandGate`. The `Idempotency-Key` header becomes the dispatch `idempotencyKey`. Proposed; not implemented.
+
 A command is also two parts. The **contract** (name, input and output schemas) is browser-safe and lives in contracts; the **implementation** (permission, `execute`) is server-only.
 
 ```ts

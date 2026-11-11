@@ -131,6 +131,8 @@ The catalog filters visible modules and views with `check(hasPermission(...))` f
 
 All Bridger packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). `@qadi/core@0.8.0` and awthaq currently pin `effect@4.0.0-rc.116` exactly; the browser shell's FoldKit copy of Effect is separate and talks to the server only over HTTP ([ERP-BROWSER.md](ERP-BROWSER.md) §1), so it does not need to match. See [knowledge/README.md](knowledge/README.md).
 
+Decision D13 ([ERP-APOTHEKA-DECISIONS.md](ERP-APOTHEKA-DECISIONS.md), 2026-11-11): one exact Effect pin for a deployment, the stable 4.x this policy targets. `@qadi/core`, awthaq and the core prototype move to it in their own repositories before the ERP storage and module work starts; until then no workspace may resolve two copies of Effect.
+
 ## 10. Acceptance checks
 
 - Alice and Bob in one company: each lists only their own rows, in SQL, with correct pagination.
