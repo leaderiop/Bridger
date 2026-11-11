@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-INV                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Invariants                                                   |
-> | Change History | 0.6 (2026-11-11): INV-GX-009 exception (1) reports the first archived entry's "prev-mismatch" as `chainLinkUnchecked` and the first statement's "previous-mismatch" or "window-gap" as `anchorUnconfirmed`, each with a detail, so no checked kind covers a dropped item (G1); INV-GX-003 binding fields name `cold` (PL17) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): INV-GX-009 exception (1) covers only the items resting on `auditSeq` 1, and exception (2) also a window starting below the range (G3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-11): INV-GX-007 source: with sealing on, a keyed-hash failure is counted by the companion's sink around audit-chain's (G2); INV-GX-009 names its two exceptions, both in `readArchive` (BEH-GX-140): an archive above `auditSeq` 1 maps no chain item but unconfirmed receipts, and a mismatch of a window ending above the archived range is reported as `anchorUnconfirmed` (G7) (CCR-GX-008)<br>0.3 (2026-11-10): INV-GX-003 source lists the binding version 2 request fields (H5) (CCR-GX-005)<br>0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.7 (2026-11-11): INV-GX-009 exception (1) applies to the host's first confirmed statement, the lowest `verifyBundle` passes to `verifyChain` (G1) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.6 (2026-11-11): INV-GX-009 exception (1) reports the first archived entry's "prev-mismatch" as `chainLinkUnchecked` and the first statement's "previous-mismatch" or "window-gap" as `anchorUnconfirmed`, each with a detail, so no checked kind covers a dropped item (G1); INV-GX-003 binding fields name `cold` (PL17) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): INV-GX-009 exception (1) covers only the items resting on `auditSeq` 1, and exception (2) also a window starting below the range (G3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-11): INV-GX-007 source: with sealing on, a keyed-hash failure is counted by the companion's sink around audit-chain's (G2); INV-GX-009 names its two exceptions, both in `readArchive` (BEH-GX-140): an archive above `auditSeq` 1 maps no chain item but unconfirmed receipts, and a mismatch of a window ending above the archived range is reported as `anchorUnconfirmed` (G7) (CCR-GX-008)<br>0.3 (2026-11-10): INV-GX-003 source lists the binding version 2 request fields (H5) (CCR-GX-005)<br>0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -365,7 +365,8 @@ There are exactly two named exceptions, both in archive re-verification
 reported under a kind that says they were not checked: the "prev-mismatch"
 break of the first archived entry as `chainLinkUnchecked` with `detail` "link
 not checked: previous entry outside the archive", a "previous-mismatch" or
-"window-gap" of the first statement the bundle holds as `anchorUnconfirmed`
+"window-gap" of the host's first confirmed statement (the lowest statement
+`verifyBundle` passes to `verifyChain`) as `anchorUnconfirmed`
 with `detail` "statement <statementHash> not confirmed: previous statement
 outside the archive", and the unanchored tail gives no finding and
 `chainUnanchoredTail` is listed in `notCheckedKinds`; every other item, the

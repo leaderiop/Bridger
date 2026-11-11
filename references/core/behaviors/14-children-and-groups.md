@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-14                                               |
-> | Revision       | 0.14                                                         |
+> | Revision       | 0.15                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.14 (2026-11-11): BEH-BR-126 the dependents a sub-scope close stops first take the child's mount record as cause (SPEC-AUDIT-07 residual of round 6); BEH-BR-121 defines the child's removal set (the child and its dependents, transitively, the set BEH-BR-088 guards), a held lease (its own or inherited from the forking fiber, "or a fiber it awaits" removed) and "the parent's stop has begun" (from the revision in which the parent becomes `stopping`); the finalizer's lease check covers the whole removal set; a stop begun outside the parent's stop and still draining is taken over as a no-caller cascade takes over a dependent's running step, under `drainTimeout` counted from meeting it; BEH-BR-126 `unmount` fails with `WouldDeadlock` at the call whenever the caller holds a lease in the removal set, otherwise waits under the limits of the removal it joins or begins, and writes `unmount-requested` only when it begins or takes over a removal (H1, C1, C3, C4, C5, CL7) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.13 (2026-11-11): BEH-BR-121 a sub-scope finalizer never fails and never waits on a lease held by the closing fiber or a fiber it awaits: read from its `HeldPlugins` at the start, such a lease makes it hand a removal it would run itself (or a resumption of a stop parked outside the parent's stop) to the host as a removal with no caller, forked outside the closing fiber, leave a removal the parent's stop began to that stop, log a warning naming the child, and close with the child still registered until the removal settles; the "finalizer MUST fail with `WouldDeadlock`" rule removed; BEH-BR-126 `unmount` fails with `WouldDeadlock` at the call, before any wait, when the parent's operator-rooted stop has begun removing the child (draining or parked) and the caller holds a lease on it (H1, H2, C1); BEH-BR-122 `parentId` is the parent's `{ id, realm }` (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.12 (2026-11-11): BEH-BR-121 a child stop the parent's stop parked stays the parent's: the sub-scope finalizer only waits, never resumes or revokes, and fails with `WouldDeadlock` when the closing fiber holds a lease on the child while that stop is parked with an operator call; the bound by `drainTimeout` and the revocation of the closing fiber's lease apply only to a removal the finalizer begins itself; resume-and-revoke applies only to a stop parked outside the parent's stop, showing `reason` "remove"; BEH-BR-125 the resumer list says so; BEH-BR-126 `unmount` waits the same way and may fail with `WouldDeadlock` (H1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.11 (2026-11-10): BEH-BR-121 the wait of a sub-scope finalizer or `unmount` on a removal the parent's stop began follows that stop's limits — parks with an operator call at its root, waits for the overall limit under shutdown, revokes at `drainTimeout` only on a path with no caller; BEH-BR-126 `unmount` waits the same way (H1) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-121 the wait of a sub-scope finalizer or `unmount` on a removal the parent's stop began is bounded by `drainTimeout`, then revokes; the resumption emits `stop-resumed` with `by` "sub-scope" or "unmount"; BEH-BR-126 `unmount` waits the same bound; BEH-BR-125 the list of what resumes a parked child stop names the sub-scope close and `unmount` (C11, C13) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-121 a sub-scope close or `unmount` resumes a parked child stop, ends its parked intent, revokes at `drainTimeout` and never parks, with causes the mount or `unmount-requested` record (C8); BEH-BR-127 `Plugin.group` error type is the mount errors, not `never` (audit round 2, Low) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-126 the mount record's `after.state` may be `starting`, the state a child with nothing missing is registered in, with its activation's `system-start` caused by the mount record (C-05) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-121 a refused digest refuses the mount (`ChildNotAllowed`); BEH-BR-126 `Plugin.Runtime.unmount`, an attributed child removal recorded by `unmount-requested` with `requestedBy` (G57) (CCR-BR-026)<br>0.6 (2026-11-08): BEH-BR-121: the sub-scope finalizer waits for the removal, a held lease is revoked at the limit, a removal begun by the parent's stop takes precedence (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-121 a lazy child refused with `InvalidDefinition` (CCR-BR-017); BEH-BR-121 `ChildNotAllowed` and BEH-BR-122 mandatory interceptions always inherited (CCR-BR-018); BEH-BR-121 sub-scope mount removed when the sub-scope closes, BEH-BR-126 its `system-stop` record, `Plugin.Any` in `Plugin.Runtime.install` and BEH-BR-127 group members (CCR-BR-020)<br>0.4 (2026-10-03): A child's parked removal is also resumed by a cascade of another of its providers, as BEH-BR-080 gives it (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): No mount once the parent's stop or shutdown has begun; a parked child removal resumes only as a removal; mount and activation records; a parent awaiting a child in its build can starve for a slot; a group member's install error fails the group with phase "build" (prototype findings G19–G22) (CCR-BR-010)<br>0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.15 (2026-11-11): BEH-BR-121 "the parent's stop has begun" counts from the parent becoming `stopping` or shutdown beginning, whichever comes first, and from then the child's stop is the parent's stop's or shutdown's, whose limits a sub-scope close or `unmount` never shortens; a stop begun outside the parent's stop is any stop the parent's stop or shutdown did not begin, the child's own system stop included; the take-over never cancels the owning operation and waits for its stop step under `drainTimeout` and for a build it then runs under `buildTimeout` (bound `drainTimeout` + `buildTimeout`), then removes a child still registered; a child whose cleanup fails during any of these removals stays `failed` (cleanup), the sub-scope close logs it, `unmount` fails with `CleanupError`, a re-mount fails `DuplicatePlugin` until an operator `remove`; BEH-BR-125 the resumer list carries "before the parent's stop has begun"; BEH-BR-126 `unmount` also refuses on `CurrentTransition`, adds `CleanupError` to its union, and fails `HostClosed` once the host has closed, waiting under shutdown's limits while shutdown runs (H1, C1, C2, C3, CL5, CL11) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.14 (2026-11-11): BEH-BR-126 the dependents a sub-scope close stops first take the child's mount record as cause (SPEC-AUDIT-07 residual of round 6); BEH-BR-121 defines the child's removal set (the child and its dependents, transitively, the set BEH-BR-088 guards), a held lease (its own or inherited from the forking fiber, "or a fiber it awaits" removed) and "the parent's stop has begun" (from the revision in which the parent becomes `stopping`); the finalizer's lease check covers the whole removal set; a stop begun outside the parent's stop and still draining is taken over as a no-caller cascade takes over a dependent's running step, under `drainTimeout` counted from meeting it; BEH-BR-126 `unmount` fails with `WouldDeadlock` at the call whenever the caller holds a lease in the removal set, otherwise waits under the limits of the removal it joins or begins, and writes `unmount-requested` only when it begins or takes over a removal (H1, C1, C3, C4, C5, CL7) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.13 (2026-11-11): BEH-BR-121 a sub-scope finalizer never fails and never waits on a lease held by the closing fiber or a fiber it awaits: read from its `HeldPlugins` at the start, such a lease makes it hand a removal it would run itself (or a resumption of a stop parked outside the parent's stop) to the host as a removal with no caller, forked outside the closing fiber, leave a removal the parent's stop began to that stop, log a warning naming the child, and close with the child still registered until the removal settles; the "finalizer MUST fail with `WouldDeadlock`" rule removed; BEH-BR-126 `unmount` fails with `WouldDeadlock` at the call, before any wait, when the parent's operator-rooted stop has begun removing the child (draining or parked) and the caller holds a lease on it (H1, H2, C1); BEH-BR-122 `parentId` is the parent's `{ id, realm }` (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.12 (2026-11-11): BEH-BR-121 a child stop the parent's stop parked stays the parent's: the sub-scope finalizer only waits, never resumes or revokes, and fails with `WouldDeadlock` when the closing fiber holds a lease on the child while that stop is parked with an operator call; the bound by `drainTimeout` and the revocation of the closing fiber's lease apply only to a removal the finalizer begins itself; resume-and-revoke applies only to a stop parked outside the parent's stop, showing `reason` "remove"; BEH-BR-125 the resumer list says so; BEH-BR-126 `unmount` waits the same way and may fail with `WouldDeadlock` (H1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.11 (2026-11-10): BEH-BR-121 the wait of a sub-scope finalizer or `unmount` on a removal the parent's stop began follows that stop's limits — parks with an operator call at its root, waits for the overall limit under shutdown, revokes at `drainTimeout` only on a path with no caller; BEH-BR-126 `unmount` waits the same way (H1) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-121 the wait of a sub-scope finalizer or `unmount` on a removal the parent's stop began is bounded by `drainTimeout`, then revokes; the resumption emits `stop-resumed` with `by` "sub-scope" or "unmount"; BEH-BR-126 `unmount` waits the same bound; BEH-BR-125 the list of what resumes a parked child stop names the sub-scope close and `unmount` (C11, C13) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-121 a sub-scope close or `unmount` resumes a parked child stop, ends its parked intent, revokes at `drainTimeout` and never parks, with causes the mount or `unmount-requested` record (C8); BEH-BR-127 `Plugin.group` error type is the mount errors, not `never` (audit round 2, Low) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-126 the mount record's `after.state` may be `starting`, the state a child with nothing missing is registered in, with its activation's `system-start` caused by the mount record (C-05) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-121 a refused digest refuses the mount (`ChildNotAllowed`); BEH-BR-126 `Plugin.Runtime.unmount`, an attributed child removal recorded by `unmount-requested` with `requestedBy` (G57) (CCR-BR-026)<br>0.6 (2026-11-08): BEH-BR-121: the sub-scope finalizer waits for the removal, a held lease is revoked at the limit, a removal begun by the parent's stop takes precedence (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-121 a lazy child refused with `InvalidDefinition` (CCR-BR-017); BEH-BR-121 `ChildNotAllowed` and BEH-BR-122 mandatory interceptions always inherited (CCR-BR-018); BEH-BR-121 sub-scope mount removed when the sub-scope closes, BEH-BR-126 its `system-stop` record, `Plugin.Any` in `Plugin.Runtime.install` and BEH-BR-127 group members (CCR-BR-020)<br>0.4 (2026-10-03): A child's parked removal is also resumed by a cascade of another of its providers, as BEH-BR-080 gives it (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): No mount once the parent's stop or shutdown has begun; a parked child removal resumes only as a removal; mount and activation records; a parent awaiting a child in its build can starve for a slot; a group member's install error fails the group with phase "build" (prototype findings G19–G22) (CCR-BR-010)<br>0.2 (2026-10-02): Child install fails with `DependencyCycle` (mount edges child→parent); children removed as dependents before the parent's scope begins to close, whatever they hold; a parked child operation ends; child causation per BEH-BR-190; shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -71,7 +71,22 @@ REQUIREMENT: For the rules of this behaviour and of BEH-BR-126 (CCR-BR-039):
                or one inherited from the fiber that forked it;
              - the parent's stop MUST count as *begun* from the revision in
                which the parent becomes `stopping` (04 — States and Snapshots,
-               BEH-BR-026), whether or not that stop has reached the child.
+               BEH-BR-026), or in which shutdown begins (12 — Shutdown and
+               Hosting, BEH-BR-105), whichever comes first, whether or not
+               that stop has reached the child (CCR-BR-040). From that
+               revision the child's stop belongs to the parent's stop or to
+               shutdown and is waited for under their limits; a removal or
+               take-over that a sub-scope close or `unmount` began before
+               then continues under its own limits (08 — Operation
+               Legality, BEH-BR-079), except that shutdown takes it over
+               under its own (12, BEH-BR-107): a sub-scope close or
+               `unmount` never shortens shutdown's limits;
+             - a stop of the child *begun outside its parent's stop* MUST be
+               any stop of it that neither the parent's stop nor shutdown
+               began: one begun by an operator call addressed to the child
+               itself, by a cascade from another of its providers, or the
+               child's own system stop (08 — Operation Legality,
+               BEH-BR-073).
 ```
 
 ```
@@ -89,11 +104,14 @@ REQUIREMENT: The sub-scope's finalizer MUST NOT fail and MUST NOT wait on a
                  removal with no caller (BEH-BR-125; 10 — Runtime Failure
                  and Health, BEH-BR-095) — drained under
                  `BridgerOptions.drainTimeout`, the leases still held
-                 revoked at the limit — run in a fiber forked outside the
+                 revoked at the limit, and a take-over under the bound the
+                 take-over requirement below states — run in a fiber forked
+                 outside the
                  closing fiber, with the records BEH-BR-126 gives a
                  sub-scope close, and MUST NOT wait for it;
              (b) once the parent's stop has begun, the child's removal MUST
-                 be the parent's, under the rules of the next requirement —
+                 be the parent's stop's or shutdown's, under the rules of
+                 the next requirement —
                  parked and resumed with an operator call at its root,
                  taken over by shutdown, revoked at the drain limit on a
                  path with no caller — and the finalizer MUST start no
@@ -119,16 +137,19 @@ REQUIREMENT: When no held lease of the closing fiber is in the child's
              outside its parent's stop, draining or parked, as a
              requirement below states, or else begin the child's removal
              itself, or wait for a removal already begun by an `unmount`;
-             for a removal the finalizer begins or takes over, the wait is
-             bounded by `BridgerOptions.drainTimeout` for the drain, then by
-             the revocation of the leases still held, as for a removal with
-             no caller (BEH-BR-125; 10 — Runtime Failure and Health,
-             BEH-BR-095). Once the parent's stop has begun, that stop's
-             removal of the child MUST take precedence: the sub-scope's
-             finalizer waits for it, starts no second removal, and the
-             child's `system-stop` record takes its cause from the parent's
-             cascade (BEH-BR-126). That wait MUST follow the limits of the
-             parent's stop and set none of its own (CCR-BR-036): when an
+             for a removal the finalizer begins, the wait is bounded by
+             `BridgerOptions.drainTimeout` for the drain, then by the
+             revocation of the leases still held, as for a removal with no
+             caller (BEH-BR-125; 10 — Runtime Failure and Health,
+             BEH-BR-095), and for a take-over by the bound the take-over
+             requirement below states. Once the parent's stop has begun,
+             the removal of the child by that stop or by shutdown MUST take
+             precedence: the sub-scope's finalizer waits for it, starts no
+             second removal, and the child's `system-stop` record takes its
+             cause from the parent's cascade, or from shutdown's
+             `requested` record (BEH-BR-126). That wait MUST follow the
+             limits of the parent's stop or of shutdown and set none of its
+             own (CCR-BR-036, CCR-BR-040): when an
              operator call is the cascade root, the finalizer MUST NOT
              revoke a lease that call did not force — a drain that expires
              without the call's `force: true` parks the child's stop with
@@ -147,26 +168,33 @@ REQUIREMENT: When no held lease of the closing fiber is in the child's
 ```
 
 ```
-REQUIREMENT: When a stop of the child begun outside the parent's stop — by
-             an operator call addressed to the child itself, such as a
-             `remove`, or by a cascade from another of its providers — is
-             still draining when, before the parent's stop has begun, its
-             sub-scope closes or `Plugin.Runtime.unmount` is called for it
-             (BEH-BR-126), the removal MUST take that stop over as a cascade
-             with no caller takes over a running stop step of a dependent
-             (08 — Operation Legality, BEH-BR-079): it waits for that step
-             under `BridgerOptions.drainTimeout`, counted from when it meets
-             the stop, MUST revoke the leases still held when that limit
-             expires, and MUST NOT join, supersede, redirect or cancel the
-             operator operation that owns the stop, which continues after
-             its step and is decided against where the child landed. If
-             that stop parks first, it is resumed as the next requirement
-             states, the same limit still counting. Once the step has
-             settled, a child still registered MUST be removed by the
-             removal itself (CCR-BR-039). A revocation it forces, and the
-             removal it then runs, MUST take as `causationId` the child's
-             mount record for a sub-scope close and the
-             `unmount-requested` record for an unmount.
+REQUIREMENT: When, before the parent's stop has begun, the child's sub-scope
+             closes or `Plugin.Runtime.unmount` is called for it
+             (BEH-BR-126) while a stop of the child begun outside its
+             parent's stop is still draining — whatever began it: an
+             operator call addressed to the child itself, a cascade from
+             another of its providers, or the child's own system stop — the
+             removal MUST take that stop over (CCR-BR-039, CCR-BR-040). It
+             MUST NOT join, supersede, redirect or cancel the operation that
+             owns the stop, which continues after its step and is decided
+             against where the child landed, and it MUST wait for that
+             operation to settle: for its stop step under
+             `BridgerOptions.drainTimeout`, counted from when it meets the
+             stop, revoking the leases still held when that limit expires,
+             as a cascade with no caller waits for a running stop step of a
+             dependent (08 — Operation Legality, BEH-BR-079; 09 — Leases,
+             BEH-BR-086); and, when that operation then builds the child —
+             a `restart`, `replace`, `reconfigure` or `enable` — for that
+             build under `buildTimeout` (05 — Activation, BEH-BR-040). The
+             take-over's wait is thereby bounded by `drainTimeout` +
+             `buildTimeout`. If that stop parks first, it is resumed as the
+             next requirement states, the same drain limit still counting.
+             Once the operation has settled, a child still registered MUST
+             be removed by the removal itself, as a removal it begins
+             (`reason` "remove", `next` "gone"), bounded as such. A
+             revocation it forces, and the removal it then runs, MUST take
+             as `causationId` the child's mount record for a sub-scope
+             close and the `unmount-requested` record for an unmount.
 ```
 
 ```
@@ -195,6 +223,23 @@ REQUIREMENT: When the child's stop was parked outside the parent's stop —
              it stays the parent's, and the sub-scope close waits for it or
              leaves it to the parent's stop as the requirements above state,
              the `unmount` as BEH-BR-126 states (CCR-BR-037, CCR-BR-038).
+```
+
+```
+REQUIREMENT: When the child's cleanup fails during its removal — by the
+             parent's stop, by its sub-scope close, by `unmount` or by a
+             take-over — the child MUST stay registered in `failed` with
+             phase "cleanup" (06 — Removal, BEH-BR-046), as under shutdown
+             (12 — Shutdown and Hosting, BEH-BR-105), and the removal MUST
+             otherwise complete (CCR-BR-040): the parent's stop continues
+             as for a dependent's cleanup failure (BEH-BR-046), the
+             sub-scope close completes, logging at error level the child's
+             `{ id, realm }`, and `unmount` fails with
+             `CleanupError { id, realm, message }` naming the child. Until
+             an operator `remove` of the child (06, BEH-BR-047), a later
+             mount of the same id — by the parent's next activation or any
+             other `Plugin.Runtime.install` — MUST fail with
+             `DuplicatePlugin` and register nothing (03 — Installation).
 ```
 
 ```
@@ -234,7 +279,9 @@ REQUIREMENT: A child install whose dependency edges (dependent→provider) or
 ```
 REQUIREMENT: When the parent stops, each child MUST be removed — stopped,
              then unregistered — whatever services it holds, including
-             services of plugins other than its parent. A child's stop MUST
+             services of plugins other than its parent; a child whose
+             cleanup fails stays registered in `failed` (cleanup), as
+             BEH-BR-121 states. A child's stop MUST
              NOT end in `waiting` or `starting`. The intent of an operator
              operation parked on a child (08 — Operation Legality,
              BEH-BR-074) MUST end with its `intent-ended` record
@@ -344,6 +391,23 @@ takes over a dependent's running step (BEH-BR-079), so that neither a
 draining nor a parked outside stop leaves the finalizer without a bound;
 taking over its operation instead was rejected, as BEH-BR-079 rejects it
 for a cascade.
+
+**Settled here (CCR-BR-040).** Ownership of a child's stop is decided by one
+rule instead of per trigger. Once the parent's stop or shutdown has begun,
+the child's stop is theirs: counting "begun" from the parent's `stopping`
+alone left a child that shutdown stopped while the parent was still
+building with no owner, so that a sub-scope close would either revoke at
+`drainTimeout`, before shutdown's overall limit, or begin a second removal.
+Before then, a sub-scope close or `unmount` takes over any stop of the child
+begun elsewhere, the child's own system stops included. The take-over still
+never cancels the operation that owns the stop: a `restart`, `replace`,
+`reconfigure` or `enable` builds after its stop step, and ending it like a
+parked intent would let a sub-scope close cancel a running operator call,
+which BEH-BR-079 refuses a cascade. The take-over therefore waits for that
+build too, and its bound is `drainTimeout` + `buildTimeout`. A child whose
+cleanup fails stays `failed` (cleanup), as everywhere else, so that its leak
+stays visible; the sub-scope close cannot report it and logs it, `unmount`
+returns it, and the child's id stays taken until an operator removes it.
 
 ## BEH-BR-122: A child is an ordinary plugin with a prefixed identity
 
@@ -470,9 +534,12 @@ REQUIREMENT: A parked child stop whose `next` is "gone" MUST be resumed only
              by a cascade — its parent's stop, or the stop of another of its
              providers (08 — Operation Legality, BEH-BR-080) — by shutdown,
              by an operator `remove` of the child, or — when the stop was
-             parked outside the parent's stop — by the close of the
-             sub-scope it was mounted under or by `Plugin.Runtime.unmount`
-             of it (BEH-BR-121, BEH-BR-126), and MUST end with the child
+             parked outside the parent's stop, and before the parent's stop
+             has begun (from the revision in which the parent becomes
+             `stopping` or shutdown begins, BEH-BR-121) — by the close of
+             the sub-scope it was mounted under or by
+             `Plugin.Runtime.unmount` of it (BEH-BR-121, BEH-BR-126), and
+             MUST end with the child
              removed. Any other operation addressed to the child MUST fail
              with `Conflict { id, pending: "remove" }` and change nothing.
 ```
@@ -566,7 +633,7 @@ REQUIREMENT: The mount record's `after.state` MUST be the state in which the
 // illustrative — not type-checked
 // Plugin.Runtime member (10 — Runtime Failure and Health, BEH-BR-089)
 readonly unmount: (child: PluginRef, options: { readonly context: OperationContext }) =>
-  Effect.Effect<void, UnknownPlugin | HostClosed | WouldDeadlock>
+  Effect.Effect<void, UnknownPlugin | HostClosed | WouldDeadlock | CleanupError>
 ```
 
 ```
@@ -582,21 +649,25 @@ REQUIREMENT: `Plugin.Runtime.unmount(child, { context })` MUST remove a
 ```
 REQUIREMENT: When the calling fiber has a held lease in the child's removal
              set (BEH-BR-121), read from its `@bridger/core/HeldPlugins`
-             (09 — Leases, BEH-BR-088) at the call, `unmount` MUST fail with
+             (09 — Leases, BEH-BR-088) at the call, or carries a plugin of
+             that set in its `@bridger/core/CurrentTransition` — it runs, or
+             was forked by, a build, `load` or finalizer step of that
+             plugin (BEH-BR-088) — `unmount` MUST fail with
              `WouldDeadlock { id, realm }` naming the child, at the call,
              before any wait, writing no record and changing nothing,
              whatever removal of the child is under way or would begin —
              the parent's stop, under any root, shutdown, a sub-scope
              close, or the call's own removal — uniformly with the
-             stopping calls of BEH-BR-088 (CCR-BR-038, CCR-BR-039). The
-             child's removal is left to whatever began it, or to its
-             sub-scope close.
+             stopping calls of BEH-BR-088 (CCR-BR-038, CCR-BR-039,
+             CCR-BR-040). The child's removal is left to whatever began it,
+             or to its sub-scope close.
 ```
 
 ```
 REQUIREMENT: Otherwise, a child whose removal has already begun — by its
-             parent's stop (from the revision in which the parent becomes
-             `stopping`, BEH-BR-121), by its sub-scope close or by an
+             parent's stop or by shutdown (from the revision in which the
+             parent becomes `stopping` or shutdown begins, BEH-BR-121), by
+             its sub-scope close or by an
              earlier `unmount` — MUST NOT be removed twice: the call waits
              for that removal under the limits of the removal it joins —
              parking with an operator call that roots the parent's stop,
@@ -606,6 +677,17 @@ REQUIREMENT: Otherwise, a child whose removal has already begun — by its
              the parent's stop has begun, the call MUST take over a stop of
              the child begun outside its parent's stop, draining or parked,
              as BEH-BR-121 states, or else begin the child's removal itself.
+             When the child's cleanup fails, `unmount` fails with
+             `CleanupError` as BEH-BR-121 states.
+```
+
+```
+REQUIREMENT: `unmount` MUST fail with `HostClosed`, writing no record and
+             changing nothing, once the host has closed (12 — Shutdown and
+             Hosting). Called while shutdown runs, it MUST wait for the
+             child's removal under shutdown's limits, as the requirement
+             above states, and complete when that removal settles
+             (CCR-BR-040).
 ```
 
 ```
@@ -617,8 +699,10 @@ REQUIREMENT: With an `AuditSink` wired, an unmount that begins the child's
              over the removal, then the `system-stop` records of the
              removal, caused by it. An unmount that fails — with
              `WouldDeadlock`, `UnknownPlugin` or `HostClosed` — or that
-             waits for a removal begun by the parent's stop, a sub-scope
-             close or another unmount MUST write no record (CCR-BR-039).
+             waits for a removal begun by the parent's stop, shutdown, a
+             sub-scope close or another unmount MUST write no record
+             (CCR-BR-039, CCR-BR-040); one that fails with `CleanupError`
+             keeps the records its removal wrote.
              It MUST NOT consult the
              `OperationGate`, and MUST NOT fail for missing attribution.
              A sub-scope closed after its child was unmounted finds the

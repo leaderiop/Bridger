@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-06                                            |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-DB-048: `onStoreSwap` takes a participant `{ prepare, apply? }` (a bare effect still registers `prepare` only); every `apply` runs after `run`, whether it succeeded or failed, each in its own transaction on the store `run` left that `fence` admits during the freeze, before the incarnation is recorded, the `OriginChange` emitted, the freeze lifted or any subscription resumed; a failing `apply` fails the install with `SnapshotFailed` "apply-failed", handled as a failure of `run` after the raise; `publish` stays refused in that transaction; `fence` ignores the `onEnd` outcome (H4, K3); SPEC-AUDIT-07 residual — BEH-DB-048: after a failed `apply` the bus enters the hold `apply-pending`, treated as `origin-unrecorded` (`fence` and `publish` refused, subscriptions and `follow` paused, no `outbox-thawed`), retries each failed `apply` in its own `InboxStore.transaction` under bounded backoff, uncounted, in registration order, drops the `apply` of a withdrawn participant, and emits the `OriginChange` only when the hold lifts; `settle` fails with `RebootstrapBlocked` "store-swap-pending" during the hold; a `fence` on a transaction already admitted succeeds, and `publish` fences before it encodes; BEH-DB-047: `follow` stays paused while `apply-pending` holds; BEH-DB-048: `settle` also fails "store-swap-pending" while `origin-unrecorded` holds; the accepted residuals of a store-swap `apply` stated once with their bounds (a stop of the process during the install or the hold, a participant withdrawn during the hold, an `apply` that fails on every retry); a key the keyring's codec creates inside a `publish` that then fails is the keyring's write in the caller's transaction, kept if the caller commits (CCR-DB-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-048: `fence` registers the end of its admission through `tx.onEnd` (H3); the keyring is named beside event-store as a store that calls `fence` in its write transactions (H4) (CCR-DB-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-048: a `DurableBus.fence(tx)` admission is bounded by the transaction handle `tx` and ended by the adapter at commit or rollback, on every exit, not by a `Scope`; `fence` drops `Scope.Scope` (H2, B1); subscriptions stay paused, and `OutboxFrozen` uncounted, while `origin-unrecorded` holds after the scope closes (B2) (CCR-DB-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-048: `DurableBus.fence(tx)` is scoped to the transaction's `Scope`, and setting a whole-store freeze takes two steps, refusing new admissions and then waiting for the admitted ones to end, bounded by the settlement's `timeout` (H3); subscriptions are paused while a whole-store settlement's scope is open, and `OutboxFrozen` from a handler does not count toward `maxAttempts` (F4); BEH-DB-046: a paused `follow` or subscription is reported as paused (PL19) (CCR-DB-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-DB-048: the raised incarnation is recorded for this node through `recordIncarnation` (H9); `DurableBus.fence(tx)`, checked inside the write transaction by `publish` and by stores that share it, and the freeze waits for transactions already past the fence (M17); BEH-DB-044: an install's `GapRecord` carries reason "rebootstrap:" + `replaces` and the calling fiber's actor, the system actor when unattributed (Low); BEH-DB-047: `follow` is paused while a settlement's scope is open, and processes a pulled page only when every element carries the asked (origin, stream) and an origin in `origins`, with the residual stated (Low, seen not assessed) (CCR-DB-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-048: a whole-store install raises the incarnation before `run`; a failed raise replaces nothing; after a raise the old origin is never used again, even when `run` fails or the process stops; `run` gets no live `StoreTransaction` (H8, P1); BEH-DB-044: a snapshot restore, and an install through `OutboxSettlement.install`, records every forward move of an inbox watermark as an attributed `GapRecord` (P3); `outbox-thawed` is held back while the raised incarnation is unrecorded (review of the round) (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (U-10) — BEH-DB-048: participants registered with `DurableBus.onStoreSwap` read the store being replaced before a whole-store install (`prepare`, failure "prepare-failed"); the switch to the new origin emits an `OriginChange` (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F16) — BEH-DB-048 rewritten: scoped `settle` returns an `OutboxSettlement` whose `install` is the guarded install path ("in-store": outbox comparison in one transaction; "whole-store": outbox frozen with `OutboxFrozen`, incarnation raised through `IncarnationSource`); default `require` "pushed", "pushed-or-kept" only in-store; heading changed (old anchor kept); `HistorySource` built per reader with a placement check and a `HistoryAccess` decision ("open" explicit), refusals served as `Withheld` markers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 19 — BEH-DB-048 `DurableBus.rebootstrapOutbox` (push or keep before a snapshot, `RebootstrapBlocked`); BEH-DB-044 restore checked not to touch the outbox (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — downstream history is pulled through the new `HistorySource` port (BEH-DB-047); `SnapshotRequired` only on that port; `Ack.retryAfter` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.12 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-DB-048: `DurableBus.whenReadable`, the read gate of a whole-store install, which event-store reads await and an application decoding through the codec awaits as its own duty (H3); while `origin-unrecorded` holds the bus retries `recordIncarnation` under bounded backoff on its background fiber and lifts the hold when it commits, `settle` refused meanwhile, a record failing on every retry stated with residual (c) (H4); `publish` checks the freeze and the holds itself before `fence`, so it is refused inside an `apply` transaction and in one admitted before the freeze (B1); BEH-DB-047 and BEH-DB-048: `origin-unrecorded` pauses `follow` too (B2); `receive` fences and is refused during the freeze and the holds, answering `retryAfter`, so the `apply` transaction is the only writer (PL19); residual (a) points to the keyring's own bound (B4) (CCR-DB-011)<br>0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-DB-048: `onStoreSwap` takes a participant `{ prepare, apply? }` (a bare effect still registers `prepare` only); every `apply` runs after `run`, whether it succeeded or failed, each in its own transaction on the store `run` left that `fence` admits during the freeze, before the incarnation is recorded, the `OriginChange` emitted, the freeze lifted or any subscription resumed; a failing `apply` fails the install with `SnapshotFailed` "apply-failed", handled as a failure of `run` after the raise; `publish` stays refused in that transaction; `fence` ignores the `onEnd` outcome (H4, K3); SPEC-AUDIT-07 residual — BEH-DB-048: after a failed `apply` the bus enters the hold `apply-pending`, treated as `origin-unrecorded` (`fence` and `publish` refused, subscriptions and `follow` paused, no `outbox-thawed`), retries each failed `apply` in its own `InboxStore.transaction` under bounded backoff, uncounted, in registration order, drops the `apply` of a withdrawn participant, and emits the `OriginChange` only when the hold lifts; `settle` fails with `RebootstrapBlocked` "store-swap-pending" during the hold; a `fence` on a transaction already admitted succeeds, and `publish` fences before it encodes; BEH-DB-047: `follow` stays paused while `apply-pending` holds; BEH-DB-048: `settle` also fails "store-swap-pending" while `origin-unrecorded` holds; the accepted residuals of a store-swap `apply` stated once with their bounds (a stop of the process during the install or the hold, a participant withdrawn during the hold, an `apply` that fails on every retry); a key the keyring's codec creates inside a `publish` that then fails is the keyring's write in the caller's transaction, kept if the caller commits (CCR-DB-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-048: `fence` registers the end of its admission through `tx.onEnd` (H3); the keyring is named beside event-store as a store that calls `fence` in its write transactions (H4) (CCR-DB-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-048: a `DurableBus.fence(tx)` admission is bounded by the transaction handle `tx` and ended by the adapter at commit or rollback, on every exit, not by a `Scope`; `fence` drops `Scope.Scope` (H2, B1); subscriptions stay paused, and `OutboxFrozen` uncounted, while `origin-unrecorded` holds after the scope closes (B2) (CCR-DB-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-048: `DurableBus.fence(tx)` is scoped to the transaction's `Scope`, and setting a whole-store freeze takes two steps, refusing new admissions and then waiting for the admitted ones to end, bounded by the settlement's `timeout` (H3); subscriptions are paused while a whole-store settlement's scope is open, and `OutboxFrozen` from a handler does not count toward `maxAttempts` (F4); BEH-DB-046: a paused `follow` or subscription is reported as paused (PL19) (CCR-DB-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-DB-048: the raised incarnation is recorded for this node through `recordIncarnation` (H9); `DurableBus.fence(tx)`, checked inside the write transaction by `publish` and by stores that share it, and the freeze waits for transactions already past the fence (M17); BEH-DB-044: an install's `GapRecord` carries reason "rebootstrap:" + `replaces` and the calling fiber's actor, the system actor when unattributed (Low); BEH-DB-047: `follow` is paused while a settlement's scope is open, and processes a pulled page only when every element carries the asked (origin, stream) and an origin in `origins`, with the residual stated (Low, seen not assessed) (CCR-DB-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-048: a whole-store install raises the incarnation before `run`; a failed raise replaces nothing; after a raise the old origin is never used again, even when `run` fails or the process stops; `run` gets no live `StoreTransaction` (H8, P1); BEH-DB-044: a snapshot restore, and an install through `OutboxSettlement.install`, records every forward move of an inbox watermark as an attributed `GapRecord` (P3); `outbox-thawed` is held back while the raised incarnation is unrecorded (review of the round) (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (U-10) — BEH-DB-048: participants registered with `DurableBus.onStoreSwap` read the store being replaced before a whole-store install (`prepare`, failure "prepare-failed"); the switch to the new origin emits an `OriginChange` (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F16) — BEH-DB-048 rewritten: scoped `settle` returns an `OutboxSettlement` whose `install` is the guarded install path ("in-store": outbox comparison in one transaction; "whole-store": outbox frozen with `OutboxFrozen`, incarnation raised through `IncarnationSource`); default `require` "pushed", "pushed-or-kept" only in-store; heading changed (old anchor kept); `HistorySource` built per reader with a placement check and a `HistoryAccess` decision ("open" explicit), refusals served as `Withheld` markers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 19 — BEH-DB-048 `DurableBus.rebootstrapOutbox` (push or keep before a snapshot, `RebootstrapBlocked`); BEH-DB-044 restore checked not to touch the outbox (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — downstream history is pulled through the new `HistorySource` port (BEH-DB-047); `SnapshotRequired` only on that port; `Ack.retryAfter` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -295,11 +295,12 @@ REQUIREMENT: `follow` MUST run as a background fiber of the bus plugin
 
 ```
 REQUIREMENT: While a re-bootstrap settlement's `Scope` is open (BEH-DB-048),
-             and after it closes while `apply-pending` holds (BEH-DB-048),
+             and after it closes while `apply-pending` or `origin-unrecorded`
+             holds (BEH-DB-048),
              every `follow` MUST be paused: it issues no `read`, a `read` in
              flight is interrupted and its page discarded uncommitted, and
              no page is processed. It resumes when the scope has closed and
-             no `apply-pending` holds, from
+             neither hold is in force, from
              the watermarks the store then holds — the ones the install
              wrote, or the old ones when nothing was installed — so that no
              receipt commits into a store being replaced or races the
@@ -354,6 +355,9 @@ interface StoreSwapParticipant {
 // DurableBus gains: fence(tx: StoreTransaction["Service"]): Effect.Effect<void, OutboxFrozen>
 //   the write fence of a whole-store install, checked inside the caller's transaction (below); admitted
 //   for `tx`, its end registered through `tx.onEnd` (02, BEH-DB-009; 07, BEH-DB-054)
+// DurableBus gains: whenReadable: Effect.Effect<void>
+//   the read gate of a whole-store install: completes at once when no whole-store freeze, `apply-pending` or
+//   `origin-unrecorded` is in force, else when the last of them ends (below)
 // settle fails with RebootstrapBlocked { pending, reason }: "outbox-unsettled", "outbox-unavailable",
 //   "kept-needs-in-store", "no-incarnation-source", "store-swap-pending" (while `apply-pending` or `origin-unrecorded` holds, below)
 ```
@@ -395,7 +399,8 @@ REQUIREMENT: With `replaces` "whole-store", `settle` MUST require a wired
              `RebootstrapBlocked { reason: "no-incarnation-source" }`.
              Once the first drain phase has ended, `settle` MUST freeze the
              outbox — every `publish` fails with `OutboxFrozen` and writes
-             nothing — then drain what is still pending for at most
+             nothing, inside a transaction `fence` admitted earlier too
+             (below) — then drain what is still pending for at most
              `timeout` again, and keep the freeze until the settlement's
              `Scope` closes. `install(run)` MUST first run the `prepare`
              effect of every participant registered with
@@ -441,10 +446,10 @@ REQUIREMENT: The `apply` steps MUST run whether `run` succeeded or failed,
              or the bus opened for a retry of one (below), while the freeze
              or `apply-pending` is in force, and no other new admission;
              `publish` inside
-             it MUST still fail with `OutboxFrozen` and write nothing. With
-             the outbox frozen and drained and every subscription and
-             `follow` paused, that transaction is the only writer the store
-             admits, so on a single-writer engine (BEH-DB-055) it waits on
+             it MUST still fail with `OutboxFrozen` and write nothing (below). With
+             the outbox frozen and drained, every subscription and
+             `follow` paused and every `receive` refused (below), that
+             transaction is the only writer the store admits, so on a single-writer engine (BEH-DB-055) it waits on
              no other admitted write.
 ```
 
@@ -453,7 +458,8 @@ REQUIREMENT: While `apply-pending` holds, the bus MUST treat it as it
              treats `origin-unrecorded`, after the settlement's scope closes
              too: `fence` and `publish` fail with `OutboxFrozen`, every
              subscription and every `follow` stays paused (BEH-DB-047,
-             below), and `outbox-thawed` is not reported. During the hold
+             below), `receive` stores nothing and `whenReadable` waits
+             (below), and `outbox-thawed` is not reported. During the hold
              the bus MUST retry the `apply` of each participant whose
              `apply` failed, in registration order, each in its own
              `InboxStore.transaction` committed before the next starts,
@@ -486,14 +492,15 @@ REQUIREMENT: Documentation MUST state three accepted residuals of a
              raised incarnation (BEH-DB-004) with no hold and no pending
              `apply`, on a store without the rows those `apply` steps would
              have written, until the participant puts them back by its own
-             rule (the keyring's restored-host rule, keyring BEH-KR-020).
+             rule (the keyring states its bound in keyring BEH-KR-020).
              (b) A participant withdrawn during the hold drops its pending
              `apply` (above), so the hold can lift without its rows, with
              the same bound. (c) An `apply` that fails on every retry keeps
              the hold, and with it every write refused and every reader
-             paused, until the operator restores what that `apply` needs, as
-             `origin-unrecorded` holds until the store can record the
-             incarnation.
+             paused, until the operator restores what that `apply` needs; a
+             `recordIncarnation` that fails on every retry (below) keeps
+             `origin-unrecorded` likewise, until the operator restores the
+             store so that it can record the incarnation.
 ```
 
 ```
@@ -503,10 +510,22 @@ REQUIREMENT: Once `raise` has returned, the bus MUST NOT publish under the
              the new origin and emit the `OriginChange` (when `apply-pending`
              holds, once it lifts, above) before the freeze is lifted, and
              `install` fails with `run`'s error. While the raised
-             incarnation cannot be recorded, the bus MUST keep `publish`
-             failing with `OutboxFrozen` and every subscription paused
-             (below), after the scope closes too, and report
-             `origin-unrecorded`. A process that stops at any point
+             incarnation cannot be recorded, the bus MUST keep `fence` and
+             `publish` failing with `OutboxFrozen`, every subscription and
+             every `follow` paused (BEH-DB-047, below), `receive` storing
+             nothing and `whenReadable` waiting (below), after the scope
+             closes too, and report `origin-unrecorded`. During that hold
+             the bus MUST retry `recordIncarnation` for this node in the
+             store in use, each attempt in its own `InboxStore.transaction`,
+             under bounded backoff and without counting a failed attempt
+             against anything, on the background fiber that retries a failed
+             `apply` (above; after that round's `apply` retries when both
+             holds are in force), until an attempt commits. The hold then
+             lifts, and once the settlement's scope has closed and no
+             `apply-pending` holds, the bus lifts the freeze and resumes
+             every subscription and `follow`, in that order. The retries stop
+             with the bus plugin; a bus that starts again records its
+             incarnation at start (BEH-DB-004). A process that stops at any point
              after the raise starts again under the raised incarnation, which
              it reads from `IncarnationSource.current` (BEH-DB-004), whatever
              store it then finds: a replaced store's (origin, stream,
@@ -562,7 +581,16 @@ REQUIREMENT: `DurableBus.fence(tx)` MUST fail with `OutboxFrozen` while a
              admission, so a scope opened and closed inside the transaction
              cannot end it early. `publish` MUST run it inside the caller's transaction
              before it passes the payload through the codec (01, BEH-DB-008)
-             and appends. Setting the freeze MUST take two steps,
+             and appends. Before `fence`, `publish` MUST also check the
+             freeze and the holds itself: while a whole-store freeze is in
+             force (from the first of the two steps below),
+             `origin-unrecorded` holds or `apply-pending` holds, it MUST fail
+             with `OutboxFrozen` and write nothing, also inside a
+             transaction `fence` has already admitted — the transaction of
+             an `apply` step or of a retry of one, or a business transaction
+             admitted before the freeze was set — so that no envelope is
+             appended from the moment the freeze is set until the last hold
+             lifts. Setting the freeze MUST take two steps,
              before the second drain phase: first `fence` refuses every new
              admission, then the bus waits until every admission already
              granted has ended, so that no write admitted before the freeze
@@ -575,6 +603,46 @@ REQUIREMENT: `DurableBus.fence(tx)` MUST fail with `OutboxFrozen` while a
              BEH-ES-034, keyring BEH-KR-017) MUST call `fence` inside each
              of its write transactions before writing; `fence` ignores the
              outcome `onEnd` passes (02, BEH-DB-009).
+```
+
+```
+REQUIREMENT: `receive` (03, BEH-DB-018) MUST call `fence` with its inbox
+             transaction before it stores anything. A refusal rolls that
+             transaction back, stores and acknowledges nothing, and answers
+             an `Ack` with no `watermarks`, zero credit and `retryAfter`
+             (BEH-DB-041), so that the sender waits and resends. During the
+             freeze and the holds no receipt therefore commits into a store
+             being replaced, the freeze's second step waits for a receipt
+             already admitted, and the transaction of an `apply` step, of a
+             retry of one or of a `recordIncarnation` retry is the only
+             writer the store admits.
+```
+
+```
+REQUIREMENT: `DurableBus.whenReadable` MUST complete at once when no
+             whole-store freeze, `apply-pending` or `origin-unrecorded` is in
+             force, and otherwise when the last of them ends; it reads the
+             bus's own state, as `fence` does, never the status feed. A
+             freeze counts for it from the end of its second step (no
+             admission granted before the freeze remains), so that a read
+             inside a transaction admitted before the freeze never waits for
+             the freeze that waits for that transaction. Every read that
+             decodes stored payloads through the `PayloadCodec` outside a
+             subscription or `follow` (which the bus pauses itself) MUST
+             await it first, before it reads: event-store `read`, `readAll`
+             and every load that decodes through the codec (event-store
+             BEH-ES-034). Documentation MUST state that an application that
+             decodes through the codec itself awaits `whenReadable` first,
+             its own duty, since the bus cannot see that read; that a caller
+             reading inside its own write transaction on a single-writer
+             engine (BEH-DB-055) calls `fence` with it first, as event-store
+             writes do, so that it is refused rather than held waiting with
+             the write lock taken; and that a `prepare`, `run` or `apply`
+             MUST NOT await `whenReadable`, directly or through an
+             event-store read, since it would wait for the install it runs
+             in. The gate lives in the bus's memory: a caller still waiting
+             when the bus plugin stops waits until its own scope closes
+             (event-store's plugin requires the bus and stops before it).
 ```
 
 ```

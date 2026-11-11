@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-02                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07 residual) — BEH-KR-009: a key the codec creates on encode is written under the durable-bus fence (03, BEH-KR-017), and an `OutboxFrozen` there fails `encode` with `PayloadEncodeFailed` (CCR-KR-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-KR-012: the refusal of every decode from a whole-store `OriginChange` until the store-swap re-apply commits, and the state the codec shared with the plugin, are removed: the re-apply now commits inside the install before the `OriginChange` (03, BEH-KR-020), so the codec reads the tombstones from the `KeyStore` (H4, K2) (CCR-KR-009)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-012: the codec fails every decode of an `Encrypted` field with `PayloadDecodeFailed` naming `KeyStoreUnavailable` from a whole-store `OriginChange` until the keyring's store-swap re-apply has committed, a state shared with the plugin through the same `KeyringPorts` value (K1) (CCR-KR-008)<br>0.6 (2026-11-10): BEH-KR-009: `Keyring.fields` takes the `KeyringPorts` given to `Keyring.plugin` (PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.5 (2026-11-10): BEH-KR-012: a decode that meets `KeyStoreUnavailable` fails with `PayloadDecodeFailed`, never `PayloadUnreadable` or a marker, so that the reader keeps the envelope and retries (CCR-KR-004)<br>0.4 (2026-11-08): BEH-KR-009 `Field` is `Codec<A | Shredded, I | Shredded>` and upcasters pass markers through; BEH-KR-010 defines the `Shredded` form, decoded and stored; BEH-KR-012 stores an existing marker without a key, leaves park or halt to the reader, and states the key precondition as a limit (CCR-KR-002)<br>0.3 (2026-11-08): BEH-KR-009 and 012 cite URS-BR-058 and URS-BR-059 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.2 (2026-11-08): BEH-KR-009 and BEH-KR-012 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape cited, codec id "bridger-keyring/v1", `PayloadEncodeFailed`, `PayloadDecodeFailed` and `PayloadUnreadable` mapping); Open (2) closed (CCR-KR-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-KR-012: no decode reaches a held subject during a whole-store install or durable-bus's holds, every subscription, `follow` and event-store read waiting and an application awaiting `DurableBus.whenReadable` (H3) (CCR-KR-010)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07 residual) — BEH-KR-009: a key the codec creates on encode is written under the durable-bus fence (03, BEH-KR-017), and an `OutboxFrozen` there fails `encode` with `PayloadEncodeFailed` (CCR-KR-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-KR-012: the refusal of every decode from a whole-store `OriginChange` until the store-swap re-apply commits, and the state the codec shared with the plugin, are removed: the re-apply now commits inside the install before the `OriginChange` (03, BEH-KR-020), so the codec reads the tombstones from the `KeyStore` (H4, K2) (CCR-KR-009)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-012: the codec fails every decode of an `Encrypted` field with `PayloadDecodeFailed` naming `KeyStoreUnavailable` from a whole-store `OriginChange` until the keyring's store-swap re-apply has committed, a state shared with the plugin through the same `KeyringPorts` value (K1) (CCR-KR-008)<br>0.6 (2026-11-10): BEH-KR-009: `Keyring.fields` takes the `KeyringPorts` given to `Keyring.plugin` (PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.5 (2026-11-10): BEH-KR-012: a decode that meets `KeyStoreUnavailable` fails with `PayloadDecodeFailed`, never `PayloadUnreadable` or a marker, so that the reader keeps the envelope and retries (CCR-KR-004)<br>0.4 (2026-11-08): BEH-KR-009 `Field` is `Codec<A | Shredded, I | Shredded>` and upcasters pass markers through; BEH-KR-010 defines the `Shredded` form, decoded and stored; BEH-KR-012 stores an existing marker without a key, leaves park or halt to the reader, and states the key precondition as a limit (CCR-KR-002)<br>0.3 (2026-11-08): BEH-KR-009 and 012 cite URS-BR-058 and URS-BR-059 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.2 (2026-11-08): BEH-KR-009 and BEH-KR-012 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape cited, codec id "bridger-keyring/v1", `PayloadEncodeFailed`, `PayloadDecodeFailed` and `PayloadUnreadable` mapping); Open (2) closed (CCR-KR-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -120,7 +120,15 @@ REQUIREMENT: Decoding a field whose subject has a tombstone MUST yield
              `Shredded { subject, path }` and MUST NOT fail the decode, so
              that event-store reads, projections and replays continue
              (event-store BEH-ES-032) and bus subscribers receive the event
-             with the marker. A stored marker MUST decode to itself.
+             with the marker. A stored marker MUST decode to itself. During a
+             whole-store install and durable-bus's `apply-pending` and
+             `origin-unrecorded` holds the store in use may lack the
+             tombstone of a subject the store-swap participant holds (03,
+             BEH-KR-020); no decode reaches it then, because every
+             subscription, every `follow` and every event-store read waits
+             (durable-bus BEH-DB-048), and an application that decodes
+             through the codec itself awaits `DurableBus.whenReadable`
+             first, its own duty (BEH-KR-020).
 ```
 
 ```

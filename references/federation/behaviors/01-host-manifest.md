@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-01                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-002: a missing `signatures` fails the build with the declared `SignaturePolicyMissing`, not core's `InvalidDefinition` (PL16); a stored manifest is re-verified with `reverify: { acceptedAt }`, the acceptance time stored with it (L3); BEH-FD-004: the `ManifestStore` keeps `acceptedAt` with the highest manifest (L3); BEH-FD-005: `Manifest.toDesired` takes `placement` and `hostResidency` (PL6); BEH-FD-007: the proxies' digests are published under the source "@bridger/federation:" + the plugin id, and `LoaderGate` admits their `install` and `replace` (loader admission (c)); "the application passes nothing more" dropped; the trust stated; the list cleared when the plugin stops (H2, PL7); BEH-FD-008: the gate's "revocation-stale" and "revocation-unavailable" refusals are transient, retried at every sync and on each new revocation set (F2); follow-up: BEH-FD-007 states as a rule that trust in a proxy lives with the federation plugin that pinned it — once it stops, its installed proxies are judged as unpinned digests and keep running until removed or re-pinned; BEH-FD-002: a stored manifest without `acceptedAt` is re-verified without `reverify` and a refusal follows the ordinary path (SPEC-AUDIT-07 residual); second follow-up: BEH-FD-007: the source is "@bridger/federation:" + `JSON.stringify([realm, id])`, core's canonical key of the plugin from its activation's principal, so two federation plugins with one id in different realms keep distinct lists (SPEC-AUDIT-07 residual) (CCR-FD-010)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-005: the projection drops, at every apply, a manifest plugin that depends on a delivery import ("delivery-import-dependent"), and `Manifest.toDesired` takes `deliveryImports` (H8); BEH-FD-007: the import proxies' synthesized digests are passed in `filterDesired`'s `pinned` and published with `AcceptedDigests.setPinned("@bridger/federation", digests)` for the gate, the view and the kill switch (H9) (CCR-FD-009)<br>0.7 (2026-11-10): round 2 follow-up: `ResolveFailed` declared (BEH-FD-005) (CCR-FD-005)<br>0.6 (2026-11-09): `ManifestImport.disclose` (BEH-FD-001) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1, F2) — `SignedManifest` is the loader's `SignedStatement` ("host-manifest", id JCS([authority, host]), version the decimal revision, loader `Signature` shape) verified by exactly the loader's call, with the envelope checked against the decoded manifest; revocation lists no longer verified here; a newer manifest held behind a re-bootstrap records pending kills; every apply subtracts pending kills and passes `Revocation.filterDesired`; the last applied manifest's bytes are recorded (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18 and 20, CORE-DECISIONS-2 — verification through the loader's `SignaturePolicy.verify({ statementType: "host-manifest" })`; kill entries are no longer the only kill path (BEH-FD-041); `residency` on imports, exports and peers; `mandatoryInterceptions` and `allowChildren` carried as manifest data; `atomic` off by default with `PartialApply` reported; core reconcile order and G65 stated (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-FD-002: `reverify` restores the manifest's verification only; the host fails closed on its entries: while the revocation set is older than `maxAge`, a load and a gate `install` or `replace` stay pending "revocation-stale" until a fresh set arrives, while kill entries, pending kills and the BEH-FD-042 `disable`s still act; a refusal at a re-apply follows BEH-FD-048 (H2, F1); BEH-FD-005: `PluginResolver` is an application port declared here, which the application may back with the loader's catalog; "the loader companion's cache" dropped; `ResolveFailed` gains `reason` "revocation-stale", listed as pending and retried (F2, H2); BEH-FD-008: that entry joins the transient retries (H2) (CCR-FD-011)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-002: a missing `signatures` fails the build with the declared `SignaturePolicyMissing`, not core's `InvalidDefinition` (PL16); a stored manifest is re-verified with `reverify: { acceptedAt }`, the acceptance time stored with it (L3); BEH-FD-004: the `ManifestStore` keeps `acceptedAt` with the highest manifest (L3); BEH-FD-005: `Manifest.toDesired` takes `placement` and `hostResidency` (PL6); BEH-FD-007: the proxies' digests are published under the source "@bridger/federation:" + the plugin id, and `LoaderGate` admits their `install` and `replace` (loader admission (c)); "the application passes nothing more" dropped; the trust stated; the list cleared when the plugin stops (H2, PL7); BEH-FD-008: the gate's "revocation-stale" and "revocation-unavailable" refusals are transient, retried at every sync and on each new revocation set (F2); follow-up: BEH-FD-007 states as a rule that trust in a proxy lives with the federation plugin that pinned it — once it stops, its installed proxies are judged as unpinned digests and keep running until removed or re-pinned; BEH-FD-002: a stored manifest without `acceptedAt` is re-verified without `reverify` and a refusal follows the ordinary path (SPEC-AUDIT-07 residual); second follow-up: BEH-FD-007: the source is "@bridger/federation:" + `JSON.stringify([realm, id])`, core's canonical key of the plugin from its activation's principal, so two federation plugins with one id in different realms keep distinct lists (SPEC-AUDIT-07 residual) (CCR-FD-010)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-005: the projection drops, at every apply, a manifest plugin that depends on a delivery import ("delivery-import-dependent"), and `Manifest.toDesired` takes `deliveryImports` (H8); BEH-FD-007: the import proxies' synthesized digests are passed in `filterDesired`'s `pinned` and published with `AcceptedDigests.setPinned("@bridger/federation", digests)` for the gate, the view and the kill switch (H9) (CCR-FD-009)<br>0.7 (2026-11-10): round 2 follow-up: `ResolveFailed` declared (BEH-FD-005) (CCR-FD-005)<br>0.6 (2026-11-09): `ManifestImport.disclose` (BEH-FD-001) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1, F2) — `SignedManifest` is the loader's `SignedStatement` ("host-manifest", id JCS([authority, host]), version the decimal revision, loader `Signature` shape) verified by exactly the loader's call, with the envelope checked against the decoded manifest; revocation lists no longer verified here; a newer manifest held behind a re-bootstrap records pending kills; every apply subtracts pending kills and passes `Revocation.filterDesired`; the last applied manifest's bytes are recorded (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18 and 20, CORE-DECISIONS-2 — verification through the loader's `SignaturePolicy.verify({ statementType: "host-manifest" })`; kill entries are no longer the only kill path (BEH-FD-041); `residency` on imports, exports and peers; `mandatoryInterceptions` and `allowChildren` carried as manifest data; `atomic` off by default with `PartialApply` reported; core reconcile order and G65 stated (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `window` split into `protocolWindow` and `contractWindow`; an import names one major through `version`; resolved definitions kept and offline resolution stated as the loader cache's; transiently rejected entries and pending kills retried at each sync and reported until gone (R3-02, R3-19, R3-21, R3-24) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -182,19 +182,44 @@ REQUIREMENT: A manifest read back from the `ManifestStore` at boot MUST be
              the acceptance time stored with it (BEH-FD-004; loader
              BEH-LD-050), so that a host offline longer than the loader's
              `maxAge`, or whose signer's window closed after acceptance,
-             still applies what it accepted, while every revocation it
-             holds still applies. Every later re-verification of a stored
-             manifest — the last applied one, at each re-apply (06,
-             BEH-FD-048) — MUST use the same form with the `acceptedAt`
-             stored with it. A manifest seen for the first time — received
-             from the `ManifestSource`, or the boot bundle (02, BEH-FD-010)
-             — MUST be verified without `reverify`. A stored manifest
-             without `acceptedAt` (no released version wrote one; only an
-             earlier draft or a test fixture can) MUST be re-verified
-             without `reverify`, against the current revocation set and
-             time, and a refusal MUST follow the ordinary path of a failed
-             re-verification — at boot, `store-invalid` and the boot bundle
-             or nothing (02, BEH-FD-010).
+             still verifies and applies the manifest it accepted, while
+             every revocation it holds still applies. Every later
+             re-verification of a stored manifest — the last applied one,
+             at each re-apply (06, BEH-FD-048) — MUST use the same form
+             with the `acceptedAt` stored with it; a refusal at a re-apply
+             follows 06, BEH-FD-048. A manifest seen for the first time —
+             received from the `ManifestSource`, or the boot bundle (02,
+             BEH-FD-010) — MUST be verified without `reverify`. A stored
+             manifest without `acceptedAt` (no released version wrote one;
+             only an earlier draft or a test fixture can) MUST be
+             re-verified without `reverify`, against the current revocation
+             set and time, and a refusal MUST follow the ordinary path of a
+             failed re-verification — at boot, `store-invalid` and the boot
+             bundle or nothing (02, BEH-FD-010); at a re-apply, the rule of
+             06, BEH-FD-048.
+```
+
+```
+REQUIREMENT: Documentation MUST state that `reverify` restores the
+             manifest's verification only, and that the host fails closed
+             on what the manifest names: `reverify` accepts no plugin
+             package, and no resolved definition survives a restart
+             (BEH-FD-005). While
+             the current revocation set is older than the loader's
+             `maxAge`, every entry that needs a new acceptance stays
+             pending "revocation-stale" until a set within `maxAge`
+             arrives: a definition the `PluginResolver` resolves through a
+             load, which the loader fails with `RevocationStale` (loader
+             BEH-LD-027; BEH-FD-005), and an `install` or `replace` that
+             `LoaderGate` refuses "revocation-stale", an import proxy's
+             included (loader BEH-LD-015; BEH-FD-008). A host restarted
+             offline past `maxAge` therefore verifies and applies its
+             stored manifest but, with `LoaderGate` wired, starts none of
+             its entries. What the
+             manifest takes away still acts: its kill entries and the
+             pending kills are subtracted from every desired list, whose
+             removals `LoaderGate` never refuses (BEH-FD-007; 06,
+             BEH-FD-048), and the `disable`s of 06, BEH-FD-042 run.
 ```
 
 **Settled here.** Verify-then-decode: decoding first would run a parser over
@@ -202,7 +227,10 @@ unauthenticated input and invite "verify what I decoded" mistakes. Verifying
 the stored copy again costs one verification per boot and closes the path by
 which a local edit to the store would change what the host runs; `reverify`
 keeps an offline host from rejecting its own manifest once the revocation
-set ages past `maxAge`, which governs new acceptances only. Refusing to
+set ages past `maxAge`, which governs new acceptances only. After a restart
+the manifest's entries are new acceptances, so they wait for a fresh set:
+the host fails closed on what may start, while what the manifest removes
+still acts. Refusing to
 build without a policy follows the core's refusal of a permissive default
 gate ([ADR-BR-032](../../core/decisions/032-operation-gate.md)): a control
 that accepts everything should not be configurable as a control.
@@ -295,17 +323,18 @@ storage the host cannot erase, which is the consumer's.
 
 > **Invariant:** [INV-FD-002](../invariants.md#inv-fd-002-no-unverified-manifest-is-applied)
 > **See:** [ADR-FD-001](../decisions/001-federation-is-a-companion-over-reconcile.md)
-> **Depends on:** loader definition resolution by digest ([references/loader/](../../loader/README.md)); [core 27 — Manifest and lazy activation](../../core/behaviors/27-manifest-and-lazy-activation.md) (BEH-BR-241–249)
+> **Depends on:** the application's `PluginResolver`, which may be backed by the loader ([references/loader/](../../loader/README.md)); [core 27 — Manifest and lazy activation](../../core/behaviors/27-manifest-and-lazy-activation.md) (BEH-BR-241–249)
 > **Satisfies:** [URS-BR-016](../../core/urs.md#urs-br-016-drive-the-plugin-set-from-a-declarative-list), [URS-BR-020](../../core/urs.md#urs-br-020-load-plugin-definitions-dynamically-while-running)
 
 ```ts
 // illustrative — not type-checked
-interface PluginResolver {   // supplied by the loader companion
+interface PluginResolver {   // an application port declared here; the application may back it with the loader's catalog
   readonly resolve: (ref: { readonly id: string; readonly digest: string; readonly version: string }) =>
     Effect.Effect<PluginDefinition<any, any, any, any>, ResolveFailed>
 }
 class ResolveFailed extends Schema.TaggedError<ResolveFailed>()("ResolveFailed", {
-  digest: Schema.String, message: Schema.String
+  digest: Schema.String, message: Schema.String,
+  reason: Schema.optional(Schema.Literal("revocation-stale"))   // a resolution refused because the revocation set is older than maxAge
 }) {}
 
 declare const Manifest: {
@@ -325,9 +354,24 @@ declare const Manifest: {
 
 ```
 REQUIREMENT: Each `ManifestPlugin` MUST be resolved to a definition by its
-             `digest` through the `PluginResolver`. The resolver is the
-             loader companion's; the federation package MUST NOT import,
-             fetch or evaluate plugin code itself.
+             `digest` through the `PluginResolver`, an application port
+             this package declares and the application supplies through
+             `FederationOptions.resolver` (02, BEH-FD-009); it may back it
+             with the loader — a load, or the loader's catalog
+             ([references/loader/](../../loader/README.md)). The federation
+             package MUST NOT import, fetch or evaluate plugin code itself.
+```
+
+```
+REQUIREMENT: A resolver whose resolution is refused because the current
+             revocation set is older than the loader's `maxAge` (a load
+             failing `RevocationStale`, loader BEH-LD-027) MUST fail with
+             `ResolveFailed { reason: "revocation-stale" }`. Such an entry
+             MUST be dropped from the desired list and not run, and MUST be
+             listed in `Federation.Status.pending` with reason
+             "revocation-stale" and retried as BEH-FD-008 retries the
+             gate's "revocation-stale", until it resolves or fails for
+             another reason (BEH-FD-002).
 ```
 
 ```
@@ -357,8 +401,12 @@ REQUIREMENT: Documentation MUST state that boot without network is only as
              digest the `PluginResolver` cannot resolve from local,
              content-addressed storage is dropped and not run. A deployment
              that must run offline after a restart MUST use a resolver that
-             keeps every digest of the highest verified manifest locally
-             (the loader companion's cache).
+             keeps every digest of the highest verified manifest in local,
+             content-addressed storage, which the application provides.
+             Documentation MUST also state that local storage spares the
+             network, not the acceptance: while the revocation set is older
+             than the loader's `maxAge`, the entries stay pending
+             "revocation-stale" (BEH-FD-002, BEH-FD-008).
 ```
 
 ```
@@ -595,9 +643,11 @@ REQUIREMENT: An entry rejected for a transient reason — `Conflict`,
              `Superseded`, `DrainTimeout`, `WouldDeadlock`, or
              `OperationRejected` with reason "gate-timeout",
              "gate-defect", or the loader gate's "revocation-stale" or
-             "revocation-unavailable" (loader BEH-LD-015) — MUST be listed
+             "revocation-unavailable" (loader BEH-LD-015) — and an entry the
+             projection dropped with `ResolveFailed` "revocation-stale"
+             (BEH-FD-005) MUST be listed
              in `Federation.Status.pending` and MUST be retried at every
-             sync, and also, for the two revocation reasons, each time
+             sync, and also, for the revocation reasons, each time
              `RevocationSource.changes` yields a set with a greater
              revision (06, BEH-FD-042), by the same reconcile of the
              last applied manifest (minus pending kills, BEH-FD-048) with a

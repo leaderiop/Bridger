@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-04                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): BEH-AG-030: the subagent's loop settles `SubagentHandle.result` with `Deferred` by calling `spawn.settleDeferred` through `TaskRegistry.settle`, ordered with the task's cancels under the registration's lock, and a false answer leaves the draft to the cancel that came first (H5); BEH-AG-025: the scope close fails an unsettled result "parent-ended" through `TaskRegistry.settle` before it cancels, and a result another cancel reached first fails "cancelled" (A1); `spawnSubagent` requires `TaskRegistry` (SPEC-AUDIT-07) (CCR-AG-010)<br>0.7 (2026-11-11): BEH-AG-025: `request.parent.pendingDraft`, supplied by every `AgentLoop` provider; the hand-off marker and `heldByParent` derive from it (H10); BEH-AG-030: a subagent's `Deferred` result and a cancel are decided by the first to reach the handle, and a cancel that wins makes the result `SubagentFailed` "cancelled" (A5) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.6 (2026-11-11): BEH-AG-025: `SubagentError` gains `HostClosed`, which `Realm.ephemeral` raises (PL5); the loop is started with `spawn.heldByParent`, answering as the hand-off marker is decided; only `spawnSubagent` passes the marker (PL3); BEH-AG-030: a cancel without the marker while the subagent's draft is pending on its parent ends it "handed-to-parent", and the first cancel to reach the task decides (A2) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.5 (2026-11-10): BEH-AG-025: `isolate` never lists `Tasks`, a base service no plugin provides, so the subagent's task is in its parent's table (02, BEH-AG-011) (T1); BEH-AG-025 and BEH-AG-030: the scope-close cancel passes the hand-off marker `handedDraftId` only for the subagent whose draft is the parent task's pending draft, and a subagent's task ends "handed-to-parent" only under that marker, otherwise it withdraws (H2); BEH-AG-030: the parent's own `Deferred` wins over a subagent's not yet published, and a subagent draft still pending when the turn ends with an answer, `needs-input` or the parent's own deferral is withdrawn by the subagent's own task (T2) (CCR-AG-007)<br>0.4 (2026-11-10): A subagent that defers ends its turn holding nothing, its `SubagentResult` is the deferral, the parent waits on it and is the task the application resumes; the subagent's task then ends `cancelled` with its draft "handed-to-parent", and only an unsettled result fails `parent-ended`; when several subagents of a turn defer, the parent takes the first to settle and the others withdraw their own drafts; from the moment the result settles the draft is pending on the parent, which reports it if cancelled or failed before publishing it (BEH-AG-025, BEH-AG-030, BEH-AG-016) (H3); the ephemeral realm isolates `AgentLoop`, `ModelAdapter` and every key its plugins provide, which are passed as `DesiredPlugin` entries (BEH-AG-025) (M9); the subagent starts a new session `${parent.sessionId}/sub/${segment}` (BEH-AG-025) (M10) (CCR-AG-006)<br>0.3 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — installs run under the parent's context as core `Realm.ephemeral` specifies, the subagent acts with `EphemeralRealm.context`, and `SubagentError` uses core's error unions (BEH-AG-025, BEH-AG-026, P21); the loop is started with `StartRequest.spawn` carrying the restricted toolset, taint and parent task (BEH-AG-025, 027, 029, H10); gate exemption question settled by the loader's wiring (P23) (CCR-AG-005)<br>0.2 (2026-11-08): Parent relation via `Actor.narrow` (BEH-BR-337), not `onBehalfOf`; `SubagentParentUnattributed`; error classes declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.9 (2026-11-11): BEH-AG-025: `spawnSubagent` follows the subagent's task and settles its result from it — `done` → `Done`, `failed` → `SubagentFailed` "failed" with the task's `error`, `cancelled` → "cancelled" — and a subagent entering `needs-input` fails it "needs-input" through `TaskRegistry.settle` and is cancelled (A3); `request.parent.onDeferred`, which `settleDeferred` calls under the subagent's registration lock as the parent's first-to-settle compare-and-set, the result settling `Deferred` only when it answers true (A4); the scope close ends the subagent with the parent's real end from `request.parent.ending`: no cancel when the parent's loop stopped (the realm's removal ends it "LoopStopped" by `Actor.system`), the parent cancel's resolved actor otherwise, `parent.context` when no cancel ended the parent (A5); `request.parent.loop` and the annotation `Agent.SpawnedBy`, passed as `spawn.spawnedBy`, so that the host tools put the parent loop on a subagent's call path (A1); BEH-AG-030: the parent records the result as its spawn call's outcome (A2) (SPEC-AUDIT-08) (CCR-AG-011)<br>0.8 (2026-11-11): BEH-AG-030: the subagent's loop settles `SubagentHandle.result` with `Deferred` by calling `spawn.settleDeferred` through `TaskRegistry.settle`, ordered with the task's cancels under the registration's lock, and a false answer leaves the draft to the cancel that came first (H5); BEH-AG-025: the scope close fails an unsettled result "parent-ended" through `TaskRegistry.settle` before it cancels, and a result another cancel reached first fails "cancelled" (A1); `spawnSubagent` requires `TaskRegistry` (SPEC-AUDIT-07) (CCR-AG-010)<br>0.7 (2026-11-11): BEH-AG-025: `request.parent.pendingDraft`, supplied by every `AgentLoop` provider; the hand-off marker and `heldByParent` derive from it (H10); BEH-AG-030: a subagent's `Deferred` result and a cancel are decided by the first to reach the handle, and a cancel that wins makes the result `SubagentFailed` "cancelled" (A5) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.6 (2026-11-11): BEH-AG-025: `SubagentError` gains `HostClosed`, which `Realm.ephemeral` raises (PL5); the loop is started with `spawn.heldByParent`, answering as the hand-off marker is decided; only `spawnSubagent` passes the marker (PL3); BEH-AG-030: a cancel without the marker while the subagent's draft is pending on its parent ends it "handed-to-parent", and the first cancel to reach the task decides (A2) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.5 (2026-11-10): BEH-AG-025: `isolate` never lists `Tasks`, a base service no plugin provides, so the subagent's task is in its parent's table (02, BEH-AG-011) (T1); BEH-AG-025 and BEH-AG-030: the scope-close cancel passes the hand-off marker `handedDraftId` only for the subagent whose draft is the parent task's pending draft, and a subagent's task ends "handed-to-parent" only under that marker, otherwise it withdraws (H2); BEH-AG-030: the parent's own `Deferred` wins over a subagent's not yet published, and a subagent draft still pending when the turn ends with an answer, `needs-input` or the parent's own deferral is withdrawn by the subagent's own task (T2) (CCR-AG-007)<br>0.4 (2026-11-10): A subagent that defers ends its turn holding nothing, its `SubagentResult` is the deferral, the parent waits on it and is the task the application resumes; the subagent's task then ends `cancelled` with its draft "handed-to-parent", and only an unsettled result fails `parent-ended`; when several subagents of a turn defer, the parent takes the first to settle and the others withdraw their own drafts; from the moment the result settles the draft is pending on the parent, which reports it if cancelled or failed before publishing it (BEH-AG-025, BEH-AG-030, BEH-AG-016) (H3); the ephemeral realm isolates `AgentLoop`, `ModelAdapter` and every key its plugins provide, which are passed as `DesiredPlugin` entries (BEH-AG-025) (M9); the subagent starts a new session `${parent.sessionId}/sub/${segment}` (BEH-AG-025) (M10) (CCR-AG-006)<br>0.3 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — installs run under the parent's context as core `Realm.ephemeral` specifies, the subagent acts with `EphemeralRealm.context`, and `SubagentError` uses core's error unions (BEH-AG-025, BEH-AG-026, P21); the loop is started with `StartRequest.spawn` carrying the restricted toolset, taint and parent task (BEH-AG-025, 027, 029, H10); gate exemption question settled by the loader's wiring (P23) (CCR-AG-005)<br>0.2 (2026-11-08): Parent relation via `Actor.narrow` (BEH-BR-337), not `onBehalfOf`; `SubagentParentUnattributed`; error classes declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -50,6 +50,15 @@ Agent.spawnSubagent(request: {
     readonly toolset: PinnedToolset; readonly context: OperationContext
     // The parent task's pending draft id now (02, BEH-AG-016), supplied by the parent's loop.
     readonly pendingDraft: Effect.Effect<Option.Option<string>>
+    // Called by settleDeferred under the subagent's registration lock: the parent's first-to-settle
+    // compare-and-set; true makes the draft the parent's pending draft at once (BEH-AG-030).
+    readonly onDeferred: (draft: { readonly draftId: string; readonly commands: ReadonlyArray<string>
+                                   readonly tainted: boolean }) => Effect.Effect<boolean>
+    // How the parent task is ending, once its cancel handle has decided it: the first cancel's resolved
+    // actor, or Actor.system when its registration's close began ending it; none otherwise (02, BEH-AG-011).
+    readonly ending: Effect.Effect<Option.Option<Actor>>
+    // The parent loop's own plugin, added to the subagent's dispatches under Agent.SpawnedBy.
+    readonly loop: { readonly id: string; readonly realm: string }
   }
   readonly plugins: ReadonlyArray<Plugin.Any>      // e.g. a ModelAdapter and an AgentLoop for the subagent
   readonly tools?: ReadonlyArray<string>           // requested subset of the parent's pinned toolset; default: none
@@ -68,7 +77,8 @@ type SubagentResult =
 
 class SubagentFailed extends Schema.TaggedError<SubagentFailed>()("SubagentFailed", {
   taskId: Schema.String,
-  reason: Schema.Literals(["parent-ended", "failed", "cancelled"])
+  reason: Schema.Literals(["parent-ended", "failed", "cancelled", "needs-input"]),
+  error: Schema.optional(Schema.Struct({ _tag: Schema.String, message: Schema.String }))   // "failed": the task's failed error
 }) {}
 class SubagentToolNotInParent extends Schema.TaggedError<SubagentToolNotInParent>()("SubagentToolNotInParent", {
   tool: Schema.String
@@ -84,6 +94,12 @@ type SubagentError =
   | ServiceUnavailable | UnknownRealm | LeaseRevoked | LeaseTimeout   // core EphemeralRealm.use (BEH-BR-336)
   | ResolutionRefused | AgentStartError                               // the subagent loop's start (01, BEH-AG-003)
   | BudgetExhausted | BudgetUnavailable                               // entitlement companion
+
+// The plugins whose stop would end a subagent's parent turn: every ancestor loop of the subagent (A1).
+declare const Agent: {
+  readonly SpawnedBy: AnnotationKey<ReadonlyArray<{ readonly id: string; readonly realm: string }>>
+  // id "@bridger/agent/spawned-by"; combine: union in order, no duplicates; monotonic: true; flows: [] (core file 30)
+}
 ```
 
 ```
@@ -121,19 +137,53 @@ REQUIREMENT: The subagent MUST NOT outlive its parent turn. When the scope
              so that this, the scope close's cancel, takes its place in the
              order of the task's handle: it fails the result only when no
              other cancel and not the registration's close reached the
-             handle first. It MUST then cancel the subagent's task
-             with `Tasks.cancel(taskId, parent.context, { handedDraftId })`
-             (a no-op when the task has ended, BEH-AG-010), then let the
+             handle first. It MUST then end the subagent's task with the
+             parent's real end, read from `parent.ending`: when it answers
+             `Actor.system` — the parent loop's registration closed (02,
+             BEH-AG-011) — it MUST NOT cancel the task, and the realm's
+             removal ends it `failed` "LoopStopped" by `Actor.system`
+             through the subagent loop's own registration close (02,
+             BEH-AG-011); when it answers another actor — the first cancel
+             that reached the parent's handle — it MUST cancel with
+             `Tasks.cancel(taskId, { ...parent.context, actor }, { handedDraftId })`;
+             when it answers none — the parent turn ended by an answer,
+             `needs-input`, a deferral or a failure of its own — with
+             `Tasks.cancel(taskId, parent.context, { handedDraftId })`.
+             A cancel is a no-op when the task has ended (BEH-AG-010).
+             It MUST then let the
              realm be removed. `handedDraftId` MUST be set, to the
              subagent's `draftId`, only when `parent.pendingDraft` answers
              that draft id at that moment (02, BEH-AG-016), and MUST be
              absent for every other subagent. Only
              `spawnSubagent` passes the marker (02, BEH-AG-016). A result
              that another cancel or the registration's close reached first
-             fails from the task's terminal snapshot: "cancelled" for
-             `cancelled`, "failed" for `failed` (BEH-AG-030); a result
+             settles from the task's terminal snapshot (below); a result
              already settled — an answer, or a deferral the parent now
              waits on (BEH-AG-030) — is unchanged.
+```
+
+```
+REQUIREMENT: `spawnSubagent` MUST follow the subagent's task through
+             `Tasks.changes(taskId)` in the caller's scope and settle
+             `SubagentHandle.result` from it, so that the parent never
+             waits on a subagent that has stopped. When the task enters
+             `needs-input` — which only the parent could answer, while the
+             application never resumes a subagent (BEH-AG-030) — it MUST
+             fail the result with `SubagentFailed { reason: "needs-input" }`
+             through `TaskRegistry.settle` (02, BEH-AG-011) and, when that
+             answered true, cancel the task with
+             `Tasks.cancel(taskId, parent.context)`, without the marker.
+             When the task is terminal and the result has not settled, the
+             result MUST settle from its terminal snapshot: `done` →
+             `Done { answer, tainted }` from the snapshot, `failed` →
+             `SubagentFailed { reason: "failed", error }` with the
+             snapshot's `error`, `cancelled` →
+             `SubagentFailed { reason: "cancelled" }`. The result's
+             `Deferred` is completed once: whichever of this rule, the
+             scope close (above) and `settleDeferred` (BEH-AG-030)
+             completes it first settles it, and the others change nothing.
+             An `awaiting-approval` settles the result only through
+             `settleDeferred`.
 ```
 
 ```
@@ -156,15 +206,22 @@ REQUIREMENT: `spawnSubagent` MUST start the subagent's loop through
              whose `input` is `input`, and whose `spawn` carries
              `parent.taskId`, the restricted toolset (BEH-AG-027) and the
              parent session's taint labels (BEH-AG-029) (01, BEH-AG-003),
-             and `heldByParent`, which MUST answer for a `draftId` exactly
+             `heldByParent`, which MUST answer for a `draftId` exactly
              as this behaviour decides the hand-off marker: true when
-             `parent.pendingDraft` answers that draft id (02, BEH-AG-016).
-             Every provider of `AgentLoop` that calls `spawnSubagent` MUST
-             supply `parent.pendingDraft`, answering its task's pending
-             draft id at the moment it is read — the subagent draft it
-             took from the moment that result settled, whether or not the
-             loop has read the result, or its own draft — and
-             `Option.none()` when it has none. A
+             `parent.pendingDraft` answers that draft id (02, BEH-AG-016),
+             and `spawnedBy`: the `Agent.SpawnedBy` value of
+             `parent.context.annotations` when present, followed by
+             `parent.loop`. Every provider of `AgentLoop` that calls
+             `spawnSubagent` MUST supply `parent.loop`, its own plugin's
+             `{ id, realm }`; `parent.onDeferred`, deciding as BEH-AG-030
+             says; `parent.ending`, answering as the
+             declaration says from what its task's cancel handle recorded
+             under the registration's lock (02, BEH-AG-011); and
+             `parent.pendingDraft`, answering its task's pending
+             draft id at the moment it is read — the subagent draft its
+             `onDeferred` took, from the moment that answered true,
+             whether or not the loop has read the result, or its own
+             draft — and `Option.none()` when it has none. A
              failure of `Realm.ephemeral`,
              of that `use` or of `start` MUST fail `spawnSubagent` with
              that error.
@@ -309,31 +366,48 @@ REQUIREMENT: A subagent whose tool call is deferred ends its turn as any
              loop MUST call
              `TaskRegistry.settle(taskId, spawn.settleDeferred({ draftId, commands, tainted }))`
              (01, BEH-AG-003; 02, BEH-AG-011), and the `settleDeferred`
-             that `spawnSubagent` supplies MUST succeed its
+             that `spawnSubagent` supplies MUST, when the result has not
+             settled, call `parent.onDeferred({ draftId, commands, tainted })`
+             and, only when that answers true, succeed its
              `SubagentHandle.result` with
              `Deferred { draftId, commands, tainted }` by completing the
-             result's `Deferred`, answering true when it completed it and
-             false when the result had already settled. That settlement and
+             result's `Deferred`. It answers true only then: false when
+             the result had already settled or `onDeferred` answered false.
+             Because `settleDeferred` runs inside `TaskRegistry.settle`,
+             `onDeferred` runs under the subagent's registration lock and
+             MUST NOT wait: the parent's loop decides there, by a
+             compare-and-set on its task's pending draft, whether this
+             draft is the first of its turn to settle — answering true
+             and making it the pending draft at once (02, BEH-AG-016) — or
+             not, answering false when its task already has a pending
+             draft (another subagent's, or its own `Deferred`) or its turn
+             has already ended otherwise (an answer, `needs-input`). On
+             false from `onDeferred` the result stays unsettled — it fails
+             "parent-ended" when the turn ends — and the draft stays with
+             the subagent's task, which withdraws it when the scope close's
+             cancel ends it (BEH-AG-016). That settlement and
              the cancels of the subagent's task are thereby decided in one
              order, the first to take the registration's lock deciding:
              when a cancel, the registration's close, or the scope close's
              failing of the result (BEH-AG-025) came first, the call
-             answers false, the result is not settled `Deferred` — it fails
+             answers false without calling `onDeferred`, the result is not
+             settled `Deferred` — it fails
              "parent-ended" when the scope close came first, otherwise
              "cancelled" (or "failed" after the registration's close) —
              the parent never takes that draft, and that cancel, or the
-             scope close's cancel that follows, ends the task under
+             scope close's end of the task that follows, ends the task under
              BEH-AG-016 as a task whose draft is not pending on its parent,
              withdrawing it; the loop MUST NOT withdraw it otherwise. The
              parent's loop
-             MUST treat the first such result of its turn to settle as a
-             `Deferred` tool outcome of its own step: it ends the step and
+             MUST treat the result that settles `Deferred` as the
+             `Deferred` tool outcome of its spawn call (01, BEH-AG-003):
+             it ends the step and
              the turn, holding nothing, and publishes `awaiting-approval`
              with that subagent's `draftId` and `commands` (BEH-AG-012),
              unless the parent's own tool call defers first or in the same
              step: the parent's own `Deferred` wins over a subagent's draft
              not yet published (02, BEH-AG-016).
-             From the moment that result settles, the draft is the parent
+             From the moment `onDeferred` answers true, the draft is the parent
              task's pending draft (BEH-AG-016): a parent cancelled or failed
              before it publishes `awaiting-approval` reports the draft for
              withdrawal. While it is, a cancel of the subagent's task that
@@ -347,17 +421,19 @@ REQUIREMENT: A subagent whose tool call is deferred ends its turn as any
 ```
 REQUIREMENT: A parent waits on one draft. When several subagents of one
              turn defer, only the first `Deferred` to settle is the
-             parent's; the loop MUST decide which is first atomically, and
+             parent's; the loop MUST decide which is first atomically, in
+             `onDeferred` (above), and
              MUST NOT merge drafts, since the package creates none
-             (BEH-AG-012). Every other subagent of the turn is cancelled
+             (BEH-AG-012). Every other subagent of the turn is ended
              without the hand-off marker when the turn ends (BEH-AG-025):
              one still running fails `parent-ended`, and one in
              `awaiting-approval` whose draft is not the parent's — a later
              `Deferred`, or any subagent draft when the turn ends with an
              answer, `needs-input` or the parent's own deferral — MUST end
              under BEH-AG-016 like any task with a pending draft — it calls `draftWithdrawal.withdraw` with
-             reason "task-cancelled" and its own `DraftReport` carries the
-             answer. The parent's model learns of those drafts only as
+             reason "task-cancelled" ("task-failed", by `Actor.system`,
+             when the parent's loop stopped, BEH-AG-025) and its own
+             `DraftReport` carries the answer. The parent's model learns of those drafts only as
              subagents that did not finish.
 ```
 
@@ -371,7 +447,9 @@ REQUIREMENT: The application MUST resume the parent task, never the
              `awaiting-approval`, is cancelled with `handedDraftId` naming
              that draft (BEH-AG-025) and MUST end
              `cancelled` with `draft: { draftId, outcome:
-             "handed-to-parent" }`, without calling `draftWithdrawal.withdraw`:
+             "handed-to-parent" }` — `failed` "LoopStopped" with that
+             `draft` when the parent's loop stopped, its realm's removal
+             ending it (BEH-AG-025; 02, BEH-AG-011) — without calling `draftWithdrawal.withdraw`:
              the draft is pending on the parent's task, which reports it if
              it ends without it (BEH-AG-016). A resume sent to the subagent's
              task then fails with `TaskNotResumable`.

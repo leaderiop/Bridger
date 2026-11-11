@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-INV                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.7 (2026-11-11): INV-LD-005: the scope's plugins are those core reports owned by it (`PluginSnapshot.scope`), and a catalog withdrawal is never acted on under the revocation actor (L1, L4) (SPEC-AUDIT-07) (CCR-LD-010)<br>0.6 (2026-11-11): INV-LD-005: a revocation's only actions are the removals of the dropped entries, by `Host.remove`, never a reconcile (H6) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): INV-LD-004: the `RevokedDigests` view serves the refusal list and the remote boundary, and the kill switch and gate agree with it on the same inputs — agreement, not one computation (PL16); INV-LD-005: a revocation reconcile keeps every entry still installed as its last completed action left it, whatever its pending status (H8) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-09): INV-LD-009 (no package is evaluated in the host's process without an accepted first-party statement); INV-LD-001 and INV-LD-004 cite file 09 (specification audit F-06, M-06); INV-LD-009 guest wording (independent review) (CCR-LD-004)<br>0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.8 (2026-11-11): INV-LD-005: the withdrawn catalog acceptance is kept, so no run judges its digest "verification-unknown" (L2) (SPEC-AUDIT-08) (CCR-LD-011)<br>0.7 (2026-11-11): INV-LD-005: the scope's plugins are those core reports owned by it (`PluginSnapshot.scope`), and a catalog withdrawal is never acted on under the revocation actor (L1, L4) (SPEC-AUDIT-07) (CCR-LD-010)<br>0.6 (2026-11-11): INV-LD-005: a revocation's only actions are the removals of the dropped entries, by `Host.remove`, never a reconcile (H6) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): INV-LD-004: the `RevokedDigests` view serves the refusal list and the remote boundary, and the kill switch and gate agree with it on the same inputs — agreement, not one computation (PL16); INV-LD-005: a revocation reconcile keeps every entry still installed as its last completed action left it, whatever its pending status (H8) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-09): INV-LD-009 (no package is evaluated in the host's process without an accepted first-party statement); INV-LD-001 and INV-LD-004 cite file 09 (specification audit F-06, M-06); INV-LD-009 guest wording (independent review) (CCR-LD-004)<br>0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -125,7 +125,8 @@ entries — the plugins `Host.snapshot` reports owned by its scope
 (`PluginSnapshot.scope`) whose digest the new set drops — so it removes
 nothing that was not revoked and undoes no operator change, a plugin an
 operator reinstalled by hand included. A catalog withdrawal is never acted on
-under the revocation actor. A `Host.reconcile` call is caused by a
+under the revocation actor: the withdrawn acceptance is kept, so no run judges
+its digest "verification-unknown". A `Host.reconcile` call is caused by a
 desired-list change only; it carries the application's actor and names no
 revocation.
 

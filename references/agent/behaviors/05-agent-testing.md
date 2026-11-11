@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-05                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): BEH-AG-034: `ReplayModel` fails a mismatched or unrecorded request as `ScriptedModel` does, with `ModelError` "other" and a recorded `ScriptMismatch` (M11); BEH-AG-037: the paired dispatch of an excluded command ends in `ToolNotInToolset` or `CommandRefused`, not a gate outcome name (low finding) (CCR-AG-006)<br>0.5 (2026-11-10): round 2 follow-up: `UnreachableViolation` declared (BEH-AG-037) (CCR-AG-005)<br>0.4 (2026-11-09): BEH-AG-036's example passes the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.3 (2026-11-08): `EvalHook` written with core 31's options (no veto codes, an application `who`, advisory registrations, dormant advisers skipped) (CCR-AG-003, round 2: core round 2 alignment)<br>0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.7 (2026-11-11): BEH-AG-034: the transcript's `tools` include the reserved spawn call's outcome, which the loop reports under its `callId`; BEH-AG-035: a spawn call runs `spawnSubagent` during replay (SPEC-AUDIT-08 A2) (CCR-AG-011)<br>0.6 (2026-11-10): BEH-AG-034: `ReplayModel` fails a mismatched or unrecorded request as `ScriptedModel` does, with `ModelError` "other" and a recorded `ScriptMismatch` (M11); BEH-AG-037: the paired dispatch of an excluded command ends in `ToolNotInToolset` or `CommandRefused`, not a gate outcome name (low finding) (CCR-AG-006)<br>0.5 (2026-11-10): round 2 follow-up: `UnreachableViolation` declared (BEH-AG-037) (CCR-AG-005)<br>0.4 (2026-11-09): BEH-AG-036's example passes the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.3 (2026-11-08): `EvalHook` written with core 31's options (no veto codes, an application `who`, advisory registrations, dormant advisers skipped) (CCR-AG-003, round 2: core round 2 alignment)<br>0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -77,13 +77,15 @@ interface Transcript {
   readonly tools: ReadonlyArray<{ readonly callId: string; readonly tool: string; readonly outcome: ToolOutcome }>
   readonly tasks: ReadonlyArray<TaskSnapshot>                  // every published snapshot, in order
 }
-Transcript.record: Layer.Layer<TranscriptRecorder>             // wraps ModelAdapter and ToolRunner providers
+Transcript.record: Layer.Layer<TranscriptRecorder>             // wraps ModelAdapter and ToolRunner providers; the loop reports spawn-call outcomes to it (01, BEH-AG-003)
 ReplayModel.layer(transcript: Transcript): Layer.Layer<ModelAdapter>
 ```
 
 ```
 REQUIREMENT: `Transcript.record` MUST capture, in order, every model request
-             digest and the events returned, every tool outcome, and every
+             digest and the events returned, every tool outcome — the
+             outcome of a reserved spawn call, which the loop reports under
+             its `callId` (01, BEH-AG-003), included — and every
              published `TaskSnapshot`. It MUST NOT capture configuration
              values, and MUST capture message content only when the test
              passes `{ content: true }`.
@@ -130,7 +132,8 @@ class ReplayDiverged extends Schema.TaggedError<ReplayDiverged>()("ReplayDiverge
 ```
 REQUIREMENT: Tool calls during replay MUST run through the real
              `ToolRunner` and dispatch, against the commands installed in
-             the `TestHost`; only the model is replayed. A test MAY replace
+             the `TestHost`, and a reserved spawn call through
+             `spawnSubagent` (01, BEH-AG-003); only the model is replayed. A test MAY replace
              command handlers with fixtures, which the transcript then
              compares by outcome.
 ```

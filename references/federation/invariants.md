@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-INV                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-FD-002: a stored manifest is accepted again under `reverify` with the acceptance time stored with it (L3), verified also by check 33 (PL16); INV-FD-003: verified also by check 48 (H2); INV-FD-011: the explicit opt-out is `outbox: "none"` (F4) (CCR-FD-010)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-FD-006: a peer export's version satisfies `"^" + V` (F4); INV-FD-011: once an install began, no retry, step-2 failure or restart resumes links before completion (H6, F2); INV-FD-012: an import's offered labels are its peer's `ManifestPeer.residency` (H5) (CCR-FD-008)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1, F3, F5, F9, F10) — INV-FD-003 covers pending kills and every apply path; INV-FD-010 conditional on a wired revocation source and the topology, guard holds stated; INV-FD-011 covers the guarded install and resumption (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 — INV-FD-010 (kill path), INV-FD-011 (outbox before snapshot), INV-FD-012 (residency) added (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-FD-003 limited to desired lists with pending kills reported; INV-FD-005 one realm per import; INV-FD-006 single-major imports and symmetric agreement; INV-FD-007 fences checked per link, deposed owners not stopped (R3-02, R3-18, R3-19, R3-21, R3-26) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — INV-FD-002: a stored copy that fails re-verification at a re-apply is not reconciled, and a restarted host past `maxAge` starts none of its entries needing a new acceptance until a fresh set arrives (H2, F1); INV-FD-010: kill entries act by `disable` when the last applied manifest fails re-verification (F1) (CCR-FD-011)<br>0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-FD-002: a stored manifest is accepted again under `reverify` with the acceptance time stored with it (L3), verified also by check 33 (PL16); INV-FD-003: verified also by check 48 (H2); INV-FD-011: the explicit opt-out is `outbox: "none"` (F4) (CCR-FD-010)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-FD-006: a peer export's version satisfies `"^" + V` (F4); INV-FD-011: once an install began, no retry, step-2 failure or restart resumes links before completion (H6, F2); INV-FD-012: an import's offered labels are its peer's `ManifestPeer.residency` (H5) (CCR-FD-008)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1, F3, F5, F9, F10) — INV-FD-003 covers pending kills and every apply path; INV-FD-010 conditional on a wired revocation source and the topology, guard holds stated; INV-FD-011 covers the guarded install and resumption (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck items 18, 19 and 20 — INV-FD-010 (kill path), INV-FD-011 (outbox before snapshot), INV-FD-012 (residency) added (CCR-FD-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-FD-003 limited to desired lists with pending kills reported; INV-FD-005 one realm per import; INV-FD-006 single-major imports and symmetric agreement; INV-FD-007 fences checked per link, deposed owners not stopped (R3-02, R3-18, R3-19, R3-21, R3-26) (CCR-FD-002)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -44,7 +44,11 @@ over generated sequences of issue, deliver, crash and boot.
 Every manifest that reaches `reconcile` was accepted by the wired
 `SignaturePolicy` as received bytes, in this process — a stored copy under
 `reverify`, with the acceptance time stored with it, held revocations still
-applied — and names this host and authority.
+applied — and names this host and authority. A stored copy that fails
+re-verification at a re-apply is not reconciled; a restarted host past the
+loader's `maxAge` applies its re-verified copy, but starts none of its
+entries that needs a new acceptance until a fresh revocation set arrives
+([BEH-FD-002](behaviors/01-host-manifest.md#beh-fd-002-the-signed-bytes-are-verified-before-they-are-decoded)).
 
 **Source**: `packages/federation/src/Manifest.ts` *(Planned)* — verify, then
 decode, then bind; the decoded type is produced only by the verifying path.
@@ -198,7 +202,9 @@ revokes without waiting for a sync, a manifest or a re-bootstrap, unless the
 blast-radius guard holds the revision, which is then reported `kill-held`;
 the kill entries of a newer verified manifest are applied by a kill-only
 apply while a re-bootstrap is pending, and stay applied until a full apply
-of that revision.
+of that revision; when the last applied manifest fails re-verification at a
+re-apply, they act by a `disable` of each owned plugin they match
+([BEH-FD-048](behaviors/06-kill-path-placement-and-skew.md#beh-fd-048-pending-kills-the-last-applied-manifest-and-the-re-bootstrap-marker-are-kept-in-the-store)).
 
 **Source**: `packages/federation/src/Revocation.ts` *(Planned)*.
 

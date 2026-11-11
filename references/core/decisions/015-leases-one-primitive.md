@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-015                                              |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.5 (2026-11-11): the no-caller paths name a sub-scope close or unmount that takes over a stop begun outside the parent's stop, draining or parked, and the parent's stop has begun from the revision it becomes `stopping` (C3, C4) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.4 (2026-11-11): The paths with no caller name the refused background restart and a child's sub-scope close or unmount (CL3); `DrainTimeout` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.3 (2026-10-03): Scoped-lease revocation interrupts the acquiring fiber (G12, BEH-BR-086); paths with no caller revoke without `force` (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `DrainTimeout` fields and parking aligned with BEH-BR-074 and BEH-BR-085; second pass: `id` also names a dependent whose build the call waited for, every unsettled stop of a failing call parks, shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-11): Consequences: a sub-scope close or unmount follows the limits of the parent's stop or of shutdown from the revision either begins (C2) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.5 (2026-11-11): the no-caller paths name a sub-scope close or unmount that takes over a stop begun outside the parent's stop, draining or parked, and the parent's stop has begun from the revision it becomes `stopping` (C3, C4) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.4 (2026-11-11): The paths with no caller name the refused background restart and a child's sub-scope close or unmount (CL3); `DrainTimeout` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.3 (2026-10-03): Scoped-lease revocation interrupts the acquiring fiber (G12, BEH-BR-086); paths with no caller revoke without `force` (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `DrainTimeout` fields and parking aligned with BEH-BR-074 and BEH-BR-085; second pass: `id` also names a dependent whose build the call waited for, every unsettled stop of a failing call parks, shutdown never parks (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -45,7 +45,7 @@ SPEC.md also offers three entry points: `use` (one key, one callback), `useAll` 
 
 **Positive**:
 
-- No provider closes under an admitted call unless the drain limit is reached and `force` was chosen, or the path has no caller (runtime failure, a refused background restart — a refused `whenAvailable` re-run included — a cascade with no caller, the overall shutdown limit, and a child's sub-scope close or `Plugin.Runtime.unmount` that removes the child itself or takes over a stop of it begun outside its parent's stop, draining or parked; one that waits for a removal its parent's stop began — from the revision in which the parent becomes `stopping` — follows that stop's limits, BEH-BR-121).
+- No provider closes under an admitted call unless the drain limit is reached and `force` was chosen, or the path has no caller (runtime failure, a refused background restart — a refused `whenAvailable` re-run included — a cascade with no caller, the overall shutdown limit, and a child's sub-scope close or `Plugin.Runtime.unmount` that removes the child itself or takes over a stop of it begun outside its parent's stop, draining or parked; one that waits for a removal its parent's stop or shutdown began — from the revision in which the parent becomes `stopping` or shutdown begins — follows that stop's or shutdown's limits, BEH-BR-121).
 - Every drain ends, either in success, `DrainTimeout`, or a forced, reported revocation.
 
 **Negative**:

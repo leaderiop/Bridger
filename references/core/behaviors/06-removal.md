@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-06                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-11): BEH-BR-045 `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`; BEH-BR-046 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-11): BEH-BR-043 a child of the leaving provider whose cleanup fails stays registered `failed` (cleanup) (C3) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.6 (2026-11-11): BEH-BR-045 `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`; BEH-BR-046 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -189,7 +189,9 @@ REQUIREMENT: Each dependent stopped because its provider is leaving MUST
              `RefusalList` refuses ends `disabled` with reason
              "refused-digest" (05 — Activation, BEH-BR-033). A child of the
              leaving provider MUST instead be removed, whatever services it
-             holds (14 — Children and Groups, BEH-BR-125). Under shutdown
+             holds (14 — Children and Groups, BEH-BR-125), unless its
+             cleanup fails: it then stays registered `failed` with phase
+             "cleanup" (14, BEH-BR-121). Under shutdown
              every such stop ends "gone" instead (12 — Shutdown and
              Hosting, BEH-BR-105).
 ```

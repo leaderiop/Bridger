@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-TRACE                                             |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — REQ-ES-018 restated: a `receive` handler refused by the freeze does not halt (F4) (CCR-ES-006)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — REQ-ES-018 restated (the durable-bus fence inside the transaction) (CCR-ES-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — REQ-ES-018 (re-bootstrap install); BEH-ES-034 row cites INV-ES-004 and REQ-ES-018 (CCR-ES-004)<br>0.3 (2026-11-09): REQ-ES-017 (grants on the `EventStore` members); BEH-ES-007 cites BEH-BR-292 and REQ-ES-013; BEH-ES-028 and BEH-ES-030 add REQ-ES-006 and REQ-ES-013; BEH-ES-034 adds REQ-ES-008; BEH-ES-038 cites URS-BR-034 and REQ-ES-017 (CCR-ES-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — REQ-ES-018 restated: followers restart when the install fails before the raise; reads await `whenReadable` (B3, H3) (CCR-ES-010)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — REQ-ES-018 restated: a `receive` handler refused by the freeze does not halt (F4) (CCR-ES-006)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — REQ-ES-018 restated (the durable-bus fence inside the transaction) (CCR-ES-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — REQ-ES-018 (re-bootstrap install); BEH-ES-034 row cites INV-ES-004 and REQ-ES-018 (CCR-ES-004)<br>0.3 (2026-11-09): REQ-ES-017 (grants on the `EventStore` members); BEH-ES-007 cites BEH-BR-292 and REQ-ES-013; BEH-ES-028 and BEH-ES-030 add REQ-ES-006 and REQ-ES-013; BEH-ES-034 adds REQ-ES-008; BEH-ES-038 cites URS-BR-034 and REQ-ES-017 (CCR-ES-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -90,7 +90,7 @@ Test files are *Planned* under `packages/event-store/test/` *(Planned)*.
 | <a id="req-es-015"></a>REQ-ES-015 | 15 | Chain receives stored form; codec | BEH-ES-031, BEH-ES-032 |
 | <a id="req-es-016"></a>REQ-ES-016 | 16 | Adapter conformance on SQLite and Postgres | BEH-ES-008, BEH-ES-033–039 |
 | <a id="req-es-017"></a>REQ-ES-017 | 17 | Grants name the `EventStore` members; helpers reach the store only through them | BEH-ES-038 |
-| <a id="req-es-018"></a>REQ-ES-018 | 18 | Re-bootstrap install: writes refused during a whole-store freeze by the durable-bus fence inside the transaction; a `receive` handler refused by the freeze does not halt its stream; followers stop, projections resume from the new store's checkpoints, chains wait for the application | BEH-ES-034 |
+| <a id="req-es-018"></a>REQ-ES-018 | 18 | Re-bootstrap install: writes refused during a whole-store freeze by the durable-bus fence inside the transaction; a `receive` handler refused by the freeze does not halt its stream; followers stop, projections resume from the new store's checkpoints, chains wait for the application; an install that fails before the raise restarts every follower from the existing checkpoints; `read` and `readAll` await `DurableBus.whenReadable` | BEH-ES-034 |
 
 ## §3 Risk notes
 

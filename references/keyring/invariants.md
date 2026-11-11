@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-INV                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-KR-002: the store-swap participant re-applies tombstones in its `apply`, inside the install before the `OriginChange`, and the refusal of `decrypt` and the codec is removed; the residual narrows to a crash during the install before `apply` commits and a failed `apply` (H4, K2); SPEC-AUDIT-07 residual — INV-KR-002: the failed-`apply` residual is removed, durable-bus holding readers and retrying the `apply`; the residual keeps a stop of the process during the install or that hold and adds the keyring plugin stopping during the hold; the residuals marked accepted, with (c) an `apply` that fails on every retry, holding writes and readers until the operator restores the `KeyStore` (CCR-KR-009)<br>0.4 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — INV-KR-002: keyring writes on the outbox database take the durable-bus fence (H4); `decrypt` and the codec refuse every subject from the `OriginChange` until the re-apply commits (K1); the store-swap crash window stated as a named residual (K2) (CCR-KR-008)<br>0.3 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-KR-002 holds across a whole-store re-bootstrap install through the store-swap participant (B6) (CCR-KR-007)<br>0.2 (2026-11-08): INV-KR-002 notes that storing an existing marker uses no key (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — INV-KR-002: no tombstone commits during the freeze except in the install's `apply` transaction (PL20); readers named (every subscription, `follow` and event-store read, the application's duty to await `whenReadable`) (H3); residual bounds restated (B4) (CCR-KR-010)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-KR-002: the store-swap participant re-applies tombstones in its `apply`, inside the install before the `OriginChange`, and the refusal of `decrypt` and the codec is removed; the residual narrows to a crash during the install before `apply` commits and a failed `apply` (H4, K2); SPEC-AUDIT-07 residual — INV-KR-002: the failed-`apply` residual is removed, durable-bus holding readers and retrying the `apply`; the residual keeps a stop of the process during the install or that hold and adds the keyring plugin stopping during the hold; the residuals marked accepted, with (c) an `apply` that fails on every retry, holding writes and readers until the operator restores the `KeyStore` (CCR-KR-009)<br>0.4 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — INV-KR-002: keyring writes on the outbox database take the durable-bus fence (H4); `decrypt` and the codec refuse every subject from the `OriginChange` until the re-apply commits (K1); the store-swap crash window stated as a named residual (K2) (CCR-KR-008)<br>0.3 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-KR-002 holds across a whole-store re-bootstrap install through the store-swap participant (B6) (CCR-KR-007)<br>0.2 (2026-11-08): INV-KR-002 notes that storing an existing marker uses no key (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -45,28 +45,35 @@ existing `Shredded` marker uses no key and encrypts nothing (BEH-KR-012). A
 whole-store re-bootstrap install that replaces a `KeyStore` sharing the
 outbox's database does not reopen a subject: every keyring write on that
 database takes the durable-bus fence, so no tombstone commits during the
-freeze (BEH-KR-017); the keyring's store-swap participant reads every
+freeze except in the install's `apply` transaction and durable-bus's retries
+of it (BEH-KR-017); the keyring's store-swap participant reads every
 tombstone before the swap and treats those subjects as shredded from then on,
 and its `apply` writes the tombstones again to the new store inside the
 install, before durable-bus emits the `OriginChange`, lifts the freeze or
-resumes any reader (durable-bus BEH-DB-048), so `decrypt` and the codec find
-them there (BEH-KR-012, BEH-KR-020).
+resumes any subscription or `follow`, and before `DurableBus.whenReadable`,
+which every event-store read awaits, completes (durable-bus BEH-DB-048), so
+`decrypt` and the codec find them there (BEH-KR-012, BEH-KR-020); an
+application that decodes through the codec itself awaits `whenReadable`
+first, its own duty.
 
 **Residual (store-swap install window; accepted)**: what the participant read
 lives in memory only. (a) A process that stops after `run` has replaced the store and before the
 participant's `apply` has committed, during the install or during that hold,
 restarts on a store without those tombstones, and a subject shredded only in
-the replaced store decrypts again until the restored-host rule re-applies
-them (BEH-KR-007, BEH-KR-020). (b) A keyring plugin that stops during the hold
+the replaced store decrypts again: a received tombstone until the
+restored-host rule re-applies it (BEH-KR-007, BEH-KR-020); one of this host's
+own shreds until an operator re-applies it from a host that received its
+notice, and without that, or for a notice never delivered, with no bound. (b) A keyring plugin that stops during the hold
 withdraws its participant, whose pending `apply` durable-bus drops; the hold
 can then lift with those tombstones unwritten, and the new store serves such a
 subject's key, to the codec at once and to the keyring when it starts again,
-until the restored-host rule re-applies them (BEH-KR-020; RSK-KR-001). (c) A failed
-`apply` reopens no subject, since durable-bus holds every reader
-(`apply-pending`) and retries it until it commits; one that fails on every
-retry keeps that hold, every write refused and every reader paused, until the
-operator restores the `KeyStore` it needs, as under `origin-unrecorded`
-(durable-bus BEH-DB-048).
+with the same bounds as (a) (BEH-KR-020; RSK-KR-001). (c) A failed
+`apply` reopens no subject, since durable-bus holds every subscription, every
+`follow` and every event-store read (`apply-pending`) and retries it until it
+commits; one that fails on every retry keeps that hold, every write refused
+and those readers paused, until the operator restores the `KeyStore` it
+needs, as for a `recordIncarnation` that fails on every retry under
+`origin-unrecorded` (durable-bus BEH-DB-048).
 
 **Implication**: no new plaintext is produced for a shredded subject while its
 redaction is still running.

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-05                                            |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-ES-033 and its acceptance check: the adapter passes each durable-bus `onEnd` function the outcome, "committed" only when the commit succeeded (K3, durable-bus CCR-DB-010); BEH-ES-034 unchanged: projections still restart after the `OriginChange`, which now follows every store-swap `apply`; SPEC-AUDIT-07 residual — BEH-ES-034: each write calls `fence` before it passes a payload through the codec; acceptance check 18: a `receive` handler is not retried while a store-swap `apply` is pending (CCR-ES-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-ES-033: the adapter runs the effects registered with durable-bus `StoreTransaction.onEnd` at commit or rollback, on every exit, in registration order, and a fence admission ends through it; BEH-ES-034 restated (H3) (CCR-ES-008)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-ES-033: `EventStoreAdapter.transaction` provides `StoreTransaction` only, and a REQUIREMENT that the adapter ends every `DurableBus.fence` admission taken on a transaction when it commits or rolls back, on every exit (H2, B1, B3); BEH-ES-034: `fence` takes the transaction handle; BEH-ES-037: the conformance suite covers the admission's end; check 18: retries wait while the incarnation is unrecorded (B2) (CCR-ES-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-ES-033: the adapter's `transaction` provides the transaction's own `Scope`; BEH-ES-034: `DurableBus.fence` runs in that scope (H3); BEH-ES-040 check 18: a `receive` handler refused by the freeze does not halt its stream (F4) (CCR-ES-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — BEH-ES-034: every write of the store calls durable-bus `DurableBus.fence(tx)` inside its own write transaction during a whole-store install instead of following the sliding `outbox-frozen`/`outbox-thawed` feed; check 18 restated (CCR-ES-005)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-ES-034: what the store does at a re-bootstrap install — every write refused with `OutboxFrozen` during a whole-store freeze, followers read their checkpoint each batch, stop at a whole-store swap and restart from the new store's checkpoints, chain followers wait for the application, positions never translated (P6); BEH-ES-040 check 18 (CCR-ES-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-ES-034: `read` and `readAll`, and every load and follower batch through them, await `DurableBus.whenReadable` before they read, and a write fences before its loads decode (H3); followers stopped by `prepare` restart from the existing store's checkpoints when the install fails before the raise (B3); check 18 follows (CCR-ES-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-ES-033 and its acceptance check: the adapter passes each durable-bus `onEnd` function the outcome, "committed" only when the commit succeeded (K3, durable-bus CCR-DB-010); BEH-ES-034 unchanged: projections still restart after the `OriginChange`, which now follows every store-swap `apply`; SPEC-AUDIT-07 residual — BEH-ES-034: each write calls `fence` before it passes a payload through the codec; acceptance check 18: a `receive` handler is not retried while a store-swap `apply` is pending (CCR-ES-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-ES-033: the adapter runs the effects registered with durable-bus `StoreTransaction.onEnd` at commit or rollback, on every exit, in registration order, and a fence admission ends through it; BEH-ES-034 restated (H3) (CCR-ES-008)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-ES-033: `EventStoreAdapter.transaction` provides `StoreTransaction` only, and a REQUIREMENT that the adapter ends every `DurableBus.fence` admission taken on a transaction when it commits or rolls back, on every exit (H2, B1, B3); BEH-ES-034: `fence` takes the transaction handle; BEH-ES-037: the conformance suite covers the admission's end; check 18: retries wait while the incarnation is unrecorded (B2) (CCR-ES-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-ES-033: the adapter's `transaction` provides the transaction's own `Scope`; BEH-ES-034: `DurableBus.fence` runs in that scope (H3); BEH-ES-040 check 18: a `receive` handler refused by the freeze does not halt its stream (F4) (CCR-ES-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — BEH-ES-034: every write of the store calls durable-bus `DurableBus.fence(tx)` inside its own write transaction during a whole-store install instead of following the sliding `outbox-frozen`/`outbox-thawed` feed; check 18 restated (CCR-ES-005)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-ES-034: what the store does at a re-bootstrap install — every write refused with `OutboxFrozen` during a whole-store freeze, followers read their checkpoint each batch, stop at a whole-store swap and restart from the new store's checkpoints, chain followers wait for the application, positions never translated (P6); BEH-ES-040 check 18 (CCR-ES-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -138,7 +138,7 @@ REQUIREMENT: During a whole-store install, every write of the store —
              write MUST call durable-bus `DurableBus.fence(tx)` (BEH-DB-048)
              inside its own write transaction, before its first write and
              before it passes any payload through the `PayloadCodec` (whose
-             encode may write, keyring BEH-KR-017), passing that transaction (the admission lasts until the
+             encode may write, keyring BEH-KR-017; a load's decode included), passing that transaction (the admission lasts until the
              transaction commits or rolls back, ended through its `onEnd`,
              BEH-ES-033), and fail
              with the fence's `OutboxFrozen`; the `outbox-frozen` and
@@ -146,6 +146,20 @@ REQUIREMENT: During a whole-store install, every write of the store —
              be used to decide. An in-store install refuses no write; the
              engine orders the install transaction with every other
              (above).
+```
+
+```
+REQUIREMENT: `read` and `readAll`, and through them every load, follower
+             batch and helper that decodes stored payloads through the
+             `PayloadCodec`, MUST await durable-bus `DurableBus.whenReadable`
+             (BEH-DB-048) before they read, so that nothing is decoded
+             during a whole-store install or while `apply-pending` or
+             `origin-unrecorded` holds, while a subject shredded in the
+             replaced store may lack its tombstone in the new one (keyring
+             BEH-KR-020). A write fences before its loads decode (above), so
+             it is refused rather than kept waiting with its transaction
+             open, and a read inside a transaction admitted before the
+             freeze does not wait (durable-bus BEH-DB-048).
 ```
 
 ```
@@ -162,7 +176,15 @@ REQUIREMENT: Every follower of the store (projections, BEH-ES-019, and
              MUST NOT restart on their own: each is reported `halted
              { cause: "store-replaced" }` until the application calls
              `EventStore.chain` again, under the same series only when the
-             new store holds the chained stream versions unchanged.
+             new store holds the chained stream versions unchanged. When the
+             settlement ends with nothing raised — the install failed before
+             the raise ("prepare-failed", `IncarnationUnavailable`), so no
+             `OriginChange` comes — the store MUST restart every follower its
+             `prepare` stopped, chain followers included, from the
+             checkpoints the existing store holds, once
+             `DurableBus.whenReadable` completes at the settlement scope's
+             close; it tells this case by `DurableBus.origin`, unchanged
+             since `prepare` exactly when nothing was raised.
 ```
 
 ```
@@ -427,7 +449,15 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  incarnation is unrecorded or a store-swap `apply` is pending; followers stop at the swap and projections
                  resume from the new store's checkpoints, or rebuild where
                  there is none; a chain follower stays halted with
-                 "store-replaced" until `chain` is called again; after an
+                 "store-replaced" until `chain` is called again; when the
+                 install fails before the raise ("prepare-failed",
+                 `IncarnationUnavailable`), every stopped follower, chain
+                 followers included, restarts from the existing store's
+                 checkpoints at the settlement scope's close, and no chain
+                 reports "store-replaced"; `read` and `readAll` started
+                 during the install or while `apply-pending` or
+                 `origin-unrecorded` holds decode nothing until
+                 `DurableBus.whenReadable` completes; after an
                  in-store install a follower continues from the checkpoint
                  the install wrote (BEH-ES-034).
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-05                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): Check 12: a plan stopping a call-path plugin's parent, transitively, fails `PlanAffectsCaller` (SPEC-AUDIT-07 MC1) (CCR-MC-008)<br>0.7 (2026-11-10): Check 12: `PlanStale` at step 3 when a stored ref re-resolves to another digest (low finding), and the plugin in `CurrentTransition` on the call path (H4, final review); check 16 and REQ-MC-016: the `McpTasks` port, task subscriptions, its `notifications/tasks` channel and `ended` signal (BEH-MC-008, M8) (CCR-MC-006)<br>0.6 (2026-11-10): Check 1: server removal interrupts in-flight calls; check 12: the host calls' actor and `PlanAffectsCaller` (P22, P24) (CCR-MC-005)<br>0.5 (2026-11-09): Checks 8, 9 and 10 follow the import as a link: session child, background handshake, `SessionLost` outcomes, disclosure; check 15 and REQ-MC-015: no contract object, local contracts, call-log `disclosed` (core CCR-BR-033); check 9: `McpClientStatus` and no session after a refused mount (independent review) (CCR-MC-004)<br>0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.9 (2026-11-11): Check 12: a subagent's dispatch of a plan that stops its parent's loop, listed under "@bridger/agent/spawned-by", fails `PlanAffectsCaller` (SPEC-AUDIT-08 A1) (CCR-MC-009)<br>0.8 (2026-11-11): Check 12: a plan stopping a call-path plugin's parent, transitively, fails `PlanAffectsCaller` (SPEC-AUDIT-07 MC1) (CCR-MC-008)<br>0.7 (2026-11-10): Check 12: `PlanStale` at step 3 when a stored ref re-resolves to another digest (low finding), and the plugin in `CurrentTransition` on the call path (H4, final review); check 16 and REQ-MC-016: the `McpTasks` port, task subscriptions, its `notifications/tasks` channel and `ended` signal (BEH-MC-008, M8) (CCR-MC-006)<br>0.6 (2026-11-10): Check 1: server removal interrupts in-flight calls; check 12: the host calls' actor and `PlanAffectsCaller` (P22, P24) (CCR-MC-005)<br>0.5 (2026-11-09): Checks 8, 9 and 10 follow the import as a link: session child, background handshake, `SessionLost` outcomes, disclosure; check 15 and REQ-MC-015: no contract object, local contracts, call-log `disclosed` (core CCR-BR-033); check 9: `McpClientStatus` and no session after a refused mount (independent review) (CCR-MC-004)<br>0.4 (2026-11-08): Checks 4, 5, 11, 13 and 14 follow the round-2 agent review: long-command wait without timeout, envelope and size caps, `reconcile-plan` not read-only, reads and resources from a tainted session (CCR-MC-003)<br>0.3 (2026-11-08): Checks 2–6, 10 and 12 extended (taint by default, listing record and `ToolChanged`, idempotency key, resources, untrusted mark, atomic apply); checks 13 and 14 (CCR-MC-003, round 2: recheck items 1, 6, 7, 8, 9)<br>0.2 (2026-11-08): Checks aligned with per-call pins, change feed, external mark, plan store (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -135,7 +135,9 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  actor of every lifecycle record (never unattributed or
                  `Actor.system`); a plan whose entry action would stop the
                  host-tools plugin, the dispatching plugin (`onBehalfOf`), a
-                 plugin the fiber holds or builds (`CurrentTransition`), or
+                 plugin the fiber holds or builds (`CurrentTransition`), a
+                 plugin listed under "@bridger/agent/spawned-by" (a
+                 subagent's dispatch stopping its parent's loop), or
                  a provider or the parent of one of them, transitively
                  (a plan stopping the parent of the server, the loop or the
                  host-tools plugin included), fails

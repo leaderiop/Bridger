@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-09                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-11): BEH-GX-069 `ProposedRequest.cold` comment names `restart` and the actions of a cold `reconcile` (PL18) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): Binding `config.form` is a label of the operation; a reconfigure of a registration not yet loaded carries fingerprints of form "raw" under "decoded" (PL6); binding and `ProposedRequest` carry `cold`, absent unless the call passes `cold: true` (core CCR-BR-038 coupling); BEH-GX-065 `cold` exactly when the request will carry it (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-10): BEH-GX-065 a field the request carries is bound as carried, an empty array or object included (`mandatoryInterceptions: []`, `definition: {}`), "absent" only for fields it does not carry, `requestOnly` present exactly when one of its fields is; binding version 2 is unreleased, so `v` stays 2 (H7); BEH-GX-066 fifth vector, a version 2 binding with `definition: {}` and `mandatoryInterceptions: []` (H7); BEH-GX-072 rationale states what an atomic reconcile does on a refused entry (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-069 `ProposedRequest` carries the request fields binding version 2 digests (`definition.manifest`, `onBehalfOf`, `undo`, `allowChildren`, `mandatoryInterceptions`); BEH-GX-067 a late or surplus `signed` event is refused by the companion before appending, the store enforcing the version only (H5, low); follow-up: `TicketWriteFailed`, `TicketReadFailed`, `TicketVersionConflict`, `IssueRefused`, `RevokeRefused` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.7 (2026-11-11): BEH-GX-072 each reconcile binding built as BEH-GX-069 builds it, `undo` and `cold` included (PL6) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.6 (2026-11-11): BEH-GX-069 `ProposedRequest.cold` comment names `restart` and the actions of a cold `reconcile` (PL18) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): Binding `config.form` is a label of the operation; a reconfigure of a registration not yet loaded carries fingerprints of form "raw" under "decoded" (PL6); binding and `ProposedRequest` carry `cold`, absent unless the call passes `cold: true` (core CCR-BR-038 coupling); BEH-GX-065 `cold` exactly when the request will carry it (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-10): BEH-GX-065 a field the request carries is bound as carried, an empty array or object included (`mandatoryInterceptions: []`, `definition: {}`), "absent" only for fields it does not carry, `requestOnly` present exactly when one of its fields is; binding version 2 is unreleased, so `v` stays 2 (H7); BEH-GX-066 fifth vector, a version 2 binding with `definition: {}` and `mandatoryInterceptions: []` (H7); BEH-GX-072 rationale states what an atomic reconcile does on a refused entry (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-069 `ProposedRequest` carries the request fields binding version 2 digests (`definition.manifest`, `onBehalfOf`, `undo`, `allowChildren`, `mandatoryInterceptions`); BEH-GX-067 a late or surplus `signed` event is refused by the companion before appending, the store enforcing the version only (H5, low); follow-up: `TicketWriteFailed`, `TicketReadFailed`, `TicketVersionConflict`, `IssueRefused`, `RevokeRefused` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-065, 066: binding version 2 binds `onBehalfOf`, `undo` and the request-only fields `manifestDigest`, `allowChildren` and `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately unbound; a version 2 vector (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -521,9 +521,10 @@ policy ([BEH-GX-059](./08-approval-policy.md#beh-gx-059-exemptions-are-explicit-
 
 ```
 REQUIREMENT: A ticket for a `reconcile` MUST hold one binding per entry action
-             the reconcile is expected to submit to the gate, each built from
-             that action's own operation, target, definition and configuration
-             change. The binding's `operation` MUST be the entry action's,
+             the reconcile is expected to submit to the gate, each built as
+             BEH-GX-069 builds a binding from that action's own
+             `ProposedRequest` (its operation, target, definition,
+             configuration change, `undo` and `cold` included). The binding's `operation` MUST be the entry action's,
              never "reconcile".
 ```
 
