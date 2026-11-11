@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-18                                               |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-10): BEH-BR-156 an entry that would close a dependency cycle is a validation-stage rejection computed by the diff, listed in the plan's `rejected`, so `atomic` applies nothing; REQ-BR-098 row extended (C7) (CCR-BR-035)<br>0.11 (2026-11-10): BEH-BR-156 edges on a cycle of the change phase are ignored for the order (list order) and the entry closing the cycle is rejected with `DependencyCycle` (C9); BEH-BR-157 shutdown during a non-atomic `reconcile` issues no further action and fails with `HostClosed`, parent record `failed` (C10) (CCR-BR-034)<br>0.10 (2026-11-09): BEH-BR-153 `IncompatibleContract` and `IncompatibleEngine` reach the report as `InstallError` members, and a plan names each by its own tag (C-07) (CCR-BR-033)<br>0.9 (2026-11-08): BEH-BR-154 the diff reads the operator's `disabled` flag, a "refused-digest" registration counts as not disabled; BEH-BR-155 atomic undo removals use the prune options whatever `prune` is; BEH-BR-159 idempotence after a run with no rejection, refused entries retried; BEH-BR-160 refusal-list answers are history like failure (agent review R1-07, R1-11) (CCR-BR-029)<br>0.8 (2026-11-08): BEH-BR-160 lazy registrations compared with `dormant` and `active` as one class; eager registrations compared exactly (host-core prototype finding G-P7) (CCR-BR-028)<br>0.7 (2026-11-08): BEH-BR-153 `DesiredPlugin.mandatoryInterceptions` and `allowChildren`, `BridgerOptions.mandatoryCatalog`, `ReconcileOptions.atomic`, `PolicyMismatch`, `ApplyRolledBack` and `PartialApply`; BEH-BR-154 policy compared, never changed in place; BEH-BR-156 entries ordered by dependency (removals dependents first, other changes providers first), closing gap G36; BEH-BR-157 and 158 atomic apply and undo operations; acceptance checks 98 and 101 (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-154: lazy identity `meta` (digest supplied beside the manifest); BEH-BR-153/155: `pruneDrain` and `pruneForce` (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-153 `DesiredPlugin.plugin` accepts lazy definitions, BEH-BR-154 lazy definitions compared by manifest `version` and `digest` without loading (CCR-BR-017); BEH-BR-153 `expect` and `PlanStale`, BEH-BR-156 diff shared with `Host.plan`, BEH-BR-158 a stale plan applies nothing (CCR-BR-019); BEH-BR-153 `plugin: Plugin.Any` (CCR-BR-020)<br>0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.13 (2026-11-11): BEH-BR-153 every `ReconcileReport` list names a plugin as `{ id, realm }`, and `rejected` entries carry `realm` (C2) (SPEC-AUDIT-05); BEH-BR-153 `ReconcileOptions.cold` (H9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-156 an entry that would close a dependency cycle is a validation-stage rejection computed by the diff, listed in the plan's `rejected`, so `atomic` applies nothing; REQ-BR-098 row extended (C7) (CCR-BR-035)<br>0.11 (2026-11-10): BEH-BR-156 edges on a cycle of the change phase are ignored for the order (list order) and the entry closing the cycle is rejected with `DependencyCycle` (C9); BEH-BR-157 shutdown during a non-atomic `reconcile` issues no further action and fails with `HostClosed`, parent record `failed` (C10) (CCR-BR-034)<br>0.10 (2026-11-09): BEH-BR-153 `IncompatibleContract` and `IncompatibleEngine` reach the report as `InstallError` members, and a plan names each by its own tag (C-07) (CCR-BR-033)<br>0.9 (2026-11-08): BEH-BR-154 the diff reads the operator's `disabled` flag, a "refused-digest" registration counts as not disabled; BEH-BR-155 atomic undo removals use the prune options whatever `prune` is; BEH-BR-159 idempotence after a run with no rejection, refused entries retried; BEH-BR-160 refusal-list answers are history like failure (agent review R1-07, R1-11) (CCR-BR-029)<br>0.8 (2026-11-08): BEH-BR-160 lazy registrations compared with `dormant` and `active` as one class; eager registrations compared exactly (host-core prototype finding G-P7) (CCR-BR-028)<br>0.7 (2026-11-08): BEH-BR-153 `DesiredPlugin.mandatoryInterceptions` and `allowChildren`, `BridgerOptions.mandatoryCatalog`, `ReconcileOptions.atomic`, `PolicyMismatch`, `ApplyRolledBack` and `PartialApply`; BEH-BR-154 policy compared, never changed in place; BEH-BR-156 entries ordered by dependency (removals dependents first, other changes providers first), closing gap G36; BEH-BR-157 and 158 atomic apply and undo operations; acceptance checks 98 and 101 (CCR-BR-025)<br>0.6 (2026-11-08): BEH-BR-154: lazy identity `meta` (digest supplied beside the manifest); BEH-BR-153/155: `pruneDrain` and `pruneForce` (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-153 `DesiredPlugin.plugin` accepts lazy definitions, BEH-BR-154 lazy definitions compared by manifest `version` and `digest` without loading (CCR-BR-017); BEH-BR-153 `expect` and `PlanStale`, BEH-BR-156 diff shared with `Host.plan`, BEH-BR-158 a stale plan applies nothing (CCR-BR-019); BEH-BR-153 `plugin: Plugin.Any` (CCR-BR-020)<br>0.4 (2026-10-03): `ConfigFingerprintUnavailable` added to the per-entry `rejected` reasons; entry actions that install with `config` or reconfigure with a value run step 4a of BEH-BR-188 on their own (CCR-BR-014)<br>0.3 (2026-10-02): A reconcile's intent is recorded with its parent `requested` record; interruption after that ends only the caller's wait; `requireReason` checked on a provisional diff at step 2 and again on the diff recomputed at the intent, failing with a recorded `ReasonRequired` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -68,18 +68,22 @@ interface ReconcileOptions {
   readonly pruneForce?: boolean          // force of each prune remove; default false
   readonly expect?: ReconcilePlan        // apply this plan or nothing (32, BEH-BR-319)
   readonly atomic?: boolean              // all entries or none, by undo (32, BEH-BR-322); default false
+  readonly cold?: boolean                // skip a handoff in every replace and restarting reconfigure
+                                         // the reconcile issues (34, BEH-BR-353); default false
 }
 
+// Every list names a plugin as { id, realm } (17, BEH-BR-147; CCR-BR-037).
 interface ReconcileReport {
-  readonly installed: readonly string[]
-  readonly replaced: readonly string[]
-  readonly reconfigured: readonly string[]
-  readonly enabled: readonly string[]
-  readonly disabled: readonly string[]
-  readonly removed: readonly string[]
-  readonly unchanged: readonly string[]
+  readonly installed: readonly { readonly id: string; readonly realm: string }[]
+  readonly replaced: readonly { readonly id: string; readonly realm: string }[]
+  readonly reconfigured: readonly { readonly id: string; readonly realm: string }[]
+  readonly enabled: readonly { readonly id: string; readonly realm: string }[]
+  readonly disabled: readonly { readonly id: string; readonly realm: string }[]
+  readonly removed: readonly { readonly id: string; readonly realm: string }[]
+  readonly unchanged: readonly { readonly id: string; readonly realm: string }[]
   readonly rejected: readonly {
     readonly id: string
+    readonly realm: string
     readonly reason:
       | InstallError | ConfigInvalid | ConfigFingerprintUnavailable | OperationRejected | PolicyMismatch
       // Settled here (BEH-BR-157): an entry action that passes step 6 of

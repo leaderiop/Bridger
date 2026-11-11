@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-ADR-008                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-09): Initial draft (specification audit F-06); guests run outside the host's runtime, in the deployment's bundle runtime, not necessarily in another process (independent review) (CCR-LD-004) |
+> | Change History | 0.2 (2026-11-11): The revoked-digest view serves the refusal list and the remote boundary, and the kill switch and gate agree with it — agreement, not one computation (PL16) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.1 (2026-11-09): Initial draft (specification audit F-06); guests run outside the host's runtime, in the deployment's bundle runtime, not necessarily in another process (independent review) (CCR-LD-004) |
 
 ---
 
@@ -46,8 +46,9 @@ listed in the catalog would therefore have been evaluated next to the host
   verifies the bundle at each session attempt and hands the verified bytes to
   a bundle runtime of the remote companion.
 - **A link carries a manifest derived from its guest's** (BEH-LD-069), and
-  **one view of revoked package digests** serves the refusal list, the kill
-  switch, the gate and the remote boundary (BEH-LD-070).
+  **one view of revoked package digests** serves the refusal list and the
+  remote boundary, and the kill switch and the gate agree with it, computing
+  from the same inputs — agreement, not one computation (BEH-LD-070).
 
 ## Alternatives considered
 

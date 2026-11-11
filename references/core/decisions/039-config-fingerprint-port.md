@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-039                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amends ADR-BR-029                                 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-10): Status names the ADRs this one amends (ADR-BR-029), pairing their "amended by" (C22) (CCR-BR-034)<br>0.2 (2026-11-08): File restored: it was registered in decisions/index.yaml and cited across core but missing from the repository; its content reconstructed from what BEH-BR-011, 015, 103, 188, 192, 197 and 219, ADR-BR-008, 018, 033 and 034, INV-BR-013, 026 and 028, RSK-BR-008 and RSK-BR-024, the CCR-BR-014 and CCR-BR-015 register entries and `prototypes/host-core` already state; no decision changed (CCR-BR-016)<br>0.1 (2026-10-03): Initial draft: an optional `ConfigFingerprinter` port asked at step 4a of BEH-BR-188, after validation and before the gate; core computes no fingerprint; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015) |
+> | Change History | 0.4 (2026-11-11): `select` receives the `form` `fingerprint` will receive (G3) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.3 (2026-11-10): Status names the ADRs this one amends (ADR-BR-029), pairing their "amended by" (C22) (CCR-BR-034)<br>0.2 (2026-11-08): File restored: it was registered in decisions/index.yaml and cited across core but missing from the repository; its content reconstructed from what BEH-BR-011, 015, 103, 188, 192, 197 and 219, ADR-BR-008, 018, 033 and 034, INV-BR-013, 026 and 028, RSK-BR-008 and RSK-BR-024, the CCR-BR-014 and CCR-BR-015 register entries and `prototypes/host-core` already state; no decision changed (CCR-BR-016)<br>0.1 (2026-10-03): Initial draft: an optional `ConfigFingerprinter` port asked at step 4a of BEH-BR-188, after validation and before the gate; core computes no fingerprint; fingerprints ordered by `configChange.paths`, whatever order the port answers in (CCR-BR-014, CCR-BR-015) |
 
 ---
 
@@ -38,8 +38,10 @@ interface FingerprintQuery {
   readonly target: { readonly id: string; readonly realm: string }
 }
 class ConfigFingerprinter extends Context.Service<ConfigFingerprinter, {
-  readonly select: (q: FingerprintQuery & { readonly paths: ReadonlyArray<string> })
-    => Effect.Effect<ReadonlyArray<string>>
+  readonly select: (q: FingerprintQuery & {
+      readonly paths: ReadonlyArray<string>
+      readonly form: "raw" | "decoded"                       // the form fingerprint will receive (CCR-BR-037)
+    }) => Effect.Effect<ReadonlyArray<string>>
   readonly fingerprint: (q: FingerprintQuery & {
       readonly form: "raw" | "decoded"
       readonly entries: ReadonlyArray<{ readonly path: string; readonly value: unknown }>
@@ -55,7 +57,7 @@ interface ConfigChange {
 - **Resolved once.** The host reads the port with `Effect.serviceOption` at construction, like `AuditSink` and `OperationGate`, and never re-resolves it ([02 — Host construction](../behaviors/02-host-construction.md), BEH-BR-015). `Host.controls` reports `wired.fingerprinter` and `fingerprintTimeout` ([24 — Time, identifiers and sequence](../behaviors/24-time-ids-and-sequence.md), BEH-BR-212).
 - **Asked at step 4a, after validation and before the gate** ([22 — Attributable operations](../behaviors/22-attributable-operations.md), BEH-BR-188). After validation, so the port is never handed the value of a call that cannot happen; before the gate, so the `OperationRequest` the approver sees and the records the reviewer reads carry the same fingerprints ([25 — Operation gate](../behaviors/25-operation-gate.md), BEH-BR-219; [23 — Audit sink and record](../behaviors/23-audit-sink-and-record.md), BEH-BR-197).
 - **Only for a new override value.** Step 4a runs for `install` with `config` (form `"raw"`, candidate paths the top-level keys of the undecoded value), for `reconfigure` with a value (form `"decoded"`, candidate paths the changed paths), and for a `reconcile` entry whose action is one of these. It never runs for a clear, for the revert of an override when an intent ends, for a call that resumes a parked operation, at activation, for values read from a configuration source or a default, or for any system transition. Fingerprints accepted at step 4a are stored with the override and reused, without calling the port, where those records need them.
-- **Selection before values.** Core calls `select` first, with the operation, the target and the candidate paths and no value; its answer must be a subset of the candidates without duplicates. An empty selection ends step 4a with no `fingerprints`. Core then calls `fingerprint` once, handing it only the selected entries, in the order of `configChange.paths`. A port that fingerprints only non-secret fields never receives a secret.
+- **Selection before values.** Core calls `select` first, with the operation, the target, the candidate paths and the form `fingerprint` will receive (since CCR-BR-037, so that a port can select by form, "raw" for a reconfigure of a registration not yet loaded, BEH-BR-247), and no value; its answer must be a subset of the candidates without duplicates. An empty selection ends step 4a with no `fingerprints`. Core then calls `fingerprint` once, handing it only the selected entries, in the order of `configChange.paths`. A port that fingerprints only non-secret fields never receives a secret.
 - **No attribution.** Neither call receives the actor, the reason, the `correlationId` or any other part of the call's attribution ([22 — Attributable operations](../behaviors/22-attributable-operations.md), BEH-BR-192): the one port that sees values must not be able to join them to people.
 - **Answers checked, then carried unchanged.** The answer of `fingerprint` must name exactly the selected paths, each once, each with a string matching `^[A-Za-z0-9._:-]{1,200}$`. Core orders the accepted fingerprints by the order of `configChange.paths`, whatever order the port answers in, and does not alter them. A fingerprint is not a configuration value; core claims no property for it beyond carrying it unchanged.
 - **Bounded.** `select` and `fingerprint` together are bounded by `fingerprintTimeout` (a positive duration, default 5 seconds, with no "forever"; [02 — Host construction](../behaviors/02-host-construction.md), BEH-BR-011).

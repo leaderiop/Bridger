@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-07                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): BEH-BR-049 `replace` completes on entering `dormant` or `disabled` ("refused-digest") as BEH-BR-068 states; BEH-BR-054, BEH-BR-056, BEH-BR-058 and BEH-BR-062 by-state lists gain `dormant`, phase "load" and the "refused-digest" landings and cases (C1); BEH-BR-060 `disable` split by reason: on "refused-digest" it proceeds without a stop and clears the reason, recorded as a change (C2) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-052, BEH-BR-057 and BEH-BR-062 name the two other landings of a reactivating operation: `dormant` for a lazy registration not yet loaded (BEH-BR-247), and `disabled` ("refused-digest") for a start refused after step 4b (C3) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-050 and BEH-BR-061 a `replace` that leaves the plugin disabled runs the disabled-install checks only and reserves nothing (U-07); BEH-BR-051 and BEH-BR-061 dependents end `waiting` except where their own stop ends otherwise (C-17); BEH-BR-059 `PluginHandle.restart` takes `HandoffCallOptions` (C-01); BEH-BR-062 every `enable` re-check listed in BEH-BR-018's order, with its place in the call order (U-08); BEH-BR-060 shutdown unregisters a disabled plugin when it begins (U-01) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.9 (2026-11-11): BEH-BR-050 a parked `replace`'s intent is also ended by a child's sub-scope close or unmount of a stop parked outside its parent's stop (CL2); BEH-BR-055 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05); BEH-BR-049 `ReplaceOptions.cold` (H9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-049 `replace` completes on entering `dormant` or `disabled` ("refused-digest") as BEH-BR-068 states; BEH-BR-054, BEH-BR-056, BEH-BR-058 and BEH-BR-062 by-state lists gain `dormant`, phase "load" and the "refused-digest" landings and cases (C1); BEH-BR-060 `disable` split by reason: on "refused-digest" it proceeds without a stop and clears the reason, recorded as a change (C2) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-052, BEH-BR-057 and BEH-BR-062 name the two other landings of a reactivating operation: `dormant` for a lazy registration not yet loaded (BEH-BR-247), and `disabled` ("refused-digest") for a start refused after step 4b (C3) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-050 and BEH-BR-061 a `replace` that leaves the plugin disabled runs the disabled-install checks only and reserves nothing (U-07); BEH-BR-051 and BEH-BR-061 dependents end `waiting` except where their own stop ends otherwise (C-17); BEH-BR-059 `PluginHandle.restart` takes `HandoffCallOptions` (C-01); BEH-BR-062 every `enable` re-check listed in BEH-BR-018's order, with its place in the call order (U-08); BEH-BR-060 shutdown unregisters a disabled plugin when it begins (U-01) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -54,6 +54,7 @@ replace(plugin: Plugin.Any | LazyPluginDefinition, options?: ReplaceOptions):
 
 interface ReplaceOptions extends RemoveOptions {
   readonly realm?: string   // realm of the plugin being replaced (default "default")
+  readonly cold?: boolean   // skip a handoff (34, BEH-BR-353); default false
 }
 ```
 
@@ -148,9 +149,12 @@ REQUIREMENT: From the moment a replace is accepted until it completes or
 ```
 
 ```
-REQUIREMENT: When a cascade, whatever its root, or shutdown ends a parked
+REQUIREMENT: When a cascade, whatever its root, shutdown, or — for a child
+             whose stop was parked outside its parent's stop — the close of
+             its sub-scope or its `Plugin.Runtime.unmount` ends a parked
              `replace`'s intent (08 — Operation Legality, BEH-BR-080;
-             12 — Shutdown and Hosting, BEH-BR-105), the reservations of the
+             12 — Shutdown and Hosting, BEH-BR-105; 14 — Children and
+             Groups, BEH-BR-121), the reservations of the
              new definition MUST be released in the same revision in which
              the intent ends, the revision of its `intent-ended` record
              (23 — Audit Sink and Record); the definition registered under
@@ -293,7 +297,7 @@ REQUIREMENT: When the cleanup of the plugin's own activation fails during
              `replace`, `restart`, `disable` or `reconfigure`, the plugin
              MUST end `failed` with phase "cleanup", the operation MUST NOT
              proceed past the stop, and the caller MUST receive
-             `CleanupError { id, message }`.
+             `CleanupError { id, realm, message }`.
 ```
 
 ```

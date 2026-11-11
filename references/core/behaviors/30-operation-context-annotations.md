@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-30                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-BR-293 and BEH-BR-295 the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-09): BEH-BR-292 a handoff's `export`, `upgrade` and `import` run with `Annotations.empty`, whatever the call that caused the stop carries (U-04) (CCR-BR-033)<br>0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
+> | Change History | 0.6 (2026-11-11): BEH-BR-292 a `Deadline` shortens `useOptional`'s given timeout and bounds none without one (CL12) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-293 and BEH-BR-295 the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-09): BEH-BR-292 a handoff's `export`, `upgrade` and `import` run with `Annotations.empty`, whatever the call that caused the stop carries (U-04) (CCR-BR-033)<br>0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
 
 ---
 
@@ -189,6 +189,9 @@ REQUIREMENT: When the calling fiber carries `Deadline`, the effective bound
              - the per-call timeout of `Host.use` and `useAll` when
                `options.timeout` is given (09 — Leases, BEH-BR-087), which
                bounds the callback's run, with outcome `LeaseTimeout`;
+             - the timeout of `useOptional` (`Plugin.Runtime.useOptional`)
+               when `options.timeout` is given (15 — Optional and Reactive,
+               BEH-BR-131), as for `Host.use`, with outcome `LeaseTimeout`;
              - `OperationGate.authorize` (a refusal with reason
                "gate-timeout", 25 — Operation Gate, BEH-BR-221);
              - `CapabilityPolicy.resolve` ("policy-timeout",
@@ -201,8 +204,8 @@ REQUIREMENT: When the calling fiber carries `Deadline`, the effective bound
 
 ```
 REQUIREMENT: A deadline MUST NOT bound anything that has no timeout of its
-             own: `Host.use` and `useAll` called without `options.timeout`
-             are not bounded by it, and `Host.lease`, whose admission is
+             own: `Host.use`, `useAll` and `useOptional` called without
+             `options.timeout` are not bounded by it, and `Host.lease`, whose admission is
              immediate (granted or refused with `ServiceUnavailable`, 09)
              and which has no timeout, is not affected by it.
 ```

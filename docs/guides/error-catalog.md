@@ -23,7 +23,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core · raised by: `install`, `replace`, `enable`
 
-- **Cause.** Another plugin (or the base) already holds the provider slot for the key in this resolution scope.
+- **Cause.** Another plugin (or the base) already holds the provider slot for the key in this resolution scope (`providerId`, with `providerRealm` for a plugin).
 - **Example.** Two plugins both list `Logger` in `provides` in the same realm.
 - **Fix.** Remove or disable the other provider, isolate the key in a realm, or for several implementations use a registry and selector (BEH-BR-307).
 
@@ -31,8 +31,8 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core · raised by: `install`, `replace`, `enable`, child install; `reconcile` (per entry)
 
-- **Cause.** The definition would close a cycle of `requires` (`path` lists it); in `reconcile`, edges on a cycle are ignored for the order and the desired-list entry that closes the cycle is rejected with it (BEH-BR-156).
-- **Example.** `a` requires `B` provided by `b`, which requires `A` provided by `a`; `path` is `["a","b","a"]`.
+- **Cause.** The definition would close a cycle of `requires` (`path` lists it, each plugin as `{ id, realm }`); in `reconcile`, edges on a cycle are ignored for the order and the desired-list entry that closes the cycle is rejected with it (BEH-BR-156).
+- **Example.** `a` requires `B` provided by `b`, which requires `A` provided by `a`; `path` is `[{ id: "a", realm: "default" }, { id: "b", realm: "default" }, { id: "a", realm: "default" }]`.
 - **Fix.** Break the cycle: move the shared part into its own plugin, or make one edge `optional`.
 
 ### InvalidDefinition
@@ -103,7 +103,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core · raised by: `remove`, `replace`, `restart`, `disable`, `reconfigure`
 
-- **Cause.** A finalizer failed while the plugin stopped; it ended `failed` (cleanup).
+- **Cause.** A finalizer failed while the plugin (`id`, `realm`) stopped; it ended `failed` (cleanup).
 - **Example.** A plugin whose finalizer closes a socket that throws.
 - **Fix.** Fix the finalizer; the resource may be leaked. A plugin `failed` in cleanup accepts only `remove` (every other operation is a `Conflict`, BEH-BR-071): `remove` it, acknowledging the leak, then install the fixed version.
 
@@ -111,7 +111,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core · raised by: `remove`, `replace`, `restart`, `disable`, `reconfigure`, `Generation`
 
-- **Cause.** Leases on `id` did not drain in time (`target` set when a dependent held them).
+- **Cause.** Leases on the plugin `id` and `realm` name (or on the `Generation` `id` names, with no `realm`) did not drain in time (`target`, the named plugin as `{ id, realm }`, set when a dependent held them).
 - **Example.** `remove("example/db", { drain: "5 seconds" })` while a report query holds a lease for a minute.
 - **Fix.** Find the long call (`bridger inspect`), raise `drain`, or use `force` knowing callers are interrupted.
 
@@ -205,11 +205,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### InvalidRealm
 
-*error* · origin: core · raised by: `defineRealm`, and through it `Realm.ephemeral`
+*error* · origin: core · raised by: `defineRealm`, and through it `Realm.ephemeral`; `Realm.ephemeral` itself
 
-- **Cause.** The realm's `isolate` lists a host-owned key, `Bridger.Host` or `Bridger.Events`. `reason` names the key. Nothing is registered.
-- **Example.** `defineRealm("tenant-a", { isolate: [Bridger.Events] })`.
-- **Fix.** Remove the host-owned key from `isolate`. Every realm resolves the one host and the one event bus.
+- **Cause.** The realm's `isolate` lists a host-owned key, `Bridger.Host` or `Bridger.Events`. `reason` names the key. Nothing is registered. From `Realm.ephemeral` also, before any host call: the segment (given, or drawn from `IdGenerator`) is empty or contains "/", or the owner's actor is `Actor.system`, `Actor.unattributed` or has an id beginning with "bridger:", so `Actor.narrow` would refuse it (BEH-BR-336). `reason` names the rule broken; nothing is defined or recorded.
+- **Example.** `defineRealm("tenant-a", { isolate: [Bridger.Events] })`; `Realm.ephemeral(host, { segment: "a/b", ... })`.
+- **Fix.** Remove the host-owned key from `isolate`. Every realm resolves the one host and the one event bus. For an ephemeral realm, pass a segment without "/" (or provide an `IdGenerator` whose values contain none) and an attributed owner actor.
 
 ### DuplicateContribution
 
@@ -352,9 +352,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core/31 · raised by: hook registration
 
-- **Cause.** The application's admission rule refused the role.
-- **Example.** Registering a veto hook from code the application does not label as allowed to veto.
-- **Fix.** Register an advisory hook, or ask for the role.
+- **Cause.** The application's admission rule refused the role, or failed or died (BEH-BR-298); a veto was registered on a point with empty `codes` (BEH-BR-297); the `onError` option is not one the point allows, or is "deny" on an enrich or advisory contribution (BEH-BR-310); the `target` option does not decode with the point's `targets.selector`, or was given on a point without `targets` (BEH-BR-312). Nothing is registered.
+- **Example.** Registering a veto hook from code the application does not label as allowed to veto; `register(..., { role: "advisory", onError: "deny" })`.
+- **Fix.** Register an advisory hook, or ask for the role; pass an `onError` the point allows and a `target` its selector schema decodes, or none on a point without targets.
 
 ### NoImplementation
 
@@ -882,7 +882,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *port-error* · origin: loader/04 · raised by: `RevocationStore.load`, `RevocationStore.save`; `RevocationSource.offer`, `RevocationSource.verified` (construction)
 
-- **Cause.** The application's revocation store failed; an unsaved list is not published. Federation reports the failure and offers the list again when it is next received (federation BEH-FD-042).
+- **Cause.** The application's revocation store failed; an unsaved list is not published. Federation reports the failure and offers the list again when it is next received (federation BEH-FD-041).
 - **Example.** The federation plugin hands a list of a higher revision from a kill frame to `RevocationSource.offer(list, "peer:plant-b")`, and `RevocationStore.save` fails: the list is not published on `changes`, and the plugin reports the failure and offers the list again when it next receives it (BEH-LD-026, federation BEH-FD-041).
 - **Fix.** Fix the store; the held list stays in force until a newer list is saved (BEH-LD-026).
 
@@ -930,7 +930,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: entitlement/02 · raised by: `Entitlement.guard`
 
-- **Cause.** The plugin's mode (`mode`, read from `entitled` of the activation's `Plugin.Runtime` passed to `guard` as `runtime`, which also names the plugin) does not allow this use, and the use carries no essential label (the application's list given to `Entitlement.layer`, plus any `options.essential`). Mode "unknown": no state arrived within `guard`'s `checkTimeout` (default 4 seconds), or "last-known" has never known an answer. Mode "unmetered": no `EntitlementView` is wired in the host.
+- **Cause.** The plugin's mode (`mode`, read from `entitled` of the activation's `Plugin.Runtime` passed to `guard` as `runtime`, whose principal names the plugin by `pluginId` and `realm`) does not allow this use, and the use carries no essential label (the application's list given to `Entitlement.layer`, plus any `options.essential`). Mode "unknown": no state arrived within `guard`'s `checkTimeout` (default 4 seconds), or "last-known" has never known an answer. Mode "unmetered": no `EntitlementView` is wired in the host.
 - **Example.** A paid feature after a licence lapse.
 - **Fix.** Renew, or label the use essential if it must always run. Under "unmetered" renewing does not help: wire the entitlement port. Under "unknown", find why the port has not answered (`EntitlementUnavailable`), or raise `checkTimeout`.
 
@@ -994,7 +994,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: loader/05 · raised by: catalog entry verification
 
-- **Cause.** A catalog entry failed verification (carries the cause's tag: `DigestMismatch`, `SignatureRejected`, `Revoked`, `RevocationStale`, `RevocationUnavailable`, or a manifest decode error).
+- **Cause.** A catalog entry failed verification (carries the cause's tag: `DigestMismatch`, `SignatureRejected`, `PublisherMismatch`, `Revoked`, `RevocationStale`, `RevocationUnavailable`, or a manifest decode error).
 - **Example.** A catalog feed lists a package whose digest does not match the published bytes.
 - **Fix.** Act on the carried cause; the entry is not offered.
 
@@ -1046,13 +1046,21 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** The hardware module holding the MAC key is offline; or the key was retired while a sink still writes with it.
 - **Fix.** Restore the hardware module or key service behind the port; after a permanent failure, rebuild the sink with another key.
 
+### DeliveryImportRefused
+
+*error* · origin: federation/02 · raised by: the federation plugin's build (BEH-FD-014)
+
+- **Cause.** An entry of `FederationOptions.deliveryImports` is not an import id (`reason` "not-an-import-id"), or a local plugin other than the event delivery companion's depends on that import (`reason` "other-dependent", with `dependent`).
+- **Example.** `deliveryImports: ["Orders@1"]` names a serviceId instead of `"import:hq:Orders@1"`.
+- **Fix.** Name delivery imports by import id, and keep every other dependent off a delivery import (give it its own import).
+
 ### RebootstrapFailed
 
-*error* · origin: federation/02 · raised by: snapshot re-bootstrap
+*error* · origin: federation/02 · raised by: the application's `Rebootstrap.fetch` (step 2) and `Rebootstrap.install` (step 3a, through `OutboxSettlement.install`)
 
-- **Cause.** The re-bootstrap from a snapshot failed; the applied manifest stays in force and links stay suspended.
-- **Example.** The authority's snapshot cannot be fetched during a re-bootstrap.
-- **Fix.** None locally; it is retried at the next sync. Check the authority's snapshot.
+- **Cause.** The re-bootstrap from a snapshot failed (`reason`); the applied manifest stays in force; reported `rebootstrap-failed` with the step. By step and attempt: from step 2 (fetch), links resume only when no install has begun in this re-bootstrap (the marker's `installAttempted` false, e.g. a first attempt) and stay suspended when one has; from step 3a (install), links stay suspended, since local state may be half replaced, and `installAttempted` stays true until the re-bootstrap completes, so no later failure or restart resumes links early. Every case is retried from step 1 on the re-bootstrap's own backoff (from `syncEvery`, doubling up to `rebootstrapRetryMax`), not at each sync; a retry with links suspended opens only the `delivery-only` links of `deliveryImports` in step 1 (BEH-FD-014, BEH-FD-048).
+- **Example.** The authority's snapshot cannot be fetched on a first attempt (links resume); or an install fails half way and the host keeps its links suspended through every retry until an install completes.
+- **Fix.** None locally; the re-bootstrap retries on its backoff. Check the authority's snapshot and the application's `install`, which must be re-runnable over a partly installed state.
 
 ### CommandNotFound
 
@@ -1187,7 +1195,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 *error* · origin: mcp/04 · raised by: `bridger.host.reconcile-apply`
 
 - **Cause.** An entry action of the stored plan would remove, replace, restart, disable or reconfigure a plugin on the apply's own call path (`planId`, `plugins`): the host-tools plugin, the plugin acting on the caller's behalf, the plugins the handler holds, or a provider whose stop would stop one of them; `reconcile` was not called.
-- **Example.** An agent's tool call runs `bridger.host.reconcile-apply` for a stored plan with an entry action that replaces the agent loop's plugin, the plugin named by `HandlerContext.onBehalfOf`: `PlanAffectsCaller { planId, plugins }`, `plugins` naming it as "<realm>/<id>", and `reconcile` is not called (BEH-MC-029).
+- **Example.** An agent's tool call runs `bridger.host.reconcile-apply` for a stored plan with an entry action that replaces the agent loop's plugin, the plugin named by `HandlerContext.onBehalfOf`: `PlanAffectsCaller { planId, plugins }`, `plugins` naming it as the record `{ id, realm }`, and `reconcile` is not called (BEH-MC-029).
 - **Fix.** Apply the plan from an operator, or from a dispatch whose call path the plan does not cross.
 
 ### ModelError
@@ -1237,6 +1245,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** The event does not apply to the task's state (`taskId`, `state`).
 - **Example.** An approval arriving for a task that was cancelled.
 - **Fix.** Re-read the task; start a new one if it ended.
+
+### LoopStopped
+
+*error* · origin: agent/02 · raised by: `AgentLoop` (task outcome, BEH-AG-011)
+
+- **Cause.** The activation of the loop that registered the task ended — its plugin was stopped, replaced, restarted or removed, or its realm removed — while the task was not terminal; the task is `failed` with message "loop-stopped", and a pending draft was reported for withdrawal (BEH-AG-016).
+- **Example.** An operator replaces the `AgentLoop` plugin while a task waits in `awaiting-approval`: the task ends `failed` "LoopStopped" and its terminal snapshot carries the withdrawal's outcome.
+- **Fix.** Start a new task on the loop now installed; a replacement loop does not take over the old one's tasks. Act on a "not-withdrawn" draft by hand.
 
 ### TaskAwaitTimeout
 
@@ -1424,11 +1440,11 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### StatementRevoked
 
-*error* · origin: loader/07 · raised by: `SignaturePolicy.verify` (statement types other than "package"), `Revocation.check`, `DataPacks`
+*error* · origin: loader/07 · raised by: `SignaturePolicy.verify` (statement types other than "package"), among them a load's "first-party" statement at step 4 (loader BEH-LD-065), `Revocation.check`, `DataPacks`
 
-- **Cause.** The statement's subject digest, statement digest or a signer it depended on is revoked (`by`, `revision`).
-- **Example.** A host manifest whose statement digest appears in revocation list revision 42.
-- **Fix.** Obtain a statement that is not revoked (a new issuance or release); packages report `Revoked` instead.
+- **Cause.** The statement's subject digest, statement digest or a signer it depended on is revoked (`by`, `revision`); for a load, nothing is evaluated, and the package may still run as a guest.
+- **Example.** A host manifest whose statement digest appears in revocation list revision 42; or a `load` whose "first-party" statement was revoked by a signer.
+- **Fix.** Obtain a statement that is not revoked (a new issuance or release); a package's "package" statement reports `Revoked` instead.
 
 ### SigningFailed
 
@@ -1522,15 +1538,15 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: federation/02 (raised by event-delivery `rebootstrapOutbox().settle`) · raised by: re-bootstrap step 1 (`RebootstrapOutbox.settle` only)
 
-- **Cause.** The outbox could neither push nor keep local facts (`pending`, `reason`: outbox-unsettled, outbox-unavailable, no-outbox-port), or the settlement was refused (`reason`: kept-needs-in-store for "pushed-or-kept" with a whole-store install, no-incarnation-source for a whole-store install without an `IncarnationSource`; event-delivery/06, BEH-DB-048); nothing fetched or installed, links resumed, status `rebootstrap-blocked`, retried next sync. `OutboxSettlement.install` never fails with it.
-- **Example.** A terminal with 300 unsent envelopes cannot reach the hub when a snapshot is due.
-- **Fix.** Restore delivery so the outbox settles; wire an outbox port if none is configured; for a whole-store install, wire an `IncarnationSource` or install in store.
+- **Cause.** The outbox could neither push nor keep local facts (`pending`, `reason`: outbox-unsettled, outbox-unavailable, no-outbox-port), the settlement was refused (`reason`: kept-needs-in-store for "pushed-or-kept" with a whole-store install, no-incarnation-source for a whole-store install without an `IncarnationSource`; event-delivery/06, BEH-DB-048), or a delivery import gained a local dependent other than the event delivery companion's relay (`reason`: delivery-import-dependents; federation/02, BEH-FD-014). Nothing is fetched or installed and status is `rebootstrap-blocked`. By attempt: on an attempt in which no install has begun (a first attempt), no link was suspended and links stay up; on an attempt that started with links suspended (a retry after a failed install, or a restart after one), links stay suspended and each `delivery-only` link returns to `suspended`. Retried from step 1 on the re-bootstrap's own backoff, not at each sync. `OutboxSettlement.install` never fails with it.
+- **Example.** A terminal with 300 unsent envelopes cannot reach the hub when a snapshot is due. Or a retry after a failed install, on a deployment that carries the outbox's delivery over a peer link through an import not named in `FederationOptions.deliveryImports`, stays blocked "outbox-unsettled" under `require` "pushed": with links suspended, nothing can push.
+- **Fix.** Restore delivery so the outbox settles; wire an outbox port if none is configured; for a whole-store install, wire an `IncarnationSource` or install in store. A deployment whose outbox delivery runs through an import must name that import by its import id ("import:" + from + ":" + K + "@" + M) in `deliveryImports`, and no plugin but the event delivery companion's may depend on it (else the federation plugin fails to build with `DeliveryImportRefused`); on "delivery-import-dependents", remove the other dependent.
 
 ### OutboxFrozen
 
 *error* · origin: event-delivery/06 (BEH-DB-048) · raised by: `publish`, `DurableBus.fence(tx)`; every event-store write (`Stream.append`, `Aggregate.handle`, `run`, `record`, `recordFact`, the handlers of `receive` and `receiveVerbatim`)
 
-- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`), or while the raised incarnation is not yet recorded; `DurableBus.fence(tx)` checks this inside the write transaction; nothing is written and the caller's transaction fails with it. Event-store writes fail with it whether or not their types are published. While the raised incarnation cannot be recorded, it persists after the scope closes (`origin-unrecorded`). `fence` is scoped: its admission ends when the write transaction's `Scope` closes at commit or rollback, and setting the freeze first refuses new admissions, then waits for the admitted ones (BEH-DB-048, BEH-DB-054). A subscription handler that fails with it is not counted toward `maxAttempts` and never halts or parks its stream: subscriptions are paused while a whole-store settlement's scope is open (BEH-DB-021, BEH-DB-048).
+- **Cause.** A whole-store re-bootstrap holds the outbox frozen from the end of its first drain phase until the settlement's scope closes (`reason`), or while the raised incarnation is not yet recorded; `DurableBus.fence(tx)` checks this inside the write transaction; nothing is written and the caller's transaction fails with it. Event-store writes fail with it whether or not their types are published. While the raised incarnation cannot be recorded, it persists after the scope closes (`origin-unrecorded`). A `fence` admission is bound to the write transaction it is given and ends when that transaction commits or rolls back, on every exit (the storage adapter ends it); setting the freeze first refuses new admissions, then waits for the admitted ones (BEH-DB-048, BEH-DB-054). A subscription handler that fails with it is not counted toward `maxAttempts` and never halts or parks its stream: subscriptions are paused while a whole-store settlement's scope is open and while `origin-unrecorded` holds (BEH-DB-021, BEH-DB-048).
 - **Example.** A terminal records a sale while it installs a fresh snapshot from the hub.
 - **Fix.** Retry the write after the re-bootstrap ends; on `origin-unrecorded`, restore the store so the raised incarnation can be recorded.
 
@@ -1610,7 +1626,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 ### StoreUnavailable
 
-*error* · origin: event-store/05 (also federation/02) · raised by: `Stream.read`, `EventStoreAdapter.transact`, `readStream`; the federation store port
+*error* · origin: event-store/05 (also federation/02) · raised by: `Stream.read`, `EventStoreAdapter.transaction`, `readStream`; the federation store port
 
 - **Cause.** The storage adapter could not be reached or read (`message`).
 - **Example.** The database connection pool is exhausted.
@@ -1756,7 +1772,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: keyring/01 (BEH-KR-008) · raised by: `Keyring.plugin` (build)
 
-- **Cause.** The plugin was given neither `store.transaction` nor `noticeTransaction`, so it has no transaction in which to apply received shred notices (`reason`).
+- **Cause.** The plugin was given neither `store.transaction` nor `noticeTransaction`, so it has no transaction in which to publish the local shred notice (`reason`); received notices are applied in their subscription's own transaction (BEH-KR-017, BEH-KR-020).
 - **Example.** A deployment wires a `KeyStore` adapter without a transaction combinator and passes no `noticeTransaction`.
 - **Fix.** Give the `KeyStore` a `transaction`, or pass `noticeTransaction` to `Keyring.plugin`.
 
@@ -2093,3 +2109,5 @@ Change log: 2026-11-10, audit round 2 — catalog completed (H11): entries for t
 Change log: 2026-11-10, audit round 3 — no tag added or removed; entries aligned with the round's fixes: `UnknownRealm` raised by `wake`; `EntitlementUnavailable` raised by the application's `EntitlementAdapter`; `PayloadUnreadable` handled under `onUnreadable` and not expected after a shred (a shredded subject decodes as `Shredded`); `KeyStoreUnavailable` covers the `KeyWrapper` port and the halted shred-notice subscription; `WrappedKeyChanged` (`rewrap` lists once) and `ShredUnattributed` (parked by the refusal subscription only); `SessionNotFound` (BEH-AG-004), `ScriptMismatch` (`ReplayModel`), `UnsupportedDigestAlgorithm` (SHA-256 only); `CallbackDenied` reason "call-log-unavailable", for which the host service ran and its result was withheld (remote BEH-RM-046); `OutboxFrozen` raised by `DurableBus.fence(tx)` and while the raised incarnation is not yet recorded (durable-bus BEH-DB-048); `GxpLayerInvalid` section "gatePieces" (BEH-GX-178); `WouldDeadlock` for `shutdown` from a build, `load` or finalizer fiber, and its fix no longer advises forking, since a forked fiber carries the lease (BEH-BR-088); `ScriptMismatch` is recorded, never raised (CCR-KT-006).
 
 Change log: 2026-11-10, audit round 4 — `KeyringConfigError` added; entries aligned with the round's fixes: `CleanupError`'s fix is `remove` (a plugin `failed` in cleanup accepts nothing else); `WouldDeadlock` names the plugin by `id` and `realm`; `FamilyEvictionError` carries the eviction's `outcome`, the `step` that stopped it and that step's `error`; `NotEntitled` covers mode "unknown" after `guard`'s `checkTimeout` and mode "unmetered" (no `EntitlementView` wired, where renewing does not help); `DraftWithdrawalFailed` concerns a task that ended with a pending draft; `NotEntitled` reads the mode from the `runtime` passed to `guard`; `OutboxFrozen` covers the scoped `fence` and paused subscriptions; `KeyringConfigError` added; `FamilyMemberUnavailable` and `HostClosed` are raised by `Realm.ephemeral` creation, a rejected reconcile entry failing it with `FamilyMemberUnavailable` "rejected" (CL4) (CCR-KT-007).
+
+Change log: 2026-11-11, audit round 5 (SPEC-AUDIT-05) — `DeliveryImportRefused` added (federation build refusal of a delivery import); `OutboxFrozen`: a `fence` admission is bound to its write transaction and ended by the adapter at commit or rollback, not by a `Scope` (H2, B1), and subscriptions stay paused while `origin-unrecorded` holds (B2); `StoreUnavailable` raised by `EventStoreAdapter.transaction`, not `transact`, and `KeyringConfigError`'s cause is the missing transaction for the local shred notice (PL14); `NotEntitled` names the plugin by `pluginId` and `realm` (PL15); `RebootstrapBlocked` and `RebootstrapFailed` restated by attempt and step, with "delivery-import-dependents" and the `deliveryImports` warning (H4, H6, F2, PL9) (CCR-DB-008, CCR-ES-007, CCR-KR-007, CCR-EN-008, CCR-FD-008; kit entries under CCR-KT-008); `LoopStopped` added: the task outcome when the loop that registered a task stops (H3, A1); `PlanAffectsCaller` names each plugin by the record `{ id, realm }` (PL2) (CCR-AG-008, CCR-MC-007; kit entries under CCR-KT-008). Core: `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`, `CleanupError` carries `realm`, `DuplicateProvider` carries `providerRealm`, and `DependencyCycle.path` lists `{ id, realm }` records (C2); `InvalidRealm` is also raised by `Realm.ephemeral` itself, before any host call, for a segment or owner actor `Actor.narrow` refuses (C7); `HookRegistrationRefused` lists every cause of 31 — Hook Points: empty `codes`, a disallowed `onError`, an undecodable or unexpected `target` (CL17); `NoImplementation` already named the chosen id leaving the view (CL18, ADR-BR-008 aligned) (CCR-BR-037).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-21                                               |
-> | Revision       | 0.22                                                         |
+> | Revision       | 0.23                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.22 (2026-11-10): BEH-BR-178 a parked child stop also advances when its sub-scope closes or `unmount` is called (C10); check 89 asserts `stop-resumed` `by` "sub-scope"/"unmount" and that a sub-scope finalizer or `unmount` waiting on the parent's stop follows that stop's limits (H1) (CCR-BR-036)<br>0.21 (2026-11-10): check 48: `shutdown` from a build or finalizer fails `WouldDeadlock`, from a lease callback proceeds (H1); check 84: a plugin failing or refused after a member's wait expired marks it "failed", and `use` reports the member's reason (C9; Low); check 86: a failed teardown or undo step, `retireRealm` refused and `HostClosed` included, stops and leaves the realm (C10); check 98: a cycle-closing entry is a validation-stage rejection (C7); check 100: latch and shutdown before any completed forward action end in `ApplyRolledBack` (C15; Low) (CCR-BR-035)<br>0.20 (2026-11-10): check 53: a generation's forced revocation is a `GenerationRevoked` on its own feed, not a host event (C7); BEH-BR-177 `TestHost` implements files 02–20 and 22–34 (audit round 2, Low); check 38 compares values drawn from `IdGenerator` by order of first appearance (C12); check 83 covers a changed incoming version, digest or consent diff (H2); checks 70, 73 and 76 cover files 02–20 and 22–34 (review of CCR-BR-034) (CCR-BR-034)<br>0.19 (2026-11-09): BEH-BR-179 the counter is unique within one `TestHost`, and `TestHost`s whose records meet in one sink need distinct prefixes (F-03); checks 59 (local contracts, `descriptor.local`), 65 (a loaded definition breaking BEH-BR-003 fails phase "load" with `InvalidDefinition`), 83 (the plan's rejection tags), 84 (member readiness, timeout and the next `use`), 86 (`EphemeralRealm.use` is `Host.useAll`), 87 (handoff on `restart` and `reconfigure` under `alsoOn`, the stop's final step, principal, annotations, lazy registrations), 88 (a superseded build keeps the held value; a call during the import waits) and 112 (`CrossingInfo.disclosed`) amended; check 114 added (identifier uniqueness); check 8: a plugin whose build is queued when shutdown begins is unregistered without a stop step or record (CCR-BR-033)<br>0.18 (2026-11-09): Checks 4 (idle return under BEH-BR-073), 8 (shutdown: no start, cancelled and discarded builds, destination "gone", final snapshot), 9 and 24 (dependents' exceptions; undeclared keys of the optional members), 26 (base key in an isolating realm, `InvalidRealm`, failing `wrap` after activation), 27 (`enable` precedence, `replace` of a disabled plugin), 51 (mount record in `starting`) and 103 (`PluginHandle.restart` options) amended (BEH-BR-183, BEH-BR-184) (CCR-BR-032)<br>0.17 (2026-11-09): `memoryAuditSink` keeps a different record under a stored `recordId` beside the first, following BEH-BR-193 (CCR-BR-031)<br>0.16 (2026-11-08): Checks amended for the host-core prototype third pass: 83 (prune drain and force compared only when they take effect, G-P23), 92 (link without `hostId`, wait to the end of a non-empty window, G-P20, G-P21), 96 (a discarded successful build drops "ended", G-P19), 97 (kept trigger not in `triggered`, G-P22), 99 (half-finished two-action undo step, G-P24) (CCR-BR-030)<br>0.15 (2026-11-08): Checks amended for the round-2 agent review and prototype second pass: 72 (`Grant.all` layer with `changes`, G-P13), 92 (idling and refused declarations, owner matching, `HostLink.none`, failed reads, wake window, long waking), 96 (held-event drop reason during a load, G-P14), 97 (registry holds not idle conditions, G-P17), 99 (multi-action undo, override restore, prune options, refused digests), 104 (refused-digest and the reconcile diff, plan) (CCR-BR-029)<br>0.14 (2026-11-08): Checks amended for the resolutions of the host-core prototype findings G-P1..G-P12: 49 (lazy registrations in the confluence comparison), 59 (`serviceKey`), 60 (`disabled: true`), 62 (`consentDiff` shapes), 63 (`range` with `version`), 79 (`settle` outcomes), 83 (decoded paths, host-level mismatches), 86 (delimiter rule), 92 (empty wake window, woken while `starting`, `make` refusal), 108 (which records carry `sanitized`) (CCR-BR-028)<br>0.13 (2026-11-08): BEH-BR-184 checks 112 (call-log kind "dispatch", string epochs) and 113 (registry entry owner, `HoldRevoked` feed) (CCR-BR-027)<br>0.12 (2026-11-08): Check 64 amended, checks 92–97 (CCR-BR-024); checks 98–103 (CCR-BR-025); `memoryCallLog` `onFailure` and `queue`, `scriptedRefusalList` fixture, check 79 renamed to `policy` and covers `settle`, checks 104–111 (CCR-BR-026)<br>0.11 (2026-11-08): check 22 (generation `changes` and `view`); checks 63, 65, 66 (lazy digest, not-yet-loaded `reconfigure`, `methods`); copies of checks 67, 68, 70, 75 and 76 aligned with files 28 and 30; checks 77, 79, 81, 83 and 85 aligned with files 31–33; check 91 (entitlement failure modes, mode `unmetered`) (CCR-BR-022)<br>0.10 (2026-11-08): Acceptance checks 59–66 (CCR-BR-017), 67–76 (CCR-BR-018), 77–88 (CCR-BR-019) and 89–91 (CCR-BR-020); `Fault.loadFails` and `Fault.handoffFails`; scripted `AccessPolicy`, `CapabilityPolicy` and `Gate<Req>` fixtures, in-memory `CallLog` fixture and `heldHandoff` (CCR-BR-017, CCR-BR-018, CCR-BR-019)<br>0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.23 (2026-11-11): BEH-BR-178 a parked child stop advances on its sub-scope close or unmount only when parked outside its parent's stop (H1); `PendingStep.waiter` is `{ id, realm }` and `stepPlugin` matches id and realm (CL13); check 89 asserts the wait-only rule and the `WouldDeadlock` of a lease-holding closing fiber (H1); check 45 `DrainTimeout` carries `realm` (C2) (SPEC-AUDIT-05); check 57 `lastNumbered` and `closed`; check 75 `useOptional`'s timeout; check 79 an unawaited `settle`; check 86 `InvalidRealm` before any host call; check 103 `cold` on `replace` and `reconcile` (C5, C3, CL12, C8, C7, H9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.22 (2026-11-10): BEH-BR-178 a parked child stop also advances when its sub-scope closes or `unmount` is called (C10); check 89 asserts `stop-resumed` `by` "sub-scope"/"unmount" and that a sub-scope finalizer or `unmount` waiting on the parent's stop follows that stop's limits (H1) (CCR-BR-036)<br>0.21 (2026-11-10): check 48: `shutdown` from a build or finalizer fails `WouldDeadlock`, from a lease callback proceeds (H1); check 84: a plugin failing or refused after a member's wait expired marks it "failed", and `use` reports the member's reason (C9; Low); check 86: a failed teardown or undo step, `retireRealm` refused and `HostClosed` included, stops and leaves the realm (C10); check 98: a cycle-closing entry is a validation-stage rejection (C7); check 100: latch and shutdown before any completed forward action end in `ApplyRolledBack` (C15; Low) (CCR-BR-035)<br>0.20 (2026-11-10): check 53: a generation's forced revocation is a `GenerationRevoked` on its own feed, not a host event (C7); BEH-BR-177 `TestHost` implements files 02–20 and 22–34 (audit round 2, Low); check 38 compares values drawn from `IdGenerator` by order of first appearance (C12); check 83 covers a changed incoming version, digest or consent diff (H2); checks 70, 73 and 76 cover files 02–20 and 22–34 (review of CCR-BR-034) (CCR-BR-034)<br>0.19 (2026-11-09): BEH-BR-179 the counter is unique within one `TestHost`, and `TestHost`s whose records meet in one sink need distinct prefixes (F-03); checks 59 (local contracts, `descriptor.local`), 65 (a loaded definition breaking BEH-BR-003 fails phase "load" with `InvalidDefinition`), 83 (the plan's rejection tags), 84 (member readiness, timeout and the next `use`), 86 (`EphemeralRealm.use` is `Host.useAll`), 87 (handoff on `restart` and `reconfigure` under `alsoOn`, the stop's final step, principal, annotations, lazy registrations), 88 (a superseded build keeps the held value; a call during the import waits) and 112 (`CrossingInfo.disclosed`) amended; check 114 added (identifier uniqueness); check 8: a plugin whose build is queued when shutdown begins is unregistered without a stop step or record (CCR-BR-033)<br>0.18 (2026-11-09): Checks 4 (idle return under BEH-BR-073), 8 (shutdown: no start, cancelled and discarded builds, destination "gone", final snapshot), 9 and 24 (dependents' exceptions; undeclared keys of the optional members), 26 (base key in an isolating realm, `InvalidRealm`, failing `wrap` after activation), 27 (`enable` precedence, `replace` of a disabled plugin), 51 (mount record in `starting`) and 103 (`PluginHandle.restart` options) amended (BEH-BR-183, BEH-BR-184) (CCR-BR-032)<br>0.17 (2026-11-09): `memoryAuditSink` keeps a different record under a stored `recordId` beside the first, following BEH-BR-193 (CCR-BR-031)<br>0.16 (2026-11-08): Checks amended for the host-core prototype third pass: 83 (prune drain and force compared only when they take effect, G-P23), 92 (link without `hostId`, wait to the end of a non-empty window, G-P20, G-P21), 96 (a discarded successful build drops "ended", G-P19), 97 (kept trigger not in `triggered`, G-P22), 99 (half-finished two-action undo step, G-P24) (CCR-BR-030)<br>0.15 (2026-11-08): Checks amended for the round-2 agent review and prototype second pass: 72 (`Grant.all` layer with `changes`, G-P13), 92 (idling and refused declarations, owner matching, `HostLink.none`, failed reads, wake window, long waking), 96 (held-event drop reason during a load, G-P14), 97 (registry holds not idle conditions, G-P17), 99 (multi-action undo, override restore, prune options, refused digests), 104 (refused-digest and the reconcile diff, plan) (CCR-BR-029)<br>0.14 (2026-11-08): Checks amended for the resolutions of the host-core prototype findings G-P1..G-P12: 49 (lazy registrations in the confluence comparison), 59 (`serviceKey`), 60 (`disabled: true`), 62 (`consentDiff` shapes), 63 (`range` with `version`), 79 (`settle` outcomes), 83 (decoded paths, host-level mismatches), 86 (delimiter rule), 92 (empty wake window, woken while `starting`, `make` refusal), 108 (which records carry `sanitized`) (CCR-BR-028)<br>0.13 (2026-11-08): BEH-BR-184 checks 112 (call-log kind "dispatch", string epochs) and 113 (registry entry owner, `HoldRevoked` feed) (CCR-BR-027)<br>0.12 (2026-11-08): Check 64 amended, checks 92–97 (CCR-BR-024); checks 98–103 (CCR-BR-025); `memoryCallLog` `onFailure` and `queue`, `scriptedRefusalList` fixture, check 79 renamed to `policy` and covers `settle`, checks 104–111 (CCR-BR-026)<br>0.11 (2026-11-08): check 22 (generation `changes` and `view`); checks 63, 65, 66 (lazy digest, not-yet-loaded `reconfigure`, `methods`); copies of checks 67, 68, 70, 75 and 76 aligned with files 28 and 30; checks 77, 79, 81, 83 and 85 aligned with files 31–33; check 91 (entitlement failure modes, mode `unmetered`) (CCR-BR-022)<br>0.10 (2026-11-08): Acceptance checks 59–66 (CCR-BR-017), 67–76 (CCR-BR-018), 77–88 (CCR-BR-019) and 89–91 (CCR-BR-020); `Fault.loadFails` and `Fault.handoffFails`; scripted `AccessPolicy`, `CapabilityPolicy` and `Gate<Req>` fixtures, in-memory `CallLog` fixture and `heldHandoff` (CCR-BR-017, CCR-BR-018, CCR-BR-019)<br>0.9 (2026-10-03): Acceptance checks 55–58: configuration fingerprints at step 4a and equal in request and records, a fail-closed fingerprinter, `Host.controls` with the audit position and `CloseReport.auditLastSeq`, the presented definition on `requested` and `rejected` records (CCR-BR-014)<br>0.8 (2026-10-03): A parked stop does not count against `awaitIdle`; acceptance checks 23 (children removed as dependents) and 41 (`crypto.getRandomValues()`, the one `IdGenerator` exemption) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.7 (2026-10-03): A held step counts against `awaitIdle`; acceptance check 6 extended (prototype finding G33) (CCR-BR-012)<br>0.6 (2026-10-02): The scheduling seam; `pending` at a settlement point; `awaitIdle` on a TestHost; the scope-close path runs on its own; faults through the TestHost's entry points; acceptance checks 53–54, check 52 extended (prototype findings G27–G32) (CCR-BR-011)<br>0.5 (2026-10-02): Acceptance checks 49–52 from the P4 prototype findings G19–G25 (CCR-BR-010)<br>0.4 (2026-10-02): Deterministic pending order, `pending` and `stepPlugin`; `PendingStep` owner, waiter and correlation; acceptance checks 45–48, check 45 split in two tests, check 33 reworded (CCR-BR-008)<br>0.3 (2026-10-02): Acceptance checks 43–45 for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -42,7 +42,7 @@ is governed by [ADR-BR-035](../decisions/035-evidence-from-executed-tests.md).
 // import { TestHost, Fault } from "@bridger/core/testing"
 interface TestHost extends Host {
   readonly step: Effect.Effect<boolean>                  // false when nothing can progress without the clock
-  readonly stepPlugin: (ref: PluginRef) => Effect.Effect<boolean>   // advance the first pending item whose pluginId is that plugin
+  readonly stepPlugin: (ref: PluginRef) => Effect.Effect<boolean>   // advance the first pending item whose pluginId and realm are that plugin's
   readonly pending: Effect.Effect<ReadonlyArray<PendingStep>>       // pending items, in step order
   readonly runUntilIdle: Effect.Effect<HostSnapshot>
   readonly inject: (fault: Fault) => Effect.Effect<void, never, Scope.Scope>
@@ -52,7 +52,7 @@ interface PendingStep {
   readonly kind: "build" | "stop" | "wait"   // a transition step, or a wait of a call or cascade
   readonly pluginId: string                  // the plugin stepped; for "wait", the plugin waited on
   readonly realm: string
-  readonly waiter?: string                   // for "wait" only: the plugin whose call or cascade waits
+  readonly waiter?: { readonly id: string; readonly realm: string }   // for "wait" only: the plugin whose call or cascade waits
   readonly owner: string                     // the operation or system transition it belongs to, e.g. "remove", "dependency-loss"
   readonly correlationId?: string            // the owner's, when the owner is an operator call
   readonly parked: boolean                   // a parked stop: not advanced by `step` (BEH-BR-178)
@@ -132,14 +132,17 @@ REQUIREMENT: `step` MUST advance exactly one pending item — the first in
              suspension on the clock or on a lease. It MUST return `false`
              when no item can make progress without advancing the clock. A
              parked stop MUST NOT be advanced by `step`; it advances only
-             when a call, a cascade or shutdown resumes it, or, for a child,
-             the close of its sub-scope or `Plugin.Runtime.unmount` of it
-             (14 — Children and Groups, BEH-BR-121; CCR-BR-036).
+             when a call, a cascade or shutdown resumes it, or, for a child
+             whose stop was parked outside its parent's stop, the close of
+             its sub-scope or `Plugin.Runtime.unmount` of it (14 — Children
+             and Groups, BEH-BR-121; CCR-BR-036, CCR-BR-037).
 ```
 
 ```
 REQUIREMENT: `stepPlugin(ref)` MUST do what `step` does, restricted to the
-             first item in that order whose `pluginId` is the named plugin,
+             first item in that order whose `pluginId` and `realm` are the
+             named plugin's id and realm (a bare string naming the default
+             realm, 17 — Realms and Interception, BEH-BR-147; CCR-BR-037),
              and MUST return `false` when no such item can make progress
              without advancing the clock.
 ```
@@ -147,8 +150,9 @@ REQUIREMENT: `stepPlugin(ref)` MUST do what `step` does, restricted to the
 ```
 REQUIREMENT: Each `PendingStep` MUST describe its item: for a transition step,
              `pluginId` is the plugin stepped; for a wait (`kind` "wait"),
-             `pluginId` is the plugin waited on and `waiter` names the plugin
-             whose call or cascade waits. `owner` MUST name the operation or
+             `pluginId` and `realm` are the plugin waited on and `waiter`
+             names the plugin whose call or cascade waits, as the record
+             `{ id, realm }` (CCR-BR-037). `owner` MUST name the operation or
              system transition the item belongs to, and `correlationId` MUST
              be the owner's, present exactly when the owner is an operator
              call.
@@ -697,7 +701,8 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  removal's `requested` record carries `endsIntentOf` naming
                  the parked call's `requested` record. (b) The resumed drain
                  expires again without `force`: the removal fails with
-                 `DrainTimeout { id, target }`, `id` naming the dependent and
+                 `DrainTimeout { id, realm, target }`, `id` and `realm`
+                 naming the dependent and
                  `target` the removed plugin; the dependent stays `stopping`
                  as a parked system stop with `reason` "dependency-loss",
                  `parked` true and `next` the dependency-loss destination;
@@ -804,8 +809,15 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  is written, nothing changes, and the error's `message` is
                  written by core, not taken from the port (BEH-BR-188).
              57. `Host.controls` reports the host's wiring and limits; its
-                 `auditPosition.lastWritten` follows the writer and never
-                 decreases; it stays readable after the host closes; and the
+                 `auditPosition.lastWritten` and `lastNumbered` follow the
+                 writer and never decrease; it stays readable after the host
+                 closes; `closed` resolves only after the host scope has
+                 closed and the final flush has ended, with a `CloseTail`
+                 whose `lastWritten` is below `lastNumbered` when a numbered
+                 record was lost in the flush and whose `auditDegraded` is
+                 true when a terminal record failed after the final
+                 snapshot, which then published no revision and emitted no
+                 event; and the
                  `CloseReport` carries `auditLastSeq`, the highest `auditSeq`
                  written when the report is produced (12 — Shutdown and
                  Hosting, BEH-BR-106; 24 — Time, Identifiers and Sequence,
@@ -977,9 +989,10 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  checks and `whenAvailable` runs start empty; listeners of
                  every dispatch mode see only "events" keys; the gate sees
                  only "gate" keys and the policy only "policy" keys; a
-                 `Deadline` shortens the per-call timeout of `use` and
-                 `useAll`, the gate and the policy with their own outcomes,
-                 bounds no `use` without a timeout and no `lease`, and leaves
+                 `Deadline` shortens the per-call timeout of `use`,
+                 `useAll` and `useOptional`, the gate and the policy with
+                 their own outcomes, bounds no `use` or `useOptional`
+                 without a timeout and no `lease`, and leaves
                  audit, drain, build and shutdown bounds unchanged; a served
                  call run inside `CallerContext.serve` sees the invoker's
                  actor and annotations and keeps the contributor's principal,
@@ -1025,7 +1038,9 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  revocation ("revoked") and interruption by the dispatcher
                  or the deadline ("interrupted"), never for skipped or
                  denied contributions,
-                 and its failure changes nothing (BEH-BR-302, BEH-BR-303,
+                 and its failure changes nothing; a `settle` that hangs
+                 until its `timeout` delays neither the next hook call nor
+                 the return of `dispatch` (BEH-BR-302, BEH-BR-303,
                  BEH-BR-304, BEH-BR-306).
              80. Every dispatch yields one decision record naming the deciding
                  contribution, with no input, value, message or params; a
@@ -1092,7 +1107,10 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  `UnknownRealm` and registers nothing (18 — Reconciliation
                  and Confluence, BEH-BR-155; BEH-BR-332, BEH-BR-333,
                  BEH-BR-335, BEH-BR-338).
-             86. `Realm.ephemeral` defines, installs and activates under the
+             86. `Realm.ephemeral` fails with `InvalidRealm`, making no host
+                 call, for a segment (given or generated) or an owner actor
+                 that `Actor.narrow` refuses; it defines, installs and
+                 activates under the
                  owner's context, undoes on failure, tears down at scope close
                  (forcing only at the limit, reported) and retires its realm;
                  a teardown or undo step that fails with any error — a gate
@@ -1144,15 +1162,23 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  removal passes no `OperationGate` and, with a sink, writes a
                  `system-stop` record attributed to `Actor.system` whose
                  `target` is the child and whose `causationId` is the child's
-                 mount record; a parked child stop the close resumes emits
-                 `stop-resumed` with `by` "sub-scope" (with `unmount`,
-                 "unmount"); when the parent's stop has already begun the
-                 removal, the finalizer and `unmount` wait under that stop's
-                 limits — with an operator call at its root and no `force`,
-                 no lease is revoked and the wait ends only when the parked
-                 stop is resumed; under shutdown, revocation only once the
-                 overall limit has passed (14 — Children and Groups,
-                 BEH-BR-121, BEH-BR-126; CCR-BR-036).
+                 mount record; a child stop parked outside its parent's
+                 stop (an unforced `remove` of the child) that the close
+                 resumes shows `reason` "remove", `next` "gone", is revoked
+                 at `drainTimeout`, and emits `stop-resumed` with `by`
+                 "sub-scope" (with `unmount`, "unmount"); when the parent's
+                 stop has already begun the removal, the finalizer and
+                 `unmount` wait under that stop's limits — with an operator
+                 call at its root and no `force`, no lease is revoked, the
+                 child stop the parent's stop parked is never resumed by the
+                 close or the `unmount`, and the wait ends only when a call,
+                 a cascade or shutdown resumes it; with that stop parked and
+                 a lease on the child held by the closing fiber, the
+                 finalizer (and `unmount` from that fiber) fails with
+                 `WouldDeadlock` and the child stays parked with the call;
+                 under shutdown, revocation only once the overall limit has
+                 passed (14 — Children and Groups, BEH-BR-121, BEH-BR-126;
+                 CCR-BR-036, CCR-BR-037).
              90. `Plugin.Any`: every value returned by `Plugin.define`,
                  including one with `provides: []`, is assignable to
                  `Plugin.Any` and accepted by `install`, `replace`, group
@@ -1355,7 +1381,10 @@ REQUIREMENT: The core test suite MUST also contain at least one test for each
                  operation, a non-active plugin, its dependents and a
                  volatile-only `reconfigure` hand nothing off and write no
                  record; `PluginHandle.restart` takes the same options with
-                 the same outcome (34 — State Handoff, BEH-BR-346,
+                 the same outcome; a `replace` with `cold: true`, and a
+                 `reconcile` with `cold: true` in each `replace` and
+                 restarting `reconfigure` it issues, hand nothing off and
+                 write no record (34 — State Handoff, BEH-BR-346,
                  BEH-BR-350, BEH-BR-353).
             104. RefusalList: operator calls of a refused digest fail with
                  `OperationRejected` ("refused-digest: ...") and one

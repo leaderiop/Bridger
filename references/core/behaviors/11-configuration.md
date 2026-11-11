@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-11                                               |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-10): BEH-BR-101 `reconfigure` with a value does not decode it on a registration not yet loaded, as without one; BEH-BR-102 such a value is not compared field by field (C8) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-104 lists every place `meta` is not opaque: reconcile, plan and `expect`, the manifest and lazy-load checks, the `RefusalList` subject (C4) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-101 `reconfigure` without a value on a registration not yet loaded clears the override without decoding the source (C4); BEH-BR-102 `config-updated { pluginId, paths }` (audit round 2, Low) (CCR-BR-034)<br>0.7 (2026-11-09): BEH-BR-101 the `reconfigure` union adds `ConfigFingerprintUnavailable`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-101 `reconfigure` takes `HandoffCallOptions`; handoff on a restarting reconfigure when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.5 (2026-11-08): `reconfigure` on any registration not yet loaded recorded as `install` with `config` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-097 decode after load and BEH-BR-101 raw value stored for an unloaded lazy registration; BEH-BR-104 manifest agrees with `version` and `digest` (CCR-BR-017); BEH-BR-104 points to the loader companion (CCR-BR-021)<br>0.3 (2026-10-03): BEH-BR-103 values may leave core only to the optional `ConfigFingerprinter` port at step 4a of BEH-BR-188; `configChange: { paths, fingerprints? }`; Settled paragraph (CCR-BR-014)<br>0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.11 (2026-11-11): BEH-BR-101 a parked intent's override is also reverted when a child's sub-scope close or unmount ends it (CL2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.10 (2026-11-10): BEH-BR-101 `reconfigure` with a value does not decode it on a registration not yet loaded, as without one; BEH-BR-102 such a value is not compared field by field (C8) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-104 lists every place `meta` is not opaque: reconcile, plan and `expect`, the manifest and lazy-load checks, the `RefusalList` subject (C4) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-101 `reconfigure` without a value on a registration not yet loaded clears the override without decoding the source (C4); BEH-BR-102 `config-updated { pluginId, paths }` (audit round 2, Low) (CCR-BR-034)<br>0.7 (2026-11-09): BEH-BR-101 the `reconfigure` union adds `ConfigFingerprintUnavailable`, as BEH-BR-013 (C-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-101 `reconfigure` takes `HandoffCallOptions`; handoff on a restarting reconfigure when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.5 (2026-11-08): `reconfigure` on any registration not yet loaded recorded as `install` with `config` (CCR-BR-022)<br>0.4 (2026-11-08): BEH-BR-097 decode after load and BEH-BR-101 raw value stored for an unloaded lazy registration; BEH-BR-104 manifest agrees with `version` and `digest` (CCR-BR-017); BEH-BR-104 points to the loader companion (CCR-BR-021)<br>0.3 (2026-10-03): BEH-BR-103 values may leave core only to the optional `ConfigFingerprinter` port at step 4a of BEH-BR-188; `configChange: { paths, fingerprints? }`; Settled paragraph (CCR-BR-014)<br>0.2 (2026-10-02): An ended operator intent reverts every override change made under it, to the override before the first; the paths are recorded on its `intent-ended` record; a resuming `reconfigure` stores its override only when decided (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -251,8 +251,11 @@ REQUIREMENT: `reconfigure` is a restart, not a live mutation. The host MUST
 
 ```
 REQUIREMENT: When a parked operator intent (08 — Operation Legality,
-             BEH-BR-074) is ended by a cascade, whatever its root, or by
-             shutdown (BEH-BR-080; 12 — Shutdown and Hosting, BEH-BR-105),
+             BEH-BR-074) is ended by a cascade, whatever its root, by
+             shutdown, or — for a child whose stop was parked outside its
+             parent's stop — by the close of its sub-scope or its
+             `Plugin.Runtime.unmount` (BEH-BR-080; 12 — Shutdown and
+             Hosting, BEH-BR-105; 14 — Children and Groups, BEH-BR-121),
              every override change made under that intent — by any call: a
              parked `reconfigure`, or a `reconfigure` that joined a parked
              operation — MUST revert, in the same revision in which the

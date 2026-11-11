@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-03                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): BEH-BR-017 `install` registers a lazy definition `dormant`, and a start refused after step 4b `disabled` with reason "refused-digest" (C3) (CCR-BR-034)<br>0.5 (2026-11-09): BEH-BR-017 `install` unions add `ConfigFingerprintUnavailable` and BEH-BR-024 `PluginHandle.restart` takes `HandoffCallOptions`, as BEH-BR-013 (C-01); BEH-BR-018 precedence names steps 4a and 4b; BEH-BR-023 a disabled installation also runs `IncompatibleEngine` and defers `IncompatibleContract`, and a `replace` that leaves the plugin disabled runs the same checks and reserves nothing (U-07, U-08) (CCR-BR-032)<br>0.4 (2026-11-08): generic `install` overload takes the branded `Plugin`; `UnknownRealm` at the linearization point after a retirement (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-017 non-generic `Plugin.Any` overload (CCR-BR-020); BEH-BR-018 `IncompatibleContract`, `IncompatibleEngine` and precedence, BEH-BR-019/020 lazy definitions read from the manifest (CCR-BR-017); BEH-BR-022 `mandatory`, `allowChildren` (CCR-BR-018)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-11): BEH-BR-018, BEH-BR-019 `DuplicateProvider` carries `providerRealm`; BEH-BR-018, BEH-BR-020 `DependencyCycle.path` lists `{ id, realm }` records (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-017 `install` registers a lazy definition `dormant`, and a start refused after step 4b `disabled` with reason "refused-digest" (C3) (CCR-BR-034)<br>0.5 (2026-11-09): BEH-BR-017 `install` unions add `ConfigFingerprintUnavailable` and BEH-BR-024 `PluginHandle.restart` takes `HandoffCallOptions`, as BEH-BR-013 (C-01); BEH-BR-018 precedence names steps 4a and 4b; BEH-BR-023 a disabled installation also runs `IncompatibleEngine` and defers `IncompatibleContract`, and a `replace` that leaves the plugin disabled runs the same checks and reserves nothing (U-07, U-08) (CCR-BR-032)<br>0.4 (2026-11-08): generic `install` overload takes the branded `Plugin`; `UnknownRealm` at the linearization point after a retirement (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-017 non-generic `Plugin.Any` overload (CCR-BR-020); BEH-BR-018 `IncompatibleContract`, `IncompatibleEngine` and precedence, BEH-BR-019/020 lazy definitions read from the manifest (CCR-BR-017); BEH-BR-022 `mandatory`, `allowChildren` (CCR-BR-018)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -116,9 +116,10 @@ type InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | Inva
 
 class DuplicatePlugin   extends Schema.TaggedError<DuplicatePlugin>()("DuplicatePlugin", { id: Schema.String }) {}
 class DuplicateProvider extends Schema.TaggedError<DuplicateProvider>()("DuplicateProvider",
-  { serviceId: Schema.String, providerId: Schema.String }) {}          // providerId: plugin ID or "base"
+  { serviceId: Schema.String, providerId: Schema.String,               // providerId: plugin ID or "base"
+    providerRealm: Schema.optional(Schema.String) }) {}                // the provider's realm; absent for "base"
 class DependencyCycle   extends Schema.TaggedError<DependencyCycle>()("DependencyCycle",
-  { path: Schema.Array(Schema.String) }) {}                           // plugin IDs
+  { path: Schema.Array(Schema.Struct({ id: Schema.String, realm: Schema.String })) }) {}   // plugins, as { id, realm }
 class InvalidDefinition extends Schema.TaggedError<InvalidDefinition>()("InvalidDefinition",
   { id: Schema.String, reason: Schema.String }) {}
 class UnknownRealm      extends Schema.TaggedError<UnknownRealm>()("UnknownRealm", { id: Schema.String }) {}
@@ -203,10 +204,12 @@ record.
 
 ```
 REQUIREMENT: `install` MUST fail with `DuplicateProvider { serviceId,
-             providerId }` when a key in `provides` is already provided in
-             the plugin's resolution scope by the base services
-             (`providerId` "base") or by an installed plugin in any state
-             other than `disabled` (`providerId` that plugin's ID). For a
+             providerId, providerRealm? }` when a key in `provides` is
+             already provided in the plugin's resolution scope by the base
+             services (`providerId` "base", no `providerRealm`) or by an
+             installed plugin in any state other than `disabled`
+             (`providerId` that plugin's ID, `providerRealm` its realm;
+             CCR-BR-037). For a
              lazy definition the keys are read from its manifest
              (27 — Manifest and Lazy Activation, BEH-BR-242).
 ```
@@ -247,8 +250,10 @@ non-disabled plugin counts, for the reason above.
 REQUIREMENT: `install` MUST fail with `DependencyCycle { path }` when adding
              the definition's `requires` and `provides` edges to the graph
              of installed, non-disabled plugins in its resolution scope
-             would close a cycle. `path` MUST list the plugin IDs along the
-             cycle, beginning with the plugin being installed. For a lazy
+             would close a cycle. `path` MUST list the plugins along the
+             cycle, each as the record `{ id, realm }` (17 — Realms and
+             Interception, BEH-BR-147; CCR-BR-037), beginning with the
+             plugin being installed. For a lazy
              definition the edges are read from its manifest
              (27 — Manifest and Lazy Activation, BEH-BR-242).
 ```

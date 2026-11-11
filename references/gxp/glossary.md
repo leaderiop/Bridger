@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GLOSSARY                                          |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Glossary                                                     |
-> | Change History | 0.4 (2026-11-10): Check on read and unanchored tail: findings taken from audit-chain named apart (`chainUnanchoredTail`, unconfirmed receipts, loss-counter rises) (P14, P16) (CCR-GX-005)<br>0.3 (2026-11-09): Installation checks: core's eight checks (IQ-01 to IQ-07, IQ-22 and IQ-U10) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Trail entry, marked entry, collision entry, trail gate; anchor store holds high-water marks only; sealing and seal verification are `@bridger/audit-chain`'s; canonical domain I-JSON (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-11): Check on read: links not checked for want of a key (`chainLinkUnchecked`) (PL23); high-water mark: the close mark from `HostControls.closed` (core CCR-BR-037) (G4) (CCR-GX-008)<br>0.4 (2026-11-10): Check on read and unanchored tail: findings taken from audit-chain named apart (`chainUnanchoredTail`, unconfirmed receipts, loss-counter rises) (P14, P16) (CCR-GX-005)<br>0.3 (2026-11-09): Installation checks: core's eight checks (IQ-01 to IQ-07, IQ-22 and IQ-U10) (core CCR-BR-033) (CCR-GX-004)<br>0.2 (2026-11-09): Trail entry, marked entry, collision entry, trail gate; anchor store holds high-water marks only; sealing and seal verification are `@bridger/audit-chain`'s; canonical domain I-JSON (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -110,8 +110,9 @@ unknown `schemaVersion`, `requested` records without a terminal
 record, dropped records, marked and colliding entries, an unclean close,
 incomplete approval linking, tail loss, an unanchored tail, and, mapped from
 audit-chain's results under names of their own, chain breaks, anchor
-mismatches, head mismatches, the chain's unanchored tail, non-canonical
-links, loss-counter rises and unconfirmed receipts. A run with no findings reports "no findings of the checked
+mismatches, head mismatches, links that could not be checked for want of a
+key, the chain's unanchored tail, non-canonical links, loss-counter rises and
+unconfirmed receipts. A run with no findings reports "no findings of the checked
 kinds"; it does not say the trail is complete
 ([ADR-GX-007](./decisions/007-checks-never-claim-integrity.md)).
 
@@ -123,9 +124,10 @@ A finding is never suppressed and never upgraded to a pass.
 ### High-water mark
 
 A host's highest written audit sequence number, read from
-`Host.controls.auditPosition.lastWritten` — while the host runs and, at
-close, once more after the final flush, never from `CloseReport.auditLastSeq`
-alone (BEH-GX-044) — and written by `recordHighWater` to the
+`Host.controls.auditPosition.lastWritten` while the host runs and, at close,
+from `lastWritten` of the `CloseTail` that `HostControls.closed` yields once
+the audit writer's final flush has ended, never from `CloseReport.auditLastSeq`
+alone (BEH-GX-044), and written by `recordHighWater` to the
 anchor store. A stored trail that ends below a high-water mark has lost its
 tail ([ADR-GX-008](./decisions/008-high-water-anchors.md)).
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-INV                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-09): INV-LD-009 (no package is evaluated in the host's process without an accepted first-party statement); INV-LD-001 and INV-LD-004 cite file 09 (specification audit F-06, M-06); INV-LD-009 guest wording (independent review) (CCR-LD-004)<br>0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.5 (2026-11-11): INV-LD-004: the `RevokedDigests` view serves the refusal list and the remote boundary, and the kill switch and gate agree with it on the same inputs — agreement, not one computation (PL16); INV-LD-005: a revocation reconcile keeps every entry still installed as its last completed action left it, whatever its pending status (H8) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-09): INV-LD-009 (no package is evaluated in the host's process without an accepted first-party statement); INV-LD-001 and INV-LD-004 cite file 09 (specification audit F-06, M-06); INV-LD-009 guest wording (independent review) (CCR-LD-004)<br>0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -101,9 +101,11 @@ unavailable sets refuse.
 **Implication**: the kill switch also holds for code that has not been loaded
 yet, including lazy plugins whose trigger fires after the revocation, and
 guest links, whose every session fetches and verifies again (BEH-LD-068). The
-package digests revoked by digest, statement digest or signer are computed
-once, in the `RevokedDigests` view (BEH-LD-070), which the remote boundary
-reads.
+package digests revoked by digest, statement digest or signer are computed in
+the `RevokedDigests` view (BEH-LD-070), which the refusal list and the remote
+boundary read; the kill switch's `filterDesired` and the gate compute their
+answers from the same inputs and agree with it — agreement, not one
+computation.
 
 **Verification** *(Planned)*: acceptance checks 11, 13, 14 and 15 of
 BEH-LD-048.
@@ -118,8 +120,11 @@ Every change the kill switch makes to a host's plugin set is a
 `Host.reconcile` or `Host.remove` call, and is therefore gated, drained and
 audited as core specifies. A call caused by a revocation carries the
 configured revocation actor and a reason naming the revocation revision, and
-issues removals only; a call caused by a desired-list change carries the
-application's actor and names no revocation.
+issues removals only: its list keeps every entry of the scope still installed
+in `Host.snapshot`, as its last completed action left it, whatever its
+pending status, and leaves out only the dropped entries and those absent from
+the snapshot, so core prunes nothing that was not revoked. A call caused by a
+desired-list change carries the application's actor and names no revocation.
 
 **Source**: `packages/loader/src/KillSwitch.ts` *(Planned)* — the module
 depends on the public `Bridger.Host` service only.

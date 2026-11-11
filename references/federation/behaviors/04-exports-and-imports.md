@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-04                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-025: an export endpoint is opened with the route's offered labels through `MultiplexedGuest.endpoint(name, { residency })` (F1) (CCR-FD-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-026: the no-identity statement narrowed to proxy calls; what event envelopes routed to a peer disclose (CCR-FD-005)<br>0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-026: `open` succeeds on a `delivery-only` link for an import named in `deliveryImports` (H4); the proxy transport's `profile.residency` is the peer's `ManifestPeer.residency`, known before dialling (H5); BEH-FD-025: an export is unavailable when its provision does not satisfy `"^" + V` (F4) (CCR-FD-008)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-025: an export endpoint is opened with the route's offered labels through `MultiplexedGuest.endpoint(name, { residency })` (F1) (CCR-FD-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-026: the no-identity statement narrowed to proxy calls; what event envelopes routed to a peer disclose (CCR-FD-005)<br>0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -62,7 +62,9 @@ REQUIREMENT: A call to a method outside the entry's `methods` MUST be
 
 ```
 REQUIREMENT: An export whose local provider is not `active`, or whose
-             provision is below the contract's version, MUST be offered
+             provision's version does not satisfy `"^" + V`, V the
+             contract's version (core `Contract.satisfies`, BEH-BR-232; for
+             major 0, the same minor and v ≥ V), MUST be offered
              without `version` (unavailable) and its calls MUST be refused
              by `Remote.serve` with "unavailable"; this package MUST NOT
              cause the local provider to be started.
@@ -125,11 +127,18 @@ REQUIREMENT: An import's `disclose` MUST be passed unchanged, after sorting
 REQUIREMENT: The proxy's `transport` MUST be a federation endpoint transport
              for (from, K, M): its `open` MUST return the logical connection
              of the "import:" + K + "@" + M endpoint on the current outgoing
-             link to `from` only while that link is `up` and its agreement
-             lists the import in `accepted`; otherwise `open` MUST fail at
+             link to `from` only while that link is `up`, or `delivery-only`
+             for an import named in `FederationOptions.deliveryImports` (02,
+             BEH-FD-014; 03, BEH-FD-017), and its agreement lists the import
+             in `accepted`; otherwise `open` MUST fail at
              once with the remote companion's `TransportError`, naming the
              reason, so that the link retries on its own schedule and
-             provides nothing meanwhile.
+             provides nothing meanwhile. Its `profile.residency` MUST be
+             known when the proxy is built, before any link exists: it is
+             the `residency` of the `ManifestPeer` named by `from` (absent
+             when that peer declares none), whatever link is current, so
+             that the proxy's placement check (remote BEH-RM-068) compares
+             against labels known before dialling (06, BEH-FD-045).
 ```
 
 ```
@@ -139,7 +148,8 @@ REQUIREMENT: Every import proxy MUST have a call timeout: the entry's
 ```
 
 ```
-REQUIREMENT: While the link is not `up`, or the import is not accepted by
+REQUIREMENT: While the link is not `up` (nor `delivery-only`, for a
+             delivery import), or the import is not accepted by
              the agreement (BEH-FD-020), the proxy MUST provide nothing (no
              session child), so that its dependents wait. When a new offer
              withdraws an accepted import, the plugin MUST close that

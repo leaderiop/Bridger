@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-OVW                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.6 (2026-11-10): API rows for `KeyringPorts`, `Keyring.plugin`, the `KeyStore` acknowledgement members and `Keyring.fields(ports, spec)`; worked example installs the plugin (K1, PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.5 (2026-11-10): `Keyring.rewrap` returns a `RewrapReport`; `KeyWrapper`, `WrappedKey` and `SubjectKeys` declared (M24) (CCR-KR-005)<br>0.4 (2026-11-10): API rows `Keyring.rotate` and `Keyring.rewrap` (P10) (CCR-KR-004)<br>0.3 (2026-11-09): `Keyring.shred` keeps the shred's attribution in the tombstone and fails with `ShredUnattributed` without an attributed actor (M-01); `Keyring` is a local contract (core CCR-BR-033) (CCR-KR-003)<br>0.2 (2026-11-08): Limit 5: no key distribution, and what a host without keys does; receipt covers acknowledging and declared hosts only (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — the example notes the store-swap participant of a `KeyStore` that shares the outbox database (B6) (CCR-KR-007)<br>0.6 (2026-11-10): API rows for `KeyringPorts`, `Keyring.plugin`, the `KeyStore` acknowledgement members and `Keyring.fields(ports, spec)`; worked example installs the plugin (K1, PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.5 (2026-11-10): `Keyring.rewrap` returns a `RewrapReport`; `KeyWrapper`, `WrappedKey` and `SubjectKeys` declared (M24) (CCR-KR-005)<br>0.4 (2026-11-10): API rows `Keyring.rotate` and `Keyring.rewrap` (P10) (CCR-KR-004)<br>0.3 (2026-11-09): `Keyring.shred` keeps the shred's attribution in the tombstone and fails with `ShredUnattributed` without an attributed actor (M-01); `Keyring` is a local contract (core CCR-BR-033) (CCR-KR-003)<br>0.2 (2026-11-08): Limit 5: no key distribution, and what a host without keys does; receipt covers acknowledging and declared hosts only (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -94,7 +94,9 @@ const codec = Keyring.fields(ports, {
 // The same codec is given to the event store and to the bus (one encoded payload).
 const Stores = EventStore.layer({ codec }).pipe(Layer.provide(DurableBus.layer({ codec })))
 
-// The keyring plugin, over the same ports; the KeyStore here shares the outbox's database.
+// The keyring plugin, over the same ports; the KeyStore here shares the outbox's database, so the tombstone and
+// the shred notice commit together, and a store-swap participant carries tombstones, pending steps and
+// acknowledgements across a whole-store re-bootstrap install (BEH-KR-020).
 yield* host.install(Keyring.plugin(ports))
 
 // A projection that holds plaintext registers how to drop it.

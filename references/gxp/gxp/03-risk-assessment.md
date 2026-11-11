@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GXP-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.3 (2026-11-10): the policy-construction control names `GxpLayerInvalid` (BEH-GX-064), not `PolicyInvalid` (CCR-GX-005)<br>0.2 (2026-11-09): RSK-GX-002, 004, 005, 019 controls re-baselined (collisions kept, the sink never refuses for a condition of its own, `trailGate`, sealing through audit-chain, check 18); RSK-GX-023 added (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-11): RSK-GX-003 control: the close mark from `HostControls.closed` (G4) (CCR-GX-008)<br>0.3 (2026-11-10): the policy-construction control names `GxpLayerInvalid` (BEH-GX-064), not `PolicyInvalid` (CCR-GX-005)<br>0.2 (2026-11-09): RSK-GX-002, 004, 005, 019 controls re-baselined (collisions kept, the sink never refuses for a condition of its own, `trailGate`, sealing through audit-chain, check 18); RSK-GX-023 added (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -119,7 +119,7 @@ Controls cite behaviours ([behaviors/](../behaviors/01-companion-boundary.md)) a
 | Failure mode | The newest entries of a host disappear — a store rolled back, restored from an older backup, truncated, or never flushed — and the remaining trail is contiguous from 1, so sequence checks find nothing. Trigger: any restore, failover or crash of the trail store. |
 | Effect on GMP data / processes | The last changes made to the system have no record, and review does not show that anything is missing ([RSK-BR-006](../../core/gxp/03-risk-assessment.md#rsk-br-006)). |
 | Initial scoring | S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9) |
-| Controls | `recordHighWater` writes high-water marks from `Host.controls.auditPosition` on a schedule and, at close, from `Host.controls` read after the final flush, never from `CloseReport.auditLastSeq` alone, into a separate `AnchorStore` (BEH-GX-041–044); `tailLoss` is reported when the store holds less than a mark says was written, and `unanchoredTail` for entries no mark covers (BEH-GX-045, BEH-GX-046); an unclean close is a finding (BEH-GX-037); findings are never suppressed (INV-GX-009). |
+| Controls | `recordHighWater` writes high-water marks from `Host.controls.auditPosition` on a schedule and, at close, from the `CloseTail` that `HostControls.closed` yields after the final flush (core CCR-BR-037), never from `CloseReport.auditLastSeq` alone, into a separate `AnchorStore` (BEH-GX-041–044); `tailLoss` is reported when the store holds less than a mark says was written, and `unanchoredTail` for entries no mark covers (BEH-GX-045, BEH-GX-046); an unclean close is a finding (BEH-GX-037); findings are never suppressed (INV-GX-009). |
 | Risks introduced by controls | Loss inside the last mark interval is not detectable, only reported as an unanchored tail. The anchor store is another port to operate; held with the trail it adds nothing ([RSK-GX-005](#rsk-gx-005)). |
 | Verification | Planned — acceptance scenarios REQ-GX-008, REQ-GX-010 (anchors; [traceability](../traceability.md) §7); scenarios truncating the store below and above the last mark under `TestHost` and `TestClock`; mutation testing of the comparison. |
 | Residual scoring | Anchors not used: S 3 · P 2 · D 3 → class **High** (6) · priority **High** (9). With anchors wired under separate custody: S 3 · P 1 · D 2 → class Medium (3) · priority Medium (4). |

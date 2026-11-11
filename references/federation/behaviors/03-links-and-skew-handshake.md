@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-03                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-017: `LinkDialer.dial` and `LinkListener.accept` yield a `LinkConnection` with the `TransportProfile` of the end that made it, passed to both `multiplex` calls (H4); BEH-FD-018: `LinkAgreement.refused` gains "placement-refused" (PL16); BEH-FD-020: the accepted range is `"^" + V` (C9) (CCR-FD-007)<br>0.7 (2026-11-10): round 2 follow-up: `DialFailed` and `ListenFailed` declared (BEH-FD-017) (CCR-FD-005)<br>0.6 (2026-11-09): BEH-FD-023 reads identity claims only when present; provenance entry without `ref` when no actor is disclosed (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F5) — the `kill` frame precedes the offer on every new link; a suspended link keeps its control endpoint open for kill frames only; `SignedRevocationList` is the loader's (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck item 18 and CORE-DECISIONS-2 — `kill` control frame with one schema across protocol versions; asserted principals decoded with `PrincipalRef.decode` and kept as provenance; served calls carry the peer's correlation; peer selection through core `Selector.make` with a range (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-017: `PeerLinkStatus` state `delivery-only`, its only use in step 1 of a re-bootstrap attempt that starts with links suspended (H4); BEH-FD-018: the step-1 exception to the suspended control endpoint, with an offer listing only the delivery imports and no export (F1) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-017: `LinkDialer.dial` and `LinkListener.accept` yield a `LinkConnection` with the `TransportProfile` of the end that made it, passed to both `multiplex` calls (H4); BEH-FD-018: `LinkAgreement.refused` gains "placement-refused" (PL16); BEH-FD-020: the accepted range is `"^" + V` (C9) (CCR-FD-007)<br>0.7 (2026-11-10): round 2 follow-up: `DialFailed` and `ListenFailed` declared (BEH-FD-017) (CCR-FD-005)<br>0.6 (2026-11-09): BEH-FD-023 reads identity claims only when present; provenance entry without `ref` when no actor is disclosed (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F5) — the `kill` frame precedes the offer on every new link; a suspended link keeps its control endpoint open for kill frames only; `SignedRevocationList` is the loader's (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck item 18 and CORE-DECISIONS-2 — `kill` control frame with one schema across protocol versions; asserted principals decoded with `PrincipalRef.decode` and kept as provenance; served calls carry the peer's correlation; peer selection through core `Selector.make` with a range (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links built on the remote companion's `Transport`, endpoint multiplexer and `Remote.serve`; federation's own control endpoint carries the offers; incoming connections accepted only from listed peers; `PeerLinkStatus` with string identifiers; symmetric protocol window carried in the offer; one import per (peer, contract, major), accepted or refused, never a major picked; one realm per import, retired when empty; peer-asserted actors as provenance (R3-01, R3-02, R3-18, R3-21, R3-22, R3-23) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -63,7 +63,8 @@ class ListenFailed extends Schema.TaggedError<ListenFailed>()("ListenFailed", {
 interface PeerLinkStatus {                      // named apart from the remote companion's LinkStatus
   readonly peer: string
   readonly direction: "outgoing" | "incoming"
-  readonly state: "connecting" | "up" | "partitioned" | "incompatible" | "suspended" | "closed"
+  readonly state: "connecting" | "up" | "partitioned" | "incompatible" | "suspended" | "delivery-only" | "closed"
+                                                // "delivery-only": step 1 of a re-bootstrap retry, delivery imports only (02, BEH-FD-014)
   readonly connection?: string                  // id of the physical connection, from the core IdGenerator
   readonly agreement?: LinkAgreement
 }
@@ -104,6 +105,18 @@ REQUIREMENT: The accepting end MUST serve no "import:" endpoint of a link
 ```
 REQUIREMENT: A link MUST be opened, retried and closed in fibers of the
              federation plugin; no host transition MAY wait for a link.
+```
+
+```
+REQUIREMENT: A link MUST be `delivery-only` only during step 1 of a
+             re-bootstrap attempt that starts with links suspended, and only
+             when an import named in `FederationOptions.deliveryImports`
+             runs over it (02, BEH-FD-014). On such a link the "control"
+             endpoint carries `kill` frames and the offer exchange of
+             BEH-FD-018, only the endpoints of those delivery imports open
+             (04, BEH-FD-026), no export is served and no other import
+             opens. Step 2, or a failure of step 1, MUST return it to
+             `suspended`.
 ```
 
 Links are desired state like plugins: the authority decides which hosts talk
@@ -179,6 +192,13 @@ REQUIREMENT: While links are suspended for a re-bootstrap (02, BEH-FD-014),
              the "control" endpoint of each link MUST stay open and MUST
              carry only `kill` frames; offers received meanwhile MUST be
              ignored and answered by a new offer exchange at resumption.
+             The one exception is a link in state `delivery-only` (step 1 of
+             an attempt that starts with links suspended, BEH-FD-017): on
+             it, this host MUST send an offer whose `imports` list only the
+             delivery imports over that link and whose `exports` list
+             nothing, and MUST accept from the peer's offer only those
+             imports; once the link is back to `suspended`, offers are
+             ignored again.
 ```
 
 ```

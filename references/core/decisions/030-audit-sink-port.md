@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-030                                              |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amended by ADR-BR-043, ADR-BR-045, ADR-BR-051 and ADR-BR-053 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.5 (2026-11-10): Amendments marked: later record fields, step-4b and undo cardinality (C22) (CCR-BR-034)<br>0.4 (2026-10-03): Three loss paths; the overflow exception to cardinality; the port read once at construction (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `AuditRecord` gains `endsIntentOf` and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-11): Consequences: four loss paths, a close-flush loss signalled by the log and `Host.controls().closed`, not the latch (C6) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): Amendments marked: later record fields, step-4b and undo cardinality (C22) (CCR-BR-034)<br>0.4 (2026-10-03): Three loss paths; the overflow exception to cardinality; the port read once at construction (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): `AuditRecord` gains `endsIntentOf` and `resumes` (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -52,7 +52,7 @@ interface AuditSink { readonly record: (r: AuditRecord) => Effect.Effect<void, A
 
 **Positive**:
 
-- A regulated user gets sequenced, attributed records of plugin-set changes, handed to a sink in order from the only place every change is visible; the losses core can cause (writer-queue overflow, records unwritten when the host closes, records still queued when the process dies) are stated, and those it can detect are signalled by the latch ([ADR-BR-031](../decisions/031-audit-failure-policy.md)).
+- A regulated user gets sequenced, attributed records of plugin-set changes, handed to a sink in order from the only place every change is visible; the losses core can cause (writer-queue overflow, records unwritten when the host closes, records still queued when the process dies, and a running `reconcile`'s parent record lost at shutdown) are stated, and those it can detect are signalled by the latch ([ADR-BR-031](../decisions/031-audit-failure-policy.md)), except a close-flush loss, signalled by the error log and by `Host.controls().closed` (`CloseTail`, [24 — Time, identifiers and sequence](../behaviors/24-time-ids-and-sequence.md), BEH-BR-212; CCR-BR-037), since it arises after the close report.
 - Unwired, the port costs one `serviceOption` read at construction and changes nothing else.
 - The audit channel and the diagnostic channel keep their own guarantees, and the difference is stated, not implied.
 

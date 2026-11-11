@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-053                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amends ADR-BR-014, ADR-BR-017, ADR-BR-029, ADR-BR-030, ADR-BR-032 and ADR-BR-043 |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-10): Status names the ADRs this one amends (ADR-BR-014, ADR-BR-017, ADR-BR-029, ADR-BR-030, ADR-BR-032 and ADR-BR-043), pairing their "amended by" (C22) (CCR-BR-034)<br>0.1 (2026-11-08): Initial draft (CCR-BR-026)                 |
+> | Change History | 0.3 (2026-11-11): Decision: consulted on each `whenAvailable` re-run under "restart" and each trigger on a `dormant` plugin (CL14) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.2 (2026-11-10): Status names the ADRs this one amends (ADR-BR-014, ADR-BR-017, ADR-BR-029, ADR-BR-030, ADR-BR-032 and ADR-BR-043), pairing their "amended by" (C22) (CCR-BR-034)<br>0.1 (2026-11-08): Initial draft (CCR-BR-026)                 |
 
 ---
 
@@ -23,7 +23,7 @@ A revocation companion (the loader's kill switch) can refuse, through the `Opera
 ## Decision
 
 - **`RefusalList` port.** Optional, read once at construction. `refused({ id, realm, version?, digest })` is synchronous and pure and returns `Option<string>`. Only definitions that declare a digest are submitted.
-- **Consulted on every start**: each move into `starting`, whatever its cause; each background restart; each child mount; and, for operator calls, at a new step 4b of the call order, before the gate.
+- **Consulted on every start**: each move into `starting`, whatever its cause; each background restart, and each re-run of a `whenAvailable` run under "restart" ([15 — Optional and reactive](../behaviors/15-optional-and-reactive.md), BEH-BR-134), which a refusal ends as it ends a refused background restart; each trigger applied to a `dormant` plugin; each child mount; and, for operator calls, at a new step 4b of the call order, before the gate.
 - **Operator calls** refused at step 4b fail with `OperationRejected` ("refused-digest: …") and write one `rejected` record; the gate is not asked. No error union changes.
 - **System starts** refused land the plugin in `disabled` with reason `refused-digest` in the same revision; no code is loaded or built; one `start-refused` system record is written, caused as the refused start would have been. A refused background restart stops the plugin into that state. A refused mount fails with `ChildNotAllowed`.
 - **Running activations are not stopped by the list.** A `disable` or `remove` stops them; the list keeps them from starting again.

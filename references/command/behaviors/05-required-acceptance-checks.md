@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-05                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-10): Check 17: the task's fiber carries the dispatching fiber's plugin principal, and a task whose dispatcher's activation ends keeps running and fails "PrincipalRetired" on its next mutating host call (BEH-CM-052) (T3) (CCR-CM-007)<br>0.8 (2026-11-10): Checks 15 and 19: wrappers and admissions see the dispatching fiber's plugin principal, none for application code (H5) (CCR-CM-006)<br>0.7 (2026-11-10): Check 6 compares the actor and annotations of offered call-log entries and hook inputs with a context supplied only in `options.context` (H9) (CCR-CM-005)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.10 (2026-11-11): Check 17: `PrincipalRetired` comes from a wrapper or an admission's settlement, never the handler (BEH-CM-052) (SPEC-AUDIT-05 A3) (CCR-CM-008)<br>0.9 (2026-11-10): Check 17: the task's fiber carries the dispatching fiber's plugin principal, and a task whose dispatcher's activation ends keeps running and fails "PrincipalRetired" on its next mutating host call (BEH-CM-052) (T3) (CCR-CM-007)<br>0.8 (2026-11-10): Checks 15 and 19: wrappers and admissions see the dispatching fiber's plugin principal, none for application code (H5) (CCR-CM-006)<br>0.7 (2026-11-10): Check 6 compares the actor and annotations of offered call-log entries and hook inputs with a context supplied only in `options.context` (H9) (CCR-CM-005)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -200,9 +200,11 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  `TaskLost` and releases its receipt; a string dispatch is
                  told apart by the descriptor's `long`; the task's fiber
                  carries the dispatching fiber's plugin principal, and when
-                 the dispatcher's activation ends the task keeps running
-                 and a mutating host call from it ends it `failed` /
-                 "PrincipalRetired".
+                 the dispatcher's activation ends the task keeps running,
+                 a mutating host call from a wrapper or an admission's
+                 settlement ends it `failed` / "PrincipalRetired", and the
+                 handler's host calls, under the contributor's principal,
+                 are not affected.
              18. Metadata and envelope: id and tag grammars (mixed case,
                  `.`, `:`; case-only duplicates refused); typed metadata on
                  descriptors, requests, hook targets and digests;

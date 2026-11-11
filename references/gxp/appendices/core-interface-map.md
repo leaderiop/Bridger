@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-APP-01                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Appendix                                                     |
-> | Change History | 0.7 (2026-11-10): §6 re-pinned and §8 rows for core CCR-BR-036 and audit-chain CCR-AC-007, both assessed with no change to the companion's behaviours beyond those of CCR-GX-007; §6, §7 and §8 headings and ranges to CCR-BR-036 and CCR-AC-007 (CCR-GX-007)<br>0.6 (2026-11-10): §7 an `@bridger/audit-chain` column: one audit-chain minor line, checked by IQ-24 (M3); §6 re-pinned and §8 rows for core CCR-BR-035 and audit-chain CCR-AC-006, both assessed with no change to the companion's behaviours beyond those of CCR-GX-006; §7 core range starts at CCR-BR-035 (CCR-GX-006)<br>0.5 (2026-11-10): §6 audit-chain pinned through CCR-AC-005 (the text named CCR-AC-003 while the pins were CCR-AC-004's), files 04 and 05 pinned; §7 the core version is read from `Bridger.version`; §8 row for CCR-AC-005 and its heading extended (low, P7); coupling answer to core CCR-BR-034: §8 row, twenty-three core documents re-pinned, §6 and §8 headings to CCR-BR-034, §7 row starts at the first core release that includes CCR-BR-034; the zero-progress atomic stop is no longer attributed to BEH-BR-201/325; follow-ups: ADR-BR-039 re-pinned to 0.3 (CCR-BR-034 follow-up C22); §8 CCR-AC-005 row assesses `expectKeyed`, "unkeyed-link" and `lossCounterUnanchored` (CCR-GX-005)<br>0.4 (2026-11-09): §1 BEH-BR-016 and BEH-BR-210 rows: identifier uniqueness across hosts sharing the trail store, packaged as IQ-22 and IQ-U10; §4 RSK-BR-007 row; §6 fifteen core documents re-pinned after CCR-BR-033; §7 row starts at the first core release that includes CCR-BR-033; §8 row for CCR-BR-033 and its heading extended; files 12 (0.9) and ADR-BR-008 (0.8) re-pinned, and the §8 row extended, after the review fixes folded into CCR-BR-033 (CCR-GX-004)<br>0.3 (2026-11-09): §6 thirteen core documents re-pinned after CCR-BR-032; §7 row starts at the first core release that includes CCR-BR-032; §8 row for CCR-BR-032 (answer: none) and its heading extended (CCR-GX-003)<br>0.2 (2026-11-09): §§1–5 re-baselined against core through CCR-BR-031 (record fields, binding version 2 request fields, gate pieces, non-claim 5 naming audit-chain); rows for BEH-BR-248, 259, 260, 263, 292, 293, 313, 315, 321, 325 and ADR-BR-047; §6 pins every linked core document and the adopted audit-chain documents; §7 row requires CCR-BR-031; §8 coupling assessment of CCR-BR-015–031 (F-01, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.8 (2026-11-11): §1 rows for `HostControls.closed`, `CloseTail`, `auditPosition.lastNumbered` and `select`'s `form` (G4, G3), BEH-BR-247 mapped; §8 CCR-BR-022 reassessed (G3), CCR-AC-007 answer names `chainLinkUnchecked` (G1), row for core CCR-BR-037; §7 core range from CCR-BR-037 and audit-chain range from CCR-AC-007 (PL26); §6 re-pinned (CCR-GX-008)<br>0.7 (2026-11-10): §6 re-pinned and §8 rows for core CCR-BR-036 and audit-chain CCR-AC-007, both assessed with no change to the companion's behaviours beyond those of CCR-GX-007; §6, §7 and §8 headings and ranges to CCR-BR-036 and CCR-AC-007 (CCR-GX-007)<br>0.6 (2026-11-10): §7 an `@bridger/audit-chain` column: one audit-chain minor line, checked by IQ-24 (M3); §6 re-pinned and §8 rows for core CCR-BR-035 and audit-chain CCR-AC-006, both assessed with no change to the companion's behaviours beyond those of CCR-GX-006; §7 core range starts at CCR-BR-035 (CCR-GX-006)<br>0.5 (2026-11-10): §6 audit-chain pinned through CCR-AC-005 (the text named CCR-AC-003 while the pins were CCR-AC-004's), files 04 and 05 pinned; §7 the core version is read from `Bridger.version`; §8 row for CCR-AC-005 and its heading extended (low, P7); coupling answer to core CCR-BR-034: §8 row, twenty-three core documents re-pinned, §6 and §8 headings to CCR-BR-034, §7 row starts at the first core release that includes CCR-BR-034; the zero-progress atomic stop is no longer attributed to BEH-BR-201/325; follow-ups: ADR-BR-039 re-pinned to 0.3 (CCR-BR-034 follow-up C22); §8 CCR-AC-005 row assesses `expectKeyed`, "unkeyed-link" and `lossCounterUnanchored` (CCR-GX-005)<br>0.4 (2026-11-09): §1 BEH-BR-016 and BEH-BR-210 rows: identifier uniqueness across hosts sharing the trail store, packaged as IQ-22 and IQ-U10; §4 RSK-BR-007 row; §6 fifteen core documents re-pinned after CCR-BR-033; §7 row starts at the first core release that includes CCR-BR-033; §8 row for CCR-BR-033 and its heading extended; files 12 (0.9) and ADR-BR-008 (0.8) re-pinned, and the §8 row extended, after the review fixes folded into CCR-BR-033 (CCR-GX-004)<br>0.3 (2026-11-09): §6 thirteen core documents re-pinned after CCR-BR-032; §7 row starts at the first core release that includes CCR-BR-032; §8 row for CCR-BR-032 (answer: none) and its heading extended (CCR-GX-003)<br>0.2 (2026-11-09): §§1–5 re-baselined against core through CCR-BR-031 (record fields, binding version 2 request fields, gate pieces, non-claim 5 naming audit-chain); rows for BEH-BR-248, 259, 260, 263, 292, 293, 313, 315, 321, 325 and ADR-BR-047; §6 pins every linked core document and the adopted audit-chain documents; §7 row requires CCR-BR-031; §8 coupling assessment of CCR-BR-015–031 (F-01, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -36,11 +36,11 @@ documents that rely on the identifier; it is a guide, not a complete index.
 
 | Core identifier | Title in core | What the companion relies on | Used by |
 | --------------- | ------------- | ---------------------------- | ------- |
-| [BEH-BR-013](../../core/behaviors/02-host-construction.md) | The Host interface | `Host.controls` (CCR-BR-014): wiring of the audit, gate and fingerprinter ports, `attribution`, `auditTimeout`, `gateTimeout`, `fingerprintTimeout`, `idGenerator`, and `auditPosition.lastWritten`, readable after close | 06, 15 |
+| [BEH-BR-013](../../core/behaviors/02-host-construction.md) | The Host interface | `Host.controls` (CCR-BR-014): wiring of the audit, gate and fingerprinter ports, `attribution`, `auditTimeout`, `gateTimeout`, `fingerprintTimeout`, `idGenerator`, and `auditPosition.lastWritten`, readable after close; `closed`, yielding the `CloseTail` the close mark is taken from, and `auditPosition.lastNumbered` (CCR-BR-037) | 06, 15 |
 | [BEH-BR-015](../../core/behaviors/02-host-construction.md) | Optional GxP ports are resolved once, at construction | The ports the companion provides are read once when the host is built, so `GxpLayer.make` is provided to `Bridger.layer` and never per operation | 01, 15 |
 | [BEH-BR-016](../../core/behaviors/02-host-construction.md) | Each host has a distinct hostId | `hostId` keys trail entries, collision entries, audit-chain links, anchors and high-water marks; two hosts never share a sequence; its uniqueness across hosts sharing the trail store follows from BEH-BR-210 | 02, 06, 15, 21 |
 | [BEH-BR-103](../../core/behaviors/11-configuration.md) | Configuration values are never observable | Values reach the companion only through the `ConfigFingerprinter` port, never through records, requests, events or errors | 13, 14 |
-| [BEH-BR-106](../../core/behaviors/12-shutdown-and-hosting.md) | CloseReport reports every failure | `CloseReport.auditLastSeq` (CCR-BR-014) is the highest number the sink had accepted when the report was produced, before the shutdown's own terminal record (finding G34); it is only a lower bound for the close mark, which is read from `Host.controls` after the flush | 06 |
+| [BEH-BR-106](../../core/behaviors/12-shutdown-and-hosting.md) | CloseReport reports every failure | `CloseReport.auditLastSeq` (CCR-BR-014) is the highest number the sink had accepted when the report was produced, before the shutdown's own terminal record (finding G34); it is only a lower bound for the close mark, which is taken from `HostControls.closed` (`CloseTail.lastWritten`) once the final flush has ended (CCR-BR-037) | 06 |
 | [BEH-BR-177](../../core/behaviors/21-testing-host.md) | TestHost is a Host with deterministic scheduling | Conformance and acceptance runs drive the production host path through `TestHost`, never a mock of core | 04, 19, 20 |
 | [BEH-BR-178](../../core/behaviors/21-testing-host.md) | The reconciler is steppable | Conformance cases order steps and settle with `awaitIdle` deterministically | 04 |
 | [BEH-BR-179](../../core/behaviors/21-testing-host.md) | Time comes from TestClock and identifiers from a counter | Deterministic record ids, timestamps and ticket windows in conformance runs and test vectors | 04, 09, 19 |
@@ -51,7 +51,7 @@ documents that rely on the identifier; it is a guide, not a complete index.
 | [BEH-BR-184](../../core/behaviors/21-testing-host.md) | Required acceptance checks — extensions and GxP hooks | Checks 55–58 (CCR-BR-014) cover the core half of fingerprints, `Host.controls` and the presented definition; OQ evidence resolves their tags | 16, 20 |
 | [BEH-BR-185](../../core/behaviors/22-attributable-operations.md) | Actor and OperationContext | Actor identifiers and reserved actors used by separation of duties; `correlationId` cites the ticket | 08, 10, 12 |
 | [BEH-BR-186](../../core/behaviors/22-attributable-operations.md) | Every mutating operation accepts an OperationContext | The list of mutating operations the policy covers, and `Host.controls` as a read-only call | 08, 12, 15 |
-| [BEH-BR-188](../../core/behaviors/22-attributable-operations.md) | The order of a mutating call | Step 4a (fingerprints after validation and decoding, before the gate), the gate's place, and the uninterruptible span after approval | 12, 13 |
+| [BEH-BR-188](../../core/behaviors/22-attributable-operations.md) | The order of a mutating call | Step 4a (fingerprints after validation and decoding, before the gate; `select` receives the call's `form`, CCR-BR-037), the gate's place, and the uninterruptible span after approval | 12, 13 |
 | [BEH-BR-189](../../core/behaviors/22-attributable-operations.md) | Required attribution and required reasons | A binding with `bindReason` binds the reason core requires and records; the requester is the attributed actor | 08, 09 |
 | [BEH-BR-191](../../core/behaviors/22-attributable-operations.md) | Core does not authenticate, and does not infer identity | Separation of duties compares actor identifiers that only the consumer's identity system can authenticate | 10, 12 |
 | [BEH-BR-192](../../core/behaviors/22-attributable-operations.md) | Attribution reaches the gate, the sink and (actor and correlation only) the call log, and defaults change nothing | Attribution is present on every `OperationRequest` and record; the fingerprinter receives no actor, reason or `correlationId` | 08, 12, 13 |
@@ -72,7 +72,7 @@ documents that rely on the identifier; it is a guide, not a complete index.
 | [BEH-BR-208](../../core/behaviors/23-audit-sink-and-record.md) | Core keeps no copy; storage, retention, durability and review are the consumer's | Storage belongs to the trail store adapter; review stays out of scope for both packages | 02, 18 |
 | [BEH-BR-209](../../core/behaviors/24-time-ids-and-sequence.md) | Every timestamp comes from Clock | `signedAt`, ticket events and window checks use the same `Clock` service | 09, 10 |
 | [BEH-BR-210](../../core/behaviors/24-time-ids-and-sequence.md) | Every identifier comes from IdGenerator | `recordId` is the idempotency key of `append`; every value is unique within the host and across hosts sharing the trail store, which IQ-22 and IQ-U10 package as core's installation check 8; a repeat that still occurs is stored as a collision, never over the primary (BEH-GX-012) | 02, 15 |
-| [BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md) | auditSeq starts at 1 per host and is contiguous | Uniqueness per (hostId, auditSeq); the high-water mark compares against it | 02, 05, 06 |
+| [BEH-BR-212](../../core/behaviors/24-time-ids-and-sequence.md) | auditSeq starts at 1 per host and is contiguous | Uniqueness per (hostId, auditSeq); the high-water mark compares against it; `HostControls.closed` and `CloseTail { auditDegraded, lastNumbered, lastWritten }` (CCR-BR-037), from which `recordClose` takes the close mark and detects a close-flush loss | 02, 05, 06 |
 | [BEH-BR-213](../../core/behaviors/24-time-ids-and-sequence.md) | A failed write does not consume its number | A retried record keeps its number, so a repeat append is the same entry | 02, 03 |
 | [BEH-BR-215](../../core/behaviors/24-time-ids-and-sequence.md) | verifyAuditSequence detects gaps, duplicates and disorder — and nothing more | The checks on read are built over it and add their own finding kinds | 05 |
 | [BEH-BR-216](../../core/behaviors/24-time-ids-and-sequence.md) | Clock accuracy is the consumer's responsibility | Ticket windows are only as accurate as the consumer's clock synchronisation | 09, 12 |
@@ -84,6 +84,7 @@ documents that rely on the identifier; it is a guide, not a complete index.
 | [BEH-BR-222](../../core/behaviors/25-operation-gate.md) | The gate cannot be bypassed through the Host it guards | The gate calls no host operation | 12 |
 | [BEH-BR-223](../../core/behaviors/25-operation-gate.md) | System transitions and shutdown are audited, not gated | No ticket is required or consumed for a system transition | 08, 12 |
 | [BEH-BR-224](../../core/behaviors/25-operation-gate.md) | The gate is the seam for approvals and electronic signatures | The companion's approvals plug in here and nowhere else | 08, 10, 12 |
+| [BEH-BR-247](../../core/behaviors/27-manifest-and-lazy-activation.md) | The dormant row of the legality table | A `reconfigure` with a value of a registration not yet loaded is treated as `install` with `config`: step 4a hands the fingerprinter form "raw" with the raw value's top-level keys, so `proposeFingerprints` takes form "raw" for it | 13 |
 | [BEH-BR-248](../../core/behaviors/27-manifest-and-lazy-activation.md) | Reconcile, gate and audit work from manifests without evaluating code | The `manifest` in a request's `definition`, whose canonical digest binding version 2 binds as `requestOnly.manifestDigest` | 09, ADR-GX-012 |
 | [BEH-BR-259](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md) | Host mutations from plugin code record onBehalfOf | `onBehalfOf` on the request and the record, bound by binding version 2 | 09, 11, ADR-GX-012 |
 | [BEH-BR-260](../../core/behaviors/28-plugin-principal-and-mandatory-policy.md) | Mandatory interceptions cannot be replaced or removed | `mandatoryInterceptions` on the request, bound in request order as a request-only field | 09, ADR-GX-012 |
@@ -155,9 +156,9 @@ documents that rely on the identifier; it is a guide, not a complete index.
 ## 6. Core and audit-chain document revisions relied on
 
 The companion is specified against these revisions of core documents and of
-the `@bridger/audit-chain` documents it adopts (CCR-BR-014 to CCR-BR-036
+the `@bridger/audit-chain` documents it adopts (CCR-BR-014 to CCR-BR-037
 assessed in §8; audit-chain through CCR-AC-007, assessed in §8 by
-CCR-GX-005 to CCR-GX-007). Every core document this map
+CCR-GX-005 to CCR-GX-008). Every core document this map
 links is pinned. A later revision of any of them is assessed under the
 coupling rule ([change control](../process/change-control.md) §7) before it is
 re-pinned; checker check 18 fails while a pin differs from the document's
@@ -165,42 +166,42 @@ current Document Control.
 
 | Document | Document ID | Revision |
 | -------- | ----------- | -------- |
-| `core/README.md` | BRIDGER-00 | 0.31 |
-| `core/behaviors/02-host-construction.md` | BRIDGER-BEH-02 | 0.12 |
-| `core/behaviors/11-configuration.md` | BRIDGER-BEH-11 | 0.10 |
-| `core/behaviors/12-shutdown-and-hosting.md` | BRIDGER-BEH-12 | 0.12 |
-| `core/behaviors/21-testing-host.md` | BRIDGER-BEH-21 | 0.22 |
-| `core/behaviors/22-attributable-operations.md` | BRIDGER-BEH-22 | 0.14 |
-| `core/behaviors/23-audit-sink-and-record.md` | BRIDGER-BEH-23 | 0.15 |
-| `core/behaviors/24-time-ids-and-sequence.md` | BRIDGER-BEH-24 | 0.8 |
+| `core/README.md` | BRIDGER-00 | 0.32 |
+| `core/behaviors/02-host-construction.md` | BRIDGER-BEH-02 | 0.13 |
+| `core/behaviors/11-configuration.md` | BRIDGER-BEH-11 | 0.11 |
+| `core/behaviors/12-shutdown-and-hosting.md` | BRIDGER-BEH-12 | 0.13 |
+| `core/behaviors/21-testing-host.md` | BRIDGER-BEH-21 | 0.23 |
+| `core/behaviors/22-attributable-operations.md` | BRIDGER-BEH-22 | 0.15 |
+| `core/behaviors/23-audit-sink-and-record.md` | BRIDGER-BEH-23 | 0.16 |
+| `core/behaviors/24-time-ids-and-sequence.md` | BRIDGER-BEH-24 | 0.9 |
 | `core/behaviors/25-operation-gate.md` | BRIDGER-BEH-25 | 0.9 |
-| `core/behaviors/27-manifest-and-lazy-activation.md` | BRIDGER-BEH-27 | 0.13 |
-| `core/behaviors/28-plugin-principal-and-mandatory-policy.md` | BRIDGER-BEH-28 | 0.9 |
-| `core/behaviors/30-operation-context-annotations.md` | BRIDGER-BEH-30 | 0.5 |
-| `core/behaviors/32-generic-gate-and-plan.md` | BRIDGER-BEH-32 | 0.9 |
-| `core/invariants.md` | BRIDGER-INV | 0.16 |
+| `core/behaviors/27-manifest-and-lazy-activation.md` | BRIDGER-BEH-27 | 0.14 |
+| `core/behaviors/28-plugin-principal-and-mandatory-policy.md` | BRIDGER-BEH-28 | 0.10 |
+| `core/behaviors/30-operation-context-annotations.md` | BRIDGER-BEH-30 | 0.6 |
+| `core/behaviors/32-generic-gate-and-plan.md` | BRIDGER-BEH-32 | 0.10 |
+| `core/invariants.md` | BRIDGER-INV | 0.17 |
 | `core/urs.md` | BRIDGER-URS | 0.26 |
-| `core/traceability.md` | BRIDGER-TRACE | 0.21 |
+| `core/traceability.md` | BRIDGER-TRACE | 0.22 |
 | `core/gxp/01-regulatory-scope.md` | BRIDGER-GXP-01 | 0.5 |
-| `core/gxp/02-compliance-matrix.md` | BRIDGER-GXP-02 | 0.11 |
-| `core/gxp/03-risk-assessment.md` | BRIDGER-GXP-03 | 0.19 |
+| `core/gxp/02-compliance-matrix.md` | BRIDGER-GXP-02 | 0.12 |
+| `core/gxp/03-risk-assessment.md` | BRIDGER-GXP-03 | 0.20 |
 | `core/gxp/04-validation-plan.md` | BRIDGER-GXP-04 | 0.11 |
-| `core/decisions/008-error-taxonomy.md` | BRIDGER-ADR-008 | 0.11 |
+| `core/decisions/008-error-taxonomy.md` | BRIDGER-ADR-008 | 0.12 |
 | `core/decisions/023-desired-state-reconcile.md` | BRIDGER-ADR-023 | 0.4 |
 | `core/decisions/025-deterministic-time-and-ids.md` | BRIDGER-ADR-025 | 0.1 |
 | `core/decisions/026-deterministic-test-host.md` | BRIDGER-ADR-026 | 0.3 |
 | `core/decisions/028-gxp-scope.md` | BRIDGER-ADR-028 | 0.2 |
 | `core/decisions/029-attributable-mutations.md` | BRIDGER-ADR-029 | 0.7 |
-| `core/decisions/030-audit-sink-port.md` | BRIDGER-ADR-030 | 0.5 |
-| `core/decisions/031-audit-failure-policy.md` | BRIDGER-ADR-031 | 0.3 |
+| `core/decisions/030-audit-sink-port.md` | BRIDGER-ADR-030 | 0.6 |
+| `core/decisions/031-audit-failure-policy.md` | BRIDGER-ADR-031 | 0.4 |
 | `core/decisions/032-operation-gate.md` | BRIDGER-ADR-032 | 0.6 |
 | `core/decisions/033-no-config-values-in-audit.md` | BRIDGER-ADR-033 | 0.4 |
 | `core/decisions/034-gxp-companion-scope.md` | BRIDGER-ADR-034 | 0.7 |
 | `core/decisions/035-evidence-from-executed-tests.md` | BRIDGER-ADR-035 | 0.3 |
 | `core/decisions/036-prospective-specification.md` | BRIDGER-ADR-036 | 0.2 |
 | `core/decisions/037-audit-sequence-separate-from-event-seq.md` | BRIDGER-ADR-037 | 0.2 |
-| `core/decisions/039-config-fingerprint-port.md` | BRIDGER-ADR-039 | 0.3 |
-| `core/decisions/047-generic-gate-and-plan.md` | BRIDGER-ADR-047 | 0.1 |
+| `core/decisions/039-config-fingerprint-port.md` | BRIDGER-ADR-039 | 0.4 |
+| `core/decisions/047-generic-gate-and-plan.md` | BRIDGER-ADR-047 | 0.2 |
 | `audit-chain/README.md` | BRIDGER-AC-00 | 0.8 |
 | `audit-chain/behaviors/01-hash-chain-sink.md` | BRIDGER-AC-BEH-01 | 0.7 |
 | `audit-chain/behaviors/02-anchoring.md` | BRIDGER-AC-BEH-02 | 0.5 |
@@ -223,7 +224,7 @@ prospective row.
 
 | `@bridger/gxp` | `@bridger/core` | `@bridger/audit-chain` (optional peer) | Audit `schemaVersion` | Core changes required | Status |
 | -------------- | --------------- | -------------------------------------- | --------------------- | --------------------- | ------ |
-| 0.1.x (unreleased) | one minor line (`>=X.Y.Z <X.(Y+1).0`) starting at the first release that includes CCR-BR-036 | one minor line (`>=A.B.C <A.(B+1).0`) starting at the first release that includes CCR-AC-006 | 1 | CCR-BR-014: `ConfigFingerprinter`, `Host.controls`, `CloseReport.auditLastSeq`, `AuditRecord.definition`; CCR-BR-015–036 as assessed in §8, among them `Gate<Req>` and `Gate.all` (32) and the record fields of the pre-release rule | Prospective — neither package exists |
+| 0.1.x (unreleased) | one minor line (`>=X.Y.Z <X.(Y+1).0`) starting at the first release that includes CCR-BR-037 | one minor line (`>=A.B.C <A.(B+1).0`) starting at the first release that includes CCR-AC-007 | 1 | CCR-BR-014: `ConfigFingerprinter`, `Host.controls`, `CloseReport.auditLastSeq`, `AuditRecord.definition`; CCR-BR-015–037 as assessed in §8, among them `Gate<Req>` and `Gate.all` (32) and the record fields of the pre-release rule | Prospective — neither package exists |
 
 ```
 REQUIREMENT: Each released version of `@bridger/gxp` MUST have exactly one
@@ -243,7 +244,7 @@ REQUIREMENT: A core release that changes `schemaVersion`, or any identifier of
 shape: an added record field changes every digest computed after it, and an
 open range would let a core upgrade change bindings and seals silently.
 
-## 8. Coupling assessment of CCR-BR-015 to CCR-BR-036, and of CCR-AC-005 to CCR-AC-007
+## 8. Coupling assessment of CCR-BR-015 to CCR-BR-037, and of CCR-AC-005 to CCR-AC-007
 
 CCR-GX-001 was specified against core with CCR-BR-014 applied. The core
 records below were made without a `CCR-GX` assessing them (finding F-01 of the
@@ -261,7 +262,7 @@ way the companion relies on.
 | CCR-BR-019 | Generic `Gate<Req>`, `Gate.all` and `OperationGate.fromGate` (32, ADR-BR-047); realm families; handoff | The companion's gate is composed of pieces (BEH-GX-178); `trailGate` is a piece (BEH-GX-177); approval refusal reasons carry the prefix "approval: " (BEH-GX-089–096) |
 | CCR-BR-020 | Core seams for other companions | None |
 | CCR-BR-021 | `@bridger/audit-chain` registered; ADR-BR-034 amended so sealing may be provided by it | Sealing adopted from audit-chain; file 07 and ADR-GX-009 withdrawn (file 21, ADR-GX-029) |
-| CCR-BR-022 | Agent-review resolutions of CCR-BR-016–021, amending files 26–34 and the core side of cross-tree findings | None beyond the rows of CCR-BR-017 to CCR-BR-019 |
+| CCR-BR-022 | Agent-review resolutions of CCR-BR-016–021, amending files 26–34 and the core side of cross-tree findings; among them, a `reconfigure` of a registration not yet loaded is not decoded and step 4a hands the fingerprinter form "raw" (22, 27, BEH-BR-247) | None beyond the rows of CCR-BR-017 to CCR-BR-019 as first assessed; reassessed by CCR-GX-008 (finding G3 of SPEC-AUDIT-05): the form "raw" for such a `reconfigure` changes the fingerprints the call carries, so `proposeFingerprints` takes form "raw" for it (BEH-GX-102), and `select` filters by the `form` core passes since CCR-BR-037 (BEH-GX-097) |
 | CCR-BR-023 | Residual gaps of other companions | None |
 | CCR-BR-024 | Hook points and lazy activation fixes | None beyond CCR-BR-017's row |
 | CCR-BR-025 | Ordered and atomic bundle apply; undo actions recorded with `undoes` (32, BEH-BR-325) | Binding version 2 binds `undo` (BEH-GX-065); records with `undoes` paired on read like other calls |
@@ -278,7 +279,8 @@ way the companion relies on.
 | CCR-BR-035 | Round-3 audit findings in core. Of the identifiers listed here: BEH-BR-013 (`shutdown` decides `WouldDeadlock` from the new fiber reference `CurrentTransition`, before its `requested` record, so a refused `shutdown` writes no record and joins nothing; a lease callback's `shutdown` proceeds); BEH-BR-199 (`intent-ended` causes for a sub-scope close and an unmount); BEH-BR-263 (mount checks ordered with the `InstallError` checks); BEH-BR-192 (the hook decision record's `correlationId` is a third diagnostic exception); INV-BR-022 (exceptions for steps 4a and 4b and a refused `shutdown`); RSK-BR-008, 011, 012 (controls restated); ADR-BR-008 (`shutdown` raises `WouldDeadlock`); the validation plan (mutation runs against packed mutant builds; merge-gate rows renumbered); also, unlisted here, shutdown queuing its terminal record only after an in-flight reconcile's parent record, `plan`'s `expect` binding code only through `meta.digest` (with the plan invariant narrowed accordingly), and a dependency cycle in a desired list is a validation-stage rejection; no audit record field, `schemaVersion`, attribution rule, audit sequence or `Host.controls` field changed | CCR-GX-006: none for the companion's behaviours. A refused `shutdown` leaves no record pair to pair on read (BEH-GX-037 unchanged), and the companion never calls `shutdown`; the reconcile parent record now precedes shutdown's terminal record, which BEH-GX-037 already expects; an entry rejected at validation for a cycle is never submitted to the gate, so its binding stays unconsumed, as for any validation rejection (BEH-GX-071); the approval binding already binds `definition.version` and `digest` when present (BEH-GX-065), so the narrowing of `expect` does not narrow what an approver signs; hook decision records and `Host.events` are not read; the companion's own validation plan keeps its own gate (no row cited by number from core). Re-pinned: core README 0.30, files 02 (0.11), 11 (0.9), 12 (0.11), 21 (0.21), 22 (0.13), 23 (0.14), 27 (0.12), 28 (0.8), 32 (0.9), invariants 0.15, traceability 0.20, risk assessment 0.18, validation plan 0.10, ADR-BR-008 0.10, 026 0.3, 032 0.6, 035 0.2 |
 | CCR-AC-006 | `HashChainOptions.keyed` and `ChainSinkOptions.keyed` carry the `KeyedHasher` into the sink, which no longer reads the service (BEH-AC-007); `precomputeMacs` turns an effectful MAC into the pure `keyed` function (BEH-AC-019); `breaks.kind` gains "alg-changed" (BEH-AC-019, BEH-AC-027); `BundleReport.chain` is a record of one `ChainReport` per series and `expectKeyed` takes a set of series (BEH-AC-034, BEH-AC-039) | CCR-GX-006: BEH-GX-170 passes `SealingOptions.keyed` as `HashChainOptions.keyed` (ADR-GX-029 aligned); `verifySeals` and `readArchive` take `keyed` as a pure function or as `{ mac }`, the latter run through `precomputeMacs` (BEH-GX-171, BEH-GX-140); "alg-changed" becomes `chainBreak` with its kind as detail, as every break kind does (BEH-GX-171); `readArchive` maps each series' `ChainReport` of `BundleReport.chain` (BEH-GX-140); `expectKeyed: true` is still valid. Re-pinned: audit-chain README 0.7, files 01 (0.7), 03 (0.5), 04 (0.4) and 05 (0.4) |
 | CCR-BR-036 | Round-4 audit findings in core. Of the identifiers listed here: BEH-BR-195 (`definition` exempt from the never-empty rule: `{}` on a `requested` or `rejected` record whose definition declares neither `version` nor `digest`, so the record-side binding of vector 5 is always computable); BEH-BR-205 and INV-BR-022 (a running `reconcile`'s parent terminal record lost at shutdown is logged and sets the latch); BEH-BR-208, BEH-BR-212 and BEH-BR-213 (a record lost in the close flush is signalled by the error log and `Host.controls().auditPosition`, not `CloseReport.auditDegraded`; a record mid-retry at close keeps its number); INV-BR-023 (same limits); BEH-BR-013 (`WouldDeadlock` carries `realm`); ADR-BR-035 (the mutation kill rule is a review criterion outside generated evidence, matching BEH-GX-124); RSK-BR-006 (fourth loss path). Also, unlisted here: step 4b of BEH-BR-188 submits no no-op or `Conflict` cell, so a `retry` or `restart` of a refused-digest plugin writes no `rejected` record; a refused `whenAvailable` re-run writes `start-refused` records as a background restart does and is a cascade root like one; the re-entrancy references hold the key `JSON.stringify([realm, id])`. No identifier removed; no record field, `schemaVersion`, attribution rule or audit sequence rule changed | CCR-GX-007: none beyond the companion's G4 and C14 answers. The binding's `definition: {}` (BEH-GX-065, BEH-GX-082) and vector 5 agree with BEH-BR-195; the companion reads no `CloseReport.auditDegraded` for a flush loss and reads `Host.controls` as before; a call not submitted at step 4b consumes no approval binding, as for any call the gate never sees (BEH-GX-071); `start-refused` records of a `whenAvailable` re-run are system records paired on read like a background restart's (BEH-GX-037 unchanged); `WouldDeadlock` and the re-entrancy key are not read; BEH-GX-124 already keeps the generator mechanical. Re-pinned: core README 0.31, files 02 (0.12), 11 (0.10), 12 (0.12), 21 (0.22), 22 (0.14), 23 (0.15), 24 (0.8), 27 (0.13) and 28 (0.9), invariants 0.16, URS 0.26, traceability 0.21, risk assessment 0.19, validation plan 0.11, ADR-BR-008 0.11, ADR-BR-031 0.3, ADR-BR-035 0.3 |
-| CCR-AC-007 | `verifyBundle`'s one `keyed` function merges the per-series functions `precomputeMacs` returns, answering each pair from the first that is not `undefined` (BEH-AC-019, BEH-AC-039); a "key-unavailable" break is an incomplete check, never an inconsistency (BEH-AC-019); check 20 extended; no type change | CCR-GX-007: none for the companion's behaviours. An archive's bundle holds one series, so `readArchive` passes the single function `precomputeMacs` returns as before (BEH-GX-140); "key-unavailable" stays a `chainBreak` with that kind as `detail` (BEH-GX-171), from which a reader tells the incomplete check apart. Re-pinned: audit-chain README 0.8, files 03 (0.6) and 05 (0.5) |
+| CCR-AC-007 | `verifyBundle`'s one `keyed` function merges the per-series functions `precomputeMacs` returns, answering each pair from the first that is not `undefined` (BEH-AC-019, BEH-AC-039); a "key-unavailable" break is an incomplete check, never an inconsistency (BEH-AC-019); check 20 extended; no type change | CCR-GX-007: none for the companion's behaviours. An archive's bundle holds one series, so `readArchive` passes the single function `precomputeMacs` returns as before (BEH-GX-140); a "key-unavailable" break maps to `chainLinkUnchecked`, never to `chainBreak` (BEH-GX-033, BEH-GX-171), and with one reported the consistency statement of BEH-GX-172 is not made (this answer corrected by CCR-GX-008, finding G1 of SPEC-AUDIT-05). Re-pinned: audit-chain README 0.8, files 03 (0.6) and 05 (0.5) |
+| CCR-BR-037 | Round-5 audit findings in core. Of the identifiers listed here: BEH-BR-212 (`HostControls.closed`, an effect yielding `CloseTail { auditDegraded, lastNumbered, lastWritten }` once the host scope has closed and the audit writer's final flush has ended, and `auditPosition.lastNumbered`, the highest `auditSeq` assigned); BEH-BR-205 (during shutdown the latch is set without a snapshot or event once the final snapshot is published or `closed` emitted, and reported through `CloseTail.auditDegraded`); BEH-BR-208 and BEH-BR-213 (a close-flush loss is signalled by `CloseTail`, `lastWritten` below `lastNumbered`, and the error log); BEH-BR-192 (the lost reconcile-record log is a fourth `correlationId` exception); BEH-BR-188 (`select` receives the call's `form`; step 4b's skip criterion); BEH-BR-013 and BEH-BR-106 (`cold` on `ReplaceOptions` and `ReconcileOptions`; plugins in errors and reports named by `{ id, realm }`); BEH-BR-199 (the `lease-revoked` paths of a child's sub-scope close or unmount); RSK-BR-006, 008 and 012 (controls restated); also, unlisted here, core file 11 (a parked intent's override reverted), BEH-BR-292 (`useOptional` deadline) and ADR-BR-047 (a plan binds code only through `meta.digest`). No record field, `schemaVersion`, attribution rule or audit sequence rule changed | CCR-GX-008: `recordClose` waits for `HostControls.closed` and takes the close mark from `CloseTail.lastWritten`, logging a close-flush loss (BEH-GX-044); `select` filters by the query's `form` (BEH-GX-097); with CCR-BR-022 reassessed, `proposeFingerprints` takes form "raw" for a `reconfigure` of a registration not yet loaded (BEH-GX-102). Nothing else changes: the companion reads only `auditLastSeq` and `auditDegraded` of a `CloseReport`, calls no `replace` or `reconcile`, reads no `Host.events`, error log or call log, a `lease-revoked` system record is paired on read like any system record (BEH-GX-037), the companion calls no `Host.plan`, and a call not submitted at step 4b consumes no binding (BEH-GX-071). Re-pinned: core README 0.32 (register row CCR-BR-037, companion CCR ranges; no interface change), files 02 (0.13), 11 (0.11), 12 (0.13), 21 (0.23), 22 (0.15), 23 (0.16), 24 (0.9), 27 (0.14), 28 (0.10), 30 (0.6) and 32 (0.10), invariants 0.17, traceability 0.22, compliance matrix 0.12, risk assessment 0.20, ADR-BR-008 0.12, ADR-BR-030 0.6, ADR-BR-031 0.4, ADR-BR-039 0.4, ADR-BR-047 0.2 |
 
 Finding C-08 (a `superseded` record's `causationId` names the superseding
 call's `requested` record, not its own, so the companion's pairing on read

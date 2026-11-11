@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-06                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): Check 9: `isolate` never lists `Tasks`, so a subagent's task is in its parent's table (T1); check 17: "handed-to-parent" only under the hand-off marker naming the task's pending draft, a marker naming another draft or none withdraws, the parent's own `Deferred` wins over a subagent's not yet published, and a subagent draft pending when the parent's turn ends with an answer, `needs-input` or its own deferral is withdrawn by the subagent's task (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): Check 3: turns run under the loop's principal, and an unknown session id starts a new session (H4, M10); check 9: realm isolation and `DesiredPlugin` entries, the derived session id, a deferral waited on by the parent and "handed-to-parent" (M9, M10, H3); check 10: a replay mismatch is a `ModelError` (M11); check 16: listings and streams admit actors within the session's principal, the server reaches the bridge through `McpTasks`, and status updates go through the session's `notify` (M7, M8); check 17: the subagent exception, a parent cancelled before publishing a subagent's draft, and two subagents deferring in one turn (H3) (CCR-AG-006)<br>0.6 (2026-11-10): Check 3 covers `StartRequest.spawn` (H10); check 9 the attribution and errors of `Realm.ephemeral` (P21); check 16 the actor rule for task ids from MCP clients (low finding) (CCR-AG-005)<br>0.5 (2026-11-09): Check 17 and REQ-AG-017: draft withdrawal when a task ends awaiting approval (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Checks 7, 15 and 16 follow the round-2 agent review: declared reads from a tainted session, steps with long calls not batched, compensations covered by the batch approval, `Started` by descriptor (CCR-AG-003)<br>0.3 (2026-11-08): Checks 3, 5 and 10 extended; checks 13–16 for model families, batches, envelopes and command tasks (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): Checks 3, 5, 7 and 9 aligned with the taint floor, `ResumeInput` and subagent attribution (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.9 (2026-11-11): Check 6: a session starts with exactly the labels of `spawn.taint` (PL7); check 9: `heldByParent` and `HostClosed` (PL3, PL5); check 16: MCP `tasks/cancel` of an agent task passes the session's principal and no marker; check 17: unmarked cancel of a subagent's task whose draft is pending on its parent, the parent's withdrawal of a handed draft it does not publish, precedence of racing cancels, `by` from the cancel's context (A2, PL4); new check 18 and REQ-AG-018: the task registry, cancel handles and tasks of a stopped loop (H3, A1) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.8 (2026-11-10): Check 9: `isolate` never lists `Tasks`, so a subagent's task is in its parent's table (T1); check 17: "handed-to-parent" only under the hand-off marker naming the task's pending draft, a marker naming another draft or none withdraws, the parent's own `Deferred` wins over a subagent's not yet published, and a subagent draft pending when the parent's turn ends with an answer, `needs-input` or its own deferral is withdrawn by the subagent's task (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): Check 3: turns run under the loop's principal, and an unknown session id starts a new session (H4, M10); check 9: realm isolation and `DesiredPlugin` entries, the derived session id, a deferral waited on by the parent and "handed-to-parent" (M9, M10, H3); check 10: a replay mismatch is a `ModelError` (M11); check 16: listings and streams admit actors within the session's principal, the server reaches the bridge through `McpTasks`, and status updates go through the session's `notify` (M7, M8); check 17: the subagent exception, a parent cancelled before publishing a subagent's draft, and two subagents deferring in one turn (H3) (CCR-AG-006)<br>0.6 (2026-11-10): Check 3 covers `StartRequest.spawn` (H10); check 9 the attribution and errors of `Realm.ephemeral` (P21); check 16 the actor rule for task ids from MCP clients (low finding) (CCR-AG-005)<br>0.5 (2026-11-09): Check 17 and REQ-AG-017: draft withdrawal when a task ends awaiting approval (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Checks 7, 15 and 16 follow the round-2 agent review: declared reads from a tainted session, steps with long calls not batched, compensations covered by the batch approval, `Started` by descriptor (CCR-AG-003)<br>0.3 (2026-11-08): Checks 3, 5 and 10 extended; checks 13–16 for model families, batches, envelopes and command tasks (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): Checks 3, 5, 7 and 9 aligned with the taint floor, `ResumeInput` and subagent attribution (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -69,7 +69,9 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 `CommandDraftStale` re-dispatch is treated as stale.
              6. Taint: annotations carried to gate, hooks, call log and
                 stores; every listed source taints before the model reads
-                it; taint never clears within a session; a failing
+                it; a session starts with exactly the labels of
+                `spawn.taint`, none without `spawn`; taint never clears
+                within a session; a failing
                 `TaintPolicy` taints; taint does not leave the session.
              7. Taint and approval: with the command catalog's taint floor
                 (command BEH-CM-016), a tainted agent call of a command not
@@ -106,7 +108,10 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 subagent's task ends `cancelled` with "handed-to-parent" and
                 no withdrawal, and resuming the parent delivers the outcome;
                 a result unsettled when the parent turn ends fails
-                `parent-ended`.
+                `parent-ended`; `spawn.heldByParent` answers true exactly
+                while the subagent's draft is the parent task's pending
+                draft; a `HostClosed` from `Realm.ephemeral` fails
+                `spawnSubagent` with it.
              10. Testing helpers: `ScriptedModel` fails on any unscripted
                  request; a recorded transcript replays identically and a
                  changed gate shows as `ReplayDiverged` at its call; a
@@ -144,7 +149,9 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  `longToolWait` becomes the tool result, a longer one gives
                  "running" without cancelling; the herdr and MCP bridges map
                  command tasks by their table, only for the observer's
-                 actor, and MCP `tasks/cancel` cancels the command task;
+                 actor, and MCP `tasks/cancel` cancels the command task,
+                 and an agent task with the session's principal as `by`
+                 and no hand-off marker;
                  `tasks/get` and `tasks/cancel` of an agent or command task
                  whose actor is neither the session's principal nor within
                  it answer an unknown task and change nothing, while the
@@ -178,7 +185,29 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  publishes its own draft and the subagent's task calls
                  `withdraw`; a subagent draft still pending when the
                  parent's turn ends with an answer or `needs-input` is
-                 withdrawn by the subagent's task.
+                 withdrawn by the subagent's task; a cancel without the
+                 marker (an MCP `tasks/cancel`) of a subagent's task whose
+                 draft is pending on its parent ends it "handed-to-parent"
+                 without a withdrawal, and when that parent's turn then ends
+                 without publishing the draft the parent's loop withdraws
+                 it once; of a marked and an unmarked cancel racing on one
+                 task, the first to reach its handle decides and the other
+                 changes nothing; `withdraw` receives the cancel's context
+                 actor as `by`, `Actor.system` when the cancel had none.
+             18. Task registry: `Tasks` offers no write operation; a task
+                 appears only through `TaskRegistry.register` and its
+                 writer, and a snapshot outside the transition table or of
+                 another task, and a second registration of one id, are
+                 defects;
+                 `Tasks.cancel` calls the registered handle, `AgentLoop.cancel`
+                 delegates to it with its context and options, and an
+                 unknown id fails `TaskNotFound`; stopping, replacing or
+                 removing a loop's plugin, or removing a subagent's realm,
+                 ends each of its unfinished tasks — `working`,
+                 `needs-input`, `awaiting-approval`, `stale` — `failed`
+                 "LoopStopped" before the activation scope has closed,
+                 calling `withdraw` with reason "task-failed" for a pending
+                 draft, and a cancel racing that end changes nothing.
 ```
 
 | REQ | Check | Behaviours | Status |
@@ -200,6 +229,7 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
 | REQ-AG-015 | 15. Batches of tool calls | [BEH-AG-008](./01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch), [BEH-AG-012](./02-tasks.md#beh-ag-012-awaiting-approval-follows-a-gate-defer-and-stale-follows-a-stale-draft), [BEH-AG-020](./03-taint-and-provenance.md#beh-ag-020-a-tainted-session-is-never-auto-allowed-a-change) | Not run |
 | REQ-AG-016 | 16. Command tasks in the loop and bridges; task ids checked against the session's actor | [BEH-AG-015](./02-tasks.md#beh-ag-015-command-tasks-in-the-bridges), [BEH-AG-014](./02-tasks.md#beh-ag-014-the-mcp-tasks-bridge) | Not run |
 | REQ-AG-017 | 17. Draft withdrawal when a task ends awaiting approval | [BEH-AG-016](./02-tasks.md#beh-ag-016-a-task-that-ends-while-awaiting-approval-reports-its-draft-for-withdrawal), [BEH-AG-010](./02-tasks.md#beh-ag-010-the-transition-table) | Not run |
+| REQ-AG-018 | 18. Task registry, cancel handles, tasks of a stopped loop | [BEH-AG-011](./02-tasks.md#beh-ag-011-taskschanges-list-await-and-cancel), [BEH-AG-003](./01-agent-seams.md#beh-ag-003-a-turn-pins-one-toolset-and-runs-every-tool-call-through-dispatch), [BEH-AG-016](./02-tasks.md#beh-ag-016-a-task-that-ends-while-awaiting-approval-reports-its-draft-for-withdrawal) | Not run |
 
 Every `BEH-AG` identifier of this companion appears in at least one row;
 BEH-AG-041 is this list itself.

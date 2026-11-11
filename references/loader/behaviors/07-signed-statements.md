@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-07                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-10): BEH-LD-056: digests in `LoaderGate`'s `exempt.digests` are not refused "verification-unknown"; wiring passes `pinned` to `RevokedDigests.layer` (L1) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.3 (2026-11-09): "first-party" reserved for in-process eligibility (file 09, F-06); `Revocation.refusalList` built over the `RevokedDigests` view (M-06) (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.5 (2026-11-11): `Revocation.check` takes the record and the set only: the record carries its signers' identities and the evaluated requirement (03, BEH-LD-020), so no rule is passed (residual of H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-10): BEH-LD-056: digests in `LoaderGate`'s `exempt.digests` are not refused "verification-unknown"; wiring passes `pinned` to `RevokedDigests.layer` (L1) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.3 (2026-11-09): "first-party" reserved for in-process eligibility (file 09, F-06); `Revocation.refusalList` built over the `RevokedDigests` view (M-06) (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -375,8 +375,9 @@ class StatementRevoked extends Schema.TaggedError<StatementRevoked>()("Statement
 }) {}
 declare const Revocation: {
   // ... filterDesired (04, BEH-LD-028)
-  // Pure: is this recorded verification revoked under this set? (re-evaluation as BEH-LD-030)
-  readonly check: (record: VerificationRecord, set: RevocationSet, rule: AcceptanceRule) => Option.Option<StatementRevoked>
+  // Pure: is this recorded verification revoked under this set? (re-evaluation as BEH-LD-030,
+  // from the record's own signers and `require` — 03, BEH-LD-020 — with no policy or rule)
+  readonly check: (record: VerificationRecord, set: RevocationSet) => Option.Option<StatementRevoked>
 }
 ```
 

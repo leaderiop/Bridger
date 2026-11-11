@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-008                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-09): `HighWaterMark.seal` withdrawn; the `AnchorStore` holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-11): The close mark is taken from `HostControls.closed` (`CloseTail.lastWritten`), which yields after the final flush (G4) (CCR-GX-008)<br>0.2 (2026-11-09): `HighWaterMark.seal` withdrawn; the `AnchorStore` holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -26,7 +26,7 @@ CCR-BR-014 gave core two sources for that number. `Host.controls` returns `audit
 
 - **An `AnchorStore` port under separate custody.** High-water marks are written to `AnchorStore` (planned at `packages/gxp/src/AnchorStore.ts` *(Planned)*), a caller-supplied port with no default ([ADR-GX-003](../decisions/003-ports-without-defaults.md)). It is append-only, like the trail store: `put(mark) → "stored" | "already-stored" | AnchorWriteFailed`, `list({ hostId }) → Stream<HighWaterMark>` and `latest({ hostId }) → Option<HighWaterMark>`, with a manifest naming the declared `custodian`. The user is told, in the API docs and the IQ check, that it must sit under custody separate from the trail store (different system, different credentials, different administrators); the companion cannot check custody, so IQ reports it as a probe ([ADR-GX-020](../decisions/020-iq-proof-and-probe.md)).
 - **What a mark holds.** `HighWaterMark { v: 1, hostId, lastWritten, at, source: "periodic" | "close" }`. `at` comes from the `Clock` and orders nothing; `lastWritten` is the mark. Revision 0.1 also carried a `seal`, so that a mark doubled as an anchor of the companion's own seal chain; that chain is withdrawn ([ADR-GX-029](./029-sealing-through-audit-chain.md)), its anchors are `@bridger/audit-chain`'s `Anchor`, and the `AnchorStore` of this decision holds high-water marks only. With sealing on, a host's highest mark is passed to audit-chain's verification as its expected head.
-- **When marks are taken.** `recordHighWater(host, anchors, { every })` reads `Host.controls.auditPosition.lastWritten` once per `every` (1 second to 1 hour) and puts a mark when it has advanced. At close, `recordClose(report)` puts a `"close"` mark with `Host.controls` read once after shutdown has returned and the writer's final flush is done; `CloseReport.auditLastSeq` is only a lower bound, since the shutdown's terminal record is written after the report (G34). A failed periodic `put` is logged, counted in the recorder's status and retried at the next tick; it never blocks the host, because marks detect and do not gate.
+- **When marks are taken.** `recordHighWater(host, anchors, { every })` reads `Host.controls.auditPosition.lastWritten` once per `every` (1 second to 1 hour) and puts a mark when it has advanced. At close, `recordClose(report)` waits for `HostControls.closed` and puts a `"close"` mark with the `lastWritten` of the `CloseTail` it yields once the host scope has closed and the writer's final flush has ended (core CCR-BR-037); `CloseReport.auditLastSeq` is only a lower bound, since the shutdown's terminal record is written after the report (G34). A failed periodic `put` is logged, counted in the recorder's status and retried at the next tick; it never blocks the host, because marks detect and do not gate.
 - **What is reported.** `checkHighWater(store, anchors, { hostId })` reports `tailLoss` (from the stored `lastSeq` + 1 to the highest mark's `lastWritten`) when a mark exceeds the highest stored `auditSeq`, and `unanchoredTail` (from the highest mark's `lastWritten` + 1 to the stored `lastSeq`) for stored entries above the last mark. The second is a statement of coverage, not a fault.
 - **Limits stated.** Tail loss is detected only up to the last anchor written, and only against a party that cannot also lower or delete anchors. Records written after the last anchor and lost with it are not detectable by this mechanism.
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-06                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-11): BEH-BR-045 `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`; BEH-BR-046 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -242,9 +242,10 @@ also released in the reverse of the order it acquired them.
 ```
 REQUIREMENT: When the lease drain of a removal exceeds `drain` (default
              `BridgerOptions.drainTimeout`) and `force` is not set, `remove`
-             MUST fail with `DrainTimeout { id, leases, target? }`, and the
-             plugin MUST stay `stopping`, hidden from new consumers, with its
-             stop parked (08 — Operation Legality, BEH-BR-074). It MUST NOT
+             MUST fail with `DrainTimeout { id, realm?, leases, target? }`,
+             and the plugin MUST stay `stopping`, hidden from new
+             consumers, with its stop parked (08 — Operation Legality,
+             BEH-BR-074). It MUST NOT
              be republished. The same MUST hold for every operation that
              stops a plugin — `replace`, `restart`, `reconfigure` and
              `disable`.
@@ -272,11 +273,15 @@ REQUIREMENT: The `id` of that `DrainTimeout` MUST name the plugin (or the
              `Generation`) whose leases did not drain, or whose running
              transition step the call was waiting for; it is a dependent of
              the named plugin when the drain or step was the dependent's
-             (08 — Operation Legality, BEH-BR-079, BEH-BR-080). `target` MUST
-             name the plugin the call named, and MUST be present exactly
-             when it differs from `id`. `leases` MUST be the number of leases
-             still held on `id`, and 0 when the call was waiting for a build
-             step.
+             (08 — Operation Legality, BEH-BR-079, BEH-BR-080). `realm`
+             MUST be that plugin's realm, and MUST be absent exactly when
+             `id` names a `Generation` (CCR-BR-037). `target` MUST name the
+             plugin the call named, as the record `{ id, realm }`
+             (17 — Realms and Interception, BEH-BR-147), and MUST be
+             present exactly when it differs from the plugin `id` and
+             `realm` name. `leases` MUST be the number of leases
+             still held on that plugin, and 0 when the call was waiting for
+             a build step.
 ```
 
 ```
@@ -338,7 +343,7 @@ REQUIREMENT: When closing a plugin's activation scope fails, the host MUST
 
 ```
 REQUIREMENT: A `remove` whose own target's cleanup failed MUST fail with
-             `CleanupError { id, message }` and MUST NOT unregister the
+             `CleanupError { id, realm, message }` and MUST NOT unregister the
              plugin.
 ```
 

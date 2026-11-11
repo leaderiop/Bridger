@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-ADR-004                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): The kill switch is its scope's one reconciler, with separate actors for revocation removals and desired-list changes; signers revoked by identity (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.3 (2026-11-11): A digest whose dependence on a revoked signer cannot be ruled out is dropped unless pinned or exempt by digest (PL17); the revocation reconcile keeps every entry still installed (H8) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.2 (2026-11-08): The kill switch is its scope's one reconciler, with separate actors for revocation removals and desired-list changes; signers revoked by identity (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -24,7 +24,7 @@ A kill switch per digest must stop a defective or compromised release on every h
 
 - Revocation is delivered as signed, monotonically numbered sets of revoked digests and signers, persisted by the application's store and re-verified at start ([04 — Revocation and Kill Switch](../behaviors/04-revocation-and-kill-switch.md), BEH-LD-025, BEH-LD-026).
 - Loads check revocation; a set older than an explicitly stated `maxAge` refuses new loads (BEH-LD-027).
-- The kill switch is `Revocation.filterDesired` followed by `Host.reconcile`, and is the only reconciler of its scope. Removals caused by a revocation are attributed to an application-named revocation actor, with a reason naming the revision; desired-list changes are attributed to the application's own actor and name no revocation; incomplete entries are reported and retried (BEH-LD-028, BEH-LD-029). Signers are revoked by identity, and a digest whose dependence on a revoked signer cannot be ruled out is dropped (BEH-LD-025, BEH-LD-028, BEH-LD-030).
+- The kill switch is `Revocation.filterDesired` followed by `Host.reconcile`, and is the only reconciler of its scope. Removals caused by a revocation are attributed to an application-named revocation actor, with a reason naming the revision; desired-list changes are attributed to the application's own actor and name no revocation; incomplete entries are reported and retried (BEH-LD-028, BEH-LD-029). A revocation reconcile keeps every entry of the scope still installed, as its last completed action left it, so its only actions are the removals of the dropped entries (BEH-LD-029). Signers are revoked by identity, and a digest whose dependence on a revoked signer cannot be ruled out is dropped, unless the acceptance rule pins it or `LoaderGate` exempts it by digest (BEH-LD-025, BEH-LD-028, BEH-LD-030).
 - Plugins outside the kill switch's scope are reported by default, removed only when configured; revoked code still resident is reported (BEH-LD-031).
 - The kill switch changes the plugin set only through `Host.reconcile` and `Host.remove`: gated, drained and audited like any operator change (BEH-LD-032).
 

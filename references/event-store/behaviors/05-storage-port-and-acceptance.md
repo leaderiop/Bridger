@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-05                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-ES-033: the adapter's `transaction` provides the transaction's own `Scope`; BEH-ES-034: `DurableBus.fence` runs in that scope (H3); BEH-ES-040 check 18: a `receive` handler refused by the freeze does not halt its stream (F4) (CCR-ES-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — BEH-ES-034: every write of the store calls durable-bus `DurableBus.fence(tx)` inside its own write transaction during a whole-store install instead of following the sliding `outbox-frozen`/`outbox-thawed` feed; check 18 restated (CCR-ES-005)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-ES-034: what the store does at a re-bootstrap install — every write refused with `OutboxFrozen` during a whole-store freeze, followers read their checkpoint each batch, stop at a whole-store swap and restart from the new store's checkpoints, chain followers wait for the application, positions never translated (P6); BEH-ES-040 check 18 (CCR-ES-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-ES-033: `EventStoreAdapter.transaction` provides `StoreTransaction` only, and a REQUIREMENT that the adapter ends every `DurableBus.fence` admission taken on a transaction when it commits or rolls back, on every exit (H2, B1, B3); BEH-ES-034: `fence` takes the transaction handle; BEH-ES-037: the conformance suite covers the admission's end; check 18: retries wait while the incarnation is unrecorded (B2) (CCR-ES-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-ES-033: the adapter's `transaction` provides the transaction's own `Scope`; BEH-ES-034: `DurableBus.fence` runs in that scope (H3); BEH-ES-040 check 18: a `receive` handler refused by the freeze does not halt its stream (F4) (CCR-ES-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M17) — BEH-ES-034: every write of the store calls durable-bus `DurableBus.fence(tx)` inside its own write transaction during a whole-store install instead of following the sliding `outbox-frozen`/`outbox-thawed` feed; check 18 restated (CCR-ES-005)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-ES-034: what the store does at a re-bootstrap install — every write refused with `OutboxFrozen` during a whole-store freeze, followers read their checkpoint each batch, stop at a whole-store swap and restart from the new store's checkpoints, chain followers wait for the application, positions never translated (P6); BEH-ES-040 check 18 (CCR-ES-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-034: a commit-time conflict fails the durable-bus inbox transaction with `CommitConflict` (C-12); BEH-ES-037 tests it; BEH-ES-038 defines the members of the `EventStore` contract that grants name, routes every helper through them and states that the contract is local, declared with core `Contract.local` (core CCR-BR-033) (M-05); BEH-ES-040 checks 6, 8, 13, 14 and 16 extended and check 17 added (CCR-ES-003)<br>0.3 (2026-11-08): BEH-ES-033 replaces `hasEvent` by `hasFact`, adds `savepoint` and declared `capabilities` with their obligations; BEH-ES-036 requires savepoints and read-committed visibility on Postgres; BEH-ES-037 and BEH-ES-040 checks extended (R5 review) (CCR-ES-002)<br>0.2 (2026-11-08): BEH-ES-034 cites URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -33,9 +33,9 @@ Planned source: `packages/event-store/src/Adapter.ts`,
 ```ts
 // illustrative — not type-checked
 interface EventStoreAdapter {
-  // provides StoreTransaction and the transaction's own Scope, closed when it ends (durable-bus BEH-DB-054)
-  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction | Scope.Scope>) =>
-    Effect.Effect<A, E | StoreUnavailable | WrongExpectedVersion, Exclude<R, StoreTransaction | Scope.Scope>>
+  // provides StoreTransaction; ends every DurableBus.fence admission taken on it at commit or rollback (below)
+  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) =>
+    Effect.Effect<A, E | StoreUnavailable | WrongExpectedVersion, Exclude<R, StoreTransaction>>
   readonly append: (tx: StoreTransaction["Service"], stream: string, expected: ExpectedVersion,
                     rows: readonly Omit<StoredEvent, "streamVersion" | "position">[]) =>
     Effect.Effect<readonly StoredEvent[], WrongExpectedVersion | StoreWriteFailed>
@@ -82,6 +82,17 @@ REQUIREMENT: An adapter that declares `savepoints: true` MUST run `savepoint`
              adapter that cannot MUST declare `savepoints: false`.
 ```
 
+```
+REQUIREMENT: The adapter MUST end every durable-bus `DurableBus.fence`
+             admission taken on a transaction (BEH-DB-048) when that
+             transaction has committed or rolled back, on every exit
+             (success, failure, defect, interruption, a failed commit), and
+             not before: an admission is bound to the transaction handle,
+             not to a `Scope`, so that a write admitted before a whole-store
+             freeze can never commit after it (durable-bus BEH-DB-054,
+             property 8).
+```
+
 ## BEH-ES-034: One adapter, one database, one transaction with the outbox
 
 > **Invariant:** [INV-ES-002](../invariants.md#inv-es-002-an-append-and-its-outbox-entries-commit-together-or-not-at-all)
@@ -122,10 +133,10 @@ REQUIREMENT: During a whole-store install, every write of the store —
              and write nothing, whether or not its types are published: the
              store being replaced would take the write with it. Each such
              write MUST call durable-bus `DurableBus.fence(tx)` (BEH-DB-048)
-             inside its own write transaction, before its first write, in
-             the transaction's `Scope` that the adapter's `transaction`
-             provides and closes when the transaction ends (durable-bus
-             BEH-DB-054), and fail with the fence's `OutboxFrozen`; the `outbox-frozen` and
+             inside its own write transaction, before its first write,
+             passing that transaction's handle (the admission lasts until
+             the transaction commits or rolls back, BEH-ES-033), and fail
+             with the fence's `OutboxFrozen`; the `outbox-frozen` and
              `outbox-thawed` reports are a sliding status feed and MUST NOT
              be used to decide. An in-store install refuses no write; the
              engine orders the install transaction with every other
@@ -225,7 +236,9 @@ REQUIREMENT: The testing entry point MUST export `EventStoreConformance`, a
              "commit"`, a commit-time conflict reported as
              `WrongExpectedVersion { actual: "unknown" }` by `transaction`
              and as `CommitConflict` by the inbox transaction (BEH-ES-034);
-             the declared `capabilities`; no
+             a `DurableBus.fence` admission ending at commit, at rollback and
+             at a failed commit, and not when a scope opened inside the
+             transaction closes (BEH-ES-033); the declared `capabilities`; no
              update or delete path. Passing the suite is evidence about the adapter
              tested, on the engine and settings tested, and about nothing
              else.
@@ -403,7 +416,8 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  transaction, so a write whose transaction began before the
                  freeze is either committed before it or refused; a
                  `receive` handler refused with `OutboxFrozen` does not halt
-                 its stream and is retried after the settlement; followers stop at the swap and projections
+                 its stream and is retried after the settlement, not while the
+                 incarnation is unrecorded; followers stop at the swap and projections
                  resume from the new store's checkpoints, or rebuild where
                  there is none; a chain follower stays halted with
                  "store-replaced" until `chain` is called again; after an

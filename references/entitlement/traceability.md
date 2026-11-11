@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-TRACE                                             |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.4 (2026-11-08): Round 2: recheck item 16; core alignment — rows BEH-EN-025–032, REQ-EN-017–023, INV-EN-006–007, ADR-EN-004; BEH-EN-016 and 023 cite core `policy` and `settle`; risk note 3 updated (CCR-EN-003)<br>0.3 (2026-11-08): Rows for the skip policies and the piece timeout; RSK-BR-046 named (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — REQ-EN-012 cites BEH-EN-005, as check 12 does (PL12) (CCR-EN-008)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — rows BEH-EN-025–032, REQ-EN-017–023, INV-EN-006–007, ADR-EN-004; BEH-EN-016 and 023 cite core `policy` and `settle`; risk note 3 updated (CCR-EN-003)<br>0.3 (2026-11-08): Rows for the skip policies and the piece timeout; RSK-BR-046 named (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -78,7 +78,7 @@ Each scenario is the acceptance check of the same number in
 | <a id="req-en-009"></a>REQ-EN-009 | 9 | BEH-EN-011 |
 | <a id="req-en-010"></a>REQ-EN-010 | 10 | BEH-EN-012 |
 | <a id="req-en-011"></a>REQ-EN-011 | 11 | BEH-EN-013 |
-| <a id="req-en-012"></a>REQ-EN-012 | 12 | BEH-EN-014 |
+| <a id="req-en-012"></a>REQ-EN-012 | 12 | BEH-EN-005, BEH-EN-014 |
 | <a id="req-en-013"></a>REQ-EN-013 | 13 | BEH-EN-015 |
 | <a id="req-en-014"></a>REQ-EN-014 | 14 | BEH-EN-016, BEH-EN-023 |
 | <a id="req-en-015"></a>REQ-EN-015 | 15 | BEH-EN-017, BEH-EN-018, BEH-EN-020 |

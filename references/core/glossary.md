@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GLOSSARY                                             |
-> | Revision       | 0.14                                                         |
+> | Revision       | 0.15                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Glossary                          |
-> | Change History | 0.14 (2026-11-10): Audit-degraded latch: a running `reconcile`'s parent record lost at shutdown also sets it (C4) (CCR-BR-036)<br>0.13 (2026-11-10): Parked stop and ended intent: a child's sub-scope close or unmount also resumes (C11); plan: `expect` binds code only through `meta.digest` (C6) (CCR-BR-035)<br>0.12 (2026-11-10): System stop names the refused background restart (C5); `HoldRevoked` `seq` and `GenerationRevoked` (C7); Call-log entry kinds include "dispatch" (audit round 2, Low) (CCR-BR-034)<br>0.11 (2026-11-09): Contract: local contract (`Contract.local`); realm family: a ready member; state handoff: `restart` and `reconfigure` under `alsoOn`, and a superseded build (U-02, U-03; local contracts); system stop names the idle return of a lazy plugin (BEH-BR-252, BEH-BR-073) (CCR-BR-033)<br>0.10 (2026-11-09): Base service: replaceable only in a realm that isolates its key; host-owned keys (C-02) (CCR-BR-032)<br>0.9 (2026-11-08): Companion terms of round 2: receipt, listing record, model-facing envelope, signed statement, data pack, revocation list, kill-only apply, chain series, verification bundle, residency label, writers last, payload codec, expected version, fact, number series, crypto-shredding; entry owner and `HoldRevoked` (CCR-BR-027)<br>0.8 (2026-11-08): Hook point entry: phases, targets, breaker per plugin, declarations; declared contribution, HostLink, held event, idle return, denied-policy (CCR-BR-024); atomic apply, undo action, PartialApply, mandatory catalog, contract registry, Selector range (CCR-BR-025); refusal list, CurrentCorrelation, call-log failure policy, attributed unmount, call-log entry kinds (CCR-BR-026)<br>0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.15 (2026-11-11): Cascade root: the refused background restart; parked stop and ended intent: a child's sub-scope close or unmount resumes only a stop parked outside its parent's stop (H1, CL1, CL3) (SPEC-AUDIT-05); Audit position: `lastNumbered`, `HostControls.closed` and `CloseTail` (C5); Refusal list: operator calls able to start and the `whenAvailable` re-run (C9, CL14) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.14 (2026-11-10): Audit-degraded latch: a running `reconcile`'s parent record lost at shutdown also sets it (C4) (CCR-BR-036)<br>0.13 (2026-11-10): Parked stop and ended intent: a child's sub-scope close or unmount also resumes (C11); plan: `expect` binds code only through `meta.digest` (C6) (CCR-BR-035)<br>0.12 (2026-11-10): System stop names the refused background restart (C5); `HoldRevoked` `seq` and `GenerationRevoked` (C7); Call-log entry kinds include "dispatch" (audit round 2, Low) (CCR-BR-034)<br>0.11 (2026-11-09): Contract: local contract (`Contract.local`); realm family: a ready member; state handoff: `restart` and `reconfigure` under `alsoOn`, and a superseded build (U-02, U-03; local contracts); system stop names the idle return of a lazy plugin (BEH-BR-252, BEH-BR-073) (CCR-BR-033)<br>0.10 (2026-11-09): Base service: replaceable only in a realm that isolates its key; host-owned keys (C-02) (CCR-BR-032)<br>0.9 (2026-11-08): Companion terms of round 2: receipt, listing record, model-facing envelope, signed statement, data pack, revocation list, kill-only apply, chain series, verification bundle, residency label, writers last, payload codec, expected version, fact, number series, crypto-shredding; entry owner and `HoldRevoked` (CCR-BR-027)<br>0.8 (2026-11-08): Hook point entry: phases, targets, breaker per plugin, declarations; declared contribution, HostLink, held event, idle return, denied-policy (CCR-BR-024); atomic apply, undo action, PartialApply, mandatory catalog, contract registry, Selector range (CCR-BR-025); refusal list, CurrentCorrelation, call-log failure policy, attributed unmount, call-log entry kinds (CCR-BR-026)<br>0.7 (2026-11-08): Plugin principal: "on whose behalf" (CCR-BR-022)<br>0.6 (2026-11-08): Contracts, manifest, consent diff, lazy plugin and legality table with seven states (CCR-BR-017); principal, policy and annotation terms (CCR-BR-018); hook point, selector, gate, plan, realm family and handoff terms (CCR-BR-019); `Plugin.Any` (CCR-BR-020); hash chain and companion terms (CCR-BR-021)<br>0.5 (2026-10-03): Fingerprint; Audit position (CCR-BR-014)<br>0.4 (2026-10-03): Parked (a child's removal resumed only by `remove`), Confluence (the failure exception) and Audit-degraded latch (what sets it) follow their behaviours (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Transition step, cascade, parked, operation in flight, system stop; Linearization and Drain updated; parked per the single parking rule, ended intents and `intent-ended`, operator-rooted cascades (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -119,16 +119,22 @@ a system record attributed to `Actor.system`, never gated.
 A **cascade** is the stop of a dependent that a provider's stop requires
 (BEH-BR-043), whatever began that stop. The **cascade root** is what began the
 provider's stop: an operator call (the **cascading call**), a runtime failure,
-a dependency-loss stop, or shutdown. An **operator-rooted** cascade — one whose
-root is an operator call — drains under that call's `drain` and `force`; a
-cascade whose root has no caller drains under `drainTimeout`, never parks, and
-revokes on expiry (shutdown: only once its overall limit has passed).
+a dependency-loss stop, a refused background restart (a refused
+`whenAvailable` re-run included), or shutdown. An **operator-rooted** cascade
+— one whose root is an operator call — drains under that call's `drain` and
+`force`; a cascade whose root has no caller drains under `drainTimeout`, never
+parks, and revokes on expiry (shutdown: only once its overall limit has
+passed). A child's sub-scope close or `Plugin.Runtime.unmount` removes it
+without a cascade, as a path with no caller when it begins the removal itself
+(BEH-BR-121).
 
 ### Parked, parked operation, parked system stop
 
 A stop is **parked** when its drain expired without `force`, or when the call
 driving it failed with `DrainTimeout` and left it unsettled, and it waits for a
-call, a cascade or shutdown to resume it; the plugin stays `stopping` with
+call, a cascade or shutdown to resume it (for a child whose stop was parked
+outside its parent's stop, also its sub-scope close or unmount); the plugin
+stays `stopping` with
 `parked` true. When a call fails with `DrainTimeout`, every stop it drives that
 has not settled — its own stop and every dependency-loss stop it started, at
 any depth — parks in the same revision; only that call fails. A **parked
@@ -139,13 +145,17 @@ shutdown has begun. A parked operation resumes when a call joins or supersedes
 it, a parked system stop when a `remove`, `replace`, `restart`, `disable` or
 `reconfigure` arrives on the plugin (on a child whose stop removes it, only
 `remove`), and either kind when a cascade needs it,
-at shutdown, or — for a child — when the sub-scope it was mounted under closes
-or it is unmounted (14, BEH-BR-121, BEH-BR-126).
+at shutdown, or — for a child whose stop was parked outside its parent's stop
+— when the sub-scope it was mounted under closes or it is unmounted (14,
+BEH-BR-121, BEH-BR-126). A child stop the parent's stop parked stays the
+parent's: a sub-scope close or an unmount only waits for it.
 
 ### Ended intent
 
 A parked operator intent that a cascade, shutdown, or a child's sub-scope close
-or unmount ends when it resumes the stop (BEH-BR-080, BEH-BR-121): its remaining actions never run, a `replace`'s reservations
+or unmount (of a stop parked outside its parent's stop) ends when it resumes
+the stop (BEH-BR-080, BEH-BR-121): its remaining actions never run, a
+`replace`'s reservations
 are released and every override change made under it reverts, in the same
 revision, in which the host writes an `intent-ended` system record whose
 `endsIntentOf` is the `recordId` of the parked call's `requested` record. A
@@ -291,8 +301,10 @@ child requests (BEH-BR-260–264).
 ### Refusal list, refused digest
 
 The optional **`RefusalList`** port names digests the host must not start.
-It is consulted on every start — operator calls (before the gate), dependency
-returns, lazy triggers, background restarts and child mounts. A plugin whose
+It is consulted on every start — operator calls that would leave the
+definition able to start (before the gate), dependency returns, lazy
+triggers, background restarts, re-runs of a `whenAvailable` run under
+"restart", and child mounts. A plugin whose
 start it refused is `disabled` with reason `refused-digest` and the refusal
 is recorded as `start-refused` ([28](./behaviors/28-plugin-principal-and-mandatory-policy.md), BEH-BR-267).
 
@@ -464,8 +476,13 @@ their order.
 The highest `auditSeq` the host's sink has accepted (`lastWritten`), reported
 by `Host.controls` when a sink is wired; per host, it never decreases, and it
 stays readable after the host closes, so the final high-water mark can be read
-once the writer has flushed (BEH-BR-212). `CloseReport.auditLastSeq` is the
-same number at the moment the report is produced (BEH-BR-106).
+once the writer has flushed (BEH-BR-212). Beside it, `lastNumbered` is the
+highest `auditSeq` the writer has assigned. `HostControls.closed` resolves,
+once the host scope has closed and the final flush has ended, with a
+`CloseTail` carrying both numbers and the audit latch then; `lastWritten`
+below `lastNumbered` there means records lost in the close flush.
+`CloseReport.auditLastSeq` is `lastWritten` at the moment the report is
+produced (BEH-BR-106).
 
 ### Hash chain, anchor, inclusion proof
 

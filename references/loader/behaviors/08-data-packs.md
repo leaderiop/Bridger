@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-08                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-09): Footer links file 09 (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.4 (2026-11-11): BEH-LD-061: `DataPacks.layer(options: DataPacksOptions)` declared, with its error and requirements (PL22) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.3 (2026-11-09): Footer links file 09 (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -272,8 +272,26 @@ interface DataPacksOptions {
   readonly feed?: DataPackFeed                                           // BEH-LD-062
 }
 declare const DataPacks: {
+  // Builds the DataPacks service (BEH-LD-059); saved packs are verified again at construction (BEH-LD-062).
+  readonly layer: (options: DataPacksOptions) =>
+    Layer.Layer<DataPacks, DataPackStoreFailed, StatementVerifier | RevocationSource>
   readonly decode: <A>(pack: VerifiedDataPack, schema: Schema.Codec<A, unknown>) => Effect.Effect<A, Schema.SchemaError>
 }
+```
+
+```
+REQUIREMENT: `DataPacks.layer` MUST be the one constructor of the
+             `DataPacks` service and MUST take every option of
+             `DataPacksOptions`. It MUST require `StatementVerifier`, through
+             which `SignaturePolicy.verify` runs (07, BEH-LD-050), and
+             `RevocationSource`, whose changes drive the re-checks of
+             BEH-LD-062 and BEH-LD-063 (04, BEH-LD-026); it MUST read
+             `LoadLog` with `Effect.serviceOption` (02, BEH-LD-016). Building
+             it MUST fail with `DataPackStoreFailed` ("load") when the store
+             cannot be read; a saved pack that fails verification MUST NOT
+             fail the build (BEH-LD-062). With `feed`, the layer MUST pass
+             each `DataPackRef` the feed lists to `load`, in a fiber of the
+             layer's scope.
 ```
 
 ```

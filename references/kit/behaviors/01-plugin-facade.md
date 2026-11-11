@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-01                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-KT-001: every form takes `manifest` and `handoff` and passes them through unchanged; BEH-KT-004: the `PluginAny` copy carries both, as core 01 does (L3) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.4 (2026-11-11): BEH-KT-004: `Plugin.Any` is core's type (core 01, BEH-BR-001; CCR-BR-020), no longer a requested amendment (PL18) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-10): BEH-KT-001: every form takes `manifest` and `handoff` and passes them through unchanged; BEH-KT-004: the `PluginAny` copy carries both, as core 01 does (L3) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -192,10 +192,10 @@ diagnostic text.
 ## BEH-KT-004: Plugin.Any accepts every definition and only definitions
 
 > **See:** [ADR-KT-002](../decisions/002-plugin-any-is-the-contravariant-top.md)
-> **Core seam:** amendment to [01 — Plugin definition](../../core/behaviors/01-plugin-definition.md), [03 — Installation](../../core/behaviors/03-installation.md), [14 — Children and groups](../../core/behaviors/14-children-and-groups.md), [18 — Reconciliation](../../core/behaviors/18-reconciliation-and-confluence.md)
+> **Core seam:** core's `Plugin.Any` (CCR-BR-020, as [ADR-KT-002](../decisions/002-plugin-any-is-the-contravariant-top.md) requested it), in [01 — Plugin definition](../../core/behaviors/01-plugin-definition.md) (BEH-BR-001), accepted by [03 — Installation](../../core/behaviors/03-installation.md), [14 — Children and groups](../../core/behaviors/14-children-and-groups.md), [18 — Reconciliation](../../core/behaviors/18-reconciliation-and-confluence.md)
 
 ```ts
-// illustrative — not type-checked (core type, requested by ADR-KT-002)
+// illustrative — not type-checked (core's type, core 01, BEH-BR-001; CCR-BR-020)
 declare const PluginTypeId: unique symbol
 interface PluginAny {                                    // exported by core as Plugin.Any
   readonly [PluginTypeId]: typeof PluginTypeId          // phantom: never present at run time
@@ -215,8 +215,8 @@ type Plugin<R extends Keys, P extends Keys, E, C> = PluginDefinition<R, P, E, C>
 ```
 
 ```
-REQUIREMENT: Every value returned by `definePlugin` (and, once core adopts
-             the amendment, by `Plugin.define`) MUST be assignable to
+REQUIREMENT: Every value returned by `definePlugin` (and by core's
+             `Plugin.define`) MUST be assignable to
              `Plugin.Any` without a cast, whatever its `requires`,
              `provides`, error and configuration types, including a
              definition that provides nothing.

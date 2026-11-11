@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-OVW                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Overview                                                     |
-> | Change History | 0.4 (2026-11-10): `GxpLayer.make` option `gatePieces` (M5); `verifySeals` and `readArchive` `keyed` take a pure or an effectful MAC; `readArchive` returns `chain` (audit-chain CCR-AC-006 follow-up) (CCR-GX-006)<br>0.3 (2026-11-10): `GxpLayer.make` returns `TrailSinkStatus`; `verifySeals` options and errors (`ReceiptReader`, `continuesFrom`, `maxEntries`); `approvalGate` `precededBy`; `buildEvidencePack` `sinkStatus`; `exportTrail` `sealing`; `readArchive` `maxEntries` (H4, H7, P15, P17, P18, P19, low) (CCR-GX-005)<br>0.2 (2026-11-09): Public surface re-baselined: `TrailEntry` marks, collision and audit-chain link; "stored-collision"; `TrailSinkStatus` and `trailGate`; `verifySeals` through `@bridger/audit-chain`; `GxpLayer.make` `trail.gate` and audit-chain sealing options (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-11): `runInstallationChecks` shows `idDraw` (PL28); `readArchive` takes `receiptVerifiers` and `pinnedTrustRoots` (H10); the close mark from `HostControls.closed` (G4) (CCR-GX-008)<br>0.4 (2026-11-10): `GxpLayer.make` option `gatePieces` (M5); `verifySeals` and `readArchive` `keyed` take a pure or an effectful MAC; `readArchive` returns `chain` (audit-chain CCR-AC-006 follow-up) (CCR-GX-006)<br>0.3 (2026-11-10): `GxpLayer.make` returns `TrailSinkStatus`; `verifySeals` options and errors (`ReceiptReader`, `continuesFrom`, `maxEntries`); `approvalGate` `precededBy`; `buildEvidencePack` `sinkStatus`; `exportTrail` `sealing`; `readArchive` `maxEntries` (H4, H7, P15, P17, P18, P19, low) (CCR-GX-005)<br>0.2 (2026-11-09): Public surface re-baselined: `TrailEntry` marks, collision and audit-chain link; "stored-collision"; `TrailSinkStatus` and `trailGate`; `verifySeals` through `@bridger/audit-chain`; `GxpLayer.make` `trail.gate` and audit-chain sealing options (F-01, F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -185,7 +185,7 @@ declare function checkApprovals(
   store: TrailStoreShape, tickets: TicketStoreShape, options: { hostId: string; scope: string; policy: ApprovalPolicy }
 ): Effect.Effect<CheckReport, TrailReadFailed | TicketReadFailed | CheckCapacityExceeded>
 
-// 06 — high-water marks from Host.controls.auditPosition; at close, read after the flush (auditLastSeq is a lower bound)
+// 06 — high-water marks from Host.controls.auditPosition; at close, from HostControls.closed's CloseTail (auditLastSeq is a lower bound)
 declare function recordHighWater(host: Host, anchors: AnchorStoreShape, schedule: HighWaterSchedule):
   Effect.Effect<HighWaterRecorder, never, Scope.Scope>
 declare function checkHighWater(store: TrailStoreShape, anchors: AnchorStoreShape, options: { hostId: string }):
@@ -279,6 +279,7 @@ declare function matchesFingerprint(
 declare function runInstallationChecks(host: Host, options: {
   gxp: GxpInstallation; expected: InstallationRequirements; packageRoot: string; lockfile: string
   provenance?: { verifiedBy: string; attestationDigest: string }
+  idDraw?: { generators: readonly IdGeneratorShape[]; count: number }   // IQ-22 (BEH-GX-116)
 }): Effect.Effect<IqReport>                 // never fails: a check that cannot run is "not-executed"
 // 16 — OQ: results only from runner output; no test means "not covered"
 declare function collectOqEvidence(q: {
@@ -301,7 +302,8 @@ declare function exportTrail(q: {
   sealing: { chain: ChainReaderShape; receipts: ReceiptReaderShape; trustRoots: readonly TrustRoot[] } | "not-used"
   maxEntries?: number; outDir: string
 }): Effect.Effect<ArchiveManifest, ExportFailed | CheckCapacityExceeded>
-declare function readArchive(dir: string, options?: { scope?: string; policy?: ApprovalPolicy; pageSize?: number; maxOpenRequests?: number; maxEntries?: number; keyed?: VerifySealsInputs["keyed"] }): Effect.Effect<{
+declare function readArchive(dir: string, options?: { scope?: string; policy?: ApprovalPolicy; pageSize?: number; maxOpenRequests?: number; maxEntries?: number; keyed?: VerifySealsInputs["keyed"]
+  receiptVerifiers?: readonly OfflineReceiptVerifier[]; pinnedTrustRoots?: readonly TrustRoot[] }): Effect.Effect<{   // expected heads from anchors.jsonl
   readonly manifest: ArchiveManifest; readonly files: readonly FileCheck[]
   readonly report: CheckReport; readonly links?: ApprovalLinkReport
   readonly chain?: Readonly<Record<string, ChainReport>> }, ArchiveUnreadable | CheckCapacityExceeded>   // chain: when chain-bundle.json is present

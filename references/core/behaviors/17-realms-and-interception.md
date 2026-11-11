@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-17                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): BEH-BR-147 a plugin named by one string outside a `PluginRef` (`HeldPlugins`, `CurrentTransition`) uses the canonical key `JSON.stringify([realm, id])`, not a separator join (C1); BEH-BR-151 ordinary interception never applies to `Host.use`, `useAll` or `lease`, from plugin code included, as BEH-BR-262 states, Settled (3) (CL9) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-145 `defineRealm` refuses a realm that isolates a host-owned key with `InvalidRealm`, Settled (3); BEH-BR-146 Settled (2) a plugin in an isolating realm may provide a base key (C-02); BEH-BR-152 the outcome of a failing `wrap` on an optional or reactive capture, Settled note (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-145 `RealmOptions.mandatory`, BEH-BR-151 mandatory interceptions never replaced, composed outside, and applied to `Host.use` (CCR-BR-018); BEH-BR-145 a realm may be retired while empty by `retireRealm` (CCR-BR-019)<br>0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.6 (2026-11-11): BEH-BR-147 the structured fields of errors, reports and snapshots name a plugin as `{ id, realm }` (or `id` and `realm` side by side); the canonical key only where one string is required, map keys included (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-147 a plugin named by one string outside a `PluginRef` (`HeldPlugins`, `CurrentTransition`) uses the canonical key `JSON.stringify([realm, id])`, not a separator join (C1); BEH-BR-151 ordinary interception never applies to `Host.use`, `useAll` or `lease`, from plugin code included, as BEH-BR-262 states, Settled (3) (CL9) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-145 `defineRealm` refuses a realm that isolates a host-owned key with `InvalidRealm`, Settled (3); BEH-BR-146 Settled (2) a plugin in an isolating realm may provide a base key (C-02); BEH-BR-152 the outcome of a failing `wrap` on an optional or reactive capture, Settled note (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-145 `RealmOptions.mandatory`, BEH-BR-151 mandatory interceptions never replaced, composed outside, and applied to `Host.use` (CCR-BR-018); BEH-BR-145 a realm may be retired while empty by `retireRealm` (CCR-BR-019)<br>0.2 (2026-10-02): A child's own `intercept` replaces the interceptions it inherits; realm interceptors are never inherited; composition order restated (prototype finding G24) (CCR-BR-010)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -199,10 +199,23 @@ interface InstallOptions extends OperationOptions {
 REQUIREMENT: A plugin's identity MUST be the pair (id, realm). Installing an
              id already installed in the same realm MUST fail with
              `DuplicatePlugin`; installing it into a different realm MUST be
-             allowed. Where the host names a plugin by one string outside a
-             `PluginRef` — the entries of `@bridger/core/HeldPlugins` and
-             `@bridger/core/CurrentTransition` — it MUST use the canonical
-             key `JSON.stringify([realm, id])`, with the default realm
+             allowed. These structured fields of errors, reports and
+             snapshots MUST name a plugin with both strings, as the record
+             `{ readonly id: string; readonly realm: string }` (the shape of
+             `FingerprintQuery.target`) or as `id` and `realm` fields side
+             by side: `WouldDeadlock`, `DrainTimeout` (and its `target`),
+             `CleanupError`, `DuplicateProvider` (`providerId` and
+             `providerRealm`), `DependencyCycle.path`, the entries of
+             `CloseReport` and `ReconcileReport`,
+             `PluginSnapshot.providerIds` and the `TestHost`'s
+             `PendingStep.waiter` (CCR-BR-037); a field added later that
+             names a plugin other than the call's own target MUST do the
+             same.
+             Only where one string is required — the entries of
+             `@bridger/core/HeldPlugins` and
+             `@bridger/core/CurrentTransition`, and a key of a map or
+             record — MUST the host use the canonical key
+             `JSON.stringify([realm, id])`, with the default realm
              spelled "default" (09 — Leases, BEH-BR-088), never the bare id
              nor a separator join, since neither a realm id nor a plugin id
              has a grammar that would keep a separator out (CCR-BR-036).

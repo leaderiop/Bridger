@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-047                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
+> | Change History | 0.2 (2026-11-11): Decision and Consequences: a plan binds code only through `meta.digest`, and the consumer control (CL15) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019)                 |
 
 ---
 
@@ -29,7 +29,7 @@ An approval given against one state of the host may be wrong against another. No
 - **`OperationGate` is the `Gate<OperationRequest>` instance.** The host's port, its position in the call order, its timeout, failure rules and records are unchanged. `OperationGate.fromGate(gate)` maps `Defer` to `OperationRejected` with a reason from the adapter (default `"deferred"`), so a deferred host operation leaves exactly one `rejected` record and is applied later by issuing it again, gated again.
 - **Drafts** carry `draftId`, one or more requests and `expected` versions (opaque key/version strings). `Draft.check` reports every mismatch. A stale draft is re-planned and approved again, never applied. `draftId` is returned to the caller unchanged, so a dispatcher can hand it back (for example as a command's deferred result) and the approved request can be re-submitted with a reference to it. Core stores no draft and defines no approval reference.
 - **`Host.plan(desired, options)`** is a read-only dry run of `reconcile`. It runs the same diff computation at one revision and returns a serialisable `ReconcilePlan`: entries with actions in execution order, the expected registration of each plugin (`registeredAt`), incoming `version`/`digest`, configuration paths only, the dependents each action would stop, and the `consentDiff` of installed and incoming manifests when both exist ([27 — Manifest and lazy activation](../behaviors/27-manifest-and-lazy-activation.md)). It records nothing, consults no gate or fingerprinter, emits nothing and reserves nothing.
-- **`reconcile(desired, { expect: plan })`** applies a plan or nothing. The diff is compared with the plan at validation (stale: `PlanStale`, no record) and again at the intent (stale: `PlanStale` with the parent `failed` record, no entry action). Every entry action is still gated and recorded individually.
+- **`reconcile(desired, { expect: plan })`** applies a plan or nothing. The diff is compared with the plan at validation (stale: `PlanStale`, no record) and again at the intent (stale: `PlanStale` with the parent `failed` record, no entry action). Every entry action is still gated and recorded individually. A plan binds an entry's code only through `meta.digest`: for a definition without one, `expect` compares `meta.version` only, so another definition object of the same version applies; a consumer that must bind the code declares `meta.digest` on every definition it plans with, or refuses entries without one in its gate ([32 — Generic gate and plan](../behaviors/32-generic-gate-and-plan.md), BEH-BR-319; INV-BR-043; CCR-BR-035).
 
 ## Alternatives considered
 
@@ -45,7 +45,7 @@ An approval given against one state of the host may be wrong against another. No
 **Positive**:
 
 - One vocabulary and one set of fail-closed rules for every gate in an application, with the host's gate unchanged.
-- Self-modifying systems can propose, have reviewed, and apply exactly the reviewed change.
+- Self-modifying systems can propose, have reviewed, and apply exactly the reviewed change, where every definition declares `meta.digest`; without one, a plan binds the definition's version, not its code.
 
 **Negative**:
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-04                                               |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-10): BEH-BR-027 `StopReason` "refused-digest" also covers a refused `whenAvailable` re-run (C11) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-031 dependency loss leaves a `dormant` plugin unchanged, and shutdown's unregistration is named as the one other exit from `failed` (audit round 3, Low) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-026 `starting` may also be left by unregistration when shutdown begins before its build (C2); diagram edge `active → stopping` for a refused background restart; BEH-BR-027 `StopReason` gains "refused-digest" (C5) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-026 edge `starting` → unregistered when shutdown begins while its build has not begun (12, BEH-BR-105) (review of CCR-BR-032) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-026 the unregistration edges name shutdown; BEH-BR-027 under shutdown every `stopping` entry shows `reason` "shutdown" and `next` "gone" (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): idle return edges and `StopReason` "idle" (27, BEH-BR-252) (CCR-BR-024); disabled reason "refused-digest" and start-refused edges (CCR-BR-026)<br>0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.12 (2026-11-11): BEH-BR-026 the `active → stopping` edge names the refused `whenAvailable` re-run and a child's sub-scope close or unmount (CL8), and the settled legality of `failed` (cleanup) cites BEH-BR-071 (CL7); BEH-BR-027 a child removal by its sub-scope close or unmount shows `reason` "remove", `parked` is cleared by them only for a stop parked outside the parent's stop (H1, CL1), `providerIds` name plugins as `{ id, realm }` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.11 (2026-11-10): BEH-BR-027 `StopReason` "refused-digest" also covers a refused `whenAvailable` re-run (C11) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-031 dependency loss leaves a `dormant` plugin unchanged, and shutdown's unregistration is named as the one other exit from `failed` (audit round 3, Low) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-026 `starting` may also be left by unregistration when shutdown begins before its build (C2); diagram edge `active → stopping` for a refused background restart; BEH-BR-027 `StopReason` gains "refused-digest" (C5) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-026 edge `starting` → unregistered when shutdown begins while its build has not begun (12, BEH-BR-105) (review of CCR-BR-032) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-026 the unregistration edges name shutdown; BEH-BR-027 under shutdown every `stopping` entry shows `reason` "shutdown" and `next` "gone" (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): idle return edges and `StopReason` "idle" (27, BEH-BR-252) (CCR-BR-024); disabled reason "refused-digest" and start-refused edges (CCR-BR-026)<br>0.5 (2026-11-08): `PluginCommon` gains `allowChildren` and `mandatoryServiceIds` (28); a lazy registration's `meta` is the lazy definition's identity (27) (CCR-BR-022)<br>0.4 (2026-11-08): Seventh state `dormant`, its edges, snapshot variant, `starting.loading`, failure phase "load", `PluginCommon.lazy` (CCR-BR-017)<br>0.3 (2026-10-03): The `starting` → `waiting` edge of BEH-BR-035 added to the meaning of `starting`, the diagram, the leave rule and dependency loss; `reconfigure` removed from the `waiting` → `starting` label (consistency pass) (CCR-BR-013)<br>0.2 (2026-10-02): `stopping` gains `parked`; `reason` and `next` when a cascade, a call or shutdown resumes a parked stop; parked per the single parking rule (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -92,7 +92,7 @@ stateDiagram-v2
     starting --> stopping: target changes; the in-flight step settles first
     starting --> waiting: a requirement is gone when the build would begin (05, BEH-BR-035)
     starting --> [*]: shutdown begins while its build has not begun (12, BEH-BR-105)
-    active --> stopping: dependency loss, remove, replace, restart, reconfigure, disable, runtime failure, shutdown, refused background restart (28)
+    active --> stopping: dependency loss, remove, replace, restart, reconfigure, disable, runtime failure, shutdown, refused background restart or whenAvailable re-run (15, 28), a child's sub-scope close or unmount (14)
     stopping --> waiting: requirements missing
     stopping --> starting: requirements available (replace, restart, reconfigure, provider returned)
     stopping --> failed: cleanup fails, or runtime failure completes
@@ -155,7 +155,7 @@ and `disabled → starting` are added because a plugin with nothing missing
 cannot be a `waiting` entry (BEH-BR-025); SPEC.md's prose already said
 `enable` "moves the plugin to `waiting` or `starting`". `failed → disabled` is
 withheld after a cleanup failure, because settled legality allows only
-`remove` there (BEH-BR-030). `starting → waiting` was added by CCR-BR-010: a
+`remove` there (08 — Operation Legality, BEH-BR-071). `starting → waiting` was added by CCR-BR-010: a
 `starting` plugin whose requirement is gone when its build would begin returns
 to `waiting` without a stop (05 — Activation, BEH-BR-035). The nine `dormant`
 edges were added by CCR-BR-017 ([27 — Manifest and Lazy
@@ -171,8 +171,8 @@ Activation](./27-manifest-and-lazy-activation.md), BEH-BR-244).
 type PluginSnapshot = PluginCommon & (
   | { readonly state: "dormant";  readonly triggers: readonly LazyTrigger[] }                      // 27
   | { readonly state: "waiting";  readonly missingServiceIds: readonly [ServiceId, ...ServiceId[]] }
-  | { readonly state: "starting"; readonly providerIds: readonly string[]; readonly loading: boolean }   // loading: 27
-  | { readonly state: "active";   readonly providerIds: readonly string[]; readonly health: "healthy" | "degraded" | "unknown" }
+  | { readonly state: "starting"; readonly providerIds: readonly ({ readonly id: string; readonly realm: string } | "base")[]; readonly loading: boolean }   // loading: 27
+  | { readonly state: "active";   readonly providerIds: readonly ({ readonly id: string; readonly realm: string } | "base")[]; readonly health: "healthy" | "degraded" | "unknown" }
   | { readonly state: "stopping"; readonly reason: StopReason; readonly next: "waiting" | "starting" | "disabled" | "dormant" | "gone" | "failed"; readonly parked: boolean }
   | { readonly state: "failed";   readonly failure: { readonly phase: "load" | "build" | "activation" | "runtime" | "cleanup"; readonly message: string }; readonly missingServiceIds: readonly ServiceId[] }
   | { readonly state: "disabled"; readonly reason?: "refused-digest" }   // absent: disabled by an operator (28, BEH-BR-267)
@@ -187,6 +187,7 @@ interface PluginCommon {
   readonly mandatoryServiceIds: readonly ServiceId[]   // installation-mandatory interceptions, own and inherited (28, BEH-BR-265)
 }
 type StopReason = "dependency-loss" | "remove" | "replace" | "restart" | "reconfigure" | "disable" | "runtime-failure" | "shutdown" | "idle"   // idle: 27, BEH-BR-252
+  // "remove" also: a child's removal by its sub-scope close or Plugin.Runtime.unmount (14, BEH-BR-121)
   | "refused-digest"   // a background restart or `whenAvailable` re-run the RefusalList refused; `next` "disabled" (28, BEH-BR-267)
 ```
 
@@ -207,7 +208,9 @@ REQUIREMENT: `realm` MUST be "default" unless the plugin was installed into
 ```
 REQUIREMENT: `providerIds` MUST list, without duplicates and in the order of
              first appearance in `requires`, the provider of each required
-             key — a plugin ID, or "base" for a base service — as captured
+             key — a plugin as the record `{ id, realm }` (17 — Realms and
+             Interception, BEH-BR-147), or "base" for a base service — as
+             captured
              for the activation, or, before the build has begun, as it would
              be captured now.
 ```
@@ -222,7 +225,15 @@ REQUIREMENT: `health` MUST be "unknown" when no check is declared or none
 REQUIREMENT: On a `stopping` entry, `reason` MUST name what began the stop,
              except as the following requirements state (a cascade's
              takeover of a parked operation → "dependency-loss"; a call's
-             resumption → its operation; shutdown → "shutdown"). `next` MUST
+             resumption → its operation; shutdown → "shutdown"). A child's
+             removal by the close of its sub-scope or by
+             `Plugin.Runtime.unmount` MUST show "remove" with `next`
+             "gone", both when it begins the child's stop and when it
+             resumes a stop parked outside the parent's stop, from the
+             revision in which it begins or resumes it (14 — Children and
+             Groups, BEH-BR-121); a child stop the parent's stop parked
+             keeps the parent's stop's `reason` while a sub-scope close or
+             an `unmount` waits for it. `next` MUST
              name where the plugin will go when the stop completes ("gone"
              for removal), and MUST be updated in the same revision as any
              change to the stop's destination, parked or not.
@@ -232,15 +243,18 @@ REQUIREMENT: On a `stopping` entry, `reason` MUST name what began the stop,
 REQUIREMENT: On a `stopping` entry, `parked` MUST be true exactly while the
              stop is parked — its drain expired without `force`, or the call
              that drove it failed with `DrainTimeout` and left it unsettled,
-             and it waits for a call, a cascade or shutdown to resume it —
+             and it waits for a call, a cascade or shutdown to resume it,
+             or, for a child whose stop was parked outside its parent's
+             stop, the close of its sub-scope or its `unmount` (14 —
+             Children and Groups, BEH-BR-121) —
              whether it is a parked operation or a parked system stop
              (08 — Operation Legality, BEH-BR-074). When a call fails with
              `DrainTimeout`, every stop it drives that has not settled — its
              own stop and every dependency-loss stop it started, at any depth
              — parks in the same revision (BEH-BR-079), and `parked` MUST
              become true on each of them in that revision. It MUST become
-             false in the revision in which a call, a cascade or shutdown
-             resumes the stop.
+             false in the revision in which a call, a cascade, shutdown, or
+             a child's sub-scope close or `unmount` resumes the stop.
 ```
 
 ```

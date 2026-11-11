@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-26                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): BEH-BR-232 a proxy's accepted range is `"^" + V`, inside the `ContractRange` grammar and, for major 0, within one minor (C9) (CCR-BR-036)<br>0.7 (2026-11-09): BEH-BR-225 a *local* contract, `Contract.local(Key, { version, members })`: members without codecs, `local` and `descriptor.local` true, every other rule of this file unchanged, never served, proxied or derived across a host boundary, locality fixed per major; BEH-BR-231 and BEH-BR-234 do not apply to it; BEH-BR-232 a companion refuses a local contract at a boundary (requested by event-store CCR-ES-003 and sequence CCR-SQ-003); the signature of `Contract.local` rejects a `members` list that omits an own key (`MissingMembers`), the example is a self-contained shape, and `Contract.local` is pure like `Contract.make` (CCR-BR-033)<br>0.6 (2026-11-09): BEH-BR-228 a `replace` that leaves the plugin disabled forms no registered pair; pairs checked at `enable` (U-07) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
+> | Change History | 0.9 (2026-11-11): `IncompatibleContract` gains `dependentRealm` and `providerRealm`, absent for a registry, "base" and "application", so both sides are named by id and realm (BEH-BR-147; round-5 residual of C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-232 a proxy's accepted range is `"^" + V`, inside the `ContractRange` grammar and, for major 0, within one minor (C9) (CCR-BR-036)<br>0.7 (2026-11-09): BEH-BR-225 a *local* contract, `Contract.local(Key, { version, members })`: members without codecs, `local` and `descriptor.local` true, every other rule of this file unchanged, never served, proxied or derived across a host boundary, locality fixed per major; BEH-BR-231 and BEH-BR-234 do not apply to it; BEH-BR-232 a companion refuses a local contract at a boundary (requested by event-store CCR-ES-003 and sequence CCR-SQ-003); the signature of `Contract.local` rejects a `members` list that omits an own key (`MissingMembers`), the example is a self-contained shape, and `Contract.local` is pure like `Contract.make` (CCR-BR-033)<br>0.6 (2026-11-09): BEH-BR-228 a `replace` that leaves the plugin disabled forms no registered pair; pairs checked at `enable` (U-07) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
 
 ---
 
@@ -427,8 +427,10 @@ of the contract it was compiled against: a proxy whose remote side speaks 2.1
 // illustrative — not type-checked
 class IncompatibleContract extends Schema.TaggedError<IncompatibleContract>()("IncompatibleContract", {
   serviceId: Schema.String,
-  dependentId: Schema.String,                     // plugin ID of the requiring side
-  providerId: Schema.String,                      // plugin ID, or "base"
+  dependentId: Schema.String,                     // plugin ID of the requiring side, or "registry:" + name
+  dependentRealm: Schema.optional(Schema.String), // its realm; absent for a registry (BEH-BR-147)
+  providerId: Schema.String,                      // plugin ID, or "base", or "application"
+  providerRealm: Schema.optional(Schema.String),  // its realm; absent for "base" and "application" (BEH-BR-147)
   required: Schema.String,                        // the dependent's range
   provided: Schema.optional(Schema.String),       // the provision's version; absent when the provider declares no contract
   missingMethods: Schema.Array(Schema.String)     // sorted; empty unless only method names failed
@@ -795,9 +797,10 @@ REQUIREMENT: On a registry made with a `contract`, every `add` MUST declare
 ```
 REQUIREMENT: An incompatible `add` MUST fail with `IncompatibleContract`,
              with `serviceId` the contract's `ServiceId`, `dependentId`
-             `"registry:" + name`, `providerId` the contributing plugin's ID
-             (from `@bridger/core/ActivePlugin`) or `"application"` when no
-             plugin is active, `required` the registry's `range`, `provided`
+             `"registry:" + name` and no `dependentRealm`, `providerId` and
+             `providerRealm` the contributing plugin's ID and realm (from
+             `@bridger/core/ActivePlugin`), or `providerId` `"application"`
+             and no `providerRealm` when no plugin is active, `required` the registry's `range`, `provided`
              the declared version (absent without `implements`) and
              `missingMethods` as BEH-BR-228 defines it, and MUST register
              nothing. The check MUST run after a wired `AccessPolicy` allows

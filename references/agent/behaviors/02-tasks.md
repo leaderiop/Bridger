@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-02                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): BEH-AG-011: `Tasks` is a base service built with `Tasks.layer()`, provided by no plugin, so every loop in every realm, a subagent's included, writes the host's one table; `AgentLoop.plugin` requires it (T1); BEH-AG-011 and BEH-AG-016: `Tasks.cancel` takes the hand-off marker `handedDraftId`, set only by `spawnSubagent`, and a task ends "handed-to-parent" only when the marker names its pending draft, otherwise it withdraws (H2); BEH-AG-016: the parent's own `Deferred` takes precedence over a subagent's draft not yet published, and a subagent draft still pending when the turn ends any other way is withdrawn by the subagent's own task (T2); `DraftReport` is present when the task ended with a pending draft, not only while awaiting approval (PL13) (CCR-AG-007)<br>0.7 (2026-11-10): BEH-AG-014 and BEH-AG-015: the bridges list, stream and cancel tasks whose actor is the observer's principal or within it, as the task-id check already did (M7); BEH-AG-014: `McpTaskBridge` is a plugin providing `@bridger/mcp`'s `McpTasks` port, called by the MCP server with the session's info and actor, and pushes `notifications/tasks` for subscribed, admitted task ids through the session's `notify` until `ended` (mcp BEH-MC-008) (M8); BEH-AG-012 and BEH-AG-016: a subagent's deferral is waited on by its parent, and the subagent's task ends with `DraftReport` outcome "handed-to-parent" without a withdrawal; a task's pending draft includes the first subagent `Deferred` of the turn, from the moment it settles until published, so a parent cancelled or failed in that window reports it, and a later subagent `Deferred` of the same turn is withdrawn by its own task; BEH-AG-010 follows (04, BEH-AG-030) (H3) (CCR-AG-006)<br>0.6 (2026-11-10): BEH-AG-014 and BEH-AG-015: a task id from an MCP client is answered as unknown unless the task's actor is the session's principal or within it (round 2 findings of the specification audit of 2026-11-09, low finding) (CCR-AG-005)<br>0.5 (2026-11-09): BEH-AG-016: a task that ends while awaiting approval reports its draft through the loop's required `DraftWithdrawal` option, and the terminal snapshot carries the outcome; BEH-AG-009, 010 and 012 amended (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): BEH-AG-011 open question restated: command tasks keep records through the command companion's `CommandTaskStore`, agent runs stay in memory; BEH-AG-015 keyed repeats and lost command tasks (round-2 agent review A-08, A-09) (CCR-AG-003)<br>0.3 (2026-11-08): `awaiting-approval` carries every drafted command; approval of a batch draft resumes with one outcome per command, all or none; BEH-AG-015 command tasks of long commands: the loop's wait, the herdr and MCP bridges (CCR-AG-003, round 2: recheck items 5, 7)<br>0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.9 (2026-11-11): BEH-AG-011: the internal write port `TaskRegistry` (provided with `Tasks` by `Tasks.layer()`, used only by providers of `AgentLoop`), `TaskWriter`, and per-task cancel handles that `Tasks.cancel` calls with its context (`Actor.system` when absent); the first cancel to reach a handle decides; a registration's scope is the loop's activation, and when it closes its unfinished tasks end `failed` "LoopStopped" under BEH-AG-016; BEH-AG-010: the cancel is the registered handle, the loop's stop an `error` event; BEH-AG-014: MCP `tasks/cancel` passes no marker; BEH-AG-016: the marker is trusted input passed only by `spawnSubagent`, a cancel without it while a subagent's draft is pending on its parent ends it "handed-to-parent", and the parent's loop withdraws such a draft it does not publish; `DraftWithdrawal.by` defined for a cancel without context (SPEC-AUDIT-05 H3, A1, A2, PL3, PL4) (CCR-AG-008)<br>0.8 (2026-11-10): BEH-AG-011: `Tasks` is a base service built with `Tasks.layer()`, provided by no plugin, so every loop in every realm, a subagent's included, writes the host's one table; `AgentLoop.plugin` requires it (T1); BEH-AG-011 and BEH-AG-016: `Tasks.cancel` takes the hand-off marker `handedDraftId`, set only by `spawnSubagent`, and a task ends "handed-to-parent" only when the marker names its pending draft, otherwise it withdraws (H2); BEH-AG-016: the parent's own `Deferred` takes precedence over a subagent's draft not yet published, and a subagent draft still pending when the turn ends any other way is withdrawn by the subagent's own task (T2); `DraftReport` is present when the task ended with a pending draft, not only while awaiting approval (PL13) (CCR-AG-007)<br>0.7 (2026-11-10): BEH-AG-014 and BEH-AG-015: the bridges list, stream and cancel tasks whose actor is the observer's principal or within it, as the task-id check already did (M7); BEH-AG-014: `McpTaskBridge` is a plugin providing `@bridger/mcp`'s `McpTasks` port, called by the MCP server with the session's info and actor, and pushes `notifications/tasks` for subscribed, admitted task ids through the session's `notify` until `ended` (mcp BEH-MC-008) (M8); BEH-AG-012 and BEH-AG-016: a subagent's deferral is waited on by its parent, and the subagent's task ends with `DraftReport` outcome "handed-to-parent" without a withdrawal; a task's pending draft includes the first subagent `Deferred` of the turn, from the moment it settles until published, so a parent cancelled or failed in that window reports it, and a later subagent `Deferred` of the same turn is withdrawn by its own task; BEH-AG-010 follows (04, BEH-AG-030) (H3) (CCR-AG-006)<br>0.6 (2026-11-10): BEH-AG-014 and BEH-AG-015: a task id from an MCP client is answered as unknown unless the task's actor is the session's principal or within it (round 2 findings of the specification audit of 2026-11-09, low finding) (CCR-AG-005)<br>0.5 (2026-11-09): BEH-AG-016: a task that ends while awaiting approval reports its draft through the loop's required `DraftWithdrawal` option, and the terminal snapshot carries the outcome; BEH-AG-009, 010 and 012 amended (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): BEH-AG-011 open question restated: command tasks keep records through the command companion's `CommandTaskStore`, agent runs stay in memory; BEH-AG-015 keyed repeats and lost command tasks (round-2 agent review A-08, A-09) (CCR-AG-003)<br>0.3 (2026-11-08): `awaiting-approval` carries every drafted command; approval of a batch draft resumes with one outcome per command, all or none; BEH-AG-015 command tasks of long commands: the loop's wait, the herdr and MCP bridges (CCR-AG-003, round 2: recheck items 5, 7)<br>0.2 (2026-11-08): Task error classes declared; resumption through `ResumeInput`; MCP bridge exposes agent tasks only (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -132,7 +132,8 @@ REQUIREMENT: A refused draft MUST return the task to `working` so the loop
 ```
 
 ```
-REQUIREMENT: `cancel` MUST interrupt the running turn, await its
+REQUIREMENT: `cancel` — the cancel handle the task's loop registered
+             (BEH-AG-011) — MUST interrupt the running turn, await its
              finalizers (releasing the pinned toolset, budget reservations
              and any subagent realms, 04 — Subagents), report a pending
              draft for withdrawal when the task had one
@@ -140,6 +141,8 @@ REQUIREMENT: `cancel` MUST interrupt the running turn, await its
              and only then publish `cancelled`.
 ```
 
+The end of the loop's registration (BEH-AG-011) is an `error` event: it
+ends the task `failed` "LoopStopped" from any state that is not terminal.
 Like core's legality table, the table is total, so no concurrent event leaves
 a task in an undefined state. A late approval for a cancelled task is refused
 with `TaskNotResumable`; it does not revive the task, and the draft it
@@ -167,10 +170,18 @@ class Tasks extends Context.Service<Tasks, {
     readonly timeout?: Duration.Input | "forever"      // default 30 seconds
   }) => Effect.Effect<TaskSnapshot, TaskNotFound | TaskAwaitTimeout>
   readonly cancel: (taskId: string, context?: OperationContext, options?: {
-    readonly handedDraftId?: string                    // the hand-off marker, set only by spawnSubagent (BEH-AG-016)
-  }) => Effect.Effect<void, TaskNotFound>
+    readonly handedDraftId?: string                    // the hand-off marker, passed only by spawnSubagent (BEH-AG-016)
+  }) => Effect.Effect<void, TaskNotFound>              // calls the task's registered cancel handle (below)
 }>()("@bridger/agent/Tasks") {}
-declare const Tasks: { readonly layer: () => Layer.Layer<Tasks> }   // a base service (below)
+declare const Tasks: { readonly layer: () => Layer.Layer<Tasks | TaskRegistry> }   // a base service (below)
+
+// The internal write port: used only by providers of AgentLoop (a subagent's loop included), never by application code.
+class TaskRegistry extends Context.Service<TaskRegistry, {
+  readonly register: (task: { readonly taskId: string; readonly sessionId: string },
+                      cancel: (context: OperationContext, options?: { readonly handedDraftId?: string }) => Effect.Effect<void>)
+    => Effect.Effect<TaskWriter, never, Scope.Scope>   // scoped to the registering loop's activation
+}>()("@bridger/agent/TaskRegistry") {}
+interface TaskWriter { readonly publish: (snapshot: TaskSnapshot) => Effect.Effect<void> }
 
 class TaskAwaitTimeout extends Schema.TaggedError<TaskAwaitTimeout>()("TaskAwaitTimeout", {
   taskId: Schema.String,
@@ -187,6 +198,58 @@ REQUIREMENT: `Tasks` MUST be a base service of the host (core BEH-BR-012),
              in any realm — a subagent's ephemeral realm included (04,
              BEH-AG-025) — resolves the host's one table, so a subagent's
              task sits beside its parent's and the bridges see both.
+             `Tasks.layer()` MUST provide `Tasks` and `TaskRegistry` over
+             that one table; `AgentLoop.plugin` MUST also list
+             `TaskRegistry` in its `requires`.
+```
+
+```
+REQUIREMENT: `Tasks` MUST have no write operation. A task MUST enter the
+             table only through `TaskRegistry.register`, and its snapshots
+             MUST change only through the `TaskWriter` that registration
+             returned: the writer's first `publish` MUST be the task's
+             `queued` snapshot with revision 0 and the registered `taskId`
+             and `sessionId`, and every later `publish` MUST follow the
+             table of BEH-AG-010. A snapshot the table does not allow, a
+             snapshot of another task, or a `taskId` already registered,
+             MUST be a defect. Until the first `publish`, `Tasks` does not
+             show the task. Documentation MUST state that `TaskRegistry` is
+             internal: only providers of `AgentLoop` use it — the loop
+             `spawnSubagent` starts for a subagent included (04) — and
+             application code MUST NOT.
+```
+
+```
+REQUIREMENT: `register` MUST tie the registration to the `Scope` it runs
+             in, and a provider of `AgentLoop` MUST register each task it
+             runs in its plugin's activation scope (core
+             [06 — Removal](../../core/behaviors/06-removal.md)), never a
+             turn's scope. When that scope closes — the loop's plugin is
+             stopped, replaced, restarted or removed, or its realm removed
+             — every task of the registration not yet terminal MUST be
+             ended before the scope finishes closing: its running turn
+             interrupted and its finalizers awaited as for a cancel
+             (BEH-AG-010), then `failed` with error
+             `{ _tag: "LoopStopped", message: "loop-stopped" }`, its
+             pending draft handled under BEH-AG-016 with reason
+             "task-failed" — except a subagent's draft pending on its
+             parent, which ends "handed-to-parent" and calls nothing, as
+             for a cancel without the marker. The writer MUST then refuse
+             further snapshots as a defect.
+```
+
+```
+REQUIREMENT: `Tasks.cancel(taskId, context?, options?)` MUST fail with
+             `TaskNotFound` for a task id the table does not show, MUST
+             succeed as a no-op for a terminal task (BEH-AG-010), and
+             otherwise MUST call the cancel handle registered for the task
+             with `context` (`{ actor: Actor.system }` when absent) and
+             `options`, completing when the handle completes. The handle
+             MUST end the task as BEH-AG-010 says, with `cancelled.by` and
+             the withdrawal's `by` (BEH-AG-016) set to that context's
+             actor. The first cancel to reach a handle decides how the
+             task ends; a later cancel, or the registration's close, MUST
+             change nothing and complete once the task is terminal.
 ```
 
 ```
@@ -221,7 +284,15 @@ own reporting into its store; the feed is for showing state.
 **Settled here.** (1) `await` returns on an unrequested terminal state,
 otherwise awaiting `awaiting-approval` on a task that fails would wait until
 its timeout. (2) The default timeout of 30 seconds matches core's default
-drain bound; `"forever"` must be stated.
+drain bound; `"forever"` must be stated. (3) `Tasks` outlives every plugin, so a
+task is tied to the activation of the loop that runs it: a loop that stops
+or is replaced ends its unfinished tasks `failed` "LoopStopped", reporting a
+pending draft, rather than leaving them `working` or `awaiting-approval` with
+nothing behind them. A replacement loop does not take them over; an
+application resumes the work by starting a new task. (4) The write side is a
+separate port so that every reader of `Tasks` — the bridges, application
+code — cannot write a task; the alternative, `create` and `publish` on
+`Tasks`, has fewer types and no such limit.
 
 **Open.** Whether the `Tasks` table should be held by a store port so that an
 agent run's record survives a host restart, as command tasks' records can
@@ -407,7 +478,10 @@ REQUIREMENT: A task id received from the client — in `tasks/get`,
 
 ```
 REQUIREMENT: An MCP `tasks/cancel` MUST call `Tasks.cancel` with the MCP
-             session's principal as the context actor. The bridge MUST NOT
+             session's principal as the context actor and MUST NOT pass
+             `handedDraftId`. A subagent's task whose draft is pending on
+             its parent then ends "handed-to-parent" and leaves the draft
+             to the parent's task (BEH-AG-016). The bridge MUST NOT
              accept an approval through MCP task input; approvals reach a
              draft only through the application's draft flow (core file 32).
 ```
@@ -500,7 +574,7 @@ interface DraftWithdrawal {
     readonly draftId: string
     readonly taskId: string
     readonly commands: ReadonlyArray<string>          // the command ids of the awaiting-approval snapshot
-    readonly by: Actor                                // the actor of the cancel; the task's actor when it failed
+    readonly by: Actor                                // the cancel's context actor (Actor.system when none, BEH-AG-011); the task's actor when it failed
     readonly reason: "task-cancelled" | "task-failed"
   }) => Effect.Effect<"withdrawn" | "already-applied", DraftWithdrawalFailed>
   readonly timeout?: Duration.Input                   // default 10 seconds
@@ -547,26 +621,45 @@ REQUIREMENT: The task's own `Deferred` (BEH-AG-012) MUST take precedence
              subagent's draft — an answer, `needs-input`, or the task's
              own deferral — no subagent draft is the task's, and each
              subagent of the turn still holding one MUST withdraw it
-             through its own task under this behaviour (04, BEH-AG-030).
+             through its own task under this behaviour (04, BEH-AG-030). A
+             subagent whose task already ended "handed-to-parent" (next
+             rule) holds none: when the parent's turn ends without
+             publishing that draft, and the draft is not the pending draft
+             the parent's own terminal snapshot reports, the parent's loop
+             MUST call `draftWithdrawal.withdraw` for it once, with that
+             task's `cancelled.by` as `by` and reason "task-cancelled" (its
+             actor and "task-failed" when it failed), under the bounds of
+             this behaviour, and MUST log a failure or timeout at
+             error level with the draft id.
 ```
 
 ```
 REQUIREMENT: `Tasks.cancel` and `AgentLoop.cancel` (01, BEH-AG-003) MUST
              accept the option `handedDraftId`, the hand-off marker. Only
-             `spawnSubagent` sets it, and only for the subagent whose draft
-             is its parent task's pending draft (04, BEH-AG-025). A
-             cancelled task ends with outcome "handed-to-parent" if and only
-             if `handedDraftId` equals its pending draft's `draftId`; a
-             task cancelled without the marker, or with one that names
-             another draft, ends under the next rule. The marker MUST have
-             no other effect.
+             `spawnSubagent` passes it, and only for the subagent whose
+             draft is its parent task's pending draft (04, BEH-AG-025). The
+             marker is trusted input, as `StartRequest.spawn` is (01,
+             BEH-AG-003): the cancel handle does not check where it came
+             from, and documentation MUST state that an application lets
+             no code other than `spawnSubagent` pass it; the MCP bridge
+             never does (BEH-AG-014). A cancelled task ends with outcome
+             "handed-to-parent" if and only if `handedDraftId` equals its
+             pending draft's `draftId`, or the cancel carries no marker
+             while that draft is *pending on its parent*: the task is a
+             subagent's and `spawn.heldByParent(draftId)` (01, BEH-AG-003)
+             answers true when the cancel reaches the handle. A task
+             cancelled with a marker that names another draft, or without
+             one while its draft is not pending on its parent, ends under
+             the next rule. The marker MUST have no other effect.
 ```
 
 ```
 REQUIREMENT: When a task with a pending draft ends `cancelled` or `failed`
-             — except a task cancelled with a `handedDraftId` that names
-             its pending draft, which ends with outcome "handed-to-parent"
-             and calls nothing (04, BEH-AG-030) — the loop MUST, after the finalizers of
+             — except a task the previous rule ends with outcome
+             "handed-to-parent", or a task of a stopped loop whose draft is
+             pending on its parent (BEH-AG-011), which calls nothing (04,
+             BEH-AG-030) — the
+             loop MUST, after the finalizers of
              BEH-AG-010 and before publishing the terminal snapshot, call
              `draftWithdrawal.withdraw` once with the pending draft's
              `draftId` and `commands`, the task id, `by` and `reason`. The call MUST

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-13                                               |
-> | Revision       | 0.10                                                         |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-10): BEH-BR-119 `ActivePlugin` is typed `Option<ActivePlugin>` with `pluginId`, `realm` and a scoped `report` operation, the only way a registry built before the host reaches it; `report` publishes no event and does nothing after the activation ends (C12) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-114 `stop-resumed.by` gains "sub-scope" and "unmount" for a child stop resumed by its sub-scope close or `Plugin.Runtime.unmount` (C13) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-114 `Generation` joins the helpers that publish on their own streams, never on `Host.events` (C7) (CCR-BR-034)<br>0.7 (2026-11-08): `plugin-idled` and `held-event-dropped` events (27, BEH-BR-251, BEH-BR-252) (CCR-BR-024); `reconcile-partial` event (32, BEH-BR-324) (CCR-BR-025)<br>0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.11 (2026-11-11): BEH-BR-114 `stop-resumed` `by` "sub-scope" or "unmount" only for a child stop parked outside its parent's stop (H1); BEH-BR-119 each registration is reported once, an event listener as `listener` only (CL9) (SPEC-AUDIT-05); `audit-degraded` lists the lost reconcile parent record, and none is emitted after the final snapshot (CL11, C3) (SPEC-AUDIT-05); `drain-timeout` and `stop-parked` name `target` by `{ id, realm }`, as `DrainTimeout.target` does (residual of C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.10 (2026-11-10): BEH-BR-119 `ActivePlugin` is typed `Option<ActivePlugin>` with `pluginId`, `realm` and a scoped `report` operation, the only way a registry built before the host reaches it; `report` publishes no event and does nothing after the activation ends (C12) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-114 `stop-resumed.by` gains "sub-scope" and "unmount" for a child stop resumed by its sub-scope close or `Plugin.Runtime.unmount` (C13) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-114 `Generation` joins the helpers that publish on their own streams, never on `Host.events` (C7) (CCR-BR-034)<br>0.7 (2026-11-08): `plugin-idled` and `held-event-dropped` events (27, BEH-BR-251, BEH-BR-252) (CCR-BR-024); `reconcile-partial` event (32, BEH-BR-324) (CCR-BR-025)<br>0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -96,8 +96,8 @@ type HostEvent = HostEventCommon & (
   | { readonly type: "runtime-failure"; readonly message: string }
   | { readonly type: "lease-timeout"; readonly serviceId: ServiceId }
   | { readonly type: "lease-revoked"; readonly leases: number }
-  | { readonly type: "drain-timeout"; readonly leases: number; readonly target?: string }   // pluginId = DrainTimeout.id
-  | { readonly type: "stop-parked"; readonly leases: number; readonly target?: string }
+  | { readonly type: "drain-timeout"; readonly leases: number; readonly target?: { readonly id: string; readonly realm: string } }   // pluginId, realm = DrainTimeout.id, realm
+  | { readonly type: "stop-parked"; readonly leases: number; readonly target?: { readonly id: string; readonly realm: string } }
   | { readonly type: "stop-resumed"; readonly by: "operator" | "cascade" | "shutdown" | "sub-scope" | "unmount"; readonly endsIntent?: string }
   | { readonly type: "config-rejected"; readonly message: string }
   | { readonly type: "config-updated"; readonly paths: readonly string[] }
@@ -156,8 +156,8 @@ REQUIREMENT: Helpers outside the `Host` interface — hook points
 
 ```
 REQUIREMENT: A `drain-timeout` event MUST be emitted for each call that
-             fails with `DrainTimeout`, with `pluginId` set to the error's
-             `id` and `target` set to the error's `target` (present exactly
+             fails with `DrainTimeout`, with `pluginId` and `realm` set to
+             the error's `id` and `realm` and `target` set to the error's `target` (present exactly
              when the call named another plugin) (09 — Leases, BEH-BR-085).
 ```
 
@@ -174,7 +174,10 @@ REQUIREMENT: A `stop-parked` event MUST be emitted for each stop that parks
              ("operator"), a cascade ("cascade"), shutdown ("shutdown"), the
              close of the sub-scope a child was mounted under ("sub-scope")
              or `Plugin.Runtime.unmount` of the child ("unmount"; 14 —
-             Children and Groups, BEH-BR-121, BEH-BR-126) (CCR-BR-035).
+             Children and Groups, BEH-BR-121, BEH-BR-126) (CCR-BR-035) —
+             the last two only for a child stop parked outside its parent's
+             stop, since they never resume one the parent's stop parked
+             (CCR-BR-037).
              When the resumption ends a parked operator intent (BEH-BR-080),
              `endsIntent` MUST name that operation (for example "remove");
              when a call resumes a parked operation, the operation in flight
@@ -195,10 +198,13 @@ REQUIREMENT: Events MUST carry identifiers, counts, states and messages only:
 
 `audit-degraded` is emitted when the audit latch is set — a terminal,
 `rejected` or system record was not written within `auditTimeout`,
-`shutdown`'s `requested` record was not written, or a record was dropped for
-writer-queue overflow (the full list of
+`shutdown`'s `requested` record was not written, a record was dropped for
+writer-queue overflow, or a running `reconcile`'s parent terminal record was
+lost because shutdown's wait for it ended (the full list of
 [23 — Audit Sink and Record](./23-audit-sink-and-record.md), BEH-BR-205) —
-and `audit-acknowledged` when
+except during shutdown once the final snapshot has been published, when the
+latch is set without an event and reported by `Host.controls().closed`
+(24 — Time, Identifiers and Sequence, BEH-BR-212) — and `audit-acknowledged` when
 `Host.acknowledgeAuditDegraded` clears it; both are specified in
 [23 — Audit Sink and Record](./23-audit-sink-and-record.md). They appear on
 the diagnostic feed so that monitoring notices a degraded audit channel; the
@@ -427,6 +433,15 @@ REQUIREMENT: `ContributionRegistry` and the event bus MUST report
              an event and MUST do nothing once the activation has ended.
              When it is absent, the registration MUST still succeed and MUST
              NOT be attributed to any plugin.
+```
+
+```
+REQUIREMENT: Each registration MUST be reported once. An event listener
+             MUST be reported by the event bus as `listener` only: the
+             registries the bus keeps its listener lists in MUST NOT report
+             it as a `contribution` (16 — Event Bus, BEH-BR-140), so that
+             `inspect` lists it under `listeners` and not also under
+             `contributions` (CCR-BR-037).
 ```
 
 The reference is ambient so that a registry, which is a base service with no

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-03                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-AG-022 a loop started with `StartRequest.spawn` pins no toolset and reads no selector (H10 follow-up) (CCR-AG-005)<br>0.6 (2026-11-09): The example of BEH-AG-023 carries the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): BEH-AG-020 scoped to commands not declared `readOnly`, following the command catalog's read-only exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): Field-level untrusted output taints the session (label `untrusted-field:`); `TaintGuard.drafts` also drafts batches; provenance reaches core's call-log entries through the dispatch context; BEH-AG-023 tool results reach the model only as size-capped envelopes (CCR-AG-003, round 2: recheck items 5, 8; X8)<br>0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.8 (2026-11-11): BEH-AG-018: a session's taint starts with exactly the labels of `spawn.taint`, none for a top-level session (SPEC-AUDIT-05 PL7) (CCR-AG-008)<br>0.7 (2026-11-10): BEH-AG-022 a loop started with `StartRequest.spawn` pins no toolset and reads no selector (H10 follow-up) (CCR-AG-005)<br>0.6 (2026-11-09): The example of BEH-AG-023 carries the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): BEH-AG-020 scoped to commands not declared `readOnly`, following the command catalog's read-only exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): Field-level untrusted output taints the session (label `untrusted-field:`); `TaintGuard.drafts` also drafts batches; provenance reaches core's call-log entries through the dispatch context; BEH-AG-023 tool results reach the model only as size-capped envelopes (CCR-AG-003, round 2: recheck items 5, 8; X8)<br>0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -104,8 +104,12 @@ taint set's size in gate requests; [core file 30](../../core/behaviors/30-operat
 > **See:** [ADR-AG-003](../decisions/003-taint-is-monotone-and-forbids-auto-allow.md)
 
 ```
-REQUIREMENT: A session's taint (`Taint.of(...).tainted`) MUST start `false` and, once
-             `true`, MUST stay `true` for the life of the session. No API of
+REQUIREMENT: A session's taint MUST start with exactly the labels of
+             `StartRequest.spawn.taint` — none for a top-level session,
+             whose `Taint.of(...).tainted` starts `false`; a subagent's
+             session starts tainted when its parent's was (01, BEH-AG-003;
+             04, BEH-AG-029) — and, once `true`, `tainted` MUST stay `true`
+             for the life of the session. No API of
              the package MAY lower it, including `SessionStore.append`, a
              `replace` of any agent provider, and `resume`.
 ```

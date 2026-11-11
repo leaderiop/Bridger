@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Invariants                                                   |
-> | Change History | 0.3 (2026-11-10): INV-GX-003 source lists the binding version 2 request fields (H5) (CCR-GX-005)<br>0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-11): INV-GX-007 source: with sealing on, a keyed-hash failure is counted by the companion's sink around audit-chain's (G2); INV-GX-009 names its two exceptions, both in `readArchive` (BEH-GX-140): an archive above `auditSeq` 1 maps no chain item but unconfirmed receipts, and a mismatch of a window ending above the archived range is reported as `anchorUnconfirmed` (G7) (CCR-GX-008)<br>0.3 (2026-11-10): INV-GX-003 source lists the binding version 2 request fields (H5) (CCR-GX-005)<br>0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -292,7 +292,8 @@ outcome does.
 **Source**: `packages/gxp/src/trailSink.ts` *(Planned)* — `record` is a single
 sequential effect: classify the schema, canonicalise, digest, mark,
 `append` (through `@bridger/audit-chain`'s `HashChainSink` when sealing is
-on), inspect the answer, count, complete. There is no queue,
+on, wrapped by the companion's sink, which counts a keyed-hash failure that
+audit-chain raises before any `append`), inspect the answer, count, complete. There is no queue,
 buffer, background fiber or retry inside the sink; a failure maps to core's
 `AuditWriteFailed` with a reason tag and no record content, and core's own
 retry and latch policy then applies.
@@ -357,6 +358,18 @@ finding it detects, each under its own kind, and no option, severity mapping,
 merge or later step removes a finding, hides it in a count, or turns it into a
 weaker kind or into the absence of findings.
 
+There are exactly two named exceptions, both in archive re-verification
+(`readArchive`, BEH-GX-140) and both stated where seal findings are mapped
+(BEH-GX-171): (1) over an archive whose `requested` range starts above
+`auditSeq` 1, audit-chain checks no link and confirms no anchor, so the chain
+report's items other than unconfirmed receipts give no finding and their kinds
+are listed in `notCheckedKinds`; (2) a root, head or "window-not-in-entries"
+mismatch of a window that ends above the archive's `requested` `toSeq` is
+reported as `anchorUnconfirmed`, since the archive does not hold that window's
+entries. In both, the item stays unchanged in the chain report attached to
+the result, and the report says the kinds were not checked or the anchor not
+confirmed; neither is presented as an absence of findings.
+
 **Source**: `packages/gxp/src/checks/CheckReport.ts` *(Planned)* — the report
 type holds `checkedKinds`, `notCheckedKinds`, `scope`, the full list of
 findings and a `statement` fixed by their number; it has no severity and no
@@ -382,7 +395,7 @@ each injected defect yields exactly its finding kind, in every report path
 mutation testing of each finding's emission; acceptance checks of
 [BEH-GX-153](behaviors/20-required-acceptance-checks.md).
 
-**Related**: [BEH-GX-033](behaviors/05-checks-on-read.md), [BEH-GX-035](behaviors/05-checks-on-read.md), [BEH-GX-036](behaviors/05-checks-on-read.md), [BEH-GX-040](behaviors/05-checks-on-read.md), [BEH-GX-045](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-046](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-171](behaviors/21-sealing-through-audit-chain.md), [BEH-GX-172](behaviors/21-sealing-through-audit-chain.md), [ADR-GX-007](decisions/007-checks-never-claim-integrity.md), [BEH-BR-215](../core/behaviors/24-time-ids-and-sequence.md).
+**Related**: [BEH-GX-033](behaviors/05-checks-on-read.md), [BEH-GX-035](behaviors/05-checks-on-read.md), [BEH-GX-036](behaviors/05-checks-on-read.md), [BEH-GX-040](behaviors/05-checks-on-read.md), [BEH-GX-045](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-046](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-140](behaviors/18-archive-and-export.md), [BEH-GX-171](behaviors/21-sealing-through-audit-chain.md), [BEH-GX-172](behaviors/21-sealing-through-audit-chain.md), [ADR-GX-007](decisions/007-checks-never-claim-integrity.md), [BEH-BR-215](../core/behaviors/24-time-ids-and-sequence.md).
 
 ---
 

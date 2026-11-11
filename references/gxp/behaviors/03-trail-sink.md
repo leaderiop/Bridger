@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-03                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): BEH-GX-024 metric outcomes "rejected" (a `TrailWriteFailed` of that reason) and "keyed-hash-failed" (audit-chain's keyed hasher failed), so every failure row of the sink's table has an outcome (PL11) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-017: one `trailSink` layer and its status serve exactly one host, as audit-chain's chain sink does; a second host's record is stored, never refused (H6) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-11): BEH-GX-022 with sealing on the sink is the companion's sink around audit-chain's, given a wrapper of the keyed hasher that notes a `KeyedHashFailed`, so the "keyed-hash-failed" outcome and metric value can be produced; BEH-GX-017 and BEH-GX-019 `store.append` is not called on that path, the only exception to "exactly once" (G2) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-024 metric outcomes "rejected" (a `TrailWriteFailed` of that reason) and "keyed-hash-failed" (audit-chain's keyed hasher failed), so every failure row of the sink's table has an outcome (PL11) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-017: one `trailSink` layer and its status serve exactly one host, as audit-chain's chain sink does; a second host's record is stored, never refused (H6) (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-017–024 re-baselined (F-02): the sink stores and marks a record of an unsupported schema or one that is not I-JSON instead of refusing it, fails a write only when the store did not store the record, accepts "stored-collision", provides `TrailSinkStatus`; canonical domain widened to I-JSON with a record vector; sealing through `@bridger/audit-chain` (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -69,7 +69,9 @@ REQUIREMENT: `trailSink` MUST return a layer that provides core's `AuditSink`
              of this file in this order: classify the schema (BEH-GX-018),
              canonicalise and digest (BEH-GX-018), call `store.append`
              exactly once (BEH-GX-020) — through `@bridger/audit-chain` when
-             sealing is on (BEH-GX-022) — verify an "already-stored" answer
+             sealing is on (BEH-GX-022), and not at all when audit-chain's
+             keyed hasher fails, since audit-chain fails before it calls the
+             store (BEH-AC-007) — verify an "already-stored" answer
              (BEH-GX-021), count the outcome (BEH-GX-024), and answer core
              (BEH-GX-019).
 ```
@@ -183,7 +185,7 @@ annotation holds non-integer numbers; check 17 recomputes it.
 | `TrailWriteFailed { reason: "too-large" }` | failure | "record exceeds the trail store's entry size limit (<adapter>)" |
 | `TrailWriteFailed { reason: "unavailable" \| "rejected" }` | failure | "trail store unavailable (<adapter>)" |
 | defect, or an answer that is not one of the three literals | failure | "trail store failed unexpectedly (<adapter>)" |
-| with sealing on, audit-chain's keyed hasher failed (BEH-AC-008) | failure | "keyed hasher unavailable (@bridger/audit-chain)" |
+| with sealing on, audit-chain's keyed hasher failed, as the companion's sink observes it (BEH-GX-022, BEH-AC-007, BEH-AC-008); `store.append` not called | failure | "keyed hasher unavailable (@bridger/audit-chain)" |
 
 ```
 REQUIREMENT: The sink MUST succeed only in the three success rows of the
@@ -314,7 +316,8 @@ per retry, which happens only after a failed or timed-out attempt.
 
 ```
 REQUIREMENT: When sealing is on, `trailSink` MUST provide as `AuditSink` the
-             sink of `HashChainSink.make(trailChainStore(store), …)` of
+             companion's sink (below) around the sink of
+             `HashChainSink.make(trailChainStore(store), …)` of
              `@bridger/audit-chain` (BEH-GX-170), whose inner `ChainStore`
              performs the steps of BEH-GX-018 to BEH-GX-021 on the record and
              stores audit-chain's link in the entry's `link` field. The sink
@@ -331,6 +334,30 @@ REQUIREMENT: A retry of the same record MUST store no second link: on
              (BEH-AC-005) and never refused, so that sealing adds no failure
              of its own to the write path beyond audit-chain's keyed hasher
              (BEH-AC-008).
+```
+
+```
+REQUIREMENT: With sealing on, the `AuditSink` that `trailSink` provides MUST
+             be the companion's sink around audit-chain's: its `record(r)`
+             MUST call audit-chain's `record(r)` exactly once and answer core
+             with its outcome. With `SealingOptions.keyed`, audit-chain's
+             sink MUST be given as `HashChainOptions.keyed` the companion's
+             wrapper `k` of it, which has the same `keyId`, forwards every
+             `mac` call unchanged and, when one fails with
+             `KeyedHashFailed`, notes the failure for the `record` call in
+             progress (core's writer hands the sink one record at a time,
+             BEH-BR-202) and fails unchanged. When audit-chain's `record`
+             fails with `AuditWriteFailed` after `k` noted a failure for that
+             call, the companion's sink MUST count the outcome
+             "keyed-hash-failed" (BEH-GX-024) and fail with that row's
+             message (BEH-GX-019). Audit-chain maps the failure to
+             `AuditWriteFailed` before it calls its inner store (BEH-AC-007),
+             so neither `trailChainStore` nor `store.append` is called and
+             nothing else is counted for the attempt. Every other outcome is
+             counted by `trailChainStore`, which performs the steps of
+             BEH-GX-018 to BEH-GX-021, and passed to core unchanged. The
+             companion's sink MUST tell a keyed-hash failure apart only
+             through `k`, never by reading an `AuditWriteFailed` message.
 ```
 
 The companion used to specify a seal chain of its own (BEH-GX-049–056, now
@@ -382,7 +409,7 @@ store, marked, where the checks find them.
 // Effect metrics, labelled by adapter name and outcome only
 //   bridger_gxp_trail_append_total{adapter, outcome}
 //   outcome: "stored" | "stored-collision" | "already-stored" | "too-large" | "unavailable" | "rejected" | "defect" | "readback-mismatch"
-//            | "keyed-hash-failed"                         // one value per outcome of the table of BEH-GX-019; the last with sealing on only
+//            | "keyed-hash-failed"                         // one value per outcome of the table of BEH-GX-019; the last with sealing on only, counted by the companion's sink around audit-chain's (BEH-GX-022)
 //   bridger_gxp_trail_marked_total{adapter, mark}      mark: "schema-unsupported" | "jcs-escaped"
 //   bridger_gxp_trail_append_duration_ms{adapter}
 ```

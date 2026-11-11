@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-BEH-04                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-MC-029: the call path names the agent loop's plugin because the loop runs each turn under its own principal (agent BEH-AG-003) (H4), and includes the plugin in the handler fiber's `CurrentTransition`, so a dispatching build or `load` is on it (core BEH-BR-088; final review); the `ReconcileInput` comment names reconcile-plan only, apply taking `{ planId, reason }` (low finding) (CCR-MC-006)<br>0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — host calls pass `{ actor, reason }` with the served actor, never a context without one (P22); reconcile-apply refuses a plan that would stop a plugin on its own call path with `PlanAffectsCaller` (P24); the call path's providers are found through `Host.inspect`, since the snapshot carries no dependency edges (CCR-MC-005)<br>0.5 (2026-11-08): `reconcile-plan` no longer declared `readOnly`: it writes a plan into the `PlanStore` and may evict others (round-2 agent review A-18) (CCR-MC-003)<br>0.4 (2026-11-08): Reads and plans declared `readOnly`; host calls carry the dispatch's correlation through core `CurrentCorrelation`; `reconcile-plan` takes `atomic`, `reconcile-apply` reports `ApplyRolledBack` and `PartialApply`, undo requests, core's order and refused digests; call-log wording (CCR-MC-003, round 2: recheck item 9; core round 2 alignment)<br>0.3 (2026-11-08): `PlanStore` and `PlanUnknown`; `UnknownPlugin`; inspect without id; served host calls; error classes declared (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.8 (2026-11-11): BEH-MC-029: `PlanAffectsCaller.plugins` names each call-path plugin by the record `{ id, realm }`, as core names a plugin in structured fields (core BEH-BR-147), instead of a joined "<realm>/<id>" string (SPEC-AUDIT-05 PL2) (CCR-MC-007)<br>0.7 (2026-11-10): BEH-MC-029: the call path names the agent loop's plugin because the loop runs each turn under its own principal (agent BEH-AG-003) (H4), and includes the plugin in the handler fiber's `CurrentTransition`, so a dispatching build or `load` is on it (core BEH-BR-088; final review); the `ReconcileInput` comment names reconcile-plan only, apply taking `{ planId, reason }` (low finding) (CCR-MC-006)<br>0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — host calls pass `{ actor, reason }` with the served actor, never a context without one (P22); reconcile-apply refuses a plan that would stop a plugin on its own call path with `PlanAffectsCaller` (P24); the call path's providers are found through `Host.inspect`, since the snapshot carries no dependency edges (CCR-MC-005)<br>0.5 (2026-11-08): `reconcile-plan` no longer declared `readOnly`: it writes a plan into the `PlanStore` and may evict others (round-2 agent review A-18) (CCR-MC-003)<br>0.4 (2026-11-08): Reads and plans declared `readOnly`; host calls carry the dispatch's correlation through core `CurrentCorrelation`; `reconcile-plan` takes `atomic`, `reconcile-apply` reports `ApplyRolledBack` and `PartialApply`, undo requests, core's order and refused digests; call-log wording (CCR-MC-003, round 2: recheck item 9; core round 2 alignment)<br>0.3 (2026-11-08): `PlanStore` and `PlanUnknown`; `UnknownPlugin`; inspect without id; served host calls; error classes declared (CCR-MC-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-MC-001)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -284,7 +284,10 @@ REQUIREMENT: `bridger.host.reconcile-apply` MUST take `{ planId, reason }`
 // illustrative — not type-checked
 class PlanAffectsCaller extends Schema.TaggedError<PlanAffectsCaller>()("PlanAffectsCaller", {
   planId: Schema.String,
-  plugins: Schema.Array(Schema.String)       // "<realm>/<id>" of each call-path plugin an entry action would stop
+  plugins: Schema.Array(Schema.Struct({      // each call-path plugin an entry action would stop, named as core
+    id: Schema.String,                       // names a plugin in structured fields (core BEH-BR-147)
+    realm: Schema.String
+  }))
 }) {}
 ```
 

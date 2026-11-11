@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-06                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-044: the `TestFederation` assertion on step 1 limited to a first attempt, and a retry reopens only the `deliveryImports` (F3); BEH-FD-045: the route's labels fall back to the profile the dialer or listener yielded (H4), and export endpoints are opened with them (F1) (CCR-FD-007)<br>0.4 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M16) — BEH-FD-047: report kind "backlog" (axis "event", this host's origin and `pending`, no versions); `oldest` and `newest` absent on it; an authority raising `minVersion` counts only the current incarnation of each node and uses the evidence of durable-bus BEH-DB-029 (reset windows, then an empty backlog) (CCR-FD-006)<br>0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
+> | Change History | 0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-048: `RebootstrapMarker.installAttempted`, kept true from the first install call until the marker is cleared, keeps links suspended at activation whatever the step; restart behaviour stated for every step (H6); BEH-FD-044: `TestFederation` asserts the `delivery-only` step 1 (H4); BEH-FD-045: an import's offered labels are its `ManifestPeer.residency`, required when it carries a `residency` (else dropped "peer-residency-missing"); exports keep the dialer or listener fallback (H5); skew table: contract minor by `"^" + V` (F4) (CCR-FD-008)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-044: the `TestFederation` assertion on step 1 limited to a first attempt, and a retry reopens only the `deliveryImports` (F3); BEH-FD-045: the route's labels fall back to the profile the dialer or listener yielded (H4), and export endpoints are opened with them (F1) (CCR-FD-007)<br>0.4 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M16) — BEH-FD-047: report kind "backlog" (axis "event", this host's origin and `pending`, no versions); `oldest` and `newest` absent on it; an authority raising `minVersion` counts only the current incarnation of each node and uses the evidence of durable-bus BEH-DB-029 (reset windows, then an empty backlog) (CCR-FD-006)<br>0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
 
 ---
 
@@ -280,10 +280,12 @@ REQUIREMENT: `TestFederation` MUST let a test script `settle` to push,
              the host, and MUST assert that no `fetch` or `install` is
              called after a blocked step 1, that links are not suspended
              during step 1 of a first attempt, that a retry with links
-             suspended reopens only the imports named in `deliveryImports`
-             during its step 1, that `install` is called only through the
-             settlement, and that a restart after a crash in step 3 resumes
-             with links suspended (BEH-FD-048).
+             suspended moves only the links of the imports named in
+             `deliveryImports` to `delivery-only` during its step 1 and
+             opens only those imports, that `install` is called only through
+             the settlement, and that a restart after a crash in step 3, or
+             at any step of a retry after an install began, resumes with
+             links suspended (BEH-FD-048).
 ```
 
 **Settled here.** The order itself is BEH-FD-014's; this behaviour makes it
@@ -298,11 +300,18 @@ rule an implementation can be held to.
 > **Satisfies:** [URS-BR-026](../../core/urs.md#urs-br-026-know-which-compliance-obligations-remain-mine)
 
 ```
-REQUIREMENT: A route's offered labels MUST be the `residency` of its
-             `ManifestPeer`, or, absent that, the `residency` of the
-             `profile` the `LinkDialer` or `LinkListener` yielded with the
-             link's connection (03, BEH-FD-017); with neither, the route
-             offers none. The plugin MUST evaluate the
+REQUIREMENT: For an import, a route's offered labels MUST be the
+             `residency` of its `ManifestPeer`, which an import with a
+             `residency` requires: the projection (BEH-FD-005) MUST drop,
+             with reason "peer-residency-missing", an import with a
+             `residency` whose `from` peer declares no `residency` in the
+             manifest's `peers`, because the import proxy is built, and
+             checks its placement, before any link is dialled (04,
+             BEH-FD-026; BEH-FD-024). For an export, a route's offered
+             labels MUST be the `residency` of its `ManifestPeer`, or,
+             absent that, the `residency` of the `profile` the `LinkDialer`
+             or `LinkListener` yielded with the link's connection (03,
+             BEH-FD-017); with neither, the route offers none. The plugin MUST evaluate the
              `PlacementPolicy` (default `PlacementPolicy.exact`):
              - for each import with a `residency`, with `subject.kind`
                "import", against the route to its `from` peer; a refusal
@@ -321,10 +330,12 @@ REQUIREMENT: A route's offered labels MUST be the `residency` of its
 REQUIREMENT: The endpoint transport of each import, taken from the link's
              multiplexer, MUST be opened with the route's offered labels
              (`Multiplexed.endpoint(name, { residency })`, remote
-             BEH-RM-056), so that the import proxy's own placement check
+             BEH-RM-056), which are also the `profile.residency` of the
+             import proxy's federation endpoint transport (04, BEH-FD-026),
+             so that the import proxy's own placement check
              (remote BEH-RM-068) compares against the labels this package
              compared, and a route that federation accepts is not refused
-             again by the proxy's build. The endpoint transport of each
+             again by the proxy's build or before a session. The endpoint transport of each
              export MUST likewise be opened with the route's offered labels
              (`MultiplexedGuest.endpoint(name, { residency })`), so that
              `Remote.serve`'s placement check (remote BEH-RM-069) compares
@@ -362,7 +373,7 @@ so a host and a link refuse on the same rule. Core only carries the label
 | Federation protocol | each host, `protocol` range and `protocolWindow` | highest common version within each end's window; empty → `IncompatiblePeer` | [BEH-FD-019](./03-links-and-skew-handshake.md#beh-fd-019-the-federation-protocol-version-highest-common-inside-the-window) |
 | Remote wire version | the remote package, `Frame.wire` | negotiated per session: `hello` lists N and N−1, `welcome` picks the highest common | [BEH-RM-009](../../remote/behaviors/02-sessions-and-epochs.md#beh-rm-009-the-handshake-fixes-wire-contract-version-and-grants) |
 | Contract major | the contract (`ServiceId`), `contractWindow` | an import names one major; majors older than highest − window are dropped | [BEH-FD-020](./03-links-and-skew-handshake.md#beh-fd-020-each-import-names-one-major-and-the-offer-accepts-or-refuses-it) |
-| Contract minor | the provision's `version` V | a peer at v ≥ V within the major is accepted; add-only evolution (core 26) | BEH-FD-020, core BEH-BR-232 |
+| Contract minor | the provision's `version` V | a peer at a v satisfying `"^" + V` is accepted (for major ≥ 1, the same major and v ≥ V; for major 0, the same minor and v ≥ V); add-only evolution (core 26) | BEH-FD-020, core BEH-BR-232 |
 | Event version | `DurableEvent.version`, `publishVersion` | readers read N and N−1; writers write N only after every reader in scope reads it (writers last) | [BEH-DB-031](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-031-one-skew-rule-for-events-writers-last-where-readers-cannot-go-first) |
 | Upcaster chain | `DurableEvent.minVersion` | kept until no origin can still hold an envelope below the new minimum, an origin that has not reported counting as holding one; on a host with an event store, also until no event below it is stored there (`UpcasterRemoved`), normally the life of that store | [BEH-DB-029](../../durable-bus/behaviors/04-versions-and-upcasters.md#beh-db-029-upcasters-are-kept-for-as-long-as-old-envelopes-can-arrive), BEH-DB-032, [BEH-ES-027](../../event-store/behaviors/04-versions-publication-and-chaining.md#beh-es-027-upcasters-are-kept-for-as-long-as-events-at-that-version-are-stored) |
 | Manifest and envelope formats | `format` literals | a new format only for changes older readers must not ignore; unknown fields ignored | BEH-FD-001, BEH-DB-002 |
@@ -501,6 +512,7 @@ interface PendingKill { readonly revision: number; readonly kill: readonly KillE
 interface RebootstrapMarker {
   readonly reason: "resync-required" | "offline-capped"
   readonly step: "required" | "settled" | "fetched" | "installing" | "installed"
+  readonly installAttempted: boolean              // true from before the first install call until the marker is cleared
   readonly startedAt: string                      // Clock
   readonly installedRevision?: number             // set with step "installed"
 }
@@ -538,20 +550,29 @@ REQUIREMENT: Before the first step of a re-bootstrap (BEH-FD-014), and at
              the first successful contact after the offline cap that
              requires one (BEH-FD-013) — before a newer manifest is stored
              as highest — the plugin MUST store a `RebootstrapMarker` with
-             step "required". It MUST store each later step before acting
-             on it ("installing" before calling the install, "installed"
-             with the installed revision after it returned) and MUST clear
-             the marker only after links resumed (step 4).
+             step "required" and `installAttempted` false. It MUST store
+             each later step before acting on it ("installing" before
+             calling the install, "installed" with the installed revision
+             after it returned) and MUST clear the marker only after links
+             resumed (step 4). It MUST store `installAttempted: true` with
+             step "installing", before the first install call of the
+             re-bootstrap, and MUST keep it true in every later write of the
+             marker — a retry from step 1 lowers the step to "settled" or
+             "fetched" but not the flag — until the marker is cleared.
 ```
 
 ```
 REQUIREMENT: At activation, a stored marker MUST put the plugin in
              `rebootstrapping`: the boot apply MUST use the last applied
              manifest minus the pending kills, never the highest; a marker
-             at "installing" or "installed" MUST keep every link suspended
-             from the start (03, BEH-FD-017), and the re-bootstrap MUST
-             resume — from step 1 for "installing", from step 3b for
-             "installed" — before the first sync.
+             whose `installAttempted` is true MUST keep every link suspended
+             from the start (03, BEH-FD-017), whatever its step, and the
+             re-bootstrap MUST resume before the first sync: from step 3b
+             for "installed"; from step 1 for every other step, with links
+             suspended when `installAttempted` is true (step 1 then opens
+             only the `delivery-only` links, 02, BEH-FD-014) and with links
+             up, as on a first attempt, when it is false ("required",
+             "settled" or "fetched" before any install began).
 ```
 
 **Settled here.** Every path that re-applies the last applied manifest —
@@ -562,7 +583,9 @@ the highest manifest in full, skipping the re-bootstrap it must wait for.
 Keeping the bytes, the pending kills and the marker in the one store the
 plugin already writes makes these decisions survive a crash. A marker past
 "installing" means local state may be half replaced, so links stay closed
-until the install has run again to completion.
+until the install has run again to completion; the flag, not the step,
+carries that, because a retry after a failed install rewrites the step to
+"settled" or "fetched" while the state stays half replaced.
 
 ---
 

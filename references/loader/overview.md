@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-OVW                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.5 (2026-11-09): "first-party" statement, trust class, `Loader.lazy` refusing guest entries, `LoaderRemote.link` and `linkManifest`, `RevokedDigests`, the manifest's `extensions["@bridger/loader"]` entry, `PackageManifestMismatch`, `NotFirstParty`, `GuestEntryInvalid`; worked example maps entries by trust class (specification audit F-06, M-02, M-03, M-06, C-16); guest wording: outside the host's runtime, in the deployment's bundle runtime (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): `SignedStatement`, `SignedRevocationList`, `RevocationSet.encode`/`decode`, `RevocationSource.offer` and `.constant`, "chain-bundle" and `RevocationListMalformed` in the API surface (round-2 agent review) (CCR-LD-003)<br>0.3 (2026-11-08): Signed statements, `SignaturePolicy.verify`, `StatementSigner`, `Revocation.refusalList` and data packs in the API surface and errors (round 2: recheck items 11, 12, 15) (CCR-LD-003)<br>0.2 (2026-11-08): API surface: `AcceptedDigests`, `LoaderGate.make`/`piece`, `Loader.stampRemote`, `KillSwitch.release`; worked example wires the gate before the host and leaves the scope to the kill switch alone (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.6 (2026-11-11): `RevokedDigests` row says agreement on the same inputs, not one view read by every consumer (PL16); `Loader.pinnedDigests`; `AcceptedDigests` operations; `DataPacks.layer` and `DataPacksOptions` (PL22); errors list adds `RevocationStoreFailed` and `SignatureInvalid` (PL21) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.5 (2026-11-09): "first-party" statement, trust class, `Loader.lazy` refusing guest entries, `LoaderRemote.link` and `linkManifest`, `RevokedDigests`, the manifest's `extensions["@bridger/loader"]` entry, `PackageManifestMismatch`, `NotFirstParty`, `GuestEntryInvalid`; worked example maps entries by trust class (specification audit F-06, M-02, M-03, M-06, C-16); guest wording: outside the host's runtime, in the deployment's bundle runtime (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): `SignedStatement`, `SignedRevocationList`, `RevocationSet.encode`/`decode`, `RevocationSource.offer` and `.constant`, "chain-bundle" and `RevocationListMalformed` in the API surface (round-2 agent review) (CCR-LD-003)<br>0.3 (2026-11-08): Signed statements, `SignaturePolicy.verify`, `StatementSigner`, `Revocation.refusalList` and data packs in the API surface and errors (round 2: recheck items 11, 12, 15) (CCR-LD-003)<br>0.2 (2026-11-08): API surface: `AcceptedDigests`, `LoaderGate.make`/`piece`, `Loader.stampRemote`, `KillSwitch.release`; worked example wires the gate before the host and leaves the scope to the kill switch alone (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -46,7 +46,7 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
-| `Loader` | service | `load(ref)` → stamped definition; `fetchVerified(ref)` → verified bytes, no evaluation; `resident` ([02](./behaviors/02-load-pipeline.md), [05](./behaviors/05-catalog-and-lazy-loading.md)) |
+| `Loader` | service | `load(ref)` → stamped definition; `fetchVerified(ref)` → verified bytes, no evaluation; `resident`; `pinnedDigests`, the rule's pinned digests ([02](./behaviors/02-load-pipeline.md), [05](./behaviors/05-catalog-and-lazy-loading.md)) |
 | `LoaderPlugin`, `Loader.layer` | function | The loader as a plugin providing `Loader`, or as a plain layer ([06](./behaviors/06-limits-and-acceptance.md)) |
 | `Package`, `PackageRef`, `PackageSource`, `VerifiedPackage`, `LoadedPlugin` | types | Package parts and results ([01](./behaviors/01-package-and-digest.md)) |
 | `LoaderManifestExtension` | schema | The entry file and export, under the reserved manifest key `extensions["@bridger/loader"]` ([01](./behaviors/01-package-and-digest.md)) |
@@ -57,24 +57,25 @@ All signatures are illustrative until code exists.
 | `SignatureVerifier`, `VerifiedSigner` | port, type | Scheme adapters (Ed25519, Sigstore) |
 | `RevocationSource`, `RevocationSource.verified`, `.constant`, `RevocationSourceShape.offer`, `RevocationStore`, `RevocationSet`, `RevocationSet.encode`, `.decode`, `SignedRevocationList`, `RawRevocationFeed` | port, functions, port, types | Signed, monotonic revocation sets persisted by the application, verified under their own trust root with no revocation step; other companions hand lists in through `offer` ([04](./behaviors/04-revocation-and-kill-switch.md)) |
 | `Revocation.filterDesired`, `KillSwitch.run`, `KillSwitch.status`, `KillSwitch.release` | functions, stream | Kill switch through `reconcile`, the one reconciler of its scope; blast-radius release |
-| `AcceptedDigests`, `AcceptedDigests.layer` | service, layer | Store of accepted digests and their verification records, built before the host and shared by the gate piece, the loader and the catalog |
+| `AcceptedDigests`, `AcceptedDigests.layer` | service, layer | Store of accepted digests and their verification records, one acceptance per digest and origin (`record`, `remove`, `markNotCurrent`, `lookup`, `entries`), built before the host and shared by the gate piece, the loader and the catalog |
 | `LoaderGate.make`, `LoaderGate.piece` | functions | Core `Gate<OperationRequest>` piece refusing installs whose digest the loader did not accept, and operator restarts of revoked digests; explicit exemptions |
 | `LoadLog`, `VerificationRecord` | port, type | The loader's own record, separate from core's trail |
 | `Catalog.verifyEntry`, `Catalog.resolve`, `CatalogRegistry`, `CatalogEntry`, `VerifiedEntry` | functions, registry, types | Signed manifests verified without code ([05](./behaviors/05-catalog-and-lazy-loading.md)) |
 | `Loader.lazy` | function | A first-party entry as a `Plugin.lazy({ manifest, load, digest })` definition; refuses guest entries with `NotFirstParty` ([09](./behaviors/09-trust-class-and-guest-links.md)) |
 | `Loader.stampRemote` | function | Stamps a remote proxy definition with a verified guest bundle's version, digest and link manifest |
 | `LoaderRemote.link`, `LoaderRemote.linkManifest` (entry point `@bridger/loader/remote`) | functions | A guest entry as a remote link that fetches and verifies the bundle at each session; the link manifest derived from the guest's ([09](./behaviors/09-trust-class-and-guest-links.md)) |
-| `RevokedDigests`, `RevokedDigests.layer` | service, layer | The one view of revoked package digests — by digest, statement digest or signer — read by the refusal list, the kill switch, the gate and the remote boundary ([09](./behaviors/09-trust-class-and-guest-links.md)) |
+| `RevokedDigests`, `RevokedDigests.layer` | service, layer | The view of revoked package digests — by digest, statement digest or signer — read by the refusal list and the remote boundary; the kill switch and the gate agree with it on the same inputs — agreement, not one computation ([09](./behaviors/09-trust-class-and-guest-links.md)) |
 | `Statement`, `Statement.make`, `.signingInput`, `.digest`, `StatementType`, `SignedStatement` | functions, types | Typed signed statements (`package`, `first-party` ([09](./behaviors/09-trust-class-and-guest-links.md)), `host-manifest`, `data-pack`, `licence`, `revocation-list`, `chain-bundle`, or an application's own type) about a subject digest, with one `id`/`version` convention per reserved type; `SignedStatement` is the transport envelope ([07](./behaviors/07-signed-statements.md)) |
 | `SignaturePolicy.verify`, `StatementVerifier`, `StatementVerifier.layer`, `StatementRules` | function, service, layer, type | The one verification step for every statement type, with one rule per type; used by loads, the catalog, data packs, the kit and the federation companion |
 | `StatementSigner` | port | Signing adapter over the signing input; the loader holds no key; countersigning appends a signer entry |
 | `Revocation.check`, `Revocation.refusalList` | function, layer | Pure re-check of a recorded statement; core's `RefusalList` backed by the revocation set |
-| `DataPacks`, `DataPacks.status`, `.requireFresh`, `.decode`, `DataPackManifest`, `VerifiedDataPack`, `DataPackStore`, `DataPackFeed` | service, functions, types, ports | Signed data packs: verified, served as bytes, never evaluated; window and freshness reported ([08](./behaviors/08-data-packs.md)) |
+| `DataPacks`, `DataPacks.layer`, `DataPacksOptions`, `DataPacks.status`, `.requireFresh`, `.decode`, `DataPackManifest`, `VerifiedDataPack`, `DataPackStore`, `DataPackFeed` | service, functions, types, ports | Signed data packs: verified, served as bytes, never evaluated; window and freshness reported ([08](./behaviors/08-data-packs.md)) |
 | `@bridger/loader/testing` | entry point | `memoryFetcher`, `scriptedVerifier`, `fixedRevocations`, `recordingEvaluator`, `packageBuilder` |
 
 Errors: `FetchFailed`, `PackageMalformed`, `UnsupportedDigestAlgorithm`,
-`DigestMismatch`, `SignatureRejected`, `Revoked`, `RevocationUnavailable`,
-`RevocationStale`, `RevocationListMalformed`, `PackageRefused`, `EvaluationFailed`,
+`DigestMismatch`, `SignatureRejected`, `SignatureInvalid` (a verifier's, counted
+for nothing), `Revoked`, `RevocationUnavailable`, `RevocationStale`,
+`RevocationListMalformed`, `RevocationStoreFailed`, `PackageRefused`, `EvaluationFailed`,
 `NotAPluginDefinition`, `PackageManifestMismatch` (distinct from core's
 `ManifestMismatch`), `LoadLogFailed`, `CatalogEntryRejected`,
 `NoMatchingEntry`, `NotFirstParty`, `GuestEntryInvalid`, `PublisherMismatch`,

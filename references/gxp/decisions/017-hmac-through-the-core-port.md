@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-017                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-10): Canonical domain: every finite number, not integers only, as in the rest of the canonical form (M6) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-11): `select` filters by the `form` core passes; a proposal for a `reconfigure` of a registration not yet loaded uses form `"raw"` (G3) (CCR-GX-008)<br>0.2 (2026-11-10): Canonical domain: every finite number, not integers only, as in the rest of the canonical form (M6) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -22,7 +22,7 @@
 
 ## Decision
 
-- **`hmacFingerprinter({ keys, eligibility, scope })` provides `ConfigFingerprinter`.** `select` is the eligibility allow-list ([ADR-GX-018](../decisions/018-eligibility-allow-list.md)); `fingerprint` computes, for each selected entry,
+- **`hmacFingerprinter({ keys, eligibility, scope })` provides `ConfigFingerprinter`.** `select` is the eligibility allow-list ([ADR-GX-018](../decisions/018-eligibility-allow-list.md)), applied to the target and the `form` core passes in its query; `fingerprint` computes, for each selected entry,
 
   `mac = HMAC-SHA256(key, UTF-8(JCS({ v: 1, scope, pluginId: target.id, path, form, value })))`
 
@@ -30,7 +30,7 @@
 - **Format.** `fp1:hmac-sha256:<keyId>:<b64url(mac)>`, where `b64url` is RFC 4648 §5 base64url without padding (43 characters for 32 bytes). `keyId` matches `^[A-Za-z0-9._:-]{1,64}$` (testing key ids start with `test:`, [ADR-GX-024](../decisions/024-fixtures-are-marked.md)); a provider key id outside that set fails `fingerprint` with `ConfigFingerprintFailed` "key-id-invalid"; building the layer never calls the provider. A reader splits off the MAC after the last `:` (base64url has none) and the key id between the second `:` and that one. The whole string is at most `16 + 64 + 1 + 43 = 124` characters and uses only characters in core's set, so core never refuses a well-formed answer.
 - **Canonical domain.** The value is the JSON value core hands over: raw top-level values for `install`, decoded values for `reconfigure`. Before canonicalising, a valid `Date` from a decoder becomes the ISO 8601 string `toISOString()` gives (UTC, milliseconds), a `bigint` its decimal string, and a `Redacted` value on a high-entropy path its content ([BEH-GX-100](../behaviors/13-config-fingerprints.md)). Numbers are in the domain when finite, written as RFC 8785 writes them ([ADR-GX-005](../decisions/005-jcs-and-sha256.md)). A value still outside the domain — `NaN` or ±infinity, an invalid `Date`, a `Map`, `Set`, `Uint8Array`, class instance, function or symbol — fails `fingerprint` with `ConfigFingerprintFailed`, and core turns that into `ConfigFingerprintUnavailable` and changes nothing. The domain includes `scope`, `pluginId`, `path` and `form`, so equal values at different paths, plugins, forms or deployments give different fingerprints.
 - **Nothing leaves but the string.** The fingerprinter returns only `{ path, fingerprint }`; it logs nothing, emits no event and puts no value, key or MAC input in any error message ([INV-GX-005](../invariants.md#inv-gx-005-no-configuration-value-or-key-material-appears-in-any-companion-output)). Its failure message is exactly one fixed tag (`"value-outside-domain"`, `"path-not-selected"`, `"key-unavailable"`, `"key-id-invalid"`, `"test-key-without-fixture"`); core writes its own message anyway.
-- **Proposals decode the same way.** `proposeFingerprints({ definition, target, form, value, paths }, { keys, eligibility, scope })` lets the issuer compute the fingerprints a binding should carry. For `"decoded"` it decodes with the plugin's own schema exactly as core does for `reconfigure`, and it selects and fingerprints with the same functions, so a ticket and the request agree ([RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015)).
+- **Proposals decode the same way.** `proposeFingerprints({ definition, target, form, value, paths }, { keys, eligibility, scope })` lets the issuer compute the fingerprints a binding should carry. The caller passes the form core will use: `"raw"` for `install` and for a `reconfigure` of a registration not yet loaded (core BEH-BR-247), `"decoded"` otherwise. For `"decoded"` it decodes with the plugin's own schema exactly as core does for `reconfigure`, and it selects and fingerprints with the same functions, so a ticket and the request agree ([RSK-GX-015](../gxp/03-risk-assessment.md#rsk-gx-015)).
 - **Test vectors.** [13 — Config fingerprints](../behaviors/13-config-fingerprints.md) carries fixed vectors of key, MAC input, canonical text and MAC; check 17 recomputes them.
 
 ## Alternatives considered

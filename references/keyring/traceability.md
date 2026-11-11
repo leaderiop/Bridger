@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-TRACE                                             |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.3 (2026-11-09): BEH-KR-017 and BEH-KR-018 trace to core BEH-BR-185, BEH-BR-187 and BEH-BR-189; REQ-KR-010 and REQ-KR-012 summaries name the shred's attribution; RSK-KR-006 listed (M-01) (CCR-KR-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.4 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — REQ-KR-010 cites BEH-KR-008 and REQ-KR-011 BEH-KR-004, as checks 10 and 11 do (PL12); BEH-KR-020 traces to INV-KR-002 and REQ-KR-011 (B5, B6) (CCR-KR-007)<br>0.3 (2026-11-09): BEH-KR-017 and BEH-KR-018 trace to core BEH-BR-185, BEH-BR-187 and BEH-BR-189; REQ-KR-010 and REQ-KR-012 summaries name the shred's attribution; RSK-KR-006 listed (M-01) (CCR-KR-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -27,11 +27,11 @@ RSK-BR → test. Every test is *Planned*; no row is evidence
 | BEH-KR-001 | — | ADR-KR-005 | — | URS-BR-026 | REQ-KR-001 |
 | BEH-KR-002 | INV-KR-003 | ADR-KR-003 | — | URS-BR-058 | REQ-KR-001 |
 | BEH-KR-003 | INV-KR-002 | — | — | — | REQ-KR-002 |
-| BEH-KR-004 | — | ADR-KR-004 | — | URS-BR-026 | REQ-KR-003 |
+| BEH-KR-004 | — | ADR-KR-004 | — | URS-BR-026 | REQ-KR-003, REQ-KR-011 |
 | BEH-KR-005 | — | ADR-KR-004 | — | URS-BR-026 | REQ-KR-003 |
 | BEH-KR-006 | — | ADR-KR-004 | — | — | REQ-KR-004 |
 | BEH-KR-007 | — | ADR-KR-004 | — | URS-BR-026 | REQ-KR-012 |
-| BEH-KR-008 | INV-KR-001 | — | BEH-BR-196, BEH-BR-273, BEH-BR-276, BEH-BR-281, BEH-BR-293 | URS-BR-034, URS-BR-058 | REQ-KR-005 |
+| BEH-KR-008 | INV-KR-001 | — | BEH-BR-196, BEH-BR-273, BEH-BR-276, BEH-BR-281, BEH-BR-293 | URS-BR-034, URS-BR-058 | REQ-KR-005, REQ-KR-010 |
 | BEH-KR-009 | — | ADR-KR-002 | — | URS-BR-058, URS-BR-059 | REQ-KR-006 |
 | BEH-KR-010 | INV-KR-001 | ADR-KR-002 | — | — | REQ-KR-006 |
 | BEH-KR-011 | — | ADR-KR-002 | — | — | REQ-KR-002 |
@@ -43,7 +43,7 @@ RSK-BR → test. Every test is *Planned*; no row is evidence
 | BEH-KR-017 | INV-KR-002, INV-KR-004 | ADR-KR-001 | BEH-BR-185, BEH-BR-187, BEH-BR-189 | URS-BR-054, URS-BR-058 | REQ-KR-010 |
 | BEH-KR-018 | INV-KR-003 | ADR-KR-003 | BEH-BR-185, BEH-BR-207 | URS-BR-058 | REQ-KR-010 |
 | BEH-KR-019 | INV-KR-005 | — | — | — | REQ-KR-011 |
-| BEH-KR-020 | — | — | — | URS-BR-043 | REQ-KR-012 |
+| BEH-KR-020 | INV-KR-002 | — | — | URS-BR-043 | REQ-KR-011, REQ-KR-012 |
 | BEH-KR-021 | INV-KR-005 | — | — | — | REQ-KR-011 |
 | BEH-KR-022 | — | ADR-KR-004 | — | URS-BR-026 | REQ-KR-012 |
 | BEH-KR-023 | — | — | — | URS-BR-025 | REQ-KR-012 |
@@ -66,9 +66,9 @@ Test files are *Planned* under `packages/keyring/test/` *(Planned)*.
 | <a id="req-kr-007"></a>REQ-KR-007 | 7 | Reads after a shred | BEH-KR-012 |
 | <a id="req-kr-008"></a>REQ-KR-008 | 8 | Chains verify before and after a shred | BEH-KR-014 |
 | <a id="req-kr-009"></a>REQ-KR-009 | 9 | Determinism with fixed nonces | BEH-KR-015 |
-| <a id="req-kr-010"></a>REQ-KR-010 | 10 | Shred order, attribution, retry, idempotence | BEH-KR-017, BEH-KR-018 |
-| <a id="req-kr-011"></a>REQ-KR-011 | 11 | Callbacks and status | BEH-KR-019, BEH-KR-021 |
-| <a id="req-kr-012"></a>REQ-KR-012 | 12 | Notices with the origin's attribution, restore, limits, wording | BEH-KR-007, BEH-KR-020, BEH-KR-022, BEH-KR-023 |
+| <a id="req-kr-010"></a>REQ-KR-010 | 10 | Shred order, attribution, retry, idempotence | BEH-KR-008, BEH-KR-017, BEH-KR-018 |
+| <a id="req-kr-011"></a>REQ-KR-011 | 11 | Callbacks and status | BEH-KR-004, BEH-KR-019, BEH-KR-020, BEH-KR-021 |
+| <a id="req-kr-012"></a>REQ-KR-012 | 12 | Notices with the origin's attribution, restore, store swap, limits, wording | BEH-KR-007, BEH-KR-020, BEH-KR-022, BEH-KR-023 |
 
 ## §3 Risk notes
 

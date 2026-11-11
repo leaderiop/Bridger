@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-02                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-009: `publish` also requires the transaction's `Scope`, which the adapter's `transaction` provides, for the scoped `DurableBus.fence` (H3) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-012: `OutboxStore.incarnation(node)` and `recordIncarnation(tx, node, n)`, keyed by node (CCR-DB-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — `publish` takes `PublishOptions` (`stream`, `causationId`), which change nothing but the envelope's stream and causation (F-05, C-20) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-009: `publish` requires `StoreTransaction` only; the `DurableBus.fence` admission is bounded by the transaction handle, not a `Scope` (H2, B1) (CCR-DB-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-009: `publish` also requires the transaction's `Scope`, which the adapter's `transaction` provides, for the scoped `DurableBus.fence` (H3) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-012: `OutboxStore.incarnation(node)` and `recordIncarnation(tx, node, n)`, keyed by node (CCR-DB-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — `publish` takes `PublishOptions` (`stream`, `causationId`), which change nothing but the envelope's stream and causation (F-05, C-20) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -43,7 +43,7 @@ interface PublishOptions {
 }
 interface DurableBus {
   readonly publish: <A, I>(event: DurableEvent<A, I>, payload: A, options?: PublishOptions) =>
-    Effect.Effect<Envelope, PublishError, StoreTransaction | Scope.Scope>   // Scope: the transaction's (07, BEH-DB-054), for `fence` (06)
+    Effect.Effect<Envelope, PublishError, StoreTransaction>   // `fence` (06) is admitted for this transaction, not a Scope
   // subscribe, receive, status: 03, 06; origin, originChanges: 01; onStoreSwap: 06
 }
 type PublishError =

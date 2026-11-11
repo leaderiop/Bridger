@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-02                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.7 (2026-11-10): BEH-LD-015: an exempt digest is never refused "verification-unknown" and the same `exempt.digests` reach `RevokedDigests.layer` and `filterDesired` (L1); `AcceptedDigests` keeps one acceptance per digest and origin, so a catalog withdrawal leaves a load's acceptance in place (PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.6 (2026-11-10): BEH-LD-015: installs by core realm families and ephemeral realms (agent model adapters, subagents) are judged as any install; the supported wirings are a loader load or an exemption by digest, never by realm (round 2 findings of the specification audit of 2026-11-09, P23); follow-up: `FetchError`, the error of `fetchVerified`, defined as the errors of steps 1–6 (it was used and never defined) (CCR-LD-005)<br>0.5 (2026-11-09): Step 4 also verifies the "first-party" statement, so no package is evaluated in the host's process without it (F-06); the entry is read from `extensions["@bridger/loader"]` (M-03); `PackageManifestMismatch` and `StatementRevoked` in `LoadError` (C-16); guest wording (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Steps 4 and 5 run through `SignaturePolicy.verify` with the publisher binding; system starts of revoked digests refused by core's `RefusalList` backed by the loader (G60 closed); undo requests judged as the operation they issue (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.8 (2026-11-11): BEH-LD-015: `AcceptedDigests` declares `record`, `remove`, `markNotCurrent` and `entries`, acceptances keyed by (digest, `via`) (L2); `lookup` prefers a current acceptance (L1); a digest is revoked for the piece as `RevokedDigests.refused` answers, from the record `lookup` returns, which carries the signer identities and requirement (H7); `enable`, `retry`, `restart` and `reconfigure` refused "verification-unknown" unless the digest is pinned or exempt, and `LoaderGateOptions.pinned` (L3); `Loader.pinnedDigests` (H7); BEH-LD-016: `VerificationRecord` keeps `RecordedSigner` values and `require` (H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.7 (2026-11-10): BEH-LD-015: an exempt digest is never refused "verification-unknown" and the same `exempt.digests` reach `RevokedDigests.layer` and `filterDesired` (L1); `AcceptedDigests` keeps one acceptance per digest and origin, so a catalog withdrawal leaves a load's acceptance in place (PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.6 (2026-11-10): BEH-LD-015: installs by core realm families and ephemeral realms (agent model adapters, subagents) are judged as any install; the supported wirings are a loader load or an exemption by digest, never by realm (round 2 findings of the specification audit of 2026-11-09, P23); follow-up: `FetchError`, the error of `fetchVerified`, defined as the errors of steps 1–6 (it was used and never defined) (CCR-LD-005)<br>0.5 (2026-11-09): Step 4 also verifies the "first-party" statement, so no package is evaluated in the host's process without it (F-06); the entry is read from `extensions["@bridger/loader"]` (M-03); `PackageManifestMismatch` and `StatementRevoked` in `LoadError` (C-16); guest wording (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Steps 4 and 5 run through `SignaturePolicy.verify` with the publisher binding; system starts of revoked digests refused by core's `RefusalList` backed by the loader (G60 closed); undo requests judged as the operation they issue (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `LoaderGate` is a core `Gate<OperationRequest>` piece built before the host over a shared `AcceptedDigests` store, with bootstrap exemptions, verified catalog entries accepted for lazy installs, and revoked digests refused for every operation that restarts code; `VerificationRecord` fields defined per step reached; refusal-record write failures; evaluator option narrowed (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -53,6 +53,9 @@ Planned source: `packages/loader/src/Loader.ts`,
 interface LoaderShape {
   readonly load: (ref: PackageRef) => Effect.Effect<LoadedPlugin, LoadError>
   readonly fetchVerified: (ref: PackageRef) => Effect.Effect<VerifiedPackage, FetchError>  // 05, BEH-LD-039
+  // The digests the instance's acceptance rule pins (03, BEH-LD-022); empty when it pins none.
+  // Read by the kill switch for filterDesired's `pinned` (04, BEH-LD-028).
+  readonly pinnedDigests: readonly string[]
 }
 class Loader extends Context.Service<Loader, LoaderShape>()("@bridger/loader/Loader") {}
 ```
@@ -317,8 +320,18 @@ and recorded by core when it reaches the host.
 // the gate piece, every Loader instance and the catalog (05). Given to the host
 // as a base service (core 02, BEH-BR-012) so that LoaderPlugin can require it.
 interface AcceptedDigestsShape {
-  // One acceptance per (digest, via); lookup prefers "load" over "catalog-entry".
+  // Acceptances are keyed by (digest, via): at most one per digest and origin.
+  // Adds the acceptance with current true, replacing that origin's earlier one for the digest.
+  readonly record: (acceptance: { readonly digest: string; readonly via: AcceptedDigest["via"];
+                                  readonly verification: VerificationRecord }) => Effect.Effect<void>
+  // Removes that origin's acceptance only (05, BEH-LD-035); no-op when there is none.
+  readonly remove: (digest: string, via: AcceptedDigest["via"]) => Effect.Effect<void>
+  // Sets current false on every acceptance, keeping its record (a Loader's construction).
+  readonly markNotCurrent: Effect.Effect<void>
+  // A current acceptance when one exists ("load" before "catalog-entry"), otherwise the "load" one,
+  // otherwise the "catalog-entry" one.
   readonly lookup: (digest: string) => Option.Option<AcceptedDigest>
+  readonly entries: Effect.Effect<ReadonlyArray<AcceptedDigest>>   // every acceptance, current or not
   readonly changes: Stream.Stream<number>                      // revision of the store, latest wins
 }
 interface AcceptedDigest {
@@ -343,13 +356,17 @@ interface LoaderGateOptions {
   // Bootstrap and bundled first-party plugins: the loader plugin itself, plugins shipped in
   // the application's own bundle. Configuration, visible in review; no default.
   readonly exempt: { readonly ids?: readonly string[]; readonly digests?: readonly string[] }
+  // The digests the package rule pins (03, BEH-LD-022): the list RevokedDigests.layer is given
+  // beside exempt.digests (09, BEH-LD-070). Default none.
+  readonly pinned?: readonly string[]
 }
 
 // Wiring: one instance of each shared service, built before the host, handed to the
 // gate and to the host as a Context base (used as given, core BEH-BR-012).
 const program = Effect.gen(function* () {
   const shared = yield* Layer.build(Layer.merge(AcceptedDigests.layer, revocations))
-  const signature = yield* LoaderGate.piece({ exempt: { ids: ["loader", "catalog"] }, timeout: "2 seconds" })
+  // pinned: the digests the package rule pins (empty under a signed rule alone)
+  const signature = yield* LoaderGate.piece({ exempt: { ids: ["loader", "catalog"] }, pinned, timeout: "2 seconds" })
     .pipe(Effect.provide(shared))
   const HostLive = Bridger.layer({ base: shared /* , ... */ }).pipe(
     Layer.provide(Layer.succeed(OperationGate, OperationGate.fromGate(Gate.all([signature, approval]))))
@@ -380,17 +397,32 @@ REQUIREMENT: Documentation MUST state that the `AcceptedDigests` and
 ```
 
 ```
+REQUIREMENT: In this piece a digest *is revoked* exactly when
+             `RevokedDigests.refused` would refuse it (09, BEH-LD-070): by
+             digest; by the statement digest or, through the re-evaluation
+             of 04, BEH-LD-030, by the signers of the record `lookup`
+             returns for it — computed from that record's recorded signers
+             and `require` (03, BEH-LD-020), never from a policy; or
+             "verification-unknown", when it has no `AcceptedDigests`
+             record while the set revokes a signer and it is in neither
+             `pinned` nor `exempt.digests`. The piece refuses the last case
+             with reason "verification-unknown" and the others with
+             "digest-revoked".
+```
+
+```
 REQUIREMENT: For `install` and `replace`, the piece MUST return `Refuse`
              unless one of the following holds for `request.definition`:
-             (a) its `digest` has an `AcceptedDigests` entry with `current`
-             true — accepted by a load of the current loader instance, or
-             by `Catalog.verifyEntry` for an entry still contributed to the
-             catalog registry (05, BEH-LD-035) — and is not revoked;
+             (a) `lookup` of its `digest` returns an acceptance with
+             `current` true — accepted by a load of the current loader
+             instance, or by `Catalog.verifyEntry` for an entry still
+             contributed to the catalog registry (05, BEH-LD-035) — and the
+             digest is not revoked;
              (b) `request.target.id` is listed in `exempt.ids`, or its
              `digest` is listed in `exempt.digests`, and its `digest`, when
              present, is not revoked.
              Reasons: "digest-absent", "digest-not-accepted",
-             "digest-revoked".
+             "digest-revoked", "verification-unknown".
 ```
 
 ```
@@ -418,18 +450,26 @@ REQUIREMENT: A digest listed in `exempt.digests` never has an
              `RevokedDigests.layer` (in `pinned`) and to `KillSwitch.run`
              (as `exemptDigests`, which it adds to `filterDesired`'s
              `pinned`), and the piece MUST NOT refuse an exempt digest for that reason. An
-             exempt digest revoked by digest is still refused.
+             exempt digest revoked by digest is still refused. The digests
+             the package rule pins (`Loader.pinnedDigests`) are in the same
+             position: the application MUST pass them to the piece (in
+             `pinned`) and to `RevokedDigests.layer`, and the kill switch
+             reads them from `Loader` (04, BEH-LD-028).
 ```
 
 ```
 REQUIREMENT: For `enable`, `retry`, `restart` and `reconfigure` — every
              operator call that can start an installed plugin's code again
-             — the piece MUST return `Refuse` with reason "digest-revoked"
-             when the installed `request.definition.digest` (core BEH-BR-219)
-             is revoked under the current revocation set, by digest or by
-             signer (04, BEH-LD-030). It MUST allow them otherwise, including
-             when the digest is absent or not in `AcceptedDigests`: the
-             install was the decision the piece governed.
+             — the piece MUST return `Refuse` when the installed
+             `request.definition.digest` (core BEH-BR-219) is revoked under
+             the current revocation set as defined above: with reason
+             "digest-revoked" by digest, statement digest or signer, and
+             with reason "verification-unknown" when the digest has no
+             `AcceptedDigests` record while the set revokes a signer, unless
+             it is in `pinned` or `exempt.digests`. It MUST allow them
+             otherwise, including when the digest is absent, or not in
+             `AcceptedDigests` while the set revokes no signer: the install
+             was the decision the piece governed.
 ```
 
 ```
@@ -445,8 +485,12 @@ REQUIREMENT: The piece MUST allow `remove`, `disable` and every other
 
 ```
 REQUIREMENT: Each `Loader` instance MUST, at construction, mark every entry
-             it did not accept itself as `current: false`, keeping its
-             verification record for revocation (04, BEH-LD-030). A digest
+             it did not accept itself as `current: false`
+             (`AcceptedDigests.markNotCurrent`), keeping its verification
+             record for revocation (04, BEH-LD-030); the record carries the
+             signer identities, roles and requirement that re-evaluation
+             reads (03, BEH-LD-020), so it is judged without the replaced
+             loader's policy. A digest
              accepted under a replaced loader is therefore refused for
              `install` and `replace` until a load or catalog verification of
              the new instance accepts it again. Running plugins are not
@@ -455,11 +499,19 @@ REQUIREMENT: Each `Loader` instance MUST, at construction, mark every entry
 
 ```
 REQUIREMENT: `AcceptedDigests` MUST keep at most one acceptance per digest
-             and origin (`via`), and removing an acceptance MUST remove only
-             that origin's: the catalog's withdrawal of an entry (05,
+             and origin (`via`): `record` MUST replace that origin's earlier
+             acceptance of the digest, and `remove` MUST remove only that
+             origin's: the catalog's withdrawal of an entry (05,
              BEH-LD-035) MUST leave a load's acceptance of the same digest in
-             place. `lookup` MUST return the `via: "load"` acceptance when
-             one exists, and otherwise the `via: "catalog-entry"` one.
+             place. `lookup` MUST return a `current` acceptance when one
+             exists — the `via: "load"` one when both are current — and
+             otherwise the `via: "load"` acceptance, and otherwise the
+             `via: "catalog-entry"` one, so that a load's acceptance made
+             `current: false` by a loader replacement never hides a current
+             catalog acceptance from the piece. `entries` MUST list every
+             acceptance, current or not, and `changes` MUST publish a new
+             revision after every `record`, `remove` and `markNotCurrent`
+             that changed the store.
 ```
 
 Without this piece, the loader is a convenience: any code holding the raw
@@ -529,8 +581,11 @@ interface VerificationRecord {
   readonly version?: string
   readonly at: string                                  // from Clock, ISO-8601 UTC with ms
   readonly policyId?: string                           // present once step 4 was reached
-  readonly signers?: readonly VerifiedSigner[]         // step 4 reached: every verified signer, with its signedAt,
-                                                       // not only those counted (03, BEH-LD-020)
+  readonly signers?: readonly RecordedSigner[]         // step 4 reached: every verified signer, with its identity,
+                                                       // roles, window outcome and signedAt, not only those
+                                                       // counted (03, BEH-LD-018, BEH-LD-020)
+  readonly require?: Requirement                       // step 4 reached under a signed rule: the requirement
+                                                       // evaluated, which re-evaluation reads (04, BEH-LD-030)
   readonly acceptedBy?: "pinned" | "signed"            // step 4 passed: which branch of the acceptance rule accepted it
   readonly revocationRevision?: number                 // present once step 5 was reached
   readonly outcome: "accepted" | { readonly _tag: string; readonly message: string }
@@ -554,8 +609,9 @@ REQUIREMENT: The loader MUST read `LoadLog` with `Effect.serviceOption`.
 REQUIREMENT: `id`, `version`, `policyId`, `signers`, `acceptedBy` and
              `revocationRevision` MUST be present exactly when the step
              that produces them was reached (`acceptedBy` when step 4
-             passed), and absent otherwise; a refusal at step 3 carries no
-             `policyId`. A *refusal* record that cannot be written MUST be
+             passed), and absent otherwise; `require` MUST be present
+             exactly when step 4 was reached under a rule with a `signed`
+             branch; a refusal at step 3 carries no `policyId`. A *refusal* record that cannot be written MUST be
              logged at error level with the digest and the refusal's tag,
              and MUST NOT change the refusal or its error.
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-GXP-01                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | GxP Compliance Document                                      |
-> | Change History | 0.2 (2026-11-09): Sealing is `@bridger/audit-chain`'s, adopted by the companion (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-11): §8 describes core's companion row, "Companion" allocation and non-claim 5 as CCR-BR-015 and CCR-BR-031 left them; open item 3 closed (PL27) (CCR-GX-008)<br>0.2 (2026-11-09): Sealing is `@bridger/audit-chain`'s, adopted by the companion (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -128,9 +128,9 @@ The companion's [compliance matrix](./02-compliance-matrix.md) uses core's alloc
 | ----- | ------------------------------------------------------ | ------------- |
 | Subject | `@bridger/core`, a plugin runtime | `@bridger/gxp`, the components that plug into core's audit, gate and fingerprinter ports |
 | Intended use | Attributable, recordable, ordered, gateable plugin-set changes | Store, check, approve and evidence those changes through user-supplied ports |
-| Companion row of the supplier table | Planned scope, "specified later under `references/gxp/`" | That scope, specified (Draft) |
-| Allocation "Companion" | A plan; nothing may be relied on (URS gap G8) | Answered row by row with GX identifiers in the [compliance matrix](./02-compliance-matrix.md); still prospective |
-| Non-claims | ADR-BR-034, non-claims 1–12, with non-claim 5 narrowed by CCR-BR-014 | Inherited unchanged, plus non-claims 13–21 of ADR-GX-027 |
+| Companion row of the supplier table | Specified as a Draft in `references/gxp/`, linked here (CCR-BR-015, restored by CCR-BR-031) | That scope, specified (Draft) |
+| Allocation "Companion" | Specified only as a Draft, not approved and not implemented; a plan that evidences nothing yet (URS gap G8 closed by CCR-BR-015) | Answered row by row with GX identifiers in the [compliance matrix](./02-compliance-matrix.md); still prospective |
+| Non-claims | ADR-BR-034, non-claims 1–12, with non-claim 5 narrowed by CCR-BR-014 and, since CCR-BR-031, naming `@bridger/audit-chain` as the sealing specification the companion adopts | Inherited unchanged, plus non-claims 13–21 of ADR-GX-027 |
 | Regulations | §4 table | The same instruments and editions, plus RFC 8785 and the FIPS hash and HMAC standards |
 
 Core's documents are relied on at the revisions listed in the [core interface map](../appendices/core-interface-map.md) §6. Updating core's "Companion" rows to point here is a core change (CCR-BR) made under the coupling rule, not by this document.
@@ -141,7 +141,7 @@ Core's documents are relied on at the revisions listed in the [core interface ma
 | - | ---- | ------ |
 | 1 | No implementation; no evidence | Open by design of this phase ([ADR-GX-026](../decisions/026-prospective-specification.md)) |
 | 2 | Annex 11 2025 draft revision | Tracked; re-assessment under a CCR-GX when the final text is published |
-| 3 | Core's "Companion" rows still read as unspecified | To be updated by a core CCR under the coupling rule |
+| 3 | Core's "Companion" rows still read as unspecified | Closed: core's rows point to this Draft (CCR-BR-015, restored by CCR-BR-031) |
 | 4 | Independent review of this specification | Not available (single maintainer); see [change control](../process/change-control.md) §5 |
 
 ---

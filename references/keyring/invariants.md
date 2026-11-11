@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): INV-KR-002 notes that storing an existing marker uses no key (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.3 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-KR-002 holds across a whole-store re-bootstrap install through the store-swap participant (B6) (CCR-KR-007)<br>0.2 (2026-11-08): INV-KR-002 notes that storing an existing marker uses no key (CCR-KR-002)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -41,14 +41,20 @@ before the payload leaves encode; encode fails rather than passing plaintext.
 ## INV-KR-002: After a shred begins, the keyring neither encrypts nor decrypts for the subject
 
 **Source**: tombstone checked before every key use *(Planned)*. Storing an
-existing `Shredded` marker uses no key and encrypts nothing (BEH-KR-012).
+existing `Shredded` marker uses no key and encrypts nothing (BEH-KR-012). A
+whole-store re-bootstrap install that replaces a `KeyStore` sharing the
+outbox's database does not reopen a subject: the keyring's store-swap
+participant reads every tombstone before the swap, treats those subjects as
+shredded from then on, and writes the tombstones again to the new store
+before it serves `decrypt` (BEH-KR-020).
 
 **Implication**: no new plaintext is produced for a shredded subject while its
 redaction is still running.
 
-**Verification** *(Planned)*: concurrent decrypt and shred scenario.
+**Verification** *(Planned)*: concurrent decrypt and shred scenario; a
+whole-store install over a snapshot without the tombstone (check 12).
 
-**Related**: [BEH-KR-003](behaviors/01-keys-and-subjects.md#beh-kr-003-encryption-binds-authenticated-data), [BEH-KR-017](behaviors/03-shred-and-acceptance.md#beh-kr-017-shredsubject-runs-in-a-fixed-order).
+**Related**: [BEH-KR-003](behaviors/01-keys-and-subjects.md#beh-kr-003-encryption-binds-authenticated-data), [BEH-KR-017](behaviors/03-shred-and-acceptance.md#beh-kr-017-shredsubject-runs-in-a-fixed-order), [BEH-KR-020](behaviors/03-shred-and-acceptance.md#beh-kr-020-shred-notices-reach-other-hosts).
 
 ---
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-09                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.2 (2026-11-10): BEH-LD-070: `RevokedDigests.layer` takes `pinned` (the rule's pinned digests and `LoaderGate`'s exempt digests) (L1); "one computation" replaced by agreement on the same inputs (PL14); check 30 (BEH-LD-071) covers exempt digests (SPEC-AUDIT-04) (CCR-LD-007)<br>0.1 (2026-11-09): Initial draft: the "first-party" statement, the trust class of catalog entries, `Loader.lazy` refusing unmarked entries, `LoaderRemote.link` as the catalog-to-guest path, the link manifest derived from the guest's, the `RevokedDigests` view, checks 25–30 (specification audit F-06, M-02, M-06); introduction defines evaluation in the host's process and states where a guest runs, `@bridger/worker` included; BEH-LD-065 documentation states both without an isolation claim (independent review) (CCR-LD-004) |
+> | Change History | 0.3 (2026-11-11): BEH-LD-070: the view computes from the record `AcceptedDigests.lookup` returns, re-evaluating its recorded signers and requirement without a policy, over `AcceptedDigests.entries` (H7, L2); `LoaderGate` reaches the same answer for install, replace and the operator calls that start code again, "verification-unknown" included (L3); Settled (5) and the rationale say agreement on the same inputs, not one computation (PL16); check 30 covers the gate's restart-like refusals and a replaced loader's records; the introduction says the same (SPEC-AUDIT-05) (CCR-LD-008)<br>0.2 (2026-11-10): BEH-LD-070: `RevokedDigests.layer` takes `pinned` (the rule's pinned digests and `LoaderGate`'s exempt digests) (L1); "one computation" replaced by agreement on the same inputs (PL14); check 30 (BEH-LD-071) covers exempt digests (SPEC-AUDIT-04) (CCR-LD-007)<br>0.1 (2026-11-09): Initial draft: the "first-party" statement, the trust class of catalog entries, `Loader.lazy` refusing unmarked entries, `LoaderRemote.link` as the catalog-to-guest path, the link manifest derived from the guest's, the `RevokedDigests` view, checks 25–30 (specification audit F-06, M-02, M-06); introduction defines evaluation in the host's process and states where a guest runs, `@bridger/worker` included; BEH-LD-065 documentation states both without an isolation claim (independent review) (CCR-LD-004) |
 
 ---
 
@@ -33,7 +33,7 @@ Every other verified package is a **guest**, reached through
 each session and hands it to a bundle runtime, which runs it outside the
 host's runtime. It also gives a link a manifest
 derived from the guest's, and publishes the set of revoked package digests as
-one view for every consumer that judges by digest. This file owns
+a view that every consumer judging by digest reads or agrees with. This file owns
 BEH-LD-065–072 and uses BEH-LD-065–071; BEH-LD-072 is reserved.
 
 In this companion, *evaluated in the host's process* means evaluated by the
@@ -486,9 +486,12 @@ REQUIREMENT: `RevokedDigests.layer` MUST compute, when a revocation set
              arrives (`RevocationSource.changes`) and when `AcceptedDigests`
              changes, the package digests revoked under the newest set: by
              digest (04, BEH-LD-025), by the `statementDigest` of the
-             digest's `AcceptedDigests` record (07, BEH-LD-052), and by
-             signer through the re-evaluation of BEH-LD-030 over that
-             record. `refused(digest)` MUST answer from that computation,
+             digest's `AcceptedDigests` record (07, BEH-LD-052), the record
+             `lookup` returns (02, BEH-LD-015), and by signer through the
+             re-evaluation of BEH-LD-030 over that record, from its recorded
+             signer identities, roles and `require` (03, BEH-LD-020); the
+             layer is given no policy and MUST NOT need one.
+             `refused(digest)` MUST answer from that computation,
              and MUST answer "verification-unknown" for a digest with no
              record while the set revokes a signer, unless the digest is in
              `options.pinned` — the digests the package rule pins and the
@@ -497,8 +500,8 @@ REQUIREMENT: `RevokedDigests.layer` MUST compute, when a revocation set
 ```
 
 ```
-REQUIREMENT: `current` MUST list every digest of `AcceptedDigests` and of
-             the set's `digests` that `refused` refuses, and `changes` MUST
+REQUIREMENT: `current` MUST list every digest of `AcceptedDigests.entries`
+             and of the set's `digests` that `refused` refuses, and `changes` MUST
              publish a new revision exactly when that list changes.
              Building the layer MUST read the current set and MUST fail with
              `RevocationUnavailable` when there is none.
@@ -508,8 +511,12 @@ REQUIREMENT: `current` MUST list every digest of `AcceptedDigests` and of
 REQUIREMENT: `Revocation.refusalList` (07, BEH-LD-056), the kill switch's
              `filterDesired` (04, BEH-LD-028) and `LoaderGate` (02,
              BEH-LD-015) MUST reach the same answer as `refused` for every
-             package digest, and `Revocation.refusalList` and the remote
-             boundary MUST be built over this view. `filterDesired` and
+             package digest — `LoaderGate` for `install` and `replace` and
+             for the operator calls that start code again (`enable`,
+             `retry`, `restart`, `reconfigure`), "verification-unknown"
+             included, given the same `pinned` and exempt digests — and
+             `Revocation.refusalList` and the remote boundary MUST be built
+             over this view. `filterDesired` and
              `LoaderGate` compute their answers from the same inputs (the
              revocation set, `AcceptedDigests` and the pinned and exempt
              digests); agreement, not a single computation, is what this
@@ -580,7 +587,10 @@ REQUIREMENT: The loader test suite MUST contain at least one test for each
              30. `RevokedDigests`: digest, statement-digest and signer
                  revocations, and "verification-unknown", give the same
                  answer from `refused`, `Revocation.refusalList`,
-                 `filterDesired` and `LoaderGate`; a digest in `pinned` or
+                 `filterDesired` and `LoaderGate` (for `install`, and for
+                 `enable` and `restart` of an installed digest); the signer
+                 answer is reached from the record alone after the loader
+                 that accepted the digest was replaced; a digest in `pinned` or
                  `exempt.digests` with no record is not refused
                  "verification-unknown"; a revoked first-party
                  statement does not enter the view; `changes` advances only
@@ -598,7 +608,9 @@ own, under a rule with no default; the "package" rule never implies it.
 built from the verified entry, which fetch and verify the bundle at each
 session. (4) A link's manifest is the guest's, re-shaped in its resolution
 fields only. (5) One view of revoked package digests serves the refusal
-list, the kill switch, the gate and the remote boundary.
+list and the remote boundary; the kill switch and the gate compute their
+answers from the same inputs and agree with it — agreement, not one
+computation.
 
 **Open.** (1) Whether a host should be able to demote a running in-process
 plugin to a guest link when its first-party statement is revoked, rather than

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-16                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): BEH-GX-121, BEH-GX-126 `installed` is the IQ report's `installed`, produced by IQ-01, IQ-03, IQ-08 and IQ-24 (G3); BEH-GX-124 the generator takes no mutation report: the mutation kill rule is a review criterion outside the generated evidence (C14) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes `packageRoot` and `lockfile` and records each package's identity by BEH-GX-117's algorithm, with the code the installation checks use, and the lockfile's digest (G5) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-121, BEH-GX-126 `installed` is the IQ report's `installed`, produced by IQ-01, IQ-03, IQ-08 and IQ-24 (G3); BEH-GX-124 the generator takes no mutation report: the mutation kill rule is a review criterion outside the generated evidence (C14) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -311,8 +311,11 @@ read as one statement about one set of packages.
 
 ```ts
 // illustrative — not type-checked
-declare function captureRunEnvironment(q: { readonly executor: string; readonly suiteVersion: string }):
-  Effect.Effect<RunManifest>                          // called by the consumer's test setup, before the run
+declare function captureRunEnvironment(q: {
+  readonly executor: string; readonly suiteVersion: string
+  readonly packageRoot: string                        // as runInstallationChecks takes it (15): where module resolution starts
+  readonly lockfile: string                           // the lockfile the installation was made from
+}): Effect.Effect<RunManifest>                        // called by the consumer's test setup, before the run
 interface RunManifest {
   readonly format: "bridger-gx-run/1"
   readonly packages: InstalledIdentity["packages"]
@@ -327,6 +330,23 @@ interface RunManifest {
   readonly startedAt: string
   readonly endedAt?: string                           // written when the run ends
 }
+```
+
+```
+REQUIREMENT: `captureRunEnvironment` MUST fill `packages` for `@bridger/core`,
+             `@bridger/gxp`, `effect` and, when installed, `@bridger/audit-chain`
+             by BEH-GX-117's algorithm: the name and version from each
+             package's `package.json` as resolved from `packageRoot`, the
+             registry hash from `lockfile`, the installed-files digest
+             computed as IQ-08 computes it, and the resolved location as the
+             real path of the package directory resolved from `packageRoot`,
+             with the same code the installation checks use, so that a run
+             of an unchanged installation records exactly the identity IQ
+             recorded (BEH-GX-126). `lockfileDigest` MUST be "sha256:"
+             followed by the lower-case hex SHA-256 of the lockfile's bytes.
+             A package it cannot resolve MUST be left out of `packages`, so
+             that the run raises `package-mismatch`, never filled from
+             another source.
 ```
 
 ```
