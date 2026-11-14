@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-21                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): BEH-GX-171 exception (1) applies to the host's first confirmed statement, the lowest `verifyBundle` passes to `verifyChain` (G1) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.7 (2026-11-11): BEH-GX-171 exception (1) maps the items resting on `auditSeq` 1 to `chainLinkUnchecked` and `anchorUnconfirmed` with a detail, the unanchored tail staying not checked (G1); the `headMismatch` row names the head source of `verifySeals` and of `readArchive` (PL23) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.6 (2026-11-11): BEH-GX-171 exception (1) leaves without a finding only the items resting on `auditSeq` 1 (G3), exception (2) names its kinds (PL1) and covers a window starting below the range (G3); BEH-GX-172 the archive exemption restated (G3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-11): BEH-GX-171 the two mappings of `readArchive` that leave an item without its own finding (an archive above `auditSeq` 1; a window ending above an archive's `requested` range) are named as exceptions, as INV-GX-009 names them (G7); BEH-GX-172 `chainLinkUnchecked` among the seal kinds listed as not checked (PL23); BEH-GX-170 audit-chain's sink gets the companion's observing wrapper of `keyed` and is wrapped in the companion's sink, which classifies and counts a keyed-hash failure (G2) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-171 an `anchorMismatch` finding carries audit-chain's mismatch `kind` as `detail`, as check 11 asserts for "window-not-in-entries" (PL6) ; `chainLinkUnchecked` maps a "key-unavailable" break, which audit-chain now calls an unchecked link, not a `chainBreak`, and the internally-consistent statement needs none of them (follow-up of A1) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-171 `sealing.keyed` is a pure MAC function or `{ mac }`, an effectful one turned into the pure function by audit-chain's `precomputeMacs` (audit-chain CCR-AC-006 follow-up); BEH-GX-170 passes `SealingOptions.keyed` to the sink as `HashChainOptions.keyed` (M19); BEH-GX-171 reads every receipt the reader holds for the host (`toSeq` `Number.MAX_SAFE_INTEGER`), not only up to the store's last entry, so a window above a cut-off tail is reported "window-not-in-entries" (H6); BEH-GX-172 does not apply to a range archive above `auditSeq` 1 (M2) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19); follow-up: BEH-GX-171 passes `expectKeyed: true` with `sealing.keyed`, so an unkeyed link in a keyed trail is a `chainBreak` "unkeyed-link" (audit-chain CCR-AC-005 follow-up) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
+> | Change History | 0.9 (2026-11-11): BEH-GX-171 exception (1)(b): in `readArchive` whatever the range and in `verifySeals`, the "previous-mismatch" or "window-gap" of a confirmed statement whose preceding held statement is unconfirmed is an `anchorUnconfirmed` "... previous statement not confirmed", not an `anchorMismatch` (PL10, PL11) (SPEC-AUDIT-09) (CCR-GX-012)<br>0.8 (2026-11-11): BEH-GX-171 exception (1) applies to the host's first confirmed statement, the lowest `verifyBundle` passes to `verifyChain` (G1) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.7 (2026-11-11): BEH-GX-171 exception (1) maps the items resting on `auditSeq` 1 to `chainLinkUnchecked` and `anchorUnconfirmed` with a detail, the unanchored tail staying not checked (G1); the `headMismatch` row names the head source of `verifySeals` and of `readArchive` (PL23) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.6 (2026-11-11): BEH-GX-171 exception (1) leaves without a finding only the items resting on `auditSeq` 1 (G3), exception (2) names its kinds (PL1) and covers a window starting below the range (G3); BEH-GX-172 the archive exemption restated (G3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-11): BEH-GX-171 the two mappings of `readArchive` that leave an item without its own finding (an archive above `auditSeq` 1; a window ending above an archive's `requested` range) are named as exceptions, as INV-GX-009 names them (G7); BEH-GX-172 `chainLinkUnchecked` among the seal kinds listed as not checked (PL23); BEH-GX-170 audit-chain's sink gets the companion's observing wrapper of `keyed` and is wrapped in the companion's sink, which classifies and counts a keyed-hash failure (G2) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-171 an `anchorMismatch` finding carries audit-chain's mismatch `kind` as `detail`, as check 11 asserts for "window-not-in-entries" (PL6) ; `chainLinkUnchecked` maps a "key-unavailable" break, which audit-chain now calls an unchecked link, not a `chainBreak`, and the internally-consistent statement needs none of them (follow-up of A1) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-171 `sealing.keyed` is a pure MAC function or `{ mac }`, an effectful one turned into the pure function by audit-chain's `precomputeMacs` (audit-chain CCR-AC-006 follow-up); BEH-GX-170 passes `SealingOptions.keyed` to the sink as `HashChainOptions.keyed` (M19); BEH-GX-171 reads every receipt the reader holds for the host (`toSeq` `Number.MAX_SAFE_INTEGER`), not only up to the store's last entry, so a window above a cut-off tail is reported "window-not-in-entries" (H6); BEH-GX-172 does not apply to a range archive above `auditSeq` 1 (M2) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19); follow-up: BEH-GX-171 passes `expectKeyed: true` with `sealing.keyed`, so an unkeyed link in a keyed trail is a `chainBreak` "unkeyed-link" (audit-chain CCR-AC-005 follow-up) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002) |
 
 ---
 
@@ -151,13 +151,13 @@ declare function verifySeals(
 | Finding kind | From audit-chain |
 | --- | --- |
 | `chainBreak` | each entry of the `ChainReport`'s `breaks` but those of kind "key-unavailable", whatever its `kind` ("canon-changed", "counter-decreased" and "unkeyed-link" included), with the `kind` as `detail` |
-| `chainLinkUnchecked` | each entry of `breaks` of kind "key-unavailable": the link was not checked, not found inconsistent (BEH-AC-019), with `detail` "link not checked: key unavailable"; under exception (1) below, the "prev-mismatch" break of the first archived entry, with `detail` "link not checked: previous entry outside the archive" |
+| `chainLinkUnchecked` | each entry of `breaks` of kind "key-unavailable": the link was not checked, not found inconsistent (BEH-AC-019), with `detail` "link not checked: key unavailable"; under exception (1)(a) below, the "prev-mismatch" break of the first archived entry, with `detail` "link not checked: previous entry outside the archive" |
 | `anchorMismatch` | each entry of `anchorMismatches`, with its `kind` ("root-mismatch", "head-mismatch", "window-not-in-entries", "previous-mismatch" or "window-gap") as `detail` |
 | `chainUnanchoredTail` | `hosts[].unanchoredTail`, when present: entries above the last confirmed anchor |
 | `headMismatch` | `hosts[].head` "head-short" or "head-mismatch" against the expected head passed to audit-chain: in `verifySeals` the host's highest high-water mark, in `readArchive` only the inspector's `expectedHeads` (BEH-GX-140) |
 | `chainNonCanonical` | each entry of `notices` of kind "non-canonical-encoding" |
 | `chainLossCounterRose` | each entry of `notices` of kind "loss-counter-rose": the record's `auditDropped` rose (BEH-AC-030) |
-| `anchorUnconfirmed` | each entry of `confirmAnchors`'s `unconfirmed`, with the window of its statement as `auditSeq` and `toSeq` and `detail` "statement <statementHash> not confirmed"; the verifier's `reason` is not copied (NFR-GX-007); under exceptions (1) and (2) below, the `anchorMismatches` entries they name, with the `detail` they give |
+| `anchorUnconfirmed` | each entry of `confirmAnchors`'s `unconfirmed`, with the window of its statement as `auditSeq` and `toSeq` and `detail` "statement <statementHash> not confirmed"; the verifier's `reason` is not copied (NFR-GX-007); under exceptions (1) and (2) below, the `anchorMismatches` entries they name, with the `detail` they give (in `verifySeals`, exception (1)(b) only) |
 
 ```
 REQUIREMENT: `verifySeals` MUST read every statement and receipt the
@@ -202,22 +202,33 @@ REQUIREMENT: When `sealing.keyed` is given, `verifySeals` MUST pass a pure
 REQUIREMENT: Every item the table names MUST become exactly one finding of
              the kind shown, and the `ChainReport` MUST be attached unchanged
              as `chain`. No item MAY be dropped, merged or upgraded
-             (BEH-GX-040), with exactly the two exceptions INV-GX-009 names,
-             both made by `readArchive` (BEH-GX-140): (1) over an archive
-             whose `requested` range starts above `auditSeq` 1, the items
-             resting on `auditSeq` 1 are reported under a kind that says
-             they were not checked: the "prev-mismatch" break of the first
-             archived entry becomes one `chainLinkUnchecked` with `detail`
-             "link not checked: previous entry outside the archive", a
+             (BEH-GX-040), with exactly the two exceptions INV-GX-009 names:
+             (1) items resting on entries or statements the check does not
+             hold, or holds but could not confirm, are reported under a kind
+             that says they were not checked: (a) over an archive whose
+             `requested` range starts above `auditSeq` 1 (`readArchive`,
+             BEH-GX-140), the "prev-mismatch" break of the first archived
+             entry becomes one `chainLinkUnchecked` with `detail` "link not
+             checked: previous entry outside the archive", a
              "previous-mismatch" or "window-gap" of the host's first
              confirmed statement (the lowest statement `verifyBundle` passes
-             to `verifyChain`, BEH-AC-034) becomes one `anchorUnconfirmed`
-             with the window as `auditSeq` and `toSeq` and `detail`
-             "statement <statementHash> not confirmed: previous statement
-             outside the archive", and
-             `unanchoredTail` becomes no finding and `chainUnanchoredTail`
-             is listed in `notCheckedKinds`, every other item being mapped;
-             (2) an
+             to `verifyChain`, BEH-AC-034), when the bundle holds no
+             statement before it, becomes one `anchorUnconfirmed` with the
+             window as `auditSeq` and `toSeq` and `detail` "statement
+             <statementHash> not confirmed: previous statement outside the
+             archive", and `unanchoredTail` becomes no finding and
+             `chainUnanchoredTail` is listed in `notCheckedKinds`; (b) in
+             `readArchive` whatever its range and in `verifySeals`, a
+             "previous-mismatch" or "window-gap" of a confirmed statement
+             whose preceding held statement of the host (the one with the
+             highest `toSeq` below its window) is unconfirmed — its receipt
+             "not-checked" or "failed" in `verifyBundle`, or in
+             `confirmAnchors`'s `unconfirmed` — becomes one
+             `anchorUnconfirmed` with the window as `auditSeq` and `toSeq`
+             and `detail` "statement <statementHash> not confirmed: previous
+             statement not confirmed", since `verifyChain` is given only the
+             confirmed statements; every other item is mapped;
+             (2) in `readArchive`, an
              `anchorMismatches` entry of kind "root-mismatch",
              "head-mismatch" or "window-not-in-entries" whose window ends
              above an archive's `requested` `toSeq`, or starts below a

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-INV                                               |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-11): INV-AG-002: the reserved spawn tool is appended to every request of the turn alike and never dispatched (SPEC-AUDIT-08 A2) (CCR-AG-011)<br>0.10 (2026-11-11): INV-AG-008: the parent loop's withdrawal of a handed-over draft it did not publish carries the subagent's task id, and its outcome is only logged — a stated limit of what an observer sees (A3) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): INV-AG-004: `TaskRegistry`'s writers are the only writers of task state, and a stopped loop's unfinished tasks end `failed` "LoopStopped" (H3, A1); INV-AG-008: covers the stopped loop, the unmarked cancel of a subagent whose draft is pending on its parent, and the parent's withdrawal of a handed draft it does not publish (A2) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.8 (2026-11-10): INV-AG-008: the exception is a subagent's task cancelled with the hand-off marker naming its pending draft; a subagent draft not taken by its parent, including when the parent's turn ends with an answer, `needs-input` or its own deferral, is withdrawn by the subagent's own task (BEH-AG-016, BEH-AG-030) (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): INV-AG-008: a subagent's task whose deferral its parent waits on reports its draft as "handed-to-parent", and the parent's task, holding it as pending from the moment the subagent's result settles, reports it if it ends without it (BEH-AG-016, BEH-AG-030) (H3) (CCR-AG-006)<br>0.6 (2026-11-09): INV-AG-008: a task never ends with its pending draft unreported; INV-AG-004 Related (audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): INV-AG-001 scoped to commands not declared `readOnly` and retitled (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): INV-AG-007 added (untrusted output only inside an envelope) (CCR-AG-003, round 2: recheck item 8)<br>0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.12 (2026-11-11): INV-AG-001: the reserved spawn tool falls under the same taint floor, refused in a tainted session (A1); INV-AG-006: the replayed loop's snapshots and dispatch requests, a spawn call answered from the transcript and a subagent replayed from its own transcript (H3); second pass (cleanest design): INV-AG-001: the refusal is the agent's own `ToolRefused` (A1) (SPEC-AUDIT-09) (CCR-AG-012)<br>0.11 (2026-11-11): INV-AG-002: the reserved spawn tool is appended to every request of the turn alike and never dispatched (SPEC-AUDIT-08 A2) (CCR-AG-011)<br>0.10 (2026-11-11): INV-AG-008: the parent loop's withdrawal of a handed-over draft it did not publish carries the subagent's task id, and its outcome is only logged — a stated limit of what an observer sees (A3) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): INV-AG-004: `TaskRegistry`'s writers are the only writers of task state, and a stopped loop's unfinished tasks end `failed` "LoopStopped" (H3, A1); INV-AG-008: covers the stopped loop, the unmarked cancel of a subagent whose draft is pending on its parent, and the parent's withdrawal of a handed draft it does not publish (A2) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.8 (2026-11-10): INV-AG-008: the exception is a subagent's task cancelled with the hand-off marker naming its pending draft; a subagent draft not taken by its parent, including when the parent's turn ends with an answer, `needs-input` or its own deferral, is withdrawn by the subagent's own task (BEH-AG-016, BEH-AG-030) (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): INV-AG-008: a subagent's task whose deferral its parent waits on reports its draft as "handed-to-parent", and the parent's task, holding it as pending from the moment the subagent's result settles, reports it if it ends without it (BEH-AG-016, BEH-AG-030) (H3) (CCR-AG-006)<br>0.6 (2026-11-09): INV-AG-008: a task never ends with its pending draft unreported; INV-AG-004 Related (audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): INV-AG-001 scoped to commands not declared `readOnly` and retitled (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): INV-AG-007 added (untrusted output only inside an envelope) (CCR-AG-003, round 2: recheck item 8)<br>0.3 (2026-11-08): INV-AG-001 backed by the command catalog's taint floor (INV-CM-006) (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -34,6 +34,10 @@ the session's taint is on every agent dispatch before the model reads the
 tainted text (BEH-AG-017 to BEH-AG-019) and the command catalog's taint floor
 applies to every dispatch, nested or not
 ([INV-CM-006](../command/invariants.md#inv-cm-006-a-tainted-dispatch-not-declared-read-only-never-runs-on-an-automatic-allow)).
+The reserved spawn tool, never dispatched, falls under the same floor: in a
+tainted session the loop refuses it with its own `ToolRefused`
+("tainted-session") and runs no subagent, since it can carry no approval and
+no draft source drafts it (BEH-AG-003).
 
 **Source**: `packages/agent/src/Taint.ts`, `packages/agent/src/ToolRunner.ts`
 *(Planned)* — labels added before the model call, carried on every dispatch;
@@ -54,7 +58,7 @@ check; a source of untrusted text nobody declared is not covered.
 taint states, nested dispatch and draft-store failures (acceptance check 7,
 and command acceptance check 13).
 
-**Related**: BEH-AG-005, BEH-AG-012, BEH-AG-020, BEH-AG-029; ADR-AG-003.
+**Related**: BEH-AG-003, BEH-AG-005, BEH-AG-012, BEH-AG-020, BEH-AG-029; ADR-AG-003.
 
 ## INV-AG-002: A turn sees one toolset
 
@@ -136,8 +140,12 @@ before a write later in the session.
 ## INV-AG-006: A replayed run is identical to its recording
 
 Replaying a transcript on `TestHost` with the same plugin set, `TestClock` and
-counter identifiers yields the same task snapshots and dispatch requests, or
-fails with `ReplayDiverged`.
+counter identifiers yields the same task snapshots and dispatch requests of
+the replayed loop, or fails with `ReplayDiverged`. A reserved spawn call runs
+no subagent during replay: the loop answers it with the outcome the transcript
+recorded for its `callId`, a missing or different one failing with
+`ReplayDiverged`; a subagent's own run is replayed from its own transcript
+(BEH-AG-035).
 
 **Source**: `packages/agent/src/testing/ReplayModel.ts` *(Planned)*; time and
 ids from the host's `Clock` and `IdGenerator` only.

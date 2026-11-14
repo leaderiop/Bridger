@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-03                                            |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-KR-020: "every reader" restated as every subscription, every `follow` and every event-store read, event-store reads awaiting `DurableBus.whenReadable`, an application decoding through the codec awaiting it as its own duty (H3); the bound of residuals (a) and (b): received tombstones by the restored-host rule, this host's own shreds by an operator re-apply from a host that received the notice, else unbounded (B4); BEH-KR-017: the rollback limits of a `Sealed` kept outside a caller's transaction and of a `rewrap` under one (PL22); BEH-KR-023: `memoryKeyStore` reads its own pending writes in a transaction (PL18); checks 3, 10 (`encrypt`, and BEH-KR-002, 006, 009 cited) and 12 follow (PL21) (CCR-KR-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-KR-017: on an outbox-sharing `KeyStore`, a `shred` under a caller's `StoreTransaction` writes step 1 (tombstone and notice) in it and runs the later steps through `tx.onEnd` after a commit, nothing on rollback, failing with `OutboxFrozen` during a freeze, in place of ignoring the ambient transaction (H3); the keyring's own transactions retry `fence` under bounded backoff, uncounted, never from the status feed (K1); BEH-KR-020: the store-swap participant re-applies in `apply`, inside the install before the `OriginChange`, and the refusal of `decrypt` and the codec after the `OriginChange` is removed (H4, K2); the residual narrows to a crash during the install and a failed `apply`; BEH-KR-023: `memoryKeyStore` applies its writes on the "committed" outcome and offers `dump` and `restoreFrom` (K3); checks 3, 10 and 12 restated; SPEC-AUDIT-07 residual — BEH-KR-020: after a failed `apply` durable-bus retries it in its `apply-pending` hold, readers held, and the keyring's own re-apply is removed; the residual keeps a stop of the process during the install or the hold, and adds the keyring plugin stopping during the hold; BEH-KR-017: the `create`, `addVersion` and `replaceWrapped` writes of `key`, `encrypt`, `rotate`, `rewrap` and the codec take the fence like every keyring write, retried on the keyring's own transactions, and under a caller's `StoreTransaction` are written in it and fail with `OutboxFrozen`; checks 10 and 12 follow; BEH-KR-017: a key the codec creates inside a `publish` or event-store write that then fails is a keyring write in the caller's transaction, kept if the caller commits, used by the subject's next encryption, not an outbox row; BEH-KR-020: the residual stated as three accepted residuals with their bounds, adding (c) an `apply` that fails on every retry, holding writes and readers until the operator restores the `KeyStore`; check 10 follows (CCR-KR-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-017: `shred` ignores an ambient transaction (K3); with an outbox-sharing `KeyStore`, every keyring write transaction calls `DurableBus.fence` first and waits for the freeze to lift on `OutboxFrozen`, uncounted, the error union unchanged (H4); BEH-KR-020: `decrypt` and the codec refuse every subject from the `OriginChange` until the re-apply commits (K1), and the crash window before the re-apply is a stated residual (K2); BEH-KR-023: `memoryKeyStore` offers `transaction` over a given `TestStore` (PL14); checks 3, 10 and 12 extended (PL14, H4, K1, K3) (CCR-KR-008)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-KR-017: a publish that fails on the one-transaction path runs step 1 again alone and leaves the notice pending; the pending-notice list adds `OutboxFrozen`, `AccessRefused` and `DowncastRefused`; the error union is unchanged (B4); BEH-KR-020: the applying and acknowledgement handlers write the `KeyStore` in their own transaction when the `KeyStore` shares the outbox database (B5); an `onStoreSwap` participant keeps tombstones, pending steps and acknowledgements across a whole-store install (B6); checks 10–12 extended (CCR-KR-007)<br>0.7 (2026-11-10): BEH-KR-019: acknowledgements and callback cursors are stored with the `KeyStore` (K1); BEH-KR-020: subscriptions named `<id>/shred-apply`, `<id>/shred-refused` and `<id>/shred-ack` (PL2), and a notice for a subject tombstoned under another `shredId` writes nothing, resumes steps 2 and 4 and is acknowledged with its own `shredId` (K2); checks 10, 11 and 12 extended (SPEC-AUDIT-04) (CCR-KR-006)<br>0.6 (2026-11-10): BEH-KR-020: only a refused (unattributed) notice is parked, through a refusal subscription of its own; a notice that meets `KeyStoreUnavailable` halts the applying subscription, never parked, and resumes on plugin start or `DurableBus.resume` (M22); `SubjectShredAcknowledged` loses `host`, the acknowledging host is taken from the envelope's origin, and the `AccessPolicy` obligation covers the acknowledgement as well as the notice (M23); checks 4 and 12 extended (CCR-KR-005)<br>0.5 (2026-11-10): BEH-KR-020: a received notice whose envelope actor a local shred would refuse is not applied (`ShredUnattributed`, parked); the `AccessPolicy` rules that keep the notice's event type to the keyring plugin and to trusted origins are a stated obligation; checks 7 and 12 extended (P12; key-store outage on decode); follow-up: BEH-KR-024 checks 3 and 4 cover `wrappedUnder`, `replaceWrapped` and `rewrap` (BEH-KR-004, BEH-KR-006) (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — a shred requires an attributed actor (`ShredUnattributed`); the tombstone keeps the shred's actor, `onBehalfOf`, correlation, reason and origin, written once and never changed; the notice carries the reason and time and is published under the shred's context, and a receiving host keeps the origin's attribution as a claim; the receipt exposes the attribution; checks 10 and 12 extended (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-017 persists step state, resumes incomplete shreds at start and on a repeated `shred`, opens its own transactions and commits the notice with the tombstone when the `KeyStore` shares the outbox; BEH-KR-020 and 021 report acknowledging and `KeyStore`-declared hosts only; BEH-KR-022 `notStated` names undeclared hosts; BEH-KR-024 checks 7, 10 and 12 extended (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-017 cites URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.12 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-KR-020: event-store reads gated page by page, a page in flight interrupted at the freeze's second step, a read inside a store transaction fenced, projections restarted once `whenReadable` completes; a read a participant step makes itself skips the gate, a stated limit (H4, H5, H6) — second pass (cleanest design): the limit withdrawn: the participant declares stage "codec", so durable-bus commits its `apply` before any "data" `apply` begins and hands it, like `run`, no `SwapStep`, the only way a step decodes; reads inside a store transaction take event-store `readIn` and the read fence; BEH-KR-017: `shredIn(tx, …)` joins the caller's transaction for step 1 (fence first, `OutboxFrozen` there only, the remaining steps forked on `tx.onEnd` "committed"), `shred` always opens its own and never returns `OutboxFrozen`, the joining forms `keyIn`, `encryptIn`, `rotateIn`, `rewrapIn` and the codec's `encode` write in the `tx` they are passed, each joining form dies on a `KeyStore` without `transaction`, and no operation looks for a transaction in the environment; BEH-KR-020: handlers and the store-swap `apply` pass their transaction to each `KeyStore` write; checks 3 and 10; BEH-KR-017: only a `Sealed` whose key (or version) the rolled-back transaction created is lost (PL18); check 12; third pass: a store-swap step that awaits the read gate is refused at once (durable-bus BEH-DB-048, `CurrentSwapStep`) — BEH-KR-020 says so where it lists the three ways (CCR-KR-011)<br>0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-KR-020: "every reader" restated as every subscription, every `follow` and every event-store read, event-store reads awaiting `DurableBus.whenReadable`, an application decoding through the codec awaiting it as its own duty (H3); the bound of residuals (a) and (b): received tombstones by the restored-host rule, this host's own shreds by an operator re-apply from a host that received the notice, else unbounded (B4); BEH-KR-017: the rollback limits of a `Sealed` kept outside a caller's transaction and of a `rewrap` under one (PL22); BEH-KR-023: `memoryKeyStore` reads its own pending writes in a transaction (PL18); checks 3, 10 (`encrypt`, and BEH-KR-002, 006, 009 cited) and 12 follow (PL21) (CCR-KR-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-KR-017: on an outbox-sharing `KeyStore`, a `shred` under a caller's `StoreTransaction` writes step 1 (tombstone and notice) in it and runs the later steps through `tx.onEnd` after a commit, nothing on rollback, failing with `OutboxFrozen` during a freeze, in place of ignoring the ambient transaction (H3); the keyring's own transactions retry `fence` under bounded backoff, uncounted, never from the status feed (K1); BEH-KR-020: the store-swap participant re-applies in `apply`, inside the install before the `OriginChange`, and the refusal of `decrypt` and the codec after the `OriginChange` is removed (H4, K2); the residual narrows to a crash during the install and a failed `apply`; BEH-KR-023: `memoryKeyStore` applies its writes on the "committed" outcome and offers `dump` and `restoreFrom` (K3); checks 3, 10 and 12 restated; SPEC-AUDIT-07 residual — BEH-KR-020: after a failed `apply` durable-bus retries it in its `apply-pending` hold, readers held, and the keyring's own re-apply is removed; the residual keeps a stop of the process during the install or the hold, and adds the keyring plugin stopping during the hold; BEH-KR-017: the `create`, `addVersion` and `replaceWrapped` writes of `key`, `encrypt`, `rotate`, `rewrap` and the codec take the fence like every keyring write, retried on the keyring's own transactions, and under a caller's `StoreTransaction` are written in it and fail with `OutboxFrozen`; checks 10 and 12 follow; BEH-KR-017: a key the codec creates inside a `publish` or event-store write that then fails is a keyring write in the caller's transaction, kept if the caller commits, used by the subject's next encryption, not an outbox row; BEH-KR-020: the residual stated as three accepted residuals with their bounds, adding (c) an `apply` that fails on every retry, holding writes and readers until the operator restores the `KeyStore`; check 10 follows (CCR-KR-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-017: `shred` ignores an ambient transaction (K3); with an outbox-sharing `KeyStore`, every keyring write transaction calls `DurableBus.fence` first and waits for the freeze to lift on `OutboxFrozen`, uncounted, the error union unchanged (H4); BEH-KR-020: `decrypt` and the codec refuse every subject from the `OriginChange` until the re-apply commits (K1), and the crash window before the re-apply is a stated residual (K2); BEH-KR-023: `memoryKeyStore` offers `transaction` over a given `TestStore` (PL14); checks 3, 10 and 12 extended (PL14, H4, K1, K3) (CCR-KR-008)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-KR-017: a publish that fails on the one-transaction path runs step 1 again alone and leaves the notice pending; the pending-notice list adds `OutboxFrozen`, `AccessRefused` and `DowncastRefused`; the error union is unchanged (B4); BEH-KR-020: the applying and acknowledgement handlers write the `KeyStore` in their own transaction when the `KeyStore` shares the outbox database (B5); an `onStoreSwap` participant keeps tombstones, pending steps and acknowledgements across a whole-store install (B6); checks 10–12 extended (CCR-KR-007)<br>0.7 (2026-11-10): BEH-KR-019: acknowledgements and callback cursors are stored with the `KeyStore` (K1); BEH-KR-020: subscriptions named `<id>/shred-apply`, `<id>/shred-refused` and `<id>/shred-ack` (PL2), and a notice for a subject tombstoned under another `shredId` writes nothing, resumes steps 2 and 4 and is acknowledged with its own `shredId` (K2); checks 10, 11 and 12 extended (SPEC-AUDIT-04) (CCR-KR-006)<br>0.6 (2026-11-10): BEH-KR-020: only a refused (unattributed) notice is parked, through a refusal subscription of its own; a notice that meets `KeyStoreUnavailable` halts the applying subscription, never parked, and resumes on plugin start or `DurableBus.resume` (M22); `SubjectShredAcknowledged` loses `host`, the acknowledging host is taken from the envelope's origin, and the `AccessPolicy` obligation covers the acknowledgement as well as the notice (M23); checks 4 and 12 extended (CCR-KR-005)<br>0.5 (2026-11-10): BEH-KR-020: a received notice whose envelope actor a local shred would refuse is not applied (`ShredUnattributed`, parked); the `AccessPolicy` rules that keep the notice's event type to the keyring plugin and to trusted origins are a stated obligation; checks 7 and 12 extended (P12; key-store outage on decode); follow-up: BEH-KR-024 checks 3 and 4 cover `wrappedUnder`, `replaceWrapped` and `rewrap` (BEH-KR-004, BEH-KR-006) (CCR-KR-004)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (M-01) — a shred requires an attributed actor (`ShredUnattributed`); the tombstone keeps the shred's actor, `onBehalfOf`, correlation, reason and origin, written once and never changed; the notice carries the reason and time and is published under the shred's context, and a receiving host keeps the origin's attribution as a claim; the receipt exposes the attribution; checks 10 and 12 extended (CCR-KR-003)<br>0.3 (2026-11-08): BEH-KR-017 persists step state, resumes incomplete shreds at start and on a repeated `shred`, opens its own transactions and commits the notice with the tombstone when the `KeyStore` shares the outbox; BEH-KR-020 and 021 report acknowledging and `KeyStore`-declared hosts only; BEH-KR-022 `notStated` names undeclared hosts; BEH-KR-024 checks 7, 10 and 12 extended (CCR-KR-002)<br>0.2 (2026-11-08): BEH-KR-017 cites URS-BR-058 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -34,11 +34,15 @@ Planned source: `packages/keyring/src/Shred.ts` *(Planned)*.
 ```ts
 // illustrative — not type-checked
 declare const Keyring: {
-  // the keyring opens its own transactions, except step 1 under a caller's StoreTransaction on an outbox-sharing
-  // KeyStore (see below); OutboxFrozen only there
-  readonly shred: (subject: string, options: { reason: string; context?: OperationContext }) =>
+  // opens the keyring's own transactions; never fails with OutboxFrozen (a refused fence is retried, below)
+  readonly shred: (subject: string, options: ShredOptions) =>
+    Effect.Effect<ShredReceipt, SubjectInvalid | ShredUnattributed | KeyStoreUnavailable>
+  // writes step 1 in the caller's transaction `tx`, passed as an argument, on a KeyStore that offers `transaction`
+  // (dies with a defect on one that does not); OutboxFrozen only here
+  readonly shredIn: (tx: StoreTransaction["Service"], subject: string, options: ShredOptions) =>
     Effect.Effect<ShredReceipt, SubjectInvalid | ShredUnattributed | KeyStoreUnavailable | OutboxFrozen>
 }
+interface ShredOptions { readonly reason: string; readonly context?: OperationContext }
 class ShredUnattributed extends Schema.TaggedError<ShredUnattributed>()("ShredUnattributed", { subject: Schema.String }) {}
 interface ShredReceipt {
   readonly subject: string
@@ -61,10 +65,10 @@ REQUIREMENT: `shred` MUST (1) write the tombstone, after which `key`,
              notice (BEH-KR-020); (4) run the redaction callbacks
              (BEH-KR-019). It MUST NOT change a stored event, an outbox
              entry or a chain link. `shred` MUST return once step 1 has
-             committed (under a caller's transaction, once step 1 is
-             written in it, below), with the receipt's `steps` as they
-             stand; it fails only when step 1 fails (`KeyStoreUnavailable`,
-             or `OutboxFrozen` under a caller's transaction), and then
+             committed (for `shredIn`, once step 1 is written in its `tx`,
+             below), with the receipt's `steps` as they stand; it fails only
+             when step 1 fails (`KeyStoreUnavailable`, or `OutboxFrozen`
+             from `shredIn`), and then
              nothing was written. A failed publish that rolls step 1 back on the
              one-transaction path is not a failure of step 1: step 1 is run
              again alone (below).
@@ -78,21 +82,28 @@ REQUIREMENT: The state of steps 2 and 3 MUST be persisted with the tombstone
              from its first pending step when its plugin starts, MUST retry a
              failed step with bounded backoff while it runs, and MUST resume
              it on a repeated `shred` of the same subject before returning
-             the receipt (under a caller's transaction, after that
-             transaction commits, below). Steps 2 and 3 MUST be idempotent: destroying
+             the receipt (for `shredIn`, after its `tx` commits, below). Steps 2 and 3 MUST be idempotent: destroying
              destroyed keys succeeds, and a notice published twice carries
              the same `shredId`, which receivers apply once (BEH-KR-020).
 ```
 
 ```
-REQUIREMENT: The keyring MUST open its own transactions, except for step 1
-             of a `shred`, and the key writes of `key`, `encrypt`, `rotate`,
-             `rewrap` and the codec's encode, called under a caller's
-             transaction on a `KeyStore` that offers `transaction` (below). When the
-             `KeyStore` does not offer `transaction`, `shred` MUST ignore a
-             `StoreTransaction` in its caller's environment: none of its
-             writes, and none of the steps it resumes or leaves running, is
-             made in the caller's transaction. When the `KeyStore`
+REQUIREMENT: The keyring MUST open its own transactions in every
+             operation except its joining forms — `shredIn` for step 1, and
+             `keyIn`, `encryptIn`, `rotateIn`, `rewrapIn` and, on a
+             `KeyStore` that offers `transaction`, the codec's `encode` for
+             their key writes (below) — which make those writes in the `tx`
+             they are passed and open no transaction for them. No operation
+             MUST decide how it writes by whether a `StoreTransaction` is in
+             the calling fiber's environment: `shred`, `key`, `encrypt`,
+             `rotate` and `rewrap` never write in a caller's transaction,
+             whatever that environment holds, and no step a joining form
+             resumes or leaves running after its `tx` is written in that
+             `tx`. When the `KeyStore` does not offer `transaction`, its
+             database is not the outbox's and no caller's transaction can be
+             joined: each joining form MUST die with a defect naming the
+             member and "KeyStore without transaction", writing nothing, and
+             the codec's `encode` takes the plain path (02, BEH-KR-009). When the `KeyStore`
              offers `transaction` (its database is the durable-bus outbox's),
              the keyring MUST write the tombstone and publish the notice in
              that one transaction, so that step 3 commits with step 1 and
@@ -112,14 +123,13 @@ REQUIREMENT: The keyring MUST open its own transactions, except for step 1
 ```
 
 ```
-REQUIREMENT: When the `KeyStore` offers `transaction` and `shred` is called
-             with a `StoreTransaction` in its environment (a durable-bus
-             handler's, for one), that transaction is one of the
-             `KeyStore`'s database, and `shred` MUST write step 1 in it,
+REQUIREMENT: `shredIn(tx, subject, options)`, on a `KeyStore` that offers
+             `transaction`, whose database `tx` is a transaction of (a
+             durable-bus handler's, for one), MUST write step 1 in `tx`,
              opening no transaction of its own, so that it never waits on a
              second writer of that database: it calls
-             `DurableBus.fence(tx)` with it, writes the tombstone and
-             publishes the notice there. It MUST register, through
+             `DurableBus.fence(tx)` with it, writes the tombstone (passing
+             `tx` to `KeyStore.tombstone`) and publishes the notice there. It MUST register, through
              `tx.onEnd` (durable-bus BEH-DB-009), a function that on
              "committed" forks the remaining steps — 2 and 4, 3 when its
              publish failed, and those it resumes for a subject already
@@ -128,16 +138,16 @@ REQUIREMENT: When the `KeyStore` offers `transaction` and `shred` is called
              nothing: the shred did not happen. It MUST run no other step
              before that commit, and MUST return its receipt once step 1 is
              written, with the later steps "pending"; the receipt states the
-             shred as it stands if the caller's transaction commits. An
-             `OutboxFrozen` from `fence` there MUST fail `shred` with
-             `OutboxFrozen`, writing nothing, and never be waited on inside
-             the caller's transaction, whose admission a freeze waits for
+             shred as it stands if `tx` commits. An `OutboxFrozen` from
+             `fence` there MUST fail `shredIn` with `OutboxFrozen`, writing
+             nothing, and never be waited on inside `tx`, whose admission a
+             freeze waits for
              (durable-bus BEH-DB-048); a handler that returns it is retried
              when the bus's pause ends, uncounted. A publish error there (the
              list above) leaves the tombstone written with `notice`
              "pending", published after the commit; a `KeyStoreUnavailable`
-             from the tombstone fails `shred`, and what the caller's
-             transaction does then is the caller's. When the keyring plugin
+             from the tombstone fails `shredIn`, and what `tx` does then is
+             the caller's. When the keyring plugin
              has stopped by the time the function runs, nothing is forked:
              the committed tombstone carries its pending steps, which the
              plugin resumes at its next start (`incompleteShreds`, above).
@@ -153,8 +163,8 @@ REQUIREMENT: When the `KeyStore` offers `transaction` (its database is the
              `rotate`, `rewrap` and the codec's encode; 01, BEH-KR-002,
              BEH-KR-006; 02, BEH-KR-009), and the writes of its
              subscription handlers in the handler's
-             transaction, and `shred`'s step 1 in its caller's transaction
-             (above) — MUST call `DurableBus.fence(tx)` (durable-bus
+             transaction, and `shredIn`'s step 1 in its `tx` (above) — MUST
+             call `DurableBus.fence(tx)` (durable-bus
              BEH-DB-048) with that transaction first, before any of
              `create`, `addVersion`, `replaceWrapped`, `tombstone`,
              `destroy`, `markStep` or `acknowledge`, so that a whole-store
@@ -166,7 +176,7 @@ REQUIREMENT: When the `KeyStore` offers `transaction` (its database is the
              `OutboxFrozen` from it rolls that transaction back; in a handler
              it fails the handler call, which the bus retries when its pause
              ends without counting it (durable-bus BEH-DB-048); under a
-             caller's transaction it fails `shred` (above); in the keyring's
+             joining form's `tx` it fails that call (above, below); in the keyring's
              own transactions the keyring MUST retry `fence` in a new
              transaction after a delay that grows with each refusal up to a
              bound (bounded backoff), for as long as `fence` refuses, without
@@ -179,45 +189,47 @@ REQUIREMENT: When the `KeyStore` offers `transaction` (its database is the
 ```
 
 ```
-REQUIREMENT: When the `KeyStore` offers `transaction` and `key`, `encrypt`,
-             `rotate`, `rewrap` or the codec's encode runs with a
-             `StoreTransaction` in its environment (a caller's, a durable-bus
-             handler's, or the one `publish` or an event-store write encodes
-             in), that transaction is one of the `KeyStore`'s database, and
-             the keyring MUST make its `create`, `addVersion` and
-             `replaceWrapped` writes in it after `fence(tx)` with it,
-             opening no transaction of its own, as `shred`'s step 1 does
-             (above), so that it never waits on the caller's lock of a
-             single-writer engine; what it writes there commits or rolls
-             back with that transaction. Documentation MUST state the two
-             limits that follow: a `Sealed` that `encrypt` returned under a
-             caller's transaction that then rolls back names a key that no
-             longer exists, so a caller that keeps it outside that
-             transaction can never decrypt it; and a `rewrap` under a
-             caller's transaction that rolls back keeps none of its
-             replacements, so its versions stay under `kekId` until a
-             repeated `rewrap(kekId)` (01, BEH-KR-006). A key the codec creates inside a
-             `publish` (or an event-store write) that then fails is such a
-             write: a keyring write in the caller's transaction, kept if the
-             caller catches the error and commits; it encrypts nothing that
-             was stored, and the next encryption for that subject uses it
-             as the subject's current key. It is not an outbox row, so a
-             failed `publish` still writes nothing of its own (durable-bus
-             BEH-DB-009, check 41). An `OutboxFrozen` from `fence`
-             there MUST fail the call with `OutboxFrozen`, writing nothing,
-             and never be waited on inside the caller's transaction: `key`,
-             `encrypt`, `rotate` and `rewrap` return it (01, BEH-KR-002,
-             BEH-KR-006), and the codec's encode fails with durable-bus
-             `PayloadEncodeFailed` naming it. Inside `publish` and every
-             event-store write it does not arise, since each calls `fence`
-             on its transaction before it encodes and a `fence` on a
+REQUIREMENT: On a `KeyStore` that offers `transaction`, `keyIn`, `encryptIn`,
+             `rotateIn` and `rewrapIn`, and the codec's `encode` (02,
+             BEH-KR-009), MUST make their `create`, `addVersion` and
+             `replaceWrapped` writes in the `tx` they are passed — the
+             caller's, a durable-bus handler's, or the one `publish` or an
+             event-store write passes to `encode` (durable-bus BEH-DB-008) —
+             after `fence(tx)` with it, passing `tx` to each write and
+             opening no transaction of their own, as `shredIn`'s step 1 does
+             (above), so that they never wait on the caller's lock of a
+             single-writer engine; what they write there commits or rolls
+             back with `tx`. Documentation MUST state the two limits that
+             follow: a `Sealed` that `encryptIn` returned under a `tx` that
+             then rolls back, when that call created the subject's key in it
+             (or a `rotateIn` added the version it names in it), names a key
+             or version that no longer exists, so a caller that keeps it
+             outside that transaction can never decrypt it, while a `Sealed`
+             under a key or version that existed before the transaction
+             stays decryptable; and a `rewrapIn` whose `tx` rolls back keeps
+             none of its replacements, so its versions stay under `kekId`
+             until a repeated `rewrap(kekId)` (01, BEH-KR-006). A key the
+             codec creates inside a `publish` (or an event-store write) that
+             then fails is such a write: a keyring write in the caller's
+             transaction, kept if the caller catches the error and commits;
+             it encrypts nothing that was stored, and the next encryption
+             for that subject uses it as the subject's current key. It is
+             not an outbox row, so a failed `publish` still writes nothing of
+             its own (durable-bus BEH-DB-009, check 41). An `OutboxFrozen`
+             from `fence` there MUST fail the call with `OutboxFrozen`,
+             writing nothing, and never be waited on inside `tx`: `keyIn`,
+             `encryptIn`, `rotateIn` and `rewrapIn` return it (01,
+             BEH-KR-002, BEH-KR-006), and the codec's `encode` fails with
+             durable-bus `PayloadEncodeFailed` naming it. Inside `publish`
+             and every event-store write it does not arise, since each calls
+             `fence` on its transaction before it encodes and a `fence` on a
              transaction already admitted succeeds (durable-bus BEH-DB-008,
-             BEH-DB-048; event-store BEH-ES-034). Without a
-             `StoreTransaction` in the environment, each such write runs in
-             the keyring's own `KeyStore.transaction` and retries a refused
-             `fence` under bounded backoff, uncounted (above). When the
-             `KeyStore` does not offer `transaction`, these calls ignore a
-             caller's `StoreTransaction` and take no fence.
+             BEH-DB-048; event-store BEH-ES-034). `key`, `encrypt`, `rotate`
+             and `rewrap` make each such write in the keyring's own
+             `KeyStore.transaction` and retry a refused `fence` under bounded
+             backoff, uncounted (above), so they never return
+             `OutboxFrozen`; on a `KeyStore` without `transaction` they write
+             without a transaction and take no fence.
 ```
 
 ```
@@ -381,12 +393,13 @@ REQUIREMENT: A received notice MUST pass the attribution rule of a local
              with `onPoison: "halt"`, whose handler records the
              acknowledgement (BEH-KR-019) and ignores one for a `shredId`
              that is not its own; a `KeyStoreUnavailable` there halts it as
-             below. When the `KeyStore` offers `transaction`, the handler's
-             `StoreTransaction` is a transaction of the `KeyStore`'s database
-             and serves as the ambient `KeyStore.transaction` (01,
-             BEH-KR-004): the applying and acknowledgement handlers MUST make their
-             `KeyStore` writes (`tombstone`, `destroy`, `markStep`,
-             `acknowledge`) in it, so that they commit with the inbox mark
+             below. When the `KeyStore` offers `transaction`, the
+             `StoreTransaction` each handler requires (durable-bus
+             BEH-DB-020) is a transaction of the `KeyStore`'s database: the
+             applying and acknowledgement handlers MUST pass it as the `tx`
+             argument of every `KeyStore` write they make (`tombstone`,
+             `destroy`, `markStep`, `acknowledge`; 01, BEH-KR-004), after
+             `fence(tx)` with it, so that they commit with the inbox mark
              and never wait on a second writer of the same database.
 ```
 
@@ -445,7 +458,8 @@ REQUIREMENT: When the `KeyStore` offers `transaction`, a whole-store
              re-bootstrap install (durable-bus BEH-DB-048) replaces it with
              the outbox's database. The keyring plugin MUST therefore
              register a durable-bus `onStoreSwap` participant, named
-             `<id>/store-swap`, with a `prepare` and an `apply`. `prepare`
+             `<id>/store-swap`, of stage "codec" (it restores what the codec
+             reads), with a `prepare` and an `apply`. `prepare`
              reads, from the store about to be replaced, every tombstone
              (`KeyStore.tombstones`, with its pending steps) and every
              acknowledgement of each (`KeyStore.acknowledgements`), and adds
@@ -455,9 +469,11 @@ REQUIREMENT: When the `KeyStore` offers `transaction`, a whole-store
              shredded for `key`, `encrypt` and `decrypt` (INV-KR-002), until
              its tombstone has been committed to the store in use. `apply`
              MUST re-apply them to the store `run` left, in the install's
-             transaction it is given, which serves as the ambient
-             `KeyStore.transaction` (01, BEH-KR-004) and which `fence`
-             admits (BEH-KR-017): write each tombstone the new store lacks
+             transaction it is passed as its argument (durable-bus
+             BEH-DB-048), which it passes as the `tx` argument of every
+             `KeyStore` write it makes (01, BEH-KR-004) after `fence(tx)`,
+             which admits it (BEH-KR-017); a "codec" `apply` is handed no
+             `SwapStep` and decodes nothing: write each tombstone the new store lacks
              for its subject, with `destroyed` false so that step 2 destroys
              any key the new store holds and with its other steps as read,
              leave a tombstone the new store holds under another `shredId`
@@ -472,20 +488,33 @@ REQUIREMENT: When the `KeyStore` offers `transaction`, a whole-store
              (durable-bus BEH-DB-048); the keyring then keeps what it holds,
              and durable-bus, in its `apply-pending` hold, calls `apply` again
              in a new transaction under bounded backoff until it commits,
-             holding every subscription, every `follow` and every
-             event-store read meanwhile (durable-bus BEH-DB-048); the
-             keyring opens no re-apply transaction of its own. Because
-             durable-bus emits the `OriginChange`, lifts the freeze and
-             resumes any subscription or `follow` only after every `apply`
-             has committed, and `DurableBus.whenReadable`, which every
-             event-store `read` and `readAll` awaits, completes only once the
-             freeze and both holds have ended, the tombstones are in the new
-             store before any of these readers runs on it — event-store
-             projections restart only after the `OriginChange` (event-store
-             BEH-ES-034) — and the codec, which reads the `KeyStore` (02,
-             BEH-KR-012), decodes those subjects as `Shredded`. An
-             application that decodes through the codec itself MUST await
-             `DurableBus.whenReadable` first, its own duty, stated in the
+             holding every subscription, every `follow`, every event-store
+             read and every "data" `apply` meanwhile (durable-bus
+             BEH-DB-048); the keyring opens no re-apply transaction of its
+             own. Because durable-bus emits the `OriginChange`, lifts the
+             freeze and resumes any subscription or `follow` only after every
+             `apply` has committed; every event-store `read` and `readAll` is
+             gated page by page behind `DurableBus.whenReadable`, which
+             completes only once the freeze and both holds have ended (a
+             page in flight interrupted when the freeze's second step
+             begins), and every `readIn` inside a store transaction takes
+             the read fence `DurableBus.fenceRead`, refused meanwhile
+             (event-store BEH-ES-034); and a store-swap step decodes only
+             through the `SwapStep` durable-bus hands it — a `prepare` on the
+             store about to be replaced, which holds the tombstones, and a
+             "data" `apply` only once this participant's "codec" `apply` has
+             committed, `run` and a "codec" `apply` getting none (durable-bus
+             BEH-DB-048) — the tombstones are in the new store before any of
+             these readers or steps decodes on it — event-store projections
+             restart only after the `OriginChange`, once `whenReadable`
+             completes (event-store BEH-ES-034) — and the codec, which reads
+             the `KeyStore` (02, BEH-KR-012), decodes those subjects as
+             `Shredded`. An application that decodes through the codec
+             itself MUST take the same ways (`DurableBus.guardRead` outside a
+             store transaction, `DurableBus.fenceRead` inside one,
+             `DurableBus.guardStep` with its `SwapStep` inside a participant
+             step; a step that awaits the read gate instead is refused at
+             once, durable-bus BEH-DB-048), its own duty, stated in the
              documentation: the keyring cannot see that read. Documentation MUST state three accepted
              residuals (INV-KR-002, RSK-KR-001; durable-bus BEH-DB-048).
              What `prepare` read lives in memory only, so it is lost, and
@@ -502,8 +531,8 @@ REQUIREMENT: When the `KeyStore` offers `transaction`, a whole-store
              `apply-pending` hold, and (b) when the keyring plugin stops
              during that hold: its participant is withdrawn, durable-bus
              drops its pending `apply`, and the hold can lift with those
-             tombstones unwritten, after which readers run on the new store
-             and the codec decodes a field of a subject shredded only in the
+             tombstones unwritten, after which the deferred "data" `apply`
+             steps and the readers run on the new store and the codec decodes a field of a subject shredded only in the
              replaced store whose key the new store holds. (c) An `apply`
              that fails on every retry keeps the hold, and with it every
              write refused and every subscription, every `follow` and every
@@ -588,9 +617,12 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                 no tombstoned subject; `replaceWrapped` with a stale
                 `expected` fails with `WrappedKeyChanged` and after a
                 tombstone with `KeyShredded`, changing nothing; `tombstones`
-                lists every tombstone with its fields unchanged; inside a
-                `KeyStore.transaction`, `tombstone`, `destroy`, `markStep`
-                and `acknowledge` commit and roll back with it; a
+                lists every tombstone with its fields unchanged;
+                `tombstone`, `destroy`, `markStep` and `acknowledge` passed
+                the `tx` a `KeyStore.transaction` hands its function commit
+                and roll back with it, and without that argument commit on
+                their own even when a transaction is in the calling fiber's
+                environment; a
                 `KeyStore.transaction` runs its `onEnd` functions at commit
                 and at rollback, on every exit, given "committed" or
                 "rolled-back", so a fence admission taken on it ends then;
@@ -638,24 +670,30 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  between `prepare` and the swap; `key`, `encrypt`, `rotate`
                  and `rewrap` likewise call `fence` before `create`,
                  `addVersion` or `replaceWrapped` and retry it during a
-                 freeze, and under a caller's `StoreTransaction` write in
-                 it and fail with `OutboxFrozen`, writing nothing, while
-                 the codec's encode inside `publish` creates a key in the
-                 publishing transaction without a refusal, a key so created
+                 freeze, never returning `OutboxFrozen`, and write in no
+                 caller's transaction even when one is in the calling
+                 fiber's environment; `keyIn`, `encryptIn`, `rotateIn` and
+                 `rewrapIn` write in the `tx` they are passed and fail with
+                 `OutboxFrozen` during a freeze, writing nothing, and die
+                 on a `KeyStore` without `transaction`; the codec's
+                 `encode` inside `publish` and inside an event-store append
+                 creates a key in the transaction it is passed without a
+                 refusal, a key so created
                  in a `publish` that then fails staying when the caller
                  catches the error and commits and serving the subject's
                  next encryption; with an outbox-sharing
-                 `KeyStore`, a `shred` called inside a durable-bus handler
-                 writes its tombstone and notice in the handler's
-                 transaction and opens none of its own, so that it never
+                 `KeyStore`, a `shredIn` called inside a durable-bus
+                 handler with the handler's transaction writes its
+                 tombstone and notice in it and opens none of its own, so that it never
                  blocks on a single-writer engine, returns its receipt with
                  the later steps "pending", which run after the handler
                  commits and not at all when it rolls back (the subject
                  then not shredded), and during a freeze fails with
                  `OutboxFrozen`, writing nothing, the handler retried
-                 uncounted; without one, a `shred` inside a handler writes
-                 nothing in the handler's transaction, and its tombstone
-                 stays when that handler rolls back;
+                 uncounted; a plain `shred` inside a handler writes nothing
+                 in the handler's transaction, and its tombstone stays when
+                 that handler rolls back; without an outbox-sharing
+                 `KeyStore`, `shredIn` dies with a defect, writing nothing;
                  a second shred keeps `shredId` and the first attribution;
                  a shred by a reserved or blank actor fails with
                  `ShredUnattributed` and a blank reason with
@@ -703,8 +741,14 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  and is retried by durable-bus in its `apply-pending` hold,
                  no subscription, `follow` or projection resuming and no
                  decode served on the new store before it commits, an
-                 event-store `read` waiting on `DurableBus.whenReadable`
-                 meanwhile; a subject this host shredded and lost with the
+                 event-store `read` decoding no page meanwhile, one begun
+                 before the freeze failing at its page in flight when the
+                 freeze's second step begins; with the keyring's participant
+                 registered after a "data" participant whose `apply` reads
+                 through event-store `readForSwap`, that `apply` runs after
+                 the keyring's `apply` has committed, also after a failed
+                 one is retried, and decodes the subject's fields as
+                 `Shredded`; a subject this host shredded and lost with the
                  replaced store is closed again once an operator re-applies
                  its tombstone from a host that received the notice; every
                  receipt lists `notStated`; wording lint (BEH-KR-020,

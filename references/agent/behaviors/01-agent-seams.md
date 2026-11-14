@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-01                                            |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-11): BEH-AG-003: the loop offers spawning as one reserved tool, `Agent.spawnTool` ("@bridger/agent/spawn"), appended to every request's `tools` when the loop is built with `subagents`, intercepted by `callId` before any dispatch, never a command and never run by `ToolRunner`, its outcome recorded as that call's tool outcome in the messages and the transcript; the `ToolRunner`-only exception and BEH-AG-002's adapter and `ToolCall` rules name it (A2); `SpawnStart.spawnedBy`, carried on every dispatch of a spawned task under `Agent.SpawnedBy` (A1); BEH-AG-005 Settled (3): the parent of a call-path plugin, transitively, and a subagent's ancestor loops (PL1, A1); BEH-AG-007: option `subagents` (SPEC-AUDIT-08) (CCR-AG-011)<br>0.11 (2026-11-11): BEH-AG-003: `SpawnStart.settleDeferred`, which a subagent's loop calls through `TaskRegistry.settle` after publishing `awaiting-approval` (H5); the loop's own `spawnSubagent` call is the named exception to the `ToolRunner`-only rule (A2) (SPEC-AUDIT-07) (CCR-AG-010)<br>0.10 (2026-11-11): BEH-AG-003: `start` registers the task and publishes `queued` before returning its id (A1); `resume` of a task the provider did not register fails `TaskNotFound` or `TaskNotResumable` (PL21); `AgentLoop.cancel` without context resolves its actor as `Tasks.cancel` does, never `Actor.system` (A2); `SpawnStart.heldByParent` derives from the parent loop's `pendingDraft` (H10) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): BEH-AG-003: the loop registers each task with `TaskRegistry` in its plugin's activation scope and reports through the returned `TaskWriter`; `AgentLoop.cancel` takes `(taskId, context?, options?)` and delegates to `Tasks.cancel`, a cancel without context being by `Actor.system`; `SpawnStart.heldByParent`; the trusted-input documentation rule covers the hand-off marker; BEH-AG-001: `TaskRegistry` is a base service, not a key; BEH-AG-005 Settled (3) and BEH-AG-006: a stopped loop's tasks end `failed` "LoopStopped", and a replacement loop keeps the task rules (SPEC-AUDIT-05 H3, A1, PL3, PL4) (CCR-AG-008)<br>0.8 (2026-11-10): BEH-AG-003: `AgentLoop.cancel` takes the hand-off marker `handedDraftId` as `Tasks.cancel` does (02, BEH-AG-016) (H2); BEH-AG-001: `Tasks` is a base service, not one of the five keys (02, BEH-AG-011) (T1) (CCR-AG-007)<br>0.7 (2026-11-10): Each turn runs under the loop plugin's own principal through `Plugin.Runtime.asSelf`, so a tool call's `onBehalfOf` names the loop (BEH-AG-003, BEH-AG-005, core BEH-BR-258) (H4); `AgentLoop.start` with an unknown session id starts a new session, created by its first `append`, and `AgentStartError` loses `SessionNotFound` (BEH-AG-003, BEH-AG-004) (M10); a tool withdrawn mid-turn never runs a different definition under the same id, while an identical descriptor contributed by another plugin runs (BEH-AG-003, command INV-CM-003) (M12) (CCR-AG-006)<br>0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — `StartRequest.spawn` carries a subagent's restricted toolset, taint and parent task, and forbids pinning (BEH-AG-003, H10); a tool withdrawn mid-turn fails with `CommandNotFound`, `ContributionUnavailable` or `ToolChanged` as command dispatch decides (low finding); `onBehalfOf` of a tool call names the loop's plugin, and a tool call that would stop its own loop is settled (BEH-AG-005, core BEH-BR-258; P24); `spawn` is trusted input, set by `spawnSubagent` (review of the round) (CCR-AG-005)<br>0.5 (2026-11-09): The `AgentLoop.plugin` options of BEH-AG-007 and the example of BEH-AG-008 carry the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-08, A-09, A-16): `Started` chosen by the descriptor's `long`, never by the output's shape; the idempotency key covers a resubmission within the process, not crash recovery of the run; a step with a long call is not batched; a batch of declared reads from a tainted session runs on the gate's decision, other batches need an approval that also covers their compensations (CCR-AG-003)<br>0.3 (2026-11-08): Steps run under core `CurrentCorrelation`; tool calls carry an idempotency key; tool results reach the model as envelopes; long commands and batches in `ToolOutcome`; `ResumeInput.Approved` carries one outcome per drafted command; BEH-AG-007 model adapter per session through a realm family; BEH-AG-008 a step's tool calls as one batch (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.13 (2026-11-11): BEH-AG-003: the reserved spawn call falls under the taint floor of a command not declared `readOnly` — in a tainted session it runs no subagent and fails `CommandRefused` "tainted-session" — and `parent.context` is the step's dispatch context, carrying the session's taint and the call's provenance (A1); the loop calls `spawnSubagent` in a scope of its own for the call, closed once the outcome settles or the turn ends, and names every `parent` field (PL2); during replay a spawn call runs no subagent (H3); `Agent.spawnTool` is a `ToolDescriptor`, its id outside the command id grammar, and the rule for a command holding the reserved id is dropped (PL1); a step's tool outcomes, spawn outcomes included, reach the next request in `ToolCall` order (H3); second pass (cleanest design): the spawn call's refusals are the agent's own `ToolRefused { tool, reason, issues? }` — "tainted-session" under the same floor as a command not declared `readOnly`, "input-invalid" for an undecodable input in place of the decode error's tag — and a new rule forbids the loop answering a call that is not a command with a dispatch tag (A1) (SPEC-AUDIT-09) (CCR-AG-012)<br>0.12 (2026-11-11): BEH-AG-003: the loop offers spawning as one reserved tool, `Agent.spawnTool` ("@bridger/agent/spawn"), appended to every request's `tools` when the loop is built with `subagents`, intercepted by `callId` before any dispatch, never a command and never run by `ToolRunner`, its outcome recorded as that call's tool outcome in the messages and the transcript; the `ToolRunner`-only exception and BEH-AG-002's adapter and `ToolCall` rules name it (A2); `SpawnStart.spawnedBy`, carried on every dispatch of a spawned task under `Agent.SpawnedBy` (A1); BEH-AG-005 Settled (3): the parent of a call-path plugin, transitively, and a subagent's ancestor loops (PL1, A1); BEH-AG-007: option `subagents` (SPEC-AUDIT-08) (CCR-AG-011)<br>0.11 (2026-11-11): BEH-AG-003: `SpawnStart.settleDeferred`, which a subagent's loop calls through `TaskRegistry.settle` after publishing `awaiting-approval` (H5); the loop's own `spawnSubagent` call is the named exception to the `ToolRunner`-only rule (A2) (SPEC-AUDIT-07) (CCR-AG-010)<br>0.10 (2026-11-11): BEH-AG-003: `start` registers the task and publishes `queued` before returning its id (A1); `resume` of a task the provider did not register fails `TaskNotFound` or `TaskNotResumable` (PL21); `AgentLoop.cancel` without context resolves its actor as `Tasks.cancel` does, never `Actor.system` (A2); `SpawnStart.heldByParent` derives from the parent loop's `pendingDraft` (H10) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): BEH-AG-003: the loop registers each task with `TaskRegistry` in its plugin's activation scope and reports through the returned `TaskWriter`; `AgentLoop.cancel` takes `(taskId, context?, options?)` and delegates to `Tasks.cancel`, a cancel without context being by `Actor.system`; `SpawnStart.heldByParent`; the trusted-input documentation rule covers the hand-off marker; BEH-AG-001: `TaskRegistry` is a base service, not a key; BEH-AG-005 Settled (3) and BEH-AG-006: a stopped loop's tasks end `failed` "LoopStopped", and a replacement loop keeps the task rules (SPEC-AUDIT-05 H3, A1, PL3, PL4) (CCR-AG-008)<br>0.8 (2026-11-10): BEH-AG-003: `AgentLoop.cancel` takes the hand-off marker `handedDraftId` as `Tasks.cancel` does (02, BEH-AG-016) (H2); BEH-AG-001: `Tasks` is a base service, not one of the five keys (02, BEH-AG-011) (T1) (CCR-AG-007)<br>0.7 (2026-11-10): Each turn runs under the loop plugin's own principal through `Plugin.Runtime.asSelf`, so a tool call's `onBehalfOf` names the loop (BEH-AG-003, BEH-AG-005, core BEH-BR-258) (H4); `AgentLoop.start` with an unknown session id starts a new session, created by its first `append`, and `AgentStartError` loses `SessionNotFound` (BEH-AG-003, BEH-AG-004) (M10); a tool withdrawn mid-turn never runs a different definition under the same id, while an identical descriptor contributed by another plugin runs (BEH-AG-003, command INV-CM-003) (M12) (CCR-AG-006)<br>0.6 (2026-11-10): Round 2 findings of the specification audit of 2026-11-09 — `StartRequest.spawn` carries a subagent's restricted toolset, taint and parent task, and forbids pinning (BEH-AG-003, H10); a tool withdrawn mid-turn fails with `CommandNotFound`, `ContributionUnavailable` or `ToolChanged` as command dispatch decides (low finding); `onBehalfOf` of a tool call names the loop's plugin, and a tool call that would stop its own loop is settled (BEH-AG-005, core BEH-BR-258; P24); `spawn` is trusted input, set by `spawnSubagent` (review of the round) (CCR-AG-005)<br>0.5 (2026-11-09): The `AgentLoop.plugin` options of BEH-AG-007 and the example of BEH-AG-008 carry the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Resolutions of the round-2 agent review (A-05, A-08, A-09, A-16): `Started` chosen by the descriptor's `long`, never by the output's shape; the idempotency key covers a resubmission within the process, not crash recovery of the run; a step with a long call is not batched; a batch of declared reads from a tainted session runs on the gate's decision, other batches need an approval that also covers their compensations (CCR-AG-003)<br>0.3 (2026-11-08): Steps run under core `CurrentCorrelation`; tool calls carry an idempotency key; tool results reach the model as envelopes; long commands and batches in `ToolOutcome`; `ResumeInput.Approved` carries one outcome per drafted command; BEH-AG-007 model adapter per session through a realm family; BEH-AG-008 a step's tool calls as one batch (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `ResumeInput`, `taintedSelector`, error classes declared; memory entries keep taint labels; `onBehalfOf` taken by dispatch (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -91,7 +91,7 @@ interface ModelAdapterShape {
 
 interface ModelRequest {
   readonly messages: ReadonlyArray<Message>              // from SessionStore, each with its Provenance (03); tool results as envelopes (BEH-AG-023)
-  readonly tools: ReadonlyArray<CommandDescriptor>       // the turn's pinned Toolset, in Toolset order, then Agent.spawnTool when the loop offers spawning (BEH-AG-003)
+  readonly tools: ReadonlyArray<CommandDescriptor | ToolDescriptor>   // the turn's pinned Toolset, in Toolset order, then Agent.spawnTool when the loop offers spawning (BEH-AG-003)
   readonly toolsetFingerprint: string
   readonly maxOutputTokens?: number
   readonly signal: { readonly turnId: string; readonly step: number }
@@ -177,9 +177,22 @@ interface SpawnStart {
   // The subagent's ancestor loops, carried on every dispatch of the task under Agent.SpawnedBy (04, BEH-AG-025).
   readonly spawnedBy: ReadonlyArray<{ readonly id: string; readonly realm: string }>
 }
+// A tool offered to the model that is not a command: no digest, owner or handler.
+interface ToolDescriptor {
+  readonly id: string; readonly description?: string
+  readonly inputSchema: JsonSchema; readonly readOnly: boolean
+}
 // The reserved spawn tool (below): id "@bridger/agent/spawn", input { input: string; tools?: string[] },
-// readOnly false, long false, regulated false; declared by the package, never a command.
-declare const Agent: { readonly spawnTool: CommandDescriptor }
+// readOnly false; declared by the package, never a command. The id lies outside the command id
+// grammar by design (command BEH-CM-001), so no command can hold it.
+declare const Agent: { readonly spawnTool: ToolDescriptor }
+// The agent's own refusal of a tool call that is not a command (the reserved spawn call): the loop
+// answers the call with it and runs nothing. Never raised by dispatch; a command's refusal stays CommandRefused.
+class ToolRefused extends Schema.TaggedError<ToolRefused>()("ToolRefused", {
+  tool: Schema.String,                                    // the tool's id, e.g. "@bridger/agent/spawn"
+  reason: Schema.Literal("tainted-session", "input-invalid"),
+  issues: Schema.optional(Schema.String)                  // "input-invalid" only: the decode issues
+}) {}
 
 // How the application tells a waiting task what happened (02, BEH-AG-012).
 type ResumeInput =
@@ -273,24 +286,66 @@ REQUIREMENT: A provider of `AgentLoop` constructed with `subagents`
              of a step, the loop MUST take out each `ToolCall` naming that
              id, keyed by its `callId`, and handle it itself, never through
              `ToolRunner` or `runBatch`; the step's other calls run as
-             BEH-AG-005 and BEH-AG-008 say. It MUST decode the call's input
-             against the descriptor's schema — a failure is the call's
-             `Failed` outcome with the decode error's tag — and call
-             `spawnSubagent` with `subagents.plugins`, `subagents.budget`,
-             the decoded `input` and `tools`, and the turn's `parent`
-             fields (04, BEH-AG-025). The call's tool outcome is the
+             BEH-AG-005 and BEH-AG-008 say. The call falls under the taint
+             floor of a command not declared `readOnly` (03, BEH-AG-020;
+             command BEH-CM-016): while the session is tainted when the
+             call is taken out (03, BEH-AG-017), the call carries no
+             `ApprovalRef` and no draft source drafts it, so it meets the
+             floor's row without a draft — the loop MUST NOT call
+             `spawnSubagent`, and refuses the call with `ToolRefused {
+             tool, reason: "tainted-session" }`, whatever its input.
+             Otherwise it MUST decode the call's input against the
+             descriptor's schema; a failure refuses the call with
+             `ToolRefused { tool, reason: "input-invalid", issues }` and
+             calls nothing. When the input decodes, the loop MUST
+             call `spawnSubagent` with `subagents.plugins`,
+             `subagents.budget`, the decoded `input` and `tools`, in a
+             scope of its own for that call, forked from the turn's scope,
+             which it closes as soon as the call's outcome is settled — the
+             handle's `result` settled, or `spawnSubagent` failed — or when
+             the turn's scope closes, whichever comes first, so that the
+             subagent's realm is removed when the subagent ends (04,
+             BEH-AG-025). The `parent` fields are: `taskId` the turn's
+             task; `sessionId` its session; `toolset` the turn's pinned
+             toolset; `context` the context the step's dispatches carry
+             (BEH-AG-005) — the agent's actor, the session's current
+             `Taint` and the call's `Provenance`, and `Agent.SpawnedBy` for
+             a task started with `spawn` — so that the gate deciding the
+             realm's definition, installs and teardown sees the session's
+             taint; and `pendingDraft`, `onDeferred`, `ending` and `loop`
+             as 04, BEH-AG-025 requires of the loop. During replay the loop
+             calls no `spawnSubagent` and answers the call from the
+             transcript (05, BEH-AG-035). The call's tool outcome is the
              subagent's: `Done` → `Ok { output: { answer }, provenance:
              { source: "subagent", ref: <the subagent's task id> } }`,
              `Deferred` → `Deferred { draftId, commands }`, a
              `SubagentFailed` or a `SubagentError` → `Failed` with its tag
-             and a message. The loop MUST record that outcome under the
+             and a message; a refusal → `Failed` with tag `ToolRefused`
+             and message the `reason`, followed for "input-invalid" by
+             ": " and the `issues`. The loop MUST record that outcome under the
              call's `callId` as it records any tool outcome: in the step's
              messages, as an envelope (03, BEH-AG-023), and to the
-             `TranscriptRecorder` when one is provided (05, BEH-AG-034).
-             When the pinned toolset holds a command with the reserved id,
-             the loop MUST NOT offer spawning in that turn. Without
+             `TranscriptRecorder` when one is provided, with the result's
+             `tainted` (05, BEH-AG-034). The loop MUST append a step's
+             tool outcomes, spawn outcomes included, to the next request's
+             messages in the order of the model's `ToolCall` events,
+             whatever order they settle in, so that the next request's
+             digest does not depend on timing; replay keeps that order (05,
+             BEH-AG-035). Without
              `subagents` the loop offers no such tool, and a `ToolCall`
              naming it goes to dispatch as any other.
+```
+
+```
+REQUIREMENT: When the loop itself refuses a tool call that is not a
+             command — the reserved spawn call, refused by the taint floor
+             or for an input that does not decode (above) — the refusal
+             MUST be `ToolRefused { tool, reason }` and the call's outcome
+             `Failed` with that tag. The loop MUST NOT answer such a call
+             with a tag of command dispatch (`CommandRefused`,
+             `CommandInputInvalid` or any other), which name what dispatch
+             did, and dispatch did nothing. A tool call that is a command
+             is refused only by dispatch, under its own tags (BEH-AG-005).
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-ADR-006                                           |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-09): Admission policies fixed in the layer, consulted at step 6 and settled after step 7 (C-10); receipts scoped by an application partition, port calls given explicit `services`, `retryable` typed errors never stored (M-04, ERP alignment); alternatives for admissions recorded (CCR-CM-004)<br>0.2 (2026-11-08): Receipts carry the dispatch digest and a task id and are compared actor first; `void` for undone batch items; failures completed outside the wrappers, claims expire (round-2 agent review A-02, A-04, A-09, A-10, A-14) (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft (CCR-CM-003)                 |
+> | Change History | 0.4 (2026-11-11): Port calls and handler wrappers receive the caller services of one dispatch (`DispatchOptions.services`); the `receiptContext` alternative recorded as rejected (SPEC-AUDIT-09, third pass) (CCR-CM-011)<br>0.3 (2026-11-09): Admission policies fixed in the layer, consulted at step 6 and settled after step 7 (C-10); receipts scoped by an application partition, port calls given explicit `services`, `retryable` typed errors never stored (M-04, ERP alignment); alternatives for admissions recorded (CCR-CM-004)<br>0.2 (2026-11-08): Receipts carry the dispatch digest and a task id and are compared actor first; `void` for undone batch items; failures completed outside the wrappers, claims expire (round-2 agent review A-02, A-04, A-09, A-10, A-14) (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft (CCR-CM-003)                 |
 
 ---
 
@@ -39,8 +39,9 @@ makes for the gate.
   flow "callLog"); the application's `CommandReceipts` port stores
   `(partition, command, key) → (actor, inputDigest, digest, taskId?,
   outcome)`, the partition computed by the application from the request.
-  Every port call receives its context explicitly (`services`), so a
-  receipt joins a transaction only through a transaction it is handed; a
+  Every port call receives its context explicitly (`services`), built
+  from the caller services the dispatch is given (`DispatchOptions.services`),
+  so a receipt joins a transaction only through a transaction it is handed; a
   typed error the command lists as `retryable` is never stored. The
   claim is made after the gate and the hooks; a success is completed
   innermost in the handler wrappers, a typed failure after them; a claim
@@ -52,8 +53,10 @@ makes for the gate.
   BEH-CM-050).
 - **Handler wrappers are fixed when the layer is built.** An ordered list,
   outermost first, around the handler, the output encoding and the receipt
-  completion; no plugin can change it (BEH-CM-042). Batches have their own
-  list (BEH-CM-050).
+  completion; no plugin can change it (BEH-CM-042). Each wrapper receives
+  the caller services as an argument, so a transaction wrapper joins the
+  caller's transaction only when the call passed one and opens its own
+  otherwise. Batches have their own list (BEH-CM-050).
 - **A breaker per command or provider**, off by default, with core's hook
   breaker semantics, answering at step 6 with `CommandBreakerOpen`
   (BEH-CM-043).
@@ -82,6 +85,14 @@ makes for the gate.
 - **A fiber-bound transaction found by the port.** Rejected: the port would
   join whatever transaction encloses the dispatch, including one the
   application did not mean to share; explicit `services` name it.
+- **A catalog-wide list of keys read from the dispatching fiber**
+  (`receiptContext`, added by CCR-CM-004 and withdrawn by CCR-CM-011), with a transaction wrapper
+  that joins whatever transaction it finds in that fiber. Rejected: whether
+  a dispatch joins a transaction was then decided by what happened to be in
+  the environment — a handler's nested dispatch joined the handler's
+  transaction without saying so. The caller now passes the services of one
+  dispatch in `DispatchOptions.services`, and nothing reads the fiber to
+  decide.
 - **Breakers in core.** Not needed: core's breaker belongs to a hook point
   ([BEH-BR-310](../../core/behaviors/31-hook-points.md)); a command breaker is
   state about a command, which this package owns.

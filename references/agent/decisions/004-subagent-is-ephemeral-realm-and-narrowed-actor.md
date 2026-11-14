@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-ADR-004                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.3 (2026-11-11): Decision: the realm is closed when the subagent ends through the loop's scope for the spawn call (SPEC-AUDIT-09 PL2) (CCR-AG-012)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -27,7 +27,9 @@ parent's toolset, budget or attribution. Core file 33 adds `Realm.ephemeral`
 ## Decision
 
 - **`spawnSubagent` creates an ephemeral realm** bound to the parent turn,
-  closed with lease drain when the subagent ends (BEH-AG-025).
+  closed with lease drain when the subagent ends: the loop passes a scope of
+  its own for the spawn call, closed once the call's outcome settles or the
+  turn ends (BEH-AG-003, BEH-AG-025).
 - **The subagent acts as `Actor.narrow` of the parent actor** (BEH-AG-026).
 - **Its toolset is a subset of the parent's pinned toolset**, empty by
   default (BEH-AG-027); **its budget is carved from the parent's

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-15                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): BEH-BR-131 `useOptional` takes `options.timeout`, without which `LeaseTimeout` cannot occur (CL6); BEH-BR-134 a `whenAvailable` re-run under "restart" consults the `RefusalList` as a background restart does (C11); BEH-BR-136 `HeldPlugins` and `CurrentTransition` carry canonical keys `JSON.stringify([realm, id])` (C1) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-136 a `whenAvailable` run carries no plugin in `CurrentTransition` (H1) (CCR-BR-035)<br>0.4 (2026-11-09): BEH-BR-130 a key is declared for the optional members only when listed in `optional`; BEH-BR-132 `whenAvailable` with an undeclared key never runs and warns once (U-13); BEH-BR-134 a failing `wrap` fails the run under `onFailure` (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.7 (2026-11-11): BEH-BR-134 a revocation of a run's lease on one of its keys is the provider leaving, not a failure, and why; a revocation of a scoped lease on another provider follows the background rule (CL6); BEH-BR-136 a `whenAvailable` run inherits a scoped lease the forking fiber held (C8) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.6 (2026-11-10): BEH-BR-131 `useOptional` takes `options.timeout`, without which `LeaseTimeout` cannot occur (CL6); BEH-BR-134 a `whenAvailable` re-run under "restart" consults the `RefusalList` as a background restart does (C11); BEH-BR-136 `HeldPlugins` and `CurrentTransition` carry canonical keys `JSON.stringify([realm, id])` (C1) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-136 a `whenAvailable` run carries no plugin in `CurrentTransition` (H1) (CCR-BR-035)<br>0.4 (2026-11-09): BEH-BR-130 a key is declared for the optional members only when listed in `optional`; BEH-BR-132 `whenAvailable` with an undeclared key never runs and warns once (U-13); BEH-BR-134 a failing `wrap` fails the run under `onFailure` (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -284,8 +284,15 @@ REQUIREMENT: Under "restart", each re-run of a failed `run` MUST be preceded
 ```
 
 ```
-REQUIREMENT: An interruption of `run` caused by a provider leaving, or by the
-             activation scope closing, MUST NOT be treated as a failure.
+REQUIREMENT: An interruption of `run` caused by a provider leaving — the
+             revocation at the drain limit of the run's lease on one of its
+             keys included — or by the activation scope closing, MUST NOT
+             be treated as a failure: the run exists only while its keys are
+             available, and it is re-run when they return. The revocation
+             of a scoped `lease(keys)` the run took on any other provider
+             MUST be treated as for a `background` fiber, under the run's
+             policy (10 — Runtime Failure and Health, BEH-BR-090;
+             CCR-BR-041).
 ```
 
 ```
@@ -337,7 +344,9 @@ REQUIREMENT: Fibers running a `useOptional` callback or a `whenAvailable` run
              (`JSON.stringify([realm, id])`) in `@bridger/core/HeldPlugins`, so that the `WouldDeadlock` rules
              of behaviour 09 apply to them. A `whenAvailable` run is forked
              into the activation scope, so it MUST carry only the leases it
-             holds in `HeldPlugins` and no plugin in
+             holds in `HeldPlugins` — a scoped `lease(keys)` admitted to the
+             forking fiber before the fork included, which it inherits
+             (09, BEH-BR-083; CCR-BR-041) — and no plugin in
              `@bridger/core/CurrentTransition`, not the canonical key of
              the plugin whose build registered it (09 — Leases,
              BEH-BR-088).

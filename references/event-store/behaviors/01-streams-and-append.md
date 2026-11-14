@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-01                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-001 `publish.stream` takes the event-store stream and the event (F-05); BEH-ES-007 serves an append's `context` over the whole append, publication included, draws one correlation for the stored event and its envelope, and reads the origin from durable-bus `DurableBus.origin` at each append (C-20, U-10) (CCR-ES-003)<br>0.5 (2026-11-08): BEH-ES-003 `AppendError` gains the durable-bus `publish` errors `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (durable-bus BEH-DB-009) (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-002 adds `factId` and states one rule for `eventId` (never a fact id or a received id); BEH-ES-003 defines `AppendError` (with `PayloadEncodeFailed`) and `LoadError` once (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-001, 002, 003 and 005 cite URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-002 `StoredEvent.codec`; BEH-ES-002 and BEH-ES-006 cite the `PayloadCodec` of durable-bus BEH-DB-008 (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09), second pass (cleanest design) — `LoadError` gains `StoreSwapInProgress`, the dedicated refusal of a read during a whole-store install or its holds (BEH-ES-034) (CCR-ES-011)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — BEH-ES-001 `publish.stream` takes the event-store stream and the event (F-05); BEH-ES-007 serves an append's `context` over the whole append, publication included, draws one correlation for the stored event and its envelope, and reads the origin from durable-bus `DurableBus.origin` at each append (C-20, U-10) (CCR-ES-003)<br>0.5 (2026-11-08): BEH-ES-003 `AppendError` gains the durable-bus `publish` errors `DowncastRefused`, `AccessRefused` and `OutboxFrozen` (durable-bus BEH-DB-009) (round-2 integration) (CCR-ES-002)<br>0.4 (2026-11-08): BEH-ES-002 adds `factId` and states one rule for `eventId` (never a fact id or a received id); BEH-ES-003 defines `AppendError` (with `PayloadEncodeFailed`) and `LoadError` once (CCR-ES-002)<br>0.3 (2026-11-08): BEH-ES-001, 002, 003 and 005 cite URS-BR-056 (registered by core CCR-BR-027) (CCR-ES-001)<br>0.2 (2026-11-08): BEH-ES-002 `StoredEvent.codec`; BEH-ES-002 and BEH-ES-006 cite the `PayloadCodec` of durable-bus BEH-DB-008 (CCR-ES-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -150,7 +150,8 @@ interface AppendResult {
 // WrongExpectedVersion (BEH-ES-004) and StoreContention (BEH-ES-013) are not members: each signature lists them where they occur.
 type AppendError = UnregisteredEventType | EncodeFailed | PayloadEncodeFailed | DowncastRefused | AccessRefused | OutboxFrozen
                   | StoreWriteFailed | OutboxWriteFailed | Unattributed   // the publish errors of durable-bus BEH-DB-009
-type LoadError   = UnknownEventVersion | UpcastFailed | DecodeFailed | StoreUnavailable      // EvolveFailed is a defect (BEH-ES-010)
+type LoadError   = UnknownEventVersion | UpcastFailed | DecodeFailed | StoreUnavailable
+                  | StoreSwapInProgress                                    // BEH-ES-034; EvolveFailed is a defect (BEH-ES-010)
 declare const Stream: {
   readonly append: <A, I>(id: string, events: readonly EventOf<A, I>[], options: AppendOptions) =>
     Effect.Effect<AppendResult, WrongExpectedVersion | AppendError, EventStore | StoreTransaction>

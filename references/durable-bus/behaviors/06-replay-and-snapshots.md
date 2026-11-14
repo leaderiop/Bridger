@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-06                                            |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-DB-048: `DurableBus.whenReadable`, the read gate of a whole-store install, which event-store reads await and an application decoding through the codec awaits as its own duty (H3); while `origin-unrecorded` holds the bus retries `recordIncarnation` under bounded backoff on its background fiber and lifts the hold when it commits, `settle` refused meanwhile, a record failing on every retry stated with residual (c) (H4); `publish` checks the freeze and the holds itself before `fence`, so it is refused inside an `apply` transaction and in one admitted before the freeze (B1); BEH-DB-047 and BEH-DB-048: `origin-unrecorded` pauses `follow` too (B2); `receive` fences and is refused during the freeze and the holds, answering `retryAfter`, so the `apply` transaction is the only writer (PL19); residual (a) points to the keyring's own bound (B4) (CCR-DB-011)<br>0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-DB-048: `onStoreSwap` takes a participant `{ prepare, apply? }` (a bare effect still registers `prepare` only); every `apply` runs after `run`, whether it succeeded or failed, each in its own transaction on the store `run` left that `fence` admits during the freeze, before the incarnation is recorded, the `OriginChange` emitted, the freeze lifted or any subscription resumed; a failing `apply` fails the install with `SnapshotFailed` "apply-failed", handled as a failure of `run` after the raise; `publish` stays refused in that transaction; `fence` ignores the `onEnd` outcome (H4, K3); SPEC-AUDIT-07 residual — BEH-DB-048: after a failed `apply` the bus enters the hold `apply-pending`, treated as `origin-unrecorded` (`fence` and `publish` refused, subscriptions and `follow` paused, no `outbox-thawed`), retries each failed `apply` in its own `InboxStore.transaction` under bounded backoff, uncounted, in registration order, drops the `apply` of a withdrawn participant, and emits the `OriginChange` only when the hold lifts; `settle` fails with `RebootstrapBlocked` "store-swap-pending" during the hold; a `fence` on a transaction already admitted succeeds, and `publish` fences before it encodes; BEH-DB-047: `follow` stays paused while `apply-pending` holds; BEH-DB-048: `settle` also fails "store-swap-pending" while `origin-unrecorded` holds; the accepted residuals of a store-swap `apply` stated once with their bounds (a stop of the process during the install or the hold, a participant withdrawn during the hold, an `apply` that fails on every retry); a key the keyring's codec creates inside a `publish` that then fails is the keyring's write in the caller's transaction, kept if the caller commits (CCR-DB-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-048: `fence` registers the end of its admission through `tx.onEnd` (H3); the keyring is named beside event-store as a store that calls `fence` in its write transactions (H4) (CCR-DB-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-048: a `DurableBus.fence(tx)` admission is bounded by the transaction handle `tx` and ended by the adapter at commit or rollback, on every exit, not by a `Scope`; `fence` drops `Scope.Scope` (H2, B1); subscriptions stay paused, and `OutboxFrozen` uncounted, while `origin-unrecorded` holds after the scope closes (B2) (CCR-DB-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-048: `DurableBus.fence(tx)` is scoped to the transaction's `Scope`, and setting a whole-store freeze takes two steps, refusing new admissions and then waiting for the admitted ones to end, bounded by the settlement's `timeout` (H3); subscriptions are paused while a whole-store settlement's scope is open, and `OutboxFrozen` from a handler does not count toward `maxAttempts` (F4); BEH-DB-046: a paused `follow` or subscription is reported as paused (PL19) (CCR-DB-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-DB-048: the raised incarnation is recorded for this node through `recordIncarnation` (H9); `DurableBus.fence(tx)`, checked inside the write transaction by `publish` and by stores that share it, and the freeze waits for transactions already past the fence (M17); BEH-DB-044: an install's `GapRecord` carries reason "rebootstrap:" + `replaces` and the calling fiber's actor, the system actor when unattributed (Low); BEH-DB-047: `follow` is paused while a settlement's scope is open, and processes a pulled page only when every element carries the asked (origin, stream) and an origin in `origins`, with the residual stated (Low, seen not assessed) (CCR-DB-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-048: a whole-store install raises the incarnation before `run`; a failed raise replaces nothing; after a raise the old origin is never used again, even when `run` fails or the process stops; `run` gets no live `StoreTransaction` (H8, P1); BEH-DB-044: a snapshot restore, and an install through `OutboxSettlement.install`, records every forward move of an inbox watermark as an attributed `GapRecord` (P3); `outbox-thawed` is held back while the raised incarnation is unrecorded (review of the round) (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (U-10) — BEH-DB-048: participants registered with `DurableBus.onStoreSwap` read the store being replaced before a whole-store install (`prepare`, failure "prepare-failed"); the switch to the new origin emits an `OriginChange` (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F16) — BEH-DB-048 rewritten: scoped `settle` returns an `OutboxSettlement` whose `install` is the guarded install path ("in-store": outbox comparison in one transaction; "whole-store": outbox frozen with `OutboxFrozen`, incarnation raised through `IncarnationSource`); default `require` "pushed", "pushed-or-kept" only in-store; heading changed (old anchor kept); `HistorySource` built per reader with a placement check and a `HistoryAccess` decision ("open" explicit), refusals served as `Withheld` markers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 19 — BEH-DB-048 `DurableBus.rebootstrapOutbox` (push or keep before a snapshot, `RebootstrapBlocked`); BEH-DB-044 restore checked not to touch the outbox (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — downstream history is pulled through the new `HistorySource` port (BEH-DB-047); `SnapshotRequired` only on that port; `Ack.retryAfter` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.13 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-DB-048: the bus runs each participant step with a fiber-local marker, under which an event-store read skips the gate; a step MUST NOT await `whenReadable` directly (H4); a read inside a store transaction never awaits `whenReadable` but fences that transaction first (H5); `DurableBus.guardRead(page)` gates each page of an event-store read and is interrupted when a freeze's second step begins, from which point the gate counts the freeze, so no page outside a store transaction is decoded after it (H6); second pass (cleanest design): the fiber-local marker is withdrawn — the bus hands each `prepare`, each "data" `apply` and each retry of one an explicit `SwapStep` that only it constructs, and a step reads through `DurableBus.guardStep(step, page)`, ungated, dying once its step has ended; a read inside a store transaction takes the new `DurableBus.fenceRead(tx)`, never the reading fiber's environment, refused on a store-swap step's transaction; participants declare a `stage`, every "codec" `apply` (the keyring's tombstones) committing before any "data" `apply` begins and `run` and a "codec" `apply` handed no `SwapStep`, so no step decodes a subject whose tombstone is not yet back (the stated limit withdrawn); the bare-effect participant form withdrawn; third pass: a step that awaits the read gate is refused instead of left to deadlock — the bus runs each `prepare`, `run`, `apply` and retry under the bus-owned fiber reference `CurrentSwapStep` (`SwapStepMark`), inherited by fibers the step forks, and `whenReadable` awaited under a step still running dies at once with a defect naming the participant and the step, so `guardRead` and every gated event-store read do too; the reference only refuses, never opens a read; the step's failure is handled as that step's (`prepare-failed`, `run`'s failure, `apply-failed`); the documentation duty "a step MUST NOT await `whenReadable`" replaced by the refusal and the unseen hand-off to a fiber the step did not fork (CCR-DB-012)<br>0.12 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-DB-048: `DurableBus.whenReadable`, the read gate of a whole-store install, which event-store reads await and an application decoding through the codec awaits as its own duty (H3); while `origin-unrecorded` holds the bus retries `recordIncarnation` under bounded backoff on its background fiber and lifts the hold when it commits, `settle` refused meanwhile, a record failing on every retry stated with residual (c) (H4); `publish` checks the freeze and the holds itself before `fence`, so it is refused inside an `apply` transaction and in one admitted before the freeze (B1); BEH-DB-047 and BEH-DB-048: `origin-unrecorded` pauses `follow` too (B2); `receive` fences and is refused during the freeze and the holds, answering `retryAfter`, so the `apply` transaction is the only writer (PL19); residual (a) points to the keyring's own bound (B4) (CCR-DB-011)<br>0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-DB-048: `onStoreSwap` takes a participant `{ prepare, apply? }` (a bare effect still registers `prepare` only); every `apply` runs after `run`, whether it succeeded or failed, each in its own transaction on the store `run` left that `fence` admits during the freeze, before the incarnation is recorded, the `OriginChange` emitted, the freeze lifted or any subscription resumed; a failing `apply` fails the install with `SnapshotFailed` "apply-failed", handled as a failure of `run` after the raise; `publish` stays refused in that transaction; `fence` ignores the `onEnd` outcome (H4, K3); SPEC-AUDIT-07 residual — BEH-DB-048: after a failed `apply` the bus enters the hold `apply-pending`, treated as `origin-unrecorded` (`fence` and `publish` refused, subscriptions and `follow` paused, no `outbox-thawed`), retries each failed `apply` in its own `InboxStore.transaction` under bounded backoff, uncounted, in registration order, drops the `apply` of a withdrawn participant, and emits the `OriginChange` only when the hold lifts; `settle` fails with `RebootstrapBlocked` "store-swap-pending" during the hold; a `fence` on a transaction already admitted succeeds, and `publish` fences before it encodes; BEH-DB-047: `follow` stays paused while `apply-pending` holds; BEH-DB-048: `settle` also fails "store-swap-pending" while `origin-unrecorded` holds; the accepted residuals of a store-swap `apply` stated once with their bounds (a stop of the process during the install or the hold, a participant withdrawn during the hold, an `apply` that fails on every retry); a key the keyring's codec creates inside a `publish` that then fails is the keyring's write in the caller's transaction, kept if the caller commits (CCR-DB-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-048: `fence` registers the end of its admission through `tx.onEnd` (H3); the keyring is named beside event-store as a store that calls `fence` in its write transactions (H4) (CCR-DB-009)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-048: a `DurableBus.fence(tx)` admission is bounded by the transaction handle `tx` and ended by the adapter at commit or rollback, on every exit, not by a `Scope`; `fence` drops `Scope.Scope` (H2, B1); subscriptions stay paused, and `OutboxFrozen` uncounted, while `origin-unrecorded` holds after the scope closes (B2) (CCR-DB-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-048: `DurableBus.fence(tx)` is scoped to the transaction's `Scope`, and setting a whole-store freeze takes two steps, refusing new admissions and then waiting for the admitted ones to end, bounded by the settlement's `timeout` (H3); subscriptions are paused while a whole-store settlement's scope is open, and `OutboxFrozen` from a handler does not count toward `maxAttempts` (F4); BEH-DB-046: a paused `follow` or subscription is reported as paused (PL19) (CCR-DB-007)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-DB-048: the raised incarnation is recorded for this node through `recordIncarnation` (H9); `DurableBus.fence(tx)`, checked inside the write transaction by `publish` and by stores that share it, and the freeze waits for transactions already past the fence (M17); BEH-DB-044: an install's `GapRecord` carries reason "rebootstrap:" + `replaces` and the calling fiber's actor, the system actor when unattributed (Low); BEH-DB-047: `follow` is paused while a settlement's scope is open, and processes a pulled page only when every element carries the asked (origin, stream) and an origin in `origins`, with the residual stated (Low, seen not assessed) (CCR-DB-006)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-048: a whole-store install raises the incarnation before `run`; a failed raise replaces nothing; after a raise the old origin is never used again, even when `run` fails or the process stops; `run` gets no live `StoreTransaction` (H8, P1); BEH-DB-044: a snapshot restore, and an install through `OutboxSettlement.install`, records every forward move of an inbox watermark as an attributed `GapRecord` (P3); `outbox-thawed` is held back while the raised incarnation is unrecorded (review of the round) (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (U-10) — BEH-DB-048: participants registered with `DurableBus.onStoreSwap` read the store being replaced before a whole-store install (`prepare`, failure "prepare-failed"); the switch to the new origin emits an `OriginChange` (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F8, F9, F12, F16) — BEH-DB-048 rewritten: scoped `settle` returns an `OutboxSettlement` whose `install` is the guarded install path ("in-store": outbox comparison in one transaction; "whole-store": outbox frozen with `OutboxFrozen`, incarnation raised through `IncarnationSource`); default `require` "pushed", "pushed-or-kept" only in-store; heading changed (old anchor kept); `HistorySource` built per reader with a placement check and a `HistoryAccess` decision ("open" explicit), refusals served as `Withheld` markers (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 19 — BEH-DB-048 `DurableBus.rebootstrapOutbox` (push or keep before a snapshot, `RebootstrapBlocked`); BEH-DB-044 restore checked not to touch the outbox (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — downstream history is pulled through the new `HistorySource` port (BEH-DB-047); `SnapshotRequired` only on that port; `Ack.retryAfter` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -345,19 +345,45 @@ interface OutboxSettlement {
     Effect.Effect<A, E | SnapshotFailed | IncarnationUnavailable, Exclude<R, StoreTransaction>>
 }
 class OutboxFrozen extends Schema.TaggedError<OutboxFrozen>()("OutboxFrozen", { reason: Schema.String }) {}
-// DurableBus gains: onStoreSwap(name: string, participant: StoreSwapParticipant | Effect.Effect<void, unknown>):
-//   Effect<void, never, Scope.Scope> — registers, for the caller's Scope, a participant of every whole-store
-//   install (below); a bare effect is a participant with `prepare` only
-interface StoreSwapParticipant {
-  readonly prepare: Effect.Effect<void, unknown>                                     // on the store about to be replaced
-  readonly apply?: (tx: StoreTransaction["Service"]) => Effect.Effect<void, unknown>  // on the store `run` left, before the OriginChange
+// DurableBus gains: onStoreSwap(name: string, participant: StoreSwapParticipant): Effect<void, never, Scope.Scope>
+//   registers, for the caller's Scope, a participant of every whole-store install (below)
+// SwapStep: the capability the bus hands each `prepare`, each "data" `apply` and each retry of one; only the bus
+//   constructs one (its class is branded and its constructor not exported); valid until the step it was handed to ends
+interface SwapStep {
+  readonly participant: string                    // the participant's name
+  readonly step: "prepare" | "apply"
 }
+type StoreSwapParticipant =
+  | { readonly stage: "codec"                     // restores what a PayloadCodec reads (keys, tombstones); decodes nothing in `apply`
+      readonly prepare: (step: SwapStep) => Effect.Effect<void, unknown>                      // on the store about to be replaced
+      readonly apply?: (tx: StoreTransaction["Service"]) => Effect.Effect<void, unknown> }     // on the store `run` left, first
+  | { readonly stage: "data"                      // every other participant; its `apply` begins once every "codec" `apply` committed
+      readonly prepare: (step: SwapStep) => Effect.Effect<void, unknown>
+      readonly apply?: (step: SwapStep, tx: StoreTransaction["Service"]) => Effect.Effect<void, unknown> }
 // DurableBus gains: fence(tx: StoreTransaction["Service"]): Effect.Effect<void, OutboxFrozen>
 //   the write fence of a whole-store install, checked inside the caller's transaction (below); admitted
 //   for `tx`, its end registered through `tx.onEnd` (02, BEH-DB-009; 07, BEH-DB-054)
 // DurableBus gains: whenReadable: Effect.Effect<void>
 //   the read gate of a whole-store install: completes at once when no whole-store freeze, `apply-pending` or
 //   `origin-unrecorded` is in force, else when the last of them ends (below)
+// The three ways a read that decodes through the PayloadCodec reaches the store (below), each with one rule:
+// DurableBus gains: guardRead<A, E, R>(page: Effect.Effect<A, E, R>): Effect.Effect<Option.Option<A>, E, R>
+//   outside a store transaction: runs one page behind `whenReadable`; `Option.none()` when a freeze's second step
+//   interrupted it; never skips the gate
+// DurableBus gains: fenceRead(tx: StoreTransaction["Service"]): Effect.Effect<void, OutboxFrozen>
+//   inside the store transaction `tx`: `fence`'s admission taken for a read, never awaiting `whenReadable`; dies with a
+//   defect on the transaction of a store-swap `apply` or of a retry of one
+// DurableBus gains: guardStep<A, E, R>(step: SwapStep, page: Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
+//   inside a store-swap step: runs one page at once, neither gated nor interrupted; dies with a defect once `step` has ended
+// The bus runs every step of a whole-store install — each `prepare`, `run`, each `apply` and each retry of one, both
+// stages — under the fiber reference @bridger/durable-bus/CurrentSwapStep (a Context.Reference<Option<SwapStepMark>>,
+// default none, set only by the bus and not exported), which every fiber the step forks inherits. It is read only to
+// refuse a wait on the read gate (below); it never changes what a read returns and opens nothing.
+type SwapStepMark = (
+  | { readonly step: "prepare" | "apply"; readonly participant: string }
+  | { readonly step: "run" }                     // the application's install, which belongs to no participant
+) & { readonly run: unknown }                    // bus-private identity of this run of the step (each retry its own),
+                                                 // so a mark an ended step left behind is told from a running one
 // settle fails with RebootstrapBlocked { pending, reason }: "outbox-unsettled", "outbox-unavailable",
 //   "kept-needs-in-store", "no-incarnation-source", "store-swap-pending" (while `apply-pending` or `origin-unrecorded` holds, below)
 ```
@@ -404,10 +430,12 @@ REQUIREMENT: With `replaces` "whole-store", `settle` MUST require a wired
              `timeout` again, and keep the freeze until the settlement's
              `Scope` closes. `install(run)` MUST first run the `prepare`
              effect of every participant registered with
-             `DurableBus.onStoreSwap`, in registration order, each to its
-             end; then `IncarnationSource.raise`; then `run`; then the
-             `apply` step of every participant that has one, in
-             registration order, each in its own transaction on the store
+             `DurableBus.onStoreSwap`, in the participant order (below),
+             each to its end and each handed a new `SwapStep`; then
+             `IncarnationSource.raise`; then `run`; then the `apply` step
+             of every participant that has one, in the participant order,
+             a "data" one handed a new `SwapStep`, each in its own
+             transaction on the store
              `run` left, which the install opens with the storage adapter's
              `InboxStore.transaction` (03, BEH-DB-018) and commits before the
              next `apply` starts (a failed commit, `CommitConflict` included,
@@ -429,18 +457,43 @@ REQUIREMENT: With `replaces` "whole-store", `settle` MUST require a wired
 ```
 
 ```
+REQUIREMENT: Every participant MUST declare its `stage`. A "codec"
+             participant restores what a `PayloadCodec` reads, keys and
+             tombstones (the keyring's participant, keyring BEH-KR-020); a
+             "data" participant is every other. The participant order of
+             every step MUST be every "codec" participant before every
+             "data" participant, each stage in registration order. No
+             "data" `apply`, and no retry of one, MUST begin before every
+             "codec" `apply` of the install has committed or been dropped
+             with its withdrawn participant (below): when a "codec" `apply`
+             fails, the install runs no "data" `apply` and defers each, and
+             the `apply-pending` hold retries the deferred ones once no
+             "codec" `apply` remains pending (below). So every decoding read
+             a step can make — through the `SwapStep` it is handed (below) —
+             runs on a store that holds every key and tombstone the codec
+             reads: in a `prepare`, the store about to be replaced, frozen
+             and drained; in a "data" `apply`, the store `run` left once
+             every "codec" `apply` has committed. `run` and a "codec"
+             `apply` are handed no `SwapStep` and so make no decoding read,
+             which is what keeps a subject whose tombstone the keyring holds
+             in memory (keyring BEH-KR-020) from being decoded by any step.
+```
+
+```
 REQUIREMENT: The `apply` steps MUST run whether `run` succeeded or failed,
              since a failed `run` may have replaced the store; a
              participant's `apply` MUST therefore leave as it is what the
              store already holds of what it writes. An `apply` that fails or
              dies rolls back its own transaction, the later participants'
-             `apply` steps still run, and `install` MUST then fail with
+             `apply` steps of its stage still run (a failed "codec" `apply`
+             defers every "data" one, above), and `install` MUST then fail with
              `SnapshotFailed { reason: "apply-failed" }` (with `run`'s error
              when `run` failed), handled as a failure of `run` after the
              raise (below): the incarnation is still recorded and the bus
              switched to the new origin, but the bus MUST enter the hold
              `apply-pending` (below), report it on `DurableBus.status` with
-             the names of the participants whose `apply` failed, and emit
+             the names of the participants whose `apply` failed and of
+             those whose `apply` it deferred, and emit
              the `OriginChange` only when that hold lifts. `fence(tx)` MUST
              admit the transaction the install opened for an `apply` step,
              or the bus opened for a retry of one (below), while the freeze
@@ -461,14 +514,15 @@ REQUIREMENT: While `apply-pending` holds, the bus MUST treat it as it
              below), `receive` stores nothing and `whenReadable` waits
              (below), and `outbox-thawed` is not reported. During the hold
              the bus MUST retry the `apply` of each participant whose
-             `apply` failed, in registration order, each in its own
+             `apply` failed or was deferred, in the participant order, a
+             "data" one only once no "codec" one remains pending, each in its own
              `InboxStore.transaction` committed before the next starts,
              under bounded backoff between rounds and without counting a
              failed retry against anything, until it commits. A participant
              withdrawn during the hold (its `Scope` closed) MUST drop its
              pending `apply`: no retry of it starts, and one already running
-             ends with its transaction. The hold lifts when no failed
-             `apply` remains; the bus then emits the `OriginChange` and,
+             ends with its transaction. The hold lifts when no failed or
+             deferred `apply` remains; the bus then emits the `OriginChange` and,
              once the settlement's scope has closed and no
              `origin-unrecorded` holds, lifts the freeze and resumes every
              subscription and `follow`, in that order. The retries run on a
@@ -495,7 +549,9 @@ REQUIREMENT: Documentation MUST state three accepted residuals of a
              rule (the keyring states its bound in keyring BEH-KR-020).
              (b) A participant withdrawn during the hold drops its pending
              `apply` (above), so the hold can lift without its rows, with
-             the same bound. (c) An `apply` that fails on every retry keeps
+             the same bound; a "codec" participant so withdrawn lets the
+             deferred "data" `apply` steps run on a store without its rows.
+             (c) An `apply` that fails on every retry keeps
              the hold, and with it every write refused and every reader
              paused, until the operator restores what that `apply` needs; a
              `recordIncarnation` that fails on every retry (below) keeps
@@ -623,25 +679,101 @@ REQUIREMENT: `DurableBus.whenReadable` MUST complete at once when no
              whole-store freeze, `apply-pending` or `origin-unrecorded` is in
              force, and otherwise when the last of them ends; it reads the
              bus's own state, as `fence` does, never the status feed. A
-             freeze counts for it from the end of its second step (no
-             admission granted before the freeze remains), so that a read
-             inside a transaction admitted before the freeze never waits for
-             the freeze that waits for that transaction. Every read that
-             decodes stored payloads through the `PayloadCodec` outside a
-             subscription or `follow` (which the bus pauses itself) MUST
-             await it first, before it reads: event-store `read`, `readAll`
-             and every load that decodes through the codec (event-store
-             BEH-ES-034). Documentation MUST state that an application that
-             decodes through the codec itself awaits `whenReadable` first,
-             its own duty, since the bus cannot see that read; that a caller
-             reading inside its own write transaction on a single-writer
-             engine (BEH-DB-055) calls `fence` with it first, as event-store
-             writes do, so that it is refused rather than held waiting with
-             the write lock taken; and that a `prepare`, `run` or `apply`
-             MUST NOT await `whenReadable`, directly or through an
-             event-store read, since it would wait for the install it runs
-             in. The gate lives in the bus's memory: a caller still waiting
-             when the bus plugin stops waits until its own scope closes
+             freeze counts for it from the beginning of its second step. A
+             read made inside a store transaction MUST NOT await it but take
+             `fenceRead` (below). A follower that reads inside its own batch
+             transactions awaits `whenReadable` before it opens each one
+             (event-store BEH-ES-034, sequence BEH-SQ-009).
+```
+
+```
+REQUIREMENT: A read that decodes stored payloads through the
+             `PayloadCodec` — other than a subscription's and `follow`'s,
+             which the bus pauses itself — reaches the store in exactly one
+             of three ways, each an explicit operation with one rule, none
+             decided by what the reading fiber carries. (1) Outside a store
+             transaction, each page through `DurableBus.guardRead(page)`: it
+             MUST await `whenReadable`, then run `page`; when a freeze's
+             second step begins while `page` runs, the bus MUST interrupt
+             it, as it interrupts a `follow` read in flight (BEH-DB-047), and
+             `guardRead` then yields `Option.none()`, so that no such page is
+             decoded from the moment the freeze's second step begins until
+             the freeze and the holds have ended. `guardRead` MUST NOT skip
+             the gate for any caller. (2) Inside a store transaction `tx`,
+             after `DurableBus.fenceRead(tx)`: it MUST NOT await
+             `whenReadable`, and MUST admit, refuse with `OutboxFrozen` and
+             end its admission exactly as `fence` does (above) — admitting
+             again a transaction admitted before the freeze and refusing
+             every other during the freeze and the holds — so that the
+             reader is refused rather than held waiting with the write lock
+             of a single-writer engine (BEH-DB-055) taken, and the freeze's
+             second step waits for a reading transaction admitted before it;
+             on a transaction the install opened for an `apply` step, or the
+             bus for a retry of one, it MUST die with a defect naming the
+             participant, since a step reads through its `SwapStep`. (3)
+             Inside a store-swap step, each page through
+             `DurableBus.guardStep(step, page)` with the `SwapStep` the bus
+             handed that step: it MUST run `page` at once, neither gated nor
+             interrupted, since the step would otherwise wait for the
+             install it runs in, and MUST die with a defect naming the
+             participant once `step` has ended, so that a `SwapStep` kept or
+             passed beyond its step opens nothing. The bus MUST construct a
+             new `SwapStep` for each `prepare`, each "data" `apply` and each
+             retry of one, and no other code can construct one. Event-store
+             `read` and `readAll` take way (1), `readIn` way (2) and
+             `readForSwap` way (3) (event-store BEH-ES-034).
+```
+
+```
+REQUIREMENT: A step of a whole-store install MUST NOT be left waiting on
+             the read gate of the install it runs in. The bus MUST run each
+             `prepare`, `run`, each `apply` and each retry of one, of both
+             stages, with `CurrentSwapStep` naming that step (the
+             participant and the step; `run` names no participant), so that
+             every fiber the step forks carries it too. `whenReadable`
+             awaited in a fiber whose `CurrentSwapStep` names a run of a
+             step that is still running (compared by the mark's identity,
+             so an earlier retry's mark never counts for a later one) MUST
+             NOT wait: it MUST die at once with a defect
+             naming the participant and the step (for example "store-swap
+             step sequence/prepare awaited the read gate of its own
+             install"). The refusal reaches every gated read through
+             `whenReadable`: `guardRead` before its page, and so event-store
+             `read` and `readAll` (way 1), and a follower awaiting the gate
+             before a batch transaction. A step that has ended no longer
+             counts: a fiber it forked and left running waits on the gate
+             like any other reader, since the install it would wait for is
+             no longer waiting for that step. A fiber that carries no
+             `CurrentSwapStep` waits as before, during the freeze and the
+             holds alike. The reference MUST be used only for this refusal:
+             it MUST NOT change what a read returns, let any read skip the
+             gate or a fence, or stand in for a `SwapStep`; `guardStep` with
+             the `SwapStep` the step was handed stays the only ungated way,
+             and a step whose reads all go through it, or a `run` that makes
+             no read, is unaffected. A step that dies so fails as that step
+             fails: a `prepare` fails the install with `SnapshotFailed {
+             reason: "prepare-failed" }` before the raise, `run` is a failure
+             of `run` after the raise, and an `apply` or a retry of one is a
+             failed `apply` (`apply-failed`, then the `apply-pending` hold,
+             above), so the install ends, or holds with the participant named
+             on `DurableBus.status`, instead of waiting for itself.
+```
+
+```
+REQUIREMENT: Documentation MUST state that an application that decodes
+             through the codec itself takes the same three ways — each page
+             through `guardRead` outside a store transaction, `fenceRead`
+             with its transaction first inside one, `guardStep` with the
+             `SwapStep` it was handed inside a participant step — its own
+             duty, since the bus cannot see that read; that a step which
+             awaits the read gate in its own fiber or a fiber it forked is
+             refused at once (above); and that a step which hands a read to
+             a fiber it did not fork (a worker started elsewhere) and awaits
+             that fiber carries its `CurrentSwapStep` to no one, so that wait
+             is not seen, as core's re-entrancy check does not see a wait
+             through a fiber that does not inherit its reference (core
+             ADR-BR-016). The gate lives in the bus's memory: a caller still waiting when
+             the bus plugin stops waits until its own scope closes
              (event-store's plugin requires the bus and stops before it).
 ```
 
@@ -685,7 +817,26 @@ moment on the other side: the new store is in place but nothing reads or
 writes it yet, so a companion that must carry rows across (the keyring's
 tombstones, keyring BEH-KR-020) has them back before any reader resumes;
 when it fails, the bus keeps every reader held (`apply-pending`) and retries
-it, rather than letting readers run on a store that lacks those rows.
+it, rather than letting readers run on a store that lacks those rows. The
+stage extends the same rule to the steps themselves: the keys and tombstones
+a codec reads go back first, and a step can decode only through the
+`SwapStep` it is handed, which `run` and a "codec" `apply` never get, so no
+step decodes on a store less complete than the one every reader will see.
+A capability passed as an argument, rather than a mark on the running fiber
+or a transaction found in its environment, makes each read's rule visible in
+its call: the gate, the fence or the step. The one fiber reference the bus
+sets, `CurrentSwapStep`, grants nothing: it exists so that a step that calls
+the gate by mistake fails at once, naming itself, rather than hanging the
+install, as core refuses a re-entrant wait with `WouldDeadlock` instead of
+letting it run into a drain limit (core ADR-BR-016). The refusal is a
+defect, not a typed error, for three reasons: it is how the bus reports the
+other misuses of a step's capabilities (a `guardStep` after its step, a
+`fenceRead` on a step's transaction); no caller outside a step can meet it,
+so a typed error would widen the error channel of `whenReadable`,
+`guardRead` and every gated event-store read for a case none of their
+callers can handle; and it is not retryable — the same step code would wait
+again — whereas core's `WouldDeadlock` is a refusal of one host operation
+in one context, which the caller may issue from another.
 
 ---
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-16                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): BEH-GX-127 `resolve` resolves as the test runner resolves the suite's imports, aliases included; Node's `import.meta.resolve` under a runner's aliases named a misuse (G2) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.7 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes the suite's `resolve` and resolves each package with it, never from its own location (G2) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.6 (2026-11-11): BEH-GX-127 a package the running suite resolves elsewhere than from `packageRoot` is left out, so the run raises `package-mismatch` (G6) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes `packageRoot` and `lockfile` and records each package's identity by BEH-GX-117's algorithm, with the code the installation checks use, and the lockfile's digest (G5) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-121, BEH-GX-126 `installed` is the IQ report's `installed`, produced by IQ-01, IQ-03, IQ-08 and IQ-24 (G3); BEH-GX-124 the generator takes no mutation report: the mutation kill rule is a review criterion outside the generated evidence (C14) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.9 (2026-11-11): BEH-GX-127 `resolve` returns `string | Promise<string>`, awaited, a rejection treated as a throw; the consumer calls `captureRunEnvironment` where the runner's resolution, aliases included, applies; a misuse is not detectable and documentation states the duty (G1); second pass (cleanest design): `resolve` withdrawn — BEH-GX-127 `captureRunEnvironment` takes `loaded`, the `packageSelf` (`PackageSelf { name, version, url }`) each `@bridger/*` package exports, imported where the runner loads the test files, and records per package `loaded { name, version, from }` (null for `effect`); BEH-GX-126 counts a run only when each `@bridger/*` package's `loaded` matches `installed` and lies inside its installed directory, `effect` reported by the new deviation kind `package-unverified` (BEH-GX-125); BEH-GX-128 corpus items (SPEC-AUDIT-09) (CCR-GX-012)<br>0.8 (2026-11-11): BEH-GX-127 `resolve` resolves as the test runner resolves the suite's imports, aliases included; Node's `import.meta.resolve` under a runner's aliases named a misuse (G2) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.7 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes the suite's `resolve` and resolves each package with it, never from its own location (G2) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.6 (2026-11-11): BEH-GX-127 a package the running suite resolves elsewhere than from `packageRoot` is left out, so the run raises `package-mismatch` (G6) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-11): BEH-GX-127 `captureRunEnvironment` takes `packageRoot` and `lockfile` and records each package's identity by BEH-GX-117's algorithm, with the code the installation checks use, and the lockfile's digest (G5) (CCR-GX-008)<br>0.4 (2026-11-10): BEH-GX-121, BEH-GX-126 `installed` is the IQ report's `installed`, produced by IQ-01, IQ-03, IQ-08 and IQ-24 (G3); BEH-GX-124 the generator takes no mutation report: the mutation kill rule is a review criterion outside the generated evidence (C14) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-126 the installed identity a run must match includes `@bridger/audit-chain` when sealing is on (M3) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-121: `RunnerOutputUnreadable` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -240,6 +240,7 @@ mattered.
 | `conformance-not-executed` | a conformance case is "not executed" |
 | `conformance-failed` | a conformance case is "fail", including the deliberate failure "not executed: reopen not supported by the adapter" (BEH-GX-025) |
 | `package-mismatch` | BEH-GX-126 |
+| `package-unverified` | BEH-GX-126: a counted run's package that cannot describe itself (`effect`), whose loaded location the run could not report |
 | `environment-incomplete` | BEH-GX-127 |
 
 ```
@@ -287,7 +288,28 @@ REQUIREMENT: A runner output MUST be counted only when its run manifest
              for `@bridger/audit-chain` when the assembly has sealing on, the
              same name, version, registry hash and installed-files digest as
              `installed`, and a resolved location inside an installed
-             dependency directory, not a source tree or a workspace link.
+             dependency directory, not a source tree or a workspace link;
+             and when, for each of those `@bridger/*` packages, the
+             manifest's `loaded` — what the package's code reported about
+             itself as the suite loaded it (BEH-GX-127) — is present, its
+             `name` and `version` equal `installed`'s, and its `from` lies
+             inside that package's installed `resolvedFrom` directory. A
+             `@bridger/*` package whose `loaded` is absent, or names
+             another version or a file outside its installed directory (a
+             source tree, a workspace link, another copy), MUST fail the
+             rule: the suite then ran code that is not provably the
+             installed package.
+```
+
+```
+REQUIREMENT: For `effect`, which exports no self-description, `loaded` is
+             null and the location it was loaded from is not verified. A
+             run that passes the rule above MUST still be counted, and the
+             generator MUST raise one `package-unverified` deviation per
+             such run and package, naming the package and stating that its
+             loaded location was not reported by the loaded code. It MUST
+             NOT count that package as verified, and MUST NOT fill its
+             loaded location from any resolution of its own.
 ```
 
 ```
@@ -311,17 +333,22 @@ read as one statement about one set of packages.
 
 ```ts
 // illustrative — not type-checked
+// Core declares PackageSelf, and every @bridger/* package exports its own `packageSelf` from its main entry
+// (core overview, "Contracts and manifests"): name and version compiled in, `url` the `import.meta.url`
+// of the module that defines the constant, read when that module is evaluated.
+interface PackageSelf { readonly name: string; readonly version: string; readonly url: string }
 declare function captureRunEnvironment(q: {
   readonly executor: string; readonly suiteVersion: string
   readonly packageRoot: string                        // as runInstallationChecks takes it (15): where module resolution starts
   readonly lockfile: string                           // the lockfile the installation was made from
-  readonly resolve: (specifier: string) => string     // the file a bare specifier loads as the test runner resolves the suite's imports,
-                                                      // its aliases included (e.g. Vitest's resolve.alias); throws when unresolved.
-                                                      // Misuse: Node's import.meta.resolve where the runner has aliases, which it does not see
-}): Effect.Effect<RunManifest>                        // called by the consumer's test setup, before the run
+  readonly loaded: readonly PackageSelf[]             // the `packageSelf` of each @bridger/* package, imported by its bare
+                                                      // specifier in the module that calls captureRunEnvironment
+}): Effect.Effect<RunManifest>                        // called from a module the test runner loads with the suite's test files
 interface RunManifest {
   readonly format: "bridger-gx-run/1"
-  readonly packages: InstalledIdentity["packages"]
+  readonly packages: readonly (InstalledIdentity["packages"][number] & {
+    readonly loaded: { readonly name: string; readonly version: string; readonly from: string } | null
+  })[]                                                // `loaded`: what the package's own `packageSelf` reported; null for effect
   readonly commit?: string                            // source commit of the release, when published
   readonly lockfileDigest: string
   readonly suiteVersion: string
@@ -347,29 +374,50 @@ REQUIREMENT: `captureRunEnvironment` MUST fill `packages` for `@bridger/core`,
              of an unchanged installation records exactly the identity IQ
              recorded (BEH-GX-126). `lockfileDigest` MUST be "sha256:"
              followed by the lower-case hex SHA-256 of the lockfile's bytes.
-             A package it cannot resolve MUST be left out of `packages`, so
-             that the run raises `package-mismatch`, never filled from
-             another source. It MUST also resolve each package as the
-             test runner resolves the suite's imports, with the suite's
-             `resolve`, never with its own location's resolution:
-             `resolve(name)` gives the file, and the package's location is
-             the real path of the nearest directory above that file whose
-             `package.json` has that `name`. It MUST leave out of `packages`
-             a package `resolve` throws for, and a package whose real path
-             so resolved differs from the one resolved from `packageRoot`,
-             so that a suite importing from a source tree while naming the
-             installation's root raises `package-mismatch`. The consumer's
-             `resolve` MUST resolve a specifier as the test runner resolves
-             it in the suite's test files, the runner's aliases included
-             (for example Vitest's `resolve.alias`); Node's
-             `import.meta.resolve`, which does not see those aliases, is a
-             misuse wherever the runner has them.
+             A package it cannot resolve from `packageRoot` MUST be left out
+             of `packages`, so that the run raises `package-mismatch`, never
+             filled from another source.
+```
+
+```
+REQUIREMENT: `captureRunEnvironment` MUST set each package's `loaded` from
+             `q.loaded` alone: for the entry whose `name` is the package's,
+             `loaded` is that `name` and `version` as the entry reports
+             them, and `from` the real path of the file its `url` names (the
+             `url` itself when it names no local file); with no such entry,
+             and always for `effect`, `loaded` is null. It MUST NOT resolve
+             a package by specifier, MUST take no resolver, and MUST NOT
+             fill or correct `loaded` from `packageRoot` or from its own
+             location; an entry naming no `@bridger/*` package of the run
+             MUST be ignored. Whether the loaded code is the installed
+             package is decided when the run is collected (BEH-GX-126),
+             from these recorded facts.
+```
+
+```
+REQUIREMENT: `@bridger/gxp` MUST export from its main entry its own
+             `packageSelf` of core's `PackageSelf` type: `name`
+             "@bridger/gxp", its version, and `url` the `import.meta.url`
+             of the module that defines the constant, read when that module
+             is evaluated, never computed from a path or a resolution.
+```
+
+```
+REQUIREMENT: The suite MUST import each `packageSelf` by the package's bare
+             specifier in the module that calls `captureRunEnvironment`,
+             and that module MUST be one the test runner loads with the
+             suite's test files (a test file, or a setup module the runner
+             runs with each of them), so that the description comes from
+             the module the runner resolved for the tests, aliases
+             included. The companion's own suite and its acceptance checks
+             do so (check 27).
 ```
 
 ```
 REQUIREMENT: A run manifest MUST hold every field above except `commit`; a
              missing or blank field MUST raise `environment-incomplete` for
-             that run. The run's results MUST still be counted, and the
+             that run. A `loaded` of null is a recorded value, judged by
+             BEH-GX-126, not a missing field. The run's results MUST still be counted, and the
              deviation MUST name the missing field.
 ```
 
@@ -378,6 +426,18 @@ REQUIREMENT: The run manifest MUST NOT contain environment variables,
              command lines, file contents or any configuration value; the
              fields are fixed.
 ```
+
+Where the suite loaded each `@bridger/*` package from is a fact only the
+loaded code can report, so the run records it from the package's own
+`packageSelf` — the `import.meta.url` of the module the runner actually
+evaluated — and the generator checks it against the installed directory.
+Nothing has to be trusted about how a resolver was configured: a suite
+aliased to a source tree imports the source's `packageSelf`, whose `url`
+names a file of the source tree, and the run raises `package-mismatch`.
+Earlier revisions asked the consumer for a `resolve` function that had to
+resolve as the runner does, which the companion could not check; it is
+withdrawn (CCR-GX-012). `effect` cannot describe itself, so its loaded
+location is reported as unverified rather than trusted.
 
 These are the fields core's validation plan requires of every evidence
 record ([core gxp/04](../../core/gxp/04-validation-plan.md) §6.1, rule 4). An incomplete record still
@@ -400,6 +460,8 @@ description is itself a deviation the consumer must assess.
 | a well-formed tag naming no defined requirement, and a malformed `@REQ-GX-12` | two `unknown-requirement`; neither counted |
 | two tests with the same identity in one file | `RunnerOutputUnreadable` |
 | a run manifest with a different `@bridger/core` version | `package-mismatch`; its results not counted |
+| a run manifest whose `@bridger/core` `loaded.from` lies in a source tree, and one whose `@bridger/gxp` `loaded` is null | two `package-mismatch`; neither run's results counted |
+| a run manifest matching `installed` whose `effect` `loaded` is null | one `package-unverified`; results counted |
 | a truncated file of each format | `RunnerOutputUnreadable` |
 | a run manifest without `machine` | `environment-incomplete`; results counted |
 | a conformance case missing from the runner output | "not executed"; `conformance-not-executed` |

@@ -112,7 +112,7 @@ SUMMARY = {
  24: "`proposeFingerprints` equals the call's fingerprints; after rotation earlier tickets are refused and listed as stale",
  25: "`matchesFingerprint` answers match, no-match and key-retired-unavailable, and refuses inadmissible input",
  26: "`runInstallationChecks` reports every IQ item in order, failing on wired fixtures, an unbounded `gateTimeout` and a repeated identifier in the IQ-22 draw",
- 27: "`collectOqEvidence` is exact on the known-bad corpus; packs reproduce byte for byte; `diffPacks` shows lost coverage",
+ 27: "`collectOqEvidence` is exact on the known-bad corpus; packs reproduce byte for byte; `diffPacks` shows lost coverage; and a run whose `@bridger/*` package reports, through its `packageSelf`, a location outside the installed package raises `package-mismatch`, `effect` `package-unverified`",
  28: "Archives keep the stored canonical bytes; `readArchive` finds an edited line from its own run, confirms receipts with the verifiers given and checks heads against the inspector's own expected heads, never the archive's marks",
  29: "Peer dependencies only, `@bridger/audit-chain` an optional peer with its own range; core never imports the companion; the main entry point exports no port implementation and no policy",
  30: "`GxpLayer.make` options are exhaustive at compile time; a \"not-used\" section equals an unwired core port",

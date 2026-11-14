@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-03                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): BEH-AG-018: a session's taint starts with exactly the labels of `spawn.taint`, none for a top-level session (SPEC-AUDIT-05 PL7) (CCR-AG-008)<br>0.7 (2026-11-10): BEH-AG-022 a loop started with `StartRequest.spawn` pins no toolset and reads no selector (H10 follow-up) (CCR-AG-005)<br>0.6 (2026-11-09): The example of BEH-AG-023 carries the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): BEH-AG-020 scoped to commands not declared `readOnly`, following the command catalog's read-only exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): Field-level untrusted output taints the session (label `untrusted-field:`); `TaintGuard.drafts` also drafts batches; provenance reaches core's call-log entries through the dispatch context; BEH-AG-023 tool results reach the model only as size-capped envelopes (CCR-AG-003, round 2: recheck items 5, 8; X8)<br>0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.9 (2026-11-11): BEH-AG-020: the reserved spawn call, never dispatched, falls under the same taint floor as a command not declared `readOnly` — refused "tainted-session" in a tainted session, no subagent run — and its `parent.context` carries the session's taint and the call's provenance; second pass (cleanest design): BEH-AG-020: the refusal is the agent's own `ToolRefused` "tainted-session", not `CommandRefused` (SPEC-AUDIT-09 A1) (CCR-AG-012)<br>0.8 (2026-11-11): BEH-AG-018: a session's taint starts with exactly the labels of `spawn.taint`, none for a top-level session (SPEC-AUDIT-05 PL7) (CCR-AG-008)<br>0.7 (2026-11-10): BEH-AG-022 a loop started with `StartRequest.spawn` pins no toolset and reads no selector (H10 follow-up) (CCR-AG-005)<br>0.6 (2026-11-09): The example of BEH-AG-023 carries the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.5 (2026-11-08): BEH-AG-020 scoped to commands not declared `readOnly`, following the command catalog's read-only exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.4 (2026-11-08): Field-level untrusted output taints the session (label `untrusted-field:`); `TaintGuard.drafts` also drafts batches; provenance reaches core's call-log entries through the dispatch context; BEH-AG-023 tool results reach the model only as size-capped envelopes (CCR-AG-003, round 2: recheck items 5, 8; X8)<br>0.3 (2026-11-08): BEH-AG-020 relies on the command taint floor, `TaintGuard.drafts` supplies drafts; provenance entries `{ source, ref }`; tainted sessions use a distinct selector; `Annotations` type; `Actor.isWithin` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -219,7 +219,17 @@ REQUIREMENT: The package MUST rely on the taint floor of the command
              NOT install a plugin, interception or gate of its own for
              that rule, and every agent tool call MUST reach a handler only
              through `Commands.dispatch` (BEH-AG-005), so that the floor
-             applies to it and to every dispatch nested inside it.
+             applies to it and to every dispatch nested inside it. The
+             reserved spawn call is the one tool call that is not
+             dispatched (01, BEH-AG-003); it falls under the same floor as
+             a command not declared `readOnly`: in a tainted session it can
+             carry no `ApprovalRef` and no draft source drafts it, so the
+             loop answers it as the floor's row without a draft, with the
+             agent's own refusal `ToolRefused { tool, reason:
+             "tainted-session" }` (01, BEH-AG-003) — never a dispatch tag,
+             since nothing was dispatched — and runs no subagent. The `parent.context` it passes to
+             `spawnSubagent` carries the session's `Taint` and the call's
+             `Provenance` (01, BEH-AG-003).
 ```
 
 ```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-06                                            |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-11): Check 3: the reserved spawn tool, its interception by `callId` and its recorded outcome (A2); check 9: the result settled from a done, failed or `needs-input` subagent (A3), `Agent.SpawnedBy` on a subagent's dispatches (A1); check 17: `onDeferred` under the subagent's lock (A4), the scope close's actor and the stopped parent loop's end (A5) (SPEC-AUDIT-08) (CCR-AG-011)<br>0.11 (2026-11-11): Check 17: the subagent's `Deferred` result is settled through `TaskRegistry.settle` and `spawn.settleDeferred`, a cancel first makes it "cancelled", or "parent-ended" for the scope close's cancel (H5, A1); check 18: `queued` among the unfinished tasks of a stopped loop (PL3), and `settle` under the registration's lock (H5) (SPEC-AUDIT-07) (CCR-AG-010)<br>0.10 (2026-11-11): Check 17: withdrawal unless the draft is pending on its parent (A4), result/cancel race (A5), `pendingDraft` (H10), the parent loop's logged withdrawal (A3), cancel actor resolution (A2); check 18: "LoopStopped" withdrawal by `Actor.system` unless pending on the parent (A4, A2), a cancel after the close began (PL23), `start` before return (A1), `resume` on another provider (PL21) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): Check 6: a session starts with exactly the labels of `spawn.taint` (PL7); check 9: `heldByParent` and `HostClosed` (PL3, PL5); check 16: MCP `tasks/cancel` of an agent task passes the session's principal and no marker; check 17: unmarked cancel of a subagent's task whose draft is pending on its parent, the parent's withdrawal of a handed draft it does not publish, precedence of racing cancels, `by` from the cancel's context (A2, PL4); new check 18 and REQ-AG-018: the task registry, cancel handles and tasks of a stopped loop (H3, A1) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.8 (2026-11-10): Check 9: `isolate` never lists `Tasks`, so a subagent's task is in its parent's table (T1); check 17: "handed-to-parent" only under the hand-off marker naming the task's pending draft, a marker naming another draft or none withdraws, the parent's own `Deferred` wins over a subagent's not yet published, and a subagent draft pending when the parent's turn ends with an answer, `needs-input` or its own deferral is withdrawn by the subagent's task (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): Check 3: turns run under the loop's principal, and an unknown session id starts a new session (H4, M10); check 9: realm isolation and `DesiredPlugin` entries, the derived session id, a deferral waited on by the parent and "handed-to-parent" (M9, M10, H3); check 10: a replay mismatch is a `ModelError` (M11); check 16: listings and streams admit actors within the session's principal, the server reaches the bridge through `McpTasks`, and status updates go through the session's `notify` (M7, M8); check 17: the subagent exception, a parent cancelled before publishing a subagent's draft, and two subagents deferring in one turn (H3) (CCR-AG-006)<br>0.6 (2026-11-10): Check 3 covers `StartRequest.spawn` (H10); check 9 the attribution and errors of `Realm.ephemeral` (P21); check 16 the actor rule for task ids from MCP clients (low finding) (CCR-AG-005)<br>0.5 (2026-11-09): Check 17 and REQ-AG-017: draft withdrawal when a task ends awaiting approval (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Checks 7, 15 and 16 follow the round-2 agent review: declared reads from a tainted session, steps with long calls not batched, compensations covered by the batch approval, `Started` by descriptor (CCR-AG-003)<br>0.3 (2026-11-08): Checks 3, 5 and 10 extended; checks 13–16 for model families, batches, envelopes and command tasks (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): Checks 3, 5, 7 and 9 aligned with the taint floor, `ResumeInput` and subagent attribution (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.13 (2026-11-11): Check 3: the case of a command holding the reserved id dropped (PL1), the spawn call's own scope and `parent.context` (PL2, A1); check 7: a spawn call in a tainted session refused "tainted-session" (A1); check 9: the realm closed when the subagent's result settles (PL2); check 10: a spawn call answered from the transcript during replay (H3); check 17: `TaskRegistry.stop` after a teardown that left the subagent's loop (A2); check 18: `TaskRegistry.stop` (A2); second pass (cleanest design): check 3: an undecodable spawn input fails `ToolRefused` "input-invalid", and no spawn refusal carries a dispatch tag; check 7: the tainted spawn call fails `ToolRefused` "tainted-session" whatever its input (A1) (SPEC-AUDIT-09) (CCR-AG-012)<br>0.12 (2026-11-11): Check 3: the reserved spawn tool, its interception by `callId` and its recorded outcome (A2); check 9: the result settled from a done, failed or `needs-input` subagent (A3), `Agent.SpawnedBy` on a subagent's dispatches (A1); check 17: `onDeferred` under the subagent's lock (A4), the scope close's actor and the stopped parent loop's end (A5) (SPEC-AUDIT-08) (CCR-AG-011)<br>0.11 (2026-11-11): Check 17: the subagent's `Deferred` result is settled through `TaskRegistry.settle` and `spawn.settleDeferred`, a cancel first makes it "cancelled", or "parent-ended" for the scope close's cancel (H5, A1); check 18: `queued` among the unfinished tasks of a stopped loop (PL3), and `settle` under the registration's lock (H5) (SPEC-AUDIT-07) (CCR-AG-010)<br>0.10 (2026-11-11): Check 17: withdrawal unless the draft is pending on its parent (A4), result/cancel race (A5), `pendingDraft` (H10), the parent loop's logged withdrawal (A3), cancel actor resolution (A2); check 18: "LoopStopped" withdrawal by `Actor.system` unless pending on the parent (A4, A2), a cancel after the close began (PL23), `start` before return (A1), `resume` on another provider (PL21) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): Check 6: a session starts with exactly the labels of `spawn.taint` (PL7); check 9: `heldByParent` and `HostClosed` (PL3, PL5); check 16: MCP `tasks/cancel` of an agent task passes the session's principal and no marker; check 17: unmarked cancel of a subagent's task whose draft is pending on its parent, the parent's withdrawal of a handed draft it does not publish, precedence of racing cancels, `by` from the cancel's context (A2, PL4); new check 18 and REQ-AG-018: the task registry, cancel handles and tasks of a stopped loop (H3, A1) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.8 (2026-11-10): Check 9: `isolate` never lists `Tasks`, so a subagent's task is in its parent's table (T1); check 17: "handed-to-parent" only under the hand-off marker naming the task's pending draft, a marker naming another draft or none withdraws, the parent's own `Deferred` wins over a subagent's not yet published, and a subagent draft pending when the parent's turn ends with an answer, `needs-input` or its own deferral is withdrawn by the subagent's task (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): Check 3: turns run under the loop's principal, and an unknown session id starts a new session (H4, M10); check 9: realm isolation and `DesiredPlugin` entries, the derived session id, a deferral waited on by the parent and "handed-to-parent" (M9, M10, H3); check 10: a replay mismatch is a `ModelError` (M11); check 16: listings and streams admit actors within the session's principal, the server reaches the bridge through `McpTasks`, and status updates go through the session's `notify` (M7, M8); check 17: the subagent exception, a parent cancelled before publishing a subagent's draft, and two subagents deferring in one turn (H3) (CCR-AG-006)<br>0.6 (2026-11-10): Check 3 covers `StartRequest.spawn` (H10); check 9 the attribution and errors of `Realm.ephemeral` (P21); check 16 the actor rule for task ids from MCP clients (low finding) (CCR-AG-005)<br>0.5 (2026-11-09): Check 17 and REQ-AG-017: draft withdrawal when a task ends awaiting approval (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Checks 7, 15 and 16 follow the round-2 agent review: declared reads from a tainted session, steps with long calls not batched, compensations covered by the batch approval, `Started` by descriptor (CCR-AG-003)<br>0.3 (2026-11-08): Checks 3, 5 and 10 extended; checks 13–16 for model families, batches, envelopes and command tasks (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): Checks 3, 5, 7 and 9 aligned with the taint floor, `ResumeInput` and subagent attribution (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -55,12 +55,16 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 plugin; `start` with an unknown session id starts a new,
                 empty session; a loop built with `subagents` appends
                 `Agent.spawnTool` to every request of the turn, the
-                fingerprint unchanged, and none without it or when the pin
-                holds a command of the reserved id; a call of it is taken
-                out before dispatch, never reaches `ToolRunner` or a batch,
-                runs `spawnSubagent`, and its outcome (`Ok`, `Deferred` or
-                `Failed`, an undecodable input `Failed`) is recorded under
-                its `callId` in the messages and the transcript.
+                fingerprint unchanged, and none without it; a call of it is
+                taken out before dispatch, never reaches `ToolRunner` or a
+                batch, runs `spawnSubagent` in a scope of its own closed
+                once the outcome settles, with `parent.context` carrying
+                the session's taint and the call's provenance, and its
+                outcome (`Ok`, `Deferred` or `Failed`; an undecodable input
+                `Failed` with `ToolRefused` "input-invalid" and its issues,
+                no subagent run) is recorded under its `callId` in the
+                messages and the transcript; no refusal of a spawn call
+                carries a command dispatch tag.
              4. `TaskSnapshot`: every transition of the table and no other;
                 terminal states sticky; revisions increase by one;
                 `Tasks.await` returns on a requested or terminal state and
@@ -90,11 +94,15 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                 refuses ("gate-defect") and fails the tool call; a tainted
                 call routed through another command's handler is still
                 tainted; an approval by an actor within the agent's actor
-                (`Actor.isWithin`) is refused by the scripted gate.
+                (`Actor.isWithin`) is refused by the scripted gate; a
+                reserved spawn call in a tainted session runs no subagent
+                and fails with `ToolRefused` "tainted-session", whatever
+                the gate, the draft source and the call's input.
              8. Provenance reaches tool results, the call log and stored
                 session and memory entries as references.
              9. Subagents: ephemeral realm closed with lease drain when the
-                subagent ends; its definition, installs and teardown
+                subagent ends — the spawn call's scope closing once its
+                result settles, before the turn ends; its definition, installs and teardown
                 recorded with the parent's actor, and the subagent's
                 dispatches and host calls with the narrowed actor of
                 `EphemeralRealm.context`; each core error of
@@ -129,6 +137,11 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
              10. Testing helpers: `ScriptedModel` fails on any unscripted
                  request; a recorded transcript replays identically and a
                  changed gate shows as `ReplayDiverged` at its call; a
+                 reserved spawn call during replay runs no subagent and is
+                 answered with the outcome recorded for its `callId` (and
+                 taints the session from the recorded `tainted`), a missing
+                 or different one failing with `ReplayDiverged`, and the
+                 transcript holds no element of a spawned subagent; a
                  request whose digest differs from the recording fails with
                  `ModelError` "other" and a recorded `ScriptMismatch`;
                  `EvalHook` refuses veto registrations and its failures change
@@ -229,7 +242,11 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  stopped, does not cancel, the realm's removal ending the
                  subagent `failed` "LoopStopped" with `withdraw` by
                  `Actor.system` and reason "task-failed" (or
-                 "handed-to-parent" for the draft pending on the parent);
+                 "handed-to-parent" for the draft pending on the parent),
+                 and, when the realm's teardown stops before removing the
+                 subagent's loop (a gate refusal, `AuditUnavailable`),
+                 `spawnSubagent` ends the subagent the same way through
+                 `TaskRegistry.stop`;
                  the parent loop's withdrawal
                  of a handed-over draft it did not publish carries the
                  subagent's task id and its outcome is logged;
@@ -258,7 +275,9 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  `TaskNotResumable`; `TaskRegistry.settle` runs under the
                  registration's lock and answers false once a cancel or the
                  registration's close has reached the handle, and no
-                 handle's work runs under that lock.
+                 handle's work runs under that lock; `TaskRegistry.stop`
+                 ends a task as the registration's close does and changes
+                 nothing once a cancel or the close reached its handle.
 ```
 
 | REQ | Check | Behaviours | Status |

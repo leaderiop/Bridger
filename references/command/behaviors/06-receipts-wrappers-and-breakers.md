@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-06                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): BEH-CM-042: for a long command's task the wrappers run in the task's fiber, which carries the dispatching fiber's plugin principal unchanged, and a host call under it after that activation ends dies with `PrincipalRetired` (07, BEH-CM-052) (T3) (CCR-CM-007)<br>0.5 (2026-11-10): BEH-CM-042 and BEH-CM-044: wrappers and admissions run under the dispatching fiber's plugin principal, unchanged — none for application code, the dispatching plugin's otherwise — instead of "no plugin principal", which the package cannot arrange; their host calls are recorded and decided for that plugin (core BEH-BR-258) (H5) (CCR-CM-006)<br>0.4 (2026-11-10): BEH-CM-042: `DispatchRunError`, the error of a wrapper's `run`, defined as `CommandOutputInvalid` or `CommandWrapperFailed` (it was used and never defined) (CCR-CM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-CM-041: the receipt scope gains an application-computed `partition`; every port call receives `services` (the dispatching fiber's `receiptContext` keys, and for a `Success` the wrapper chain's services), so a transaction reaches the port by context and never by fiber-local state; a dispatch from a durable-bus subscription handler joins the inbox's `StoreTransaction` with a key derived from the envelope's `eventId` (M-04); a typed error listed in the command's `retryable` is released, never stored (ERP alignment of the same audit); new BEH-CM-044, admission policies fixed in the catalog layer, consulted at step 6 and settled after step 7 (C-10); BEH-CM-043 returns the probe slot of a dispatch refused by an admission (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-02, A-04, A-09, A-10, A-13, A-14): receipts compare actor first, carry the dispatch digest (`definition-differs`) and a task id (`mode-differs`; a repeat of a task returns its `CommandTaskRef`); `void` for undone batch items; a `Failure` is completed outside the wrappers, a claim is released when the wrapper chain does not end with the completed outcome, and an in-flight claim expires; one flow list for the key annotation and no inherited key in nested dispatches; a probe slot not used is returned (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — idempotency key and `CommandReceipts`, handler wrappers, breaker per command or provider (CCR-CM-003, round 2: recheck items 1, 4, 10) |
+> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09), third pass — BEH-CM-041: the caller services, exactly `DispatchOptions.services` (for a batch item the batch's, with the batch wrappers' services inside them), never read from the dispatching fiber and never inherited by a nested dispatch; the port receives them for the claim, a release, a `void` and a `Failure`'s completion, and with the wrapper chain's services for a `Success`'s, a task's fiber keeping the existing rule; option `receiptContext` withdrawn; a subscription handler passes its inbox transaction in `services`; Settled (9) restated and (10) walks the cases through; BEH-CM-042: `wrap` receives the services in force at its position as an argument, and the documented transaction wrapper joins a transaction only when it finds one there, else opens its own (CCR-CM-011)<br>0.6 (2026-11-10): BEH-CM-042: for a long command's task the wrappers run in the task's fiber, which carries the dispatching fiber's plugin principal unchanged, and a host call under it after that activation ends dies with `PrincipalRetired` (07, BEH-CM-052) (T3) (CCR-CM-007)<br>0.5 (2026-11-10): BEH-CM-042 and BEH-CM-044: wrappers and admissions run under the dispatching fiber's plugin principal, unchanged — none for application code, the dispatching plugin's otherwise — instead of "no plugin principal", which the package cannot arrange; their host calls are recorded and decided for that plugin (core BEH-BR-258) (H5) (CCR-CM-006)<br>0.4 (2026-11-10): BEH-CM-042: `DispatchRunError`, the error of a wrapper's `run`, defined as `CommandOutputInvalid` or `CommandWrapperFailed` (it was used and never defined) (CCR-CM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-CM-041: the receipt scope gains an application-computed `partition`; every port call receives `services` (the dispatching fiber's `receiptContext` keys, and for a `Success` the wrapper chain's services), so a transaction reaches the port by context and never by fiber-local state; a dispatch from a durable-bus subscription handler joins the inbox's `StoreTransaction` with a key derived from the envelope's `eventId` (M-04); a typed error listed in the command's `retryable` is released, never stored (ERP alignment of the same audit); new BEH-CM-044, admission policies fixed in the catalog layer, consulted at step 6 and settled after step 7 (C-10); BEH-CM-043 returns the probe slot of a dispatch refused by an admission (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-02, A-04, A-09, A-10, A-13, A-14): receipts compare actor first, carry the dispatch digest (`definition-differs`) and a task id (`mode-differs`; a repeat of a task returns its `CommandTaskRef`); `void` for undone batch items; a `Failure` is completed outside the wrappers, a claim is released when the wrapper chain does not end with the completed outcome, and an in-flight claim expires; one flow list for the key annotation and no inherited key in nested dispatches; a probe slot not used is returned (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — idempotency key and `CommandReceipts`, handler wrappers, breaker per command or provider (CCR-CM-003, round 2: recheck items 1, 4, 10) |
 
 ---
 
@@ -40,7 +40,8 @@ Planned source: `packages/command/src/Receipts.ts`,
 ```ts
 // illustrative — not type-checked
 // The port: supplied by the application in CommandCatalogOptions.receipts (02, BEH-CM-011).
-// Every call receives `services`: the only way a transaction or other context reaches the port.
+// Every call receives `services`, built from the caller services the dispatch was given
+// (DispatchOptions.services, 02, BEH-CM-009): the only way a transaction or other context reaches the port.
 interface CommandReceipts {
   readonly claim: (claim: ReceiptClaim, services: Context.Context<never>) => Effect.Effect<ReceiptState, ReceiptsUnavailable>
   readonly complete: (ticket: ReceiptTicket, outcome: StoredOutcome, services: Context.Context<never>) =>
@@ -53,7 +54,6 @@ interface CommandReceipts {
 }
 // CommandCatalogOptions (02, BEH-CM-011) gains, fixed when the layer is built:
 //   receiptPartition?: (request: CommandRequest) => string        // pure; default: every request in partition ""
-//   receiptContext?: ReadonlyArray<Context.Key<any, any>>          // keys of the dispatching fiber the port receives
 interface ReceiptClaim {
   readonly partition: string          // the receipt scope is (partition, command, key)
   readonly command: string
@@ -163,40 +163,56 @@ REQUIREMENT: The receipt scope MUST be (partition, command, key). Before
 ```
 
 ```
+REQUIREMENT: A dispatch's *caller services* MUST be exactly the
+             `Context` its caller passed in `DispatchOptions.services` (02,
+             BEH-CM-009), or an empty context when the call passed none;
+             for a batch item, the batch's `BatchOptions.services`, with the
+             services the batch wrappers pass to their `run` added over them
+             for every call made inside the batch wrappers (07, BEH-CM-049,
+             BEH-CM-050). The package MUST NOT read the dispatching fiber's
+             environment, fiber-local state or the port's own environment
+             to build or extend them, and a nested dispatch MUST NOT inherit
+             them: a handler's dispatch has only the services its own call
+             passes. Caller services are not part of the request: the gate,
+             the hooks, the digest and the receipt comparisons never see
+             them.
+```
+
+```
 REQUIREMENT: Every call of the port MUST receive `services`, built as
              follows, and no other key:
              - `claim`, `release`, `void` and the completion of a
-               `Failure`: the dispatching fiber's context restricted to the
-               keys listed in `CommandCatalogOptions.receiptContext` (a key
-               the fiber lacks is left out; an empty context when the
-               option is absent).
-             - the completion of a `Success`: that context with the
+               `Failure`: the caller services.
+             - the completion of a `Success`: the caller services with the
                services the wrapper chain hands to the handler (the keys in
                the applying wrappers' `provides`, BEH-CM-042) added over
-               it, so that a transaction a wrapper opens reaches the port.
+               them, so that a transaction a wrapper opens or joins reaches
+               the port.
              - a call made from a task's fiber (07, BEH-CM-052): only the
                wrapper chain's services for a `Success`, and an empty
-               context otherwise. The `receiptContext` keys are read in the
-               caller's fiber for the claim only, because the caller's
-               transaction may end before the task does.
-             The package MUST NOT rely on fiber-local state, or on the
-             port's own environment, to carry a transaction to the port:
-             the port MUST find a transaction only in the `services` it
+               context otherwise. The caller services reach the claim only,
+               made in the caller's fiber, because the caller's unit of work
+               may end before the task does.
+             The port MUST find a transaction only in the `services` it
              receives. Documentation MUST state that the receipt joins a
              transaction only when the port writes it through a
-             transaction found in `services`.
+             transaction found in `services`, and that a caller joins its
+             own transaction only by passing it in
+             `DispatchOptions.services`.
 ```
 
 ```
 REQUIREMENT: Documentation MUST show a dispatch from a durable-bus
              subscription handler (durable-bus BEH-DB-020), whose handler
-             runs inside the inbox's `StoreTransaction`: the application
-             lists `StoreTransaction` in `receiptContext`; its transaction
-             wrapper looks for a `StoreTransaction` in the dispatching
-             fiber (`Effect.serviceOption`) and, when it finds one,
-             provides that transaction to the handler instead of opening
-             its own; the port writes the claim, the completion and any
-             release through it. The domain write, the receipt and the
+             runs inside the inbox's `StoreTransaction`: the handler passes
+             that transaction to the dispatch, `{ services:
+             Context.make(StoreTransaction, tx) }`; the port writes the
+             claim, the completion and any release through it; and the
+             application's transaction wrapper, which finds it in the
+             caller services it receives (BEH-CM-042), provides that
+             transaction to the handler instead of opening its own, and
+             opens its own when the caller services hold none (an HTTP,
+             agent or job dispatch). The domain write, the receipt and the
              inbox's cursor then commit or roll back together, and a
              rolled-back delivery (a `CommitConflict` or a failed attempt,
              durable-bus BEH-DB-021) leaves no receipt behind, so its
@@ -308,10 +324,27 @@ the package does not know what a tenant or a company is; a port cannot
 compute it from its own environment, which is empty. (8) `retryable` is part
 of the command's definition and its digest (BEH-CM-005): which failures a
 retry may overturn is a property of the command, not of a deployment.
-(9) Context reaches the port explicitly, as with the handler (BEH-CM-042):
-an implicit fiber-bound transaction would join a receipt to whatever
-transaction happens to enclose the dispatch, including one the application
-did not mean to share.
+(9) Context reaches the port and the wrappers explicitly, as it reaches the
+handler (BEH-CM-042): the caller names, in `DispatchOptions.services`, what
+this one dispatch may use. A transaction found in the dispatching fiber —
+whether by the port, by a wrapper or through a catalog-wide list of keys
+read from that fiber — would join a receipt and a handler to whatever
+transaction happens to enclose the dispatch, including a handler's own when
+it dispatches a nested command, and one the application did not mean to
+share. (10) The cases, walked through. A subscription handler passes its
+inbox transaction: claim, handler, domain write, completion and cursor
+share it, and a rolled-back delivery leaves no receipt, so its retry claims
+`Fresh`. An HTTP, agent or job dispatch passes none: the claim is the
+port's own short write, the transaction wrapper opens the command
+transaction, a `Success` completes in it and a `Failure` or a release is
+the port's own write again. A long command's claim takes the caller
+services in the caller's fiber; its task's wrappers and port calls receive
+none, so the task opens its own transaction and never writes through one
+the caller may already have ended. A nested dispatch has only what its call
+passes: a handler that wants it in its own transaction passes the
+transaction a wrapper provided to it. A repeat claims with the services
+its call passes: `Completed` returns the stored outcome and runs no wrapper,
+and `Fresh` runs as a first dispatch would.
 
 **Open.** Whether the port should also scope receipts by actor (partition,
 command, actor, key), which would remove even the "key in use" signal of
@@ -337,6 +370,8 @@ interface CommandHandlerWrapper {
   readonly provides?: ReadonlyArray<Context.Key<any, any>>                  // keys the wrapper hands to the handler
   readonly wrap: (
     request: CommandRequest,
+    services: Context.Context<never>,   // the services in force at this wrapper: the caller services (BEH-CM-041)
+                                        // with what each outer applying wrapper passed to its `run` added over them
     run: (services: Context.Context<never>) => Effect.Effect<WrappedOutcome, DispatchRunError>
   ) => Effect.Effect<WrappedOutcome, DispatchRunError | WrapperError>
 }
@@ -352,10 +387,23 @@ CommandCatalog.layer({
   handlerWrappers: [transaction, auditRow, outbox],   // outermost first; receipts completed innermost (BEH-CM-041)
   receipts: receiptsInTheSameDatabase
 })
+// The documented transaction wrapper joins a transaction only when it is handed one:
+const transaction: CommandHandlerWrapper = {
+  name: "transaction",
+  provides: [StoreTransaction],
+  wrap: (request, services, run) =>
+    Option.match(Context.getOption(services, StoreTransaction), {
+      onSome: (tx) => run(Context.make(StoreTransaction, tx)),                         // the caller's: join it
+      onNone: () => store.transaction((tx) => run(Context.make(StoreTransaction, tx))) // none passed: open one
+    })
+}
 // Every adapter is a thin caller of one path:
 //   HTTP:  POST /commands/:id  →  Commands.dispatch(id, body, { idempotencyKey: header("Idempotency-Key"), context })
 //   UI:    form submit         →  Commands.dispatch(command, values, { expectDigest: form.digest, context })
 //   Job:   scheduled run       →  Commands.dispatch(command, input, { idempotencyKey: `${jobId}:${runAt}`, context })
+//   Subscription handler (durable-bus BEH-DB-020), inside the inbox transaction `tx`:
+//          Commands.dispatch(command, input, { idempotencyKey: `${subscription}:${envelope.eventId}`,
+//                                              services: Context.make(StoreTransaction, tx), context })
 ```
 
 ```
@@ -378,6 +426,21 @@ REQUIREMENT: Step 7 MUST run, inside the contribution hold and the dispatch
              a wrapper that returns without calling `run` MUST fail the
              dispatch with `CommandWrapperFailed { id, wrapper, message:
              "run-not-called" }` unless it fails itself.
+```
+
+```
+REQUIREMENT: Each wrapper MUST receive, as `wrap`'s `services` argument,
+             the services in force at its position: the dispatch's caller
+             services (BEH-CM-041) — an empty context in a task's fiber (07,
+             BEH-CM-052) — with the services each outer applying wrapper
+             passed to its `run` added over them. That argument is the only
+             way the package lets a wrapper learn of a unit of work the
+             caller holds: documentation MUST show a wrapper that joins the
+             caller's transaction only when it finds one in `services`, and
+             otherwise opens its own, never one that looks in the
+             dispatching fiber's environment. The argument never reaches
+             the handler: what reaches it is only what a wrapper passes to
+             `run` (below).
 ```
 
 ```
@@ -442,6 +505,10 @@ encoded outcome, not the decoded value, so an audit or outbox wrapper writes
 what the call log and the receipt store would see, never a live object.
 (3) Wrappers see a handler's typed error as `Failure` and decide what to do
 with their transaction; the caller still receives the typed error.
+(4) A wrapper receives the caller services as an argument, not by reading
+the fiber it runs in: whether a command joins the caller's transaction is
+then decided by the call that dispatches it, visibly, and the same wrapper
+opens its own transaction for every caller that passed none.
 
 **Open.** The type-level form of `provides` — how a handler states at
 `contribute` that it requires a key a wrapper supplies — is left to the

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview (companion)              |
-> | Change History | 0.3 (2026-11-09): API table: `EventStore` members, `publish.stream` signature, `receiveVerbatimOptions`; publication's delivery stream and attribution (CCR-ES-003)<br>0.2 (2026-11-08): API table adds `recordFact`, `receiveVerbatim` and `receiveOptions`; the worked example gives the `FactDecider` its required `factId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.4 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09), second pass (cleanest design) — `EventStore` row names the members `readIn` and `readForSwap`; `StoreSwapInProgress` row (CCR-ES-011)<br>0.3 (2026-11-09): API table: `EventStore` members, `publish.stream` signature, `receiveVerbatimOptions`; publication's delivery stream and attribution (CCR-ES-003)<br>0.2 (2026-11-08): API table adds `recordFact`, `receiveVerbatim` and `receiveOptions`; the worked example gives the `FactDecider` its required `factId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -71,7 +71,7 @@ All signatures are illustrative until code exists.
 
 | Export | Kind | Purpose |
 | ------ | ---- | ------- |
-| `EventStore` | service (contract, local) | The store, provided by the event-store plugin; members `register`, `append`, `read`, `readAll`, `hasFact`, `savepoint`, `checkpoints`, `snapshots`, which grants name ([behaviour 05](./behaviors/05-storage-port-and-acceptance.md), BEH-ES-038) |
+| `EventStore` | service (contract, local) | The store, provided by the event-store plugin; members `register`, `append`, `read`, `readAll` (outside a store transaction, gated), `readIn` (inside the transaction it is passed, fenced), `readForSwap` (inside a durable-bus store-swap step, with its `SwapStep`), `hasFact`, `savepoint`, `checkpoints`, `snapshots`, which grants name ([behaviour 05](./behaviors/05-storage-port-and-acceptance.md), BEH-ES-038) |
 | `EventStore.register` | function | Register the `DurableEvent`s a store may hold |
 | `Stream.append(id, events, { expectedVersion, context? })` | function | Append in the caller's `StoreTransaction` |
 | `Stream.read(id, options?)` | function | Read a stream, upcast then decoded |
@@ -112,6 +112,7 @@ All signatures are illustrative until code exists.
 | `EventStoreAdapter` | port | Rows, positions, checkpoints, snapshots, the shared transaction |
 | `EventStoreConformance` | test suite | The adapter conformance suite (testing entry point) |
 | `memoryEventStore` | fixture | An in-memory adapter for tests (testing entry point only) |
+| `StoreSwapInProgress { read }` | error | A read refused by a whole-store re-bootstrap install or its holds: "page-interrupted" (`read`, `readAll`) or "fence-refused" (`readIn`); retried once `DurableBus.whenReadable` completes |
 
 ## Worked example
 

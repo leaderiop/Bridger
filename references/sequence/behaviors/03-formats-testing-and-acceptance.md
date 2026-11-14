@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-03                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — check 11 covers the supersession step's service actor under `requireActor: true` (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — check 8 covers authority-side recording with `SeriesFacts` (P5); check 12 covers appends under `asSelf` (CCR-SQ-004)<br>0.3 (2026-11-09): BEH-SQ-019 adds a `rebootstrap` fixture; BEH-SQ-020 check 1 covers handles of an earlier origin, checks 11 (re-bootstrap on a running host) and 12 (grants on the `Sequence` members) added (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — check 11: the `prepare` reads the replaced store without waiting and the install completes; the step waits for `whenReadable` outside its transaction (H4, H5); second pass (cleanest design): the `prepare` reads through `readForSwap` with its `SwapStep`, the step through `readIn` (CCR-SQ-008)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — check 11 covers the supersession step's service actor under `requireActor: true` (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — check 8 covers authority-side recording with `SeriesFacts` (P5); check 12 covers appends under `asSelf` (CCR-SQ-004)<br>0.3 (2026-11-09): BEH-SQ-019 adds a `rebootstrap` fixture; BEH-SQ-020 check 1 covers handles of an earlier origin, checks 11 (re-bootstrap on a running host) and 12 (grants on the `Sequence` members) added (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-020 checks 7 and 8 follow the supersession stream and decoded `verifySeries` inputs (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -111,7 +111,14 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  node's series, a handle opened before it fails `next` and
                  `close` with `NotOwner` and writes nothing; calls under the
                  new origin fail with `SupersessionPending` until the step
-                 commits; every series open in the replaced store is
+                 commits; the participant's `prepare` reads the replaced
+                 store through `EventStore` `readForSwap` with the
+                 `SwapStep` it is handed, without waiting, and the install
+                 completes; while `origin-unrecorded` holds
+                 after it, the step opens no transaction until
+                 `DurableBus.whenReadable` completes and then reads
+                 through `readIn` and commits;
+                 every series open in the replaced store is
                  superseded once, with its highest number and
                  `lastKnownOnly: false`; a series also present in the
                  snapshot is not superseded twice; a name reopened writes

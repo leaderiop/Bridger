@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-02                                            |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-RM-014: a revocation unmount that fails with `CleanupError` has written its `unmount-requested` record and leaves the child in `failed(cleanup)` until an operator `remove` (core C3, CCR-BR-040) (CCR-RM-011)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-RM-014: a failed revocation unmount is settled by cause: `WouldDeadlock` by the removal already under way (the parent's stop or another) or, with none, by the session's sub-scope close; `HostClosed` by shutdown; `UnknownPlugin` leaves nothing to remove; a call that meets a begun removal joins it and records `unmount-requested` only when core says it takes it over (PL8; core R1, CCR-BR-039) (CCR-RM-010)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-RM-014: after a failed revocation unmount the child is removed by the parent's own stop when it resumes, or by shutdown, not when the session's sub-scope closes, which removes nothing then (R1; core CCR-BR-038) (CCR-RM-009)<br>0.8 (2026-11-11): BEH-RM-014: a failed revocation unmount (now possibly `WouldDeadlock`, core CCR-BR-037) is logged and leaves the boundary refusal in force; the sub-scope close removes the child (SPEC-AUDIT-05 follow-up) (CCR-RM-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-RM-009: the accepted range is `"^" + V`, inside the `ContractRange` grammar, and for major 0 admits no higher minor (C9) (CCR-RM-007)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (M-06): BEH-RM-014 reads the loader's `RevokedDigests` view, so signer and statement revocations refuse at the boundary at once, and the limit without the view is stated; BEH-RM-013 session end reason "mount-refused" (U-11); BEH-RM-014 consults the `RevokedDigests` view live at each session attempt and on each change, and never copies its answers into the permanent revocation list; BEH-RM-013 a link ended "revoked" by the view resumes when the view stops refusing it (independent review) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F23, F28) — the wire version is negotiated per session (`hello` lists N and N−1, `welcome` picks the highest common), which is writers last without a fleet condition; `RemoteOptions.wireVersions`; the revocation entry carries `epoch` when a session was open (stale parenthesis removed) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 25 — a revocation unmounts the session child with `Plugin.Runtime.unmount` and `requestedBy` (core G57 closed), offers a "revocation" entry through `Host.offerCallEntry` (G43 closed), and cites `RefusalList` for starts (G60 closed); recheck item 22 — the `wire` version follows the N/N−1, writers-last rule (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — accepted range bounded by core BEH-BR-232; `hello` carries the epoch and `welcome` must echo it; revocations held for the life of `Remote.layer`, re-read from the revocation source at start, and recorded in the companion's own status (R3-04, R3-07, R3-08, R3-12, R3-13) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.12 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-RM-014: a `CleanupError` keeps an `unmount-requested` record only when the unmount began or took over the removal, none when it joined; outside shutdown core unregisters the child at once with its leak logged as acknowledged, so the id is free and the link goes on as after any revocation (core R1, PL3, F3); second pass: cites core's one system acknowledgement (06, BEH-BR-047) instead of restating it (CCR-RM-012)<br>0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-RM-014: a revocation unmount that fails with `CleanupError` has written its `unmount-requested` record and leaves the child in `failed(cleanup)` until an operator `remove` (core C3, CCR-BR-040) (CCR-RM-011)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-RM-014: a failed revocation unmount is settled by cause: `WouldDeadlock` by the removal already under way (the parent's stop or another) or, with none, by the session's sub-scope close; `HostClosed` by shutdown; `UnknownPlugin` leaves nothing to remove; a call that meets a begun removal joins it and records `unmount-requested` only when core says it takes it over (PL8; core R1, CCR-BR-039) (CCR-RM-010)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-RM-014: after a failed revocation unmount the child is removed by the parent's own stop when it resumes, or by shutdown, not when the session's sub-scope closes, which removes nothing then (R1; core CCR-BR-038) (CCR-RM-009)<br>0.8 (2026-11-11): BEH-RM-014: a failed revocation unmount (now possibly `WouldDeadlock`, core CCR-BR-037) is logged and leaves the boundary refusal in force; the sub-scope close removes the child (SPEC-AUDIT-05 follow-up) (CCR-RM-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-RM-009: the accepted range is `"^" + V`, inside the `ContractRange` grammar, and for major 0 admits no higher minor (C9) (CCR-RM-007)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (M-06): BEH-RM-014 reads the loader's `RevokedDigests` view, so signer and statement revocations refuse at the boundary at once, and the limit without the view is stated; BEH-RM-013 session end reason "mount-refused" (U-11); BEH-RM-014 consults the `RevokedDigests` view live at each session attempt and on each change, and never copies its answers into the permanent revocation list; BEH-RM-013 a link ended "revoked" by the view resumes when the view stops refusing it (independent review) (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F23, F28) — the wire version is negotiated per session (`hello` lists N and N−1, `welcome` picks the highest common), which is writers last without a fleet condition; `RemoteOptions.wireVersions`; the revocation entry carries `epoch` when a session was open (stale parenthesis removed) (CCR-RM-003)<br>0.4 (2026-11-08): round 2: recheck item 25 — a revocation unmounts the session child with `Plugin.Runtime.unmount` and `requestedBy` (core G57 closed), offers a "revocation" entry through `Host.offerCallEntry` (G43 closed), and cites `RefusalList` for starts (G60 closed); recheck item 22 — the `wire` version follows the N/N−1, writers-last rule (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — accepted range bounded by core BEH-BR-232; `hello` carries the epoch and `welcome` must echo it; revocations held for the life of `Remote.layer`, re-read from the revocation source at start, and recorded in the companion's own status (R3-04, R3-07, R3-08, R3-12, R3-13) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -353,9 +353,10 @@ REQUIREMENT: The session child of each matching link MUST be removed with
              only in this companion's trail and the `CallLog`. When the
              unmount fails (core BEH-BR-126), the link MUST log the failure
              at warning level with the link, the digest and the error, and
-             MUST leave the boundary refusal in force; except after a
-             `CleanupError`, no `unmount-requested` record names the
-             revocation, and the child goes by the failure's cause:
+             MUST leave the boundary refusal in force; an
+             `unmount-requested` record names the revocation only after a
+             `CleanupError` of an unmount that began or took over the
+             removal, and the child goes by the failure's cause:
              - `WouldDeadlock` (the calling fiber holds a lease in the
                child's removal set): the removal already under way — the
                parent's stop, or another — settles it; when none is, the
@@ -365,11 +366,17 @@ REQUIREMENT: The session child of each matching link MUST be removed with
              - `HostClosed`: shutdown removes it (core BEH-BR-107);
              - `UnknownPlugin`: the child is already gone; nothing is left
                to remove.
-             - `CleanupError`: the unmount began the removal and wrote its
-               `unmount-requested` record, and the child stays registered
-               in `failed(cleanup)` until an operator `remove` (core
-               BEH-BR-126); the session ends and no new session mounts
-               the child under that id meanwhile.
+             - `CleanupError`: when the unmount began or took over the
+               removal it wrote its `unmount-requested` record; when it
+               joined a removal already under way (a sub-scope close, the
+               parent's stop, an earlier unmount) it wrote none (core
+               BEH-BR-126). Outside shutdown core records
+               `failed(cleanup)` and then unregisters the child by its
+               system acknowledgement (core 06, BEH-BR-047; BEH-BR-121),
+               so the id is free and the
+               link goes on as after any "revoked" session end (above);
+               under shutdown the child stays registered (core
+               BEH-BR-105).
 ```
 
 Revocation and removal are two steps on purpose: the boundary must refuse in

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-18                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): BEH-GX-140 exception (1) applies to the host's first confirmed statement, the lowest `verifyBundle` passes to `verifyChain` (G1) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.8 (2026-11-11): BEH-GX-140 over a range starting above `auditSeq` 1 the first archived entry's "prev-mismatch" is a `chainLinkUnchecked` and the first statement's "previous-mismatch" or "window-gap" an `anchorUnconfirmed`, each with a detail (G1) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.7 (2026-11-11): BEH-GX-140 `readArchive` takes the inspector's own `expectedHeads` and passes no head taken from the archive, `headMismatch` not checked without them (G2); over a range starting above `auditSeq` 1 only the items resting on `auditSeq` 1 give no finding, and a window starting below the range is an unconfirmed anchor like one ending above it (G3); `verifyBundle` confirms only with the verifiers given (PL3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.6 (2026-11-11): BEH-GX-140 `readArchive` takes `receiptVerifiers` and `pinnedTrustRoots` and passes them to `verifyBundle`, with expected heads from the archive's own high-water marks, so an archived anchor can be confirmed and a head mismatch reported (H10); `chainLinkUnchecked` among the kinds a range archive above `auditSeq` 1 lists as not checked (PL23); the mapping of a range archive above `auditSeq` 1 and of a window ending above the `requested` range are named as exceptions (1) and (2) of INV-GX-009 (G7); BEH-GX-137 `exportBundle`'s `range` is a map keyed by series id (PL25) (CCR-GX-008)<br>0.5 (2026-11-10): BEH-GX-137 with `range: "all"` the bundle is exported up to `Number.MAX_SAFE_INTEGER`, so receipts of windows above the last stored entry reach `readArchive` and are reported "window-not-in-entries", as BEH-GX-171 does (G1); BEH-GX-140 an anchor mismatch of a window ending above a range archive's `requested` `toSeq` is reported as `anchorUnconfirmed`, not `anchorMismatch` (G2) (CCR-GX-007)<br>0.4 (2026-11-10): BEH-GX-140 `readArchive` returns the bundle's chain reports as `chain`; `expectKeyed: true` only with `keyed`; `keyed` takes a pure or an effectful MAC, the latter through audit-chain's `precomputeMacs`, and each series' `ChainReport` of `BundleReport.chain` is mapped (audit-chain CCR-AC-006 follow-up); a range archive starting above `auditSeq` 1 maps no chain-derived finding but `anchorUnconfirmed` and lists the others as not checked, since audit-chain verifies links and anchors from `auditSeq` 1; seal verification of an archive needs a range from 1 (M2) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does; follow-up: BEH-GX-140 passes `expectKeyed` with `keyed`, as `verifySeals` does (BEH-GX-171); follow-up: `ExportFailed`, `ArchiveUnreadable` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.10 (2026-11-11): BEH-GX-140 the "previous-mismatch" or "window-gap" of a confirmed statement whose preceding statement in the bundle is unconfirmed is an `anchorUnconfirmed` "... previous statement not confirmed", whatever the range; "previous statement outside the archive" only when the bundle holds no statement before the first confirmed one (PL10, PL11) (SPEC-AUDIT-09) (CCR-GX-012)<br>0.9 (2026-11-11): BEH-GX-140 exception (1) applies to the host's first confirmed statement, the lowest `verifyBundle` passes to `verifyChain` (G1) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.8 (2026-11-11): BEH-GX-140 over a range starting above `auditSeq` 1 the first archived entry's "prev-mismatch" is a `chainLinkUnchecked` and the first statement's "previous-mismatch" or "window-gap" an `anchorUnconfirmed`, each with a detail (G1) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.7 (2026-11-11): BEH-GX-140 `readArchive` takes the inspector's own `expectedHeads` and passes no head taken from the archive, `headMismatch` not checked without them (G2); over a range starting above `auditSeq` 1 only the items resting on `auditSeq` 1 give no finding, and a window starting below the range is an unconfirmed anchor like one ending above it (G3); `verifyBundle` confirms only with the verifiers given (PL3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.6 (2026-11-11): BEH-GX-140 `readArchive` takes `receiptVerifiers` and `pinnedTrustRoots` and passes them to `verifyBundle`, with expected heads from the archive's own high-water marks, so an archived anchor can be confirmed and a head mismatch reported (H10); `chainLinkUnchecked` among the kinds a range archive above `auditSeq` 1 lists as not checked (PL23); the mapping of a range archive above `auditSeq` 1 and of a window ending above the `requested` range are named as exceptions (1) and (2) of INV-GX-009 (G7); BEH-GX-137 `exportBundle`'s `range` is a map keyed by series id (PL25) (CCR-GX-008)<br>0.5 (2026-11-10): BEH-GX-137 with `range: "all"` the bundle is exported up to `Number.MAX_SAFE_INTEGER`, so receipts of windows above the last stored entry reach `readArchive` and are reported "window-not-in-entries", as BEH-GX-171 does (G1); BEH-GX-140 an anchor mismatch of a window ending above a range archive's `requested` `toSeq` is reported as `anchorUnconfirmed`, not `anchorMismatch` (G2) (CCR-GX-007)<br>0.4 (2026-11-10): BEH-GX-140 `readArchive` returns the bundle's chain reports as `chain`; `expectKeyed: true` only with `keyed`; `keyed` takes a pure or an effectful MAC, the latter through audit-chain's `precomputeMacs`, and each series' `ChainReport` of `BundleReport.chain` is mapped (audit-chain CCR-AC-006 follow-up); a range archive starting above `auditSeq` 1 maps no chain-derived finding but `anchorUnconfirmed` and lists the others as not checked, since audit-chain verifies links and anchors from `auditSeq` 1; seal verification of an archive needs a range from 1 (M2) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-137 `sealing` inputs for `chain-bundle.json` and a bound on the entries it holds; BEH-GX-138 manifest `requested`; BEH-GX-140 option `keyed`, bundle entries compared with the archived entries (`bundleMismatch`), unconfirmed receipts reported, checks bounded to the requested range, memory bound of the bundle stated (P15, P20); BEH-GX-138 heading names format bridger-gx-archive/2, as its requirement does; follow-up: BEH-GX-140 passes `expectKeyed` with `keyed`, as `verifySeals` does (BEH-GX-171); follow-up: `ExportFailed`, `ArchiveUnreadable` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Archive format "bridger-gx-archive/2": `seals.jsonl` lines carry `marks`, `collision` and audit-chain's `link`; sealed trails carry audit-chain's verification bundle, re-verified with `verifyBundle` (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -328,25 +328,43 @@ REQUIREMENT: Audit-chain counts `linksCheckedThrough` and `verifiedThrough`
              checked: previous entry outside the archive"; an
              `anchorMismatches` entry of kind "previous-mismatch" or
              "window-gap" for the host's first confirmed statement (the
-             lowest statement `verifyBundle` passes to `verifyChain`; an
-             unconfirmed receipt before it is not passed) MUST be
+             lowest statement `verifyBundle` passes to `verifyChain`), when
+             the bundle holds no statement before it, MUST be
              reported as one `anchorUnconfirmed` with the window as
              `auditSeq` and `toSeq` and `detail` "statement <statementHash>
-             not confirmed: previous statement outside the archive"; and
+             not confirmed: previous statement outside the archive" (when
+             it holds one, unconfirmed, the next requirement applies); and
              `hosts[].unanchoredTail` MUST become no finding, with
              `chainUnanchoredTail` listed in `notCheckedKinds`. Every other
              item — the breaks of later entries and the first entry's other
              breaks, the notices, `head`, and the mismatches of windows
              inside the range — MUST be mapped as BEH-GX-171 maps it; a
              window that crosses an end of the range is the next
-             requirement's. This is exception (1) of INV-GX-009, named also
-             in BEH-GX-171: items of the attached report stated as not
+             requirement's. This is exception (1)(a) of INV-GX-009, named
+             also in BEH-GX-171: items of the attached report stated as not
              checked or not confirmed, or as a kind not checked, because
              they rest on entries and statements the archive does not hold;
              an empty finding list therefore never covers them. Documentation MUST state that the link of the
              first archived entry to its predecessor, the statements before
              the range and `verifiedThrough` are verified only by an archive
              whose range starts at `auditSeq` 1, or "all".
+```
+
+```
+REQUIREMENT: Whatever the manifest's `requested` range, an `anchorMismatches`
+             entry of kind "previous-mismatch" or "window-gap" for a
+             confirmed statement whose preceding statement in the bundle
+             (the one of the same host with the highest `toSeq` below its
+             window) has a receipt `verifyBundle` reports "not-checked" or
+             "failed" MUST be reported as one `anchorUnconfirmed` with the
+             window as `auditSeq` and `toSeq` and `detail` "statement
+             <statementHash> not confirmed: previous statement not
+             confirmed", not as `anchorMismatch`: `verifyChain` checks
+             contiguity over the confirmed statements only (BEH-AC-034), so
+             the mismatch rests on a statement the archive holds but could
+             not confirm. The unconfirmed statement is itself reported as
+             `anchorUnconfirmed` (above). This is exception (1)(b) of
+             INV-GX-009, made also by `verifySeals` (BEH-GX-171).
 ```
 
 ```

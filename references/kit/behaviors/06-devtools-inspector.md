@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-06                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-11): BEH-KT-042: `edges.from` and `to` name plugins by `{ id, realm }` records, never "id@realm"; `schemaVersion` 2 as BEH-KT-046 requires (PL17) (SPEC-AUDIT-08) (CCR-KT-011)<br>0.6 (2026-11-11): BEH-KT-042 `InspectorReport.controls` comment: `HostControlsData` is the JSON encoding, durations in milliseconds and "forever" as a string (core CL3) (SPEC-AUDIT-07) (CCR-KT-010)<br>0.5 (2026-11-11): BEH-KT-042, BEH-KT-046: `InspectorReport.controls` is core's `HostControlsData`, `HostControls` without the `closed` effect, so the report's `Schema` encodes to JSON (G1) (SPEC-AUDIT-06) (CCR-KT-009)<br>0.4 (2026-11-10): BEH-KT-047: `--keyed <module>` passes a pure MAC function as `keyed` and `--expect-keyed [<seriesId>]` passes `expectKeyed` (true, or the set of series); "key-unavailable" links give exit 4, not 1 (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.8 (2026-11-11): BEH-KT-043: `WhyReport.ref` and each `WhyStep.provider` are `{ id, realm }` records (PL9) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.7 (2026-11-11): BEH-KT-042: `edges.from` and `to` name plugins by `{ id, realm }` records, never "id@realm"; `schemaVersion` 2 as BEH-KT-046 requires (PL17) (SPEC-AUDIT-08) (CCR-KT-011)<br>0.6 (2026-11-11): BEH-KT-042 `InspectorReport.controls` comment: `HostControlsData` is the JSON encoding, durations in milliseconds and "forever" as a string (core CL3) (SPEC-AUDIT-07) (CCR-KT-010)<br>0.5 (2026-11-11): BEH-KT-042, BEH-KT-046: `InspectorReport.controls` is core's `HostControlsData`, `HostControls` without the `closed` effect, so the report's `Schema` encodes to JSON (G1) (SPEC-AUDIT-06) (CCR-KT-009)<br>0.4 (2026-11-10): BEH-KT-047: `--keyed <module>` passes a pure MAC function as `keyed` and `--expect-keyed [<seriesId>]` passes `expectKeyed` (true, or the set of series); "key-unavailable" links give exit 4, not 1 (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -110,14 +110,15 @@ graph was assembled from one state.
 
 ```ts
 // illustrative — not type-checked
+// provider and ref: plugins named by { id, realm } records, never a separator join, as the report's edges (core 17, BEH-BR-147).
 type WhyStep =
   | { readonly kind: "no-provider"; readonly serviceId: string; readonly realm: string }
-  | { readonly kind: "provider-waiting"; readonly serviceId: string; readonly provider: string }     // continues with the provider's chain
-  | { readonly kind: "provider-failed"; readonly serviceId: string; readonly provider: string; readonly phase: string; readonly message: string }
-  | { readonly kind: "provider-disabled"; readonly serviceId: string; readonly provider: string }
-  | { readonly kind: "provider-starting"; readonly serviceId: string; readonly provider: string }
-  | { readonly kind: "stop-parked"; readonly provider: string; readonly leases: number }
-interface WhyReport { readonly ref: string; readonly state: PluginState; readonly since?: string; readonly chain: readonly WhyStep[] }
+  | { readonly kind: "provider-waiting"; readonly serviceId: string; readonly provider: { readonly id: string; readonly realm: string } }     // continues with the provider's chain
+  | { readonly kind: "provider-failed"; readonly serviceId: string; readonly provider: { readonly id: string; readonly realm: string }; readonly phase: string; readonly message: string }
+  | { readonly kind: "provider-disabled"; readonly serviceId: string; readonly provider: { readonly id: string; readonly realm: string } }
+  | { readonly kind: "provider-starting"; readonly serviceId: string; readonly provider: { readonly id: string; readonly realm: string } }
+  | { readonly kind: "stop-parked"; readonly provider: { readonly id: string; readonly realm: string }; readonly leases: number }
+interface WhyReport { readonly ref: { readonly id: string; readonly realm: string }; readonly state: PluginState; readonly since?: string; readonly chain: readonly WhyStep[] }
 ```
 
 ```
@@ -125,7 +126,12 @@ REQUIREMENT: For a `waiting` plugin, `why` MUST produce one step per
              missing service identifier, in the order of
              `missingServiceIds`, and MUST follow a `provider-waiting` step
              into that provider's own missing services, depth first, visiting
-             each plugin at most once.
+             each plugin at most once. `WhyReport.ref` and every step's
+             `provider` MUST name the plugin by its `{ id, realm }` record,
+             so a provider in another realm (a base or parent realm the
+             resolution scope reaches) is told apart from one of the same
+             id in the plugin's own realm; a plugin is visited at most once
+             by that record.
 ```
 
 ```

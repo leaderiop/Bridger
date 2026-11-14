@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-06                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-FD-048: a last applied manifest that fails re-verification at a re-apply (freshness, retry, clock-skew, kill-only or boot while a re-bootstrap is pending) is not reconciled: `store-invalid` reported, what runs kept, each owned plugin matching a pending kill disabled under the federation actor, and the BEH-FD-042 `disable`s still run (F1); `lastApplied` reads `acceptedAt` as optional (PL9) (CCR-FD-011)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-045: the projection evaluates the `PlacementPolicy` and `hostResidency` passed to `Manifest.toDesired` (PL6); BEH-FD-042: `maxDisabledPerRevision` stays per set revision, the loader's guard it is modelled on now counting per kill-switch run (handoff of loader L2); BEH-FD-048: the last applied manifest is kept with its `acceptedAt` and re-verified under `reverify` (L3); a resumption at step 3b sends the marker's `installedRevision` as `known` (F1) (CCR-FD-010)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-041: a missing `revocation` fails the build with the declared `RevocationSourceMissing`, not core's `InvalidDefinition` (PL12); BEH-FD-042: an import proxy, whose digest is pinned, is revoked by digest only, and `filterDesired` gets the proxies' digests in `pinned` (H9); BEH-FD-043: lists are relayed on `delivery-only` links too (PL9); BEH-FD-045: a placement-refused import is dropped in the projection, as "peer-residency-missing" (F1), and an import's endpoint opens with `ManifestPeer.residency ?? []` (PL10); BEH-FD-048: a `ResyncRequired` while a marker is stored writes no new marker (F2) (CCR-FD-009)<br>0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-048: `RebootstrapMarker.installAttempted`, kept true from the first install call until the marker is cleared, keeps links suspended at activation whatever the step; restart behaviour stated for every step (H6); BEH-FD-044: `TestFederation` asserts the `delivery-only` step 1 (H4); BEH-FD-045: an import's offered labels are its `ManifestPeer.residency`, required when it carries a `residency` (else dropped "peer-residency-missing"); exports keep the dialer or listener fallback (H5); skew table: contract minor by `"^" + V` (F4) (CCR-FD-008)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-044: the `TestFederation` assertion on step 1 limited to a first attempt, and a retry reopens only the `deliveryImports` (F3); BEH-FD-045: the route's labels fall back to the profile the dialer or listener yielded (H4), and export endpoints are opened with them (F1) (CCR-FD-007)<br>0.4 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M16) — BEH-FD-047: report kind "backlog" (axis "event", this host's origin and `pending`, no versions); `oldest` and `newest` absent on it; an authority raising `minVersion` counts only the current incarnation of each node and uses the evidence of durable-bus BEH-DB-029 (reset windows, then an empty backlog) (CCR-FD-006)<br>0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
+> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-FD-048: a refusal at a re-apply while `stale` or `offline-capped` also disables each owned plugin the stored record lists in `requiresFresh`, a refused stale→fresh re-apply enables nothing (H2); a boot with a marker stored whose last applied manifest fails re-verification uses neither the boot bundle nor the highest manifest (F1); `putLastApplied` takes `requiresFresh` and, for a manifest stored without `acceptedAt`, the `at` of the verification that accepted it (PL5) (CCR-FD-012)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-FD-048: a last applied manifest that fails re-verification at a re-apply (freshness, retry, clock-skew, kill-only or boot while a re-bootstrap is pending) is not reconciled: `store-invalid` reported, what runs kept, each owned plugin matching a pending kill disabled under the federation actor, and the BEH-FD-042 `disable`s still run (F1); `lastApplied` reads `acceptedAt` as optional (PL9) (CCR-FD-011)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-045: the projection evaluates the `PlacementPolicy` and `hostResidency` passed to `Manifest.toDesired` (PL6); BEH-FD-042: `maxDisabledPerRevision` stays per set revision, the loader's guard it is modelled on now counting per kill-switch run (handoff of loader L2); BEH-FD-048: the last applied manifest is kept with its `acceptedAt` and re-verified under `reverify` (L3); a resumption at step 3b sends the marker's `installedRevision` as `known` (F1) (CCR-FD-010)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-FD-041: a missing `revocation` fails the build with the declared `RevocationSourceMissing`, not core's `InvalidDefinition` (PL12); BEH-FD-042: an import proxy, whose digest is pinned, is revoked by digest only, and `filterDesired` gets the proxies' digests in `pinned` (H9); BEH-FD-043: lists are relayed on `delivery-only` links too (PL9); BEH-FD-045: a placement-refused import is dropped in the projection, as "peer-residency-missing" (F1), and an import's endpoint opens with `ManifestPeer.residency ?? []` (PL10); BEH-FD-048: a `ResyncRequired` while a marker is stored writes no new marker (F2) (CCR-FD-009)<br>0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-048: `RebootstrapMarker.installAttempted`, kept true from the first install call until the marker is cleared, keeps links suspended at activation whatever the step; restart behaviour stated for every step (H6); BEH-FD-044: `TestFederation` asserts the `delivery-only` step 1 (H4); BEH-FD-045: an import's offered labels are its `ManifestPeer.residency`, required when it carries a `residency` (else dropped "peer-residency-missing"); exports keep the dialer or listener fallback (H5); skew table: contract minor by `"^" + V` (F4) (CCR-FD-008)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-044: the `TestFederation` assertion on step 1 limited to a first attempt, and a retry reopens only the `deliveryImports` (F3); BEH-FD-045: the route's labels fall back to the profile the dialer or listener yielded (H4), and export endpoints are opened with them (F1) (CCR-FD-007)<br>0.4 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, M16) — BEH-FD-047: report kind "backlog" (axis "event", this host's origin and `pending`, no versions); `oldest` and `newest` absent on it; an authority raising `minVersion` counts only the current incarnation of each node and uses the evidence of durable-bus BEH-DB-029 (reset windows, then an empty backlog) (CCR-FD-006)<br>0.3 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-046: the upcaster row adds the event store's stored-version constraint; the offline-cap exclusion applies to the writer switch only, never to dropping an upcaster (P4) (CCR-FD-005)<br>0.2 (2026-11-08): Round-2 agent review (R4 F1–F7, F11, F15, F21–F24; R3-01) — kill frames handed to the loader's `RevocationSource.offer` (no federation-side list verification, no feed, no cycle); `revocation` required; `kill-unowned` for list matches; `maxDisabledPerRevision` guard with `releaseRevocation`, `KillSwitch.run` excluded from the scope, `filterDesired` on every apply; kill frame sent before the offer and accepted on suspended links; `unprovisioned` limit stated; BEH-FD-041 and BEH-FD-044 headings changed (old anchors kept) with new step events; import endpoints carry the route's labels; skew rule reconciled with upcaster ranges and park-never-drop; writers-last gated on "reader" reports, offline-capped hosts excludable; wire axis negotiated; BEH-FD-048 added: last applied manifest bytes, pending kills and re-bootstrap marker kept in the store (CCR-FD-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 18, 19, 20 and 22, contradiction X10 (CCR-FD-003) |
 
 ---
 
@@ -530,8 +530,9 @@ interface RebootstrapMarker {
   readonly installedRevision?: number             // set with step "installed"
 }
 // ManifestStore:
-//   lastApplied → Option<{ manifest: SignedManifest; revision: number; at: string; acceptedAt?: string }>   (the bytes, not only the number;
-//     acceptedAt optional on the read side only, 01, BEH-FD-002)
+//   lastApplied → Option<{ manifest: SignedManifest; revision: number; at: string; acceptedAt?: string;
+//     requiresFresh?: ReadonlyArray<{ id: string; realm: string }> }>   (the bytes, not only the number;
+//     acceptedAt and requiresFresh optional on the read side only, 01, BEH-FD-002; every write passes both)
 //   pendingKills / putPendingKills(readonly PendingKill[])
 //   rebootstrap / putRebootstrap(Option<RebootstrapMarker>)
 ```
@@ -539,8 +540,12 @@ interface RebootstrapMarker {
 ```
 REQUIREMENT: The `ManifestStore` MUST keep the last applied manifest's
              signed bytes (`putLastApplied(manifest, revision, at,
-             acceptedAt)`, `acceptedAt` the one stored with that manifest
-             when it was stored as highest, 01, BEH-FD-004), separately
+             acceptedAt, requiresFresh)`, `acceptedAt` the one stored with
+             that manifest when it was stored as highest, 01, BEH-FD-004 —
+             or, for one stored without it (01, BEH-FD-002), the `at` of the
+             verification that accepted it for this apply — and
+             `requiresFresh` the id and realm of each of its entries marked
+             `requiresFresh`, realm defaulted to "default"), separately
              from the highest verified manifest. Every apply
              that is not a full apply of a newer revision — a freshness
              re-apply (BEH-FD-012), a retry (BEH-FD-008), a clock-skew
@@ -563,8 +568,31 @@ REQUIREMENT: When that re-verification refuses the last applied manifest
              kill's revision, each refusal or transient failure reported
              `kill-pending` and retried as BEH-FD-042 retries its own; and
              the `disable`s of BEH-FD-042 run for each newer set as in any
-             state. Every later re-apply verifies the manifest again; a
-             full apply of a newer verified revision ends the condition.
+             state. When the host is `stale` or `offline-capped` at that
+             re-apply — a fresh→stale freshness re-apply included — each
+             owned plugin that the stored record lists in `requiresFresh`
+             (the entries the last applied manifest marked `requiresFresh`)
+             and that is not `disabled` MUST also be disabled the same way,
+             `context.reason` naming the freshness change, each refusal or
+             transient failure reported and retried as the pending kills'
+             are; a record read without `requiresFresh` (01, BEH-FD-002)
+             disables none this way. A stale→fresh re-apply that is refused
+             enables nothing. Every later re-apply verifies the manifest
+             again; a full apply of a newer verified revision ends the
+             condition and reconciles each entry as that revision lists it.
+```
+
+```
+REQUIREMENT: At activation with a re-bootstrap marker stored, a last
+             applied manifest that fails re-verification MUST NOT be
+             replaced by the boot bundle or the highest manifest: the
+             plugin MUST report `store-invalid`, reconcile nothing, keep
+             the pending kills stored, disable as above what they match
+             and, when `stale` or `offline-capped`, what `requiresFresh`
+             lists, and
+             resume the re-bootstrap as the marker's step requires (02,
+             BEH-FD-010's boot-bundle rule does not apply while a marker is
+             stored).
 ```
 
 ```

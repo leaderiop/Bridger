@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-021                                           |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.2 (2026-11-10): Decision: the mutation kill rule of ADR-BR-035 is a review criterion applied outside the generated evidence; the generator takes no mutation report and stays mechanical (C14) (CCR-GX-007)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-11): Decision: a run proves it ran against the installed package by the location each `@bridger/*` package's loaded code reports (`packageSelf`), checked against the installed directory, never by a consumer-supplied resolver; `effect` reported unverified (G1, second pass, SPEC-AUDIT-09) (CCR-GX-012)<br>0.2 (2026-11-10): Decision: the mutation kill rule of ADR-BR-035 is a review criterion applied outside the generated evidence; the generator takes no mutation report and stays mechanical (C14) (CCR-GX-007)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -23,7 +23,7 @@ Core decided that qualification evidence comes only from executed tests ([ADR-BR
 ## Decision
 
 - **Runner output is the only input.** `collectOqEvidence(q)` reads only machine-readable runner output: vitest JSON reporter output, JUnit XML, or Cucumber NDJSON messages. It never parses test source files, never runs tests itself and never accepts results typed in by hand.
-- **Against the installed package.** Each input must be accompanied by a run manifest recording the package name, version and installed-file digest it ran against, and the environment fields of [core gxp/04 §6.1](../../core/gxp/04-validation-plan.md). An input whose package identity differs from the IQ result's is a deviation, and its results are not counted.
+- **Against the installed package.** Each input must be accompanied by a run manifest recording the package name, version and installed-file digest it ran against, and the environment fields of [core gxp/04 §6.1](../../core/gxp/04-validation-plan.md). An input whose package identity differs from the IQ result's is a deviation, and its results are not counted. Where the suite loaded each `@bridger/*` package from is taken from that package's own self-description (`packageSelf`, whose `url` is the `import.meta.url` of the module the runner evaluated) and checked against the installed directory, so that it is evidence, not a duty on how the consumer configured a resolver; `effect`, which cannot describe itself, is reported as unverified (`package-unverified`).
 - **Tags resolved against both trees.** A test claims requirements through tags `@REQ-BR-nnn` and `@REQ-GX-nnn` (in the test name or Cucumber tags). Tags are resolved against core's and the companion's traceability. A tag that resolves to no defined requirement is a deviation `unknown-requirement`; it is never dropped and never mapped by guess.
 - **Literal outcomes.**
   - A requirement with any failed test is **fail**.

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-05                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.9 (2026-11-11): BEH-LD-035: a withdrawal keeps the catalog acceptance as withdrawn (L2); a `Loader`'s construction never marks a catalog acceptance not current, so the catalog keeps it current while contributed (L3) (SPEC-AUDIT-08) (CCR-LD-011)<br>0.8 (2026-11-11): BEH-LD-035: the catalog's acceptance carries the `Loader.source` of the `Loader` its `verifyEntry` ran with; BEH-LD-039: `fetchVerified` records with its own `Loader.source` (SPEC-AUDIT-07 residual) (CCR-LD-010)<br>0.7 (2026-11-11): BEH-LD-035: the catalog writes and removes its acceptance through `AcceptedDigests.record` and `remove(digest, "catalog-entry")`; a current catalog acceptance is what `lookup` returns when a load's acceptance is no longer current (L1, L2) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.6 (2026-11-10): BEH-LD-035: withdrawing an entry removes only the catalog's acceptance of its digest (PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.5 (2026-11-09): Entries carry first-party signatures and a trust class; `Loader.lazy` fails with `NotFirstParty` for guest entries and guests take `LoaderRemote.link` (file 09); `stampRemote` sets the link manifest and fails with `PackageManifestMismatch` (specification audit F-06, M-02, C-16); BEH-LD-039 heading and text: guests run outside the host's runtime, not necessarily out of process (independent review); BEH-LD-039 `stampRemote` reports a manifest without the guest shape as `GuestEntryInvalid`, as `LoaderRemote.link` does (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Entries verified through `SignaturePolicy.verify` with the publisher binding; manifest roles, targets and `listens` carried for `declaredContributions` and `AccessPolicy.declaredOnly`; `idle`/`holdTimeout` passed through, fresh check on each reload, refused lazy starts (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.10 (2026-11-11): BEH-LD-035: the catalog activation registers a finalizer that withdraws every acceptance it recorded, so its removal, restart, reconfigure, replace, failed build, a stop of the `Loader` it requires and shutdown leave them withdrawn; Settled (2) restated (L1) (SPEC-AUDIT-09) (CCR-LD-012)<br>0.9 (2026-11-11): BEH-LD-035: a withdrawal keeps the catalog acceptance as withdrawn (L2); a `Loader`'s construction never marks a catalog acceptance not current, so the catalog keeps it current while contributed (L3) (SPEC-AUDIT-08) (CCR-LD-011)<br>0.8 (2026-11-11): BEH-LD-035: the catalog's acceptance carries the `Loader.source` of the `Loader` its `verifyEntry` ran with; BEH-LD-039: `fetchVerified` records with its own `Loader.source` (SPEC-AUDIT-07 residual) (CCR-LD-010)<br>0.7 (2026-11-11): BEH-LD-035: the catalog writes and removes its acceptance through `AcceptedDigests.record` and `remove(digest, "catalog-entry")`; a current catalog acceptance is what `lookup` returns when a load's acceptance is no longer current (L1, L2) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.6 (2026-11-10): BEH-LD-035: withdrawing an entry removes only the catalog's acceptance of its digest (PL12) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.5 (2026-11-09): Entries carry first-party signatures and a trust class; `Loader.lazy` fails with `NotFirstParty` for guest entries and guests take `LoaderRemote.link` (file 09); `stampRemote` sets the link manifest and fails with `PackageManifestMismatch` (specification audit F-06, M-02, C-16); BEH-LD-039 heading and text: guests run outside the host's runtime, not necessarily out of process (independent review); BEH-LD-039 `stampRemote` reports a manifest without the guest shape as `GuestEntryInvalid`, as `LoaderRemote.link` does (independent review) (CCR-LD-004)<br>0.4 (2026-11-08): Entries verified through `SignaturePolicy.verify` with the publisher binding; manifest roles, targets and `listens` carried for `declaredContributions` and `AccessPolicy.declaredOnly`; `idle`/`holdTimeout` passed through, fresh check on each reload, refused lazy starts (round 2: recheck items 11, 15; core alignment) (CCR-LD-003)<br>0.3 (2026-11-08): `Loader.lazy` uses core's `Plugin.lazy({ manifest, load, digest })` with the package digest beside a digest-free manifest; catalog entries recorded in `AcceptedDigests`; two digests at one version are different definitions; `Loader.stampRemote` for proxy definitions (CCR-LD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-LD-001)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -182,6 +182,26 @@ REQUIREMENT: For each contributed entry, the catalog MUST record its
 ```
 
 ```
+REQUIREMENT: The catalog plugin's activation MUST register, when it
+             records its first acceptance, a finalizer of its activation
+             scope that calls `AcceptedDigests.remove(digest,
+             "catalog-entry")` for every digest that activation recorded,
+             leaving each acceptance withdrawn as an entry withdrawal does.
+             Every end of the activation therefore withdraws them — its
+             removal, `restart`, `reconfigure`, `replace`, a failed build,
+             a stop of the `Loader` it requires (a loader replacement stops
+             its dependents first, core 07 — Replacement and reactivation)
+             and shutdown — and its next activation records only the
+             entries it verifies again under the `Loader` then in context,
+             so a stricter loader's rule is never bypassed by an acceptance
+             of the previous activation. Core closes an activation's scope
+             before the next activation of the same plugin starts (core 07,
+             BEH-BR-049), so the finalizer never withdraws an acceptance a
+             later activation recorded; a withdrawal starts no kill-switch
+             run (04, BEH-LD-029).
+```
+
+```
 REQUIREMENT: Readers of the registry (admin screens, agents, a
              marketplace view) MUST obtain manifests only through it; the
              loader MUST NOT expose unverified entries through any public
@@ -191,8 +211,9 @@ REQUIREMENT: Readers of the registry (admin screens, agents, a
 Reusing core's registry gives the catalog ordering, revisions, a `changes`
 stream and scope-bound withdrawal without new machinery
 ([BEH-BR-165](../../core/behaviors/19-contribution-registry.md#beh-br-165-views-are-ordered-revisioned-and-observable)).
-When the catalog plugin is removed, its contributions go with it, so there is
-never a catalog view that outlives the component that verified it.
+When the catalog plugin is removed, its contributions go with it, and its
+finalizer withdraws the acceptances it recorded, so there is never a catalog
+view or a catalog admission that outlives the activation that verified it.
 
 ## BEH-LD-036: Resolution picks the highest acceptable version in a range
 
@@ -458,7 +479,8 @@ tool annotations, applied at the source.
 **Settled here.** (1) A catalog entry is verified without code by recomputing
 the package digest from the manifest bytes and two sub-digests. (2) The
 catalog is a core `ContributionRegistry` of verified entries only, and its
-entries count as accepted by `LoaderGate` while contributed. (3) An id and
+entries count as accepted by `LoaderGate` while contributed; the end of the
+catalog activation that recorded them withdraws their acceptances. (3) An id and
 version with two digests is ambiguous and withdrawn. (4) Lazy plugins are
 built with core's `Plugin.lazy({ manifest, load, digest })`: the digest lives
 beside the manifest, is the lazy definition's identity from the start, and

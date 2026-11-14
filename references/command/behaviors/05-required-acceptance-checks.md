@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-05                                            |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-11): Check 17: only a wrapper's host call ends a task "PrincipalRetired"; a settlement's death changes nothing (BEH-CM-044) (SPEC-AUDIT-06 CM1) (CCR-CM-009)<br>0.10 (2026-11-11): Check 17: `PrincipalRetired` comes from a wrapper or an admission's settlement, never the handler (BEH-CM-052) (SPEC-AUDIT-05 A3) (CCR-CM-008)<br>0.9 (2026-11-10): Check 17: the task's fiber carries the dispatching fiber's plugin principal, and a task whose dispatcher's activation ends keeps running and fails "PrincipalRetired" on its next mutating host call (BEH-CM-052) (T3) (CCR-CM-007)<br>0.8 (2026-11-10): Checks 15 and 19: wrappers and admissions see the dispatching fiber's plugin principal, none for application code (H5) (CCR-CM-006)<br>0.7 (2026-11-10): Check 6 compares the actor and annotations of offered call-log entries and hook inputs with a context supplied only in `options.context` (H9) (CCR-CM-005)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.12 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09), third pass — check 14: the port receives the `DispatchOptions.services` the call passed, never the dispatching fiber's environment; nested dispatches and a task's fiber receive none; the subscription-handler dispatch passes its inbox transaction; check 15: wrappers and batch wrappers receive the services in force at their position (BEH-CM-041, BEH-CM-042, BEH-CM-050) (CCR-CM-011)<br>0.11 (2026-11-11): Check 17: only a wrapper's host call ends a task "PrincipalRetired"; a settlement's death changes nothing (BEH-CM-044) (SPEC-AUDIT-06 CM1) (CCR-CM-009)<br>0.10 (2026-11-11): Check 17: `PrincipalRetired` comes from a wrapper or an admission's settlement, never the handler (BEH-CM-052) (SPEC-AUDIT-05 A3) (CCR-CM-008)<br>0.9 (2026-11-10): Check 17: the task's fiber carries the dispatching fiber's plugin principal, and a task whose dispatcher's activation ends keeps running and fails "PrincipalRetired" on its next mutating host call (BEH-CM-052) (T3) (CCR-CM-007)<br>0.8 (2026-11-10): Checks 15 and 19: wrappers and admissions see the dispatching fiber's plugin principal, none for application code (H5) (CCR-CM-006)<br>0.7 (2026-11-10): Check 6 compares the actor and annotations of offered call-log entries and hook inputs with a context supplied only in `options.context` (H9) (CCR-CM-005)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 — check 14 covers receipt partitions, the `services` each port call receives, a dispatch inside a durable-bus subscription's transaction and `retryable` typed errors (M-04, ERP alignment); check 18 covers `retryable` validation and digest; new check 19 and REQ-CM-019 for admission policies (C-10) (CCR-CM-004)<br>0.5 (2026-11-08): Checks 13–17 follow the resolutions of the round-2 agent review: read-only exemption from the floor, receipt digest, actor-first comparison, mode, expiry and `void`, call-log kind of a step-7 refusal, batch admission phases, compensation approvals, long items refused, keyed tasks, `CommandTaskStore` and lost tasks (BEH-CM-054) (CCR-CM-003)<br>0.4 (2026-11-08): Check 15 covers "dispatch" entries for executed and replayed dispatches (BEH-CM-015) (CCR-CM-003)<br>0.3 (2026-11-08): Checks 5, 6 and 8 follow the new step order, core `CurrentCorrelation` and core 31's phases and targets; checks 14–18 for receipts, wrappers and breakers, batches, tasks, typed metadata and the envelope (CCR-CM-003, round 2: recheck items 1–8, 10)<br>0.2 (2026-11-08): Checks for served calls, approval binding, wrappers, supplied schemas and the taint floor (check 13); core `TestHost.scriptedGateOf` used (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -143,17 +143,28 @@ REQUIREMENT: The package test suite MUST contain at least one test for each
                  one key in two partitions names two receipts, and an
                  invalid or throwing `receiptPartition` refuses with
                  "receipts-unavailable"; each port call receives only the
-                 `receiptContext` keys of the dispatching fiber, and a
-                 `Success` completion also the wrapper chain's services; a
-                 dispatch from a durable-bus subscription handler whose
-                 transaction wrapper joins the inbox's `StoreTransaction`
-                 leaves no receipt after a rolled-back delivery
-                 (`TestStore.conflictAtCommit`, durable-bus) and its retry
-                 claims `Fresh`; a typed error listed in `retryable` is
+                 `DispatchOptions.services` the call passed (empty when
+                 none), and a `Success` completion also the wrapper
+                 chain's services, run with and without a
+                 `StoreTransaction` in the dispatching fiber's environment
+                 to the same result; a nested dispatch receives none of
+                 its outer dispatch's services; a long command's claim
+                 receives the caller's services and its task's port calls
+                 and wrappers none; a dispatch from a durable-bus
+                 subscription handler that passes the inbox's
+                 `StoreTransaction` in `services`, under the documented
+                 transaction wrapper, leaves no receipt after a rolled-back
+                 delivery (`TestStore.conflictAtCommit`, durable-bus) and
+                 its retry claims `Fresh`, while the same dispatch with no
+                 `services` opens its own transaction; a typed error listed in `retryable` is
                  released, never stored, and the next claim runs the
                  handler again.
              15. Wrappers, call log and breaker: wrappers apply outermost
-                 first, fixed at layer build, `applies` filters them, only
+                 first, fixed at layer build, `applies` filters them, each
+                 receives the caller services with the outer wrappers'
+                 services added over them (a batch wrapper likewise, its
+                 `run` services reaching every item's wrappers and
+                 receipts), only
                  `provides` keys reach the handler, a wrapper cannot turn a
                  failed run into a success, and a wrapper failure is
                  `CommandWrapperFailed`; a wrapper runs under the

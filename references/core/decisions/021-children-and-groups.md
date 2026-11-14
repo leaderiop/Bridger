@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-021                                              |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amended by ADR-BR-043                             |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.5 (2026-11-11): `parentId` is the parent's `{ id, realm }` (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.4 (2026-11-10): Status names ADR-BR-043, which amends this ADR (C22) (CCR-BR-034)<br>0.3 (2026-11-08): A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` (CCR-BR-018)<br>0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.6 (2026-11-11): Amendments: a child whose cleanup fails outside shutdown is unregistered at once, the leak acknowledged by the system, so no child outlives the activation; a failed activation removes its children as the parent's stop (C5, C6); second pass (cleanest design): the child's unregistration is the system acknowledgement of BEH-BR-047, with its `leak-acknowledged` record (SPEC-AUDIT-09) (CCR-BR-041)<br>0.5 (2026-11-11): `parentId` is the parent's `{ id, realm }` (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.4 (2026-11-10): Status names ADR-BR-043, which amends this ADR (C22) (CCR-BR-034)<br>0.3 (2026-11-08): A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` (CCR-BR-018)<br>0.2 (2026-10-03): Children removed as dependents before the parent's scope closes; unmount causation from the cascade root (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -62,6 +62,11 @@ Cordis disposes child plugins with their parent. Applications also want to treat
 **Amendments (2026-11-08)**:
 
 - A child inherits every mandatory interception and may be refused by `allowChildren` or the `AccessPolicy` ([ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md)).
+
+**Amendments (2026-11-11, CCR-BR-041)**:
+
+- A child whose cleanup fails during a removal not under shutdown — its parent's stop, its sub-scope close, `unmount`, a take-over — is recorded `failed` (cleanup) and then unregistered at once by the system acknowledgement (BEH-BR-047) — no cleanup re-run, a warning log and a `leak-acknowledged` record by `Actor.system` — and still reported (`unmount` returns `CleanupError`, a sub-scope close logs it). No child therefore outlives its parent's activation, and the next activation's mount of the same id succeeds; under shutdown such a child stays registered in the final snapshot, and no activation follows (BEH-BR-105, BEH-BR-121). The cost is that the leak is acknowledged by the system rather than by an operator `remove`; the `leak-acknowledged` record keeps the two apart in the trail, and the regulated user reviews such records (RSK-BR-009).
+- A failed activation of the parent (build failure, `buildTimeout`, a runtime failure while `starting`) removes the children it mounted as the parent's stop, on a path with no caller (`drainTimeout`, revoking), so a parent that fails mid-build leaves no child installed (BEH-BR-121, BEH-BR-125).
 
 ## References
 

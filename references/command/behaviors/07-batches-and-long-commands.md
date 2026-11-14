@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-BEH-07                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-11): BEH-CM-052: the `Actor.system` of the tasks a layer close cancels cites core BEH-BR-185 (SPEC-AUDIT-07 PL1) (CCR-CM-010)<br>0.6 (2026-11-11): BEH-CM-052: only a wrapper's host call under the retired dispatcher's principal ends the task `failed` "PrincipalRetired"; an admission's settlement that dies so is logged and changes no outcome (BEH-CM-044) (SPEC-AUDIT-06 CM1) (CCR-CM-009)<br>0.5 (2026-11-11): BEH-CM-052: only a wrapper's or an admission settlement's host call under the retired dispatcher's principal dies with `PrincipalRetired`; the handler runs under the contributor's principal (BEH-CM-003) and is not affected (SPEC-AUDIT-05 A3) (CCR-CM-008)<br>0.4 (2026-11-10): BEH-CM-052: the task's fiber carries the dispatching fiber's plugin principal unchanged (none for application code); when that principal's activation ends while the task runs, the task keeps running, a mutating host call, access decision or `asSelf` under the retired principal dies with `PrincipalRetired` (core BEH-BR-257), and the task then ends `failed` with error tag "PrincipalRetired" after its finalizers (T3) (CCR-CM-007)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (C-10) — phase C of batch admission consults the admission policies per item; items that never run, and items admitted before a phase-C failure, are settled `NotRun`; a task settles its admissions when it ends (BEH-CM-044) (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-01, A-02, A-03, A-08, A-09, A-11, A-15, A-16): batch admission in three phases, so that no receipt claim or probe slot is taken before every item passed the gate, the floor and the hooks; receipts of undone items voided and replayed items never compensated; each item's request carries its planned compensation, bound by digest in the batch draft and approval, and compensations of an approved batch carry an `ApprovalRef` derived from it; the floor drafts nothing for an item of a batch; `long` items refused in a batch; a repeated keyed task returns its handle; BEH-CM-054 `CommandTaskStore` port, in memory by default, with lost tasks reported (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — batch dispatch admitted whole, run in order and undone by compensation; batch drafts approved all or none and re-planned when stale; long commands run as tasks with progress, await and cancel (CCR-CM-003, round 2: recheck items 5, 7) |
+> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09), third pass — BEH-CM-049: `BatchOptions.services`, the batch's caller services; BEH-CM-050: a batch wrapper's `wrap` receives the services in force at its position and passes services to `run`, which become the items' caller services inside the batch wrappers, and a compensation is dispatched with the batch's caller services; BEH-CM-052: a task's steps 7 and 8 run with no caller services (06, BEH-CM-041) (CCR-CM-011)<br>0.7 (2026-11-11): BEH-CM-052: the `Actor.system` of the tasks a layer close cancels cites core BEH-BR-185 (SPEC-AUDIT-07 PL1) (CCR-CM-010)<br>0.6 (2026-11-11): BEH-CM-052: only a wrapper's host call under the retired dispatcher's principal ends the task `failed` "PrincipalRetired"; an admission's settlement that dies so is logged and changes no outcome (BEH-CM-044) (SPEC-AUDIT-06 CM1) (CCR-CM-009)<br>0.5 (2026-11-11): BEH-CM-052: only a wrapper's or an admission settlement's host call under the retired dispatcher's principal dies with `PrincipalRetired`; the handler runs under the contributor's principal (BEH-CM-003) and is not affected (SPEC-AUDIT-05 A3) (CCR-CM-008)<br>0.4 (2026-11-10): BEH-CM-052: the task's fiber carries the dispatching fiber's plugin principal unchanged (none for application code); when that principal's activation ends while the task runs, the task keeps running, a mutating host call, access decision or `asSelf` under the retired principal dies with `PrincipalRetired` (core BEH-BR-257), and the task then ends `failed` with error tag "PrincipalRetired" after its finalizers (T3) (CCR-CM-007)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (C-10) — phase C of batch admission consults the admission policies per item; items that never run, and items admitted before a phase-C failure, are settled `NotRun`; a task settles its admissions when it ends (BEH-CM-044) (CCR-CM-004)<br>0.2 (2026-11-08): Resolutions of the round-2 agent review (A-01, A-02, A-03, A-08, A-09, A-11, A-15, A-16): batch admission in three phases, so that no receipt claim or probe slot is taken before every item passed the gate, the floor and the hooks; receipts of undone items voided and replayed items never compensated; each item's request carries its planned compensation, bound by digest in the batch draft and approval, and compensations of an approved batch carry an `ApprovalRef` derived from it; the floor drafts nothing for an item of a batch; `long` items refused in a batch; a repeated keyed task returns its handle; BEH-CM-054 `CommandTaskStore` port, in memory by default, with lost tasks reported (CCR-CM-003)<br>0.1 (2026-11-08): Initial draft — batch dispatch admitted whole, run in order and undone by compensation; batch drafts approved all or none and re-planned when stale; long commands run as tasks with progress, await and cancel (CCR-CM-003, round 2: recheck items 5, 7) |
 
 ---
 
@@ -48,6 +48,7 @@ interface BatchOptions {
   readonly toolset?: PinnedToolset
   readonly approval?: BatchApprovalRef          // BEH-CM-051
   readonly timeout?: Duration.Input             // narrows each item's timeout
+  readonly services?: Context.Context<never>    // the batch's caller services (06, BEH-CM-041), as DispatchOptions.services
 }
 declare const Commands: {
   // ...dispatch, start
@@ -140,7 +141,10 @@ interface CommandBatchWrapper {
   readonly name: string
   readonly atomic: boolean        // true: a failed run rolls back everything the items did (e.g. one transaction)
   readonly wrap: (requests: ReadonlyArray<CommandRequest>,
-                  run: Effect.Effect<BatchRunResult>) => Effect.Effect<BatchRunResult, WrapperError>
+                  services: Context.Context<never>,   // the batch's caller services, with what each outer batch
+                                                      // wrapper passed to its `run` added over them
+                  run: (services: Context.Context<never>) => Effect.Effect<BatchRunResult>
+                 ) => Effect.Effect<BatchRunResult, WrapperError>
 }
 // CommandCatalogOptions gains: readonly batchWrappers?: ReadonlyArray<CommandBatchWrapper>   (fixed at layer build)
 
@@ -168,7 +172,15 @@ REQUIREMENT: After admission, the package MUST run step 7 of each admitted
              item in item order, one at a time, inside the `batchWrappers`
              (outermost first, fixed when the layer is built, as handler
              wrappers are, BEH-CM-042); each item keeps its own lease,
-             timeout, handler wrappers and receipt. An item whose receipt
+             timeout, handler wrappers and receipt. Each batch wrapper MUST
+             receive, as `wrap`'s `services` argument, the batch's caller
+             services (`BatchOptions.services`, or an empty context) with
+             what each outer batch wrapper passed to its `run` added over
+             them; what the innermost passes to `run` becomes the caller
+             services of every item's step 7 and of the port calls made
+             inside the batch wrappers (06, BEH-CM-041), so that an atomic
+             wrapper's transaction reaches the items' handler wrappers and
+             receipts as an argument, never through the fiber. An item whose receipt
              was replayed at step 6 MUST NOT run and counts as succeeded.
              When every item succeeds, the batch MUST succeed with the
              outputs in item order, and step 8 MUST run per item.
@@ -200,7 +212,8 @@ REQUIREMENT: When item k fails at step 7, no item after k MUST run, and each
              "read-only"` and nothing is dispatched; for an item whose
              request carries `compensation`, one `Commands.dispatch` of
              that command with input `{ input, output }` (the item's
-             encoded input and output), the batch's context,
+             encoded input and output), the batch's context and caller
+             services (`BatchOptions.services`),
              `expectDigest` the planned `compensation.digest`, the
              idempotency key `batchId + ":undo:" + index`, a request
              carrying `compensates: { batchId, index, command }`, and,
@@ -453,7 +466,8 @@ REQUIREMENT: `Command.make` MUST reject as a defect a spec with `long: true`
              caller as for a dispatch — and then MUST create the task in
              `running` with a `taskId` from the host's `IdGenerator`, fork
              steps 7 and 8 into the catalog layer's scope with the
-             dispatch's served context, `CurrentCorrelation` and the
+             dispatch's served context and no caller services (06,
+             BEH-CM-041: the caller's unit of work may end first), `CurrentCorrelation` and the
              dispatching fiber's plugin principal, unchanged (none when
              application code dispatched; core BEH-BR-257), and return
              the `CommandTaskRef`. The admissions that admitted at step 6
