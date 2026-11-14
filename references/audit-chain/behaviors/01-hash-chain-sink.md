@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-01                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-AC-001 and BEH-AC-007: `HashChainOptions` gains `keyed`, the `KeyedHasherShape` the sink hashes with, so a keyed hasher reaches `HashChainSink.layer` and `make` (M19) (CCR-AC-006)<br>0.6 (2026-11-10): BEH-AC-007: the key lifecycle of a `KeyedHasher` — `keyId` fixed per sink instance, a key changed only by rebuilding the sink, `KeyedHashFailed` with `keyId` and `permanent`, verification across keys through `verifyChain`'s `keyed` (03, BEH-AC-019) (CCR-AC-005)<br>0.5 (2026-11-09): BEH-AC-006: only an equal entry under a stored `recordId` is an idempotent repeat; a different record under it is kept with its link or refused, never dropped, following core BEH-BR-193 as amended by CCR-BR-031 (CCR-AC-004)<br>0.4 (2026-11-08): The store port's shape renamed `ChainStoreShape` (it was still named `ChainSinkShape`, which 04 uses for the chaining sink); the link type of this file is `ChainLinkV1`, and `ChainLink` is the union with the generic series' `ChainLinkV2` (04, BEH-AC-026); audit links stay version 1 (round-2 agent review R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; `HashChainSink` is the audit instance of `ChainSink<R>`; core's `sanitized`, `auditDropped`, `requestedBy`, `undoes` and new system transitions chained as fields (G54, G59 closed) (round 2: recheck item 13; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.8 (2026-11-11): BEH-AC-001, BEH-AC-007 and BEH-AC-008: a `KeyedHashFailed` fails `record` with `AuditWriteFailed` before the inner `append` is called, the one exception to one `append` per attempt; the inner store's `AuditWriteFailed` is forwarded unchanged, message included (G5, PL7); core's `cold` named among the fields chained as ordinary fields (core CCR-BR-038 coupling) (SPEC-AUDIT-06) (CCR-AC-008)<br>0.7 (2026-11-10): BEH-AC-001 and BEH-AC-007: `HashChainOptions` gains `keyed`, the `KeyedHasherShape` the sink hashes with, so a keyed hasher reaches `HashChainSink.layer` and `make` (M19) (CCR-AC-006)<br>0.6 (2026-11-10): BEH-AC-007: the key lifecycle of a `KeyedHasher` — `keyId` fixed per sink instance, a key changed only by rebuilding the sink, `KeyedHashFailed` with `keyId` and `permanent`, verification across keys through `verifyChain`'s `keyed` (03, BEH-AC-019) (CCR-AC-005)<br>0.5 (2026-11-09): BEH-AC-006: only an equal entry under a stored `recordId` is an idempotent repeat; a different record under it is kept with its link or refused, never dropped, following core BEH-BR-193 as amended by CCR-BR-031 (CCR-AC-004)<br>0.4 (2026-11-08): The store port's shape renamed `ChainStoreShape` (it was still named `ChainSinkShape`, which 04 uses for the chaining sink); the link type of this file is `ChainLinkV1`, and `ChainLink` is the union with the generic series' `ChainLinkV2` (04, BEH-AC-026); audit links stay version 1 (round-2 agent review R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore`; `HashChainSink` is the audit instance of `ChainSink<R>`; core's `sanitized`, `auditDropped`, `requestedBy`, `undoes` and new system transitions chained as fields (G54, G59 closed) (round 2: recheck item 13; core alignment) (CCR-AC-003)<br>0.2 (2026-11-08): No condition of the sink's own fails a write: order and host violations and retry mismatches are appended with a break marker, unsupported schema versions and strings that are not I-JSON are chained with a marker (escaped canonical form); `failClosed` and `maxPending` options removed; the cost of core's retry in place stated (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -106,13 +106,19 @@ REQUIREMENT: `HashChainSink.layer` MUST provide the core `AuditSink` service
              (identifier `@bridger/core/AuditSink`) and nothing else that
              core reads. Its `record` MUST compute the link of the record it
              is given (BEH-AC-003) and call the inner `ChainStore.append`
-             exactly once per attempt with the record and its link.
+             exactly once per attempt with the record and its link, except
+             when the keyed hasher fails: then `record` MUST fail with
+             `AuditWriteFailed` before it calls `append`, and `append` is
+             not called for that attempt (BEH-AC-007).
 ```
 
 ```
 REQUIREMENT: `record` MUST succeed only after the inner `append` has
              succeeded, and MUST fail with `AuditWriteFailed` whenever the
-             inner `append` fails, dies or is interrupted, so that core's
+             inner `append` fails, dies or is interrupted: when `append`
+             fails with `AuditWriteFailed`, with that error unchanged, its
+             message included; when it dies or is interrupted, with an
+             `AuditWriteFailed` whose message names the cause, so that core's
              writer retries the same record (BEH-BR-202) and, past
              `auditTimeout`, sets the audit-degraded latch (BEH-BR-205).
 ```
@@ -251,7 +257,7 @@ From revision 0.3 the inner store port of this file is named `ChainStore`
 (`ChainStore.split`, `memoryChainStore`), and `HashChainSink` is the audit
 instance of the generic `ChainSink<R>` of 04 (BEH-AC-025); every rule of this
 file is unchanged by the rename. Each record also carries core's
-`auditDropped` counter, `requestedBy`, `undoes` and the new system transitions
+`auditDropped` counter, `requestedBy`, `undoes`, `cold` (core CCR-BR-038) and the new system transitions
 ("start-refused", "unmount-requested", "lazy-idle"; a root `lazy-triggered`
 record carrying `onBehalfOf`) as ordinary fields: the sink chains them without
 interpreting them, and 04 (BEH-AC-030) states how `auditDropped` is carried
@@ -442,7 +448,8 @@ REQUIREMENT: When `options.keyed` is given (`HashChainOptions.keyed`, or
              MUST compute every link hash with it in place of the plain
              hash, over the same input, and MUST record its `keyId` in each
              link. A `KeyedHashFailed` MUST be mapped to `AuditWriteFailed`
-             (for a generic series, 04, it is `append`'s failure). The key MUST stay behind
+             (for a generic series, 04, it is `append`'s failure) before the
+             inner store is called: no entry is appended for that attempt. The key MUST stay behind
              the port; the package MUST NOT read, log or store it.
 ```
 
@@ -512,9 +519,11 @@ needs a store that can report its last head at start-up.
 
 ```
 REQUIREMENT: Every failure of the inner store or of the keyed hasher MUST
-             surface to core as `AuditWriteFailed` with a message naming the
-             cause. The package MUST NOT swallow such a failure and report
-             success.
+             surface to core as `AuditWriteFailed`: the inner store's
+             `AuditWriteFailed` unchanged (BEH-AC-001), and any other failure
+             (a death or interruption of `append`, a `KeyedHashFailed`) with
+             a message naming the cause. The package MUST NOT swallow such a
+             failure and report success.
 ```
 
 ```

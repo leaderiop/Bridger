@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-03                                            |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.2 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-ES-020: a batch refused during a whole-store install or its holds (`StoreUnavailable` "store-swap") is retried once `whenReadable` completes, uncounted (H5); second pass (cleanest design): the refusal is the dedicated `StoreSwapInProgress` (or `OutboxFrozen`), no longer `StoreUnavailable` "store-swap" (CCR-ES-011)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -95,7 +95,10 @@ REQUIREMENT: When `apply` fails, or an event cannot be read
              the batch, retry with bounded backoff (`maxAttempts`, default
              5), and then halt at that position with status `halted { at,
              cause }`. It MUST NOT advance the checkpoint past an event it
-             did not apply.
+             did not apply. A batch refused during a whole-store install or
+             its holds (`StoreSwapInProgress` or `OutboxFrozen`, BEH-ES-034) rolls
+             back without counting toward `maxAttempts` and is retried once
+             durable-bus `DurableBus.whenReadable` completes.
 ```
 
 ```

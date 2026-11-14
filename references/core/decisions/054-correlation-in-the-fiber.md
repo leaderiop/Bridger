@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-054                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amends ADR-BR-029 and ADR-BR-044                  |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-10): "Reaches" names the `HookDecisionRecord` on a hook point's `decisions` stream as the third place the `correlationId` alone may appear (C5) (CCR-BR-035)<br>0.2 (2026-11-10): "Reaches" names the two places the `correlationId` alone may appear (BEH-BR-192; audit H1) (CCR-BR-034)<br>0.1 (2026-11-08): Initial draft (CCR-BR-026) |
+> | Change History | 0.4 (2026-11-11): "Reaches" names the log of a reconcile parent record lost at shutdown as the fourth place the `correlationId` alone may appear (C4) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.3 (2026-11-10): "Reaches" names the `HookDecisionRecord` on a hook point's `decisions` stream as the third place the `correlationId` alone may appear (C5) (CCR-BR-035)<br>0.2 (2026-11-10): "Reaches" names the two places the `correlationId` alone may appear (BEH-BR-192; audit H1) (CCR-BR-034)<br>0.1 (2026-11-08): Initial draft (CCR-BR-026) |
 
 ---
 
@@ -27,7 +27,7 @@ A correlation id joins the records of one request. Core generated one per mutati
 - **Set by the host** for everything it runs on a call's behalf — the gate, the transitions and the system transitions it causes, and the builds and finalizers they run. Root system records take the fiber's correlation when one is set.
 - **Inherited** by forked fibers, provider methods and `use` callbacks; event listeners take the dispatcher's; `CallerContext` carries it and `serve` sets it.
 - **Reset** for background fibers, health checks and `whenAvailable` runs, as `CurrentActor` is.
-- **Reaches** the gate, the sink and the call log (`CallEntry.correlationId`), never the `ConfigFingerprinter`, snapshots, `Host.events`, logs, spans or metrics — save the `correlationId` alone in `inspect().pending`, in a `PartialApply`'s error log and `reconcile-partial` event, and in the `HookDecisionRecord` a hook point publishes on its `decisions` stream ([31 — Hook points](../behaviors/31-hook-points.md), BEH-BR-305) (BEH-BR-192, as amended by CCR-BR-034 and CCR-BR-035).
+- **Reaches** the gate, the sink and the call log (`CallEntry.correlationId`), never the `ConfigFingerprinter`, snapshots, `Host.events`, logs, spans or metrics — save the `correlationId` alone in `inspect().pending`, in a `PartialApply`'s error log and `reconcile-partial` event, in the `HookDecisionRecord` a hook point publishes on its `decisions` stream ([31 — Hook points](../behaviors/31-hook-points.md), BEH-BR-305), and in the error-level log of a running `reconcile`'s parent record lost at shutdown ([12 — Shutdown and hosting](../behaviors/12-shutdown-and-hosting.md), BEH-BR-108) (BEH-BR-192, as amended by CCR-BR-034, CCR-BR-035 and CCR-BR-037).
 - This **amends ADR-BR-029** (the correlation of a call may come from the fiber) and **ADR-BR-044** (the call log receives the correlation as well as the actor).
 
 ## Alternatives considered

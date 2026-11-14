@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-07                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-10): BEH-LD-056: digests in `LoaderGate`'s `exempt.digests` are not refused "verification-unknown"; wiring passes `pinned` to `RevokedDigests.layer` (L1) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.3 (2026-11-09): "first-party" reserved for in-process eligibility (file 09, F-06); `Revocation.refusalList` built over the `RevokedDigests` view (M-06) (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.9 (2026-11-11): BEH-LD-052: step 5 of `verify` and `Revocation.check` apply one rule, so a reader re-checking a held data pack and one restoring it from saved bytes agree on whether it is revoked (L4, second pass) (SPEC-AUDIT-09) (CCR-LD-012)<br>0.8 (2026-11-11): BEH-LD-051: statement rules also refuse an `anyOf` repeating an `id`, and the construction checks apply at `StatementVerifier.layer` (PL16) (SPEC-AUDIT-08) (CCR-LD-011)<br>0.7 (2026-11-11): BEH-LD-050: the host-manifest call admits one other form, `reverify: { acceptedAt }`, for the federation companion's re-verification of a manifest its `ManifestStore` saved with that `acceptedAt` (L3) (SPEC-AUDIT-07); follow-up: a stored manifest saved without `acceptedAt` is re-verified without `reverify` (SPEC-AUDIT-07 residual) (CCR-LD-010)<br>0.6 (2026-11-11): BEH-LD-050: `VerifyRequest.reverify` carries `acceptedAt`: a restore checks signer windows against `signedAt` or the original acceptance time, never `Clock` (PL20); BEH-LD-052: a revoked signer withdraws a statement by re-evaluating the record's `require` over the accepting policy's recorded signers, with no rule and no time (PL18); BEH-LD-056: the rule's pinned digests read live from `AcceptedDigests.pinned` (L2); BEH-LD-053: under `anyOf`, `policyId` and `require` describe the accepting branch, and the re-check of the binding after a signer revocation reads each signer's `publisherBound` (L1, H5) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): `Revocation.check` takes the record and the set only: the record carries its signers' identities and the evaluated requirement (03, BEH-LD-020), so no rule is passed (residual of H7) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-10): BEH-LD-056: digests in `LoaderGate`'s `exempt.digests` are not refused "verification-unknown"; wiring passes `pinned` to `RevokedDigests.layer` (L1) (SPEC-AUDIT-04) (CCR-LD-007)<br>0.3 (2026-11-09): "first-party" reserved for in-process eligibility (file 09, F-06); `Revocation.refusalList` built over the `RevokedDigests` view (M-06) (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-01, R3-02, R3-03, R3-14, R3-15, R3-16): `SignedStatement` envelope and the exact `id`/`version` convention and call shape for every reserved type; "chain-bundle" reserved; "revocation-list" verified only by the revocation source, with no step 5; `reverify` for statements accepted before a restart; statement-digest revocation reaches `refusalList`; publisher binding under composite rules; statement-digest revocation scope reworded (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -182,7 +182,8 @@ interface VerifyRequest {
   readonly signatures: readonly Signature[]    // 03, BEH-LD-017
   // A statement this reader accepted before a restart, verified again from what it saved
   // (08, BEH-LD-062): step 5 checks the held set's entries and does not apply maxAge.
-  readonly reverify?: true
+  // acceptedAt: the `at` of the record of the original acceptance, against which step 3 checks windows.
+  readonly reverify?: { readonly acceptedAt: string }
 }
 interface StatementVerification {
   readonly statementType: StatementType
@@ -230,18 +231,29 @@ REQUIREMENT: Every caller MUST use this request shape, with `subject`,
              envelope.payload }, id: envelope.id, version: envelope.version,
              signatures: envelope.signatures })`. The federation companion's
              host-manifest check MUST be this call with `statementType:
-             "host-manifest"`; no other request shape, field name or
-             signature shape (such as `{ keyId, algorithm, value }`) is
-             part of this API.
+             "host-manifest"`; when it re-verifies a manifest its
+             `ManifestStore` saved (the highest at boot, the last applied
+             one at a re-apply), it MUST add `reverify: { acceptedAt }`
+             with the `acceptedAt` saved with that manifest (federation
+             BEH-FD-002, BEH-FD-004; a stored manifest saved without one is
+             re-verified without `reverify`, federation BEH-FD-002), which
+             is the one other form of the
+             host-manifest call. No other request
+             shape, field name or signature shape (such as `{ keyId,
+             algorithm, value }`) is part of this API.
 ```
 
 ```
-REQUIREMENT: With `reverify: true`, step 5 MUST check the held set's
+REQUIREMENT: With `reverify`, step 5 MUST check the held set's
              digests and signers exactly as for a new statement, MUST NOT
              fail with `RevocationStale` however old the set is, and MUST
              still fail with `RevocationUnavailable` when there is no set.
-             The record MUST carry `reverified: true` and the held set's
-             `issuedAt`. `reverify` MUST be used only to restore a statement
+             Step 3 MUST check each signer's validity window against its
+             `signedAt` when present and otherwise against `acceptedAt`,
+             never against the time read from `Clock`, so that a window
+             that closes after acceptance does not withdraw the statement by
+             itself (03, BEH-LD-019). The record MUST carry
+             `reverified: true` and the held set's `issuedAt`. `reverify` MUST be used only to restore a statement
              that this process or its store accepted before; a statement
              seen for the first time MUST be verified without it.
 ```
@@ -304,7 +316,7 @@ that needs a `RevocationSource` that needs a `StatementVerifier`. The list
 therefore has its own trust root, given to the revocation source, and its own
 monotonic revision in place of step 5 (04, BEH-LD-026;
 [ADR-LD-006](../decisions/006-one-verification-step-for-every-signed-statement.md)
-records this as the one exception). The `reverify` flag exists for the opposite
+records this as the one exception). The `reverify` option exists for the opposite
 problem: a reader restoring what it accepted yesterday must still honour every
 revocation it holds, but must not lose its data because the device has been
 offline longer than `maxAge`, which governs new acceptances only
@@ -341,7 +353,12 @@ REQUIREMENT: `verify` for a statement type that has no rule MUST fail with
 REQUIREMENT: Every rule MUST satisfy the construction checks of 03
              (BEH-LD-019, BEH-LD-022): no threshold of zero, no empty
              pinned list, no signer key or identity under two ids within
-             one policy. A `pinned` rule for a type other than "package"
+             one policy, and no `anyOf` whose rules, nested `anyOf`
+             included, repeat an `id`, so that re-evaluation by `policyId`
+             counts one branch. The checks apply when a `LoaderPlugin` or
+             `Loader.layer` is constructed and equally when
+             `StatementVerifier.layer` is, which refuses such rules as the
+             loader does. A `pinned` rule for a type other than "package"
              pins subject digests of that type.
 ```
 
@@ -375,8 +392,9 @@ class StatementRevoked extends Schema.TaggedError<StatementRevoked>()("Statement
 }) {}
 declare const Revocation: {
   // ... filterDesired (04, BEH-LD-028)
-  // Pure: is this recorded verification revoked under this set? (re-evaluation as BEH-LD-030)
-  readonly check: (record: VerificationRecord, set: RevocationSet, rule: AcceptanceRule) => Option.Option<StatementRevoked>
+  // Pure: is this recorded verification revoked under this set? (re-evaluation as BEH-LD-030,
+  // from the record's own signers and `require` — 03, BEH-LD-020 — with no policy or rule)
+  readonly check: (record: VerificationRecord, set: RevocationSet) => Option.Option<StatementRevoked>
 }
 ```
 
@@ -406,9 +424,10 @@ REQUIREMENT: Revocation by statement digest MUST reach every place that
 ```
 REQUIREMENT: A revoked signer (04, BEH-LD-025) MUST withdraw a statement of
              any type exactly as BEH-LD-030 withdraws a package: by
-             re-evaluating the type's rule from the recorded verified
-             signers minus the revoked ones, at the time recorded at
-             acceptance, with no clock read.
+             re-evaluating the record's `require` over the recorded signers
+             of its `policyId` with `inWindow` true, minus the revoked ones,
+             and its publisher binding from their `publisherBound`, from
+             the record alone, with no rule and no clock read.
 ```
 
 ```
@@ -418,6 +437,17 @@ REQUIREMENT: `Revocation.check` MUST be pure and total. Readers that hold a
              adapter, a host manifest applied by a federation member — MUST
              be able to re-check it on every revocation change from its
              record alone, without its signatures.
+```
+
+```
+REQUIREMENT: Step 5 of `verify`, with or without `reverify`, and
+             `Revocation.check` MUST apply one rule: for one statement and
+             one set, step 5 MUST fail with `StatementRevoked` exactly when
+             `Revocation.check` of the record that steps 1–4 establish
+             answers `Some`, with the same `by`. A reader that re-checks a
+             statement it holds with `Revocation.check` and a reader that
+             verifies it again from saved bytes under the same set
+             therefore agree (08, BEH-LD-062, BEH-LD-063).
 ```
 
 ```
@@ -473,8 +503,8 @@ REQUIREMENT: Under a composite rule (`anyOf`, 03, BEH-LD-022) the branches
              call: a later `pinned` or `signed` branch MUST NOT be tried
              after it. When that branch is `pinned`, the rule below applies
              even if a later `signed` branch would also be satisfied.
-             `acceptedBy` and `publisherBound` MUST describe that one
-             branch.
+             `acceptedBy`, `publisherBound`, `policyId` and `require` MUST
+             describe that one branch.
 ```
 
 ```
@@ -496,7 +526,8 @@ Core carries `publisher` as a label it never interprets, and a marketplace
 view shows it. Without this rule, anyone whose key satisfies the policy can
 publish under another publisher's name; with it, the name shown is one the
 application's trust configuration says that signer may use. A re-evaluation
-after a signer revocation (BEH-LD-052) re-checks the binding: a package whose
+after a signer revocation (BEH-LD-052; 04, BEH-LD-030) re-checks the binding
+from each recorded signer's `publisherBound` (03, BEH-LD-018): a package whose
 only matching signer is revoked fails it.
 
 ## BEH-LD-054: Signing input and countersigning add signer entries without changing the digest
@@ -628,7 +659,8 @@ declare const Revocation: {
 const shared = yield* Layer.build(
   Layer.provideMerge(Revocation.refusalList,
     Layer.provideMerge(RevokedDigests.layer({ pinned }), Layer.merge(AcceptedDigests.layer, revocations))))
-// pinned: the package rule's pinned digests plus LoaderGate's exempt.digests (09, BEH-LD-070).
+// pinned: LoaderGate's exempt.digests and further pinned digests; the package rule's own pinned digests
+// and federation's proxy digests are read live from AcceptedDigests.pinned (09, BEH-LD-070).
 ```
 
 ```
@@ -662,9 +694,10 @@ REQUIREMENT: `refused` MUST be synchronous and pure, as core requires: it
 REQUIREMENT: When a signer is revoked and a digest submitted to `refused`
              has no `AcceptedDigests` record, the layer MUST refuse it with
              reason "verification-unknown", unless the digest is pinned by
-             the package rule or listed in `LoaderGate`'s `exempt.digests`
-             (02, BEH-LD-015) — the `pinned` list the view is built with and
-             `filterDesired` applies (04, BEH-LD-028; 09, BEH-LD-070). A
+             the package rule (`AcceptedDigests.pinned`, read live) or listed
+             in `LoaderGate`'s `exempt.digests` (02, BEH-LD-015) — the
+             pinned digests the view reads and `filterDesired` applies (04,
+             BEH-LD-028; 09, BEH-LD-070). A
              bundled plugin exempt by digest has no record and would
              otherwise go `disabled` after any signer revocation.
 ```
@@ -714,7 +747,8 @@ call shape; a `SignedStatement` carries the payload as signed, and readers
 compare the decoded id and version with the envelope's. (9) Revocation lists
 are the one type `verify` does not check; the revocation source checks them
 under its own trust root with no step 5. (10) A restore after restart uses
-`reverify`: held revocations apply, `maxAge` does not.
+`reverify`: held revocations apply, `maxAge` does not, and signer windows are
+judged at the original acceptance.
 
 **Open.** (1) Whether a licence statement needs fields beyond the subject
 digest, id and version (an audience, an expiry) inside the signed statement,

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-02                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): Core fixtures `scriptedRefusalList` and `memoryCallLog` (`onFailure`, `queue`) re-exported; hook `settle` observed through core (core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.3 (2026-11-11): BEH-KT-011: the close check excludes a "cleanup" entry whose plugin id is listed in `expectFailed` (L5) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.2 (2026-11-08): Core fixtures `scriptedRefusalList` and `memoryCallLog` (`onFailure`, `queue`) re-exported; hook `settle` observed through core (core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -148,7 +148,13 @@ REQUIREMENT: `it.plugin` MUST register one test case with the test runner's
              host until idle and then fail the case if any plugin holds a
              lease (`inspect(...).leases > 0`) or is `failed` and not listed
              in `expectFailed`. Closing the scope MUST shut the host down;
-             a `CloseReport` with `failed` entries MUST fail the case.
+             a `CloseReport` with `failed` entries MUST fail the case,
+             except an entry with cause "cleanup" whose plugin id is listed
+             in `expectFailed`: a plugin left `failed` with phase "cleanup"
+             always appears there (core 12 — Shutdown and hosting), so a
+             test of a finalizer failure is decided by its own expectation,
+             not by the close check. An entry with cause "drain", or with
+             cause "cleanup" for a plugin not listed, still fails the case.
 ```
 
 ```

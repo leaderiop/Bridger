@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-02                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-EN-014: `Entitlement.guard` takes the activation's `Plugin.Runtime` as `options.runtime`, decides only on its `entitled` and names the plugin from its `principal`, never the fiber's (E1); its essential labels are the application's list from `Entitlement.layer`, to which `options.essential` may only add (E2); `checkTimeout` (default 4 seconds) bounds the wait for the first state, after which it fails `NotEntitled` with mode "unknown" (E3); `noPrincipal` removed; BEH-EN-013: the derived `watch` may serve "unknown"; BEH-EN-016: a hook point using `Entitlement.contributionPolicy` is made by application code (E4) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.6 (2026-11-10): BEH-EN-014: `Entitlement.guard` reads the mode from the activation's `Plugin.Runtime.entitled`, passed as `options.entitled`, takes the essential labels as `options.essential`, counts in the package's process-local `inspect` counters, which gain `essentialOverdraft` and `narrowed` for the counts 03 and 04 require, and does not require the `Entitlement` service; core's modes "unmetered" and "unknown" allow only essential uses (M25); BEH-EN-009 names the `Entitlement` service and the application's `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.5 (2026-11-10): BEH-EN-009 declares `EntitlementGate.check(request, options)`, which the text already required; BEH-EN-011 reads `checkTimeout` from the `Entitlement` service's options (01, BEH-EN-001); BEH-EN-014 defines `EntitlementInspection` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-016 uses core `HookPointOptions.policy` (`ContributionPolicy`, `Run`/`Skip`/`Deny`) with `Entitlement.contributionPolicy` (`onNotEntitled: "skip" \| "deny"`) and `Policies.first`, replacing `Entitlement.skipPolicy`, `SkipPolicy` and `Skip.first` (G62 closed in core); G64 limit stated; BEH-EN-009 allows `undo` requests and ignores `allowChildren` and `mandatoryInterceptions`; BEH-EN-015 points to grant narrowing (CCR-EN-003)<br>0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-EN-014: `EntitlementInspection.narrowed` entries carry `realm` beside `pluginId` (core BEH-BR-147) (PL15) (CCR-EN-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-EN-014: `NotEntitled` gains `realm` beside `pluginId`; `inspect`'s `refusals` are keyed by the canonical key `JSON.stringify([realm, id])` (core BEH-BR-147) (PL15) (CCR-EN-008)<br>0.7 (2026-11-10): BEH-EN-014: `Entitlement.guard` takes the activation's `Plugin.Runtime` as `options.runtime`, decides only on its `entitled` and names the plugin from its `principal`, never the fiber's (E1); its essential labels are the application's list from `Entitlement.layer`, to which `options.essential` may only add (E2); `checkTimeout` (default 4 seconds) bounds the wait for the first state, after which it fails `NotEntitled` with mode "unknown" (E3); `noPrincipal` removed; BEH-EN-013: the derived `watch` may serve "unknown"; BEH-EN-016: a hook point using `Entitlement.contributionPolicy` is made by application code (E4) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.6 (2026-11-10): BEH-EN-014: `Entitlement.guard` reads the mode from the activation's `Plugin.Runtime.entitled`, passed as `options.entitled`, takes the essential labels as `options.essential`, counts in the package's process-local `inspect` counters, which gain `essentialOverdraft` and `narrowed` for the counts 03 and 04 require, and does not require the `Entitlement` service; core's modes "unmetered" and "unknown" allow only essential uses (M25); BEH-EN-009 names the `Entitlement` service and the application's `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.5 (2026-11-10): BEH-EN-009 declares `EntitlementGate.check(request, options)`, which the text already required; BEH-EN-011 reads `checkTimeout` from the `Entitlement` service's options (01, BEH-EN-001); BEH-EN-014 defines `EntitlementInspection` (P13) (CCR-EN-005)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-016 uses core `HookPointOptions.policy` (`ContributionPolicy`, `Run`/`Skip`/`Deny`) with `Entitlement.contributionPolicy` (`onNotEntitled: "skip" \| "deny"`) and `Policies.first`, replacing `Entitlement.skipPolicy`, `SkipPolicy` and `Skip.first` (G62 closed in core); G64 limit stated; BEH-EN-009 allows `undo` requests and ignores `allowChildren` and `mandatoryInterceptions`; BEH-EN-015 points to grant narrowing (CCR-EN-003)<br>0.3 (2026-11-08): `enable` not entitlement-gated; `replace` consulted only under the required `onReplace` option; `EntitlementGate.piece` checks `checkTimeout` against its own timeout and documents the composite `gateTimeout`; core modes `unmetered` and `unknown`; hook entitlement is `Entitlement.skipPolicy` for `HookPointOptions.skip`, replacing `hookPolicy` (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -310,15 +310,18 @@ declare const Entitlement: {
 }
 interface EntitlementInspection {                            // process-local counters of the package, not of the service (01, BEH-EN-007; BEH-EN-014)
   readonly essentialPasses: Readonly<Record<string, number>>  // per essential label
-  readonly refusals: Readonly<Record<string, number>>         // per plugin id: gate refusals and NotEntitled
+  // per plugin, keyed by the canonical key JSON.stringify([realm, id]) (core BEH-BR-147): gate refusals and NotEntitled
+  readonly refusals: Readonly<Record<string, number>>
   // essential reservations beyond what a limit can cover (03, BEH-EN-020); `limit` is the
   // limit's position in the list given to Budget.layer
   readonly essentialOverdraft: readonly { readonly limit: number; readonly label: string; readonly amount: number }[]
   // narrowed capability answers (04, BEH-EN-027)
-  readonly narrowed: readonly { readonly pluginId: string; readonly serviceId: string; readonly mode: string; readonly count: number }[]
+  // `pluginId` and `realm` name the plugin as the record { id, realm } does (core BEH-BR-147)
+  readonly narrowed: readonly { readonly pluginId: string; readonly realm: string; readonly serviceId: string; readonly mode: string; readonly count: number }[]
 }
 class NotEntitled extends Schema.TaggedError<NotEntitled>()("NotEntitled", {
   pluginId: Schema.String,
+  realm: Schema.String,                                     // the plugin's realm, beside its id (core BEH-BR-147)
   mode: Schema.String,
   requires: Schema.String
 }) {}
@@ -326,8 +329,9 @@ class NotEntitled extends Schema.TaggedError<NotEntitled>()("NotEntitled", {
 
 ```
 REQUIREMENT: `guard` MUST decide only on `options.runtime.entitled` and
-             MUST take the plugin it names in `NotEntitled` and in its
-             counters from `options.runtime.principal.id`, never from the
+             MUST take the plugin it names in `NotEntitled` (`pluginId`
+             and `realm`) and in its counters from
+             `options.runtime.principal.id` and `.realm`, never from the
              calling fiber's principal: a provided method runs under its
              caller's principal, or none for application code (core
              BEH-BR-258), so the fiber does not tell whose method is
@@ -355,7 +359,11 @@ REQUIREMENT: `guard` MUST take the current mode from the first element of
              essential passes and its `NotEntitled` refusals in the
              package's process-local counters that `Entitlement.inspect`
              reads, which belong to the package, not to the `Entitlement`
-             service. Documentation MUST tell authors to pass their own
+             service; a refusal is counted under the canonical key
+             `JSON.stringify([realm, id])` of the plugin (core BEH-BR-147),
+             a gate refusal under that of the request's target, so that two
+             plugins of one id in different realms are never counted
+             together. Documentation MUST tell authors to pass their own
              activation's `Plugin.Runtime`.
 ```
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-APP-B                                             |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Informative appendix (companion)                             |
-> | Change History | 0.3 (2026-11-09): §1 and §5: a partner package is a guest entry reached through `LoaderRemote.link`, fetched and verified at each session, never `Loader.lazy`; identity disclosed only by the application's opt-in; §2 guest-shaped manifest with `requested.capabilities` and the entry key; §6 `GuestEntryInvalid`, `NotFirstParty` (F-06, F-07, C-19, M-03); §1 and §7: a guest runs outside the host's runtime in the deployment's bundle runtime, possibly a worker thread of the same process; first-party is the application's decision (independent review) (CCR-KT-004)<br>0.2 (2026-11-08): `publish` and `countersign` examples pass the application's rules and a revocation source; what `publish` prints without them (round-2 agent review R3-12, R3-13) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-003)                 |
+> | Change History | 0.4 (2026-11-11): §5: the bundle runs outside the host's runtime, in the bundle runtime the deployment chose (§1), not necessarily out of process (PL19) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-09): §1 and §5: a partner package is a guest entry reached through `LoaderRemote.link`, fetched and verified at each session, never `Loader.lazy`; identity disclosed only by the application's opt-in; §2 guest-shaped manifest with `requested.capabilities` and the entry key; §6 `GuestEntryInvalid`, `NotFirstParty` (F-06, F-07, C-19, M-03); §1 and §7: a guest runs outside the host's runtime in the deployment's bundle runtime, possibly a worker thread of the same process; first-party is the application's decision (independent review) (CCR-KT-004)<br>0.2 (2026-11-08): `publish` and `countersign` examples pass the application's rules and a revocation source; what `publish` prints without them (round-2 agent review R3-12, R3-13) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-003)                 |
 
 ---
 
@@ -148,8 +148,9 @@ signatures (`PublishTarget.upload`). From there the application's catalog
 verifies the entry without fetching your code (BEH-LD-034), shows your
 publisher name only if it is bound to a verified signer (BEH-LD-053), and
 gives it the trust class "guest" (BEH-LD-066). A host that installs the link
-fetches and verifies your bundle each time a session opens, and runs it out
-of process; a revocation or a policy change takes effect at the next session
+fetches and verifies your bundle each time a session opens, and runs it
+outside the host's runtime, in the bundle runtime the deployment chose (§1) —
+with `@bridger/worker`, a worker thread of the host's own process; a revocation or a policy change takes effect at the next session
 (BEH-LD-068). Your process receives no user identity unless the application
 configured the link to disclose some claims, which it records on its side as
 a data transfer (BEH-KT-034; remote BEH-RM-024).

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-ADR-007                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.2 (2026-11-11): Decision: `current` is derived from the accepted packs and the held revocation set, the same way at runtime and after a restart, so an un-revoked pack is current again with no load (SPEC-AUDIT-09 L4, second pass) (CCR-LD-012)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003) |
 
 ---
 
@@ -26,7 +26,7 @@ Applications ship signed reference data (price lists, rule tables, interaction d
 - Its digest uses its own domain string, "bridger-data-pack-v1", and commits to the manifest and to the payload with its media type (BEH-LD-058).
 - It is verified by `SignaturePolicy.verify` as a "data-pack" statement and served from held bytes; nothing evaluates it, and it never enters `AcceptedDigests` or `Loader.resident` (BEH-LD-059).
 - The effective window and freshness (`maxAge` since the signed `issuedAt`) are reported on every read; a pack past `maxAge` is reported with `DataPackStale`, and the application decides whether stale data may be used (BEH-LD-060).
-- Versions per id only rise; a revoked pack is withdrawn from `current` (BEH-LD-062, BEH-LD-063).
+- Versions per id only rise. Which pack is current is derived, never stored: one pure function of the accepted packs and the held revocation set, evaluated the same way by a running reader and a restarted one, so a revoked pack is not current while a set revokes it and is current again, with no load, once a newer set does not (BEH-LD-062, BEH-LD-063).
 
 ## Alternatives considered
 
@@ -40,6 +40,7 @@ Applications ship signed reference data (price lists, rule tables, interaction d
 
 - Reference data has the same provenance, revocation and record as code, without being run.
 - Staleness is visible on every read.
+- A data pack withdrawn by a revocation issued in error comes back by the same signed channel, with no reload and no mark to keep across restarts; a package removed by the kill switch does not come back by itself (BEH-LD-026), because its removal is a host operation.
 
 **Negative**:
 

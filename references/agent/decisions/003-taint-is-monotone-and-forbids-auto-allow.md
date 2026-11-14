@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-ADR-003                                           |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-08): The rule forbids automatic allow of changes; commands declared `readOnly` keep the gate's decision under the command catalog's exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): Rule enforced by the command catalog's taint floor; `TaintGuard.drafts` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.5 (2026-11-11): Decision: the reserved spawn tool falls under the same taint floor, refused in a tainted session, and its `parent.context` carries the session's taint and provenance; second pass (cleanest design): the refusal is the agent's own `ToolRefused`, no dispatch tag borrowed (SPEC-AUDIT-09 A1) (CCR-AG-012)<br>0.4 (2026-11-08): The rule forbids automatic allow of changes; commands declared `readOnly` keep the gate's decision under the command catalog's exemption (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): Rule enforced by the command catalog's taint floor; `TaintGuard.drafts` (CCR-AG-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-AG-001)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -49,6 +49,15 @@ easy to forget.
   (Revision 0.1 placed the rule in a `TaintGuard` plugin installing a
   mandatory interception; core does not let a plugin install one, and an
   interception cannot reach a gate read while a base layer is built.)
+- **The reserved spawn tool falls under the same floor.** It is never
+  dispatched, so the loop applies the floor's row for a request not declared
+  `readOnly` itself: in a tainted session it can carry no approval and no
+  draft source drafts it, so the loop refuses it with the agent's own
+  `ToolRefused { tool, reason: "tainted-session" }` and runs no subagent; a
+  dispatch tag such as `CommandRefused` is not borrowed, since nothing was
+  dispatched; the `parent.context` of a spawn carries the session's taint
+  and provenance, so the gate deciding the subagent's realm sees them
+  (BEH-AG-003).
 - Taint does not sanitize anything and does not leave the session
   (BEH-AG-022).
 

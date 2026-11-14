@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-ADR-006                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-08): round 2: recheck item 22 — one skew model across axes and writers-last rollout (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — both windows in the offer so both ends agree; imports name one major and are accepted or refused, never negotiated (R3-02, R3-21) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — an import is accepted when the export's version satisfies `"^" + V`, the same minor for major 0 (F4) (CCR-FD-008)<br>0.4 (2026-11-08): round 2: recheck item 22 — one skew model across axes and writers-last rollout (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — both windows in the offer so both ends agree; imports name one major and are accepted or refused, never negotiated (R3-02, R3-21) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -23,7 +23,7 @@ Fleets are upgraded gradually: for some time, a hub at release N talks to termin
 ## Decision
 
 - Each link agrees on a federation protocol version: the highest in `[max(minA, minB, maxA − wA, maxB − wB), min(maxA, maxB)]`, with both ranges and both `protocolWindow`s (default 1) carried in the offers, so both ends compute the same answer. Empty → `IncompatiblePeer` on both ends ([BEH-FD-019](../behaviors/03-links-and-skew-handshake.md#beh-fd-019-the-federation-protocol-version-highest-common-inside-the-window)).
-- Each import names one contract major through its version V; the offer accepts it when the peer exports that major at v ≥ V, and otherwise refuses that import alone with core `IncompatibleContract` as cause. No major is chosen at link time: the major is part of the contract's `ServiceId` and a provision is fixed at registration (core BEH-BR-232). An import older than `contractWindow` majors (default 1) is dropped at projection ([BEH-FD-020](../behaviors/03-links-and-skew-handshake.md#beh-fd-020-each-import-names-one-major-and-the-offer-accepts-or-refuses-it)).
+- Each import names one contract major through its version V; the offer accepts it when the peer exports that major at a version v satisfying `"^" + V` (core `Contract.satisfies`: for major ≥ 1, v ≥ V; for major 0, the same minor and v ≥ V), and otherwise refuses that import alone with core `IncompatibleContract` as cause. No major is chosen at link time: the major is part of the contract's `ServiceId` and a provision is fixed at registration (core BEH-BR-232). An import older than `contractWindow` majors (default 1) is dropped at projection ([BEH-FD-020](../behaviors/03-links-and-skew-handshake.md#beh-fd-020-each-import-names-one-major-and-the-offer-accepts-or-refuses-it)).
 - The offer exchange repeats on every link. The N/N−1 pair is a required acceptance check (check 24 of BEH-FD-034).
 - One skew model covers every version axis — federation protocol, remote wire, contract major and minor, event version, upcaster chain, formats — with one rule (N reads N−1; nothing writes what N−1 cannot read until every reader runs N) and a writers-last rollout for fleets with offline hosts, gated on the oldest version received per origin ([BEH-FD-046](../behaviors/06-kill-path-placement-and-skew.md#beh-fd-046-one-skew-model-for-every-version-axis), [BEH-FD-047](../behaviors/06-kill-path-placement-and-skew.md#beh-fd-047-the-oldest-version-received-per-origin-is-reported-to-the-authority)).
 

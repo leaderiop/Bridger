@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-06                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-041: `AnchorWriteFailed`, `AnchorReadFailed` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-042, 048: `HighWaterMark.seal` withdrawn; the anchor store holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-11): BEH-GX-043 and BEH-GX-044 `recordClose` works after the recorder's scope, the host's, has closed, using only the host handle and the anchor store; the pattern shown: host and recorder in an inner scope, the report handed out of `onClose` through a `Deferred` (G4) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-11): BEH-GX-044 `recordClose` waits for `HostControls.closed` (core CCR-BR-037) and takes the close mark from `CloseTail.lastWritten`, since core writes the terminal record and flushes after the report; a close-flush loss (`lastWritten` below `lastNumbered`) and `CloseTail.auditDegraded` are logged and still marked (G4) (CCR-GX-008)<br>0.3 (2026-11-10): BEH-GX-041: `AnchorWriteFailed`, `AnchorReadFailed` declared as `Schema.TaggedError`, raised but never declared before (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-042, 048: `HighWaterMark.seal` withdrawn; the anchor store holds high-water marks only; marks become audit-chain's expected heads (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -112,7 +112,7 @@ different system with different administrators, which is its whole value.
 interface HighWaterMark {
   readonly v: 1
   readonly hostId: string
-  readonly lastWritten: number          // HostControls.auditPosition.lastWritten (at close: read after the flush)
+  readonly lastWritten: number          // HostControls.auditPosition.lastWritten (at close: CloseTail.lastWritten, BEH-GX-044)
   readonly at: string                   // from Clock, ISO-8601 UTC with ms
   readonly source: "periodic" | "close"
   // `seal` (revision 0.1) is withdrawn: the chain and its anchors are @bridger/audit-chain's (21)
@@ -189,6 +189,8 @@ REQUIREMENT: A failed `put` MUST NOT affect the host: it MUST NOT call a host
 REQUIREMENT: The recorder MUST run in the scope it is given and stop when that
              scope closes. It MUST NOT read `host.controls` after the host has
              begun shutting down, except as BEH-GX-044 states.
+             `recordClose` is not part of the periodic recorder: it MUST work
+             when called after the recorder's scope has closed.
 ```
 
 ```
@@ -212,29 +214,58 @@ availability, and that cost shows up where it belongs — as an
 > **Regulatory:** supports 21 CFR 11.10(e); EU GMP Annex 11 §9
 
 ```
-REQUIREMENT: `recordClose(report)` MUST put one mark with `source: "close"`
-             and `lastWritten` equal to `auditPosition.lastWritten` read from
-             `host.controls` once, after shutdown has returned its report and
-             therefore after the writer's final flush (BEH-BR-208).
+REQUIREMENT: `recordClose(report)` MUST wait for `closed` of the host's
+             `HostControls` (BEH-BR-212), which yields a `CloseTail` once the
+             host scope has closed and the audit writer's final flush has
+             ended, and MUST put one mark with `source: "close"` and
+             `lastWritten` equal to `CloseTail.lastWritten`. It MUST be run
+             outside the host's scope, after it; documentation MUST say so,
+             since a `recordClose` the host scope waits for — `onClose`
+             included — never ends. It MUST use only the host handle, which
+             stays readable after close (BEH-BR-212), and the anchor store,
+             so that it works after the recorder's scope, the host's, has
+             closed. Documentation MUST show the pattern: host and recorder
+             in an inner scope, `onClose` completing a `Deferred` with the
+             report, and `recordClose` called with it once the inner scope
+             has closed.
+```
+
+```ts
+// illustrative — not type-checked
+const report = yield* Deferred.make<CloseReport>()
+const recorder = yield* Effect.scoped(Effect.gen(function* () {
+  const host = yield* Bridger.make({ ...options, onClose: (r) => Deferred.succeed(report, r) })
+  const recorder = yield* recordHighWater(host, anchors, { every: "1 minute" })
+  // ... run the application until it stops ...
+  return recorder
+}))                                                   // the recorder stops, then the host closes
+yield* recorder.recordClose(yield* Deferred.await(report))   // outside the host's scope, after it
 ```
 
 ```
-REQUIREMENT: `recordClose` MUST NOT use `report.auditLastSeq`, or a reading
-             taken before the flush, as the close mark: core produces the
-             report before the shutdown's own terminal record is written
-             (BEH-BR-106), so either can be lower than the last record
+REQUIREMENT: `recordClose` MUST NOT use `report.auditLastSeq`, or
+             `auditPosition` read before `closed` has yielded, as the close
+             mark: core produces the report before the shutdown's own
+             terminal record is written and flushes after it (BEH-BR-106,
+             BEH-BR-208), so either can be lower than the last record
              written and would hide the loss of the records written after it
-             (core prototype finding G34). When the reading is lower than
-             `report.auditLastSeq`, `recordClose` MUST put the mark with
-             `report.auditLastSeq` and log the discrepancy at error level.
+             (core prototype finding G34). When `CloseTail.lastWritten` is
+             lower than `report.auditLastSeq`, `recordClose` MUST put the
+             mark with `report.auditLastSeq` and log the discrepancy at
+             error level.
 ```
 
 ```
 REQUIREMENT: The close mark MUST be put even when the position did not move
              since the last periodic mark, so that a clean close is marked as
-             such. When `report.auditDegraded` is true, the mark MUST still be
-             put; the unwritten records are not in `lastWritten` and are
-             visible through the latch, not through the mark.
+             such. When `report.auditDegraded` or `CloseTail.auditDegraded`
+             is true, or `CloseTail.lastWritten` is below
+             `CloseTail.lastNumbered` (records numbered but lost in the close
+             flush, BEH-BR-213), the mark MUST still be put with
+             `lastWritten`, and in the last case `recordClose` MUST log both
+             numbers at error level, naming no record field; the unwritten
+             records are not in `lastWritten` and are visible through the
+             latch, `CloseTail` and core's error log, not through the mark.
 ```
 
 The close mark is the strongest single mark: after it, the host writes no

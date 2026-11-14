@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-04                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-10): BEH-EN-027: mode "unknown" (no answer known) narrows as `none` (E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.3 (2026-11-10): BEH-EN-025 notes that the default `checkTimeout` of 4 seconds is shorter than core's default `resolutionTimeout` (M26); BEH-EN-032: check 17 builds with the defaults (M26), checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.2 (2026-11-08): BEH-EN-030: a reservation for a declaration whose wake fails or times out is released at `ttl` and counted "expired", with `ttl` recommended just above the wake window plus the hook `timeout`; the package relies on core asking `policy` once per declaration per dispatch; check 22 extended (round-2 agent review R3-17) (CCR-EN-003)<br>0.1 (2026-11-08): Initial draft (CCR-EN-003)                 |
+> | Change History | 0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-EN-027: narrowed answers are counted per plugin id and realm; check 19 follows (PL15) (CCR-EN-009)<br>0.4 (2026-11-10): BEH-EN-027: mode "unknown" (no answer known) narrows as `none` (E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.3 (2026-11-10): BEH-EN-025 notes that the default `checkTimeout` of 4 seconds is shorter than core's default `resolutionTimeout` (M26); BEH-EN-032: check 17 builds with the defaults (M26), checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.2 (2026-11-08): BEH-EN-030: a reservation for a declaration whose wake fails or times out is released at `ttl` and counted "expired", with `ttl` recommended just above the wake window plus the hook `timeout`; the package relies on core asking `policy` once per declaration per dispatch; check 22 extended (round-2 agent review R3-17) (CCR-EN-003)<br>0.1 (2026-11-08): Initial draft (CCR-EN-003)                 |
 
 ---
 
@@ -219,8 +219,9 @@ REQUIREMENT: A subject whose labels contain an essential label (01,
 ```
 
 ```
-REQUIREMENT: Every narrowed answer MUST be counted per plugin, service id
-             and mode in `Entitlement.inspect`. The package MUST NOT write
+REQUIREMENT: Every narrowed answer MUST be counted per plugin (its id and
+             realm, core BEH-BR-147), service id and mode in
+             `Entitlement.inspect`. The package MUST NOT write
              an audit record (01, BEH-EN-008); core's call log, when wired,
              records each denied call as an entry with outcome "denied"
              (core BEH-BR-276).
@@ -489,7 +490,8 @@ REQUIREMENT: The package's test suite MUST contain at least one test for
                  (BEH-EN-026).
              19. The grant rule for every mode and option, never naming a
                  member the inner grant does not; essential subjects
-                 unchanged and counted; narrowed answers counted; no audit
+                 unchanged and counted; narrowed answers counted per
+                 plugin id and realm; no audit
                  record written (BEH-EN-027).
              20. A lapse to `read-only` while calls hold leases emits one
                  `ResolveAgain` for the plugin; later calls to a write

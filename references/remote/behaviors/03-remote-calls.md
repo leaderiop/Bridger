@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-03                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, review of the round) — BEH-RM-022: the guest-callback fiber carries core `CurrentTransition` beside `HeldPlugins`, read from the calling fiber, so a guest callback of `restart(P)` during P's build fails `WouldDeadlock` (CCR-RM-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): identity claims (actor, `onBehalfOf`, `org`, `correlationId`) cross only when the link lists them in `disclose`, default none; a disclosing link is recorded as a data transfer; BEH-RM-024 every crossing entry names the identity claims that crossed in core's new `CrossingInfo.disclosed` (CCR-BR-033), unconditionally (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — `InProgress` exits keep the call in flight; a deadline reached after one is `RemoteTimeout` with outcome "unknown" (CCR-RM-003)<br>0.4 (2026-11-08): round 2: alignment with CORE-DECISIONS-2 — method timeouts read from `ContractDescriptor.timeouts` (`MethodSpec.timeout`, core G48 closed); the per-method option may only shorten them; both serving ends enforce the descriptor value; claims carry `onBehalfOf` as `PrincipalRef.encode`, `org` and `correlationId` (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `remaining` in the `call` frame, the deadline never sent as an annotation; wire annotations and claims of a call (BEH-RM-024); `Refused` exits mapped to errors, `MethodNotServed`; `welcome.maxInFlight` (R3-10, R3-15, R3-01) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-RM-022: `HeldPlugins` and `CurrentTransition` carry canonical keys, the session child added by `JSON.stringify([realm, id])` (PL1) (CCR-RM-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, review of the round) — BEH-RM-022: the guest-callback fiber carries core `CurrentTransition` beside `HeldPlugins`, read from the calling fiber, so a guest callback of `restart(P)` during P's build fails `WouldDeadlock` (CCR-RM-006)<br>0.6 (2026-11-09): Specification audit of 2026-11-09 (F-07): identity claims (actor, `onBehalfOf`, `org`, `correlationId`) cross only when the link lists them in `disclose`, default none; a disclosing link is recorded as a data transfer; BEH-RM-024 every crossing entry names the identity claims that crossed in core's new `CrossingInfo.disclosed` (CCR-BR-033), unconditionally (CCR-RM-004)<br>0.5 (2026-11-08): Round-2 agent review (R4 F20) — `InProgress` exits keep the call in flight; a deadline reached after one is `RemoteTimeout` with outcome "unknown" (CCR-RM-003)<br>0.4 (2026-11-08): round 2: alignment with CORE-DECISIONS-2 — method timeouts read from `ContractDescriptor.timeouts` (`MethodSpec.timeout`, core G48 closed); the per-method option may only shorten them; both serving ends enforce the descriptor value; claims carry `onBehalfOf` as `PrincipalRef.encode`, `org` and `correlationId` (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — `remaining` in the `call` frame, the deadline never sent as an annotation; wire annotations and claims of a call (BEH-RM-024); `Refused` exits mapped to errors, `MethodNotServed`; `welcome.maxInFlight` (R3-10, R3-15, R3-01) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -256,12 +256,14 @@ REQUIREMENT: When a `use` callback that leases the session child is revoked
 ```
 REQUIREMENT: A guest callback into a host service (06 — Capability Tokens and
              Call Log) MUST run host-side in a fiber that carries, in
-             `@bridger/core/HeldPlugins` (BEH-BR-088), the plugins held by
-             the fiber of the host-to-guest call it belongs to, plus the
-             session child, and, in `@bridger/core/CurrentTransition`
-             (BEH-BR-088), the value that fiber carries — read from it,
-             never set to none or to another plugin's id when it carries
-             one — so that a callback that would wait for the proxy's own
+             `@bridger/core/HeldPlugins` (BEH-BR-088), the canonical keys
+             held by the fiber of the host-to-guest call it belongs to, plus
+             the session child's canonical key, `JSON.stringify([realm,
+             id])` (core BEH-BR-147), and, in
+             `@bridger/core/CurrentTransition` (BEH-BR-088), the canonical
+             key that fiber carries — read from it, never set to none or to
+             another plugin's key when it carries one; both carry canonical
+             keys, never bare plugin ids — so that a callback that would wait for the proxy's own
              drain, or a `restart(P)` reached from a callback of a call
              made during P's build, fails with `WouldDeadlock` instead of
              waiting.

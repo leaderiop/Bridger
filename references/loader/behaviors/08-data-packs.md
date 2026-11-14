@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-BEH-08                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.3 (2026-11-09): Footer links file 09 (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
+> | Change History | 0.6 (2026-11-11): BEH-LD-062: an equal-digest load of a pack withheld from `current` re-publishes it; BEH-LD-063: no withdrawal mark is saved, so a restart restores a withdrawn pack later un-revoked; checks 23 and 24 (L4); second pass (cleanest design): both replaced — the accepted packs are those `load` accepted or construction restored, `current` is a pure function of them and the held set, evaluated the same way at runtime and after a restart, so un-revocation makes a withdrawn pack current again at that change with no load, an equal-digest load of an accepted pack changes nothing, a saved pack refused at construction with `StatementRevoked` is verified again on every revocation change, `restored` lists exactly the saved packs not accepted, reinstatements are logged, and the documentation duty is withdrawn; Settled (6) (L4) (SPEC-AUDIT-09) (CCR-LD-012)<br>0.5 (2026-11-11): BEH-LD-062: `StoredDataPack.acceptedAt`, passed as `reverify.acceptedAt` at the construction re-verification, so a signer window that closed after acceptance does not withhold a saved pack (PL20); check 18 extended (SPEC-AUDIT-06) (CCR-LD-009)<br>0.4 (2026-11-11): BEH-LD-061: `DataPacks.layer(options: DataPacksOptions)` declared, with its error and requirements (PL22) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.3 (2026-11-09): Footer links file 09 (CCR-LD-004)<br>0.2 (2026-11-08): Round-2 agent review (R3-04, R3-05): the store keeps manifest bytes, payload and signatures so that saved packs are verified again at restart, with `reverify` (held revocations apply, `maxAge` does not) and a stated result when it fails; an equal version with a different digest is refused as "equivocation"; checks 23 and 24 extended (CCR-LD-003)<br>0.1 (2026-11-08): Initial draft (CCR-LD-003)                 |
 
 ---
 
@@ -156,7 +156,7 @@ interface DataPacksShape {
   readonly load: (ref: DataPackRef) => Effect.Effect<VerifiedDataPack, DataPackLoadError>
   readonly current: (id: string) => Effect.Effect<Option.Option<CurrentDataPack>>        // BEH-LD-062
   readonly changes: (id: string) => Stream.Stream<Option.Option<CurrentDataPack>>        // latest wins
-  readonly restored: Effect.Effect<readonly DataPackRestore[]>                           // saved packs not restored (BEH-LD-062)
+  readonly restored: Effect.Effect<readonly DataPackRestore[]>                           // saved packs not accepted (BEH-LD-062)
 }
 class DataPacks extends Context.Service<DataPacks, DataPacksShape>()("@bridger/loader/DataPacks") {}
 type DataPackLoadError =
@@ -272,8 +272,26 @@ interface DataPacksOptions {
   readonly feed?: DataPackFeed                                           // BEH-LD-062
 }
 declare const DataPacks: {
+  // Builds the DataPacks service (BEH-LD-059); saved packs are verified again at construction (BEH-LD-062).
+  readonly layer: (options: DataPacksOptions) =>
+    Layer.Layer<DataPacks, DataPackStoreFailed, StatementVerifier | RevocationSource>
   readonly decode: <A>(pack: VerifiedDataPack, schema: Schema.Codec<A, unknown>) => Effect.Effect<A, Schema.SchemaError>
 }
+```
+
+```
+REQUIREMENT: `DataPacks.layer` MUST be the one constructor of the
+             `DataPacks` service and MUST take every option of
+             `DataPacksOptions`. It MUST require `StatementVerifier`, through
+             which `SignaturePolicy.verify` runs (07, BEH-LD-050), and
+             `RevocationSource`, whose changes drive the re-checks of
+             BEH-LD-062 and BEH-LD-063 (04, BEH-LD-026); it MUST read
+             `LoadLog` with `Effect.serviceOption` (02, BEH-LD-016). Building
+             it MUST fail with `DataPackStoreFailed` ("load") when the store
+             cannot be read; a saved pack that fails verification MUST NOT
+             fail the build (BEH-LD-062). With `feed`, the layer MUST pass
+             each `DataPackRef` the feed lists to `load`, in a fiber of the
+             layer's scope.
 ```
 
 ```
@@ -317,6 +335,7 @@ interface StoredDataPack {
   readonly payload: Uint8Array
   readonly signatures: readonly Signature[]
   readonly digest: string                     // the data-pack digest computed at acceptance
+  readonly acceptedAt: string                 // the `at` of the acceptance's record (07, BEH-LD-055)
 }
 interface DataPackStoreShape {                            // the application's persistence port
   // highest accepted version of an id, with that version's digest
@@ -324,7 +343,7 @@ interface DataPackStoreShape {                            // the application's p
   readonly save: (pack: StoredDataPack) => Effect.Effect<void, DataPackStoreFailed>
   readonly load: Effect.Effect<readonly StoredDataPack[], DataPackStoreFailed>                 // verified again at construction
 }
-interface DataPackRestore {                               // DataPacks.restored: one entry per saved pack not restored
+interface DataPackRestore {                               // DataPacks.restored: one entry per saved pack not accepted
   readonly id?: string                                    // absent when the manifest could not be decoded
   readonly digest: string
   readonly cause: DataPackLoadError
@@ -337,24 +356,44 @@ class DataPackStoreFailed extends Schema.TaggedError<DataPackStoreFailed>()("Dat
 
 ```
 REQUIREMENT: A data pack whose version is lower than the highest version
-             accepted for its id MUST be refused with `PackageRefused`
-             (predicate "rollback"). A data pack whose version equals the
-             highest accepted version and whose digest differs from that
+             the store records for its id (`DataPackStore.highest`) MUST be
+             refused with `PackageRefused` (predicate "rollback"). A data
+             pack whose version equals that version and whose digest differs from that
              version's digest MUST be refused with `PackageRefused`
              (predicate "equivocation") and logged at warning level with
-             both digests; one with the same digest MUST return the pack
-             already accepted and change nothing. An accepted pack MUST be
-             saved through the store, as a `StoredDataPack`, before it is
-             published on `changes`; a pack that cannot be saved MUST NOT
-             be published.
+             both digests. The **accepted packs** of a `DataPacks` are the
+             packs its `load` accepted and the saved packs it restored
+             (below); it keeps no other state about a pack — no mark of a
+             withdrawal or a reinstatement. A load of a digest that is
+             already an accepted pack MUST return that pack and change
+             nothing: it saves nothing and publishes nothing on `changes`,
+             whether or not the pack is current, since whether it is
+             current is derived (next rule). A load of a digest that is not
+             an accepted pack is an acceptance, whatever the store already
+             holds for that digest: an accepted pack MUST be saved through
+             the store, as a `StoredDataPack` replacing any saved copy of
+             the same digest, before it is published on `changes`; a pack
+             that cannot be saved MUST NOT be accepted or published.
 ```
 
 ```
-REQUIREMENT: `current(id)` MUST return, among the accepted packs of that id
-             that are not revoked, the highest version whose window is
-             "effective"; when none is effective, the highest version whose
-             window is "expired"; and `None` when there is none. Each value
-             MUST carry the `status` computed at the time of the call.
+REQUIREMENT: `current(id)` MUST be a pure function of the accepted packs of
+             that id and the revocation set `RevocationSource` holds at the
+             time of the call (04, BEH-LD-026), evaluated afresh on every
+             call and on every revocation change, never from an earlier
+             answer: among those packs whose record
+             `Revocation.check(pack.verification, set)` does not revoke (07,
+             BEH-LD-052), the highest version whose window is "effective";
+             when none is effective, the highest version whose window is
+             "expired"; and `None` when there is none. Each value MUST
+             carry the `status` computed at the time of the call. The same
+             function MUST serve a running `DataPacks` and one just
+             constructed, so that, for one content of the store and one
+             held set, `current` gives the same answer whether that set
+             arrived before the last construction or after it — except for
+             a saved pack that fails its restore verification for a cause
+             other than the revocation set (below), which is not an
+             accepted pack.
 ```
 
 ```
@@ -363,7 +402,8 @@ REQUIREMENT: At construction, before `current` answers, each saved pack
              shape checks and the digest of BEH-LD-057 and BEH-LD-058
              recomputed from `manifestBytes` and `payload` and compared with
              the saved `digest`, then `SignaturePolicy.verify` with the saved
-             `signatures` and `reverify: true` (07, BEH-LD-050), then the
+             `signatures` and `reverify: { acceptedAt }` from the saved
+             `acceptedAt` (07, BEH-LD-050), then the
              schema-id check. The held revocation set's entries therefore
              apply, and its age does not: a restart without network keeps
              the data it had however long ago the last list arrived, and
@@ -371,15 +411,29 @@ REQUIREMENT: At construction, before `current` answers, each saved pack
 ```
 
 ```
-REQUIREMENT: A saved pack that fails this verification MUST NOT be
-             returned by `current` or published on `changes`, MUST be listed
-             in `DataPacks.restored` with its cause, and MUST be logged at
-             error level. When the cause is `RevocationUnavailable` (no
-             revocation set at all), the pack MUST be verified again on the
-             next revocation change; for any other cause it stays withheld
-             until a new `load` accepts a pack of that id. `current(id)`
-             MUST answer from the packs that were restored, so it returns
-             `None` for an id none of whose packs was restored.
+REQUIREMENT: A saved pack that passes this verification is restored: it
+             becomes an accepted pack, with the record that verification
+             wrote as its `verification`. A saved pack that fails it MUST
+             NOT become an accepted pack, MUST be listed in
+             `DataPacks.restored` with its cause, and MUST be logged — at
+             warning level with the `StatementRevoked` cause, as a
+             withdrawal is (BEH-LD-063), and at error level for any other
+             cause. When the cause is the revocation set —
+             `StatementRevoked` (the held set revokes it) or
+             `RevocationUnavailable` (there is no set at all) — the pack
+             MUST be verified again in the same way on every revocation
+             change while it is not an accepted pack (a `load` may accept
+             it first), and restored as soon as that verification passes,
+             which removes its `restored` entry and publishes the new
+             choice on `changes`; this is how a pack revoked before a
+             restart and not revoked under a later set becomes current
+             again, as a pack revoked while `DataPacks` runs does
+             (BEH-LD-063). For any other cause it is not verified again,
+             and its entry stays until a `load` accepts that digest.
+             `DataPacks.restored` lists exactly the saved packs that are
+             not accepted packs. `current(id)` answers only from accepted
+             packs, so it returns `None` for an id none of whose packs is
+             accepted.
 ```
 
 ```
@@ -409,13 +463,17 @@ decision the application makes, not the loader.
 > **Risk:** [RSK-BR-044](../../core/gxp/03-risk-assessment.md#rsk-br-044)
 
 ```
-REQUIREMENT: On each revocation change, `DataPacks` MUST re-check every
-             accepted pack with `Revocation.check` (07, BEH-LD-052) and MUST
-             withdraw from `current` each pack the new set revokes, by
-             subject digest, statement digest or signer, publishing the
-             new choice on `changes`. It MUST log each withdrawal at
-             warning level with the id, version, digest and
-             `StatementRevoked` cause.
+REQUIREMENT: On each revocation change, `DataPacks` MUST evaluate `current`
+             for every id under the new set (BEH-LD-062), which re-checks
+             every accepted pack with `Revocation.check` (07, BEH-LD-052),
+             by subject digest, statement digest or signer, and MUST
+             publish the new choice on `changes` for each id whose choice
+             changed. It MUST log at warning level each accepted pack the
+             new set revokes and the previous set did not (a withdrawal),
+             with the id, version, digest and `StatementRevoked` cause, and
+             each accepted pack the previous set revoked and the new set
+             does not (a reinstatement), with the id, version, digest and
+             the new set's `revision`.
 ```
 
 ```
@@ -426,14 +484,26 @@ REQUIREMENT: Documentation MUST state that a reader that already holds a
 ```
 
 ```
-REQUIREMENT: Un-revocation by a newer list (04, BEH-LD-026) MUST NOT
-             restore a withdrawn pack by itself: the pack becomes current
-             again only through a new `load` that verifies it.
+REQUIREMENT: Un-revocation by a newer list (04, BEH-LD-026) MUST make a
+             withdrawn pack current again, with no new `load`, as soon as
+             that list no longer revokes it and it is again the choice of
+             BEH-LD-062 — at that revocation change, exactly as a
+             construction under that list would restore it. A `load` of its
+             digest changes nothing (BEH-LD-062): while the pack is revoked
+             the load fails with `StatementRevoked` at verification, and
+             once it is not, the pack is already an accepted pack.
 ```
 
 The withdrawal is the data-pack form of the kill switch. It goes through no
 host operation because a data pack was never installed; the record of what
 was withdrawn and why is the loader's log and the revocation list itself.
+For the same reason `current` is a view, not a state: it is computed from the
+accepted packs and the held set, so a withdrawal and a reinstatement need no
+mark of their own, and a running host and a restarted one cannot disagree
+about which pack is current. A package differs: its removal by the kill switch
+is a recorded host operation, and an un-revoked package is reported in
+`status.unrevoked` and becomes usable again only through a load or a gated
+install (04, BEH-LD-026, BEH-LD-029).
 
 ## BEH-LD-064: Required acceptance checks for statements and data packs
 
@@ -459,7 +529,8 @@ REQUIREMENT: The loader test suite MUST also contain at least one test for
                  `StatementVerifier` with a "revocation-list" rule is
                  refused and `verify` of that type fails "no-rule";
                  `reverify` ignores the set's age and still honours its
-                 entries (BEH-LD-050, BEH-LD-051).
+                 entries, and a signer window that closed after
+                 `acceptedAt` does not refuse it (BEH-LD-050, BEH-LD-051).
              19. Revocation of statements: a subject digest revokes every
                  statement about it; a statement digest revokes every
                  statement of that type, id and version about those bytes
@@ -498,8 +569,11 @@ REQUIREMENT: The loader test suite MUST also contain at least one test for
                  evaluator records no call for any data-pack load; an
                  unknown schema id and a lower version are refused; an
                  equal version with a different digest is refused as
-                 "equivocation" and logged, and with the same digest
-                 changes nothing; JSON payloads decode with the given
+                 "equivocation" and logged, and a load of a digest that
+                 is already an accepted pack saves and publishes nothing,
+                 whether or not the pack is current, while a load of a
+                 digest whose saved copy was not restored accepts it,
+                 replacing the saved copy; JSON payloads decode with the given
                  schema (BEH-LD-057–059, BEH-LD-061, BEH-LD-062).
              24. Freshness and withdrawal: `status` reports "pending",
                  "effective" and "expired" and `DataPackStale` for
@@ -507,13 +581,21 @@ REQUIREMENT: The loader test suite MUST also contain at least one test for
                  is still served; `requireFresh` fails with
                  `DataPackStale`; a shorter application `maxAge` applies
                  and a longer one does not; a revocation withdraws the pack
-                 from `current` and un-revocation does not restore it; a
+                 from `current` and a newer list that no longer revokes it
+                 makes it current again with no load, each change published
+                 on `changes` and logged, and a load of its digest changes
+                 nothing; for each sequence of revocation sets in the
+                 suite, `current` after the last set arrives at runtime
+                 equals `current` after a construction under that set; a
                  restart under a test clock past the revocation `maxAge`
                  restores every saved pack from its stored bytes and
-                 signatures, a restart after its digest was revoked
-                 restores none of that pack, and a saved pack whose bytes
-                 were altered is listed in `restored` with
-                 `DigestMismatch` (BEH-LD-060, BEH-LD-062, BEH-LD-063).
+                 signatures; a restart after its digest was revoked
+                 restores none of that pack, lists it in `restored` with
+                 `StatementRevoked`, and restores it, with no load, when a
+                 list that no longer revokes it arrives; and a saved pack
+                 whose bytes were altered is listed in `restored` with
+                 `DigestMismatch` and not verified again on a revocation
+                 change (BEH-LD-060, BEH-LD-062, BEH-LD-063).
 ```
 
 Each check corresponds to one acceptance scenario, REQ-LD-017 to REQ-LD-024,
@@ -526,10 +608,14 @@ its own domain string, with no entry code. (2) It is verified by
 nothing evaluates it. (3) Window and freshness are reported on every read;
 whether stale data is used is the application's decision, with `requireFresh`
 for callers that refuse it. (4) Versions per id only rise, an equal version
-with other bytes is refused, and a revoked pack is withdrawn from `current`.
-(5) The store keeps manifest bytes, payload and signatures; a restart verifies
-each saved pack again with `reverify`, so held revocations apply and the list's
-age does not.
+with other bytes is refused, and a revoked pack is not current while a held
+set revokes it. (5) The store keeps manifest bytes, payload and signatures; a
+restart verifies each saved pack again with `reverify`, so held revocations
+apply and the list's age does not. (6) `current` is derived, never stored: one
+pure function of the accepted packs and the held set serves a running reader
+and a restarted one, so an un-revoked pack is current again at the revocation
+change, an equal-digest load is idempotent, and no withdrawal mark exists to
+persist or to lose.
 
 **Open.** (1) Whether large packs need a chunked payload with a Merkle root,
 so that a reader can verify part of a pack without holding all of it. (2)

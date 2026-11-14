@@ -123,7 +123,8 @@ a failure.
 $ bridger create my-app --template app
 $ bridger dev
 dev host started: 2 plugins active
-saved src/greeter.ts → replace example/greeter (cold start: no handoff declared)
+saved src/greeter.ts → replace example/greeter
+cold start: example/greeter (no handoff declared)
 ```
 
 `bridger dev` replaces changed plugins through the host's own `replace`, on a
@@ -139,3 +140,5 @@ development double.
 - Holding an error tag: [error catalog](./error-catalog.md)
 
 Change log: 2026-11-10, audit round 2 — `bridger dev` refuses any `AuditSink`, `OperationGate` or `ConfigFingerprinter` other than the kit's in-memory doubles, as kit BEH-KT-026 says (CCR-BR-034).
+
+Change log: 2026-11-11, audit round 6 (SPEC-AUDIT-06) — the `bridger dev` output prints "cold start: <id> (no handoff declared)" as kit BEH-KT-026 requires (PL16, CCR-BR-038).

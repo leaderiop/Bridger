@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-ADR-001                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.2 (2026-11-11): Decision names the one exception to "no private path": the loop's `spawnSubagent` call for the reserved spawn tool, no command, its host mutations gated under the parent's actor (SPEC-AUDIT-08 PL3) (CCR-AG-011)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -32,7 +32,11 @@ A Bridger agent framework would pick one answer for all of them.
 - **`Budget` is the entitlement companion's** and is cited, not redefined
   (BEH-AG-006).
 - **A turn pins one toolset** and every tool call is a `Commands.dispatch`
-  with that pin (BEH-AG-003, BEH-AG-005): agents get no private path.
+  with that pin (BEH-AG-003, BEH-AG-005): agents get no private path. The
+  one named exception is the loop's own `spawnSubagent` call, answering the
+  model's call of the reserved spawn tool: it is no command, and its host
+  mutations — the ephemeral realm and its installs — pass the
+  `OperationGate` under the parent's actor (BEH-AG-003, BEH-AG-025).
 - **Reference `AgentLoop` and `ToolRunner` plugins are shipped and
   replaceable; no `ModelAdapter` implementation is shipped.**
 

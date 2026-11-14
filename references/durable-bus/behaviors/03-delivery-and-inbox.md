@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-03                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-018: `InboxStore.transaction` provides the transaction's own `Scope`; BEH-DB-020: handlers may require it; BEH-DB-021: `OutboxFrozen` during a whole-store settlement does not count toward `maxAttempts` (H3, F4) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-018: an envelope's origin is a claim, not the sender's identity; the limit is documented and binding origins to authenticated senders is the transport's (P2); BEH-DB-019: a snapshot restore or re-bootstrap install is the one other way past unstored sequences, with its own `GapRecord` (P3) (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-12) — `InboxStore.transaction` and `receive` fail with the new `CommitConflict` when the engine refuses a commit for a conflict; a handler attempt that ends in `CommitConflict` is retried in a new transaction and, when the attempts end on one, halts its (origin, stream) without parking (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13; R5-04/05) — the inbox stores a `Withheld` marker at its sequence and advances the watermark and every cursor without a handler call; subscriptions gain `onUnreadable` ("park", "halt") and `subscribeEnvelopes` delivers stored envelopes undecoded, so an unreadable fact is halted on or recorded as received, never parked away (FX-NEW N1) (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — `PlacementRefused` added as an inbox-level stop (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `send` returns `Ack` only, `Ack.retryAfter`; receiver regression detected and repaired or reported; attributed `acceptGap`; inbox-level stops separated from subscription-level parks and halts; duplicate check bounded by the inbox's retention; handler receipt (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-DB-018: `receive` calls `DurableBus.fence` with its inbox transaction before it stores anything, and a refusal acknowledges nothing (no `watermarks`, zero credit, `retryAfter`) (PL19) (CCR-DB-011)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07 residual) — BEH-DB-021: a handler failing with `OutboxFrozen` while `apply-pending` holds is not counted and waits as under `origin-unrecorded` (CCR-DB-010)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-018 and BEH-DB-020: `InboxStore.transaction` and subscription handlers drop `Scope.Scope`, since a `DurableBus.fence` admission is bound to the transaction handle (H2, B1); BEH-DB-021: an `OutboxFrozen` failure stays uncounted, and the call waits, while `origin-unrecorded` holds after the settlement (B2) (CCR-DB-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-018: `InboxStore.transaction` provides the transaction's own `Scope`; BEH-DB-020: handlers may require it; BEH-DB-021: `OutboxFrozen` during a whole-store settlement does not count toward `maxAttempts` (H3, F4) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-DB-018: an envelope's origin is a claim, not the sender's identity; the limit is documented and binding origins to authenticated senders is the transport's (P2); BEH-DB-019: a snapshot restore or re-bootstrap install is the one other way past unstored sequences, with its own `GapRecord` (P3) (CCR-DB-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-12) — `InboxStore.transaction` and `receive` fail with the new `CommitConflict` when the engine refuses a commit for a conflict; a handler attempt that ends in `CommitConflict` is retried in a new transaction and, when the attempts end on one, halts its (origin, stream) without parking (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13; R5-04/05) — the inbox stores a `Withheld` marker at its sequence and advances the watermark and every cursor without a handler call; subscriptions gain `onUnreadable` ("park", "halt") and `subscribeEnvelopes` delivers stored envelopes undecoded, so an unreadable fact is halted on or recorded as received, never parked away (FX-NEW N1) (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — `PlacementRefused` added as an inbox-level stop (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — `send` returns `Ack` only, `Ack.retryAfter`; receiver regression detected and repaired or reported; attributed `acceptGap`; inbox-level stops separated from subscription-level parks and halts; duplicate check bounded by the inbox's retention; handler receipt (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -97,8 +97,7 @@ interface InboxStore {
   readonly cursor: (tx: StoreTransaction["Service"], subscription: string, origin: string, stream: string) => Effect.Effect<number, StoreUnavailable>
   readonly advance: (tx: StoreTransaction["Service"], subscription: string, origin: string, stream: string, to: number) => Effect.Effect<void, StoreUnavailable>
   // the commit itself may fail with CommitConflict (below); E is the effect's own error
-  // provides StoreTransaction and the transaction's own Scope, closed when the transaction ends (07, BEH-DB-054)
-  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction | Scope.Scope>) => Effect.Effect<A, E | StoreUnavailable | CommitConflict, R>
+  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R | StoreTransaction>) => Effect.Effect<A, E | StoreUnavailable | CommitConflict, R>
 }
 // The engine refused the commit because a concurrent transaction conflicted with it: a serialization
 // failure, or a conflict that a store sharing the transaction detects only at commit (event-store BEH-ES-034).
@@ -116,7 +115,9 @@ REQUIREMENT: `receive` MUST first decode every element's `origin`, `stream`
              and `sequence`; when one does not decode, it MUST store nothing,
              fail with `MalformedBatch` and report `malformed-batch` (the
              relay treats it as `DeliveryFailed`). It MUST then process the
-             batch in one inbox transaction. An envelope of an (origin,
+             batch in one inbox transaction, calling `DurableBus.fence` with
+             it before it stores anything; during a whole-store freeze or
+             hold the refusal stores nothing (06, BEH-DB-048). An envelope of an (origin,
              stream) stopped at the inbox level (BEH-DB-022) MUST be ignored
              and not acknowledged. For every other envelope, against the
              watermark W of its (origin, stream):
@@ -144,7 +145,9 @@ REQUIREMENT: `receive` MUST first decode every element's `origin`, `stream`
 ```
 REQUIREMENT: The acknowledgement MUST be computed from the watermarks after
              the inbox transaction committed, and MUST NOT be returned if it
-             did not commit. When the commit fails with `CommitConflict`,
+             did not commit, except the answer to a `fence` refusal, which
+             acknowledges nothing (no `watermarks`, zero credit,
+             `retryAfter`; 06, BEH-DB-048). When the commit fails with `CommitConflict`,
              `receive` MUST fail with it, having stored and acknowledged
              nothing; the sender resends the batch (BEH-DB-017).
 ```
@@ -236,7 +239,7 @@ interface DurableBus {
   readonly subscribe: <Events extends readonly DurableEvent<any, any>[]>(
     name: string,
     events: Events,
-    handler: (event: EventOf<Events>, envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction | Scope.Scope>,
+    handler: (event: EventOf<Events>, envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction>,
     options?: { readonly maxAttempts?: number; readonly onPoison?: "halt" | "park-and-continue"
                 readonly onUnreadable?: "park" | "halt"   // PayloadUnreadable (01, BEH-DB-008); default "park"
                 readonly origins?: readonly string[] }
@@ -245,7 +248,7 @@ interface DurableBus {
   readonly subscribeEnvelopes: (
     name: string,
     types: readonly DurableEvent<any, any>[],
-    handler: (envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction | Scope.Scope>,
+    handler: (envelope: Envelope, receipt: Receipt) => Effect.Effect<void, unknown, StoreTransaction>,
     options?: { readonly maxAttempts?: number; readonly onPoison?: "halt" | "park-and-continue"; readonly origins?: readonly string[] }
   ) => Effect.Effect<void, never, Scope.Scope>
   readonly resume: (subscription: string, origin: string, stream: string) => Effect.Effect<void>   // BEH-DB-021
@@ -322,9 +325,12 @@ REQUIREMENT: Different (origin, stream) pairs MAY be processed concurrently,
 REQUIREMENT: When a handler fails or dies, its transaction MUST roll back
              (cursor unchanged) and the call MUST be retried with backoff
              and jitter from `Random`, up to `maxAttempts` (default 5). A
-             failure with `OutboxFrozen` during a whole-store settlement is
-             not counted and waits for the settlement's scope to close (06,
-             BEH-DB-048).
+             failure with `OutboxFrozen` during a whole-store settlement, or
+             after it while the raised incarnation is unrecorded
+             (`origin-unrecorded`) or a store-swap `apply` is pending
+             (`apply-pending`), is not counted and waits until the
+             settlement's scope has closed and neither hold is in force
+             (06, BEH-DB-048).
 ```
 
 ```

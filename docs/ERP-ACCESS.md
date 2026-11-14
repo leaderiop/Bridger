@@ -103,7 +103,7 @@ Qadi's `filter` runs over fetched data and is not used for paginated lists.
 
 Open points that need tests before the design is accepted:
 
-1. **Column mapping.** `toPredicate` emits `column: "createdBy"`. The wrapper must map resource attribute paths to physical columns, including extension fields such as `planning.task.priority`, and reject unknown paths.
+1. **Column mapping.** `toPredicate` emits `column: "createdBy"`. The wrapper must map resource attribute paths to physical columns, and extension fields such as `planning.task.priority` to an expression over the extension table's left join, `COALESCE(column, absent)`, so a record with no extension row is judged on the field's absent value and never on NULL. It rejects unknown paths.
 2. **Row/field split.** Every operation needs separate row and field policies. The wrapper must produce them without changing meaning.
 3. **Revision in the same statement.** The SQL fragment from `predicate-sql` must compose with the `revision = ?` and scope clauses in one parameterized statement.
 
@@ -131,6 +131,8 @@ The catalog filters visible modules and views with `check(hasPermission(...))` f
 
 All Bridger packages target the latest stable Effect 4.x (4.1 at the time of the 2026-11-08 revision; this replaces the earlier 4.0 target). `@qadi/core@0.8.0` and awthaq currently pin `effect@4.0.0-rc.116` exactly; the browser shell's FoldKit copy of Effect is separate and talks to the server only over HTTP ([ERP-BROWSER.md](ERP-BROWSER.md) §1), so it does not need to match. See [knowledge/README.md](knowledge/README.md).
 
+Decision D13 ([ERP-APOTHEKA-DECISIONS.md](ERP-APOTHEKA-DECISIONS.md), 2026-11-11): one exact Effect pin for a deployment, the stable 4.x this policy targets. `@qadi/core`, awthaq and the core prototype move to it in their own repositories before the ERP storage and module work starts; until then no workspace may resolve two copies of Effect.
+
 ## 10. Acceptance checks
 
 - Alice and Bob in one company: each lists only their own rows, in SQL, with correct pagination.
@@ -145,3 +147,5 @@ All Bridger packages target the latest stable Effect 4.x (4.1 at the time of the
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
 
 Change log: 2026-11-09, audit fixes — §5 `list` row: filters, sorts, searches and aggregates over a field the caller may not read give `InvalidQuery`, as in ERP-RECORDS §5, so list and aggregate agree; `Forbidden` stays for a requested projection (E-11). §6: the gate's refusal reason `access-denied` is what the gateway maps to `Forbidden` (review fix).
+
+Change log: 2026-11-11, extension tables — §5 open point 1: an extension field in a row policy maps to an expression with the field's absent value, not to a bare column.

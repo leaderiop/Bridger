@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-TRACE                                             |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-SQ-009 cites BEH-BR-292; REQ-SQ-011 restated (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-008 cites BEH-BR-258; BEH-SQ-011 adds REQ-SQ-008; REQ-SQ-008 and REQ-SQ-012 restated (CCR-SQ-004)<br>0.3 (2026-11-09): REQ-SQ-011 and REQ-SQ-012; BEH-SQ-002, 003, 008, 009, 010, 019 and 020 rows extended (CCR-SQ-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — REQ-SQ-011 restated (H4, H5); second pass (cleanest design): REQ-SQ-011 names `readForSwap` and the `SwapStep` in place of the step marker (CCR-SQ-008)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-SQ-009 cites BEH-BR-292; REQ-SQ-011 restated (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-008 cites BEH-BR-258; BEH-SQ-011 adds REQ-SQ-008; REQ-SQ-008 and REQ-SQ-012 restated (CCR-SQ-004)<br>0.3 (2026-11-09): REQ-SQ-011 and REQ-SQ-012; BEH-SQ-002, 003, 008, 009, 010, 019 and 020 rows extended (CCR-SQ-003)<br>0.2 (2026-11-08): §1 Core URS column: URS-BR-056–059 cited where the behaviours now cite them (core CCR-BR-027) (CCR-SQ-001)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -63,7 +63,7 @@ Test files are *Planned* under `packages/sequence/test/` *(Planned)*.
 | <a id="req-sq-008"></a>REQ-SQ-008 | 8 | Verification categories, purity, registry, retirement; authority-side recording with the issuer's ids | BEH-SQ-011–015 |
 | <a id="req-sq-009"></a>REQ-SQ-009 | 9 | Chaining by stream version | BEH-SQ-016 |
 | <a id="req-sq-010"></a>REQ-SQ-010 | 10 | Integers only; no storage of its own | BEH-SQ-017, BEH-SQ-018 |
-| <a id="req-sq-011"></a>REQ-SQ-011 | 11 | Re-bootstrap on a running host: old handles refused, old series superseded from the replaced store, by the sequence service actor | BEH-SQ-002, BEH-SQ-009, BEH-SQ-010 |
+| <a id="req-sq-011"></a>REQ-SQ-011 | 11 | Re-bootstrap on a running host: old handles refused, old series superseded from the replaced store, read through event-store `readForSwap` with the durable-bus `SwapStep` without waiting, by the sequence service actor, the step waiting for `whenReadable` outside its transaction | BEH-SQ-002, BEH-SQ-009, BEH-SQ-010 |
 | <a id="req-sq-012"></a>REQ-SQ-012 | 12 | Grants on the `Sequence` members decide calls through a handle; series events appended under the plugin's own principal | BEH-SQ-003, BEH-SQ-008 |
 
 ## §3 Risk notes

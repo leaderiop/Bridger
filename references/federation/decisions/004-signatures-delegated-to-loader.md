@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-ADR-004                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-08): Round-2 agent review (R3-01) — the loader's exact `verify` call and `SignedStatement` envelope for host manifests; revocation lists only through `RevocationSource.offer` (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck item 18 — the loader's generalized `SignaturePolicy.verify` with `statementType`; revocation lists from kill frames (CCR-FD-003)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — consequence: a stored manifest is re-verified with `reverify: { acceptedAt }`, `acceptedAt` stored with it, and this restores the manifest's verification only (PL10, H2) (CCR-FD-011)<br>0.4 (2026-11-08): Round-2 agent review (R3-01) — the loader's exact `verify` call and `SignedStatement` envelope for host manifests; revocation lists only through `RevocationSource.offer` (CCR-FD-003)<br>0.3 (2026-11-08): round 2: recheck item 18 — the loader's generalized `SignaturePolicy.verify` with `statementType`; revocation lists from kill frames (CCR-FD-003)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -34,6 +34,8 @@ Manifests must be signed by the authority. Plugin packages must be signed too, b
 ## Consequences
 
 **Positive**: one policy decides what is signed enough, for code and for desired state.
+
+**Stored manifests**: a manifest read back from the `ManifestStore` — at boot and at each re-apply — is re-verified with the same call plus `reverify: { acceptedAt }`, `acceptedAt` stored with it (loader BEH-LD-050; [BEH-FD-002](../behaviors/01-host-manifest.md#beh-fd-002-the-signed-bytes-are-verified-before-they-are-decoded)), the one other form of the host-manifest call. It restores the manifest's verification only: the plugin packages the manifest names still need a fresh revocation set to load or install.
 
 **Negative**: federation depends on the loader companion's port being specified; until it is, the shape used in 01 is an assumption to be aligned.
 

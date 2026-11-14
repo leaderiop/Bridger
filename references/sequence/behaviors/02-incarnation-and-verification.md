@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-BEH-02                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-SQ-011: `SeriesFacts.receive` takes the transaction's `Scope`, as event-store's `receive` handler now does for the scoped durable-bus `DurableBus.fence` (durable-bus H3) (CCR-SQ-006)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, Low "seen, not assessed") — BEH-SQ-009: the supersession step runs under the service actor `{ kind: "service", id: "sequence:" + node }` through `CallerContext.serve` with `Annotations.empty` and no correlation, so it commits under durable-bus `requireActor: true` (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-011: the package ships `SeriesFacts` (decider, `toFact`, `receive`) for authority-side recording, keeping the issuer's stream and the issuer's `eventId` as fact identifier; BEH-SQ-012: `SeriesEventInput.of` takes the issuer's `eventId` from `causationId` for a recorded received fact (P5) (CCR-SQ-004)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-009 runs the supersession step again when the durable-bus origin changes on a running host, takes the old series from the store being replaced through a durable-bus store-swap participant, refuses calls under the new origin with `SupersessionPending` until the step has committed, and states what a re-bootstrap snapshot may hold (U-10); `lastKnownOnly` is false for series read from the live store at a re-bootstrap (BEH-SQ-009, BEH-SQ-010, BEH-SQ-012); BEH-SQ-011 publishes on the event-store stream by event-store's default (F-05) (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-SQ-009: the store-swap `prepare` reads under durable-bus's participant-step marker, so its event-store reads skip the read gate (H4); the supersession step awaits `DurableBus.whenReadable` before each attempt's transaction, never inside it (H5); second pass (cleanest design): the marker withdrawn — the participant, of stage "data", reads through event-store `readForSwap` with the durable-bus `SwapStep` its `prepare` is handed; the step reads inside each attempt's transaction through event-store `readIn`, an attempt refused with `StoreSwapInProgress` or `OutboxFrozen` retried; third pass: a store-swap step that awaits the read gate is refused at once (durable-bus BEH-DB-048, `CurrentSwapStep`) — BEH-SQ-009: an ordinary `read` in the `prepare` would die at once, failing the install "prepare-failed" (CCR-SQ-008)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-SQ-011: `SeriesFacts.receive` requires `StoreTransaction` only again, as event-store's `receive` handler does now that the durable-bus fence admission is bound to the transaction handle, not a `Scope` (durable-bus H2) (CCR-SQ-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-SQ-011: `SeriesFacts.receive` takes the transaction's `Scope`, as event-store's `receive` handler now does for the scoped durable-bus `DurableBus.fence` (durable-bus H3) (CCR-SQ-006)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, Low "seen, not assessed") — BEH-SQ-009: the supersession step runs under the service actor `{ kind: "service", id: "sequence:" + node }` through `CallerContext.serve` with `Annotations.empty` and no correlation, so it commits under durable-bus `requireActor: true` (CCR-SQ-005)<br>0.4 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-SQ-011: the package ships `SeriesFacts` (decider, `toFact`, `receive`) for authority-side recording, keeping the issuer's stream and the issuer's `eventId` as fact identifier; BEH-SQ-012: `SeriesEventInput.of` takes the issuer's `eventId` from `causationId` for a recorded received fact (P5) (CCR-SQ-004)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 — BEH-SQ-009 runs the supersession step again when the durable-bus origin changes on a running host, takes the old series from the store being replaced through a durable-bus store-swap participant, refuses calls under the new origin with `SupersessionPending` until the step has committed, and states what a re-bootstrap snapshot may hold (U-10); `lastKnownOnly` is false for series read from the live store at a re-bootstrap (BEH-SQ-009, BEH-SQ-010, BEH-SQ-012); BEH-SQ-011 publishes on the event-store stream by event-store's default (F-05) (CCR-SQ-003)<br>0.2 (2026-11-08): BEH-SQ-009 records a supersession in the new incarnation's own stream, never in the old series, and closes every open series of lower incarnations when the plugin starts; BEH-SQ-011 publishes `SeriesSuperseded`; BEH-SQ-012 takes decoded series events and orders by number; BEH-SQ-013 states what a restore without a raised incarnation looks like at the authority and drops the foreign-writer exemption (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -67,7 +67,8 @@ REQUIREMENT: The plugin MUST run the same step whenever the durable-bus origin
              changes while it runs (`originChanges`, durable-bus BEH-DB-004),
              which only a whole-store re-bootstrap does (BEH-DB-048). For that
              case it MUST register a store-swap participant
-             (`DurableBus.onStoreSwap`) whose `prepare` reads, from the store
+             (`DurableBus.onStoreSwap`) of stage "data", without `apply`,
+             whose `prepare` reads, from the store
              about to be replaced, every series of this node that is neither
              closed nor superseded and its highest number; the step after the
              change MUST supersede those series too, with `lastKnownOnly:
@@ -77,7 +78,22 @@ REQUIREMENT: The plugin MUST run the same step whenever the durable-bus origin
              current origin, `open`, `next` and `close` under that origin MUST
              fail with `SupersessionPending { origin }` and write nothing; the
              step runs in the plugin's own transaction and is retried with
-             backoff until it commits.
+             backoff until it commits. The `prepare` reads through its
+             capture of the `EventStore` contract with `readForSwap`, passing
+             the `SwapStep` durable-bus hands it, so its reads run at once
+             rather than wait for the install they run in; an ordinary
+             `read` or `readAll` there would die at once with durable-bus's
+             defect naming the participant and the step, failing the install
+             "prepare-failed" (durable-bus BEH-DB-048, event-store
+             BEH-ES-034). The step, at start and after
+             an origin change, MUST await `DurableBus.whenReadable` before it
+             opens each attempt's transaction, never inside it, and read
+             inside that transaction through `readIn`, passing it; an attempt
+             refused by a whole-store install or its holds (`OutboxFrozen`, or
+             event-store `StoreSwapInProgress` from `readIn`) rolls back and
+             is retried once `whenReadable` completes, so that the step never holds the write lock of a
+             single-writer engine while durable-bus retries
+             `recordIncarnation` (durable-bus BEH-DB-048).
 ```
 
 ```
@@ -197,7 +213,7 @@ declare const SeriesFacts: {
   readonly decider: FactDecider<void, SeriesFact, SeriesEvent>
   readonly toFact: (event: SeriesEvent, envelope: Envelope) => SeriesFact
   readonly receive: (event: SeriesEvent, envelope: Envelope, receipt: Receipt) =>
-    Effect.Effect<void, unknown, StoreTransaction | Scope.Scope>   // EventStore.receive(SeriesFacts.decider, SeriesFacts.toFact)
+    Effect.Effect<void, unknown, StoreTransaction>   // EventStore.receive(SeriesFacts.decider, SeriesFacts.toFact)
 }
 ```
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-08                                               |
-> | Revision       | 0.15                                                         |
+> | Revision       | 0.20                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.15 (2026-11-10): BEH-BR-066 the ordered check list names steps 4a (fingerprints) and 4b (refusal list) (CL3), and `ConfigInvalid` only for a value on a registration already loaded (C8); BEH-BR-074 the resume list and `stop-resumed` `by` name the sub-scope close and `unmount` of a child, with their drain limit; BEH-BR-080 such a resumption is not a cascade (C10) (CCR-BR-036)<br>0.14 (2026-11-10): BEH-BR-066 and BEH-BR-075 `shutdown`'s `WouldDeadlock` is the one decided before the `requested` record, with no record and no join; the carried references named (H1); BEH-BR-079 a refused background restart is a cascade root with no caller (C3) (CCR-BR-035)<br>0.13 (2026-11-10): BEH-BR-068 `replace` and `enable` complete on entering `dormant` too, and a row for a call whose start the `RefusalList` refuses after step 4b (completes on `disabled`, `completed` record, `start-refused` caused by its `requested` record) (H3); BEH-BR-073 names the system stop of a refused background restart, reason "refused-digest", `next` "disabled" (C5) (CCR-BR-034)<br>0.12 (2026-11-09): BEH-BR-071 `starting` row: a `restart` or `reconfigure` that supersedes a build keeps a held handoff value for the next build, and a call that arrives while a build imports handed-off state waits for the build step and is decided against the state it lands in (U-02) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-073 covers every system stop, the idle return of a lazy plugin (reason "idle", `next` "dormant") named (C-06); BEH-BR-075 every stop under shutdown ends "gone" or `failed(cleanup)` and nothing starts; BEH-BR-080 a resumed stop under shutdown unregisters the plugin (U-01) (CCR-BR-032)<br>0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.20 (2026-11-11): "begun" counts also from the parent's activation failing (C6); BEH-BR-073 a take-over waits only for the stop step (drain, export), begins the removal as it ends, and the owning operation and queued calls are decided against the removal, `remove` completing and any other failing `UnknownPlugin` (H1, C2, C3); BEH-BR-074, BEH-BR-079, BEH-BR-080 a parent's cascade waits for a removal or take-over a sub-scope close or `unmount` began and neither removes nor resumes the child itself, only shutdown taking it over (C1); `background` and `whenAvailable` fibers inherit a scoped lease the forking fiber held (C8) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.19 (2026-11-11): Intro, BEH-BR-074 and BEH-BR-080: a sub-scope close or `unmount` resumes a child stop parked outside its parent's stop only before the parent's stop has begun (from the parent becoming `stopping` or shutdown beginning) (C1); BEH-BR-073 the system stops include a child's removal by its sub-scope close or `unmount` (`reason` "remove", `next` "gone", a take-over included), bounded by `drainTimeout`, after the owning operation's stop step and build for a take-over (CL13) (SPEC-AUDIT-08); BEH-BR-071 the `starting` × `replace` cell states the held handoff value's outcome, and the account of when a held value is abandoned names a superseding call with `cold: true` (C6); BEH-BR-069 `Conflict.reason` "cold-mismatch" and BEH-BR-072 the `cold` mismatch fails with it (CL1) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.18 (2026-11-11): BEH-BR-073 the account of how long a wait lasts names every no-caller cascade root, a child's sub-scope close or unmount included (CL8); BEH-BR-074 the lease that makes a sub-scope close or `unmount` leave a parent-parked child stop is one in the child's removal set (H1); BEH-BR-071 the `starting` cells keep a held handoff value unless the superseding call passes `cold: true`; BEH-BR-072 a join requires equal `cold`, a different one is `Conflict` (C7, C8) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.17 (2026-11-11): Intro and BEH-BR-080: a child's sub-scope close or unmount is the no-caller root of the cascades that stop the child's own dependents (CL3); BEH-BR-074 `stop-parked` and `stop-resumed` carry `realm`, `target` compared as `{ id, realm }` (CL5, CL6); BEH-BR-074 and BEH-BR-080 a child stop the parent's stop parked is left to that stop, not waited for, when the closing or calling fiber holds a lease on the child (H1) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.16 (2026-11-11): Intro: cascade roots name the refused background restart, and a child's sub-scope close or unmount resumes only a stop parked outside its parent's stop (H1, CL1, CL3); BEH-BR-074 and BEH-BR-080 a child stop the parent's stop parked is never resumed by its sub-scope close or unmount, which only wait, and their `intent-ended` and settling records take the mount or `unmount-requested` record as cause (H1, CL2); BEH-BR-079, BEH-BR-080 `DrainTimeout` carries `realm` (C2) (SPEC-AUDIT-05); BEH-BR-072 a `Conflict` cell or join is not submitted to the `RefusalList` at step 4b (C9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.15 (2026-11-10): BEH-BR-066 the ordered check list names steps 4a (fingerprints) and 4b (refusal list) (CL3), and `ConfigInvalid` only for a value on a registration already loaded (C8); BEH-BR-074 the resume list and `stop-resumed` `by` name the sub-scope close and `unmount` of a child, with their drain limit; BEH-BR-080 such a resumption is not a cascade (C10) (CCR-BR-036)<br>0.14 (2026-11-10): BEH-BR-066 and BEH-BR-075 `shutdown`'s `WouldDeadlock` is the one decided before the `requested` record, with no record and no join; the carried references named (H1); BEH-BR-079 a refused background restart is a cascade root with no caller (C3) (CCR-BR-035)<br>0.13 (2026-11-10): BEH-BR-068 `replace` and `enable` complete on entering `dormant` too, and a row for a call whose start the `RefusalList` refuses after step 4b (completes on `disabled`, `completed` record, `start-refused` caused by its `requested` record) (H3); BEH-BR-073 names the system stop of a refused background restart, reason "refused-digest", `next` "disabled" (C5) (CCR-BR-034)<br>0.12 (2026-11-09): BEH-BR-071 `starting` row: a `restart` or `reconfigure` that supersedes a build keeps a held handoff value for the next build, and a call that arrives while a build imports handed-off state waits for the build step and is decided against the state it lands in (U-02) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-073 covers every system stop, the idle return of a lazy plugin (reason "idle", `next` "dormant") named (C-06); BEH-BR-075 every stop under shutdown ends "gone" or `failed(cleanup)` and nothing starts; BEH-BR-080 a resumed stop under shutdown unregisters the plugin (U-01) (CCR-BR-032)<br>0.10 (2026-11-08): BEH-BR-071 prose: `disabled` split by its reason (CCR-BR-026)<br>0.9 (2026-11-08): BEH-BR-071 gains the row "disabled (refused-digest)" (28, BEH-BR-267) (CCR-BR-026)<br>0.8 (2026-11-08): `unknown` row registers → `dormant` too; BEH-BR-065: realm turn for registrations into a realm and `retireRealm` (CCR-BR-022)<br>0.7 (2026-11-08): BEH-BR-071 gains the `dormant` row, failure phase "load" and the lazy `enable` outcome (CCR-BR-017)<br>0.6 (2026-10-03): `InstallError` among the named outcomes of BEH-BR-069; a child's parked removal resumed only by `remove` among operator calls (BEH-BR-125) in BEH-BR-073 and BEH-BR-074; a resumer's terminal `causationId` deferred to BEH-BR-200 (consistency pass) (CCR-BR-013)<br>0.5 (2026-10-02): Parked operations and parked system stops, resumption and interruption made total; cascade drain limit and bound; children removed; re-entrancy from builds and finalizers; second pass: one parking rule for a failing call, `intent-ended` record and `resumes` link, outcome after a resumed system stop, shutdown never parks, child→parent mount edges, stops take no slot, revert of every override change under an ended intent (CCR-BR-008)<br>0.4 (2026-10-02): Interruption before intent ends with a failed record; a parked call's records are final (findings G14, G15) (CCR-BR-007)<br>0.3 (2026-10-02): BEH-BR-078–080 added and BEH-BR-074 extended for cross-plugin stop ordering (CCR-BR-006)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -43,10 +43,18 @@ numbered stages of a call (BEH-BR-188) are always written "step N of
 BEH-BR-188" and are never transition steps. A *cascade* is the stop of a
 dependent that a provider's stop requires (BEH-BR-043); its *cascade root* is
 what began the provider's stop — an operator call (the *cascading call*), a
-runtime failure, a dependency-loss stop, or shutdown. A stop is *parked* when
+runtime failure, a dependency-loss stop, a refused background restart (a
+refused `whenAvailable` re-run included), or shutdown; the close of a child's
+sub-scope and `Plugin.Runtime.unmount` remove a child without a cascade
+(14 — Children and Groups, BEH-BR-121), and are the root, with no caller, of
+the cascades that stop the child's own dependents. A stop is *parked* when
 its drain expired without `force`, or when the failing call that drove it
 left it unsettled, and it waits for a call, a cascade or shutdown to resume
-it: a *parked operation* is an operator operation's stop, a *parked system
+it — or, for a child whose stop was parked outside its parent's stop, before
+the parent's stop has begun (from the revision in which the parent becomes
+`stopping`, its activation fails or shutdown begins), the close of its sub-scope or its `unmount`
+(BEH-BR-121): a *parked operation*
+is an operator operation's stop, a *parked system
 stop* a dependency-loss stop (BEH-BR-074). Only stops driven by an operator
 call — its own stop, or a cascade whose root is an operator call — park.
 
@@ -335,11 +343,12 @@ completes as its owner (CCR-BR-008).
 
 ```ts
 // illustrative — not type-checked
-class Conflict   extends Schema.TaggedError<Conflict>()("Conflict", { id: Schema.String, pending: Schema.String }) {}
+class Conflict   extends Schema.TaggedError<Conflict>()("Conflict", { id: Schema.String, pending: Schema.String, reason: Schema.optional(Schema.Literal("cold-mismatch")) }) {}
 class Superseded extends Schema.TaggedError<Superseded>()("Superseded", { id: Schema.String }) {}
 // pending: the operation in flight ("remove", "replace", "restart", "reconfigure", "disable"),
 //          or "disabled", or "cleanup-failure",
 //          or "dependency-loss" (a parked system stop; BEH-BR-073)
+// reason: "cold-mismatch" only when the call would join with a different `cold` (BEH-BR-072); absent otherwise
 ```
 
 ```
@@ -437,7 +446,7 @@ requirement availability (07 — Replacement and Reactivation, BEH-BR-057);
 | **unknown** | registers → `dormant`, `waiting`, `starting` or `disabled` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` | `UnknownPlugin` |
 | **dormant** | `DuplicatePlugin` | unregisters at once; nothing was loaded | swap → `dormant` (lazy) or starting/waiting (eager); triggers re-applied | no-op | stores or clears the raw override; not decoded until load | no-op | → `disabled` | no-op |
 | **waiting** | `DuplicatePlugin` | unregisters at once | swap → starting/waiting | no-op | stores or clears the override; nothing to restart | no-op | → `disabled` | no-op |
-| **starting** | `DuplicatePlugin` | build settles, result discarded → gone | supersedes the target: build settles, discarded; swap → starting/waiting | no-op | override stored; build settles, discarded; builds again (a held handoff value stays held) | supersedes the build: it settles, discarded; builds again (a held handoff value stays held) | build settles, discarded → `disabled` | no-op |
+| **starting** | `DuplicatePlugin` | build settles, result discarded → gone | supersedes the target: build settles, discarded; swap → starting/waiting (a held handoff value is abandoned with `HandoffAbandoned`, or with the skip record when the call passes `cold: true`: 34, BEH-BR-351) | no-op | override stored; build settles, discarded; builds again (a held handoff value stays held, unless the superseding call passes `cold: true`: 34, BEH-BR-351) | supersedes the build: it settles, discarded; builds again (a held handoff value stays held, unless the superseding call passes `cold: true`: 34, BEH-BR-351) | build settles, discarded → `disabled` | no-op |
 | **active** | `DuplicatePlugin` | stop → gone | stop, swap → starting/waiting | no-op | stop → starting/waiting; volatile-only: in place, no state change | stop → starting/waiting | stop → `disabled` | no-op |
 | **stopping** | `DuplicatePlugin` | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 | BEH-BR-072, 073, 074, 080 |
 | **failed** (load, build, activation, runtime) | `DuplicatePlugin` | unregisters | swap → starting/waiting | → starting/waiting | → starting/waiting | as `retry` → starting/waiting | → `disabled` | no-op |
@@ -482,7 +491,8 @@ transition step completes at once. A build whose result is discarded keeps
 nothing of a handoff: a value handed off by the `replace`, `restart` or
 `reconfigure` that started the plugin stays held for the build that follows,
 and is abandoned only by a change after which no build of the registration
-will be published (34 — State Handoff, BEH-BR-351). Once a build has begun
+will be published, or by a call with `cold: true` that supersedes the build
+(34 — State Handoff, BEH-BR-351). Once a build has begun
 importing that value it is committed to publication or failure, so the
 `starting` row no longer applies to it (CCR-BR-033). A `stopping` plugin is decided by
 BEH-BR-072 while an operator operation is in flight (parked or not, and
@@ -540,7 +550,12 @@ the plugin instead of this table.
 ```
 REQUIREMENT: While an operator operation is in flight on the plugin, every
              incoming operation MUST have exactly the outcome given by this
-             table.
+             table. An incoming call whose cell is a `Conflict` or a join
+             leaves no definition able to start, so a wired `RefusalList`
+             is not consulted for it at step 4b and it ends with the cell's
+             outcome (28 — Plugin Principal and Mandatory Policy,
+             BEH-BR-267; 22 — Attributable Operations, BEH-BR-188;
+             CCR-BR-037).
 ```
 
 ```
@@ -561,6 +576,17 @@ REQUIREMENT: An incoming `reconfigure` that joins or supersedes MUST have
 REQUIREMENT: A joining call MUST NOT change the `drain` or `force` options of
              a stop in progress, except to resume a stop parked by a
              `DrainTimeout` (BEH-BR-074).
+```
+
+```
+REQUIREMENT: A join MUST require equal `cold` (absent counts as false): an
+             incoming call whose cell is a join, or that would resume a
+             parked operation by joining it, and whose `cold` differs from
+             the operation in flight's MUST fail with
+             `Conflict { id, pending, reason: "cold-mismatch" }`, `pending`
+             naming the operation in flight, as a `Conflict` cell does,
+             leaving that operation unaffected (34 — State Handoff,
+             BEH-BR-353; CCR-BR-039, CCR-BR-040).
 ```
 
 ```
@@ -610,8 +636,11 @@ REQUIREMENT: When an operator call reaches its linearization point while the
              "dormant" for the idle return of a lazy plugin (27 — Manifest
              and Lazy Activation, BEH-BR-252), or "refused-digest" with
              `next` "disabled" for a refused background restart (28 —
-             Plugin Principal and Mandatory Policy, BEH-BR-267); not
-             parked — with no
+             Plugin Principal and Mandatory Policy, BEH-BR-267), or
+             "remove" with `next` "gone" for a child's removal by its
+             sub-scope close or `Plugin.Runtime.unmount`, a take-over's
+             included (14 — Children and Groups, BEH-BR-121, BEH-BR-126);
+             not parked — with no
              operator operation in flight, the call MUST wait,
              before its intent is recorded, until that stop has settled, and
              MUST then be decided by BEH-BR-071 against the state the plugin
@@ -623,6 +652,20 @@ REQUIREMENT: When an operator call reaches its linearization point while the
 ```
 REQUIREMENT: A system stop that no call has resumed MUST NOT be redirected
              or superseded by an operator operation.
+```
+
+```
+REQUIREMENT: When a child's sub-scope close or `Plugin.Runtime.unmount` has
+             taken over a stop of the child begun outside its parent's stop
+             (14 — Children and Groups, BEH-BR-121), the operation that
+             owned that stop, and every operator call waiting on it or
+             queued behind it, MUST be decided as the first requirement
+             decides a call meeting the child's removal (`reason`
+             "remove"): the removal begins in the revision that stop step
+             ends, no build of the child begins, and each call is decided
+             against where the child landed once the removal has settled —
+             `remove` completes, any other operation fails with
+             `UnknownPlugin` (CCR-BR-041).
 ```
 
 ```
@@ -651,11 +694,24 @@ everything but `remove`.
 
 How long the wait lasts depends on the stop. A runtime-failure stop, and a
 dependency-loss stop whose cascade has no caller at its root (a runtime
-failure, or a dependency-loss stop with no operator call at its root), drain
+failure, a dependency-loss stop with no operator call at its root, a refused
+background restart, or a child's removal by its sub-scope close or
+`Plugin.Runtime.unmount`, for the stops of the child's own dependents —
+14 — Children and Groups, BEH-BR-121, BEH-BR-126), drain
 under `BridgerOptions.drainTimeout` and revoke on expiry
 ([10 — Runtime Failure and Health](./10-runtime-failure-and-health.md),
 BEH-BR-095; BEH-BR-079), so they settle by themselves unless that limit is
-`"forever"`. A dependency-loss stop whose cascade root is an operator call
+`"forever"`. So does the child's own removal by its sub-scope close or
+`unmount` (`reason` "remove"); when that removal took over a stop begun
+outside the parent's stop, it waits only for that stop step — the drain
+under `drainTimeout` and an export after it under `handoffTimeout` — and
+begins in the revision that step ends, before any build: the operation that
+owned the stop begins no build, and it and every call waiting on or queued
+behind that stop are decided against the removal by the take-over
+requirement above, a `remove` completing and any other operation failing with `UnknownPlugin`
+once the child is gone (14, BEH-BR-121; CCR-BR-041). While the stop step
+runs, a call meeting the owning operation is decided by the in-flight table
+(BEH-BR-072). A dependency-loss stop whose cascade root is an operator call
 drains under that call's `drain` and `force`; when that call fails with
 `DrainTimeout` — its drain expired without `force` — the stop does not
 settle but parks (BEH-BR-074, BEH-BR-079). A call waiting for it is then
@@ -724,11 +780,12 @@ REQUIREMENT: While a stop is parked, the plugin's snapshot entry MUST show
              `recordId` of its owner's `requested` record as
              `requestedRecordId` (13 — Observability and Diagnostics).
              Parking MUST emit, for each stop that parks, a `stop-parked`
-             event `{ pluginId, leases, target? }`, `target` naming the
-             plugin the failing call named when it differs from `pluginId`,
-             in addition to the call's `drain-timeout` event; every
+             event `{ pluginId, realm, leases, target? }`, `target` naming
+             the plugin the failing call named as `{ id, realm }` when it
+             differs from the plugin `pluginId` and `realm` name, in
+             addition to the call's `drain-timeout` event; every
              resumption MUST emit a `stop-resumed` event
-             `{ pluginId, by, endsIntent? }`, with `by` "operator",
+             `{ pluginId, realm, by, endsIntent? }`, with `by` "operator",
              "cascade", "shutdown", "sub-scope" or "unmount" (13 —
              Observability and Diagnostics, BEH-BR-114).
 ```
@@ -741,9 +798,15 @@ REQUIREMENT: A parked stop MUST NOT complete by itself, even when its leases
                arrives on a plugin whose system stop is parked (BEH-BR-073;
                on a child whose stop removes it, only `remove`);
              - a stop of one of its providers, or of its parent, needs it
-               stopped (BEH-BR-080);
+               stopped (BEH-BR-080) — except a child stop owned by a removal
+               or take-over that its sub-scope close or `unmount` began
+               before the parent's stop began, which the parent's cascade
+               waits for and does not resume (BEH-BR-079; CCR-BR-041);
              - shutdown takes it over (BEH-BR-075);
-             - for a child, the sub-scope it was mounted under closes, or
+             - for a child whose stop was parked outside its parent's stop,
+               before the parent's stop has begun (from the revision in
+               which the parent becomes `stopping`, its activation fails or shutdown begins), the
+               sub-scope it was mounted under closes, or
                `Plugin.Runtime.unmount` is called for it (14 — Children and
                Groups, BEH-BR-121, BEH-BR-126).
              A call MUST resume it under that call's `drain` and `force`
@@ -751,7 +814,14 @@ REQUIREMENT: A parked stop MUST NOT complete by itself, even when its leases
              resume it under the limits BEH-BR-080 and 12 — Shutdown and
              Hosting give them; a sub-scope close or an `unmount` MUST
              resume it under `BridgerOptions.drainTimeout`, revoking on
-             expiry and never parking again (BEH-BR-121; CCR-BR-036).
+             expiry and never parking again (BEH-BR-121; CCR-BR-036). A
+             child stop that its parent's stop parked stays with that stop:
+             a sub-scope close or an `unmount` never resumes it — it waits
+             for it, or, when the closing or calling fiber holds a lease in
+             the child's removal set (the child and its dependents,
+             transitively), the finalizer leaves it to that stop and
+             `unmount` fails with `WouldDeadlock` (BEH-BR-121, BEH-BR-126;
+             CCR-BR-037, CCR-BR-038, CCR-BR-039).
 ```
 
 ```
@@ -816,8 +886,9 @@ REQUIREMENT: The call that parked an operation has already received its
              operation is later joined, superseded, resumed or ended, the
              host MUST NOT write a further terminal record for that call; the
              outcome is recorded on the call that resumed it, whose
-             terminal record carries `resumes`, or — when a cascade or
-             shutdown ends the intent — on the `intent-ended` record, whose
+             terminal record carries `resumes`, or — when a cascade,
+             shutdown, or a child's sub-scope close or `unmount` ends the
+             intent — on the `intent-ended` record, whose
              `endsIntentOf` names the parked call's `requested` record
              (BEH-BR-080).
 ```
@@ -1037,7 +1108,8 @@ catch it within the fiber tree: a lease holder carries its provider in
 finalizers carries P in `@bridger/core/CurrentTransition`, and so does every
 fiber it forks and awaits before returning, while fibers forked into the
 activation scope (`background`, `whenAvailable`) carry only the leases they
-hold; such a call fails with `WouldDeadlock`
+hold, a scoped `lease(keys)` the forking fiber held when it forked them
+included (BEH-BR-083; CCR-BR-041); such a call fails with `WouldDeadlock`
 ([09 — Leases](./09-leases.md), BEH-BR-088).
 A hand-off to another fiber that does not carry the reference remains the
 residual of [RSK-BR-011](../gxp/03-risk-assessment.md#rsk-br-011), bounded by
@@ -1084,8 +1156,9 @@ REQUIREMENT: When stopping P needs a dependent D stopped (06 — Removal,
 REQUIREMENT: When the cascade root is an operator call, that stop MUST drain
              under the cascading call's `drain` and `force` options (or the
              host default). On expiry without `force` the cascading call
-             MUST fail with `DrainTimeout { id, leases, target? }` — `id`
-             naming D, `target` the plugin the call named — and every stop
+             MUST fail with `DrainTimeout { id, realm?, leases, target? }` —
+             `id` and `realm` naming D, `target` the plugin the call named
+             as `{ id, realm }` — and every stop
              it drives that has not settled MUST park in the same revision
              (BEH-BR-074), D's as a parked system stop with `reason`
              "dependency-loss". Its system records MUST carry the cascading
@@ -1097,7 +1170,10 @@ REQUIREMENT: When the cascade root is an operator call, that stop MUST drain
 REQUIREMENT: When the cascade has no caller at its root — a runtime failure,
              a dependency-loss stop with no operator call at its root, a
              refused background restart (28 — Plugin Principal and
-             Mandatory Policy, BEH-BR-267), or shutdown — the stop MUST
+             Mandatory Policy, BEH-BR-267), shutdown, or a child's removal
+             by its sub-scope close or `Plugin.Runtime.unmount` (for the
+             stops of the child's own dependents; 14 — Children and Groups,
+             BEH-BR-121, BEH-BR-126) — the stop MUST
              drain under `BridgerOptions.drainTimeout`, MUST NOT park, and MUST revoke
              the remaining leases on expiry (09 — Leases, BEH-BR-086;
              10 — Runtime Failure and Health, BEH-BR-095) — under
@@ -1119,11 +1195,12 @@ REQUIREMENT: When a transition step is running on D — a build or a stop,
 REQUIREMENT: While a cascade waits for a running transition step of D — a
              stop or a build — the cascading call's own drain limit MUST
              run. On expiry without `force` the cascading call MUST fail
-             with `DrainTimeout` (`id` naming D, `leases` D's remaining
-             leases, or 0 when D's step is a build, `target` the plugin the
-             call named), and every stop it drives that has not settled —
-             its own stop and every dependency-loss stop it started — MUST
-             park in the same revision (BEH-BR-074); D's step continues
+             with `DrainTimeout` (`id` and `realm` naming D, `leases` D's
+             remaining leases, or 0 when D's step is a build, `target` the
+             plugin the call named), and every stop it drives that has not
+             settled — its own stop and every dependency-loss stop it
+             started — MUST park in the same revision (BEH-BR-074); D's
+             step continues
              under its owner's options. With `force`, D's remaining leases
              MUST be revoked (09 — Leases, BEH-BR-086); a build has none,
              and the wait for it continues, bounded by `buildTimeout`. A
@@ -1137,7 +1214,13 @@ REQUIREMENT: While a cascade waits for a running transition step of D — a
 REQUIREMENT: When D is a child of P, P's stop MUST remove D — stop it, then
              unregister it — as a dependent, before P's scope begins to
              close, whatever services D holds (06 — Removal, BEH-BR-043;
-             14 — Children and Groups, BEH-BR-121, BEH-BR-125). D's system
+             14 — Children and Groups, BEH-BR-121, BEH-BR-125). When D's
+             removal or a take-over of D's stop was begun by its sub-scope
+             close or `Plugin.Runtime.unmount` before P's stop began, P's
+             cascade MUST wait for that removal and start none of its own:
+             it neither removes D again nor resumes a stop that removal
+             owns; only shutdown takes it over (12 — Shutdown and Hosting,
+             BEH-BR-107; 14, BEH-BR-121; CCR-BR-041). D's system
              records MUST carry the `causationId` that 22 — Attributable
              Operations, BEH-BR-190, gives for the cascade root: when P was
              stopped directly by an operator call, that call's `requested`
@@ -1234,17 +1317,25 @@ REQUIREMENT: When a cascade needs D stopped and D's stop is parked
              resumption MUST emit a `stop-resumed` event with `by` "cascade"
              (or "shutdown") and, when it ends a parked operator intent,
              `endsIntent` naming that operation — the one BEH-BR-072's row
-             names for the parked operation.
+             names for the parked operation. A cascade from a child's
+             parent never resumes a child stop owned by a removal or
+             take-over that the child's sub-scope close or `unmount` began
+             before the parent's stop began: it waits for that removal
+             (BEH-BR-079; CCR-BR-041).
 ```
 
 ```
-REQUIREMENT: A child's parked stop resumed by the close of its sub-scope or
-             by `Plugin.Runtime.unmount` is not a cascade: it MUST be
-             resumed as 14 — Children and Groups (BEH-BR-121) states, under
-             `BridgerOptions.drainTimeout`, revoking on expiry and never
-             parking, ending any parked operator intent with its
-             `intent-ended` record, and emitting `stop-resumed` with `by`
-             "sub-scope" or "unmount" (CCR-BR-036).
+REQUIREMENT: A child's stop parked outside its parent's stop and resumed,
+             before the parent's stop has begun, by the close of its
+             sub-scope or by `Plugin.Runtime.unmount` is not a cascade: it MUST be resumed as 14 — Children and Groups
+             (BEH-BR-121) states, under `BridgerOptions.drainTimeout`,
+             revoking on expiry and never parking, ending any parked
+             operator intent with its `intent-ended` record, and emitting
+             `stop-resumed` with `by` "sub-scope" or "unmount"
+             (CCR-BR-036). A child stop that its parent's stop parked is
+             not resumed by them: they wait for it under the limits of the
+             parent's stop, or leave it to that stop as BEH-BR-121 and
+             BEH-BR-126 state (CCR-BR-037, CCR-BR-038).
 ```
 
 ```
@@ -1274,16 +1365,19 @@ REQUIREMENT: In the revision in which a parked operator intent ends, the
 
 ```
 REQUIREMENT: In the revision in which a parked operator intent ends — by a
-             cascade that resumes the parked stop, or by shutdown
-             (BEH-BR-075) — the host MUST write a system record with
-             `operation` "intent-ended", `phase` "system", `actor`
+             cascade that resumes the parked stop, by shutdown
+             (BEH-BR-075), or by a child's sub-scope close or `unmount`
+             that resumes it (BEH-BR-121) — the host MUST write a system
+             record with `operation` "intent-ended", `phase` "system", `actor`
              `Actor.system`, `target` D, `endsIntentOf` set to the
              `recordId` of the `requested` record of the call that parked
              the operation, `configChange.paths` naming every override path
              it reverted (paths only, never values), and the `causationId`
              that 22 — Attributable Operations, BEH-BR-190, gives for what
-             ended it: the cascade root's record, or the `requested` record
-             of `shutdown` (23 — Audit Sink and Record). `endsIntentOf` and
+             ended it: the cascade root's record, the `requested` record
+             of `shutdown`, or the child's mount record for a sub-scope
+             close and the `unmount-requested` record for an `unmount`
+             (23 — Audit Sink and Record). `endsIntentOf` and
              the revert's `configChange` MUST be carried by that record
              only.
 ```
@@ -1293,15 +1387,18 @@ REQUIREMENT: When D's stop settles, it MUST be recorded as an ordinary
              `system-stop` of D whose `causationId` is the one BEH-BR-190
              gives for what drove it to settle: the cascade root's record —
              the cascading call's `requested` record when an operator call
-             is the root.
+             is the root — or, for a child's stop resumed by its sub-scope
+             close or `unmount`, the mount record or the
+             `unmount-requested` record (BEH-BR-121).
 ```
 
 ```
 REQUIREMENT: When a drain resumed under a cascading call's options expires
              again without `force`, that call — the one under whose options
              the drain ran — MUST fail with
-             `DrainTimeout { id, leases, target? }`, `id` naming D and
-             `target` the plugin the call named, and every stop it drives
+             `DrainTimeout { id, realm?, leases, target? }`, `id` and
+             `realm` naming D and `target` the plugin the call named, and
+             every stop it drives
              that has not settled MUST park in the same revision
              (BEH-BR-074). The parked operator intent, if any, has already
              ended, its `intent-ended` record written and its remaining

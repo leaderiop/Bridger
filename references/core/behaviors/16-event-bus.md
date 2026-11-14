@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-16                                               |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.14                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-10): BEH-BR-139 listener ownership is reported through `ActivePlugin.report` (C12) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-144 `serial`, `parallel` and `waterfall` listeners inherit `CurrentTransition` beside `HeldPlugins`; `emit` does not await its listeners, so they carry none (H1) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-140 each listener registry is made with the host's `BridgerOptions.drainTimeout` (C11) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-137 `Bridger.Events` cannot be provided in any resolution scope and no realm may isolate it (`InvalidRealm`) (C-02) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-144: listeners run with the dispatcher's `CurrentCorrelation` (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-141: the event that applies an `OnEvent` trigger is held for the plugin it wakes and delivered once, with `emit` semantics, to that plugin's `on` listeners when it becomes `active` (27, BEH-BR-251); the dispatch reads the emitter's principal for the `lazy-triggered` record (27, BEH-BR-253) (CCR-BR-024)<br>0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.14 (2026-11-11): BEH-BR-140 the listener-list registries are made with `report: false` (CL4) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.13 (2026-11-11): BEH-BR-140 the registries holding listener lists report nothing; the bus reports each listener once (CL9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-139 listener ownership is reported through `ActivePlugin.report` (C12) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-144 `serial`, `parallel` and `waterfall` listeners inherit `CurrentTransition` beside `HeldPlugins`; `emit` does not await its listeners, so they carry none (H1) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-140 each listener registry is made with the host's `BridgerOptions.drainTimeout` (C11) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-137 `Bridger.Events` cannot be provided in any resolution scope and no realm may isolate it (`InvalidRealm`) (C-02) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-144: listeners run with the dispatcher's `CurrentCorrelation` (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-141: the event that applies an `OnEvent` trigger is held for the plugin it wakes and delivered once, with `emit` semantics, to that plugin's `on` listeners when it becomes `active` (27, BEH-BR-251); the dispatch reads the emitter's principal for the `lazy-triggered` record (27, BEH-BR-253) (CCR-BR-024)<br>0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -170,7 +170,13 @@ REQUIREMENT: The listener list of each event MUST be stored in a
              `drainTimeout` equal to the host's `BridgerOptions.drainTimeout`
              (02 — Host Construction), so that a removed plugin's running
              listeners are waited for no longer than a stop with no caller
-             waits (19 — Contribution Registry, BEH-BR-167).
+             waits (19 — Contribution Registry, BEH-BR-167), and with
+             `report: false`, so that it reports none of its entries
+             through `ActivePlugin.report` (BEH-BR-163; CCR-BR-038): the
+             bus reports each listener once, as a `listener` registration
+             (BEH-BR-139; 13 — Observability and Diagnostics, BEH-BR-119),
+             so that `inspect` lists it under `listeners` and never also
+             under `contributions` (CCR-BR-037).
 ```
 
 ```

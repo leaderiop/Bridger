@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-13                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-10): BEH-GX-100 a finite non-integer number, or an integer beyond ±(2^53 − 1), is in the fingerprint domain, written as RFC 8785 writes it, as everywhere in the canonical form (INV-GX-012); only `NaN` and ±infinity are outside (M6) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-11): BEH-GX-097 `select` filters by the `form` core now passes in its query (core CCR-BR-037); BEH-GX-102 the caller passes form "raw" for a `reconfigure` of a registration not yet loaded, as core does (BEH-BR-247) (G3) (CCR-GX-008)<br>0.2 (2026-11-10): BEH-GX-100 a finite non-integer number, or an integer beyond ±(2^53 − 1), is in the fingerprint domain, written as RFC 8785 writes it, as everywhere in the canonical form (INV-GX-012); only `NaN` and ±infinity are outside (M6) (CCR-GX-006)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -58,15 +58,16 @@ declare function hmacFingerprinter(options: {
   readonly scope: string                               // the deployment, as for tickets (BEH-GX-065)
 }): Layer.Layer<ConfigFingerprinter, GxpLayerInvalid>
 // provides core's port (BEH-BR-188, step 4a):
-//   select({ operation, target, paths })                       → the eligible paths, no value seen
+//   select({ operation, target, form, paths })                 → the eligible paths, no value seen
 //   fingerprint({ operation, target, form, entries })          → one { path, fingerprint } per entry
 ```
 
 ```
 REQUIREMENT: `select` MUST return exactly the candidate paths that the
-             eligibility list admits for the query's target and form
-             (BEH-GX-098), in the order of the candidates, without
-             duplicates. It MUST NOT read the key provider, and it receives
+             eligibility list admits for the query's target and `form`
+             (BEH-GX-098), the form core passes in the query and then hands
+             `fingerprint` for the same call (BEH-BR-188, step 4a), in the
+             order of the candidates, without duplicates. It MUST NOT read the key provider, and it receives
              no value.
 ```
 
@@ -351,7 +352,7 @@ declare function proposeFingerprints(
   q: {
     readonly definition: PluginDefinition              // the definition the call will install or reconfigure
     readonly target: { readonly id: string; readonly realm: string }
-    readonly form: "raw" | "decoded"                   // install → "raw", reconfigure → "decoded"
+    readonly form: "raw" | "decoded"                   // the form core hands step 4a: below, and BEH-BR-247
     readonly value: unknown                            // the override the operator will pass
     readonly paths: readonly string[]                  // the configChange.paths the call will carry
   },
@@ -362,6 +363,20 @@ class FingerprintProposalFailed extends Schema.TaggedError<FingerprintProposalFa
   reason: Schema.Literal("decode-failed", "path-not-found", "value-outside-domain", "key-unavailable", "key-id-invalid"),
   message: Schema.String                               // fixed template; no path, value or key id
 }) {}
+```
+
+```
+REQUIREMENT: The caller MUST pass the form core will hand the fingerprinter
+             for the call: "raw" for `install` with `config` and for a
+             `reconfigure` with a value of a registration not yet loaded,
+             which core treats as `install` with `config` and whose candidate
+             paths are the top-level keys of the raw value (BEH-BR-247);
+             "decoded" for a `reconfigure` of a loaded registration.
+             Documentation MUST state the rule and that a proposal made with
+             the other form gives fingerprints the call will not carry, so
+             the gate refuses it. The binding's `config.form` is derived
+             from the operation on every side alike (BEH-GX-082) and is not
+             this parameter.
 ```
 
 ```

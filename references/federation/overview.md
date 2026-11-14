@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-OVW                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — `LinkConnection` and the profile on dialled and accepted connections in the API table (H4) (CCR-FD-007)<br>0.7 (2026-11-10): errors: the event delivery companion's `SnapshotFailed` and `IncarnationUnavailable` reused for `OutboxSettlement.install` (BEH-FD-014, P1) (CCR-FD-005)<br>0.6 (2026-11-09): errors: the remote companion's `LocalContractRefused` is reused for a local contract in `contracts` (BEH-FD-009, core CCR-BR-033) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1–F4, F8–F10, F22) — API rows for the extended `ManifestStore`, `OutboxSettlement`, `releaseRevocation` and the loader's `RevocationSource.offer` (the `revocationFeed` row withdrawn), reader-version reports; worked example wires the required `revocation` and the outbox port (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18–20 and 22 — API rows for `RebootstrapOutbox`, `Federation.revocationFeed`, `VersionReports`; errors `RebootstrapBlocked`, `RevocationListStale`; `PlacementRefused` reused; core seams used (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links on the remote companion's multiplexer and `Remote.serve`; single-major imports; per-import peer realms; listener port and `contracts` option; worked example updated (R3-01, R3-02, R3-18) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.13 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — `ManifestStore` row: the last applied manifest's `requiresFresh` entries are kept (H2) (CCR-FD-012)<br>0.12 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — `PluginResolver` listed as an application port, the example's `Loader.resolver` replaced, the loader's row no longer claims definition resolution (F2); `ResolveFailed` gains `reason` "revocation-stale" and the mission states that offline boot past `maxAge` starts no entry until a fresh set (H2); `RebootstrapBlocked` row names "store-swap-pending" (F3) (CCR-FD-011)<br>0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — `RebootstrapOutbox.none` withdrawn for `outbox: "none"` (F4); `ManifestStore` keeps the acceptance time; `Manifest.toDesired` takes the placement policy and host labels (L3, PL6); `SignaturePolicyMissing` added (PL16); the example's `acceptedDigests` comment names the per-plugin source (PL7); follow-up: the example's `acceptedDigests` comment names the source "@bridger/federation:" + `JSON.stringify([realm, id])` (SPEC-AUDIT-07 residual) (CCR-FD-010)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — the plugin uses the `outbox` port if present instead of requiring it, and the example wires `acceptedDigests` (H7, H9); errors table: `RebootstrapBlocked` names a hand-installed dependent and a missing outbox port, `DeliveryImportRefused` keeps only "not-an-import-id" (H8, PL11), `RevocationSourceMissing` added (PL12) (CCR-FD-009)<br>0.9 (2026-11-11): errors table gains `DeliveryImportRefused`; Specification audit of 2026-11-11 (SPEC-AUDIT-05) — errors table gains `RebootstrapFailed`, `ResolveFailed`, `DialFailed` and `ListenFailed` (PL11); `IncompatibleContract` by `"^" + V` (F4); `PeerLinkStatus` names `delivery-only` (H4) (CCR-FD-008)<br>0.8 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — `LinkConnection` and the profile on dialled and accepted connections in the API table (H4) (CCR-FD-007)<br>0.7 (2026-11-10): errors: the event delivery companion's `SnapshotFailed` and `IncarnationUnavailable` reused for `OutboxSettlement.install` (BEH-FD-014, P1) (CCR-FD-005)<br>0.6 (2026-11-09): errors: the remote companion's `LocalContractRefused` is reused for a local contract in `contracts` (BEH-FD-009, core CCR-BR-033) (CCR-FD-004)<br>0.5 (2026-11-08): Round-2 agent review (R3-01; R4 F1–F4, F8–F10, F22) — API rows for the extended `ManifestStore`, `OutboxSettlement`, `releaseRevocation` and the loader's `RevocationSource.offer` (the `revocationFeed` row withdrawn), reader-version reports; worked example wires the required `revocation` and the outbox port (CCR-FD-003)<br>0.4 (2026-11-08): round 2: recheck items 18–20 and 22 — API rows for `RebootstrapOutbox`, `Federation.revocationFeed`, `VersionReports`; errors `RebootstrapBlocked`, `RevocationListStale`; `PlacementRefused` reused; core seams used (CCR-FD-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — links on the remote companion's multiplexer and `Remote.serve`; single-major imports; per-import peer realms; listener port and `contracts` option; worked example updated (R3-01, R3-02, R3-18) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -28,7 +28,8 @@ does not give:
    configuration overrides, realms, links to peers, exports, imports and
    kill entries.
 2. **Continuity without the authority.** A host keeps the last manifest it
-   applied and boots from it while offline, for at most a declared offline
+   applied and boots from it while offline (its entries start only while it
+   holds a revocation set within the loader's `maxAge`), for at most a declared offline
    cap, after which it degrades in a declared way and, when it reconnects too
    far behind, re-bootstraps from a snapshot.
 3. **Services across hosts.** A host exports a contract to named peers,
@@ -57,10 +58,10 @@ would be ([ADR-FD-001](./decisions/001-federation-is-a-companion-over-reconcile.
 | Plan (dry run) of a reconcile, for previewing a manifest | Core — [core 32 — Generic gate and plan](../core/behaviors/32-generic-gate-and-plan.md) (BEH-BR-313–321), optional |
 | Realm families with idle eviction, used for peer realms | Core — [core 33 — Realm families](../core/behaviors/33-realm-families.md) (BEH-BR-329–338), optional |
 | Remote proxy plugins, the host-side serving end `Remote.serve`, transports and the endpoint multiplexer, session epochs, heartbeats, mandatory call timeouts | `@bridger/remote` — [references/remote/](../remote/README.md) |
-| Digest check before evaluation, `SignaturePolicy` (N-of-M signers), revocation, definition resolution by digest | `@bridger/loader` — [references/loader/](../loader/README.md) |
+| Digest check before evaluation, `SignaturePolicy` (N-of-M signers), revocation; loads and a catalog the application may back its `PluginResolver` with | `@bridger/loader` — [references/loader/](../loader/README.md) |
 | Event exchange between hosts that outlives a process (outbox, inbox, upcasters, `HistorySource`) | `@bridger/durable-bus` — [references/durable-bus/](../durable-bus/README.md) |
 | **Host manifests, sync, offline cap, re-bootstrap trigger, links, skew handshake, exports and imports, fencing** | **This package** |
-| Running the authority service, issuing and signing manifests, key custody, the transport's authentication, the snapshot content, storage of the manifest copy | The application |
+| Running the authority service, issuing and signing manifests, key custody, the transport's authentication, the snapshot content, storage of the manifest copy, the `PluginResolver` and its local package storage | The application |
 
 ## Public API surface
 
@@ -70,18 +71,19 @@ All signatures are illustrative until code exists.
 | ------ | ---- | ------- | --------- |
 | `HostManifest`, `ManifestPlugin`, `ManifestRealm`, `ManifestPeer`, `ManifestExport`, `ManifestImport`, `KillEntry` | Schemas, types | The manifest as data, decoded with Effect Schema | [01](./behaviors/01-host-manifest.md) |
 | `SignedManifest` | type | Canonical bytes plus signatures, as received | [01](./behaviors/01-host-manifest.md) |
-| `Manifest.toDesired` | function | Pure projection of a verified manifest and local patches to `DesiredPlugin[]` | [01](./behaviors/01-host-manifest.md) |
-| `Federation.plugin` | function | The federation plugin; requires `Bridger.Host` and the ports below | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
+| `Manifest.toDesired` | function | Pure projection of a verified manifest and local patches to `DesiredPlugin[]`, given freshness, the delivery imports, the `PlacementPolicy` and `hostResidency` | [01](./behaviors/01-host-manifest.md) |
+| `Federation.plugin` | function | The federation plugin; requires `Bridger.Host` and the ports below, but uses the `outbox` port only if present | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Federation.Status` | service | `current`, `changes`: applied revision, freshness, links, conflicts | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Federation.sync` | method | Fetch, verify and apply now | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `ManifestSource` | port | Fetches the latest signed manifest for this host from the authority | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
-| `ManifestStore` | port | Keeps the highest verified manifest, the last applied manifest's bytes, pending kills and the re-bootstrap marker | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
+| `ManifestStore` | port | Keeps the highest verified manifest and the last applied manifest's bytes, each with its acceptance time (`acceptedAt`, for re-verification under `reverify`), the last applied manifest's `requiresFresh` entries, pending kills and the re-bootstrap marker | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
+| `PluginResolver` | port | The application's: resolves a manifest entry's digest to a definition (it may back it with the loader's catalog); `ResolveFailed` | [01](./behaviors/01-host-manifest.md) |
 | `StatusReporter` | port | Optional: reports apply outcomes to the authority | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Rebootstrap` | port | The application's snapshot re-bootstrap, invoked on `ResyncRequired` | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `LinkDialer`, `LinkListener`, `LinkConnection` | ports, type | Open, and accept, one physical connection (a remote-companion `Connection`, with the `TransportProfile` of the end that made it) per link | [03](./behaviors/03-links-and-skew-handshake.md) |
-| `ControlFrame`, `PeerOffer`, `LinkAgreement`, `PeerLinkStatus` | types | The offer exchange on the control endpoint, its outcome, and a link's status | [03](./behaviors/03-links-and-skew-handshake.md) |
+| `ControlFrame`, `PeerOffer`, `LinkAgreement`, `PeerLinkStatus` | types | The offer exchange on the control endpoint, its outcome, and a link's status (`delivery-only` in step 1 of a re-bootstrap retry) | [03](./behaviors/03-links-and-skew-handshake.md) |
 | `ExportFence` | type | Fencing token of a single-owner export | [04](./behaviors/04-exports-and-imports.md) |
-| `RebootstrapOutbox`, `OutboxSettlement`, `RebootstrapOutbox.none` | port, types, value | Step 1 of a re-bootstrap: push or keep local facts; the settlement's `install` is the only path to `Rebootstrap.install` | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
+| `RebootstrapOutbox`, `OutboxSettlement` | port, types | Step 1 of a re-bootstrap: push or keep local facts; the settlement's `install` is the only path to `Rebootstrap.install`; `FederationOptions.outbox: "none"` states that the application holds no local facts | [02](./behaviors/02-sync-offline-and-rebootstrap.md) |
 | `Federation.releaseRevocation`; the loader's `SignedRevocationList` and `RevocationSource.offer` | method; loader type and method | Kill-frame lists handed to the loader's revocation source; release of a revision held by the blast-radius guard | [06](./behaviors/06-kill-path-placement-and-skew.md) |
 | `VersionReports`, `OldestVersionReport` | port, type | The oldest version received per origin and axis, and each host's reader versions, reported to the authority | [06](./behaviors/06-kill-path-placement-and-skew.md) |
 | `TestFederation` | testing | Authority fixture, test signer, partitions, clock | [05](./behaviors/05-testing-and-acceptance.md) |
@@ -96,11 +98,19 @@ All signatures are illustrative until code exists.
 | `ExportConflict { key, owners }` | Two owners present the same fence for one single-owner export |
 | `StaleExport { key, fence, highest }` | An owner presents a fence lower than the highest the importer has seen |
 | `ResyncRequired { host, since }` | The authority, or the offline cap, demands a snapshot re-bootstrap |
-| `RebootstrapBlocked { pending, reason }` | Step 1 of a re-bootstrap could neither push nor keep the local facts; nothing was fetched or replaced |
+| `RebootstrapBlocked { pending, reason }` | Step 1 of a re-bootstrap could neither push nor keep the local facts, found no outbox port, or found a hand-installed dependent of a delivery import (`pending` 0 for those two), or was refused "store-swap-pending" while the event delivery companion's earlier store swap is unfinished (`apply-pending` or `origin-unrecorded`, retried by the bus on its own); nothing was fetched or replaced |
+| `RebootstrapFailed { reason }` | The application's `Rebootstrap.fetch` (step 2) or `install` (step 3a) failed; the applied manifest stays in force and the re-bootstrap is retried on its own backoff, with links resumed only when no install had begun |
+| `DeliveryImportRefused { entry, reason }` | A `FederationOptions.deliveryImports` entry is not an import id; the federation plugin's build fails (BEH-FD-014) |
+| `RevocationSourceMissing` | `FederationOptions.revocation` is not wired; the federation plugin's build fails (BEH-FD-041) |
+| `SignaturePolicyMissing` | `FederationOptions.signatures` is not wired; the federation plugin's build fails before it reads the store (BEH-FD-002) |
+| `ResolveFailed { digest, message, reason? }` | The `PluginResolver` could not resolve an entry's digest; the entry is dropped, an installed plugin is not pruned; with `reason` "revocation-stale" (the revocation set older than `maxAge`) it is listed pending and retried on a fresh set |
+| `DialFailed { peer, message }` | The `LinkDialer` could not open a link to a peer; redialled with backoff |
+| `ListenFailed { message }` | The `LinkListener` failed to accept links; retried |
 | `RevocationListStale { revision, held, from }` | A revocation list received in a `kill` frame is not newer than the one held; not applied, not relayed |
 
 `IncompatibleContract` ([core 26](../core/behaviors/26-versioned-contracts.md)) is reused as the cause of an import whose
-peer does not export its major at its version or above; the session-level
+peer does not export its major at a version satisfying `"^" + V` (for major 0,
+the same minor and v ≥ V); the session-level
 errors of the remote companion (stale epoch, call timeout, session loss)
 pass through unchanged, and its `PlacementRefused` is reused for an import
 or export refused on placement (BEH-FD-045). Its `LocalContractRefused` is
@@ -120,14 +130,15 @@ const federation = Federation.plugin({
   source: HttpManifestSource.layer({ url: authorityUrl }),   // application adapter
   store: SqliteManifestStore.layer({ file: "federation.db" }), // application adapter
   signatures: "@app/ManifestSignatures",                     // a loader SignaturePolicy key
-  resolver: Loader.resolver,                                  // digest -> PluginDefinition (loader)
+  resolver: "@app/PluginResolver",                          // application port: digest -> PluginDefinition (BEH-FD-005); may be backed by the loader's catalog
   contracts: [StockQuery3, ReceiptPrinter2],                  // contracts this host imports or exports
   dialer: AppLinks.dialer,                                    // application adapter over a remote-companion transport
   listener: AppLinks.listener,
   syncEvery: "1 minute",
   maxOffline: "72 hours",
   revocation: "@app/Revocation",                             // the loader's RevocationSource key (required)
-  outbox: "@app/RebootstrapOutbox",                           // DurableBus.rebootstrapOutbox() (event delivery companion)
+  outbox: "@app/RebootstrapOutbox",                           // DurableBus.rebootstrapOutbox() (event delivery companion); optional, resolved at step 1
+  acceptedDigests: "@bridger/loader/AcceptedDigests",          // the loader's shared store; import proxies' digests pinned there under "@bridger/federation:" + JSON.stringify([realm, id]) (BEH-FD-007)
   rebootstrap: AppSnapshot.rebootstrap                        // application; declares `replaces`
 })
 

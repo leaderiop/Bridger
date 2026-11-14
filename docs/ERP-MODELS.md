@@ -6,7 +6,7 @@ Status: proposed API, not implemented or type-checked. This document refines [ER
 
 Schema foundation: [Effect Schema integration](ERP-SCHEMA-DESIGN.md) defines `Field.make(schema, metadata)` and how to compile storage, create, patch and public representations. The shorthand fields below compile through that same schema machinery.
 
-## 1. Decision: one model, one table, multiple contributors
+## 1. Decision: one model, one base table, one extension table per contributor
 
 A model has one owning module. Other modules extend that model through `Model.extend`; they do not redefine its table or obtain private CRUD semantics. Contributions are compiled into one immutable model registry per active tenant generation.
 
@@ -15,7 +15,7 @@ A model has one owning module. Other modules extend that model through `Model.ex
 | Model | `todo.task`, owned by `todo` | Base fields, identity, scope and invariants. |
 | Extension | `planning.task`, owned by `planning` | Additional fields and restrictions on `todo.task`. |
 | Field | Stable qualified identity, e.g. `planning.task.priority` | Type, storage mapping, permissions, validation and migration history. |
-| Physical table | One adapter-managed table for `todo.task` | Stores base fields and installed extension columns across tenants. |
+| Physical tables | The base table of `todo.task`, plus one extension table per extension (for example `x_planning__todo_task`) | The base table stores only base fields and is never altered by an extension. Each extension table stores that extension's fields for records of the base model, across tenants. |
 | Active model | Tenant + model + registry generation | Base definition plus that tenant's enabled contributions. |
 | Typed projection | Base model or explicit composition of known extensions | What a particular caller can read and submit. |
 
@@ -30,10 +30,10 @@ flowchart TD
     Compiler --> B[Tenant B: Task only]
     A --> Records[Authorized Records operations]
     B --> Records
-    Records --> Table[(One task table with all migrated columns)]
+    Records --> Table[(Task table plus one extension table per installed extension)]
 ```
 
-**The table is shared; field visibility, validation and behavior depend on the active registry.** A disabled extension's columns may still exist physically. That does not make them addressable through the ERP interface.
+**The tables are shared; field visibility, validation and behavior depend on the active registry.** A disabled extension's table may still exist physically, with its rows. That does not make it addressable through the ERP interface.
 
 ## 2. Authoring an extension
 
@@ -65,8 +65,9 @@ const AddPriority = Migration.extendModel("001-task-priority", {
       values: ["low", "normal", "high"], default: "normal",
     }),
   },
-  // The value written into existing rows. Explicit: the snapshot's `default`
-  // above is the create default, never a backfill value.
+  // The value a record with no extension row reads as. Explicit: the snapshot's
+  // `default` above is the create default, never this value. No row is written
+  // for existing records.
   backfill: { priority: "normal" },
 })
 
@@ -80,9 +81,9 @@ export const PlanningModule = Module.define({
 })
 ```
 
-`values` is the proposed finite-value form of `Field.text`. All definitions above are pure metadata. The imported contracts package contains descriptors, not a database connection or server handlers. The installer verifies the target model's owner and compatible contract version against `dependsOn`.
+`values` is the proposed finite-value form of `Field.text`. All definitions above are pure metadata. The imported contracts package contains descriptors, not a database connection or server handlers. The installer verifies the target model's owner and compatible contract version against `dependsOn`. `Migration.extendModel` compiles to the creation of the extension table (§5); it never alters the table of `todo.task`.
 
-The extension's fields inherit the base model's row and CRUD policies by default. Additional field permissions (`Access.fields`, a `@qadi/core` field policy; see [ERP-ACCESS.md](ERP-ACCESS.md)) can restrict access; declaring a field never grants access. Row policies referencing extension fields are mapped to physical columns only while that extension is active. A separate extension of the UI view is needed to show the new field in an existing form. Model contribution does not silently rearrange screens.
+The extension's fields inherit the base model's row and CRUD policies by default. Additional field permissions (`Access.fields`, a `@qadi/core` field policy; see [ERP-ACCESS.md](ERP-ACCESS.md)) can restrict access; declaring a field never grants access. Row policies referencing extension fields compile to an expression over the extension table (§5), and only while that extension is active. A separate extension of the UI view is needed to show the new field in an existing form. Model contribution does not silently rearrange screens.
 
 ### Typed usage
 
@@ -109,13 +110,13 @@ const changed = yield* records.update(PlannedTask, {
 // changed.title and changed.extensions["planning.task"].priority are typed.
 ```
 
-These operations run inside a gateway command's transaction. The gateway owns the idempotency key and receipt. There is one row ID and one revision for the entire row, including extension fields. Updating priority conflicts with a concurrent title change at the same revision. Partial updates merge only explicitly supplied fields; they never replace the entire extension object or null omitted columns.
+These operations run inside a gateway command's transaction. The gateway owns the idempotency key and receipt. There is one row ID and one revision for the entire row, including extension fields: they are stored in the extension table, but a write that changes only them still raises the base row's revision in the same transaction. Updating priority conflicts with a concurrent title change at the same revision. Partial updates merge only explicitly supplied fields; they never replace the entire extension object or null omitted columns.
 
 Generated client references also exist on `PlannedTask.commands` and `.queries`. They identify the same model operations with an explicit projection contract and required extension IDs; they do not register duplicate handlers. Server validation checks that the requested projection is a supported subset of the current registry.
 
 ### Why extension fields are nested
 
-Two plugins can both add a `status` field without colliding: `extensions["planning.task"].status` and `extensions["review.task"].status` are distinct. The API nesting does **not** imply JSON storage. The adapter maps each qualified field to an ordinary typed SQL column and records that mapping durably. SQL identifiers are allocated once with length/collision handling; never derive them afresh from display labels.
+Two plugins can both add a `status` field without colliding: `extensions["planning.task"].status` and `extensions["review.task"].status` are distinct. The API nesting does **not** imply JSON storage. The adapter maps each qualified field to an ordinary typed column of the extension's table and records that mapping durably. SQL identifiers are allocated once with length/collision handling; never derive them afresh from display labels.
 
 ## 3. TypeScript contracts versus runtime composition
 
@@ -164,28 +165,27 @@ Row-wide audit and change events record qualified changed fields, command identi
 
 | Storage object | Applies to | Durable content |
 | --- | --- | --- |
-| Model/field ownership catalog | Physical database | Model owner, field contributor, stable field ID and SQL mapping. |
+| Model/field ownership catalog | Physical database | Model owner, field contributor, stable field ID, extension table and column mapping. |
 | Migration journal | Physical database + module | Immutable migration ID/checksum, completed steps, failure and resume state. |
 | Module desired state | Tenant + module | Approved artifact/version and enabled/disabled intent. |
 | Activation/backfill journal | Tenant + extension version | Tenant initialization progress and readiness conditions. |
 | Runtime registry | Process + tenant + generation | Executable validated composition; reconstructed from durable state. |
 
-Installing Planning for tenant A creates its columns once. Enabling it later for tenant B reuses the columns but performs B's required initialization. Disabled tenants can have NULL in extension columns. Therefore an extension's logical `required` is **not automatically a global SQL NOT NULL constraint**.
+Installing Planning for tenant A creates its extension table once. Enabling it later for tenant B reuses the table but performs B's required initialization. A record with no row in the extension table (created before the extension was enabled, or while it was disabled for its tenant) reads as each field's **absent value** (below). Therefore an extension's logical `required` is **not a SQL NOT NULL constraint on any base column**; in the extension table a column may be NOT NULL, because a row exists only when the extension wrote one.
 
-For the example, `Migration.extendModel` expands storage with nullable columns, performs a resumable tenant backfill of NULL priority with the value of its `backfill` entry (`normal`), and checks readiness before publishing that tenant's extension. The backfill value is always the migration's explicit `backfill` entry, decoded against the field's schema when the migration compiles. It is never taken from the snapshot's `default`, which is the create default ([ERP-SCHEMA-DESIGN.md](ERP-SCHEMA-DESIGN.md) §2), so changing a field's create default later cannot change what an old migration writes. A field with no `backfill` entry stays NULL in existing rows; for a field the extension declares `required`, a missing entry fails compilation with `BackfillRequired`. Backfill fences affected tenant/model writes during the final catch-up. Existing non-null values are preserved on re-enable. The journal distinguishes database DDL completion from tenant readiness.
+For the example, `Migration.extendModel` creates the extension table `x_planning__todo_task` (primary key `(tenant_id, company_id, id)`, or `(tenant_id, id)` for a tenant-scoped model, where `id` is the base record's id; no foreign key to the base table) and records the field mapping. The migration's `backfill` entry is the field's **absent value**: what a record with no extension row reads as. It is decoded against the field's schema when the migration compiles, is part of the checksummed descriptor, and is never taken from the snapshot's `default`, which is the create default ([ERP-SCHEMA-DESIGN.md](ERP-SCHEMA-DESIGN.md) §2), so changing a field's create default later cannot change what an old migration means. No row is written for existing records, so enabling needs no fenced catch-up and no write to the base table. A field the extension declares `required` still needs a `backfill` entry, or compilation fails with `BackfillRequired`. A value that must be stored for each existing record, such as a derived one, is a separate resumable data migration (`bridger_data_migrations`, [ERP-RECORDS.md](ERP-RECORDS.md) §12) with the fenced catch-up described in [ERP-STORAGE.md](ERP-STORAGE.md) §7. Values stored in the extension table are preserved on re-enable. The journal distinguishes database DDL completion from tenant readiness.
 
-SQL constraints must remain valid for every tenant and every retained generation. Nullable-column type/check constraints can remain installed after disable. Extension-only uniqueness, restrictive foreign keys or triggers can affect writes even when the extension is inactive; the migration planner must reject a globally enforced constraint whose behavior is supposed to disappear on disable. Such a constraint needs an explicit persistent invariant accepted by the model owner or a specified tenant-aware enforcement design. Runtime uniqueness requires transactional serialization, not a check-then-insert query.
+SQL constraints must remain valid for every tenant and every retained generation. Constraints on an extension table (types, checks, tenant-scoped unique indexes) affect only writes to that table, which only the extension's own code issues, so they cannot block a base-model write whether the extension is enabled or not. The planner rejects a foreign key from an extension table to the base table or to another module's table, restrictive or not, and a trigger on any table. A reference into another module is checked by a model constraint inside the write transaction, and its delete behaviour is declared by `onDelete` ([ERP-RECORDS.md](ERP-RECORDS.md) §4). Runtime uniqueness across base and extension tables requires transactional serialization, not a check-then-insert query.
 
-Schema changes lock the affected physical model, not merely the contributing module. Two plugins extending the same table have one serialized DDL plan. A planner orders dependency operations, checks ownership and compatibility, then records progress. Different plugin versions cannot reinterpret an existing shared column with incompatible SQL types across tenants.
+Schema changes lock the physical tables they create or alter. An extension's migration touches only that extension's tables, so two plugins extending one model never share a DDL plan and neither locks the base table. A planner orders dependency operations, checks ownership and compatibility, then records progress. Different plugin versions cannot reinterpret an existing extension column with incompatible SQL types across tenants.
 
 ```mermaid
 flowchart LR
-    Plan[Validate combined schema plan] --> Expand[Expand shared table]
-    Expand --> Fence[Fence affected tenant writes]
-    Fence --> Backfill[Backfill and validate tenant rows]
-    Backfill --> Publish[Publish composed registry and UI catalog]
+    Plan[Validate combined schema plan] --> Expand[Create extension tables]
+    Expand --> Ready[Record tenant readiness; fence and backfill only for a data migration]
+    Ready --> Publish[Publish composed registry and UI catalog]
     Publish --> Resume[Resume operations]
-    Resume --> Retain[Retain storage on disable]
+    Resume --> Retain[Retain extension tables on disable]
 ```
 
 ## 6. Conflicts, upgrades and removal
@@ -199,32 +199,37 @@ flowchart LR
 | Extension weakens base authorization or invariant | Reject; restrictions compose, never replace. |
 | Plugin needs another extension's field | Declare its module dependency and compatible field contract; no incidental load-order access. |
 | Base owner changes/removes an extended field | Check every installed dependent contract before publishing; incompatible dependents block upgrade. |
-| Disable Planning | Fence/drain calls using the composed model, publish without Planning, retain columns and data. |
+| Disable Planning | Fence/drain calls using the composed model, publish without Planning, retain the extension table and its rows. |
 | Disable Todo while Planning is active | Reject by default; reviewed cascade disables dependents first. |
 | Rename a field | Explicit identity-preserving rename mapping or new-field migration with backfill; never infer from deletion/addition. |
 | Change field type | Expand into compatible storage, transform/backfill, switch contracts, retire old storage later. |
-| Delete extension data/columns | Separate destructive maintenance plan after all tenant references, dependencies and retention requirements are resolved. |
+| Delete extension data/tables | Separate destructive maintenance plan (a contract plan, [ERP-STORAGE.md](ERP-STORAGE.md) §7a) after all tenant references, dependencies and retention requirements are resolved. |
 
 Dormant stored computed values can become stale while their contributor is disabled. Re-enable must recompute/validate before exposing them. Durable foreign keys and other accepted persistent invariants continue to apply while disabled. Disabling code cannot promise that installed SQL semantics disappear.
 
-Relations reference model IDs and opaque record IDs, not another plugin's table name. They preserve tenant/company compatibility, target authorization and explicit delete behavior. Many-to-one uses an FK column when compatible with the invariant policy above; many-to-many uses an owned join model/table. A plugin may own a new related model instead of extending a table when the data has an independent lifecycle or multiple rows per base record.
+Relations reference model IDs and opaque record IDs, not another plugin's table name. They preserve tenant/company compatibility, target authorization and explicit delete behavior. Many-to-one uses an FK column when compatible with the invariant policy above; many-to-many uses an owned join model/table. A plugin may own a new related model instead of extending a table when the data has an independent lifecycle or multiple rows per base record. A reference from an extension module to a model of another module has no foreign key and defaults to `onDelete: "detach"` ([ERP-RECORDS.md](ERP-RECORDS.md) §4).
 
 ## 7. What the framework must prove before implementation is accepted
 
 - Todo and Planning write the same record and share its revision.
 - A Todo-only caller still triggers Planning's active constraints and defaults.
 - Tenant B cannot address Planning fields when only tenant A enables Planning.
-- Two simultaneous installations adding columns to Task serialize safely.
-- Failure after DDL but before activation resumes without duplicate columns or lost values.
+- Two simultaneous installations extending Task never alter the Task table, and each serializes only on its own tables.
+- Failure after DDL but before activation resumes without duplicate tables or columns, or lost values.
 - Disabling Planning drains base calls using Planning code, then rejects stale extended contracts.
 - Base queries never accidentally return extension data through `SELECT *`.
 - Base model upgrades detect incompatible installed extensions.
 - Re-enabling preserves user values and repairs dormant computed values.
-- A backfill writes the migration's `backfill` value, not the field's current create default; a required field without a `backfill` entry fails with `BackfillRequired` before any DDL.
+- A record with no extension row reads as the migration's `backfill` value, not the field's current create default; a required field without a `backfill` entry fails with `BackfillRequired` before any DDL.
 - No schema constraint accidentally imposes an inactive extension's business rules on other tenants.
+- A row policy on an extension field decides a record with no extension row on the field's absent value, not on NULL (differential check against qadi's interpreter).
+- Deleting a base record that has rows in a disabled extension's table is not blocked, and the extension removes those rows when it handles the delete event after re-enable.
+- A write that changes only extension fields raises the base row's revision, and a concurrent base-field write at the old revision gets `RevisionConflict`.
 
 These are design acceptance scenarios, not tests already executed.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
 
 Change log: 2026-11-09, audit fixes — §2 and §5: `Migration.extendModel` takes an explicit `backfill` entry, which alone decides the value written into existing rows; the snapshot's `default` stays the create default; `BackfillRequired` for a required field without one (E-10). §4 diagram: the command receipt is completed in the transaction, as BEH-CM-041 (E-01). Generation citation points to core 20 instead of the superseded SPEC.md (E-04). §4 drains retired generations with the bounded `drain({ timeout, force })` instead of the unbounded `drained`; §4 states that every event payload change raises the version (durable-bus C-11).
+
+Change log: 2026-11-11, extension tables — §1, §2, §5–§7: an extension's fields are stored in its own table, keyed by the base record, and never as columns of the base table; the migration's `backfill` entry is the absent value a record without a row reads as; constraints stay on the extension's tables, foreign keys into other modules and triggers are rejected; DDL locks follow the tables touched; references from an extension module default to `detach`; three acceptance checks added.

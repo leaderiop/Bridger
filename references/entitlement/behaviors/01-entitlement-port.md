@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-01                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): BEH-EN-001: `Entitlement.layer` records the application's `essential` list process-locally, where `guard` reads it (E2); BEH-EN-003: mode "unknown" and core's "unmetered" allow only essential uses; BEH-EN-005: under "last-known" with no answer ever known the served state is mode "unknown" with `stale: true` (E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.5 (2026-11-10): BEH-EN-001: `Entitlement.guard` leaves the list of components that require the `Entitlement` service, since it reads the mode from the activation's `Plugin.Runtime.entitled` (02, BEH-EN-014), and is given `essential` in its own options (M25); BEH-EN-005: `checkTimeout` defaults to 4 seconds, shorter than core's 5-second `resolutionTimeout`, so `Entitlement.capabilityPolicy` builds with defaults (M26) (CCR-EN-006)<br>0.4 (2026-11-10): BEH-EN-001: the application's `EntitlementAdapter` is wrapped by `Entitlement.layer(adapter, options)`, the one way `EntitlementOptions` reach the package's components, and the `Entitlement` service carries them; BEH-EN-003 and 004: the adapter's fallback mode is `EntitlementState.fallbackMode` (P13) (CCR-EN-005)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — `EntitlementUnavailable` gains `realm` beside `pluginId`, taken from the subject, as `NotEntitled` names its plugin (PL11) (CCR-EN-010)<br>0.6 (2026-11-10): BEH-EN-001: `Entitlement.layer` records the application's `essential` list process-locally, where `guard` reads it (E2); BEH-EN-003: mode "unknown" and core's "unmetered" allow only essential uses; BEH-EN-005: under "last-known" with no answer ever known the served state is mode "unknown" with `stale: true` (E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.5 (2026-11-10): BEH-EN-001: `Entitlement.guard` leaves the list of components that require the `Entitlement` service, since it reads the mode from the activation's `Plugin.Runtime.entitled` (02, BEH-EN-014), and is given `essential` in its own options (M25); BEH-EN-005: `checkTimeout` defaults to 4 seconds, shorter than core's 5-second `resolutionTimeout`, so `Entitlement.capabilityPolicy` builds with defaults (M26) (CCR-EN-006)<br>0.4 (2026-11-10): BEH-EN-001: the application's `EntitlementAdapter` is wrapped by `Entitlement.layer(adapter, options)`, the one way `EntitlementOptions` reach the package's components, and the `Entitlement` service carries them; BEH-EN-003 and 004: the adapter's fallback mode is `EntitlementState.fallbackMode` (P13) (CCR-EN-005)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-007 names the contribution policy (core `HookPointOptions.policy`) and grant narrowing (04) among the components that never refuse essential uses (CCR-EN-003)<br>0.2 (2026-11-08): Essential labels of hook contributions are the skip policy's `step.labels` (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -55,6 +55,7 @@ declare const Entitlement: {
 
 class EntitlementUnavailable extends Schema.TaggedError<EntitlementUnavailable>()("EntitlementUnavailable", {
   pluginId: Schema.String,
+  realm: Schema.optional(Schema.String),                    // the subject's realm, when it has one (core BEH-BR-147)
   message: Schema.String
 }) {}
 ```
@@ -125,7 +126,11 @@ REQUIREMENT: `pluginId` and `realm` MUST be the target of the request or the
              activation the subject is built for, never a value supplied by
              plugin code. Labels MUST come from the application's
              `EntitlementOptions.labels` function, evaluated for that
-             target.
+             target. An `EntitlementUnavailable` for a subject, from the
+             adapter or treated as such by the package (BEH-EN-005), MUST
+             name its plugin by the subject's `pluginId` and, when the
+             subject has one, `realm`, as the record `{ id, realm }` does
+             (core BEH-BR-147).
 ```
 
 Keeping labels opaque is what keeps the host free of domain concepts: an

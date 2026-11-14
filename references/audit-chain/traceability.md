@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-TRACE                                             |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.4 (2026-11-08): REQ-AC-013–016 and 019 summaries follow the round-2 agent review resolutions (CCR-AC-003)<br>0.3 (2026-11-08): Rows BEH-AC-025–040 and REQ-AC-013–020; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-020 and RSK-BR-045 notes (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.5 (2026-11-11): REQ-AC-001 summary: inner-store and keyed-hasher failures fail a write (PL20) (SPEC-AUDIT-07) (CCR-AC-009)<br>0.4 (2026-11-08): REQ-AC-013–016 and 019 summaries follow the round-2 agent review resolutions (CCR-AC-003)<br>0.3 (2026-11-08): Rows BEH-AC-025–040 and REQ-AC-013–020; store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): Rows and scenario summaries for the review resolutions; RSK-BR-020 and RSK-BR-045 notes (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -79,7 +79,7 @@ Test files are *Planned* under `packages/audit-chain/test/` *(Planned)*.
 
 | REQ | Check | Summary | Behaviours |
 | --- | ----- | ------- | ---------- |
-| <a id="req-ac-001"></a>REQ-AC-001 | 1 | Wrapping, record unchanged, only inner-store failures fail a write | BEH-AC-001, BEH-AC-002, BEH-AC-008 |
+| <a id="req-ac-001"></a>REQ-AC-001 | 1 | Wrapping, record unchanged, only inner-store and keyed-hasher failures fail a write | BEH-AC-001, BEH-AC-002, BEH-AC-008 |
 | <a id="req-ac-002"></a>REQ-AC-002 | 2 | Canonical form recomputed independently; escaped encoding for non-I-JSON records | BEH-AC-003 |
 | <a id="req-ac-003"></a>REQ-AC-003 | 3 | Retry carries the identical link; differing retry marked | BEH-AC-004 |
 | <a id="req-ac-004"></a>REQ-AC-004 | 4 | Host and order violations appended with a "chain-order" marker, never refused | BEH-AC-005 |

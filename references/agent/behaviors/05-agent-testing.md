@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-BEH-05                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): BEH-AG-034: `ReplayModel` fails a mismatched or unrecorded request as `ScriptedModel` does, with `ModelError` "other" and a recorded `ScriptMismatch` (M11); BEH-AG-037: the paired dispatch of an excluded command ends in `ToolNotInToolset` or `CommandRefused`, not a gate outcome name (low finding) (CCR-AG-006)<br>0.5 (2026-11-10): round 2 follow-up: `UnreachableViolation` declared (BEH-AG-037) (CCR-AG-005)<br>0.4 (2026-11-09): BEH-AG-036's example passes the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.3 (2026-11-08): `EvalHook` written with core 31's options (no veto codes, an application `who`, advisory registrations, dormant advisers skipped) (CCR-AG-003, round 2: core round 2 alignment)<br>0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.8 (2026-11-11): BEH-AG-035: during replay a reserved spawn call runs no subagent — the loop answers it with the outcome recorded for its `callId` through `SpawnReplay`, provided by `ReplayModel.layer`, a missing or different one failing `ReplayDiverged` — reverting revision 0.7's run of `spawnSubagent` during replay; BEH-AG-034: the transcript captures no element of a spawned subagent, whose own run is replayed from its own transcript; `ScriptedModel.plugin` for a subagent's `subagents.plugins`; replayed outcomes in `ToolCall` order, and a recorded `Deferred` spawn outcome replayed as recorded with no hand-off; second pass (cleanest design): BEH-AG-035: the loop's own answer to a spawn call is a `ToolRefused`, compared with the recorded outcome by tag and message (A1) (SPEC-AUDIT-09 H3) (CCR-AG-012)<br>0.7 (2026-11-11): BEH-AG-034: the transcript's `tools` include the reserved spawn call's outcome, which the loop reports under its `callId`; BEH-AG-035: a spawn call runs `spawnSubagent` during replay (SPEC-AUDIT-08 A2) (CCR-AG-011)<br>0.6 (2026-11-10): BEH-AG-034: `ReplayModel` fails a mismatched or unrecorded request as `ScriptedModel` does, with `ModelError` "other" and a recorded `ScriptMismatch` (M11); BEH-AG-037: the paired dispatch of an excluded command ends in `ToolNotInToolset` or `CommandRefused`, not a gate outcome name (low finding) (CCR-AG-006)<br>0.5 (2026-11-10): round 2 follow-up: `UnreachableViolation` declared (BEH-AG-037) (CCR-AG-005)<br>0.4 (2026-11-09): BEH-AG-036's example passes the required `draftWithdrawal` (BEH-AG-016, audit U-12) (CCR-AG-004)<br>0.3 (2026-11-08): `EvalHook` written with core 31's options (no veto codes, an application `who`, advisory registrations, dormant advisers skipped) (CCR-AG-003, round 2: core round 2 alignment)<br>0.2 (2026-11-08): `ReplayDiverged` declared (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -37,6 +37,7 @@ Planned source: `packages/agent/src/testing/*.ts` *(Planned)*.
 ```ts
 // illustrative — not type-checked
 ScriptedModel.layer(script: ReadonlyArray<ScriptStep>): Layer.Layer<ModelAdapter>
+ScriptedModel.plugin(script: ReadonlyArray<ScriptStep>): Plugin.Any   // provides ModelAdapter alike, for a subagent's `subagents.plugins` (01, BEH-AG-007)
 interface ScriptStep {
   readonly expect?: (request: ModelRequest) => boolean       // optional assertion on the request
   readonly respond: ReadonlyArray<ModelEvent>                // events emitted, in order, ending with Stop
@@ -74,19 +75,35 @@ interface Transcript {
   readonly version: 1
   readonly toolsetFingerprints: ReadonlyArray<string>          // per turn
   readonly model: ReadonlyArray<{ readonly request: RequestDigest; readonly events: ReadonlyArray<ModelEvent> }>
-  readonly tools: ReadonlyArray<{ readonly callId: string; readonly tool: string; readonly outcome: ToolOutcome }>
+  readonly tools: ReadonlyArray<{ readonly callId: string; readonly tool: string; readonly outcome: ToolOutcome
+                                  readonly tainted?: boolean }>   // a spawn call's: the subagent result's `tainted` (04, BEH-AG-029)
   readonly tasks: ReadonlyArray<TaskSnapshot>                  // every published snapshot, in order
 }
-Transcript.record: Layer.Layer<TranscriptRecorder>             // wraps ModelAdapter and ToolRunner providers
-ReplayModel.layer(transcript: Transcript): Layer.Layer<ModelAdapter>
+Transcript.record: Layer.Layer<TranscriptRecorder>             // wraps ModelAdapter and ToolRunner providers; the loop reports spawn-call outcomes to it (01, BEH-AG-003)
+ReplayModel.layer(transcript: Transcript): Layer.Layer<ModelAdapter | SpawnReplay>
+// The recorded outcomes of reserved spawn calls; the loop resolves it when provided, as it does TranscriptRecorder (BEH-AG-035).
+interface SpawnReplay {
+  readonly outcome: (callId: string) =>
+    Effect.Effect<Option.Option<{ readonly tool: string; readonly outcome: ToolOutcome; readonly tainted?: boolean }>>
+}
 ```
 
 ```
 REQUIREMENT: `Transcript.record` MUST capture, in order, every model request
-             digest and the events returned, every tool outcome, and every
+             digest and the events returned, every tool outcome — the
+             outcome of a reserved spawn call, which the loop reports under
+             its `callId` (01, BEH-AG-003), included, with the subagent
+             result's `tainted` — and every
              published `TaskSnapshot`. It MUST NOT capture configuration
              values, and MUST capture message content only when the test
-             passes `{ content: true }`.
+             passes `{ content: true }`. It MUST NOT capture a model
+             request, tool outcome or snapshot of a subagent spawned during
+             the recorded run: the run's transcript holds each spawn call's
+             outcome only (01, BEH-AG-003). A subagent's own run is
+             recorded and replayed from its own transcript, as a run of its
+             loop that the test starts with a `StartRequest.spawn` it
+             builds — test code being code the application trusts with
+             `spawn` (01, BEH-AG-003).
 ```
 
 ```
@@ -130,9 +147,44 @@ class ReplayDiverged extends Schema.TaggedError<ReplayDiverged>()("ReplayDiverge
 ```
 REQUIREMENT: Tool calls during replay MUST run through the real
              `ToolRunner` and dispatch, against the commands installed in
-             the `TestHost`; only the model is replayed. A test MAY replace
-             command handlers with fixtures, which the transcript then
-             compares by outcome.
+             the `TestHost`; only the model and the reserved spawn calls are
+             replayed. A test MAY replace command handlers with fixtures,
+             which the transcript then compares by outcome.
+```
+
+```
+REQUIREMENT: During replay — when `SpawnReplay` is provided — a reserved
+             spawn call MUST run no subagent: the loop MUST NOT call
+             `spawnSubagent`, and in its place answers the call with
+             `SpawnReplay.outcome(callId)`, the tool outcome the transcript
+             recorded for that `callId`, as a fixture command is compared
+             by outcome, and taints the session from the recorded
+             `tainted` as BEH-AG-029 says for a tainted subagent's result
+             (04). When no outcome is recorded for that `callId`, the
+             recorded entry names another tool, or the loop's own answer
+             before that call — a `ToolRefused` for the taint floor or an
+             undecodable input (01, BEH-AG-003), compared with the
+             recorded outcome by tag and message, so a recorded "tainted-session"
+             refusal never matches an "input-invalid" one — differs from
+             the recorded outcome, or the recorded outcome is a
+             `ToolRefused` and the loop refuses nothing, the replay MUST
+             fail with `ReplayDiverged`. INV-AG-006 covers the replayed
+             loop's snapshots and dispatch requests; a subagent's own run is
+             replayed from its own transcript (BEH-AG-034). The replayed
+             outcomes take their place in the next request in `ToolCall`
+             order, as live ones do (01, BEH-AG-003). A recorded `Deferred`
+             is replayed as recorded: it becomes the task's pending draft
+             when the loop reads it, under BEH-AG-016's precedence (the
+             task's own `Deferred` wins), and the task publishes
+             `awaiting-approval` with its `draftId` and `commands` as in
+             the recording. No subagent task exists, so no hand-off, no
+             "handed-to-parent" end and no withdrawal of that draft by the
+             parent's loop happens; BEH-AG-016's hand-off rules apply to a
+             live spawn only. The replayed loop's snapshots still match the
+             recording's: the recording's hand-off touched only the
+             subagent's task, which the transcript does not hold
+             (BEH-AG-034), and its withdrawal is carried by no snapshot
+             and is no dispatch request (02, BEH-AG-016).
 ```
 
 ```

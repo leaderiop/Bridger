@@ -227,6 +227,8 @@ These are design acceptance scenarios, not tests already executed.
 
 **Status (2026-11-08): open items remain.** The decisions above date from October 2026. Open: the test kit and CLI overlap with the `@bridger/kit` companion ([references/kit/](../references/kit/README.md)) and are to be reconciled with it; tool versions are to be re-checked against the Effect 4.1 target; nothing here is implemented or run.
 
+**Decision D5 (2026-11-11, [ERP-APOTHEKA-DECISIONS.md](ERP-APOTHEKA-DECISIONS.md)).** The overlap with `@bridger/kit` is resolved in the kit's favour: there is one CLI, the kit's (`bridger create`, `dev`, `test`, `check`, `pack`, `publish`, `countersign`), and the ERP scaffolds in this document become templates of `bridger create`. `ErpTest.layer` is built as a layer over `PluginTest` and remains the ERP's contract-test entry. Proposed; not implemented.
+
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).
 
 Change log: 2026-11-09, audit fixes — §4: the core row cites the core reference's required acceptance checks (BEH-BR-183, BEH-BR-184) and their `REQ-BR-` IDs instead of the superseded SPEC.md and a `COR-` prefix (E-04).

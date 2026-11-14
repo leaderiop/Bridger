@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-ADR-005                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.2 (2026-11-11): Decision: a reserved spawn call runs no subagent during replay and is answered from the transcript; a subagent's run is replayed from its own transcript (SPEC-AUDIT-09 H3) (CCR-AG-012)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -29,7 +29,11 @@ Core already provides `TestHost`, `TestClock` and counter identifiers
   it has no implicit response (BEH-AG-033).
 - **`Transcript` and `ReplayModel`** record a run and replay only the model;
   tool calls run through the real tool runner and dispatch on `TestHost`, and
-  a difference fails with `ReplayDiverged` (BEH-AG-034, BEH-AG-035).
+  a difference fails with `ReplayDiverged` (BEH-AG-034, BEH-AG-035). A
+  reserved spawn call runs no subagent during replay: the loop answers it
+  with the outcome recorded for its `callId`, as a fixture command is
+  compared by outcome; a subagent's own run is replayed from its own
+  transcript (BEH-AG-035).
 - **`EvalHook`** is an advisory hook point per turn for the application's
   evaluations (BEH-AG-036); a static check shows excluded commands are not
   offered to a principal (BEH-AG-037).

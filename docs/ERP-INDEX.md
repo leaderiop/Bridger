@@ -43,6 +43,7 @@ An event-sourced domain layer is specified by [`@bridger/event-store`](../refere
    - [ERP-DX.md](ERP-DX.md): CLI, test kit, CI.
 7. Adapters: [REACT-API.md](REACT-API.md), [REACT-UI-PLUGINS.md](REACT-UI-PLUGINS.md), [FOLDKIT-API.md](FOLDKIT-API.md).
 8. Research: [knowledge/README.md](knowledge/README.md).
+9. Apotheka: [ERP-APOTHEKA-DECISIONS.md](ERP-APOTHEKA-DECISIONS.md), decisions on the open risks of building the Apotheka pharmacy application on this stack (proposed).
 
 ## Package map
 

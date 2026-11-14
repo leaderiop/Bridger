@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-03                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): BEH-KT-017 a suite of a local contract (core `Contract.local`) holds author cases only; BEH-KT-020 a local contract is never verified through a wire subject (`LocalContractRefused`) (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.4 (2026-11-11): BEH-KT-018: `ConformanceReport` carries `kitVersion`, which BEH-KT-022 requires (PL20) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-09): BEH-KT-017 a suite of a local contract (core `Contract.local`) holds author cases only; BEH-KT-020 a local contract is never verified through a wire subject (`LocalContractRefused`) (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -109,6 +109,7 @@ Conformance.verify<C extends Contract.Any>(
 ): Effect.Effect<ConformanceReport, ConformanceFailed | SuiteVersionMismatch, Scope.Scope>
 
 interface ConformanceReport {
+  readonly kitVersion: string                            // the @bridger/kit version that ran the suites (BEH-KT-022)
   readonly contract: ContractDescriptor                  // as the subject provides it
   readonly subject: { readonly kind: "plugin" | "http"; readonly id: string }
   readonly seed: number

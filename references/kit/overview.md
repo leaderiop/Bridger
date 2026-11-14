@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-OVW                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Companion Specification — Overview                           |
-> | Change History | 0.3 (2026-11-08): `countersign` and `verify-chain`; loader statement and audit-chain bundle seams; core testing fixtures (round 2: recheck items 11, 14, 17) (CCR-KT-003)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.4 (2026-11-11): `Plugin.Any` is core's (CCR-BR-020), not a requested type; core files 27, 32 and 34 exist and are linked (PL18) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-08): `countersign` and `verify-chain`; loader statement and audit-chain bundle seams; core testing fixtures (round 2: recheck items 11, 14, 17) (CCR-KT-003)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -73,7 +73,7 @@ All signatures are illustrative until code exists.
 | Seam | Defined in | Used by |
 | ---- | ---------- | ------- |
 | `Plugin.define`, `PluginDefinition`, `IdentifiersOf` | [01 — Plugin definition](../core/behaviors/01-plugin-definition.md) | facade |
-| `Plugin.Any` (new type, requested) | amendment to [01](../core/behaviors/01-plugin-definition.md), [03](../core/behaviors/03-installation.md), [14](../core/behaviors/14-children-and-groups.md), [18](../core/behaviors/18-reconciliation-and-confluence.md) — see [ADR-KT-002](./decisions/002-plugin-any-is-the-contravariant-top.md) | facade, test harness, `dev` |
+| `Plugin.Any` | [01](../core/behaviors/01-plugin-definition.md) (BEH-BR-001; CCR-BR-020, as [ADR-KT-002](./decisions/002-plugin-any-is-the-contravariant-top.md) requested), accepted by [03](../core/behaviors/03-installation.md), [14](../core/behaviors/14-children-and-groups.md), [18](../core/behaviors/18-reconciliation-and-confluence.md) | facade, test harness, `dev` |
 | `inspect`, `snapshot`, `events`, `controls`, `plugin-stalled` | [04](../core/behaviors/04-states-and-snapshots.md), [13 — Observability](../core/behaviors/13-observability-and-diagnostics.md) | devtools, `inspect --json` |
 | `TestHost`, `Fault`, fixtures | [21 — Testing host](../core/behaviors/21-testing-host.md) | test harness, conformance |
 | `reconcile`, ownership scopes | [18 — Reconciliation](../core/behaviors/18-reconciliation-and-confluence.md) | `dev` |
@@ -86,9 +86,6 @@ All signatures are illustrative until code exists.
 | Package, digest, signing | [references/loader/](../loader/behaviors/01-package-and-digest.md) (LD); `Statement`, `StatementSigner`, `SignaturePolicy.verify` ([07](../loader/behaviors/07-signed-statements.md)) | `pack`, `publish`, `countersign` |
 | Verification bundle | [references/audit-chain/](../audit-chain/behaviors/05-verification-bundle.md) (AC; `verifyBundle`) | `verify-chain` |
 | Refusal list, call log fixtures | [21 — Testing host](../core/behaviors/21-testing-host.md) (`scriptedRefusalList`, `memoryCallLog`) | `PluginTest` |
-
-Files 27, 32 and 34 are being drafted in parallel; they are named by file and
-owner and linked once they exist.
 
 ## Worked example
 

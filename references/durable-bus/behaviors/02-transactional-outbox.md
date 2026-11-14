@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-DB-BEH-02                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-009: `publish` also requires the transaction's `Scope`, which the adapter's `transaction` provides, for the scoped `DurableBus.fence` (H3) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-012: `OutboxStore.incarnation(node)` and `recordIncarnation(tx, node, n)`, keyed by node (CCR-DB-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — `publish` takes `PublishOptions` (`stream`, `causationId`), which change nothing but the envelope's stream and causation (F-05, C-20) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
+> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09), second pass (cleanest design) — BEH-DB-009: `publish` passes the transaction it requires explicitly to `fence`, `PayloadCodec.encode` and `OutboxStore.append`; no operation decides by whether a transaction is in the environment, and an operation that may join a caller's transaction or open its own offers two members (CCR-DB-012)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-DB-009: `StoreTransaction.onEnd` takes a function of the outcome, "committed" or "rolled-back", which the adapter passes at the end of the transaction; `fence` ignores it (K3); SPEC-AUDIT-07 residual — BEH-DB-009: a key the keyring's codec created in the caller's transaction before a `PublishError` is the keyring's write, not an outbox row, kept if the caller commits (CCR-DB-010)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-DB-009: `StoreTransaction` gains `onEnd(effect)`, an effect the adapter runs once the transaction has committed or rolled back, on every exit, in registration order (H3) (CCR-DB-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-DB-009: `publish` requires `StoreTransaction` only; the `DurableBus.fence` admission is bounded by the transaction handle, not a `Scope` (H2, B1) (CCR-DB-008)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-DB-009: `publish` also requires the transaction's `Scope`, which the adapter's `transaction` provides, for the scoped `DurableBus.fence` (H3) (CCR-DB-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, H9) — BEH-DB-012: `OutboxStore.incarnation(node)` and `recordIncarnation(tx, node, n)`, keyed by node (CCR-DB-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 — `publish` takes `PublishOptions` (`stream`, `causationId`), which change nothing but the envelope's stream and causation (F-05, C-20) (CCR-DB-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F13, F25; R5-13) — `publish` error union completed (`PayloadEncodeFailed`, `DowncastRefused`, `AccessRefused`, `OutboxFrozen`), each writes nothing and aborts the caller's write if unhandled; a destination skipped on placement receives a `Withheld` marker at that sequence, so mixed labels leave no gap (CCR-DB-003)<br>0.3 (2026-11-08): round 2: recheck item 20 — BEH-DB-016 residency labels on routes and at the inbox, `PlacementRefused` (CCR-DB-003)<br>0.2 (2026-11-08): Resolutions of the agent review of 2026-11-08 — the HLC is stamped in the adapter's serialized append step; `OutboxStore.retained` for resends after a receiver regression and for `HistorySource` (CCR-DB-002)<br>0.1 (2026-11-08): Initial draft (CCR-DB-001)                 |
 
 ---
 
@@ -34,8 +34,11 @@ Planned source: `packages/durable-bus/src/Outbox.ts` *(Planned)*.
 ```ts
 // illustrative — not type-checked
 // Provided by the storage adapter inside its own `transaction(effect)` combinator.
-class StoreTransaction extends Context.Service<StoreTransaction, { readonly handle: unknown }>()(
-  "@bridger/durable-bus/StoreTransaction") {}
+class StoreTransaction extends Context.Service<StoreTransaction, {
+  readonly handle: unknown
+  // registers an effect the adapter runs once this transaction has committed or rolled back, given which (below)
+  readonly onEnd: (f: (outcome: "committed" | "rolled-back") => Effect.Effect<void>) => Effect.Effect<void>
+}>()("@bridger/durable-bus/StoreTransaction") {}
 
 interface PublishOptions {
   readonly stream?: string        // 01, BEH-DB-003: the envelope's stream, in place of event.stream(payload)
@@ -43,7 +46,7 @@ interface PublishOptions {
 }
 interface DurableBus {
   readonly publish: <A, I>(event: DurableEvent<A, I>, payload: A, options?: PublishOptions) =>
-    Effect.Effect<Envelope, PublishError, StoreTransaction | Scope.Scope>   // Scope: the transaction's (07, BEH-DB-054), for `fence` (06)
+    Effect.Effect<Envelope, PublishError, StoreTransaction>   // `fence` (06) is admitted for this transaction, not a Scope
   // subscribe, receive, status: 03, 06; origin, originChanges: 01; onStoreSwap: 06
 }
 type PublishError =
@@ -59,7 +62,33 @@ type PublishError =
 ```
 REQUIREMENT: `publish` MUST require `StoreTransaction` in its environment, so
              that a call outside a transaction is a compile error. The bus
-             MUST NOT open, commit or roll back a transaction.
+             MUST NOT open, commit or roll back a transaction. `publish` MUST
+             pass the transaction it requires, as an argument, to everything
+             that acts in it on its behalf — `DurableBus.fence(tx)` (06,
+             BEH-DB-048), `PayloadCodec.encode` (01, BEH-DB-008) and
+             `OutboxStore.append` — so that none of them finds a transaction
+             by looking for one. A required `StoreTransaction` is a declared
+             capability, present on every call; no operation of this package
+             changes what it does by whether a transaction happens to be in
+             the calling fiber's environment, and a companion operation that
+             can either join a caller's transaction or open its own offers
+             the two as separate members, the joining one taking the
+             transaction as an argument (event-store `readIn`, keyring
+             `keyIn`, `encryptIn`, `rotateIn`, `rewrapIn` and `shredIn`).
+```
+
+```
+REQUIREMENT: `StoreTransaction.onEnd(f)` MUST register `f` with the
+             transaction, and the storage adapter MUST run every function so
+             registered once that transaction has committed or rolled back,
+             on every exit (success, failure, a failed commit, a defect, an
+             interruption), in registration order, and not before, passing
+             the outcome: "committed" only when the commit succeeded, and
+             "rolled-back" on every other exit. This is the only way the bus
+             observes a transaction's end (`DurableBus.fence`, 06,
+             BEH-DB-048, which ignores the outcome; BEH-DB-054, property 8),
+             and the way a store sharing the transaction learns whether its
+             writes committed (keyring BEH-KR-017, BEH-KR-023).
 ```
 
 ```
@@ -79,8 +108,11 @@ REQUIREMENT: `options` MUST change nothing but the envelope's `stream`
 REQUIREMENT: `publish` MUST write the envelope through `OutboxStore.append`
              with the transaction handle. Every `PublishError` MUST write
              nothing and MUST be returned to the caller, whose transaction
-             then fails or rolls back by the caller's own handling.
-             Documentation MUST state that, because `publish` runs inside
+             then fails or rolls back by the caller's own handling. A key
+             the keyring's codec created in that transaction before the
+             error is the keyring's write, not an outbox row, and is kept if
+             the caller catches the error and commits (keyring BEH-KR-017;
+             06, BEH-DB-048). Documentation MUST state that, because `publish` runs inside
              the caller's transaction, any of these errors left unhandled
              aborts the caller's own write — a sale, a stock movement — and
              not only the event.

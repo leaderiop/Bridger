@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-20                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.11                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Check 29 `@bridger/audit-chain` is an optional peer with the compatibility row's audit-chain range, imported only by the sealing entry (PL7); check 44 the consumer's `gatePieces` through `GxpTestHost.make`: order, refusal, a `Defer` refused as "<name>: deferred" without consuming a binding, and validation (PL4, G5) (CCR-GX-007)<br>0.5 (2026-11-10): Check 11 a window whose entries were removed with its receipt kept is reported "window-not-in-entries" (H6); check 12 five vectors (H7); check 15 the rendered `onBehalfOf`, `undo` and `requestOnly` fields (M1); check 26 IQ-01 to IQ-24 (M3); check 34 a rule naming `reconcile` (M4) (CCR-GX-006)<br>0.4 (2026-11-10): Check 11: `chainUnanchoredTail`, `anchorUnconfirmed` and `chainLossCounterRose`; check 26: IQ-01 to IQ-23; check 47: IQ-23 and `sink-status.json` (H7, P7, P14, P16); follow-up: check 11 adds the "unkeyed-link" `chainBreak` of a keyed trail rewritten with unkeyed links (CCR-GX-005)<br>0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.11 (2026-11-11): Check 11 and check 28: the statement after an unconfirmed receipt is an `anchorUnconfirmed` "... previous statement not confirmed", with no `anchorMismatch`, in `verifySeals` and in an archive whatever its range (PL10, PL11); check 19 covers a cold reconcile's replace and an undo action under their bindings (PL13); check 27 covers a `resolve` that rejects or returns a promise (G1); second pass (cleanest design): check 27 covers the `packageSelf` evidence in place of `resolve` — `loaded` recorded from the loaded code, a source-tree alias and a missing self-description raising `package-mismatch`, `effect` raising `package-unverified` — and check 42 expects that one `package-unverified` per run (SPEC-AUDIT-09) (CCR-GX-012)<br>0.10 (2026-11-11): Check 28 names the host's first confirmed statement, also when the first held receipt is unconfirmed (G1); check 27 covers `captureRunEnvironment`'s `resolve` rule (PL4) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.9 (2026-11-11): Check 28 asserts the `chainLinkUnchecked` and `anchorUnconfirmed` of an archive above `auditSeq` 1 (G1) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.8 (2026-11-11): Check 11 the keyed-hash-failed path: `AuditWriteFailed` with its message, no `store.append`, one "keyed-hash-failed" count (PL5); check 28 heads only from the inspector's `expectedHeads` (G2), an archive above `auditSeq` 1 maps breaks inside the range and lists `chainUnanchoredTail` as not checked, a window starting below the range is unconfirmed (G3); checks 15 and 46 a bound and rendered `cold` (core CCR-BR-038 coupling) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.7 (2026-11-11): Check 10 the close mark from `HostControls.closed` (G4); check 11 `chainLinkUnchecked` for a link whose key is unavailable, and no consistency statement while one is reported (PL23); check 28 `readArchive` with receipt verifiers, pinned trust roots and expected heads from the archive's marks, and the two named exceptions of INV-GX-009 (H10, G7); check 39 a fixed heap bound for the streaming paths only, the paths that take the chain whole tested against `maxEntries`, withdrawn BEH-GX-052 no longer cited (G6); check 40 cites BEH-GX-172 and BEH-GX-173 in place of withdrawn BEH-GX-054 and BEH-GX-055 (PL24) (CCR-GX-008)<br>0.6 (2026-11-10): Check 29 `@bridger/audit-chain` is an optional peer with the compatibility row's audit-chain range, imported only by the sealing entry (PL7); check 44 the consumer's `gatePieces` through `GxpTestHost.make`: order, refusal, a `Defer` refused as "<name>: deferred" without consuming a binding, and validation (PL4, G5) (CCR-GX-007)<br>0.5 (2026-11-10): Check 11 a window whose entries were removed with its receipt kept is reported "window-not-in-entries" (H6); check 12 five vectors (H7); check 15 the rendered `onBehalfOf`, `undo` and `requestOnly` fields (M1); check 26 IQ-01 to IQ-24 (M3); check 34 a rule naming `reconcile` (M4) (CCR-GX-006)<br>0.4 (2026-11-10): Check 11: `chainUnanchoredTail`, `anchorUnconfirmed` and `chainLossCounterRose`; check 26: IQ-01 to IQ-23; check 47: IQ-23 and `sink-status.json` (H7, P7, P14, P16); follow-up: check 11 adds the "unkeyed-link" `chainBreak` of a keyed trail rewritten with unkeyed links (CCR-GX-005)<br>0.3 (2026-11-09): Check 26 amended: IQ-22 and IQ-U10 in the reported order; IQ-22 fails on two counter generators under one prefix and passes under two (core CCR-BR-033); the generators drawn are the `IdGenerator` services built from `TestHost.counterIdGenerator` layers (CCR-GX-004)<br>0.2 (2026-11-09): Checks 1, 2, 3, 8, 11, 12 and 42 amended (store and mark instead of refuse, collisions kept, `auditDropped`, sealing through audit-chain, the version 2 vector); BEH-GX-169 added with checks 43–47 (F-01, F-02, C-08, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -111,8 +111,9 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run
                 gate refusal for a missing or invalid ticket (BEH-GX-039).
              10. `recordHighWater` writes a mark when
                  `Host.controls.auditPosition` moves, and at close one from
-                 `Host.controls.auditPosition` read after the flush, not from
-                 `CloseReport.auditLastSeq`; after the newest entries
+                 the `CloseTail` of `HostControls.closed`, not from
+                 `CloseReport.auditLastSeq`, covering the shutdown's terminal
+                 record written after the report; after the newest entries
                  are removed from the store, `checkHighWater` reports
                  `tailLoss` for exactly that range, and `unanchoredTail` above
                  the highest mark (BEH-GX-042 to BEH-GX-046).
@@ -122,19 +123,32 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run
                  an altered entry, `anchorMismatch` for each anchor that no
                  longer matches, `chainUnanchoredTail` above the last
                  confirmed anchor, `anchorUnconfirmed` for a receipt its
-                 verifier cannot confirm, `chainLossCounterRose` (and no
+                 verifier cannot confirm and, not `anchorMismatch`, an
+                 `anchorUnconfirmed` "... previous statement not confirmed"
+                 for the confirmed statement after it, the first receipt
+                 included, `chainLossCounterRose` (and no
                  `chainNonCanonical`) where `auditDropped` rises, and
                  `headMismatch` when the newest anchored windows
                  and receipts are removed below a high-water mark,
                  `anchorMismatch` "window-not-in-entries" when the newest
                  entries are removed and their receipts kept, and, with
                  `sealing.keyed` given, a `chainBreak` "unkeyed-link" for a
-                 keyed trail rewritten with unkeyed links, each with
+                 keyed trail rewritten with unkeyed links and a
+                 `chainLinkUnchecked`, not a `chainBreak`, for a link whose
+                 key `keyed` cannot supply, each with
                  the `ChainReport` attached unchanged; with no confirmed
-                 anchor and no `chainBreak` it states "The chain is
-                 internally consistent; no anchor confirms it."; with sealing
-                 off the seal kinds are listed as not checked (BEH-GX-170 to
-                 BEH-GX-174).
+                 anchor, no `chainBreak` and no `chainLinkUnchecked` it
+                 states "The chain is internally consistent; no anchor
+                 confirms it.", and with a `chainLinkUnchecked` and no
+                 `chainBreak` it does not; with sealing off the seal kinds,
+                 `chainLinkUnchecked` among them, are listed as not checked;
+                 with `SealingOptions.keyed` whose `mac` fails with
+                 `KeyedHashFailed`, the call fails with `AuditWriteFailed`
+                 whose message is "keyed hasher unavailable
+                 (@bridger/audit-chain)", `store.append` is not called, and
+                 the sink counts one "keyed-hash-failed" outcome and nothing
+                 else for the attempt (BEH-GX-019, BEH-GX-022, BEH-GX-024,
+                 BEH-GX-170 to BEH-GX-174).
 ```
 
 These are the checks the trail side of the companion depends on: an
@@ -173,7 +187,7 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
                  (BEH-GX-075, BEH-GX-076, BEH-GX-078).
              15. The rendered text shows each binding's operation, target,
                  bound definition, paths, requester id, bound `onBehalfOf`,
-                 `undo` and `requestOnly` fields and bound reason,
+                 `undo`, `cold` and `requestOnly` fields and bound reason,
                  ends with the meaning text and `notAfter`, and shows only
                  the word "fingerprinted" for a fingerprinted path, and
                  `renderManifestation` gives exactly the sentence of
@@ -197,7 +211,10 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
              19. A `reconcile` citing a bundle consumes one binding per
                  matching entry, refuses a non-matching entry alone so that it
                  appears in `ReconcileReport.rejected`, and leaves the unused
-                 bindings open (BEH-GX-072, BEH-GX-096; BEH-BR-222).
+                 bindings open; a cold `reconcile`'s replace is allowed under a
+                 binding with `cold` and refused under one approved warm, and
+                 an undo action only under a binding with `undo` (BEH-GX-072,
+                 BEH-GX-096; BEH-BR-222, BEH-BR-325, BEH-BR-353).
              20. An exempt rule allows only after the `exempted` event is
                  stored and refuses "ticket-store-unavailable" when that
                  append fails; `attach` stores one `policy-activated` event
@@ -244,14 +261,50 @@ REQUIREMENT: The companion's test suite MUST also contain at least one test,
              27. `collectOqEvidence` gives the exact outcome of every item of
                  the known-bad corpus; `buildEvidencePack` run twice on the
                  same inputs and `generatedAt` gives byte-identical packs
-                 with one pack digest; and `diffPacks` lists a requirement
-                 that lost its only test as changed (BEH-GX-121 to
-                 BEH-GX-136).
+                 with one pack digest; `diffPacks` lists a requirement
+                 that lost its only test as changed;
+                 `captureRunEnvironment`, called from a setup module the
+                 runner loads with the test files, records each
+                 `@bridger/*` package's `loaded` from the `packageSelf` the
+                 module imported and `effect`'s `loaded` as null, and
+                 resolves nothing by specifier; with the runner aliasing
+                 `@bridger/core` to a source tree the run records a
+                 `loaded.from` in that tree and raises `package-mismatch`,
+                 as it does when a `packageSelf` is left out of `loaded`;
+                 against the installed packages the run is counted with
+                 one `package-unverified` deviation for `effect`
+                 (BEH-GX-121 to BEH-GX-136).
              28. Every line of `trail.jsonl` equals the stored `canonical`
                  text byte for byte; after one line is edited, `readArchive`
                  reports the file's digest difference and a `digestMismatch`
                  for that entry, from its own run, whatever the archived check
-                 report says (BEH-GX-137 to BEH-GX-140).
+                 report says. For a sealed archive with `range: "all"`,
+                 `readArchive` given an offline receipt verifier and pinned
+                 trust roots that confirm the receipts reports no
+                 `anchorUnconfirmed` and a `verifiedThrough` above 0, and
+                 without them reports every receipt as `anchorUnconfirmed`;
+                 after the newest entries are removed from the store with the
+                 receipts of their windows before export, it reports `headMismatch`
+                 against the `expectedHeads` the inspector passes, and
+                 without them it lists `headMismatch` as not checked, whatever
+                 `anchors.jsonl` holds; over an archive whose `requested`
+                 range starts above `auditSeq` 1 it reports a `chainBreak` at
+                 an altered entry inside the range and none at the first
+                 archived entry, a `chainLinkUnchecked` "link not checked:
+                 previous entry outside the archive" at that first entry, an
+                 `anchorUnconfirmed` "... previous statement outside the
+                 archive" for the host's first confirmed statement when
+                 audit-chain reports it "previous-mismatch" or "window-gap"
+                 and the bundle holds no statement before it, and "...
+                 previous statement not confirmed" instead when the first
+                 receipt the bundle holds is not confirmed, as it does, with
+                 no `anchorMismatch`, for the statement after an unconfirmed
+                 receipt in a `range: "all"` archive,
+                 and lists `chainUnanchoredTail` as not
+                 checked, and a window ending above the `requested` `toSeq`
+                 or starting below its `fromSeq` is one `anchorUnconfirmed`,
+                 both with the chain report attached unchanged (BEH-GX-137
+                 to BEH-GX-140, BEH-GX-171).
 ```
 
 These are the approval, fingerprint and evidence paths. Several of them only
@@ -506,13 +559,17 @@ are the shared ground truth they are tested against.
 ```
 REQUIREMENT: The companion's test suite MUST contain at least one test, run as
              BEH-GX-153 states, for the following:
-             39. `checkStoredTrail`, `verifySeals`, `listConsumptions`,
-                 `exportTrail` and `readArchive` of that export, over a
-                 seeded trail of 1,000,000 entries and a ticket log of
-                 1,000,000 events citing few tickets, complete with heap
-                 growth below a fixed bound set in the test, independent of
-                 the trail's and the log's length (BEH-GX-035, BEH-GX-052,
-                 BEH-GX-084, BEH-GX-137, BEH-GX-140).
+             39. `checkStoredTrail`, `listConsumptions`, and `exportTrail`
+                 and `readArchive` of an unsealed export, over a seeded trail
+                 of 1,000,000 entries and a ticket log of 1,000,000 events
+                 citing few tickets, complete with heap growth below a fixed
+                 bound set in the test, independent of the trail's and the
+                 log's length. The paths that take the chain whole —
+                 `verifySeals`, and a sealed `exportTrail` and `readArchive` —
+                 complete over `maxEntries` entries and fail with
+                 `CheckCapacityExceeded`, producing no partial report or
+                 archive, over `maxEntries` + 1 (BEH-GX-035, BEH-GX-084,
+                 BEH-GX-137, BEH-GX-140, BEH-GX-171).
 ```
 
 A check that works on a test trail and exhausts memory on a production one
@@ -530,10 +587,10 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
              BEH-GX-153 states, for the following:
              40. Every report, statement and rendering a scripted run produces
                  contains the fixed sentences its behaviour requires —
-                 BEH-GX-032, BEH-GX-033, BEH-GX-036, BEH-GX-047, BEH-GX-054,
-                 BEH-GX-055, BEH-GX-062, BEH-GX-088, BEH-GX-104, BEH-GX-115,
-                 BEH-GX-120, BEH-GX-124, BEH-GX-130, BEH-GX-134, BEH-GX-138,
-                 BEH-GX-141 — and, outside a negated sentence, none of the
+                 BEH-GX-032, BEH-GX-033, BEH-GX-036, BEH-GX-047, BEH-GX-062,
+                 BEH-GX-088, BEH-GX-104, BEH-GX-115, BEH-GX-120, BEH-GX-124,
+                 BEH-GX-130, BEH-GX-134, BEH-GX-138, BEH-GX-141, BEH-GX-172,
+                 BEH-GX-173 — and, outside a negated sentence, none of the
                  words ADR-GX-027 forbids (BEH-GX-008).
 ```
 
@@ -578,7 +635,8 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
                  and passing its output to `collectOqEvidence` reports every
                  requirement REQ-GX-001 to REQ-GX-047 as pass, with no
                  deviation of kind `unknown-requirement`, `package-mismatch`
-                 or `environment-incomplete`; line and branch coverage
+                 or `environment-incomplete`, and one `package-unverified`
+                 per run, for `effect`; line and branch coverage
                  of `packages/gxp` reach 95% and the mutation score 80%
                  (BEH-GX-121 to BEH-GX-128; NFR-GX-003, NFR-GX-004).
 ```
@@ -625,9 +683,10 @@ REQUIREMENT: The companion's test suite MUST contain at least one test, run as
                  its own correlation, and none of them is reported as
                  `requestedWithoutTerminal` (BEH-GX-037; BEH-BR-200).
              46. `bindingOf` gives one version 2 digest from a proposal and a
-                 request carrying `onBehalfOf`, `undo: true`, a manifest,
-                 `allowChildren` and `mandatoryInterceptions`; changing any one
-                 of them refuses the call; the record-side link holds with
+                 request carrying `onBehalfOf`, `undo: true`, `cold: true`, a
+                 manifest, `allowChildren` and `mandatoryInterceptions`;
+                 changing any one of them refuses the call, and a ticket
+                 approved without `cold` is refused for a cold call; the record-side link holds with
                  `requestOnly` taken from the consumed binding and its
                  rendering says those fields were matched by the gate only;
                  changing a gate-flow annotation or `previousManifest` changes

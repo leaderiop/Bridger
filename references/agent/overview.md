@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-OVW                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.10                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Public API and worked example: `Tasks` is a base service built with `Tasks.layer()` into `base`, provided by no plugin, so a subagent's task is in its parent's table (BEH-AG-011, BEH-AG-025) (T1) (CCR-AG-007)<br>0.5 (2026-11-09): Public API: `AgentLoop.plugin` takes the required `draftWithdrawal`; `DraftWithdrawal`, `DraftWithdrawal.none`, `DraftWithdrawalFailed`; worked example passes the approval store's withdrawal (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Worked example: the taint floor withholds automatic allow of changes; declared reads keep the gate's decision (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): API surface: model family, batches of tool calls, envelopes, command tasks in the bridges, idempotency option; seams: realm families, `CurrentCorrelation` (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `TaintGuard.drafts` wired through the command catalog layer; neutral example input; seams updated (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
+> | Change History | 0.10 (2026-11-11): API rows: `Agent.spawnTool` a `ToolDescriptor` (PL1), `TaskRegistry.stop` (A2), `ScriptedModel.plugin` and `SpawnReplay` (H3); second pass (cleanest design): `ToolRefused` added to the `AgentLoop` row (A1) (SPEC-AUDIT-09) (CCR-AG-012)<br>0.9 (2026-11-11): API rows: `AgentLoop.plugin` option `subagents`, `Agent.spawnTool` (A2), `Agent.SpawnedBy` (A1) (SPEC-AUDIT-08) (CCR-AG-011)<br>0.8 (2026-11-11): API row: `TaskRegistry.settle`, used also by `spawnSubagent` (SPEC-AUDIT-07 H5) (CCR-AG-010)<br>0.7 (2026-11-11): Package boundary: `@bridger/mcp` is an optional peer dependency, needed by `McpTaskBridge` (PL6); Public API: `TaskRegistry`, `TaskWriter`, `Tasks.cancel` (H3) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.6 (2026-11-10): Public API and worked example: `Tasks` is a base service built with `Tasks.layer()` into `base`, provided by no plugin, so a subagent's task is in its parent's table (BEH-AG-011, BEH-AG-025) (T1) (CCR-AG-007)<br>0.5 (2026-11-09): Public API: `AgentLoop.plugin` takes the required `draftWithdrawal`; `DraftWithdrawal`, `DraftWithdrawal.none`, `DraftWithdrawalFailed`; worked example passes the approval store's withdrawal (audit U-12) (CCR-AG-004)<br>0.4 (2026-11-08): Worked example: the taint floor withholds automatic allow of changes; declared reads keep the gate's decision (round-2 agent review A-05) (CCR-AG-003)<br>0.3 (2026-11-08): API surface: model family, batches of tool calls, envelopes, command tasks in the bridges, idempotency option; seams: realm families, `CurrentCorrelation` (CCR-AG-003, round 2: recheck items 1, 5, 7, 8, 9)<br>0.2 (2026-11-08): `TaintGuard.drafts` wired through the command catalog layer; neutral example input; seams updated (CCR-AG-002)<br>0.1 (2026-11-08): Initial draft (CCR-AG-001)                 |
 
 ---
 
@@ -55,23 +55,26 @@ not: a task state feed, taint tracking, and subagents.
 | Batches, long-command tasks, the model-facing envelope | [`@bridger/command`](../command/behaviors/07-batches-and-long-commands.md) |
 | Model vendor adapters, prompts, skills, approval UI, which inputs are untrusted beyond the defaults, regulated-command rules | the application |
 
-The package's only runtime dependencies are `effect`, `@bridger/core` and
-`@bridger/command`. It ships no `ModelAdapter` implementation.
+The package's runtime dependencies are `effect`, `@bridger/core` and
+`@bridger/command`, and `@bridger/mcp` as an optional peer dependency, needed
+only by `McpTaskBridge`, which provides that package's `McpTasks` port
+(BEH-AG-014). It ships no `ModelAdapter` implementation.
 
 ## Public API surface
 
 | Export | Kind | Specified in |
 | ------ | ---- | ------------ |
 | `ModelAdapter`, `ModelRequest`, `ModelEvent`, `ModelError` | service key, types | [BEH-AG-001](./behaviors/01-agent-seams.md#beh-ag-001-five-agent-service-keys-each-one-provider-per-realm) |
-| `AgentLoop`, `AgentLoop.plugin({ draftWithdrawal, models?, batchToolCalls?, maxToolResultBytes?, longToolWait?, evalWho?, maxSteps? })` | service key, reference plugin | [BEH-AG-003](./behaviors/01-agent-seams.md#beh-ag-003-a-turn-pins-one-toolset-and-runs-every-tool-call-through-dispatch), [BEH-AG-007](./behaviors/01-agent-seams.md#beh-ag-007-the-model-adapter-is-resolved-per-session-through-a-realm-family), [BEH-AG-008](./behaviors/01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch), [BEH-AG-023](./behaviors/03-taint-and-provenance.md#beh-ag-023-tool-results-reach-the-model-only-as-size-capped-envelopes) |
+| `AgentLoop`, `AgentLoop.plugin({ draftWithdrawal, models?, batchToolCalls?, maxToolResultBytes?, longToolWait?, evalWho?, maxSteps?, subagents? })`, `Agent.spawnTool` (the reserved spawn tool, a `ToolDescriptor`), `ToolRefused` (the loop's own refusal of a tool call that is not a command) | service key, reference plugin, error | [BEH-AG-003](./behaviors/01-agent-seams.md#beh-ag-003-a-turn-pins-one-toolset-and-runs-every-tool-call-through-dispatch), [BEH-AG-007](./behaviors/01-agent-seams.md#beh-ag-007-the-model-adapter-is-resolved-per-session-through-a-realm-family), [BEH-AG-008](./behaviors/01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch), [BEH-AG-023](./behaviors/03-taint-and-provenance.md#beh-ag-023-tool-results-reach-the-model-only-as-size-capped-envelopes) |
 | `SessionStore`, `MemoryStore` | service keys | [BEH-AG-004](./behaviors/01-agent-seams.md#beh-ag-004-sessionstore-and-memorystore-keep-data-with-its-provenance) |
 | `ToolRunner`, `ToolRunner.plugin({ idempotency? })`, `ToolRunner.runBatch` | service key, reference plugin | [BEH-AG-005](./behaviors/01-agent-seams.md#beh-ag-005-toolrunner-is-dispatch-with-the-turns-pinned-toolset), [BEH-AG-008](./behaviors/01-agent-seams.md#beh-ag-008-the-tool-calls-of-one-step-may-be-dispatched-as-one-batch) |
-| `TaskSnapshot`, `Tasks`, `Tasks.layer()`, `Tasks.await` | types, base service (provided by no plugin) | [02 — Tasks](./behaviors/02-tasks.md) |
+| `TaskSnapshot`, `Tasks`, `Tasks.layer()`, `Tasks.await`, `Tasks.cancel` | types, base service (provided by no plugin) | [02 — Tasks](./behaviors/02-tasks.md) |
+| `TaskRegistry`, `TaskWriter`, `TaskRegistry.settle`, `TaskRegistry.stop` | internal write port provided by `Tasks.layer()`, for providers of `AgentLoop` and `spawnSubagent` only, never application code | [BEH-AG-011](./behaviors/02-tasks.md#beh-ag-011-taskschanges-list-await-and-cancel) |
 | `DraftWithdrawal`, `DraftWithdrawal.none`, `DraftWithdrawalFailed` | port of the application's draft flow, explicit no-op, error | [BEH-AG-016](./behaviors/02-tasks.md#beh-ag-016-a-task-that-ends-while-awaiting-approval-reports-its-draft-for-withdrawal) |
 | `HerdrBridge.plugin`, `McpTaskBridge` (agent runs and command tasks) | adapters | [BEH-AG-013](./behaviors/02-tasks.md#beh-ag-013-the-herdr-bridge-maps-states-and-adds-none), [BEH-AG-014](./behaviors/02-tasks.md#beh-ag-014-the-mcp-tasks-bridge), [BEH-AG-015](./behaviors/02-tasks.md#beh-ag-015-command-tasks-in-the-bridges) |
 | `Taint`, `Provenance`, `TaintPolicy`, `TaintGuard.drafts` | read view over core keys, port, draft source for the command catalog | [03 — Taint and provenance](./behaviors/03-taint-and-provenance.md) |
-| `Agent.spawnSubagent` | function | [04 — Subagents](./behaviors/04-subagents.md) |
-| `ScriptedModel`, `ReplayModel`, `Transcript`, `EvalHook`, `Toolsets.reachable` assertion helper | testing entry point | [05 — Agent testing](./behaviors/05-agent-testing.md) |
+| `Agent.spawnSubagent`, `Agent.SpawnedBy` | function, annotation key | [04 — Subagents](./behaviors/04-subagents.md) |
+| `ScriptedModel`, `ScriptedModel.plugin`, `ReplayModel`, `SpawnReplay`, `Transcript`, `EvalHook`, `Toolsets.reachable` assertion helper | testing entry point | [05 — Agent testing](./behaviors/05-agent-testing.md) |
 
 ## Worked example
 

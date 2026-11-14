@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-23                                               |
-> | Revision       | 0.15                                                         |
+> | Revision       | 0.20                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.15 (2026-11-10): BEH-BR-195 `definition` is exempt from the never-empty rule, present as `{}` on a `requested` or `rejected` record whose definition declares neither `version` nor `digest` (G4); BEH-BR-205 the latch triggers name a running `reconcile`'s parent record lost at shutdown (C4); BEH-BR-208 a record lost in the close flush is signalled by the error log and `auditPosition`, not `CloseReport.auditDegraded` (C5) (CCR-BR-036)<br>0.14 (2026-11-10): BEH-BR-198 a `shutdown` refused with `WouldDeadlock` writes no record (H1), a step-4a failure none and a step-4b refusal one `rejected` record (audit round 3, Low); BEH-BR-199 `intent-ended` on a sub-scope close or unmount, with its `causationId` (C12) (CCR-BR-035)<br>0.13 (2026-11-10): BEH-BR-199 `system-stop` also for a stop that settles into `dormant` (a `replace` with a lazy definition; an idle return stays `lazy-idle`) (C15); BEH-BR-194 unwired equivalence covers files 02–21 and 26–34 (audit round 2, Low); BEH-BR-201 `children` counts the entry and undo actions that wrote a record of their own, step-4b refusals included (audit round 2, Low); the GxP companion is cited as a Draft (C20) (CCR-BR-034)<br>0.12 (2026-11-09): BEH-BR-193 a different record under a stored `recordId` is a breach of the uniqueness rule of BEH-BR-210; the keep-or-refuse rule stays as its detection, since a sink cannot verify a generator (F-03); BEH-BR-199 a plugin that shutdown unregisters without a stop step gets no `system-stop` (BEH-BR-105) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-199 a mount record's `after.state` is the child's registration state, `starting` included, and only the activation of a child registered `starting` is caused by it (C-05) (CCR-BR-032)<br>0.10 (2026-11-09): BEH-BR-193: only an equal record under a stored `recordId` is an idempotent repeat; a different record under it is kept beside the first or refused, never dropped while reporting success (audit finding, raised by CCR-GX-002) (CCR-BR-031)<br>0.9 (2026-11-08): BEH-BR-196 which records carry `sanitized: true`: the call's own records, and a system record only for a string replaced as it is written (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): BEH-BR-195 `auditDropped` on every record (G54), `sanitized` (G59), `requestedBy`, transitions "start-refused" and "unmount-requested", Settled (6); BEH-BR-196 their rules and the lone-surrogate replacement; BEH-BR-199 the two new system records and the correlation of a root record from the fiber (G58); BEH-BR-202 `auditDropped` stamped at numbering (CCR-BR-026); `lazy-idle`, `onBehalfOf` on root `lazy-triggered` records (CCR-BR-024); BEH-BR-195 `undoes`; BEH-BR-201 records of an atomic apply's undo (CCR-BR-025)<br>0.7 (2026-11-08): BEH-BR-197: paths of a `reconfigure` on a registration not yet loaded; BEH-BR-199: sub-scope child removal named (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-195 `trigger`, "lazy-triggered", state "dormant", failure phase "load" in BEH-BR-199 (CCR-BR-017); `onBehalfOf`, `annotations`, `annotationsOmitted`, none on system records (CCR-BR-018); "handoff" and "retireRealm", `target` of `retireRealm`, handoff records in BEH-BR-199 (CCR-BR-019); `schemaVersion` stays 1 on pre-release ground (Settled 5)<br>0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.20 (2026-11-11): BEH-BR-199 `unmount-requested` never for an unmount that fails before it begins or takes over a removal (`WouldDeadlock`, `UnknownPlugin`, `HostClosed`); one failing `CleanupError` keeps it (C9); second pass (cleanest design): BEH-BR-195 and BEH-BR-199 the `SystemTransition` value "leak-acknowledged", the record of the system acknowledgement of 06, BEH-BR-047, added on the pre-release ground (Settled (7)), `schemaVersion` stays 1 (SPEC-AUDIT-09) (CCR-BR-041)<br>0.19 (2026-11-11): BEH-BR-199 one `handoff` record per attempted or skipped handoff: the skip record when a `cold: true` call skipped or abandoned it, otherwise one with `error` exactly when the state was lost (CL9); `intent-ended` by a sub-scope close or unmount only before the parent's stop has begun (C1) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.18 (2026-11-11): BEH-BR-199 `unmount-requested` each time an unmount begins or takes over a child's removal, never for a refused or joining unmount (C5); the `lease-revoked` no-caller list names the take-over of a stop begun outside the parent's stop, draining or parked (C4); BEH-BR-199 `handoff` also once per handoff skipped or abandoned by a `cold: true` call (CL5); BEH-BR-208 `shutdown`'s own `requested` record lost in the close flush sets `CloseTail.auditDegraded`, the error log alone covering any other never-numbered `requested` record (CL1) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.17 (2026-11-11): BEH-BR-205 a terminal, `rejected` or system record still unwritten when the close flush ends sets the latch whether numbered or not; BEH-BR-208 the close-flush loss of such a record shown by `CloseTail.auditDegraded`, the error log alone only for a never-numbered `requested` record (C2) (SPEC-AUDIT-06); BEH-BR-195 `AuditRecord.cold`, on the records of a call that passes `cold: true` and on the `handoff` record of the skip it causes (core 34, BEH-BR-350, BEH-BR-353) (C7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.16 (2026-11-11): BEH-BR-199 the `lease-revoked` paths name the refused background restart and a child's sub-scope close or unmount, which end an intent only for a stop parked outside the parent's stop (H1, CL3) (SPEC-AUDIT-05); BEH-BR-205 during shutdown, after the final snapshot, the latch is set without a snapshot or event and reported by `Host.controls().closed` (C3); BEH-BR-208 a close-flush loss signalled by `CloseTail`, never-numbered records by the log only (C5) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.15 (2026-11-10): BEH-BR-195 `definition` is exempt from the never-empty rule, present as `{}` on a `requested` or `rejected` record whose definition declares neither `version` nor `digest` (G4); BEH-BR-205 the latch triggers name a running `reconcile`'s parent record lost at shutdown (C4); BEH-BR-208 a record lost in the close flush is signalled by the error log and `auditPosition`, not `CloseReport.auditDegraded` (C5) (CCR-BR-036)<br>0.14 (2026-11-10): BEH-BR-198 a `shutdown` refused with `WouldDeadlock` writes no record (H1), a step-4a failure none and a step-4b refusal one `rejected` record (audit round 3, Low); BEH-BR-199 `intent-ended` on a sub-scope close or unmount, with its `causationId` (C12) (CCR-BR-035)<br>0.13 (2026-11-10): BEH-BR-199 `system-stop` also for a stop that settles into `dormant` (a `replace` with a lazy definition; an idle return stays `lazy-idle`) (C15); BEH-BR-194 unwired equivalence covers files 02–21 and 26–34 (audit round 2, Low); BEH-BR-201 `children` counts the entry and undo actions that wrote a record of their own, step-4b refusals included (audit round 2, Low); the GxP companion is cited as a Draft (C20) (CCR-BR-034)<br>0.12 (2026-11-09): BEH-BR-193 a different record under a stored `recordId` is a breach of the uniqueness rule of BEH-BR-210; the keep-or-refuse rule stays as its detection, since a sink cannot verify a generator (F-03); BEH-BR-199 a plugin that shutdown unregisters without a stop step gets no `system-stop` (BEH-BR-105) (CCR-BR-033)<br>0.11 (2026-11-09): BEH-BR-199 a mount record's `after.state` is the child's registration state, `starting` included, and only the activation of a child registered `starting` is caused by it (C-05) (CCR-BR-032)<br>0.10 (2026-11-09): BEH-BR-193: only an equal record under a stored `recordId` is an idempotent repeat; a different record under it is kept beside the first or refused, never dropped while reporting success (audit finding, raised by CCR-GX-002) (CCR-BR-031)<br>0.9 (2026-11-08): BEH-BR-196 which records carry `sanitized: true`: the call's own records, and a system record only for a string replaced as it is written (host-core prototype finding G-P12) (CCR-BR-028)<br>0.8 (2026-11-08): BEH-BR-195 `auditDropped` on every record (G54), `sanitized` (G59), `requestedBy`, transitions "start-refused" and "unmount-requested", Settled (6); BEH-BR-196 their rules and the lone-surrogate replacement; BEH-BR-199 the two new system records and the correlation of a root record from the fiber (G58); BEH-BR-202 `auditDropped` stamped at numbering (CCR-BR-026); `lazy-idle`, `onBehalfOf` on root `lazy-triggered` records (CCR-BR-024); BEH-BR-195 `undoes`; BEH-BR-201 records of an atomic apply's undo (CCR-BR-025)<br>0.7 (2026-11-08): BEH-BR-197: paths of a `reconfigure` on a registration not yet loaded; BEH-BR-199: sub-scope child removal named (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-195 `trigger`, "lazy-triggered", state "dormant", failure phase "load" in BEH-BR-199 (CCR-BR-017); `onBehalfOf`, `annotations`, `annotationsOmitted`, none on system records (CCR-BR-018); "handoff" and "retireRealm", `target` of `retireRealm`, handoff records in BEH-BR-199 (CCR-BR-019); `schemaVersion` stays 1 on pre-release ground (Settled 5)<br>0.5 (2026-10-03): BEH-BR-195 `configChange?: ConfigChange` with optional `fingerprints`, and `definition?` on the `requested` and `rejected` records of plugin-addressed operations, both folded into `schemaVersion: 1` under the pre-release rule (Settled (4)); BEH-BR-197 the one exception for fingerprints returned by the consumer's `ConfigFingerprinter` (subset of the paths, same order, absent when the change removes the override, stored fingerprints on `intent-ended` and resumer records), core still computes no hash; BEH-BR-199 and BEH-BR-200 carry the stored fingerprints with the paths (CCR-BR-014)<br>0.4 (2026-10-02): `AuditRecord.endsIntentOf` and `resumes` (record ids of the parked call's `requested` record); system record `intent-ended`, written when a cascade or shutdown ends a parked intent and carrying the reverted `configChange` paths (not the `system-stop`); record-only `Interrupted` and first-terminal-cause precedence; resumption of a parked operation writes `completed` or `failed`, not `joined` or `superseded`, with `resumes` and the stored override's paths; a `requested` record dropped for overflow fails the call at once with no terminal record; `noop` on a `children: 0` parent record only when `completed`; revocation on paths with no caller (CCR-BR-008)<br>0.3 (2026-10-02): Acknowledgement waits for the drained backlog (prototype finding G13) (CCR-BR-005)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -199,6 +199,8 @@ interface AuditRecord {
   readonly endsIntentOf?: string                   // intent-ended records only: recordId of the parked call's requested record (BEH-BR-199)
   readonly undoes?: string                         // undo actions of an atomic reconcile only: recordId of the undone action's requested record (32, BEH-BR-325)
   readonly resumes?: string                        // terminal record of a call that resumed a parked operation only: recordId of the parked call's requested record (BEH-BR-200)
+  readonly cold?: true                             // records of a call passing cold: true (and of the actions a cold reconcile
+                                                   // issues), and the handoff record of a skip it caused (34, BEH-BR-350, BEH-BR-353)
   readonly trigger?: LazyTrigger                   // lazy-triggered records only (27, BEH-BR-248)
   readonly onBehalfOf?: PrincipalRef               // records of calls made from plugin code (28, BEH-BR-259); absent on
                                                    // system records except root lazy-triggered (27, BEH-BR-253)
@@ -219,7 +221,7 @@ interface ConfigChange {
 // SystemTransition (22 — Attributable Operations, BEH-BR-185):
 //   "system-start" | "system-stop" | "runtime-failure" | "lease-revoked"
 //   | "health-degraded" | "intent-ended" | "lazy-triggered" | "lazy-idle" | "handoff"
-//   | "start-refused" | "unmount-requested"
+//   | "start-refused" | "unmount-requested" | "leak-acknowledged"
 // PluginState in `before`/`after` may be "dormant" (27 — Manifest and Lazy Activation).
 ```
 
@@ -293,7 +295,9 @@ same pre-release ground: `schemaVersion` stays 1. (6) `auditDropped`,
 0.8 on the same pre-release ground: `schemaVersion` stays 1. `auditDropped`
 is on every record so that a sink that chains records — the audit-chain
 companion's, say — can state in its own anchors how many records core
-failed to hand over, which it could not see before (URS gap G54).
+failed to hand over, which it could not see before (URS gap G54). (7) The
+`SystemTransition` value "leak-acknowledged" (CCR-BR-041) was added in
+revision 0.20 on the same pre-release ground: `schemaVersion` stays 1.
 
 ## BEH-BR-196: What each field records
 
@@ -640,8 +644,13 @@ REQUIREMENT: With a sink wired, the host MUST write one record with phase
                the dependents are stopped;
              - `lease-revoked` for each plugin whose leases the host revoked
                (a forced drain; a drain limit reached on a path with no
-               caller — a runtime failure, or a cascade whose root is not an
-               operator call; shutdown);
+               caller — a runtime failure, a refused background restart (a
+               refused `whenAvailable` re-run included), a cascade whose
+               root is not an operator call, or a child's sub-scope close or
+               `Plugin.Runtime.unmount` that removes the child itself or
+               takes over a stop of it begun outside its parent's stop,
+               draining or parked (14 — Children and Groups, BEH-BR-121);
+               shutdown);
              - `health-degraded` each time a plugin's health enters
                `degraded`; leaving `degraded` is not recorded;
              - `intent-ended` each time a parked operator intent is ended
@@ -650,17 +659,34 @@ REQUIREMENT: With a sink wired, the host MUST write one record with phase
                (27 — Manifest and Lazy Activation, BEH-BR-248);
              - `lazy-idle` each time an idle loaded plugin returns to
                `dormant` (27 — Manifest and Lazy Activation, BEH-BR-252);
-             - `handoff` once per attempted state handoff, with `error`
-               exactly when the state was lost (34 — State Handoff,
-               BEH-BR-350);
+             - `handoff` once per attempted or skipped handoff: the skip
+               record (`cold: true`, no `error`) when a call with
+               `cold: true` skipped or abandoned it, otherwise one with
+               `error` exactly when the state was lost (34 — State
+               Handoff, BEH-BR-350, BEH-BR-351);
              - `start-refused` each time a wired `RefusalList` refuses a
                start outside step 4b of BEH-BR-188, with `error`
                `{ _tag: "DigestRefused", message }` (28 — Plugin Principal
                and Mandatory Policy, BEH-BR-267);
-             - `unmount-requested` each time `Plugin.Runtime.unmount` is
-               called for a child, before its removal's records, with
-               `requestedBy` (14 — Children and Groups, BEH-BR-126;
-               22 — Attributable Operations, BEH-BR-190).
+             - `unmount-requested` each time `Plugin.Runtime.unmount`
+               begins a child's removal or takes over a stop of it, before
+               its removal's records, with `requestedBy` — never for an
+               unmount that fails before it begins or takes over a removal
+               (`WouldDeadlock`, `UnknownPlugin`, `HostClosed`) or that
+               waits for a removal already begun; an unmount that fails
+               with `CleanupError` keeps it (14 — Children and Groups,
+               BEH-BR-126; 22 — Attributable Operations, BEH-BR-190;
+               CCR-BR-039, CCR-BR-041);
+             - `leak-acknowledged` each time the host makes the system
+               acknowledgement of a leak — a plugin `failed` with phase
+               "cleanup" unregistered by a removal by the system, or by a
+               prune `remove` with `pruneAcknowledgeLeaks`, outside
+               shutdown — with `before.state` "failed", no `after`,
+               `error` `{ _tag: "CleanupError", message }` carrying the
+               original cleanup message, and the cause 06 — Removal,
+               BEH-BR-047, gives it (CCR-BR-041). An operator `remove` of
+               such a plugin is recorded as that call, never by this
+               record.
              System records MUST carry neither `onBehalfOf` nor
              `annotations` (28, BEH-BR-259; 30, BEH-BR-293), except the
              `onBehalfOf` of a root `lazy-triggered` record (27,
@@ -686,8 +712,10 @@ REQUIREMENT: When a parked operator intent is ended — by a cascade that
              resumes the parked stop (08 — Operation Legality, BEH-BR-080),
              by shutdown (08 — Operation Legality, BEH-BR-075;
              12 — Shutdown and Hosting, BEH-BR-105), or by the close of a
-             child's sub-scope or an unmount of the child that resumes the
-             child's parked stop (14 — Children and Groups, BEH-BR-126) —
+             child's sub-scope or an unmount of the child that resumes a
+             stop of the child parked outside its parent's stop, before the
+             parent's stop has begun (14 — Children and Groups, BEH-BR-121,
+             BEH-BR-126) —
              the host MUST create,
              in the revision in which the intent ends, one record with:
              - `operation` "intent-ended", `phase` `system`, actor
@@ -1119,11 +1147,13 @@ operator call indefinitely, which the latch exists to make visible.
 ```
 REQUIREMENT: The host MUST set the audit-degraded latch when a terminal,
              `rejected` or system record is not written within
-             `auditTimeout`, when `shutdown`'s `requested` record is not
-             written, when a record is dropped for overflow, and when a
-             running `reconcile`'s parent terminal record is lost because
-             shutdown's wait for it ended without it (12 — Shutdown and
-             Hosting, BEH-BR-108; CCR-BR-036).
+             `auditTimeout` — or is still unwritten when the close flush
+             ends, whether it was numbered or not —, when `shutdown`'s
+             `requested` record is not written, when a record is dropped
+             for overflow, and when a running `reconcile`'s parent terminal
+             record is lost because shutdown's wait for it ended without it
+             (12 — Shutdown and Hosting, BEH-BR-108; CCR-BR-036,
+             CCR-BR-038).
 ```
 
 ```
@@ -1134,7 +1164,14 @@ REQUIREMENT: The change being recorded MUST NOT be undone: a `completed` call
 
 ```
 REQUIREMENT: Setting the latch MUST publish a snapshot with
-             `auditDegraded: true` and emit one `audit-degraded` event. While
+             `auditDegraded: true` and emit one `audit-degraded` event —
+             except during shutdown once the final snapshot has been
+             published (12 — Shutdown and Hosting, BEH-BR-109): the latch
+             is then set without publishing a snapshot or emitting an
+             event, and is reported by `CloseReport.auditDegraded` when set
+             before the report is produced, and always by
+             `Host.controls().closed` as `CloseTail.auditDegraded` (24 —
+             Time, Identifiers and Sequence, BEH-BR-212; CCR-BR-037). While
              the latch is set, every mutating call except `shutdown` and
              `acknowledgeAuditDegraded` MUST fail at step 3 with
              `AuditUnavailable`. Reads, leases and system transitions MUST
@@ -1273,10 +1310,16 @@ REQUIREMENT: When the host closes, the writer MUST be given at most
              error level by operation and target. Since the `CloseReport` is
              produced before this flush (12 — Shutdown and Hosting,
              BEH-BR-108), that loss MUST be signalled by the error log and by
-             `Host.controls().auditPosition`, whose `lastWritten` stays below
-             the lost records' numbers (24 — Time, Identifiers and Sequence,
-             BEH-BR-212), and not by `CloseReport.auditDegraded`
-             (CCR-BR-036).
+             `Host.controls().closed`, whose `CloseTail.lastWritten` stays
+             below `lastNumbered` when a lost record was numbered, and
+             whose `CloseTail.auditDegraded` is set when a lost record is a
+             terminal, `rejected` or system record, numbered or not
+             (BEH-BR-205), or is `shutdown`'s own `requested` record
+             (12 — Shutdown and Hosting, BEH-BR-110), and not by
+             `CloseReport.auditDegraded`; any other `requested` record
+             still queued and never numbered is signalled by the error log
+             only (24 — Time, Identifiers and Sequence, BEH-BR-212,
+             BEH-BR-213; CCR-BR-037, CCR-BR-038, CCR-BR-039).
 ```
 
 ```

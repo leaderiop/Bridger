@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-01                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): BEH-BR-001 names `manifest` and `handoff` among the optional fields (audit round 3, Low); the note on `meta.digest` points to the exceptions of BEH-BR-104 (C4) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-003 rule (h) also rejects a `health.every` or `health.timeout` that is not a positive finite duration, rule (j) names the contract causes of 26, and the Settled note no longer claims a complete set, pointing to the manifest and `idle` causes of 27 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-08): BEH-BR-001 Settled: `Plugin.Any` re-checked against effect 4.0.0; host-core prototype finding G-P15 not adopted, with reason (CCR-BR-029)<br>0.5 (2026-11-08): BEH-BR-007 Settled: the distribution-layer reference points to behaviours 26 and 27 and the loader companion instead of docs/ERP-DISTRIBUTION.md (CCR-BR-027)<br>0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.9 (2026-11-11): BEH-BR-005 note: a plugin is named by the record `{ id, realm }` in structured fields and by the canonical key only where one string is required (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-001 names `manifest` and `handoff` among the optional fields (audit round 3, Low); the note on `meta.digest` points to the exceptions of BEH-BR-104 (C4) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-003 rule (h) also rejects a `health.every` or `health.timeout` that is not a positive finite duration, rule (j) names the contract causes of 26, and the Settled note no longer claims a complete set, pointing to the manifest and `idle` causes of 27 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-08): BEH-BR-001 Settled: `Plugin.Any` re-checked against effect 4.0.0; host-core prototype finding G-P15 not adopted, with reason (CCR-BR-029)<br>0.5 (2026-11-08): BEH-BR-007 Settled: the distribution-layer reference points to behaviours 26 and 27 and the loader companion instead of docs/ERP-DISTRIBUTION.md (CCR-BR-027)<br>0.4 (2026-11-08): BEH-BR-001: every generic install overload takes the branded `Plugin` (compatibility change stated) (CCR-BR-022)<br>0.3 (2026-11-08): Plugin.Any and the phantom brand (CCR-BR-020); contract references in Keys, manifest field, contract rules in BEH-BR-006/007, lazy load note in BEH-BR-008 (CCR-BR-017); handoff field and rule (i) (CCR-BR-019); loader companion wording (CCR-BR-021)<br>0.2 (2026-10-02): IdentifiersOf made distributive (prototype finding G10) (CCR-BR-004)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -322,7 +322,11 @@ With one provider per key per realm
 ([ADR-BR-003](../decisions/003-one-provider-per-key-per-realm.md)), a second
 instance in the same resolution scope could not publish its services anyway.
 Making the ID-within-realm the identity lets every operation, snapshot entry,
-error and audit record name a plugin unambiguously with two strings.
+report, audit record and the errors that name a plugin other than the call's
+own target name it unambiguously with two strings: the record `{ id, realm }`
+(or `id` and `realm` side by side) in a structured field, and the canonical
+key `JSON.stringify([realm, id])` only where one string is required ([17 — Realms and Interception](./17-realms-and-interception.md),
+BEH-BR-147; CCR-BR-037).
 
 ## BEH-BR-006: Service keys are matched by ServiceId
 

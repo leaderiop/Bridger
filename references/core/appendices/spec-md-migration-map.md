@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-APP-01                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Appendix — Informative                                       |
-> | Change History | 0.6 (2026-11-10): Item 83: `shutdown` fails with `WouldDeadlock` from a build, `load` or finalizer fiber, before its `requested` record; item 97: every re-entrancy refusal is recorded except `shutdown`'s (CL10) (CCR-BR-036)<br>0.5 (2026-11-10): Item 22: `shutdown`'s union includes `WouldDeadlock` (H2, independent review of the round-3 fixes) (CCR-BR-035)<br>0.4 (2026-10-03): The review recorded as CCR-BR-002 was not the independent review of PROC-03 §5 (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Items 31 and 72 and the Concurrency and scheduling row widened; items 12 and 24 narrowed (callers already answered; child causation); ended intents and `resumes` in item 72 (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.7 (2026-11-11): Item 72: `DrainTimeout` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): Item 83: `shutdown` fails with `WouldDeadlock` from a build, `load` or finalizer fiber, before its `requested` record; item 97: every re-entrancy refusal is recorded except `shutdown`'s (CL10) (CCR-BR-036)<br>0.5 (2026-11-10): Item 22: `shutdown`'s union includes `WouldDeadlock` (H2, independent review of the round-3 fixes) (CCR-BR-035)<br>0.4 (2026-10-03): The review recorded as CCR-BR-002 was not the independent review of PROC-03 §5 (consistency pass) (CCR-BR-013)<br>0.3 (2026-10-02): Items 31 and 72 and the Concurrency and scheduling row widened; items 12 and 24 narrowed (callers already answered; child causation); ended intents and `resumes` in item 72 (CCR-BR-008)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -424,7 +424,7 @@ CCR-BR-002 (an agent review, not the independent review of PROC-03 §5).
     not settled parks with it; a provider's stop that needs the dependent
     resumes it and ends the parked intent, and shutdown resumes it under its
     own limits, either writing an `intent-ended` record when it ends an
-    intent; `DrainTimeout` carries `{ id, leases, target? }` —
+    intent; `DrainTimeout` carries `{ id, realm?, leases, target? }` —
     *BEH-BR-074, BEH-BR-078–080, BEH-BR-085, BEH-BR-105; ADR-BR-038*.
 73. **Leases after shutdown begins.** SPEC.md was silent → `use`, `useAll`
     and `lease` fail with `ServiceUnavailable`, not `HostClosed`; base-service

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-34                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-10): BEH-BR-347 and BEH-BR-349 the plugin is carried in `CurrentTransition` by its canonical key (C1) (CCR-BR-036)<br>0.7 (2026-11-10): BEH-BR-347 and BEH-BR-349 export, `upgrade` and `import` carry the plugin in `CurrentTransition`, not `HeldPlugins` (H1) (CCR-BR-035)<br>0.6 (2026-11-10): BEH-BR-345 a definition without `handoff` behaves as files 01–20 and 22–33 specify (review of CCR-BR-034) (CCR-BR-034)<br>0.5 (2026-11-09): Examples use `Plugin.define` (C-15); BEH-BR-347 export as the stop's final step of any handing-off operation (C-14); export under the old activation's principal and import and upgrade under the new one's, each with an empty annotation bag and the correlation of its stop or build (U-04); BEH-BR-346 a lazy registration's old side is its loaded definition, whose `handoff` is checked at load (U-05); BEH-BR-349 the value is imported only into a build that will be published, a stale build receives nothing and a target change during the import waits for publication; BEH-BR-351 a `restart` or `reconfigure` that supersedes the new build keeps the value held for the next build (U-02); acceptance rows REQ-BR-087 and 088 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-353 `PluginHandle.restart` takes `HandoffCallOptions`; BEH-BR-013 named as the source of every signature (C-01) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-353 handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `alsoOn`, `cold` call option, none on a volatile-only `reconfigure` (gap G44); BEH-BR-346 and 350 extended to those operations and to the undo `replace` of an atomic apply; BEH-BR-352 the previous definition kept for an atomic apply's undo; acceptance check 103 (CCR-BR-025)<br>0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.13 (2026-11-11): BEH-BR-349 a sub-scope close or `unmount` removal meeting the import steps waits for the build step as a cascade does, and a take-over waits only for the owning operation's stop step and its export, so no build or import runs and the held value is abandoned; REQ-BR-088 row (C10) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.12 (2026-11-11): BEH-BR-351 the rule abandoning a handoff when the plugin is replaced again, and the rule keeping a held value across a superseding `restart` or `reconfigure`, both except a superseding call with `cold: true` (C6); BEH-BR-353 the `cold` mismatch fails `Conflict` with `reason` "cold-mismatch" and `inspect().pending.cold` shows the operation's `cold` (CL1); REQ-BR-088 and REQ-BR-103 rows (SPEC-AUDIT-08) (CCR-BR-040)<br>0.11 (2026-11-11): `cold` made part of the operation (decision R5): BEH-BR-353 a join requires equal `cold`, a different one is `Conflict` (C7); BEH-BR-351 a `cold: true` call that supersedes abandons the handoff with the skip record (C7); BEH-BR-350 the skip record is the one record of such an abandoned handoff and is reported by no host event (CL5); BEH-BR-353 the exclusion names the skip record (C6) and the plan carries `cold` (C8); REQ-BR-103 row (SPEC-AUDIT-07) (CCR-BR-039)<br>0.10 (2026-11-11): BEH-BR-350 a handoff skipped by `cold: true` writes one `handoff` record with `cold: true` and no `error`; BEH-BR-353 `cold` carried on the gate request and the call's records (and those of the actions a cold `reconcile` issues), no longer kept out of them; REQ-BR-103 row (C7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.9 (2026-11-11): BEH-BR-346 and BEH-BR-353 `replace` and `reconcile` take `cold` (`ReplaceOptions.cold`, `ReconcileOptions.cold` applied to every replace and restarting reconfigure it issues), Settled (1); REQ-BR-103 row (H9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-347 and BEH-BR-349 the plugin is carried in `CurrentTransition` by its canonical key (C1) (CCR-BR-036)<br>0.7 (2026-11-10): BEH-BR-347 and BEH-BR-349 export, `upgrade` and `import` carry the plugin in `CurrentTransition`, not `HeldPlugins` (H1) (CCR-BR-035)<br>0.6 (2026-11-10): BEH-BR-345 a definition without `handoff` behaves as files 01–20 and 22–33 specify (review of CCR-BR-034) (CCR-BR-034)<br>0.5 (2026-11-09): Examples use `Plugin.define` (C-15); BEH-BR-347 export as the stop's final step of any handing-off operation (C-14); export under the old activation's principal and import and upgrade under the new one's, each with an empty annotation bag and the correlation of its stop or build (U-04); BEH-BR-346 a lazy registration's old side is its loaded definition, whose `handoff` is checked at load (U-05); BEH-BR-349 the value is imported only into a build that will be published, a stale build receives nothing and a target change during the import waits for publication; BEH-BR-351 a `restart` or `reconfigure` that supersedes the new build keeps the value held for the next build (U-02); acceptance rows REQ-BR-087 and 088 (CCR-BR-033)<br>0.4 (2026-11-09): BEH-BR-353 `PluginHandle.restart` takes `HandoffCallOptions`; BEH-BR-013 named as the source of every signature (C-01) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-353 handoff on `restart` and on a restarting `reconfigure` when the definition lists them in `alsoOn`, `cold` call option, none on a volatile-only `reconfigure` (gap G44); BEH-BR-346 and 350 extended to those operations and to the undo `replace` of an atomic apply; BEH-BR-352 the previous definition kept for an atomic apply's undo; acceptance check 103 (CCR-BR-025)<br>0.2 (2026-11-08): handoff loss tags declared record-only (ADR-BR-008) (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -130,14 +130,15 @@ REQUIREMENT: A handoff MUST be attempted only for a `replace` (including a
              `reconcile` entry action `replace` and the undo `replace` of an
              atomic apply, 32 — Generic Gate and Plan, BEH-BR-323) of a
              plugin that is `active` when its stop begins and whose old and
-             new definitions both declare `handoff`, and for the `restart`
-             and restarting `reconfigure` that BEH-BR-353 admits.
+             new definitions both declare `handoff`, unless the call passes
+             `cold: true` (BEH-BR-353), and for the `restart` and restarting
+             `reconfigure` that BEH-BR-353 admits.
 ```
 
 ```
-REQUIREMENT: No other stop — `remove`, `disable`, a `restart` or
-             `reconfigure` that BEH-BR-353 does not admit, a runtime
-             failure, dependency loss, shutdown — and no `replace` of a
+REQUIREMENT: No other stop — `remove`, `disable`, a `replace` with
+             `cold: true`, a `restart` or `reconfigure` that BEH-BR-353 does
+             not admit, a runtime failure, dependency loss, shutdown — and no `replace` of a
              plugin in any other state MUST export, hold or import state.
 ```
 
@@ -307,7 +308,20 @@ REQUIREMENT: Once the host has begun the steps below for a build that is not
              the wait is before the intent, so interrupting the caller
              during it ends the call as BEH-BR-067 says. A cascade waits for
              the build step as for any build (BEH-BR-079) and then stops the
-             plugin. Shutdown is the one exception: a build whose steps are
+             plugin. A removal of a child by its sub-scope close or by
+             `Plugin.Runtime.unmount` (14 — Children and Groups, BEH-BR-121,
+             BEH-BR-126) that meets these steps running waits for the build
+             step as a cascade does — the build already holds its slot, so
+             the wait is bounded by `handoffTimeout` for each step — and
+             then removes the child. A take-over by such a removal never
+             waits for them: it waits only for the owning operation's stop
+             step — the drain under `drainTimeout` and, when that step has
+             one, the export after it under `handoffTimeout` (BEH-BR-347) —
+             and in the revision that step ends begins the child's removal,
+             so the owning operation begins no build, no `upgrade`,
+             decoding or `import` runs, and a held value is abandoned as for
+             a plugin removed before the new activation is published
+             (BEH-BR-351) (CCR-BR-041). Shutdown is the one exception: a build whose steps are
              running when shutdown begins settles and is discarded (12 —
              Shutdown and Hosting, BEH-BR-105), and the handoff is
              abandoned.
@@ -410,9 +424,29 @@ REQUIREMENT: With a sink wired, each attempted handoff MUST produce exactly
 ```
 
 ```
+REQUIREMENT: With a sink wired, a handoff that would have been attempted
+             but is skipped because the call passed `cold: true`
+             (BEH-BR-353) MUST produce exactly one such `handoff` record,
+             with the same fields, carrying `cold: true` and no `error`, so
+             that a requested cold start is in the trail as an outcome of
+             its own (CCR-BR-038). A handoff that a call with `cold: true`
+             abandons by superseding (BEH-BR-351) MUST produce this skip
+             record as its one record, in place of a loss record, with a
+             `causationId` naming the superseding call's `requested`
+             record (CCR-BR-039).
+```
+
+```
+REQUIREMENT: A skip record MUST NOT be reported as a host event: the
+             `handoff-imported` and `handoff-lost` events mirror the
+             imported and lost outcomes of the record, and a requested cold
+             start is neither (CCR-BR-039).
+```
+
+```
 REQUIREMENT: The handoff record MUST be written before the `system-start`
              record of the new activation, so that a reviewer reads "state
-             carried" or "cold start" before "active".
+             carried", "cold start" or "skipped cold" before "active".
 ```
 
 ```
@@ -453,13 +487,15 @@ REQUIREMENT: The handoff MUST be abandoned, with tag `HandoffAbandoned`,
              new definition's requirements are missing, so the plugin
              enters `waiting`; the plugin is removed, disabled or replaced
              again before the new activation is published; or shutdown
-             begins.
+             begins — unless the superseding call passes `cold: true`, which
+             abandons it with the skip record instead (below).
 ```
 
 ```
 REQUIREMENT: A `restart` or `reconfigure` that supersedes the new build
              (08 — Operation Legality, BEH-BR-071, row `starting`) MUST NOT
-             abandon the handoff: the superseded build MUST be discarded
+             abandon the handoff, unless the superseding call passes
+             `cold: true` (below): the superseded build MUST be discarded
              without the value (BEH-BR-349), the value MUST stay held, and
              the next build of the registration MUST receive it under
              BEH-BR-349. The handoff keeps its one record, written for the
@@ -467,6 +503,21 @@ REQUIREMENT: A `restart` or `reconfigure` that supersedes the new build
              call that attempted it (BEH-BR-350). The superseding call
              attempts no handoff of its own: the plugin was not `active`
              when it began (BEH-BR-346, BEH-BR-353).
+```
+
+```
+REQUIREMENT: A call with `cold: true` that supersedes an operation in flight
+             whose handoff is attempted (08 — Operation Legality,
+             BEH-BR-072), or supersedes a build for which a value is held
+             (BEH-BR-071, row `starting`), MUST abandon that handoff: an
+             `export` not yet run MUST NOT run, a held value MUST be dropped
+             without an import, and the handoff's one record MUST be the
+             skip record of BEH-BR-350 (`cold: true`, no `error`, caused by
+             the superseding call's `requested` record), written when the
+             value is dropped or the export is cancelled and before any
+             later `system-start` of the registration. A call without
+             `cold` that supersedes a `cold: true` operation hands nothing
+             off either: nothing was exported (CCR-BR-039).
 ```
 
 ```
@@ -546,6 +597,11 @@ previous version cold, because nothing was kept for it.
 ```ts
 // illustrative — not type-checked
 interface HandoffCallOptions { readonly cold?: boolean }        // default false: hand off when admitted
+interface ReplaceOptions extends RemoveOptions { /* realm */ readonly cold?: boolean }   // default false
+interface ReconcileOptions { /* scope, prune, ... */ readonly cold?: boolean }       // default false; every replace
+                                                                   // and restarting reconfigure it issues
+// replace(plugin, options?: ReplaceOptions)                             (07, BEH-BR-049)
+// reconcile(desired, options?: ReconcileOptions & OperationOptions)     (18, BEH-BR-153)
 // restart(ref, options?: RemoveOptions & HandoffCallOptions)            (07, BEH-BR-058)
 // PluginHandle.restart(options?: RemoveOptions & HandoffCallOptions)   (07, BEH-BR-059)
 // every signature: 02 — Host Construction, BEH-BR-013
@@ -574,6 +630,18 @@ REQUIREMENT: A handoff MUST also be attempted for a `restart` of a plugin
 ```
 
 ```
+REQUIREMENT: `ReplaceOptions.cold` and `ReconcileOptions.cold` MUST skip a
+             handoff as `HandoffCallOptions.cold` does: a `replace` with
+             `cold: true` MUST NOT run `export`, MUST write, where a handoff
+             would otherwise have been attempted, the `handoff` record of a
+             skip (`cold: true`, BEH-BR-350), and the new activation starts
+             cold as if a definition declared no `handoff`. `ReconcileOptions.cold: true` MUST be
+             passed as `cold: true` to every `replace` and every restarting
+             `reconfigure` the reconcile issues, entry actions and undo
+             actions alike (32 — Generic Gate and Plan, BEH-BR-323).
+```
+
+```
 REQUIREMENT: In such a handoff the old and new definitions MUST be the same
              definition: the format versions are equal, `upgrade` MUST NOT
              run, and the export, hold, decode, import, failure and record
@@ -592,7 +660,10 @@ REQUIREMENT: A `reconfigure` confined to volatile fields (BEH-BR-102) MUST
 ```
 REQUIREMENT: A `restart` or `reconfigure` with `cold: true`, or of a
              definition whose `alsoOn` does not list the operation, MUST NOT
-             run `export` and MUST write no `handoff` record. A `restart` of
+             run `export`. With `cold: true`, where this behaviour would
+             otherwise admit the handoff, it MUST write the `handoff` record
+             of a skip (`cold: true`, BEH-BR-350); otherwise it MUST write
+             no `handoff` record. A `restart` of
              a plugin in any state other than `active` — `starting`,
              `waiting`, `failed` — MUST NOT attempt a handoff. Dependents
              stopped and started again by the restart MUST NOT hand off
@@ -600,10 +671,37 @@ REQUIREMENT: A `restart` or `reconfigure` with `cold: true`, or of a
 ```
 
 ```
-REQUIREMENT: `cold` MUST NOT change any other behaviour of `restart` or
-             `reconfigure`, MUST NOT appear in a gate request or an audit
-             record, and MUST be accepted, and ignored, on a definition
-             without `handoff`.
+REQUIREMENT: `cold` is part of the operation it is passed to, `cold` absent
+             being `cold: false`. A call that by the table of 08 —
+             Operation Legality, BEH-BR-072, would join an operation in
+             flight — or resume a parked one by joining it (BEH-BR-074) —
+             MUST join only when both carry the same `cold`; with a
+             different `cold` it MUST fail with
+             `Conflict { id, pending, reason: "cold-mismatch" }`, `pending`
+             naming the operation in flight, as a `Conflict` cell does (no
+             step 4b submission, BEH-BR-072), and the operation in flight
+             MUST be unaffected; `inspect(ref).pending.cold` shows the
+             operation's `cold` (13 — Observability and Diagnostics,
+             BEH-BR-118) (CCR-BR-039, CCR-BR-040).
+```
+
+```
+REQUIREMENT: Apart from the join and supersede outcomes above and in
+             BEH-BR-351, `cold` MUST NOT change any other behaviour of
+             `replace`, `restart`, `reconfigure` or `reconcile`, nor the
+             diff a reconcile computes; a `ReconcilePlan` carries the
+             `cold` it was computed with and `expect` compares it (32 —
+             Generic Gate and Plan, BEH-BR-318, BEH-BR-319). It MUST be
+             accepted on a definition without `handoff`, where it skips
+             nothing and causes no `handoff` record. A call that passes
+             `cold: true` MUST carry `cold: true` on its `OperationRequest`
+             (25 — Operation Gate, BEH-BR-219) and on its `requested`,
+             terminal and `rejected` records (23 — Audit Sink and Record,
+             BEH-BR-195), and a `reconcile` that passes it MUST carry it the
+             same way on those of every `replace` and restarting
+             `reconfigure` it issues; no other request or record carries
+             `cold`, except the `handoff` record of a skip it causes
+             (BEH-BR-350) (CCR-BR-038, CCR-BR-039).
 ```
 
 The case for this is the one the review of gap G44 described: a plugin
@@ -613,7 +711,10 @@ about its code or its state format changed. The same machinery that carries
 state across a `replace` carries it across these stops, with the same bound,
 the same record and the same cold start when it fails.
 
-**Settled here.** (1) Opt-in per definition, and per call through `cold`.
+**Settled here.** (1) Opt-in per definition, and per call through `cold`,
+which `replace` and `reconcile` take too (CCR-BR-037), so that a development
+reload (`bridger dev --cold`) can skip a handoff the definitions declare
+without changing the definition, and therefore without changing its digest.
 `restart` is also the way to *clear* state — a development adapter restarts
 a plugin because its external world changed (BEH-BR-058) — so handing off by
 default would turn a reset into a no-op. (2) A volatile-only `reconfigure`
@@ -632,8 +733,8 @@ scenario once code exists; none has run.
 | Scenario | Check | Behaviours |
 | --- | --- | --- |
 | REQ-BR-087 | A replace of an active plugin with handoff on both sides — or a `restart` or restarting `reconfigure` under `alsoOn` — exports after the drain and before scope close, as the stop's final step, under the old activation's principal; upgrades through `accepts`/`upgrade` and imports before publication under the new activation's principal, each step with `Actor.unattributed` and an empty annotation bag whatever the caller carries; and writes one `handoff` record before `system-start`; no other operation or state hands off; a lazy registration hands off only from its loaded definition, and a loaded definition with an invalid `handoff` fails phase "load"; keys are never provided twice; the held value appears in no record, event, log, snapshot or error | BEH-BR-345, BEH-BR-346, BEH-BR-347, BEH-BR-348, BEH-BR-349 |
-| REQ-BR-088 | Export failure, unaccepted version, upgrade or decode failure each give a cold start with the matching loss record and event; import failure fails the activation with no retry; new-build failure, `waiting`, removal and shutdown abandon the handoff with a record; a `restart` or `reconfigure` that supersedes the new build discards it without importing and the next build imports the value, with one record caused by the original call; an operator call arriving during the import waits and is decided against the published or failed plugin; a cascade-ended parked replace, and a replace into `dormant`, export nothing and write no record | BEH-BR-347, BEH-BR-349, BEH-BR-350, BEH-BR-351, BEH-BR-352 |
-| REQ-BR-103 | With `alsoOn`, an active plugin's `restart` and restarting `reconfigure` export after the drain and import into the new activation (built with the new configuration) with one `handoff` record caused by that call; `cold: true`, an unlisted operation, a non-active plugin, its dependents and a volatile-only `reconfigure` hand nothing off and write no record; loss paths as for replace | BEH-BR-346, BEH-BR-350, BEH-BR-353 |
+| REQ-BR-088 | Export failure, unaccepted version, upgrade or decode failure each give a cold start with the matching loss record and event; import failure fails the activation with no retry; new-build failure, `waiting`, removal and shutdown abandon the handoff with a record; a `restart` or `reconfigure` that supersedes the new build, unless it passes `cold: true` (REQ-BR-103), discards it without importing and the next build imports the value, with one record caused by the original call; an operator call arriving during the import waits and is decided against the published or failed plugin; a sub-scope close or `unmount` meeting the import steps waits for them and then removes the child, and a take-over waits only for the owning operation's stop step and its export, so the held value is abandoned with a record; a cascade-ended parked replace, and a replace into `dormant`, export nothing and write no record | BEH-BR-347, BEH-BR-349, BEH-BR-350, BEH-BR-351, BEH-BR-352 |
+| REQ-BR-103 | With `alsoOn`, an active plugin's `restart` and restarting `reconfigure` export after the drain and import into the new activation (built with the new configuration) with one `handoff` record caused by that call; `cold: true` hands nothing off and, where the handoff would otherwise run, writes one `handoff` record with `cold: true` and no `error`; an unlisted operation, a non-active plugin, its dependents and a volatile-only `reconfigure` hand nothing off and write no record; a `replace` with `cold: true`, and a `reconcile` with `cold: true` in each `replace` and restarting `reconfigure` it issues, hand nothing off and write the `cold: true` skip record where a handoff would otherwise run; `cold: true` is on the gate request and the `requested`, terminal and `rejected` records of each such call; a call joining one with a different `cold` fails `Conflict` with `reason` "cold-mismatch", and `inspect(...).pending.cold` shows the `cold` of the operation in flight; a `cold: true` call superseding an attempted handoff drops it (no export, or the held value dropped) with the skip record caused by that call, and a skip emits no host event; a plan carries `cold` and `expect` fails `PlanStale` on a different `cold`; loss paths as for replace | BEH-BR-346, BEH-BR-350, BEH-BR-351, BEH-BR-353 |
 
 ---
 
