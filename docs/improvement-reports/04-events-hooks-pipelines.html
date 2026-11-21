@@ -1,0 +1,387 @@
+<title>Bridger Events and Hooks Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: engineering notebook. Single column, sticky ToC strip, cards with paired before/after figures. */
+:root{--bg:#f6f7f9;--surface:#fff;--ink:#1b2430;--muted:#5b6676;--line:#d9dee6;--accent:#0b6e8a;--bad:#c0392b;--warn:#b7791f;--good:#1f8a5b;
+--f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;--f-head:"Space Grotesk","IBM Plex Sans",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+main{max-width:1040px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-head);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(1.6rem,4vw,2.3rem);margin-top:28px}
+h2{font-size:1.35rem;margin:40px 0 12px}
+h3{font-size:1.05rem}
+p{margin:.5em 0}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.eyebrow{font:500 .72rem var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.chip{font:500 .78rem var(--f-mono);padding:3px 10px;border-radius:99px;border:1px solid currentColor}
+.c-h{color:var(--bad)}.c-m{color:var(--warn)}.c-l{color:var(--accent)}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;padding:8px 0;margin-top:16px}
+nav.toc a{white-space:nowrap;font:500 .78rem var(--f-mono);padding:4px 9px;border-radius:6px;text-decoration:none;color:var(--muted)}
+nav.toc a:hover{background:var(--surface);color:var(--ink)}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.strip div{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--good);border-radius:6px;padding:10px 12px;font-size:.88rem}
+.strip b{display:block;font-family:var(--f-head)}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.filters button{font:500 .8rem var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.86rem;min-width:640px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 .72rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+.sev{font:500 .75rem var(--f-mono);padding:1px 8px;border-radius:99px;border:1px solid currentColor}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;margin:18px 0;scroll-margin-top:70px}
+.card header{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 22px;margin:10px 0}
+.dl h4{margin:0;font:500 .72rem var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.dl p{margin:2px 0;font-size:.9rem}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:700px){.ba{grid-template-columns:1fr}}
+.ba figure{margin:0;min-width:0;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg)}
+.ba figcaption{font-size:.8rem;color:var(--muted);margin-top:4px}
+.tag{font:500 .7rem var(--f-mono);letter-spacing:.07em;text-transform:uppercase}
+.tag.b{color:var(--bad)}.tag.a{color:var(--good)}
+svg{max-width:100%;height:auto;display:block}
+svg text{font:11px var(--f-mono);fill:currentColor}
+svg .m{fill:var(--muted)}
+svg .n{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+svg .nb{fill:color-mix(in srgb,var(--bad) 13%,var(--surface));stroke:var(--bad);stroke-width:1.5}
+svg .nw{fill:color-mix(in srgb,var(--warn) 13%,var(--surface));stroke:var(--warn);stroke-width:1.5}
+svg .ng{fill:color-mix(in srgb,var(--good) 13%,var(--surface));stroke:var(--good);stroke-width:1.5}
+svg .l{stroke:var(--muted);stroke-width:1.5;fill:none;marker-end:url(#ar)}
+svg .lb{stroke:var(--bad);stroke-width:1.5;fill:none;marker-end:url(#arb)}
+svg .lg{stroke:var(--good);stroke-width:1.5;fill:none;marker-end:url(#arg)}
+svg .d{stroke-dasharray:4 3}
+svg .tb{fill:var(--bad)}svg .tg{fill:var(--good)}svg .tw2{fill:var(--warn)}
+.anim{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;margin:16px 0}
+.anim .svgw{overflow-x:auto}
+.anim svg{min-width:560px}
+.anim .st{transition:opacity .35s}
+.anim .dim{opacity:.14}
+.ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.ctl button{font:500 .8rem var(--f-mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer}
+.ctl button:hover{border-color:var(--accent)}
+.cap{font-size:.9rem;min-height:2.9em;margin:8px 0 0}
+.cap b{font-family:var(--f-mono);color:var(--accent)}
+.cmp td:first-child{font-weight:600;font-family:var(--f-head)}
+.cmp .r{border-left:3px solid var(--bad)}.cmp .y{border-left:3px solid var(--warn)}.cmp .g{border-left:3px solid var(--good)}
+footer{margin-top:44px;border-top:1px solid var(--line);padding-top:16px;font-size:.88rem}
+footer li{margin:4px 0}
+.theme{float:right;font:500 .75rem var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;margin-top:10px}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--muted)"/></marker>
+<marker id="arb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--bad)"/></marker>
+<marker id="arg" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--good)"/></marker>
+</defs></svg>
+
+<main>
+<button class="theme" id="themeBtn" type="button">Toggle theme</button>
+<div class="eyebrow">Improvement report 04 · Bridger vs the Cordis lens</div>
+<h1>Events, hooks, policy gates and pipelines</h1>
+<p style="max-width:70ch">Bridger has three separate decision and observation mechanisms: the <code>Bridger.Events</code> bus (BEH-BR-137-144), hook points (BEH-BR-297-312) and the operation gate (BEH-BR-313-321, <code>gate.ts</code>). Their veto and observe roles are cleanly separated, and Bridger is ahead of Cordis there. The bus itself is thinner than Cordis' catalog discipline. An <code>EventKey</code> carries no dispatch mode, so a mismatch is silent. No generated catalog checks call sites. <code>emit</code> has no back-pressure or ordering statement, and waterfall <code>next</code> is un-memoised with "observer must call next" only a SHOULD.</p>
+<div class="chips" aria-label="Severity summary">
+<span class="chip c-h">High 2</span><span class="chip c-m">Medium 8</span><span class="chip c-l">Low 3</span><span class="chip" style="color:var(--muted)">13 findings · 6 recommendations</span></div>
+
+<nav class="toc" aria-label="Contents">
+<a href="#ahead">Ahead</a><a href="#findings">Findings</a><a href="#recs">Recommendations</a><a href="#anims">Animations</a><a href="#cordis">Cordis</a><a href="#unchecked">Not checked</a></nav>
+
+<h2 id="ahead">Where Bridger is already ahead</h2>
+<div class="strip">
+<div><b>Veto is not an event</b>BEH-BR-144 forbids listener veto over host operations; authorisation goes through <code>OperationGate</code>.</div>
+<div><b>Decision hooks</b>BEH-BR-297-312: roles fixed at registration, timeout, deadline (INV-BR-041), breaker, decision record (BEH-BR-305).</div>
+<div><b>Fail-closed gate</b><code>Gate.run</code> turns defect, timeout and malformed <code>Defer</code> into <code>Refuse</code>.</div>
+<div><b>Emit failure isolation</b>BEH-BR-141: listener failure becomes <code>listener-failed</code>; BEH-BR-142: mid-dispatch removal is a defect.</div>
+<div><b>Dispatch context</b>BEH-BR-144: principal = owner, actor reset, annotations filtered to "events".</div>
+<div><b>Deterministic order</b>BEH-BR-140: priority then monotonic id, snapshot at dispatch start.</div>
+<div><b>Fixed 8-step command pipeline</b>BEH-CM-009 with a single entry point, checked by INV-CM-001.</div>
+</div>
+
+<h2 id="findings">Findings</h2>
+<div class="filters" role="group" aria-label="Filter by severity">
+<button type="button" data-f="all" aria-pressed="true">All 13</button><button type="button" data-f="H" aria-pressed="false">High 2</button><button type="button" data-f="M" aria-pressed="false">Medium 8</button><button type="button" data-f="L" aria-pressed="false">Low 3</button></div>
+<div class="tw"><table id="ft"><thead><tr><th>ID</th><th>Sev</th><th>Evidence</th><th>Issue</th><th>Recommendation</th></tr></thead><tbody>
+<tr data-s="H"><td class="mono">EV-01</td><td><span class="sev c-h">H</span></td><td class="mono">bus.ts:17-21; BEH-BR-138</td><td>An <code>EventKey</code> has no mode. Registering <code>on</code> and dispatching via <code>waterfall</code> type-checks; the listener is silently never called.</td><td><a href="#r1">R1</a></td></tr>
+<tr data-s="H"><td class="mono">EV-02</td><td><span class="sev c-h">H</span></td><td class="mono">references/core/scripts/*; BEH-BR-138</td><td>No generated event catalog and no check that call sites use the declared mode.</td><td><a href="#r2">R2</a></td></tr>
+<tr data-s="M"><td class="mono">EV-03</td><td><span class="sev c-m">M</span></td><td class="mono">bus.ts fireAndForget</td><td>One unbounded supervised fiber per listener per emit; no back-pressure.</td><td><a href="#r4">R4</a></td></tr>
+<tr data-s="M"><td class="mono">EV-04</td><td><span class="sev c-m">M</span></td><td class="mono">BEH-BR-141/140</td><td>No statement on concurrent listeners or per-listener order across emits.</td><td><a href="#r4">R4</a></td></tr>
+<tr data-s="M"><td class="mono">EV-05</td><td><span class="sev c-m">M</span></td><td class="mono">BEH-BR-143; bus.ts waterfall</td><td>Veto vs observe is a convention; <code>next</code> not memoised; no timeout, deadline or breaker.</td><td><a href="#r3">R3</a></td></tr>
+<tr data-s="M"><td class="mono">EV-06</td><td><span class="sev c-m">M</span></td><td class="mono">bus.ts serial; BEH-BR-142</td><td><code>serial</code> is Cordis' <code>bail</code>; "decision pattern" has no role marking or decision record; weak rationale.</td><td><a href="#r1">R1</a>, <a href="#r5">R5</a></td></tr>
+<tr data-s="M"><td class="mono">EV-07</td><td><span class="sev c-m">M</span></td><td class="mono">bus.ts parallel; BEH-BR-142</td><td>Unbounded fan-out; first failure interrupts siblings mid-side-effect with no compensation rule.</td><td>No dedicated recommendation in the report (proposed change: concurrency option, idempotence rule or fail-late variant)</td></tr>
+<tr data-s="M"><td class="mono">EV-08</td><td><span class="sev c-m">M</span></td><td class="mono">events.ts HostEventBody</td><td>No machine-checked list tying each host event to a behaviour; <code>listener-failed</code> lacks owner.</td><td><a href="#r2">R2</a>, <a href="#r6">R6</a></td></tr>
+<tr data-s="M"><td class="mono">EV-09</td><td><span class="sev c-m">M</span></td><td class="mono">hooks.ts:29; runtime.ts:6</td><td>Two unrelated failure vocabularies; implicit listener failure policy.</td><td><a href="#r5">R5</a></td></tr>
+<tr data-s="M"><td class="mono">EV-10</td><td><span class="sev c-m">M</span></td><td class="mono">hooks.ts:35-52</td><td>10 hook knobs, defaults spread over 12 behaviours; <code>skip</code> on a veto point only partly admission-checked.</td><td><a href="#r5">R5</a></td></tr>
+<tr data-s="L"><td class="mono">EV-11</td><td><span class="sev c-l">L</span></td><td class="mono">BEH-BR-139</td><td><code>prepend</code> and <code>priority</code> overlap; no <code>global</code> option (realms replace it).</td><td>No dedicated recommendation (document precedence)</td></tr>
+<tr data-s="L"><td class="mono">EV-12</td><td><span class="sev c-l">L</span></td><td class="mono">BEH-BR-144</td><td>A listener may re-emit the event it handles with no depth cap or cycle detection.</td><td><a href="#r4">R4</a></td></tr>
+<tr data-s="L"><td class="mono">EV-13</td><td><span class="sev c-l">L</span></td><td class="mono">01-agent-seams.md; BEH-CM-012</td><td>Agent loop events have no declared keys or catalog entries.</td><td><a href="#r2">R2</a></td></tr>
+</tbody></table></div>
+
+<h2 id="recs">Recommendations</h2>
+
+<article class="card" id="r1"><header><span class="eyebrow">R1 · EV-01, EV-06</span><h3>Mode belongs to the event key</h3></header>
+<div class="dl">
+<div><h4>Rationale</h4><p>Cordis gives each event exactly one mode, so a listener cannot be registered for a style the emitter never uses. Bridger split <code>on</code>/<code>around</code> by kind but left mode free in the key, so the bug is silent.</p></div>
+<div><h4>Proposed change</h4><p>BEH-BR-138: <code>EventKey&lt;Args,Result,E,Mode&gt;</code>, <code>Event.make(...)(id,{mode})</code>. BEH-BR-139: <code>on</code> takes emit/parallel/serial keys, <code>around</code> only waterfall. BEH-BR-141-143: each dispatcher accepts only its mode. Amend ADR-BR-020. No unmoded keys exist.</p></div>
+<div><h4>Cost / risk</h4><p>Low: 4 dispatchers and one <code>Event.make</code>. Events dispatched by two modes today need splitting.</p></div>
+<div><h4>Verification</h4><p><code>// @ts-expect-error</code> tests per mismatched pair; runtime test that a mismatched dispatch dies with the event id.</p></div></div>
+<div class="ba">
+<figure><div class="tag b">Before</div><svg viewBox="0 0 340 190" role="img" aria-label="Key has no mode; on listener plus waterfall dispatch compiles and the listener is never called">
+<rect class="n" x="110" y="8" width="120" height="30" rx="4"/><text x="170" y="27" text-anchor="middle">Event.make(id)</text>
+<text class="m" x="170" y="52" text-anchor="middle">no mode in key</text>
+<rect class="n" x="10" y="80" width="110" height="30" rx="4"/><text x="65" y="99" text-anchor="middle">on(key, fn)</text>
+<rect class="n" x="220" y="80" width="110" height="30" rx="4"/><text x="275" y="99" text-anchor="middle">waterfall(key)</text>
+<path class="l" d="M150 40 L75 78"/><path class="l" d="M190 40 L265 78"/>
+<text class="m" x="95" y="62">type-checks</text><text class="m" x="235" y="62">type-checks</text>
+<path class="lb d" d="M220 98 L130 98"/>
+<rect class="nb" x="40" y="140" width="260" height="34" rx="4"/><text class="tb" x="170" y="155" text-anchor="middle">listener never called</text><text class="tb" x="170" y="168" text-anchor="middle">snapshot filters by kind: silent</text>
+<path class="lb" d="M65 112 L65 138"/></svg><figcaption>Mismatch compiles and is dropped without a signal.</figcaption></figure>
+<figure><div class="tag a">After</div><svg viewBox="0 0 340 190" role="img" aria-label="Key carries mode waterfall; on is a compile error, around is accepted">
+<rect class="ng" x="60" y="8" width="220" height="30" rx="4"/><text x="170" y="27" text-anchor="middle">Event.make(id,{mode:"waterfall"})</text>
+<rect class="nb" x="10" y="80" width="130" height="30" rx="4"/><text x="75" y="99" text-anchor="middle">on(key, fn)</text>
+<rect class="ng" x="200" y="80" width="130" height="30" rx="4"/><text x="265" y="99" text-anchor="middle">around(key, fn)</text>
+<path class="lb d" d="M130 40 L80 78"/><path class="lg" d="M210 40 L260 78"/>
+<rect class="nb" x="10" y="140" width="130" height="34" rx="4"/><text class="tb" x="75" y="155" text-anchor="middle">compile error</text><text class="tb" x="75" y="168" text-anchor="middle">+ runtime defect</text>
+<rect class="ng" x="200" y="140" width="130" height="34" rx="4"/><text class="tg" x="265" y="155" text-anchor="middle">accepted</text><text class="tg" x="265" y="168" text-anchor="middle">dispatcher matches</text>
+<path class="lb" d="M75 112 L75 138"/><path class="lg" d="M265 112 L265 138"/></svg><figcaption>Wrong pairs fail at build time; untyped callers hit a defect naming the event id.</figcaption></figure>
+</div></article>
+
+<article class="card" id="r2"><header><span class="eyebrow">R2 · EV-02, EV-08, EV-13</span><h3>Generated, verified event catalog</h3></header>
+<div class="dl">
+<div><h4>Rationale</h4><p>Cordis' <code>@mode</code> tag, generated catalog and <code>verify-cordis-catalog</code> make drift a CI failure. Bridger has the culture (<code>verify-traceability.sh</code>, <code>verify-companions.sh</code>) but not for events.</p></div>
+<div><h4>Proposed change</h4><p>New <code>references/core/scripts/verify-events.sh</code> (plus per-companion): extract every <code>Event.make</code>, <code>HostEventBody</code> tag and <code>HookPoint.make</code> name; generate <code>appendices/event-catalog.md</code> (id, mode, args, result, owner behaviour); fail if a call site names an id or mode absent from it. PROC rule: a new event needs a catalog row in the same change. Agent loop events join the catalog (EV-13).</p></div>
+<div><h4>Cost / risk</h4><p>Medium: parser over snippets marked "not type-checked". Start with the prototype source and a regex for <code>Event.make</code>.</p></div>
+<div><h4>Verification</h4><p>Seed a mismatched fixture; the script must exit non-zero.</p></div></div>
+<div class="ba">
+<figure><div class="tag b">Before</div><svg viewBox="0 0 340 190" role="img" aria-label="Declarations and call sites with no check between them">
+<rect class="n" x="10" y="10" width="140" height="28" rx="4"/><text x="80" y="28" text-anchor="middle">Event.make decls</text>
+<rect class="n" x="10" y="52" width="140" height="28" rx="4"/><text x="80" y="70" text-anchor="middle">HostEventBody tags</text>
+<rect class="n" x="190" y="30" width="140" height="28" rx="4"/><text x="260" y="48" text-anchor="middle">emit/on call sites</text>
+<path class="l d" d="M150 24 L188 40"/><path class="l d" d="M150 66 L188 50"/>
+<text class="m" x="165" y="100" text-anchor="middle">?</text>
+<rect class="nb" x="40" y="125" width="260" height="46" rx="4"/><text class="tb" x="170" y="145" text-anchor="middle">shape drift undetectable</text><text class="tb" x="170" y="161" text-anchor="middle">scripts/: traceability + claims only</text></svg><figcaption>Nothing compares declarations with use.</figcaption></figure>
+<figure><div class="tag a">After</div><svg viewBox="0 0 340 190" role="img" aria-label="Sources feed verify-events.sh which writes the catalog and fails CI on drift">
+<rect class="n" x="10" y="10" width="100" height="26" rx="4"/><text x="60" y="27" text-anchor="middle">Event.make</text>
+<rect class="n" x="10" y="46" width="100" height="26" rx="4"/><text x="60" y="63" text-anchor="middle">HostEventBody</text>
+<rect class="n" x="10" y="82" width="100" height="26" rx="4"/><text x="60" y="99" text-anchor="middle">call sites</text>
+<rect class="ng" x="140" y="38" width="100" height="44" rx="4"/><text x="190" y="58" text-anchor="middle">verify-events</text><text x="190" y="72" text-anchor="middle">.sh</text>
+<rect class="ng" x="260" y="10" width="72" height="44" rx="4"/><text x="296" y="29" text-anchor="middle">event-</text><text x="296" y="43" text-anchor="middle">catalog.md</text>
+<path class="lg" d="M110 23 L138 50"/><path class="lg" d="M110 59 L138 59"/><path class="lg" d="M110 95 L138 70"/><path class="lg" d="M240 50 L258 36"/>
+<rect class="ng" x="260" y="70" width="72" height="30" rx="4"/><text class="tg" x="296" y="89" text-anchor="middle">CI exit 1</text>
+<path class="lg" d="M240 68 L258 82"/>
+<text class="tg" x="170" y="140" text-anchor="middle">undeclared id or wrong mode fails CI</text><text class="m" x="170" y="158" text-anchor="middle">new event needs a catalog row in same change</text></svg><figcaption>Catalog is generated and call sites are checked against it.</figcaption></figure>
+</div></article>
+
+<article class="card" id="r3"><header><span class="eyebrow">R3 · EV-05</span><h3>Waterfall roles and once-only <code>next</code></h3></header>
+<div class="dl">
+<div><h4>Rationale</h4><p>Cordis admits "not calling next vetoes" is right for policy and a bug for observers. BEH-BR-143 repeats the trap as prose.</p></div>
+<div><h4>Proposed change</h4><p><code>around(event,{role:"observe"|"decide"},fn)</code>. For <code>observe</code> the bus passes <code>next</code>; if the listener returns without calling it, the bus runs the tail and records <code>listener-failed</code> ("observer skipped next"). <code>next</code> is memoised; a second call is a defect. Consequential decisions use a hook point (BEH-BR-308), keeping BEH-BR-144 intact.</p></div>
+<div><h4>Cost / risk</h4><p>Low-medium: changes the type of <code>waterfall</code>, rare use today.</p></div>
+<div><h4>Verification</h4><p>Observer that skips <code>next</code> still reaches <code>final</code>; double <code>next</code> defects; <code>decide</code> short-circuits.</p></div></div>
+<div class="ba">
+<figure><div class="tag b">Before</div><svg viewBox="0 0 340 190" role="img" aria-label="An observer that skips next silently vetoes; calling next twice runs the chain twice">
+<rect class="n" x="6" y="14" width="70" height="28" rx="4"/><text x="41" y="32" text-anchor="middle">L1 next()</text>
+<rect class="nw" x="132" y="14" width="76" height="28" rx="4"/><text x="170" y="32" text-anchor="middle">L2 observer</text>
+<rect class="nb d" x="262" y="14" width="72" height="28" rx="4"/><text class="tb" x="298" y="32" text-anchor="middle">final</text>
+<path class="l" d="M76 28 L130 28"/><path class="lb d" d="M208 28 L260 28"/>
+<text class="tb" x="234" y="62" text-anchor="middle">skipped</text>
+<text class="tb" x="170" y="82" text-anchor="middle">silent veto, no record</text>
+<rect class="n" x="6" y="110" width="70" height="28" rx="4"/><text x="41" y="128" text-anchor="middle">L1</text>
+<rect class="nw" x="132" y="110" width="76" height="28" rx="4"/><text x="170" y="128" text-anchor="middle">next(); next()</text>
+<rect class="n" x="262" y="110" width="72" height="28" rx="4"/><text x="298" y="128" text-anchor="middle">tail x2</text>
+<path class="l" d="M76 124 L130 124"/><path class="lb" d="M208 118 L260 118"/><path class="lb" d="M208 130 L260 130"/>
+<text class="tb" x="170" y="164" text-anchor="middle">un-memoised: chain runs twice</text></svg><figcaption>Both traps are authoring conventions, not checked.</figcaption></figure>
+<figure><div class="tag a">After</div><svg viewBox="0 0 340 190" role="img" aria-label="Observe role: bus runs the tail and records listener-failed; second next is a defect">
+<rect class="n" x="6" y="14" width="70" height="28" rx="4"/><text x="41" y="32" text-anchor="middle">L1</text>
+<rect class="ng" x="120" y="8" width="100" height="40" rx="4"/><text x="170" y="25" text-anchor="middle">L2 observe</text><text class="m" x="170" y="39" text-anchor="middle">skips next</text>
+<rect class="ng" x="262" y="14" width="72" height="28" rx="4"/><text class="tg" x="298" y="32" text-anchor="middle">final runs</text>
+<path class="l" d="M76 28 L118 28"/><path class="lg" d="M220 28 L260 28"/>
+<text class="tg" x="240" y="62" text-anchor="middle">bus runs tail</text>
+<text class="tw2" x="170" y="82" text-anchor="middle">+ listener-failed "skipped next"</text>
+<rect class="ng" x="120" y="110" width="100" height="28" rx="4"/><text x="170" y="128" text-anchor="middle">next(); next()</text>
+<path class="lg" d="M220 124 L260 124"/><rect class="nb" x="262" y="110" width="72" height="28" rx="4"/><text class="tb" x="298" y="128" text-anchor="middle">defect</text>
+<text class="tg" x="170" y="164" text-anchor="middle">memoised: 2nd call is a defect</text></svg><figcaption>Observers cannot veto by accident; decisions go to hook points.</figcaption></figure>
+</div></article>
+
+<article class="card" id="r4"><header><span class="eyebrow">R4 · EV-03, EV-04, EV-12</span><h3>Bounded emit and stated ordering</h3></header>
+<div class="dl">
+<div><h4>Rationale</h4><p><code>fireAndForget</code> forks without limit; the spec is silent on order, capacity and re-entrancy. For a GxP runtime, "lossy but silent" is the wrong default.</p></div>
+<div><h4>Proposed change</h4><p>BEH-BR-141: per-listener in-flight bound (default stated), overflow <code>drop</code> plus a new <code>listener-overflow</code> host event; no completion-order guarantee; cross-emit FIFO only for <code>serialised</code> listeners. BEH-BR-144: emit-depth annotation with a cap; exceeding it is a defect naming the event chain.</p></div>
+<div><h4>Cost / risk</h4><p>Medium: touches <code>begin</code>, <code>fireAndForget</code> and NFR-BR-007 wording.</p></div>
+<div><h4>Verification</h4><p>Stress test with a blocked listener: bounded fibers plus the overflow event; recursion test hits the cap.</p></div></div>
+<div class="ba">
+<figure><div class="tag b">Before</div><svg viewBox="0 0 340 190" role="img" aria-label="Emits fork one fiber each with no limit; a listener re-emitting its own event loops unbounded">
+<text class="m" x="10" y="16">slow listener, hot event</text>
+<g class="nb"><rect x="10" y="26" width="26" height="16"/><rect x="40" y="26" width="26" height="16"/><rect x="70" y="26" width="26" height="16"/><rect x="100" y="26" width="26" height="16"/><rect x="130" y="26" width="26" height="16"/><rect x="160" y="26" width="26" height="16"/><rect x="190" y="26" width="26" height="16"/><rect x="220" y="26" width="26" height="16"/><rect x="250" y="26" width="26" height="16"/></g>
+<path class="lb" d="M280 34 L326 34"/><text class="tb" x="170" y="64" text-anchor="middle">fibers grow without bound, no order stated</text>
+<rect class="n" x="100" y="100" width="140" height="28" rx="4"/><text x="170" y="118" text-anchor="middle">listener(E) emits E</text>
+<path class="lb" d="M240 114 C300 114 300 90 240 94"/><path class="lb" d="M100 114 C40 114 40 90 100 94" style="marker-end:none"/>
+<text class="tb" x="170" y="158" text-anchor="middle">no depth cap, no cycle detection</text></svg><figcaption>Neither fan-out nor re-entrancy is bounded.</figcaption></figure>
+<figure><div class="tag a">After</div><svg viewBox="0 0 340 190" role="img" aria-label="Per-listener bound with drop and listener-overflow event; depth cap defects on recursion">
+<text class="m" x="10" y="16">per-listener bound = N</text>
+<g class="ng"><rect x="10" y="26" width="26" height="16"/><rect x="40" y="26" width="26" height="16"/><rect x="70" y="26" width="26" height="16"/></g>
+<rect class="nb d" x="100" y="26" width="26" height="16"/><text class="tb" x="140" y="38">drop</text>
+<rect class="nw" x="190" y="22" width="140" height="24" rx="4"/><text class="tw2" x="260" y="38" text-anchor="middle">listener-overflow</text>
+<path class="lg" d="M130 34 L188 34"/>
+<text class="tg" x="170" y="68" text-anchor="middle">fibers bounded; order only if serialised</text>
+<rect class="n" x="40" y="100" width="130" height="28" rx="4"/><text x="105" y="118" text-anchor="middle">listener(E) emits E</text>
+<path class="lg" d="M170 114 L214 114"/><rect class="nb" x="216" y="100" width="114" height="28" rx="4"/><text class="tb" x="273" y="118" text-anchor="middle">depth &gt; cap: defect</text>
+<text class="tg" x="170" y="158" text-anchor="middle">defect names the event chain</text></svg><figcaption>Bounded fibers with a visible overflow event; recursion fails loudly.</figcaption></figure>
+</div></article>
+
+<article class="card" id="r5"><header><span class="eyebrow">R5 · EV-06, EV-09, EV-10</span><h3>Align policy surfaces and vocabulary</h3></header>
+<div class="dl">
+<div><h4>Rationale</h4><p>An author must choose between <code>serial</code>, <code>around</code>, a hook point and a gate; the specs say it only in scattered "Settled" paragraphs.</p></div>
+<div><h4>Proposed change</h4><p>One decision table in the core overview or 16. Glossary rows for <code>FailurePolicy</code> vs <code>OnErrorPolicy</code> vs listener failure. A defaults table for <code>HookPointOptions</code> and an admission rule rejecting <code>onError:"skip"</code> on veto unless allowed.</p></div>
+<div><h4>Cost / risk</h4><p>Low: documentation plus one admission check.</p></div>
+<div><h4>Verification</h4><p>Traceability check that every hook option has a default row; test of the admission rule.</p></div></div>
+<div class="ba">
+<figure><div class="tag b">Before</div><svg viewBox="0 0 340 190" role="img" aria-label="Four mechanisms and two failure vocabularies with no guidance on which to pick">
+<rect class="n" x="8" y="10" width="70" height="26" rx="4"/><text x="43" y="27" text-anchor="middle">serial</text>
+<rect class="n" x="88" y="10" width="70" height="26" rx="4"/><text x="123" y="27" text-anchor="middle">around</text>
+<rect class="n" x="168" y="10" width="70" height="26" rx="4"/><text x="203" y="27" text-anchor="middle">hook point</text>
+<rect class="n" x="248" y="10" width="84" height="26" rx="4"/><text x="290" y="27" text-anchor="middle">OperationGate</text>
+<text class="tw2" x="170" y="64" text-anchor="middle">which one for policy?</text>
+<text class="m" x="170" y="80" text-anchor="middle">answer lives in scattered "Settled" paragraphs</text>
+<rect class="nw" x="20" y="105" width="140" height="28" rx="4"/><text x="90" y="123" text-anchor="middle">FailurePolicy</text>
+<rect class="nw" x="180" y="105" width="140" height="28" rx="4"/><text x="250" y="123" text-anchor="middle">OnErrorPolicy</text>
+<text class="m" x="90" y="148" text-anchor="middle">fail-plugin/restart/ignore</text><text class="m" x="250" y="148" text-anchor="middle">deny/skip</text>
+<text class="tb" x="170" y="172" text-anchor="middle">listener policy implicit; 10 knobs, no defaults table</text></svg><figcaption>Choice and vocabulary are implicit.</figcaption></figure>
+<figure><div class="tag a">After</div><svg viewBox="0 0 340 190" role="img" aria-label="Decision table maps need to mechanism">
+<g class="ng"><rect x="8" y="8" width="324" height="26" rx="3"/></g>
+<text x="16" y="25">observe</text><text x="150" y="25">emit</text>
+<rect class="n" x="8" y="38" width="324" height="26" rx="3"/><text x="16" y="55">first answer</text><text x="150" y="55">serial</text>
+<rect class="n" x="8" y="68" width="324" height="26" rx="3"/><text x="16" y="85">middleware</text><text x="150" y="85">waterfall (observe)</text>
+<rect class="n" x="8" y="98" width="324" height="26" rx="3"/><text x="16" y="115">audited decision</text><text x="150" y="115">hook point</text>
+<rect class="n" x="8" y="128" width="324" height="26" rx="3"/><text x="16" y="145">host op authz</text><text x="150" y="145">OperationGate</text>
+<text class="tg" x="170" y="176" text-anchor="middle">+ glossary rows, defaults table, skip-on-veto refused</text></svg><figcaption>One table answers the choice; admission refuses the risky combination.</figcaption></figure>
+</div></article>
+
+<article class="card" id="r6"><header><span class="eyebrow">R6 · EV-08</span><h3>Listener failure attribution</h3></header>
+<div class="dl">
+<div><h4>Rationale</h4><p><code>listener-failed</code> carries a message only; <code>HostEvent.pluginId</code> is optional (<code>events.ts:27</code>).</p></div>
+<div><h4>Proposed change</h4><p>BEH-BR-141 and <code>HostEventBody</code>: <code>listener-failed</code> MUST carry <code>pluginId</code> (owner) and the listener contribution id.</p></div>
+<div><h4>Cost / risk</h4><p>Trivial.</p></div>
+<div><h4>Verification</h4><p>Test that a failing listener's event names its owner.</p></div></div>
+<div class="ba">
+<figure><div class="tag b">Before</div><svg viewBox="0 0 340 120" role="img" aria-label="listener-failed event with message only">
+<rect class="nb" x="40" y="14" width="260" height="68" rx="4"/><text x="52" y="34">listener-failed {</text><text x="64" y="52">message: "..."</text><text class="tb" x="64" y="70">pluginId?: (optional) none</text><text class="m" x="170" y="106" text-anchor="middle">who owns the failing listener?</text></svg><figcaption>The failing owner cannot be named.</figcaption></figure>
+<figure><div class="tag a">After</div><svg viewBox="0 0 340 120" role="img" aria-label="listener-failed event with pluginId and listener contribution id">
+<rect class="ng" x="40" y="14" width="260" height="68" rx="4"/><text x="52" y="34">listener-failed {</text><text x="64" y="52">message: "..."</text><text class="tg" x="64" y="70">pluginId, listenerId  (MUST)</text><text class="tg" x="170" y="106" text-anchor="middle">owner and listener identified</text></svg><figcaption>Failure is attributable.</figcaption></figure>
+</div></article>
+
+<h2 id="anims">How the mechanisms behave</h2>
+<p class="m" style="color:var(--muted);max-width:70ch">Each animation starts at its final state. Press Replay to watch it step by step; Step advances one stage.</p>
+
+<section class="anim" data-id="a" aria-label="Waterfall next chain animation">
+<h3>Waterfall: veto vs observer delegating</h3>
+<div class="svgw"><svg viewBox="0 0 640 230" role="img" aria-label="Two waterfall chains: a deciding listener stops the chain; an observer calls next and reaches final">
+<text class="m" x="8" y="16">decide: L2 does not call next</text>
+<g class="st" data-from="1"><rect class="n" x="8" y="26" width="100" height="40" rx="4"/><text x="58" y="50" text-anchor="middle">emitter</text></g>
+<g class="st" data-from="2"><rect class="n" x="180" y="26" width="100" height="40" rx="4"/><text x="230" y="44" text-anchor="middle">L1</text><text class="m" x="230" y="58" text-anchor="middle">calls next()</text></g>
+<g class="st" data-from="3"><rect class="nw" x="350" y="26" width="100" height="40" rx="4"/><text x="400" y="44" text-anchor="middle">L2 decide</text><text class="m" x="400" y="58" text-anchor="middle">returns</text></g>
+<g class="st" data-from="3"><rect class="nb d" x="520" y="26" width="100" height="40" rx="4"/><text class="tb" x="570" y="50" text-anchor="middle">final: skipped</text></g>
+<path class="l st" data-from="1" d="M108 46 L178 46"/><path class="l st" data-from="2" d="M280 46 L348 46"/><path class="lb d st" data-from="3" d="M450 46 L518 46"/>
+<text class="tb st" data-from="3" x="484" y="86" text-anchor="middle">veto by omission</text>
+<line x1="8" y1="112" x2="632" y2="112" stroke="var(--line)"/>
+<text class="m" x="8" y="132">observe: L2 delegates</text>
+<g class="st" data-from="1"><rect class="n" x="8" y="142" width="100" height="40" rx="4"/><text x="58" y="166" text-anchor="middle">emitter</text></g>
+<g class="st" data-from="2"><rect class="n" x="180" y="142" width="100" height="40" rx="4"/><text x="230" y="160" text-anchor="middle">L1</text><text class="m" x="230" y="174" text-anchor="middle">calls next()</text></g>
+<g class="st" data-from="3"><rect class="ng" x="350" y="142" width="100" height="40" rx="4"/><text x="400" y="160" text-anchor="middle">L2 observe</text><text class="m" x="400" y="174" text-anchor="middle">calls next()</text></g>
+<g class="st" data-from="4"><rect class="ng" x="520" y="142" width="100" height="40" rx="4"/><text class="tg" x="570" y="166" text-anchor="middle">final runs</text></g>
+<path class="l st" data-from="1" d="M108 162 L178 162"/><path class="l st" data-from="2" d="M280 162 L348 162"/><path class="lg st" data-from="4" d="M450 162 L518 162"/>
+<text class="tw2 st" data-from="5" x="320" y="214" text-anchor="middle">proposed R3: if an observer skips next, the bus runs the tail and records listener-failed</text>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Play</button><button type="button" data-a="pause">Pause</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button></div>
+<p class="cap" aria-live="polite"></p></section>
+
+<section class="anim" data-id="b" aria-label="Dispatch mode mismatch animation">
+<h3>Dispatch-mode mismatch vs mode in the key</h3>
+<div class="svgw"><svg viewBox="0 0 640 230" role="img" aria-label="Today a mismatched listener is filtered out silently; with mode in the key the registration is a compile error">
+<text class="m" x="8" y="16">today: key without mode</text>
+<g class="st" data-from="1"><rect class="n" x="8" y="26" width="130" height="40" rx="4"/><text x="73" y="44" text-anchor="middle">on(key, fn)</text><text class="m" x="73" y="58" text-anchor="middle">type-checks</text></g>
+<g class="st" data-from="2"><rect class="n" x="180" y="26" width="130" height="40" rx="4"/><text x="245" y="50" text-anchor="middle">waterfall(key)</text></g>
+<g class="st" data-from="3"><rect class="nw" x="350" y="26" width="130" height="40" rx="4"/><text x="415" y="44" text-anchor="middle">snapshot(,"around")</text><text class="m" x="415" y="58" text-anchor="middle">filters by kind</text></g>
+<g class="st" data-from="4"><rect class="nb" x="510" y="26" width="122" height="40" rx="4"/><text class="tb" x="571" y="44" text-anchor="middle">never called</text><text class="tb" x="571" y="58" text-anchor="middle">silent</text></g>
+<path class="l st" data-from="2" d="M138 46 L178 46"/><path class="l st" data-from="3" d="M310 46 L348 46"/><path class="lb st" data-from="4" d="M480 46 L508 46"/>
+<line x1="8" y1="112" x2="632" y2="112" stroke="var(--line)"/>
+<text class="m" x="8" y="132">proposed: mode in key</text>
+<g class="st" data-from="1"><rect class="nb" x="8" y="142" width="130" height="40" rx="4"/><text x="73" y="160" text-anchor="middle">on(key, fn)</text><text class="tb" x="73" y="174" text-anchor="middle">compile error</text></g>
+<g class="st" data-from="2"><rect class="ng" x="180" y="142" width="130" height="40" rx="4"/><text x="245" y="166" text-anchor="middle">around(key, fn)</text></g>
+<g class="st" data-from="3"><rect class="ng" x="350" y="142" width="130" height="40" rx="4"/><text x="415" y="160" text-anchor="middle">waterfall(key)</text><text class="m" x="415" y="174" text-anchor="middle">mode matches</text></g>
+<g class="st" data-from="4"><rect class="ng" x="510" y="142" width="122" height="40" rx="4"/><text class="tg" x="571" y="166" text-anchor="middle">listener runs</text></g>
+<path class="l st" data-from="3" d="M310 162 L348 162"/><path class="lg st" data-from="4" d="M480 162 L508 162"/>
+<text class="m st" data-from="4" x="320" y="214" text-anchor="middle">untyped callers: runtime defect naming the event id</text>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Play</button><button type="button" data-a="pause">Pause</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button></div>
+<p class="cap" aria-live="polite"></p></section>
+
+<section class="anim" data-id="c" aria-label="Emit fan-out and re-entrancy animation">
+<h3>Unbounded emit fan-out and re-entrancy vs bounded</h3>
+<div class="svgw"><svg viewBox="0 0 640 230" role="img" aria-label="Unbounded fibers pile up and a self-emitting listener loops; the bounded variant drops with an overflow event and caps depth">
+<text class="m" x="8" y="16">today: fireAndForget, no limit</text>
+<g class="st" data-from="1"><rect class="nw" x="8" y="26" width="30" height="40"/></g>
+<g class="st" data-from="2"><rect class="nw" x="42" y="26" width="30" height="40"/><rect class="nb" x="76" y="26" width="30" height="40"/><rect class="nb" x="110" y="26" width="30" height="40"/><rect class="nb" x="144" y="26" width="30" height="40"/><rect class="nb" x="178" y="26" width="30" height="40"/><text class="tb" x="218" y="50">...grows</text></g>
+<g class="st" data-from="3"><rect class="n" x="360" y="26" width="130" height="40" rx="4"/><text x="425" y="50" text-anchor="middle">listener emits E</text><path class="lb" d="M490 46 C560 46 560 12 490 18"/><text class="tb" x="580" y="40">loop</text></g>
+<text class="tb st" data-from="4" x="8" y="92">no bound, no order, no depth cap</text>
+<line x1="8" y1="112" x2="632" y2="112" stroke="var(--line)"/>
+<text class="m" x="8" y="132">proposed: bound + depth cap</text>
+<g class="st" data-from="1"><rect class="ng" x="8" y="142" width="30" height="40"/></g>
+<g class="st" data-from="2"><rect class="ng" x="42" y="142" width="30" height="40"/><rect class="nb d" x="76" y="142" width="30" height="40"/><text class="tb" x="112" y="166">drop</text><rect class="nw" x="150" y="148" width="130" height="28" rx="4"/><text class="tw2" x="215" y="166" text-anchor="middle">listener-overflow</text></g>
+<g class="st" data-from="3"><rect class="n" x="360" y="142" width="130" height="40" rx="4"/><text x="425" y="166" text-anchor="middle">listener emits E</text><path class="lg" d="M490 162 L520 162"/><rect class="nb" x="522" y="146" width="110" height="32" rx="4"/><text class="tb" x="577" y="160" text-anchor="middle">depth cap:</text><text class="tb" x="577" y="173" text-anchor="middle">defect + chain</text></g>
+<text class="tg st" data-from="4" x="8" y="214">fibers bounded; overflow visible; recursion fails loudly</text>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Play</button><button type="button" data-a="pause">Pause</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button></div>
+<p class="cap" aria-live="polite"></p></section>
+
+<h2 id="cordis">Cordis comparison</h2>
+<div class="tw"><table class="cmp"><thead><tr><th>Aspect</th><th>Cordis</th><th>Bridger today</th><th>Proposed</th></tr></thead><tbody>
+<tr><td>Dispatch mode</td><td class="g">Five modes; one declared per event (<code>@mode</code> tag)</td><td class="r">Mode free in the key; mismatch silent</td><td class="g">Mode in the key (R1)</td></tr>
+<tr><td>Catalog and drift</td><td class="g">Generated catalog plus <code>verify-cordis-catalog</code></td><td class="r">No catalog, no call-site check</td><td class="g"><code>verify-events.sh</code> (R2)</td></tr>
+<tr><td>Veto</td><td class="y">Any waterfall listener, by not calling next</td><td class="g">Gate port only; hook points for decisions</td><td class="g">Roles observe/decide, once-only next (R3)</td></tr>
+<tr><td>Decision policy</td><td class="y">Not provided</td><td class="g">Hook points: roles, deadline, breaker, record</td><td class="g">Decision table, defaults table (R5)</td></tr>
+<tr><td>Emit bounds</td><td class="y">Not covered in the Cordis brief</td><td class="r">Unbounded fibers, no depth cap</td><td class="g">Bound, overflow event, depth cap (R4)</td></tr>
+<tr><td>Failure attribution</td><td class="y">Not covered in the Cordis brief</td><td class="y"><code>listener-failed</code> without owner</td><td class="g">Owner and listener id required (R6)</td></tr>
+</tbody></table></div>
+
+<footer id="unchecked"><h2 style="margin-top:0">Not checked / uncertainties</h2><ul>
+<li>BEH-BR-301-312 and the hook implementation (<code>hooks.ts</code>, 466 lines) were not read line by line; hook findings rely on type signatures and behaviour headings.</li>
+<li>Durable-bus order guarantees (BEH-DB-xxx), event-store projection ordering and <code>references/mcp</code> pipeline behaviour: grep-level checks only.</li>
+<li>BEH-BR-146 (the realm answer to <code>global</code> in EV-11) was not opened; treat as an unverified pointer.</li>
+<li>EV-07 and EV-12 are inferred from code behaviour, not from a failing test; no prototype tests were run.</li>
+<li>Whether <code>Event.make</code> ids are used with more than one dispatcher in the prototype's tests was not counted.</li></ul>
+<p>Sibling reports: 01 to 07 in <code>docs/improvement-reports/</code>, same family (this is report 04, events, hooks and pipelines).</p></footer>
+</main>
+
+<script>
+(function(){
+var root=document.documentElement;
+document.getElementById('themeBtn').onclick=function(){var d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);root.setAttribute('data-theme',d?'light':'dark')};
+document.querySelectorAll('.filters button').forEach(function(b){b.onclick=function(){
+document.querySelectorAll('.filters button').forEach(function(x){x.setAttribute('aria-pressed',x===b)});
+var f=b.dataset.f;document.querySelectorAll('#ft tbody tr').forEach(function(r){r.hidden=!(f==='all'||r.dataset.s===f)})}});
+var CAP={
+a:["Ready.","Emitter dispatches the same event down a decide chain and an observe chain.","L1 calls next() in both chains; control passes to L2.","L2 (decide) returns without next(): final never runs. L2 (observe) calls next().","Observe chain reaches final. Same code shape, different outcome, and nothing marks which was intended.","Proposed R3: the role is declared. An observer that skips next gets the tail run by the bus and a listener-failed record; next is once-only."],
+b:["Ready.","Today: on(key) is accepted although the key has no mode. Proposed: the same call is a compile error.","The emitter dispatches with waterfall(key). Proposed: the waterfall listener must be registered with around.","Today the dispatcher snapshots only kind 'around' and filters the on listener out.","Today: listener never called, no signal. Proposed: it runs, and the mismatch could never be built."],
+c:["Ready.","One emit forks one fiber for a slow listener.","A hot event keeps emitting. Today fibers pile up. Proposed: the bound is hit, extras are dropped and listener-overflow is emitted.","A listener emits the event it handles. Today nothing stops the loop. Proposed: the depth annotation reaches its cap.","Outcome. Today: unbounded memory and silent recursion. Proposed: bounded fibers, visible overflow, a defect naming the event chain."]};
+var rm=matchMedia('(prefers-reduced-motion:reduce)').matches;
+document.querySelectorAll('.anim').forEach(function(el){
+var caps=CAP[el.dataset.id],max=caps.length-1,s=max,t=null;
+var cap=el.querySelector('.cap');
+function show(){el.querySelectorAll('.st').forEach(function(n){n.classList.toggle('dim',+n.dataset.from>s)});cap.innerHTML='<b>'+(s===0?'-':s+'/'+max)+'</b> '+caps[s]}
+function stop(){if(t){clearInterval(t);t=null}}
+function step(){if(s>=max){stop();return}s++;show();if(s>=max)stop()}
+function play(){if(s>=max)s=0;show();stop();t=setInterval(step,1800)}
+el.querySelector('.ctl').onclick=function(e){var a=e.target.dataset.a;if(!a)return;
+if(a==='play')play();else if(a==='pause')stop();else if(a==='step'){stop();if(s>=max)s=0;else s++;show()}else if(a==='replay'){s=0;show();stop();t=setInterval(step,1800)}};
+show();
+})})();
+</script>

@@ -97,7 +97,7 @@ Controls cite behaviours, defined in the [behaviour files](../behaviors/01-plugi
 | Risks introduced by controls | A lease held by a slow call delays removal: an availability cost, bounded by `drainTimeout`. Ending the drain by force interrupts the call — see [RSK-BR-015](#rsk-br-015). |
 | Verification | Planned — property tests over generated interleavings of `use`, `remove`, `replace` and runtime failure under `TestHost`; REQ-BR scenarios for acceptance checks 1, 2, 12 and 18 of BEH-BR-183; mutation testing. |
 | Residual scoring | S 3 · P 1 · D 1 → class Medium (3) · priority Low (2) |
-| Residual risk and acceptability | Remaining paths are uses outside a lease: a reference captured from `Runtime.optional` (BEH-BR-130) and kept past the call, or a service object stored by a plugin. These contradict the documented contract. Acceptable: closing them would need a sandbox, which is out of scope. |
+| Residual risk and acceptability | Remaining paths are uses outside a lease: a service object stored by a plugin (`Runtime.optional`, BEH-BR-130, hands out no service). These contradict the documented contract. Acceptable: closing them would need a sandbox, which is out of scope. |
 | Owner | Core |
 
 <a id="rsk-br-002"></a>

@@ -86,9 +86,9 @@ describe("P7 core 14/01/10: children, Plugin.Any, entitlement, unmount (checks 8
       yield* host.install(holder, as()); yield* idle(host)
       const a = yield* Effect.forkChild(rt!.entitled.pipe(Stream.runForEach((s) => Effect.sync(() => { got.push(s) }))))
       const b = yield* Effect.forkChild(Stream.runCollect(rt!.entitled))
-      yield* Effect.sleep(5)
+      yield* until(() => got.length >= 1)                                          // the first state reached the consumer: the watch is established
       yield* Deferred.succeed(feed, undefined)
-      yield* Effect.sleep(5)
+      yield* until(() => got.length >= 3)
       expect(watches).toEqual([{ id: "metered", realm: "default", version: "3" }])
       expect(got.map((s) => [s.mode, s.stale ?? false])).toEqual([["full", false], ["grace", false], ["grace", true]])
       expect(got.at(-1)!.reason).toBe("entitlement-view-ended")
@@ -135,6 +135,8 @@ const lazyListener = (id: string, heard: Array<string>, o: { listen?: boolean; l
   const lz = lazy({ manifest: manifest(id, { requires: [{ serviceId: "@bridger/core/Events" }] }), load: Effect.suspend(() => { loads++; return (o.load ?? Effect.void).pipe(Effect.as(def)) }), ...(o.idle !== undefined ? { idle: o.idle } : {}), ...(o.holdTimeout !== undefined ? { holdTimeout: o.holdTimeout } : {}) })
   return { lz, loads: () => loads }
 }
+/** Polls (real clock, bounded) until `cond` holds: asynchronous deliveries are awaited, never guessed with a fixed sleep. */
+const until = (cond: () => boolean) => Effect.gen(function* () { for (let i = 0; i < 1000 && !cond(); i++) yield* Effect.sleep(2) })
 const emitFrom = (host: Testing.TestHost, value: string) => host.use(Events, (bus) => bus.emit(Evt, value))
 
 describe("P7 core 27: held event (check 96)", () => {
@@ -150,10 +152,10 @@ describe("P7 core 27: held event (check 96)", () => {
       yield* host.install(lz, as())
       yield* emitFrom(host, SENTINEL)
       expect(yield* stateIn(host, "ear")).not.toBe("dormant")                     // woken; the emit did not wait
-      yield* idle(host); yield* Effect.sleep(5)
+      yield* idle(host); yield* until(() => heard.length >= 1); yield* Effect.sleep(5)
       expect(heard).toEqual([`on:${SENTINEL}`])
       expect(app).toEqual([SENTINEL])                                             // the ordinary emit only, never the held delivery
-      yield* emitFrom(host, "next"); yield* Effect.sleep(5)
+      yield* emitFrom(host, "next"); yield* until(() => heard.length >= 2); yield* Effect.sleep(5)
       expect(heard).toEqual([`on:${SENTINEL}`, "on:next"])
       yield* settleWriter
       expect(JSON.stringify([records, events, yield* host.snapshot, yield* host.inspect("ear")])).not.toContain(SENTINEL)
@@ -291,15 +293,18 @@ describe("P7 core 33: realm families and ephemeral realms (checks 84, 85, 86)", 
   it("check 85: idle eviction prunes with pruneDrain and pruneForce false — a held lease leaves it parked (incomplete), retried; outcomes on the family's events only; retireRealm rules", async () => {
     await onHost((host) => Effect.scoped(Effect.gen(function* () {
       const hostEvents = yield* collect(host)
-      const fam = yield* Realm.family<string>(host, { id: "fam", context: { actor: alice }, realm: () => ({ isolate: [Svc] }), plugins: () => [{ id: "svc", plugin: svcPlugin(1) }], idleEvict: { after: 40, drain: 20 } })
+      const fam = yield* Realm.family<string>(host, { id: "fam", context: { actor: alice }, realm: () => ({ isolate: [Svc] }), plugins: () => [{ id: "svc", plugin: svcPlugin(1) }], idleEvict: { after: 400, drain: 20 } })
       const out: Array<string> = []
       yield* Effect.forkScoped(fam.events.pipe(Stream.runForEach((e) => Effect.sync(() => { out.push(e.outcome) }))))
       yield* drive(host, fam.use("k", [Svc] as const, () => Effect.void))
-      const lease = yield* Effect.forkChild(Effect.scoped(Effect.andThen(host.lease([Svc] as const, { realm: "fam/k" }), Effect.sleep(150))))
-      yield* drive(host, Effect.sleep(120))
+      const acquired = yield* Deferred.make<void>(), release = yield* Deferred.make<void>()
+      const lease = yield* Effect.forkChild(Effect.scoped(host.lease([Svc] as const, { realm: "fam/k" }).pipe(Effect.andThen(Deferred.succeed(acquired, undefined)), Effect.andThen(Deferred.await(release)))))
+      yield* drive(host, Deferred.await(acquired))
+      yield* drive(host, until(() => out.length > 0))                             // the first eviction attempt meets the held lease
       expect(out[0]).toBe("incomplete")
+      yield* Deferred.succeed(release, undefined)
       yield* Fiber.join(lease)
-      yield* drive(host, Effect.sleep(200))
+      yield* drive(host, until(() => out.includes("completed")))                  // the retry finds it free
       expect(out).toContain("completed")
       expect((yield* host.snapshot).realms.map((r) => r.id)).not.toContain("fam/k")
       expect(typesOf(hostEvents).some((t) => t.startsWith("family"))).toBe(false)

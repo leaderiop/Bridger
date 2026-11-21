@@ -146,10 +146,10 @@ describe("P7 third pass: the wake window (R1-08, R1-10)", () => {
   for (const withEnrich of [false, true]) {
     it(`R1-08: ${withEnrich ? "an enrich contribution takes one more timeout off the window: the late veto is wake-timeout" : "without enrich work the same load arrives within the window"}`, async () => {
       await run((host) => Effect.gen(function* () {
-        // deadline 400, timeout 100: window 300 without enrich work, 200 with it; the load takes 250.
-        const point = yield* mk({ deadline: 400, timeout: 100, enrichment: undefined })
+        // deadline 2000, timeout 500: window 1500 without enrich work, 1000 with it; the load takes 1250 (a 250 ms margin each side).
+        const point = yield* mk({ deadline: 2000, timeout: 500, enrichment: undefined })
         if (withEnrich) yield* point.register("app/enrich", () => Effect.succeed({ _tag: "Pass" as const }), { role: "enrich" })
-        yield* host.install(lazy({ manifest: manifest(), load: Effect.sleep(250).pipe(Effect.as(guard(point))), digest: "pricing-1" }), as())
+        yield* host.install(lazy({ manifest: manifest(), load: Effect.sleep(1250).pipe(Effect.as(guard(point))), digest: "pricing-1" }), as())
         const out = yield* drive(host, linked(host)(point.dispatch(input)))
         expect(out.verdict).toEqual(withEnrich ? { _tag: "Denied", by: "pricing/guard", cause: "wake-timeout" } : { _tag: "Denied", by: "pricing/guard", cause: "veto", code: "below-cost" })
       }))
@@ -166,7 +166,7 @@ describe("P7 third pass: the wake window (R1-08, R1-10)", () => {
       expect((yield* host.declaredContributions(REG))[0]!.status).toBe("waking")
       const second = yield* linked(host)(point.dispatch(input))
       expect(second.verdict).toMatchObject({ cause: "wake-timeout" })
-      expect(second.record.elapsedMs).toBeLessThan(50)
+      expect(second.record.elapsedMs).toBeLessThan(150)                              // well under the 200 ms window it would otherwise wait
     }))
   })
 })

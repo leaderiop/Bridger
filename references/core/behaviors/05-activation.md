@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-11): BEH-BR-037 children a failed build mounted are removed before the activation scope closes, as the parent's stop, with no caller (C6) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.11 (2026-11-10): BEH-BR-040 the carried references name plugins by canonical key (09, BEH-BR-088) (C1) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-040 `awaitIdle` fails `WouldDeadlock` from a fiber carrying a plugin in `HeldPlugins` or `CurrentTransition`, `load` included (H1) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-037 phase "activation" also covers a runtime failure signalled while `starting` (`reportFailure`, a background fiber; BEH-BR-091) (audit round 2, Low) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-039 a build that imports handed-off state is decided stale before the import and is committed once the import begins (34, BEH-BR-349) (U-02); BEH-BR-034 a build queued when shutdown begins is cancelled and its plugin unregistered without a stop step (BEH-BR-105) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-033 a `waiting` plugin does not start once shutdown has begun; BEH-BR-034 no build begins and queued builds are cancelled under shutdown; BEH-BR-039 shutdown is a target change whose stale build is discarded (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-033 a wired `RefusalList` is consulted before a plugin enters `starting`, and a refused start lands in `disabled` (CCR-BR-026)<br>0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.15 (2026-11-21): BEH-BR-034 a build awaiting a child does not occupy its slot (improvement report 01, R9)<br>0.14 (2026-11-21): BEH-BR-040 `awaitSettled` (improvement report 01, R6)<br>0.13 (2026-11-21): BEH-BR-039 a stale build's outcome is always discarded and reported as `build-finished` with `stale: true` and `discardedFailures`; provider-loss no longer records `failed` (improvement report 01, L1/L8)<br>0.12 (2026-11-11): BEH-BR-037 children a failed build mounted are removed before the activation scope closes, as the parent's stop, with no caller (C6) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.11 (2026-11-10): BEH-BR-040 the carried references name plugins by canonical key (09, BEH-BR-088) (C1) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-040 `awaitIdle` fails `WouldDeadlock` from a fiber carrying a plugin in `HeldPlugins` or `CurrentTransition`, `load` included (H1) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-037 phase "activation" also covers a runtime failure signalled while `starting` (`reportFailure`, a background fiber; BEH-BR-091) (audit round 2, Low) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-039 a build that imports handed-off state is decided stale before the import and is committed once the import begins (34, BEH-BR-349) (U-02); BEH-BR-034 a build queued when shutdown begins is cancelled and its plugin unregistered without a stop step (BEH-BR-105) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-033 a `waiting` plugin does not start once shutdown has begun; BEH-BR-034 no build begins and queued builds are cancelled under shutdown; BEH-BR-039 shutdown is a target change whose stale build is discarded (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-033 a wired `RefusalList` is consulted before a plugin enters `starting`, and a refused start lands in `disabled` (CCR-BR-026)<br>0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -130,7 +130,9 @@ REQUIREMENT: Plugins that become ready in the same revision MUST be ordered
 ```
 REQUIREMENT: At most `BridgerOptions.concurrency` builds (default 4) MUST run
              at once. "unbounded" MUST impose no limit. A plugin that is not
-             ready MUST NOT occupy a build slot.
+             ready MUST NOT occupy a build slot. A build that awaits a
+             child (14 — Children and Groups, BEH-BR-124) MUST NOT occupy
+             its slot while it waits.
 ```
 
 ```
@@ -389,14 +391,17 @@ REQUIREMENT: Once the stale build has settled, the host MUST close its
 ```
 
 ```
-REQUIREMENT: When the target change was an operator operation or shutdown,
-             the stale build's outcome, success or failure, MUST be
-             discarded and the operation or shutdown MUST proceed; under
-             shutdown the plugin MUST end "gone" (12 — Shutdown and
-             Hosting, BEH-BR-105). When the target change was the loss of
-             a captured provider, a stale build that failed MUST be recorded
-             as `failed`, and one that succeeded MUST be discarded and the
-             plugin MUST go to `waiting`.
+REQUIREMENT: A stale build's outcome, success or failure, MUST be
+             discarded whatever changed the target, and the operation, cascade
+             or shutdown that changed it MUST proceed; under shutdown the
+             plugin MUST end "gone" (12 — Shutdown and Hosting, BEH-BR-105).
+             A stale build that failed MUST NOT make the plugin `failed`: the
+             plugin goes to `waiting` or to the operator's destination, and
+             the failure MUST be reported by a `build-finished` event with
+             outcome "failure" and `stale: true`. The event MUST carry
+             `discardedFailures`, the registration's count of consecutive
+             discarded failed builds, reset by any build that is not
+             discarded.
 ```
 
 ```
@@ -422,16 +427,17 @@ its own closes ([06 — Removal](./06-removal.md)).
 
 **Settled here.** SPEC.md says "let that step settle, close its stale scope,
 and reevaluate against the latest target" without saying what happens to a
-stale build that *failed*. When an operator asked for something else, that
-operation decides the destination and the old attempt's outcome is moot. When
-nobody asked — a provider simply left — a failure is still a failure and is
-kept sticky, because silently turning it into `waiting` would let the same
-failing build run again unattended when the provider returns
-([RSK-BR-003](../gxp/03-risk-assessment.md#rsk-br-003)). When both happen to
-one build — an operator operation and a provider's loss — the operator
-operation decides and the stale result is discarded either way (CCR-BR-008):
-the operation already names a destination, and a failure of a build nobody
-will use is not the failure of the plugin the operator asked for.
+stale build that *failed*. Whatever changed the target decides the
+destination, and the old attempt's outcome is moot: a build whose captured
+inputs are gone says nothing reliable about the plugin. Keeping the failure
+sticky when only a provider left (the rule of CCR-BR-008) was reversed by
+improvement report 01 (L1, L8): whether the plugin ended `failed` or `waiting`
+would depend on whether the build's failure or the provider's stop was observed
+first, the scheduling dependence BEH-BR-035 and BEH-BR-160 rule out. The hazard
+RSK-BR-003 names, a failing build re-running unattended when the provider
+returns, is bounded instead by `discardedFailures` on the event, so an operator
+or sink can see a build that keeps failing across dependency flaps. If the
+failure was real, the next activation reproduces it and fails visibly.
 
 ## BEH-BR-040: Builds are bounded, and idle is defined
 
@@ -486,6 +492,25 @@ REQUIREMENT: `awaitIdle` called from a fiber that carries a plugin's
              a finalizer of its activation scope — MUST
              fail at once with `WouldDeadlock` (09 — Leases, BEH-BR-088), and
              after shutdown has begun it MUST fail with `HostClosed`.
+```
+
+```ts
+// illustrative — not type-checked
+awaitSettled(target: readonly PluginRef[] | { readonly scope: string }, options?: { readonly timeout?: Duration.Input }):
+  Effect.Effect<readonly { ref: PluginRef; state: PluginState; activation?: number }[], SettleTimeout | WouldDeadlock | HostClosed>
+```
+
+```
+REQUIREMENT: `awaitSettled` MUST return, for each named plugin (or each
+             plugin installed by the named reconcile scope), its state once
+             that plugin has no transition running or ready to begin and no
+             operation in flight — the idleness predicate of this behaviour
+             applied to the one plugin. It MUST NOT wait for any other
+             plugin, so unrelated churn, such as a background restart
+             policy, cannot starve it. With `timeout` it MUST fail with
+             `SettleTimeout { ids }` naming the plugins not yet settled. It
+             MUST fail with `WouldDeadlock` and `HostClosed` under the
+             conditions of `awaitIdle` (report 01, R6).
 ```
 
 `awaitIdle` is how a test or a startup sequence says "do everything that can

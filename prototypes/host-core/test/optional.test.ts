@@ -12,7 +12,7 @@ class Search extends Context.Service<Search, { readonly query: (q: string) => Ef
 class Metrics extends Context.Service<Metrics, { readonly n: number }>()("example/Metrics") {}
 class Ui extends Context.Service<Ui, {
   readonly probe: Effect.Effect<Option.Option<string>>
-  readonly probeUndeclared: Effect.Effect<Option.Option<Metrics["Service"]>>
+  readonly probeUndeclared: Effect.Effect<Option.Option<void>>
   readonly withSearch: <A>(f: (s: Search["Service"]) => Effect.Effect<A>) => Effect.Effect<Option.Option<A>, unknown>
 }>()("example/Ui") {}
 
@@ -34,7 +34,7 @@ const uiPlugin = (j: Journal, o: { reactive?: (s: Search["Service"]) => Effect.E
     const rt = yield* PluginRuntime
     if (o.reactive) yield* rt.whenAvailable([Search] as const, ([s]) => o.reactive!(s), { ...(o.name ? { name: o.name } : {}), ...(o.onFailure ? { onFailure: o.onFailure } : {}) })
     return {
-      probe: rt.optional(Search).pipe(Effect.flatMap(Option.match({ onNone: () => Effect.succeedNone, onSome: (s) => Effect.asSome(s.query("probe")) }))),
+      probe: rt.useOptional(Search, (s) => s.query("probe")).pipe(Effect.orDie),
       probeUndeclared: rt.optional(Metrics),
       withSearch: (f) => rt.useOptional(Search, f)
     }
@@ -204,5 +204,14 @@ describe("reactive dependencies: whenAvailable (BEH-BR-132–136)", () => {
       // The run does not carry the id of the plugin that registered it: removing `ui` from outside is not refused.
       yield* drive(host, host.remove("ui", as()))
     }))
+  })
+})
+
+// Report 01 R8: the bare `optional` read is an existence witness; the service is reachable only through `useOptional`.
+describe("R8: optional is an existence check", () => {
+  it("type-level: the witness carries no service", () => {
+    type Opt = import("../src/runtime.js").PluginRuntime["Service"]["optional"]
+    const w: Effect.Success<ReturnType<Opt>> = Option.none() as Option.Option<void>   // fails to compile if a service type returns
+    expect(w).toEqual(Option.none())
   })
 })

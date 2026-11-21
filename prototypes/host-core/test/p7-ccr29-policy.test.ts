@@ -1,7 +1,7 @@
 // P7 third pass (CCR-BR-029 alignment): held event across a waiting removal (G-P14), mandatory sets on Host.use from
 // plugin code (G-P16, BEH-BR-262), idle conditions (G-P17), call-log capacity at the reservation (G-P18).
 // Prototype; evidences no requirement.
-import { Context, Effect, Exit, Fiber, Layer, Stream } from "effect"
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { Event, Events } from "../src/bus.js"
 import type { HostEvent } from "../src/events.js"
@@ -32,11 +32,15 @@ describe("P7 third pass: a removal that waits for a running load (G-P14, BEH-BR-
   it("G-P14: the load then fails — the held event is dropped 'activation-failed', never 'ended'", async () => {
     await onHost((host) => Effect.gen(function* () {
       const events = yield* collect(host)
-      yield* host.install(lazy({ manifest: evManifest("ear"), load: Effect.sleep(30).pipe(Effect.andThen(Effect.die("x"))) }), as())
+      const gate = yield* Deferred.make<void>()
+      yield* host.install(lazy({ manifest: evManifest("ear"), load: Deferred.await(gate).pipe(Effect.andThen(Effect.die("x"))) }), as())
       yield* emitFrom(host, "v")
       while ((yield* host.snapshot).plugins.find((p) => p.id === "ear")?.state !== "starting") { if (!(yield* host.step)) yield* Effect.yieldNow }
-      yield* drive(host, host.remove("ear", as()))
-      yield* Effect.sleep(5)
+      const removal = yield* Effect.forkChild(host.remove("ear", as()))
+      while ((yield* stateIn(host, "ear")) !== "stopping") { if (!(yield* host.step)) yield* Effect.yieldNow }
+      yield* Deferred.succeed(gate, undefined)                                       // the load settles only after the target changed
+      yield* drive(host, Fiber.join(removal))
+      for (let i = 0; i < 500 && drops(events).length === 0; i++) yield* Effect.sleep(2)   // the collector fiber catches up
       expect(drops(events)).toEqual(["activation-failed"])
     }))
   })
@@ -45,11 +49,15 @@ describe("P7 third pass: a removal that waits for a running load (G-P14, BEH-BR-
     const heard: Array<string> = []
     await onHost((host) => Effect.gen(function* () {
       const events = yield* collect(host)
-      yield* host.install(lazy({ manifest: evManifest("ear"), load: Effect.sleep(30).pipe(Effect.as(listener("ear", heard))) }), as())
+      const gate = yield* Deferred.make<void>()
+      yield* host.install(lazy({ manifest: evManifest("ear"), load: Deferred.await(gate).pipe(Effect.as(listener("ear", heard))) }), as())
       yield* emitFrom(host, "v")
       while ((yield* host.snapshot).plugins.find((p) => p.id === "ear")?.state !== "starting") { if (!(yield* host.step)) yield* Effect.yieldNow }
-      yield* drive(host, host.remove("ear", as()))
-      yield* Effect.sleep(5)
+      const removal = yield* Effect.forkChild(host.remove("ear", as()))
+      while ((yield* stateIn(host, "ear")) !== "stopping") { if (!(yield* host.step)) yield* Effect.yieldNow }
+      yield* Deferred.succeed(gate, undefined)                                       // the load settles only after the target changed
+      yield* drive(host, Fiber.join(removal))
+      for (let i = 0; i < 500 && drops(events).length === 0; i++) yield* Effect.sleep(2)   // the collector fiber catches up
       expect(heard).toEqual([])
       expect(drops(events)).toEqual(["ended"])
       expect(yield* stateIn(host, "ear")).toBe("uninstalled")

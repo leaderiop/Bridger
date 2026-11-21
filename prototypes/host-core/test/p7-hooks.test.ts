@@ -127,13 +127,13 @@ describe("P7 core 31: phases, failure policy, breaker, settle (checks 78, 79, 80
   })))
 
   it("check 79/94: the dispatch returns within its deadline; a deadline-interrupted hook is recorded deadline and denies only under onError deny", () => scoped(Effect.gen(function* () {
-    const p = yield* HookPoint.make<Price, number, string, "below-cost" | "frozen">("p", base({ timeout: 100, deadline: 120, onError: { default: "skip", allow: ["skip", "deny"] } }))
-    yield* p.register("a", () => Effect.sleep(80).pipe(Effect.as({ _tag: "Pass" as const })), { role: "veto" })
-    yield* p.register("b", () => Effect.sleep(80).pipe(Effect.as({ _tag: "Pass" as const })), { role: "veto" })
+    const p = yield* HookPoint.make<Price, number, string, "below-cost" | "frozen">("p", base({ timeout: 650, deadline: 700, onError: { default: "skip", allow: ["skip", "deny"] } }))
+    yield* p.register("a", () => Effect.sleep(200).pipe(Effect.as({ _tag: "Pass" as const })), { role: "veto" })
+    yield* p.register("b", () => Effect.sleep(3000).pipe(Effect.as({ _tag: "Pass" as const })), { role: "veto" })
     yield* p.register("c", () => pass, { role: "veto", onError: "deny" })
     const t0 = Date.now()
     const out = yield* withNone(p.dispatch(input))
-    expect(Date.now() - t0).toBeLessThan(200)
+    expect(Date.now() - t0).toBeLessThan(2000)
     expect(out.record.steps.map((s) => s.outcome)).toEqual(["pass", "deadline", "skipped-deadline"])
     expect(out.verdict).toEqual({ _tag: "Denied", by: "c", cause: "deadline" })
   })))

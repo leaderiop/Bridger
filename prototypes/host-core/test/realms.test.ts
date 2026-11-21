@@ -172,7 +172,7 @@ describe("interception (BEH-BR-151, 152)", () => {
       const opt: AnyPlugin = { id: "opt", requires: [], provides: [Out], optional: [Logger],
         build: Layer.effect(Out, Effect.gen(function* () {
           const rt = yield* PluginRuntime
-          return { logOpt: (m: string) => rt.optional(Logger).pipe(Effect.flatMap(Option.match({ onNone: () => Effect.void, onSome: (l) => l.log(m) }))) }
+          return { logOpt: (m: string) => rt.useOptional(Logger, (l) => l.log(m)).pipe(Effect.asVoid, Effect.orDie) }
         })) as unknown as AnyPlugin["build"] }
       yield* host.install(loggerPlugin(j), as())
       yield* host.install(opt, { ...as(), intercept: [tag("O")] })

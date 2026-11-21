@@ -1,0 +1,426 @@
+<title>Bridger Dependency Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: engineering notebook. Header, sticky TOC, findings table, one card per recommendation with before/after figures, three stepper animations, Cordis table, footer. */
+:root{--bg:#f6f7f9;--surface:#ffffff;--ink:#1b2430;--muted:#5b6676;--line:#d9dee6;--accent:#0b6e8a;--bad:#c0392b;--warn:#b7791f;--good:#1f8a5b;
+--bad-t:rgba(192,57,43,.11);--warn-t:rgba(183,121,31,.13);--good-t:rgba(31,138,91,.12);--accent-t:rgba(11,110,138,.10);
+--f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;--f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;--f-head:'Space Grotesk','IBM Plex Sans',system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;--bad-t:rgba(255,123,107,.15);--warn-t:rgba(240,180,76,.15);--good-t:rgba(93,211,158,.14);--accent-t:rgba(76,194,224,.13);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;--bad-t:rgba(255,123,107,.15);--warn-t:rgba(240,180,76,.15);--good-t:rgba(93,211,158,.14);--accent-t:rgba(76,194,224,.13);color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:0 3rem;overflow-x:hidden}
+.wrap{max-width:1080px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-head);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(1.7rem,4vw,2.4rem);font-weight:700}
+h2{font-size:1.45rem;margin:2.6rem 0 .8rem}
+h3{font-size:1.15rem}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+.eyebrow{font:500 .75rem var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+header.top{padding-block:2rem 1rem;border-bottom:1px solid var(--line)}
+header.top p{max-width:70ch;margin:.8rem 0}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.6rem}
+.chip{font:500 .78rem var(--f-mono);padding:.2rem .6rem;border-radius:99px;border:1px solid currentColor}
+.chip.H,.sev.H{color:var(--bad);background:var(--bad-t)}
+.chip.M,.sev.M{color:var(--warn);background:var(--warn-t)}
+.chip.L,.sev.L{color:var(--good);background:var(--good-t)}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line);display:flex;gap:.3rem;overflow-x:auto;padding:.5rem 0;margin-bottom:.5rem}
+nav.toc a{font:500 .78rem var(--f-mono);padding:.3rem .6rem;border-radius:6px;text-decoration:none;color:var(--muted);white-space:nowrap}
+nav.toc a:hover{background:var(--accent-t);color:var(--accent)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:30}
+.ahead{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem}
+.ahead div{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--good);padding:.6rem .7rem;font-size:.85rem;min-width:0}
+.ahead b{display:block;font-family:var(--f-head);font-size:.92rem;margin-bottom:.15rem}
+.ahead code{color:var(--muted)}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.7rem}
+.filters button{font:500 .8rem var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:.35rem .8rem;border-radius:6px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.scroll{overflow-x:auto;border:1px solid var(--line);background:var(--surface);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:.85rem}
+th,td{text-align:left;vertical-align:top;padding:.55rem .7rem;border-bottom:1px solid var(--line)}
+th{font:500 .72rem var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--bg)}
+td.id{font-family:var(--f-mono);white-space:nowrap}
+.sev{font:600 .75rem var(--f-mono);padding:.1rem .5rem;border-radius:4px}
+tr[hidden]{display:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:1.1rem;margin:1.2rem 0;scroll-margin-top:3.5rem}
+.card>header{display:flex;flex-wrap:wrap;gap:.6rem;align-items:baseline;margin-bottom:.8rem}
+.rid{font:600 .9rem var(--f-mono);color:var(--accent)}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1rem}
+figure{margin:0;border:1px solid var(--line);border-radius:6px;padding:.6rem;min-width:0;background:var(--bg)}
+figure.before{border-top:3px solid var(--bad)}
+figure.after{border-top:3px solid var(--good)}
+figcaption{font-size:.82rem;color:var(--muted);margin-bottom:.4rem}
+figcaption b{font-family:var(--f-mono);text-transform:uppercase;letter-spacing:.06em;font-size:.72rem}
+.before figcaption b{color:var(--bad)}.after figcaption b{color:var(--good)}
+.txt{display:grid;grid-template-columns:1fr 1fr;gap:.9rem 1.4rem}
+.txt div{min-width:0}
+.txt h4{margin:0 0 .2rem;font:500 .72rem var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.txt p{margin:0;font-size:.9rem}
+svg{display:block;max-width:100%;height:auto;color:var(--ink)}
+.bx{fill:var(--surface);stroke:currentColor;stroke-width:1.2}
+.bx.bad{stroke:var(--bad);fill:var(--bad-t)}.bx.warn{stroke:var(--warn);fill:var(--warn-t)}.bx.good{stroke:var(--good);fill:var(--good-t)}.bx.acc{stroke:var(--accent);fill:var(--accent-t)}
+.bx.dash{stroke-dasharray:4 3}
+.t{font:11px var(--f-body);fill:currentColor}.m{font:10px var(--f-mono);fill:currentColor}
+.c{text-anchor:middle}.b{font-weight:600}.mu{fill:var(--muted)}.tb{fill:var(--bad)}.tg{fill:var(--good)}.tw{fill:var(--warn)}.ta{fill:var(--accent)}
+.ln{stroke:currentColor;stroke-width:1.4;fill:none}.lb{stroke:var(--bad)}.lg{stroke:var(--good)}.lw{stroke:var(--warn)}.la{stroke:var(--accent)}.ds{stroke-dasharray:5 3}
+.mk{fill:currentColor}.mkb{fill:var(--bad)}.mkg{fill:var(--good)}.mkw{fill:var(--warn)}
+.anim{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:1rem;margin:1.2rem 0}
+.anim svg [data-from]{transition:opacity .45s}
+.anim svg [data-from].off{opacity:0}
+.ctl{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.6rem 0}
+.ctl button{font:500 .8rem var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:.35rem .8rem;border-radius:6px;cursor:pointer}
+.ctl button:hover{border-color:var(--accent);color:var(--accent)}
+.ctl .cnt{font:.78rem var(--f-mono);color:var(--muted);margin-left:.4rem}
+.caps{margin:.4rem 0 0;padding:0;list-style:none;display:grid;gap:.3rem}
+.caps li{font-size:.85rem;padding:.35rem .6rem;border-left:3px solid var(--line);color:var(--muted)}
+.caps li.on{border-left-color:var(--accent);color:var(--ink);background:var(--accent-t)}
+.scrollx{overflow-x:auto}
+.scrollx svg{min-width:560px}
+.cmp td,.cmp th{font-size:.82rem}
+.pill{display:inline-block;font:500 .72rem var(--f-mono);padding:.05rem .45rem;border-radius:4px;margin-right:.3rem}
+.pill.g{color:var(--good);background:var(--good-t)}.pill.w{color:var(--warn);background:var(--warn-t)}.pill.r{color:var(--bad);background:var(--bad-t)}.pill.n{color:var(--muted);background:var(--bg);border:1px solid var(--line)}
+footer{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--line);font-size:.88rem}
+footer ul{padding-left:1.1rem}
+.sib{font:.8rem var(--f-mono);color:var(--muted)}
+@media (max-width:720px){.ba,.txt{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.anim svg [data-from]{transition:none}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="mk" d="M0 0L10 5L0 10z"/></marker>
+<marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="mkb" d="M0 0L10 5L0 10z"/></marker>
+<marker id="arg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="mkg" d="M0 0L10 5L0 10z"/></marker>
+<marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="mkw" d="M0 0L10 5L0 10z"/></marker>
+</defs></svg>
+
+<div class="wrap">
+<header class="top">
+<div class="eyebrow">Bridger improvement report 02 · spatial composability</div>
+<h1>Dependency model and seams</h1>
+<p>Bridger's spatial model is stricter and more explicit than Cordis: cycles are refused at install, provider slots are exclusive per realm, and contract keys carry a version and method list. Interface drift is only partly covered. Drift detection is name-only, so a changed signature under an unchanged name binds silently, and plain keys have no check at all. There is no broker seam, so replacing a provider always restarts its dependents. Interception reaches captures but not <code>Host.use</code> or <code>lease</code>. The prototype also diverges from the spec in realm-family option fingerprinting.</p>
+<div class="chips" aria-label="Severity summary"><span class="chip H">2 High</span><span class="chip M">6 Medium</span><span class="chip L">4 Low</span><span class="chip" style="color:var(--muted)">12 findings · 6 recommendations + 3 minor proposals</span></div>
+</header>
+<nav class="toc" aria-label="Contents"><a href="#ahead">Ahead</a><a href="#findings">Findings</a><a href="#recs">Recommendations</a><a href="#anims">Animations</a><a href="#cordis">Cordis</a><a href="#notchecked">Not checked</a></nav>
+
+<h2 id="ahead">Where Bridger is already ahead of Cordis</h2>
+<div class="ahead">
+<div><b>Cycles are errors</b>Fail with <code>DependencyCycle {path}</code>; Cordis leaves a silent inactive fiber. <code>BEH-BR-018/020, INV-BR-002</code></div>
+<div><b>Optional keys out of ordering</b>Undeclared access returns <code>None</code> and logs. <code>BEH-BR-129/130</code></div>
+<div><b>Duplicate providers refused</b>At the caller, base services protected. <code>ADR-BR-003, INV-BR-001</code></div>
+<div><b>Two-stage key identity</b>ServiceId then object, semver contract ranges. <code>ADR-BR-011, BEH-BR-225..233</code></div>
+<div><b>Realms on the resolved graph</b>Ordering and lease admission stay correct; "not a security boundary". <code>BEH-BR-148/150</code></div>
+<div><b>Realm families</b>Lease-drain eviction, no Cordis equivalent. <code>BEH-BR-329..338</code></div>
+<div><b>Deadlock detection</b>Carried references, residuals stated. <code>BEH-BR-078/088, RSK-BR-011</code></div>
+</div>
+
+<h2 id="findings">Findings</h2>
+<div class="filters" role="group" aria-label="Filter by severity">
+<button type="button" data-f="all" aria-pressed="true">All 12</button><button type="button" data-f="H" aria-pressed="false">High 2</button><button type="button" data-f="M" aria-pressed="false">Medium 6</button><button type="button" data-f="L" aria-pressed="false">Low 4</button></div>
+<div class="scroll"><table id="ft">
+<thead><tr><th>ID</th><th>Sev</th><th>Evidence</th><th>Issue</th><th>Fix</th></tr></thead>
+<tbody>
+<tr data-sev="H"><td class="id">D-01</td><td><span class="sev H">H</span></td><td><code>BEH-BR-228</code> cl.3, <code>229</code>, <code>231</code></td><td>Compatibility checks method names and version only; <code>MethodSpec</code> codecs never compared.</td><td><a href="#R1">R1</a> schema digest per method</td></tr>
+<tr data-sev="H"><td class="id">D-02</td><td><span class="sev H">H</span></td><td><code>ADR-BR-011</code></td><td>Plain keys: drift undetected by design; defence is the <code>@2</code> suffix convention.</td><td><a href="#R2">R2</a> Contract required across packages, kit lint</td></tr>
+<tr data-sev="M"><td class="id">D-03</td><td><span class="sev M">M</span></td><td><code>ADR-BR-003</code>, <code>registry.ts:90-110</code></td><td>No broker seam; a provider swap restarts all dependents.</td><td><a href="#R3">R3</a> lease-aware stable facade</td></tr>
+<tr data-sev="M"><td class="id">D-04</td><td><span class="sev M">M</span></td><td><code>BEH-BR-151</code></td><td>Capture-only interception; <code>Host.use</code> bypasses it. Easy to misuse as access control.</td><td><a href="#R4">R4</a> cross-ref to <code>BEH-BR-262</code>, conformance check</td></tr>
+<tr data-sev="M"><td class="id">D-05</td><td><span class="sev M">M</span></td><td><code>realms.ts</code> <code>ensure</code>/<code>fingerprint</code>, <code>BEH-BR-330</code></td><td>Fingerprint uses counts, not interceptor identity; swapped interceptor reuses member.</td><td><a href="#R5">R5</a> identity fingerprint</td></tr>
+<tr data-sev="M"><td class="id">D-06</td><td><span class="sev M">M</span></td><td><code>realms.ts</code> key regex, <code>BEH-BR-330</code></td><td>Spec and prototype key grammars differ.</td><td><a href="#R5">R5</a> reconcile grammar</td></tr>
+<tr data-sev="M"><td class="id">D-07</td><td><span class="sev M">M</span></td><td><code>realms.ts</code> <code>awaitActive</code></td><td>Polls the host snapshot with <code>Effect.sleep(1)</code>.</td><td><a href="#X1">X1</a> subscribe instead</td></tr>
+<tr data-sev="M"><td class="id">D-08</td><td><span class="sev M">M</span></td><td><code>BEH-BR-146</code></td><td>Non-isolated provide inside a realm lands in the default slot.</td><td><a href="#R6">R6</a> <code>provideNonIsolated: "refuse"</code></td></tr>
+<tr data-sev="L"><td class="id">D-09</td><td><span class="sev L">L</span></td><td><code>BEH-BR-151</code> order</td><td>Interception chain order not discoverable via <code>inspect</code>.</td><td><a href="#R4">R4</a> <code>PluginInspection.interceptions</code></td></tr>
+<tr data-sev="L"><td class="id">D-10</td><td><span class="sev L">L</span></td><td><code>registry.ts</code> <code>within</code></td><td><code>within(range)</code> throws synchronously; <code>make</code> uses <code>Effect.die</code>.</td><td><a href="#X2">X2</a> return an Effect or document</td></tr>
+<tr data-sev="L"><td class="id">D-11</td><td><span class="sev L">L</span></td><td><code>BEH-BR-129</code> + <code>130</code></td><td>No path for "required at install, tolerate temporary loss".</td><td><a href="#X3">X3</a> document as non-goal, <code>ADR-BR-022</code></td></tr>
+<tr data-sev="L"><td class="id">D-12</td><td><span class="sev L">L</span></td><td><code>ADR-BR-010</code></td><td>No porting recipe for Cordis <code>accessor</code>/<code>mixin</code> patterns.</td><td><a href="#R3">R3</a> companion kit-docs recipe</td></tr>
+</tbody></table></div>
+
+<h2 id="recs">Recommendations</h2>
+
+<!-- R1 -->
+<article class="card" id="R1"><header><span class="rid">R1</span><h3>Compare method schemas, not just names</h3><span class="sev H">H</span><span class="mono mu">D-01</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> names and version range match, payload change goes unseen</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="Before: contract check compares names and range only, so a changed payload binds silently"><rect class="bx" x="10" y="20" width="130" height="56"/><text class="t b c" x="75" y="38">Provider</text><text class="m c" x="75" y="54">post  v1.3</text><text class="t tw c" x="75" y="69">payload changed</text>
+<rect class="bx" x="220" y="20" width="130" height="56"/><text class="t b c" x="285" y="38">Dependent</text><text class="m c" x="285" y="54">needs post ^1.0</text>
+<line class="ln" x1="140" y1="52" x2="218" y2="52" marker-end="url(#ar)"/><text class="m c mu" x="180" y="42">names + range</text><text class="m c" x="180" y="68">match</text>
+<line class="ln lb" x1="180" y1="76" x2="180" y2="106" marker-end="url(#arb)"/>
+<rect class="bx bad" x="60" y="108" width="240" height="46"/><text class="t b c tb" x="180" y="127">binds silently</text><text class="m c" x="180" y="143">MethodSpec codecs never compared</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> per-method schema digest compared for equal major</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="After: digests differ, so the pair is incompatible with mismatchedMethods"><rect class="bx" x="10" y="20" width="130" height="56"/><text class="t b c" x="75" y="38">Provider</text><text class="m c" x="75" y="54">post  v1.3</text><text class="m c tw" x="75" y="69">digest 9f2c</text>
+<rect class="bx" x="220" y="20" width="130" height="56"/><text class="t b c" x="285" y="38">Dependent</text><text class="m c" x="285" y="54">needs post ^1.0</text><text class="m c" x="285" y="69">digest 41ab</text>
+<line class="ln lg" x1="140" y1="52" x2="218" y2="52" marker-end="url(#arg)"/><text class="m c tg" x="180" y="42">digest</text><text class="m c tg" x="180" y="68">differs</text>
+<line class="ln lg" x1="180" y1="76" x2="180" y2="106" marker-end="url(#arg)"/>
+<rect class="bx good" x="45" y="108" width="270" height="46"/><text class="t b c tg" x="180" y="127">IncompatibleContract</text><text class="m c" x="180" y="143">mismatchedMethods: ["post"]</text>
+<text class="m mu" x="10" y="166">digests are example values</text></svg></figure></div>
+<div class="txt">
+<div><h4>Rationale</h4><p><code>BEH-BR-228</code> clause 3 only checks that every method name appears in the provision. Contracts already hold <code>MethodSpec</code> codecs and <code>BEH-BR-230</code> states add-only evolution, but nothing enforces it. In a GxP product (<code>RSK-BR-010</code>, <code>RSK-BR-025</code>) a silent payload change is the failure the contract layer exists to stop.</p></div>
+<div><h4>Proposed change</h4><p>Extend <code>ContractDescriptor</code> with <code>schemas: {method, digest}[]</code>, a stable hash of the encoded-side JSON Schema (payload, success, error, stream flag). Add clause 3b to <code>BEH-BR-228</code>: equal-major pairs must have equal digests unless the provision is higher and add-only per <code>Contract.diff</code>. <code>IncompatibleContract</code> gains <code>mismatchedMethods</code>. Optionally a <code>SchemaFingerprinter</code> port, unwired by default (today's behaviour).</p></div>
+<div><h4>Cost / risk</h4><p>Medium. Canonical JSON Schema of arbitrary codecs is hard (transformations, brands). Start with descriptor-level opt-in. Harmless refactors can false-positive; add-only classification mitigates.</p></div>
+<div><h4>Verification</h4><p>Conformance tests: widened payload binds; narrowed payload fails; two bundled copies of an identical contract bind; stream flag change fails. Add to kit BEH acceptance checks (kit 08).</p></div></div></article>
+
+<!-- R2 -->
+<article class="card" id="R2"><header><span class="rid">R2</span><h3>Plain keys across package boundaries fail conformance</h3><span class="sev H">H</span><span class="mono mu">D-02</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> plain key, no shape check, only a naming convention</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="Before: a plain key crosses a package boundary with no drift check"><rect class="bx" x="10" y="30" width="110" height="50"/><text class="t b c" x="65" y="50">Package A</text><text class="m c" x="65" y="66">provides Db</text>
+<rect class="bx" x="240" y="30" width="110" height="50"/><text class="t b c" x="295" y="50">Package B</text><text class="m c" x="295" y="66">requires Db</text>
+<line class="ln lw" x1="120" y1="55" x2="238" y2="55" marker-end="url(#arw)"/><text class="m c tw" x="180" y="46">plain key</text><text class="m c mu" x="180" y="72">ServiceId only</text>
+<line class="ln ds" x1="180" y1="10" x2="180" y2="100"/><text class="m mu" x="186" y="18">package boundary</text>
+<rect class="bx warn" x="40" y="108" width="280" height="46"/><text class="t b c tw" x="180" y="127">drift undetected by design</text><text class="m c" x="180" y="143">defence: "@2" suffix (ADR-BR-011)</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> contract key required, kit check flags plain keys</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="After: contract key crosses the boundary; kit check reports plain-cross-boundary-key unless annotated internal"><rect class="bx" x="10" y="48" width="110" height="50"/><text class="t b c" x="65" y="68">Package A</text><text class="m c" x="65" y="84">provides Db</text>
+<rect class="bx" x="240" y="48" width="110" height="50"/><text class="t b c" x="295" y="68">Package B</text><text class="m c" x="295" y="84">requires Db</text>
+<line class="ln lg" x1="120" y1="73" x2="238" y2="73" marker-end="url(#arg)"/><text class="m c tg" x="180" y="64">Contract key</text><text class="m c mu" x="180" y="90">version + methods</text>
+<rect class="bx acc" x="50" y="6" width="260" height="30"/><text class="m c ta" x="180" y="19">bridger kit check</text><text class="m c" x="180" y="31">plain-cross-boundary-key</text>
+<rect class="bx good" x="40" y="116" width="280" height="40"/><text class="t b c tg" x="180" y="133">plain key allowed only if "internal"</text><text class="m c" x="180" y="148">loader refuses outside-package plain key</text></svg></figure></div>
+<div class="txt">
+<div><h4>Rationale</h4><p><code>ADR-BR-011</code> admits drift under an unchanged <code>ServiceId</code> passes. <code>ADR-BR-040</code> added contracts but left plain keys fully legal, so the weak path is the easy path.</p></div>
+<div><h4>Proposed change</h4><p>In kit conformance (references/kit behaviors/03): a plugin whose <code>provides</code> or <code>requires</code> has a plain key MUST be reported by <code>bridger kit check</code> as <code>plain-cross-boundary-key</code> unless annotated <code>internal</code>. Core unchanged. Add a manifest field (<code>BEH-BR-241</code> family) for <code>internal</code> keys so the loader (references/loader 02) can refuse a manifest requiring an outside plain key.</p></div>
+<div><h4>Cost / risk</h4><p>Low. Some friction for first-party internal keys; the <code>internal</code> annotation absorbs it.</p></div>
+<div><h4>Verification</h4><p>Kit CLI fixture with one plain and one contract key; loader pipeline test with a third-party manifest.</p></div></div></article>
+
+<!-- R3 -->
+<article class="card" id="R3"><header><span class="rid">R3</span><h3>A broker seam for provider swaps</h3><span class="sev M">M</span><span class="mono mu">D-03, D-12</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> replace stops every dependent (<code>BEH-BR-050</code>)</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="Before: replacing the provider restarts all consumers"><rect class="bx bad" x="10" y="14" width="110" height="34"/><text class="t c" x="65" y="35">Consumer 1</text><rect class="bx bad" x="10" y="62" width="110" height="34"/><text class="t c" x="65" y="83">Consumer 2</text><rect class="bx bad" x="10" y="110" width="110" height="34"/><text class="t c" x="65" y="131">Consumer 3</text>
+<rect class="bx" x="240" y="56" width="110" height="46"/><text class="t b c" x="295" y="75">Provider</text><text class="m c" x="295" y="91">v1 to v2 replace</text>
+<line class="ln lb" x1="120" y1="31" x2="238" y2="68" marker-end="url(#arb)"/><line class="ln lb" x1="120" y1="79" x2="238" y2="79" marker-end="url(#arb)"/><line class="ln lb" x1="120" y1="127" x2="238" y2="92" marker-end="url(#arb)"/>
+<text class="m c tb" x="180" y="162">dependents do not survive a replace</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> consumers require a stable facade; implementations come and go</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="After: consumers require a broker facade that delegates to registry implementations under a lease"><rect class="bx good" x="6" y="14" width="86" height="34"/><text class="t c" x="49" y="35">Consumer 1</text><rect class="bx good" x="6" y="62" width="86" height="34"/><text class="t c" x="49" y="83">Consumer 2</text><rect class="bx good" x="6" y="110" width="86" height="34"/><text class="t c" x="49" y="131">Consumer 3</text>
+<rect class="bx acc" x="126" y="50" width="90" height="56"/><text class="t b c" x="171" y="70">Broker</text><text class="m c" x="171" y="84">facade key</text><text class="m c mu" x="171" y="98">select</text>
+<line class="ln" x1="92" y1="31" x2="124" y2="66"/><line class="ln" x1="92" y1="79" x2="124" y2="79"/><line class="ln" x1="92" y1="127" x2="124" y2="92"/>
+<rect class="bx dash" x="252" y="20" width="100" height="34"/><text class="m c" x="302" y="41">impl v1 (drains)</text><rect class="bx" x="252" y="102" width="100" height="34"/><text class="m c" x="302" y="123">impl v2 (new)</text>
+<line class="ln lg" x1="216" y1="66" x2="250" y2="40" marker-end="url(#arg)"/><line class="ln lg" x1="216" y1="92" x2="250" y2="118" marker-end="url(#arg)"/>
+<text class="m c tg" x="180" y="162">calls under lease; none live: ContributionUnavailable</text></svg></figure></div>
+<div class="txt">
+<div><h4>Rationale</h4><p><code>ADR-BR-003</code> rightly refuses multiple providers per key, but a replace currently stops all dependents. For a long-running ERP host that is a large blast radius for a patch. Registries multiplex by id; they do not give "one service, many implementations behind it". D-12: no porting recipe exists for Cordis <code>accessor</code>/<code>mixin</code> patterns.</p></div>
+<div><h4>Proposed change</h4><p>In 24 (shared-state helpers) specify <code>Broker.make(Contract, {select})</code>: a base-service facade delegating each call to <code>registry.use(id, ...)</code> under a lease (drain and <code>LeaseRevoked</code> already exist, <code>registry.ts:holding</code>). Providers contribute implementations (version and methods checked by <code>BEH-BR-233</code>). Selection (<code>first</code>, <code>by-priority</code>, <code>by-key</code>) is declared by the broker author. Federation (<code>BEH-FD-026</code>) and remote proxies become ordinary registry contributors. Add a kit-docs porting recipe as companion.</p></div>
+<div><h4>Cost / risk</h4><p>Medium; additive, built on existing primitives. Risk: the broker hides provider identity from audit, so <code>CallLog</code> (<code>BEH-BR-029</code>) must record the chosen contribution id.</p></div>
+<div><h4>Verification</h4><p>Swap an implementation under an in-flight call (drain, no consumer restart); remove the last implementation (typed failure); contract-version-mismatched contribution rejected at <code>add</code> (<code>BEH-BR-233</code>).</p></div></div></article>
+
+<!-- R4 -->
+<article class="card" id="R4"><header><span class="rid">R4</span><h3>Make interception limits unmistakable and inspectable</h3><span class="sev M">M</span><span class="mono mu">D-04, D-09</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> Host.use bypasses interceptors; inspect shows none</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="Before: capture goes through interceptors, Host.use skips them, inspect lists nothing"><rect class="bx" x="8" y="20" width="84" height="34"/><text class="t c" x="50" y="41">capture</text><rect class="bx" x="8" y="84" width="84" height="34"/><text class="t c" x="50" y="105">Host.use</text>
+<rect class="bx acc" x="130" y="20" width="100" height="34"/><text class="m c" x="180" y="41">interceptors</text><rect class="bx" x="266" y="52" width="90" height="42"/><text class="t b c" x="311" y="77">service</text>
+<line class="ln" x1="92" y1="37" x2="128" y2="37" marker-end="url(#ar)"/><line class="ln" x1="230" y1="37" x2="266" y2="62" marker-end="url(#ar)"/>
+<path class="ln lb ds" d="M92 101 H311 V96" marker-end="url(#arb)"/><text class="m c tb" x="180" y="96">BEH-BR-151: not intercepted</text>
+<rect class="bx warn" x="8" y="130" width="348" height="30"/><text class="m c tw" x="182" y="149">inspect: no interceptions listed; chain order not discoverable</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> restriction goes via mandatory policy; chain is inspectable</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="After: BEH-BR-151 cross-references BEH-BR-262 mandatory policy and inspect lists interceptions in order"><rect class="bx" x="8" y="14" width="84" height="30"/><text class="t c" x="50" y="33">capture</text><rect class="bx" x="8" y="60" width="84" height="30"/><text class="t c" x="50" y="79">Host.use</text>
+<rect class="bx acc" x="130" y="14" width="100" height="30"/><text class="m c" x="180" y="33">interceptors</text><rect class="bx good" x="130" y="60" width="100" height="30"/><text class="m c" x="180" y="79">mandatory 262</text>
+<rect class="bx" x="278" y="36" width="76" height="40"/><text class="t b c" x="316" y="60">service</text>
+<line class="ln" x1="92" y1="29" x2="128" y2="29" marker-end="url(#ar)"/><line class="ln lg" x1="92" y1="75" x2="128" y2="75" marker-end="url(#arg)"/><line class="ln" x1="230" y1="29" x2="278" y2="48" marker-end="url(#ar)"/><line class="ln lg" x1="230" y1="75" x2="278" y2="66" marker-end="url(#arg)"/>
+<rect class="bx good" x="8" y="104" width="346" height="58"/><text class="m c tg" x="181" y="120">inspect.interceptions (ids only, in order)</text><text class="m c" x="181" y="136">realm → install/inherited → mandatory</text><text class="m c mu" x="181" y="152">BEH-BR-151 gains note: use 262 for restriction</text></svg></figure></div>
+<div class="txt">
+<div><h4>Rationale</h4><p><code>BEH-BR-151</code> deliberately wraps at capture only, and <code>BEH-BR-152</code> notes authorization or rate-limit wrappers must not be called a boundary. Cordis's intercept is also not security. The risk is documentation plus invisibility: <code>inspect</code> shows no interceptions.</p></div>
+<div><h4>Proposed change</h4><p>(a) One-line normative note in <code>BEH-BR-151</code> referencing <code>BEH-BR-262</code> for restriction. (b) Extend <code>PluginInspection</code> (<code>BEH-BR-232</code>) with <code>interceptions: {key, source: "realm"|"install"|"inherited"|"mandatory", id?}[]</code> in composition order. Ids only, honouring the <code>ADR-BR-033</code> no-values rule.</p></div>
+<div><h4>Cost / risk</h4><p>Low. Needs an optional <code>id</code> on <code>Interception</code>.</p></div>
+<div><h4>Verification</h4><p>Inspect fixture asserting order realm, inherited/own, mandatory (<code>BEH-BR-261</code>).</p></div></div></article>
+
+<!-- R5 -->
+<article class="card" id="R5"><header><span class="rid">R5</span><h3>Fix realm-family option fingerprinting</h3><span class="sev M">M</span><span class="mono mu">D-05, D-06</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> prototype fingerprints counts, not identity</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="Before: a swapped interceptor of equal count yields an equal fingerprint and the member is reused"><rect class="bx" x="8" y="14" width="150" height="40"/><text class="t b c" x="83" y="31">use #1</text><text class="m c" x="83" y="46">interceptor X</text>
+<rect class="bx" x="202" y="14" width="150" height="40"/><text class="t b c" x="277" y="31">use #2</text><text class="m c" x="277" y="46">interceptor Y</text>
+<text class="m c" x="83" y="74">{isolate ids, 1, 0}</text><text class="m c" x="277" y="74">{isolate ids, 1, 0}</text>
+<line class="ln" x1="83" y1="54" x2="83" y2="62"/><line class="ln" x1="277" y1="54" x2="277" y2="62"/>
+<text class="t b c tb" x="180" y="92">equal</text><line class="ln lb" x1="110" y1="80" x2="250" y2="80"/>
+<rect class="bx bad" x="40" y="108" width="280" height="46"/><text class="t b c tb" x="180" y="127">member reused, old wrap kept</text><text class="m c" x="180" y="143">options-changed never raised</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> WeakMap identity list in the fingerprint</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="After: identity lists differ so FamilyMemberUnavailable options-changed is returned"><rect class="bx" x="8" y="14" width="150" height="40"/><text class="t b c" x="83" y="31">use #1</text><text class="m c" x="83" y="46">interceptor X</text>
+<rect class="bx" x="202" y="14" width="150" height="40"/><text class="t b c" x="277" y="31">use #2</text><text class="m c" x="277" y="46">interceptor Y</text>
+<text class="m c" x="83" y="74">[#1]</text><text class="m c" x="277" y="74">[#2]</text>
+<text class="t b c tg" x="180" y="92">differ</text><line class="ln lg" x1="110" y1="80" x2="250" y2="80"/>
+<rect class="bx good" x="30" y="108" width="300" height="46"/><text class="t b c tg" x="180" y="127">FamilyMemberUnavailable</text><text class="m c" x="180" y="143">reason: "options-changed"</text></svg></figure></div>
+<div class="txt">
+<div><h4>Rationale</h4><p><code>BEH-BR-330</code> requires identical isolated keys and the same interceptor objects in order. <code>realms.ts</code> computes <code>{isolate ids, interceptors.length, mandatory.length}</code>. This is the one prototype/spec divergence the review found. D-06: spec refuses empty, "/" and "bridger:" prefix; prototype accepts only <code>[A-Za-z0-9._-]{1,64}</code>, so keys like <code>"a:b"</code> differ in behaviour.</p></div>
+<div><h4>Proposed change</h4><p>Prototype: give each interceptor and mandatory entry a stable id via a module-level <code>WeakMap&lt;object, number&gt;</code> and fingerprint <code>interceptors.map(idOf)</code>. Spec: add to <code>BEH-BR-330</code> "same count, different object fails with options-changed". Grammar: state <code>[A-Za-z0-9._-]{1,64}</code> in <code>BEH-BR-330</code> (cleanest, matches audit realm id use) or relax the prototype.</p></div>
+<div><h4>Cost / risk</h4><p>Low.</p></div>
+<div><h4>Verification</h4><p>Unit test in <code>prototypes/host-core</code>: second <code>use</code> with swapped interceptor returns <code>FamilyMemberUnavailable {reason: "options-changed"}</code>; pin key <code>"a:b"</code> behaviour either way.</p></div></div></article>
+
+<!-- R6 -->
+<article class="card" id="R6"><header><span class="rid">R6</span><h3>Guard the default-realm leak</h3><span class="sev M">M</span><span class="mono mu">D-08</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> forgotten <code>isolate</code> publishes into the default slot</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="Before: a plugin in realm R provides a non-isolated key and it lands in the default slot visible to all tenants"><rect class="bx" x="8" y="20" width="130" height="64"/><text class="t b c" x="73" y="40">Plugin in realm R</text><text class="m c" x="73" y="56">provides K</text><text class="m c tw" x="73" y="72">K not in isolate</text>
+<line class="ln lb" x1="138" y1="52" x2="212" y2="52" marker-end="url(#arb)"/><text class="m c tb" x="175" y="44">BEH-BR-146</text>
+<rect class="bx bad" x="214" y="20" width="140" height="64"/><text class="t b c" x="284" y="40">default slot</text><text class="m c" x="284" y="56">K</text><text class="m c tb" x="284" y="72">visible to all tenants</text>
+<rect class="bx bad" x="40" y="108" width="280" height="46"/><text class="t b c tb" x="180" y="127">tenant leak</text><text class="m c" x="180" y="143">DuplicateProvider at best</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> opt-in refusal at install</figcaption>
+<svg viewBox="0 0 360 170" role="img" aria-label="After: with provideNonIsolated refuse, install fails with InvalidDefinition"><rect class="bx" x="8" y="20" width="130" height="64"/><text class="t b c" x="73" y="40">Plugin in realm R</text><text class="m c" x="73" y="56">provides K</text><text class="m c tw" x="73" y="72">K not in isolate</text>
+<line class="ln lg" x1="138" y1="52" x2="212" y2="52"/><path class="ln lg" d="M200 42 L222 62 M222 42 L200 62"/><text class="m c tg" x="175" y="36">install</text>
+<rect class="bx dash" x="228" y="20" width="126" height="64"/><text class="t c mu" x="291" y="56">default slot</text><text class="m c mu" x="291" y="72">untouched</text>
+<rect class="bx good" x="20" y="108" width="320" height="46"/><text class="t b c tg" x="180" y="127">InvalidDefinition</text><text class="m c" x="180" y="143">non-isolated-provide-in-realm</text></svg></figure></div>
+<div class="txt">
+<div><h4>Rationale</h4><p><code>BEH-BR-146</code> lets a non-isolated key provided inside a realm land in the default slot. That suits shared services but is the classic tenant-leak mistake: tenant B's install fails with <code>DuplicateProvider</code> (best case), or tenant A's data service is visible to everyone (worst case, when only one tenant exists at first).</p></div>
+<div><h4>Proposed change</h4><p>Add <code>RealmOptions.provideNonIsolated?: "allow"|"refuse"</code>, default <code>"allow"</code> (back-compat). With <code>"refuse"</code>, <code>install</code> of a plugin providing a key its realm does not isolate fails <code>InvalidDefinition {reason: "non-isolated-provide-in-realm"}</code>. Family helpers default to <code>"refuse"</code>.</p></div>
+<div><h4>Cost / risk</h4><p>Low; opt-in.</p></div>
+<div><h4>Verification</h4><p>Install tests per realm; a family test showing the refusal and that <code>BEH-BR-148</code> cross-realm ordering is unchanged for allowed keys.</p></div></div></article>
+
+<h3 style="margin-top:2rem">Minor proposals from the findings table</h3>
+<p class="mu" style="color:var(--muted);font-size:.88rem;max-width:70ch">These three findings have a proposed change in the table but no numbered recommendation. Cost and verification were not specified in the report.</p>
+
+<article class="card" id="X1"><header><span class="rid">X1</span><h3>Subscribe instead of polling in awaitActive</h3><span class="sev M">M</span><span class="mono mu">D-07</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> poll the full snapshot</figcaption>
+<svg viewBox="0 0 360 120" role="img" aria-label="Before: awaitActive loops sleep and snapshot"><rect class="bx" x="10" y="20" width="110" height="40"/><text class="t b c" x="65" y="44">awaitActive</text><rect class="bx bad" x="240" y="20" width="110" height="40"/><text class="m c" x="295" y="44">Host snapshot</text>
+<path class="ln lb" d="M120 30 H240" marker-end="url(#arb)"/><path class="ln lb ds" d="M240 52 H122" marker-end="url(#arb)"/><text class="m c tb" x="180" y="22">read</text><text class="m c mu" x="180" y="68">sleep(1), repeat</text>
+<text class="m c tb" x="180" y="104">busy poll per member creation</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> one change subscription</figcaption>
+<svg viewBox="0 0 360 120" role="img" aria-label="After: awaitActive waits on a change stream"><rect class="bx" x="10" y="20" width="110" height="40"/><text class="t b c" x="65" y="44">awaitActive</text><rect class="bx good" x="240" y="20" width="110" height="40"/><text class="m c" x="295" y="44">Host.changes</text>
+<line class="ln lg" x1="120" y1="32" x2="238" y2="32" marker-end="url(#arg)"/><text class="m c tg" x="180" y="24">subscribe</text><line class="ln lg" x1="240" y1="50" x2="122" y2="50" marker-end="url(#arg)"/><text class="m c tg" x="180" y="64">wake once</text>
+<text class="m c tg" x="180" y="104">no polling</text></svg></figure></div>
+<div class="txt"><div><h4>Rationale</h4><p>Works under TestClock; in production it is a busy poll of the full host snapshot per member creation. Judged from the prototype only.</p></div><div><h4>Proposed change</h4><p>Use <code>Host.changes</code>/<code>awaitIdle</code> style subscription instead of polling.</p></div><div><h4>Cost / risk</h4><p>Not specified in the report.</p></div><div><h4>Verification</h4><p>Not specified in the report.</p></div></div></article>
+
+<article class="card" id="X2"><header><span class="rid">X2</span><h3>One error channel for registry range checks</h3><span class="sev L">L</span><span class="mono mu">D-10</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> within throws, make dies</figcaption>
+<svg viewBox="0 0 360 120" role="img" aria-label="Before: within throws synchronously while make uses Effect.die"><rect class="bx" x="10" y="14" width="150" height="34"/><text class="m c" x="85" y="35">within(range)</text><rect class="bx bad" x="220" y="14" width="130" height="34"/><text class="m c" x="285" y="35">sync throw</text>
+<rect class="bx" x="10" y="62" width="150" height="34"/><text class="m c" x="85" y="83">make(...)</text><rect class="bx warn" x="220" y="62" width="130" height="34"/><text class="m c" x="285" y="83">Effect.die</text>
+<line class="ln lb" x1="160" y1="31" x2="218" y2="31" marker-end="url(#arb)"/><line class="ln lw" x1="160" y1="79" x2="218" y2="79" marker-end="url(#arw)"/><text class="m c tb" x="180" y="112">two different error channels</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> an Effect, or a documented throw</figcaption>
+<svg viewBox="0 0 360 120" role="img" aria-label="After: within returns an Effect, or the throw is documented"><rect class="bx" x="10" y="14" width="150" height="34"/><text class="m c" x="85" y="35">within(range)</text><rect class="bx good" x="220" y="14" width="130" height="34"/><text class="m c" x="285" y="35">Effect failure</text>
+<rect class="bx" x="10" y="62" width="150" height="34"/><text class="m c" x="85" y="83">make(...)</text><rect class="bx good" x="220" y="62" width="130" height="34"/><text class="m c" x="285" y="83">Effect failure</text>
+<line class="ln lg" x1="160" y1="31" x2="218" y2="31" marker-end="url(#arg)"/><line class="ln lg" x1="160" y1="79" x2="218" y2="79" marker-end="url(#arg)"/><text class="m c tg" x="180" y="112">one channel (fallback: document the throw)</text></svg></figure></div>
+<div class="txt"><div><h4>Rationale</h4><p><code>within(range)</code> throws synchronously (<code>checkRange</code>) rather than defecting in Effect; <code>make</code> uses <code>Effect.die</code>.</p></div><div><h4>Proposed change</h4><p>Make <code>within</code> return an Effect or document the throw.</p></div><div><h4>Cost / risk</h4><p>Not specified in the report.</p></div><div><h4>Verification</h4><p>Not specified in the report.</p></div></div></article>
+
+<article class="card" id="X3"><header><span class="rid">X3</span><h3>Document "tolerate temporary loss" as a non-goal</h3><span class="sev L">L</span><span class="mono mu">D-11</span></header>
+<div class="ba">
+<figure class="before"><figcaption><b>Before</b> the gap is silent</figcaption>
+<svg viewBox="0 0 360 120" role="img" aria-label="Before: no spec path for required at install but tolerate temporary loss"><rect class="bx" x="10" y="14" width="130" height="40"/><text class="t b c" x="75" y="31">requires K</text><text class="m c" x="75" y="46">strict at install</text><rect class="bx warn" x="220" y="14" width="130" height="40"/><text class="t b c" x="285" y="31">K lost later</text><text class="m c" x="285" y="46">restart (as Cordis)</text>
+<line class="ln lw" x1="140" y1="34" x2="218" y2="34" marker-end="url(#arw)"/><text class="m c tw" x="180" y="92">no spec path for "tolerate loss"</text><text class="m c mu" x="180" y="108">BEH-BR-129 + 130</text></svg></figure>
+<figure class="after"><figcaption><b>After</b> stated as a non-goal</figcaption>
+<svg viewBox="0 0 360 120" role="img" aria-label="After: ADR-BR-022 states tolerate temporary loss is a non-goal"><rect class="bx" x="10" y="14" width="130" height="40"/><text class="t b c" x="75" y="31">requires K</text><text class="m c" x="75" y="46">strict at install</text><rect class="bx" x="220" y="14" width="130" height="40"/><text class="t b c" x="285" y="31">K lost later</text><text class="m c" x="285" y="46">restart</text>
+<line class="ln" x1="140" y1="34" x2="218" y2="34" marker-end="url(#ar)"/><rect class="bx good" x="50" y="72" width="260" height="34"/><text class="m c tg" x="180" y="93">ADR-BR-022: documented non-goal</text></svg></figure></div>
+<div class="txt"><div><h4>Rationale</h4><p><code>requires</code> keys are undeclared for <code>optional</code>, so a plugin cannot treat a required key as soft after startup. The report calls this fine, but unspecified.</p></div><div><h4>Proposed change</h4><p>Document as a non-goal in <code>ADR-BR-022</code>.</p></div><div><h4>Cost / risk</h4><p>Not specified in the report (documentation only).</p></div><div><h4>Verification</h4><p>Not specified in the report.</p></div></div></article>
+
+<h2 id="anims">How the mechanisms work</h2>
+<p style="color:var(--muted);max-width:70ch;font-size:.9rem;margin-top:0">Each animation can be played, paused, stepped and replayed. The page loads on the final step, so every figure is complete without motion. Diagrams are simplified sketches of the behaviour the report describes.</p>
+
+<!-- Anim A -->
+<section class="anim" data-steps="4" aria-labelledby="aa"><h3 id="aa">A. Contract drift: undetected today, caught by a schema digest</h3>
+<div class="scrollx"><svg viewBox="0 0 640 262" role="img" aria-label="Two lanes: today the name check passes and a changed payload binds silently; with a digest the pair is refused">
+<text class="m mu" x="6" y="16">TODAY · BEH-BR-228 compares names and version range</text>
+<g><rect class="bx" x="10" y="26" width="150" height="64"/><text class="t b c" x="85" y="46">Provider</text><text class="m c" x="85" y="62">post  v1.3</text>
+<rect class="bx" x="245" y="26" width="150" height="64"/><text class="t b c" x="320" y="46">Name check</text>
+<rect class="bx" x="480" y="26" width="150" height="64"/><text class="t b c" x="555" y="46">Dependent</text><text class="m c" x="555" y="62">needs post ^1.0</text></g>
+<g data-from="1"><text class="t tw c" x="85" y="80">payload narrowed</text></g>
+<g data-from="2"><line class="ln" x1="160" y1="58" x2="243" y2="58" marker-end="url(#ar)"/><text class="m c" x="320" y="64">compare names</text></g>
+<g data-from="3"><text class="m c tw" x="320" y="80">names equal ✓</text><line class="ln lw" x1="395" y1="58" x2="478" y2="58" marker-end="url(#arw)"/></g>
+<g data-from="4"><rect class="bx bad" x="480" y="26" width="150" height="64"/><rect class="bx bad" x="480" y="98" width="150" height="24"/><text class="m c tb" x="555" y="114">bound, drift unseen</text></g>
+<line class="ln ds" x1="6" y1="134" x2="634" y2="134" style="opacity:.35"/>
+<text class="m mu" x="6" y="152">PROPOSED · R1 compares a schema digest per method</text>
+<g><rect class="bx" x="10" y="162" width="150" height="64"/><text class="t b c" x="85" y="182">Provider</text><text class="m c" x="85" y="198">post  v1.3</text>
+<rect class="bx" x="245" y="162" width="150" height="64"/><text class="t b c" x="320" y="182">Digest check</text>
+<rect class="bx" x="480" y="162" width="150" height="64"/><text class="t b c" x="555" y="182">Dependent</text><text class="m c" x="555" y="198">needs post ^1.0</text></g>
+<g data-from="1"><text class="t tw c" x="85" y="216">payload narrowed</text></g>
+<g data-from="2"><line class="ln" x1="160" y1="194" x2="243" y2="194" marker-end="url(#ar)"/><text class="m c" x="320" y="200">compare digests</text></g>
+<g data-from="3"><text class="m c tg" x="320" y="216">digest ≠ ✗</text><line class="ln lg ds" x1="395" y1="194" x2="478" y2="194" marker-end="url(#arg)"/></g>
+<g data-from="4"><rect class="bx good" x="480" y="162" width="150" height="64"/><rect class="bx good" x="440" y="232" width="190" height="24"/><text class="m c tg" x="535" y="248">IncompatibleContract, not bound</text></g>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Play</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button><span class="cnt" aria-live="polite"></span></div>
+<ol class="caps"><li>Provider ships post v1.3 with a narrowed payload; the method name is unchanged.</li><li>The compatibility check runs: today it reads names, proposed it reads schema digests.</li><li>Today the names are equal and the check passes. With digests the values differ.</li><li>Today the dependent binds and the drift surfaces later. Proposed, the pair is refused with <code>mismatchedMethods</code> before any call.</li></ol></section>
+
+<!-- Anim B -->
+<section class="anim" data-steps="4" aria-labelledby="ab"><h3 id="ab">B. Provider swap with and without a lease-aware broker facade</h3>
+<div class="scrollx"><svg viewBox="0 0 640 272" role="img" aria-label="Without a broker the consumer restarts on replace; with a facade the consumer stays up while implementations swap under a lease">
+<text class="m mu" x="6" y="16">TODAY · replace restarts dependents (BEH-BR-050)</text>
+<g><rect class="bx" x="10" y="24" width="130" height="56"/><text class="t b c" x="75" y="46">Consumer</text><text class="m c" x="75" y="62">active</text>
+<rect class="bx" x="270" y="24" width="130" height="56"/><text class="t b c" x="335" y="46">Provider v1</text><line class="ln" x1="140" y1="52" x2="268" y2="52" marker-end="url(#ar)"/></g>
+<g data-from="1"><text class="m c ta" x="335" y="96">replace(provider)</text></g>
+<g data-from="2" data-to="4"><rect class="bx bad" x="10" y="24" width="130" height="56"/><text class="m c tb" x="75" y="96">stopped</text></g>
+<g data-from="3"><rect class="bx" x="500" y="24" width="130" height="56"/><text class="t b c" x="565" y="46">Provider v2</text><text class="m c" x="565" y="62">starts</text></g>
+<g data-from="4"><rect class="bx warn" x="10" y="24" width="130" height="56"/><text class="m c tw" x="75" y="96">restarted</text></g>
+<line class="ln ds" x1="6" y1="130" x2="634" y2="130" style="opacity:.35"/>
+<text class="m mu" x="6" y="148">PROPOSED · R3 stable facade, implementations behind a registry</text>
+<g><rect class="bx" x="10" y="158" width="120" height="56"/><text class="t b c" x="70" y="180">Consumer</text><text class="m c" x="70" y="196">active</text>
+<rect class="bx acc" x="190" y="158" width="120" height="56"/><text class="t b c" x="250" y="180">Broker</text><text class="m c" x="250" y="196">facade key</text>
+<line class="ln" x1="130" y1="186" x2="188" y2="186" marker-end="url(#ar)"/>
+<rect class="bx" x="370" y="158" width="120" height="40"/><text class="m c" x="430" y="182">impl v1</text><line class="ln" x1="310" y1="176" x2="368" y2="176" marker-end="url(#ar)"/></g>
+<g data-from="1"><rect class="bx" x="510" y="158" width="120" height="40"/><text class="m c" x="570" y="182">impl v2 added</text></g>
+<g data-from="2"><line class="ln lg" x1="310" y1="198" x2="508" y2="198" marker-end="url(#arg)"/><text class="m c tg" x="400" y="218">new calls to v2</text><text class="m c mu" x="430" y="232">in-flight on v1 drains under lease</text></g>
+<g data-from="3"><rect class="bx bad" x="370" y="158" width="120" height="40"/><path class="ln lb" d="M370 158 L490 198"/><text class="m c tb" x="430" y="148">v1 removed</text></g>
+<g data-from="4"><rect class="bx good" x="10" y="158" width="120" height="56"/><text class="m c tg" x="70" y="230">never restarted</text></g>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Play</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button><span class="cnt" aria-live="polite"></span></div>
+<ol class="caps"><li>The operator swaps the provider. Without a facade the key has one provider; with one, a new implementation is added to the registry.</li><li>Today the consumer, a dependent, is stopped. Proposed, the facade routes new calls to v2 while v1's in-flight calls drain under their lease.</li><li>Today v2 starts. Proposed, v1 is removed once drained; a call with no live implementation would fail with <code>ContributionUnavailable</code>.</li><li>Today the consumer restarts: the whole blast radius of a patch. Proposed, it never restarted.</li></ol></section>
+
+<!-- Anim C -->
+<section class="anim" data-steps="5" aria-labelledby="ac"><h3 id="ac">C. One key, two consumers: realm and interception resolution</h3>
+<div class="scrollx"><svg viewBox="0 0 640 262" role="img" aria-label="Key K resolves to different slots per realm; an ordinary interceptor wraps captures but not Host.use; mandatory policy covers both">
+<g><rect class="bx" x="10" y="20" width="120" height="46"/><text class="t b c" x="70" y="39">Consumer A</text><text class="m c" x="70" y="55">realm R1</text>
+<rect class="bx" x="10" y="80" width="120" height="46"/><text class="t b c" x="70" y="99">Caller C</text><text class="m c" x="70" y="115">Host.use, R1</text>
+<rect class="bx" x="10" y="150" width="120" height="46"/><text class="t b c" x="70" y="169">Consumer B</text><text class="m c" x="70" y="185">default realm</text>
+<rect class="bx" x="330" y="20" width="120" height="106"/><text class="t b c" x="390" y="68">slot K @ R1</text>
+<rect class="bx" x="330" y="150" width="120" height="46"/><text class="t b c" x="390" y="177">slot K @ default</text>
+<rect class="bx" x="490" y="20" width="140" height="106"/><text class="t b c" x="560" y="62">Provider P1</text><text class="m c" x="560" y="78">in R1, isolates K</text>
+<rect class="bx" x="490" y="150" width="140" height="46"/><text class="t b c" x="560" y="169">Provider P2</text><text class="m c" x="560" y="185">default realm</text></g>
+<g data-from="1"><line class="ln lg" x1="490" y1="73" x2="452" y2="73" marker-end="url(#arg)"/><line class="ln lg" x1="490" y1="173" x2="452" y2="173" marker-end="url(#arg)"/><text class="m c tg" x="470" y="214">two slots for one key (BEH-BR-146/148)</text></g>
+<g data-from="2"><line class="ln la" x1="130" y1="43" x2="328" y2="43" marker-end="url(#ar)"/></g>
+<g data-from="3"><line class="ln la" x1="130" y1="173" x2="328" y2="173" marker-end="url(#ar)"/></g>
+<g data-from="4"><rect class="bx acc" x="160" y="28" width="90" height="30"/><text class="m c" x="205" y="47">interceptor</text><text class="m c tb" x="230" y="104">BEH-BR-151: skipped</text><line class="ln lb ds" x1="130" y1="103" x2="328" y2="103" marker-end="url(#arb)"/></g>
+<g data-from="5"><rect class="bx good" x="268" y="10" width="26" height="196"/><text class="m tg" transform="translate(285 108) rotate(-90)" text-anchor="middle">mandatory BEH-BR-262</text></g>
+<text class="m mu" x="6" y="250">Illustrative: arrows show resolution and interception order, not call volume.</text>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Play</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button><span class="cnt" aria-live="polite"></span></div>
+<ol class="caps"><li>Key K is provided in realm R1 (isolated) and in the default realm, giving two separate slots. Realm resolution is applied to the resolved graph.</li><li>Consumer A in R1 resolves K to the R1 slot.</li><li>Consumer B in the default realm resolves the same K to the default slot.</li><li>An ordinary interceptor wraps A's capture. A <code>Host.use</code> call is not intercepted (<code>BEH-BR-151</code>).</li><li>Only mandatory interception (<code>BEH-BR-262</code>) covers both paths, so restriction belongs there (R4).</li></ol></section>
+
+<h2 id="cordis">Cordis comparison</h2>
+<div class="scroll"><table class="cmp">
+<thead><tr><th>Topic</th><th>Cordis</th><th>Bridger today</th><th>Proposed</th></tr></thead>
+<tbody>
+<tr><td>Dependency cycles</td><td><span class="pill r">silent</span>permanently inactive fiber</td><td><span class="pill g">ahead</span><code>DependencyCycle {path}</code> at install</td><td><span class="pill n">no change</span></td></tr>
+<tr><td>Undeclared access</td><td><span class="pill w">throws</span>UNDECLARED_ACCESS</td><td><span class="pill g">ahead</span>returns <code>None</code> and logs</td><td><span class="pill n">no change</span></td></tr>
+<tr><td>Interface drift</td><td><span class="pill r">nominal key</span>npm peer deps</td><td><span class="pill w">partial</span>semver + method names; plain keys unchecked</td><td><span class="pill g">R1</span> schema digest <span class="pill g">R2</span> contract-only across packages</td></tr>
+<tr><td>Provider swap</td><td><span class="pill g">broker</span>absorbs swaps</td><td><span class="pill r">gap</span>replace restarts dependents</td><td><span class="pill g">R3</span> lease-aware facade</td></tr>
+<tr><td>Interception</td><td><span class="pill w">read-time</span>also not security</td><td><span class="pill w">capture-only</span>not discoverable</td><td><span class="pill g">R4</span> note + <code>interceptions</code> inspect</td></tr>
+<tr><td>Realms</td><td><span class="pill n">isolate</span>per-realm bindings</td><td><span class="pill g">ahead</span>families with lease-drain; fingerprint gap in prototype</td><td><span class="pill g">R5</span> identity fingerprint <span class="pill g">R6</span> leak guard</td></tr>
+</tbody></table></div>
+<p class="sib" style="margin-top:.4rem">Cordis column is taken from the supplied brief, not the primary paper.</p>
+
+<footer id="notchecked">
+<h3>Not checked / uncertainties</h3>
+<ul>
+<li>Federation, remote, loader and kit behaviour files were not read line by line. Claims about them (<code>BEH-FD-026</code> proxies as registry-compatible contributors, kit conformance hooks) are inferred from headings and a partial read of federation 04. R2 and R3 integration points need confirming.</li>
+<li><code>BEH-BR-020</code> cycle-path wording, all of <code>ADR-BR-038</code> (stop ordering) and <code>BEH-BR-121..128</code> (children) were sampled, not fully audited; the claim that child mount edges share the graph is from 08.</li>
+<li>D-07 (polling) is judged from the prototype only; the production host may expose a change stream that was not looked for.</li>
+<li>No tests were run; D-05 is by code reading of <code>realms.ts</code>.</li>
+<li>Cordis comparisons rely on the supplied brief, not the primary paper.</li>
+<li>Drawing notes: digests in R1 are example values; animations are simplified sketches, not traces of real runs.</li>
+</ul>
+<p class="sib">Sibling reports: 01 Lifecycle state machine · 03 Effects, scopes, cleanup · 04 Events, hooks, pipelines · 05 Design, API and DX · 06 Security, GxP, audit · 07 Spec quality and verification</p>
+</footer>
+</div>
+
+<script>
+(function(){
+var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+// severity filter
+var fb=document.querySelectorAll('.filters button'),rows=document.querySelectorAll('#ft tbody tr');
+fb.forEach(function(b){b.addEventListener('click',function(){
+fb.forEach(function(x){x.setAttribute('aria-pressed',x===b)});
+rows.forEach(function(r){r.hidden=b.dataset.f!=='all'&&r.dataset.sev!==b.dataset.f})})});
+// steppers
+document.querySelectorAll('.anim').forEach(function(el){
+var n=+el.dataset.steps,step=n,timer=null,started=false;
+var els=[].slice.call(el.querySelectorAll('[data-from]')),lis=[].slice.call(el.querySelectorAll('.caps li'));
+var play=el.querySelector('[data-a=play]'),cnt=el.querySelector('.cnt');
+function set(s){step=s;els.forEach(function(e){var off=+e.dataset.from>s||(e.dataset.to&&s>=+e.dataset.to);e.classList.toggle('off',!!off)});
+lis.forEach(function(l,i){l.classList.toggle('on',i+1===s)});cnt.textContent='step '+s+' / '+n}
+function stop(){clearInterval(timer);timer=null;play.textContent='Play'}
+function go(){if(timer)return;if(step>=n)set(0);play.textContent='Pause';
+timer=setInterval(function(){if(step>=n){set(0)}else{set(step+1)}},1800)}
+play.addEventListener('click',function(){timer?stop():go()});
+el.querySelector('[data-a=step]').addEventListener('click',function(){stop();set(step>=n?0:step+1)});
+el.querySelector('[data-a=replay]').addEventListener('click',function(){stop();set(0);go()});
+set(n);
+if(!reduce&&'IntersectionObserver' in window){new IntersectionObserver(function(es,o){es.forEach(function(e){if(e.isIntersecting&&!started){started=true;set(0);go();o.disconnect()}})},{threshold:.5}).observe(el)}
+});
+})();
+</script>

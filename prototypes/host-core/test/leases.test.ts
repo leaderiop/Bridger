@@ -87,13 +87,13 @@ describe("leases", () => {
 describe("legality (BEH-BR-071)", () => {
   // Expected table, transcribed from references/core/behaviors/08-operation-legality.md (BEH-BR-071) and BRIEF §7.3.
   const expected: Record<string, Record<string, string>> = {
-    unknown:          { install: "proceed", remove: "unknown-plugin", replace: "unknown-plugin", retry: "unknown-plugin", reconfigure: "unknown-plugin", restart: "unknown-plugin", disable: "unknown-plugin", enable: "unknown-plugin" },
-    waiting:          { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "noop", disable: "proceed", enable: "noop" },
-    starting:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop" },
-    active:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop" },
-    failed:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "proceed", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop" },
-    "failed-cleanup": { install: "duplicate-plugin", remove: "proceed", replace: "conflict:cleanup-failure", retry: "conflict:cleanup-failure", reconfigure: "conflict:cleanup-failure", restart: "conflict:cleanup-failure", disable: "conflict:cleanup-failure", enable: "conflict:cleanup-failure" },
-    disabled:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "conflict:disabled", reconfigure: "proceed", restart: "conflict:disabled", disable: "noop", enable: "proceed" },
+    unknown:          { install: "proceed", remove: "unknown-plugin", replace: "unknown-plugin", retry: "unknown-plugin", reconfigure: "unknown-plugin", restart: "unknown-plugin", disable: "unknown-plugin", enable: "unknown-plugin", abort: "unknown-plugin" },
+    waiting:          { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "noop", disable: "proceed", enable: "noop", abort: "conflict:not-parked" },
+    starting:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop", abort: "conflict:not-parked" },
+    active:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "noop", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop", abort: "conflict:not-parked" },
+    failed:           { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "proceed", reconfigure: "proceed", restart: "proceed", disable: "proceed", enable: "noop", abort: "conflict:not-parked" },
+    "failed-cleanup": { install: "duplicate-plugin", remove: "proceed", replace: "conflict:cleanup-failure", retry: "conflict:cleanup-failure", reconfigure: "conflict:cleanup-failure", restart: "conflict:cleanup-failure", disable: "conflict:cleanup-failure", enable: "conflict:cleanup-failure", abort: "conflict:not-parked" },
+    disabled:         { install: "duplicate-plugin", remove: "proceed", replace: "proceed", retry: "conflict:disabled", reconfigure: "proceed", restart: "conflict:disabled", disable: "noop", enable: "proceed", abort: "conflict:not-parked" },
   }
   it("check 4: the table is total and matches the specification for every settled row", () => {
     for (const row of ROWS) for (const op of OPS) {
@@ -152,7 +152,7 @@ describe("legality (BEH-BR-071)", () => {
           install: host.install(subject(false), ctx("cell")), remove: host.remove("x/subject", ctx("cell")),
           replace: host.replace(subject(false), ctx("cell")), retry: host.retry("x/subject", ctx("cell")),
           reconfigure: host.reconfigure("x/subject", { n: 1 }, ctx("cell")), restart: host.restart("x/subject", ctx("cell")),
-          disable: host.disable("x/subject", ctx("cell")), enable: host.enable("x/subject", ctx("cell"))
+          disable: host.disable("x/subject", ctx("cell")), enable: host.enable("x/subject", ctx("cell")), abort: host.abort("x/subject", ctx("cell"))
         }
         const exit = yield* Effect.exit(drive(host, call[op]))
         yield* idle(host)

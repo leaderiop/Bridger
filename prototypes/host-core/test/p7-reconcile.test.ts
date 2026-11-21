@@ -166,27 +166,31 @@ describe("P7 core 32: atomic apply (checks 99, 100)", () => {
   })
 
   it("check 100: an undo skipped by ChangedSinceApply ends in PartialApply with a reconcile-partial event and no retry", async () => {
-    let hostRef: Testing.TestHost | undefined
     const { records, sink } = memorySink()
+    const entered = Effect.runSync(Deferred.make<void>()), proceed = Effect.runSync(Deferred.make<void>())
+    // The gate holds the dependent's install until the test has changed `audit` as another caller, then refuses it.
     const gate: OperationGate["Service"] = {
       authorize: (q) => q.operation === "install" && q.target?.id === "billing"
-        // Another caller changes `audit` between its forward action and the undo, then the gate refuses.
-        ? hostRef!.disable("audit", { context: { actor: { id: "user-bob", kind: "user" } } }).pipe(Effect.ignore,
-            Effect.andThen(Effect.fail(new OperationRejected({ operation: q.operation, reason: "not approved" }))))
+        ? Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(proceed)), Effect.andThen(Effect.fail(new OperationRejected({ operation: q.operation, reason: "not approved" }))))
         : Effect.void
     }
     await run((host) => Effect.gen(function* () {
-      hostRef = host
       const events: Array<unknown> = []
       yield* Effect.forkScoped(host.events.pipe(Stream.runForEach((e) => Effect.sync(() => { if (e.type === "reconcile-partial") events.push(e) }))))
       yield* Effect.yieldNow
-      const exit = yield* Effect.exit(drive(host, host.reconcile([entry(dependent("needs-none", Audit21)), entry(needs23), entry(v23)], { ...as(), atomic: true })))
+      const reconcile = yield* Effect.forkChild(Effect.exit(host.reconcile([entry(dependent("needs-none", Audit21)), entry(needs23), entry(v23)], { ...as(), atomic: true })))
+      yield* drive(host, Deferred.await(entered))
+      yield* idle(host)                                                                  // audit's activation has settled before another caller touches it
+      yield* drive(host, host.disable("audit", { context: { actor: { id: "user-bob", kind: "user" } } }))   // between the forward action and the undo
+      yield* Deferred.succeed(proceed, undefined)
+      const exit = yield* drive(host, Fiber.join(reconcile))
       const e = errorOf(exit)
       expect(e._tag).toBe("PartialApply")
       expect(e.notUndone).toEqual([{ id: "audit", realm: "default", action: "install", reason: { _tag: "ChangedSinceApply", message: "ChangedSinceApply" } }])
+      for (let i = 0; i < 1000 && events.length === 0; i++) yield* Effect.sleep(2)       // the collector fiber catches up
       expect(events).toHaveLength(1)
       yield* settleWriter
       expect(records.some((x) => x.undoes && x.target?.id === "audit")).toBe(false)      // ChangedSinceApply writes no record
-    }), { sink, gate })
+    }), { sink, gate, options: { gateTimeout: 60_000 } })   // run() defaults to 50 ms; this gate is held on purpose
   })
 })

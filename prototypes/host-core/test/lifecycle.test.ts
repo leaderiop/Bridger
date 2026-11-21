@@ -1,6 +1,6 @@
 // Scenarios for behaviours 03–07 (installation, states, activation, removal, replacement).
 // Each `it` names the acceptance check of BEH-BR-183 it exercises.
-import { Context, Effect, Exit, Layer, Stream } from "effect"
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { define } from "../src/plugin.js"
 import { Audit, Logger, Report, auditPlugin, journal, loggerPlugin, reportPlugin, drive, idle, stateOf, withHost } from "./fixtures.js"
@@ -69,12 +69,13 @@ describe("installation and activation", () => {
     const j = journal()
     await withHost((host) => Effect.gen(function* () {
       const queued = define({ id: "example/queued", requires: [] as const, provides: [] as const, build: Layer.effectDiscard(j.push("queued:build")) })
-      yield* host.install(loggerPlugin(j, { buildDelay: 50 })); yield* host.install(queued)
+      const gate = yield* Deferred.make<void>()
+      yield* host.install(loggerPlugin(j, { gate })); yield* host.install(queued)
       expect(yield* host.stepPlugin("example/logger")).toBe(true)              // takes the only slot
       expect(yield* host.stepPlugin("example/queued")).toBe(false)             // no slot: it cannot progress
       yield* drive(host, host.remove("example/queued"))                         // its stop can, and cancels the build
       expect((yield* host.snapshot).plugins.map((p) => p.id)).toEqual(["example/logger"])
-      yield* idle(host)
+      yield* Deferred.succeed(gate, undefined); yield* idle(host)
       expect(j.lines).toEqual(["logger:build"])
     }), { concurrency: 1 })
   })
@@ -82,10 +83,14 @@ describe("installation and activation", () => {
   it("BEH-BR-039: a build in flight when the plugin is removed is never published", async () => {
     const j = journal()
     await withHost((host) => Effect.gen(function* () {
-      yield* host.install(loggerPlugin(j, { buildDelay: 50 }))
-      expect(yield* host.stepPlugin("example/logger")).toBe(true)              // the build begins, then sleeps
+      const gate = yield* Deferred.make<void>()
+      yield* host.install(loggerPlugin(j, { gate }))
+      expect(yield* host.stepPlugin("example/logger")).toBe(true)              // the build begins, then waits on the gate
       expect(yield* stateOf(host, "example/logger")).toBe("starting")
-      yield* drive(host, host.remove("example/logger"))
+      const removal = yield* Effect.forkChild(host.remove("example/logger"))
+      while ((yield* stateOf(host, "example/logger")) !== "stopping") if (!(yield* host.step)) yield* Effect.yieldNow
+      yield* Deferred.succeed(gate, undefined)                                 // the build settles only after the target changed
+      yield* drive(host, Fiber.join(removal))
       const snap = yield* host.snapshot
       expect(snap.plugins).toEqual([])
       expect(snap.availableServiceIds).toEqual(["@bridger/core/Events"])   // only the base event bus (BEH-BR-137)

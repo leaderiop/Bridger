@@ -1,4 +1,4 @@
-import { Context, Effect, Fiber, Layer, type Scope } from "effect"
+import { Context, Deferred, Effect, Fiber, Layer, type Scope } from "effect"
 import type { AuditRecord, OperationRequest } from "../src/gxp.js"
 import * as Host from "../src/host.js"
 import { define } from "../src/plugin.js"
@@ -15,7 +15,7 @@ export const journal = () => {
 }
 export type Journal = ReturnType<typeof journal>
 
-export const loggerPlugin = (j: Journal, opts: { failCleanup?: boolean; buildDelay?: number; version?: string } = {}) => define({
+export const loggerPlugin = (j: Journal, opts: { failCleanup?: boolean; buildDelay?: number; gate?: Deferred.Deferred<void>; version?: string } = {}) => define({
   id: "example/logger",
   requires: [] as const,
   provides: [Logger] as const,
@@ -23,6 +23,7 @@ export const loggerPlugin = (j: Journal, opts: { failCleanup?: boolean; buildDel
   build: Layer.effect(Logger, Effect.gen(function* () {
     yield* j.push("logger:build")
     if (opts.buildDelay) yield* Effect.sleep(opts.buildDelay)
+    if (opts.gate) yield* Deferred.await(opts.gate)                       // a build held until the test releases it: no clock involved
     yield* Effect.addFinalizer(() => opts.failCleanup ? Effect.die(new Error("sink close failed")) : j.push("logger:close"))
     return { log: (m: string) => j.push(`log:${m}`) }
   }))

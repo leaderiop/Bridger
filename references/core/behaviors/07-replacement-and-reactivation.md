@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-11): BEH-BR-050 a child's sub-scope close or unmount ends a parked `replace`'s intent only before the parent's stop has begun (C1) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.9 (2026-11-11): BEH-BR-050 a parked `replace`'s intent is also ended by a child's sub-scope close or unmount of a stop parked outside its parent's stop (CL2); BEH-BR-055 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05); BEH-BR-049 `ReplaceOptions.cold` (H9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-049 `replace` completes on entering `dormant` or `disabled` ("refused-digest") as BEH-BR-068 states; BEH-BR-054, BEH-BR-056, BEH-BR-058 and BEH-BR-062 by-state lists gain `dormant`, phase "load" and the "refused-digest" landings and cases (C1); BEH-BR-060 `disable` split by reason: on "refused-digest" it proceeds without a stop and clears the reason, recorded as a change (C2) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-052, BEH-BR-057 and BEH-BR-062 name the two other landings of a reactivating operation: `dormant` for a lazy registration not yet loaded (BEH-BR-247), and `disabled` ("refused-digest") for a start refused after step 4b (C3) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-050 and BEH-BR-061 a `replace` that leaves the plugin disabled runs the disabled-install checks only and reserves nothing (U-07); BEH-BR-051 and BEH-BR-061 dependents end `waiting` except where their own stop ends otherwise (C-17); BEH-BR-059 `PluginHandle.restart` takes `HandoffCallOptions` (C-01); BEH-BR-062 every `enable` re-check listed in BEH-BR-018's order, with its place in the call order (U-08); BEH-BR-060 shutdown unregisters a disabled plugin when it begins (U-01) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.11 (2026-11-21): BEH-BR-049 `ReplaceOptions.onFailure` and `ReplaceRolledBack` (improvement report 01, L4, R4)<br>0.10 (2026-11-11): BEH-BR-050 a child's sub-scope close or unmount ends a parked `replace`'s intent only before the parent's stop has begun (C1) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.9 (2026-11-11): BEH-BR-050 a parked `replace`'s intent is also ended by a child's sub-scope close or unmount of a stop parked outside its parent's stop (CL2); BEH-BR-055 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05); BEH-BR-049 `ReplaceOptions.cold` (H9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-049 `replace` completes on entering `dormant` or `disabled` ("refused-digest") as BEH-BR-068 states; BEH-BR-054, BEH-BR-056, BEH-BR-058 and BEH-BR-062 by-state lists gain `dormant`, phase "load" and the "refused-digest" landings and cases (C1); BEH-BR-060 `disable` split by reason: on "refused-digest" it proceeds without a stop and clears the reason, recorded as a change (C2) (CCR-BR-035)<br>0.7 (2026-11-10): BEH-BR-052, BEH-BR-057 and BEH-BR-062 name the two other landings of a reactivating operation: `dormant` for a lazy registration not yet loaded (BEH-BR-247), and `disabled` ("refused-digest") for a start refused after step 4b (C3) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-050 and BEH-BR-061 a `replace` that leaves the plugin disabled runs the disabled-install checks only and reserves nothing (U-07); BEH-BR-051 and BEH-BR-061 dependents end `waiting` except where their own stop ends otherwise (C-17); BEH-BR-059 `PluginHandle.restart` takes `HandoffCallOptions` (C-01); BEH-BR-062 every `enable` re-check listed in BEH-BR-018's order, with its place in the call order (U-08); BEH-BR-060 shutdown unregisters a disabled plugin when it begins (U-01) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-058 `restart` takes `HandoffCallOptions`; handoff on restart when declared (34, BEH-BR-353) (CCR-BR-025)<br>0.4 (2026-11-08): BEH-BR-049: branded generic overload and the `Plugin.Any | LazyPluginDefinition` overload (CCR-BR-022)<br>0.3 (2026-11-08): BEH-BR-049 points to state handoff on replace (CCR-BR-019)<br>0.2 (2026-10-02): Replace reservations end with an ended intent; `retry`/`enable` on a parked system stop, or one that parks while they wait, fail with `Conflict`; their unions gain `WouldDeadlock` (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -34,7 +34,7 @@ gated and audited as specified in
 [23 — Audit Sink and Record](../behaviors/23-audit-sink-and-record.md); those
 rules are not repeated here.
 
-## BEH-BR-049: replace is stop-then-start under the same ID, with no rollback
+## BEH-BR-049: replace is stop-then-start under the same ID, with rollback only on request
 
 > **See:** [ADR-BR-004](../decisions/004-replace-is-stop-then-start.md), [ADR-BR-049](../decisions/049-state-handoff-on-replace.md)
 > **Satisfies:** [URS-BR-002](../urs.md#urs-br-002-remove-or-replace-a-plugin-safely-while-it-is-in-use)
@@ -55,6 +55,7 @@ replace(plugin: Plugin.Any | LazyPluginDefinition, options?: ReplaceOptions):
 interface ReplaceOptions extends RemoveOptions {
   readonly realm?: string   // realm of the plugin being replaced (default "default")
   readonly cold?: boolean   // skip a handoff (34, BEH-BR-353); default false
+  readonly onFailure?: "stay-failed" | { readonly rollback: Plugin.Any | LazyPluginDefinition }   // default "stay-failed"
 }
 ```
 
@@ -80,13 +81,31 @@ REQUIREMENT: `replace` MUST complete once the new definition is registered
              a start a wired `RefusalList` refuses after step 4b, with
              reason "refused-digest", BEH-BR-057) — the state it lands in
              (08 — Operation Legality, BEH-BR-068). It MUST NOT wait for the
-             new build.
+             new build, except under `onFailure: { rollback }` below.
+```
+
+```
+REQUIREMENT: With `onFailure: { rollback }`, `replace` MUST, once the swap
+             has completed, wait for the new activation's first outcome,
+             bounded by `buildTimeout`. At `active`, `waiting` for a missing
+             provider, `dormant` or `disabled` it MUST complete as above. At
+             `failed` it MUST issue one `replace(rollback)` as a system step
+             of the same call: attributed to the call's actor and
+             correlation, with its `requested` record's `undoes` naming the
+             forward `replace`'s `requested` record (32, BEH-BR-325), and
+             MUST wait for that activation's first outcome. It MUST then fail
+             with `ReplaceRolledBack { id, phase, message, rollback,
+             rollbackMessage? }`, `rollback` "restored" when the previous
+             definition is not `failed`, otherwise "failed", leaving the plugin
+             `failed`. It MUST NOT roll back a second time. Dependents restart
+             by the normal rule (report 01, L4, R4).
 ```
 
 ```
 REQUIREMENT: The old definition MUST NOT be retained or restored after a
-             replace has passed validation. A caller wanting rollback MUST
-             issue `replace(previous)` itself.
+             replace has passed validation, except by an `onFailure`
+             rollback the caller named. Without it, a caller wanting rollback
+             MUST issue `replace(previous)` itself.
 ```
 
 Keeping the old activation alive while the new one builds would need two
@@ -95,7 +114,10 @@ forbids — and would still force every dependent to stop and recapture.
 Rollback across external effects is an application concern; layers that need
 to switch behaviour without a gap use `Generation`
 ([20 — Generation](./20-generation.md)), which publishes the new value before
-draining the old. `replace` is not a transaction over external effects.
+draining the old. `replace` is not a transaction over external effects, and
+a rollback is a second `replace` that runs the previous definition's build
+side effects again: it is not compensation (BEH-BR-048). The default stays
+`stay-failed` so that the call does not wait for a build unless asked.
 A plugin that must keep in-memory state across `replace` declares a handoff
 ([34 — State Handoff](./34-state-handoff.md), BEH-BR-345); stop-then-start is
 unchanged.

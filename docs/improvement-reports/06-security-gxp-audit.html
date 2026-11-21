@@ -1,0 +1,313 @@
+<title>Bridger Security and GxP Audit</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: engineering notebook. Sticky TOC bar, single 1000px column, cards with before/after diagram pairs. */
+:root{--bg:#f6f7f9;--surface:#fff;--ink:#1b2430;--muted:#5b6676;--line:#d9dee6;--accent:#0b6e8a;--bad:#c0392b;--warn:#b7791f;--good:#1f8a5b;
+--f-body:"IBM Plex Sans",system-ui,sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;--f-head:"Space Grotesk","IBM Plex Sans",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body)}
+.wrap{max-width:1000px;margin:0 auto;padding-block:0 4rem;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+h1,h2,h3{font-family:var(--f-head);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(1.7rem,5vw,2.4rem);margin-top:2rem}
+h2{font-size:1.4rem;margin-top:3rem;margin-bottom:.8rem}
+h3{font-size:1.1rem}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.lens{font:500 .78rem var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:2rem 0 0}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--surface);border-bottom:1px solid var(--line);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:.5rem max(16px,env(safe-area-inset-left,0px));display:flex;gap:.3rem .9rem;overflow-x:auto;white-space:nowrap;font:500 .8rem var(--f-mono)}
+nav.toc a{text-decoration:none;color:var(--muted);padding:.2rem 0}
+nav.toc a:hover{color:var(--accent)}
+.chips{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0}
+.chip{font:500 .8rem var(--f-mono);padding:.25rem .6rem;border-radius:4px;border:1px solid currentColor}
+.sH{color:var(--bad)}.sM{color:var(--warn)}.sL{color:var(--good)}
+.summary{max-width:70ch}
+.ahead{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.6rem}
+.ahead div{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--good);padding:.6rem .7rem;font-size:.85rem;min-width:0}
+.ahead b{display:block;font-family:var(--f-head);margin-bottom:.15rem}
+.ahead .mono{color:var(--muted)}
+.filters{display:flex;gap:.4rem;margin-bottom:.6rem;flex-wrap:wrap}
+button{font:500 .8rem var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:.35rem .7rem;border-radius:4px;cursor:pointer}
+button[aria-pressed="true"],button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.tbl{overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:.84rem}
+th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 .75rem var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td.sev{font:600 .85rem var(--f-mono)}
+tr.H td.sev{color:var(--bad)}tr.M td.sev{color:var(--warn)}tr.L td.sev{color:var(--good)}
+.card{background:var(--surface);border:1px solid var(--line);margin-top:1.2rem;padding:1rem 1.1rem;scroll-margin-top:60px}
+.card header{display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.6rem}
+.tag{font:500 .75rem var(--f-mono);color:var(--muted)}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem 1.4rem}
+.cols>div{min-width:0}
+.cols h4,.ba h4{font:500 .72rem var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:.2rem 0}
+.cols p{margin:0 0 .4rem;font-size:.88rem}
+.ctl{display:flex;gap:.3rem;margin:.9rem 0 .4rem}
+.ba{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+.card[data-view="before"] .ba .after,.card[data-view="after"] .ba .before{display:none}
+.card[data-view="before"] .ba,.card[data-view="after"] .ba{grid-template-columns:1fr}
+.ba figure,figure.anim{margin:0;border:1px solid var(--line);padding:.5rem;background:var(--bg);min-width:0}
+.ba figcaption,figure.anim figcaption{font-size:.78rem;color:var(--muted);margin-top:.3rem}
+.ba h4.b{color:var(--bad)}.ba h4.a{color:var(--good)}
+svg{display:block;width:100%;height:auto;max-width:100%;color:var(--ink)}
+svg text{fill:currentColor;font:400 10.5px var(--f-mono)}
+svg .t2{fill:var(--muted)}
+svg rect.bx{stroke:var(--ink);stroke-width:1;fill:var(--surface)}
+svg rect.bad{stroke:var(--bad);fill:color-mix(in srgb,var(--bad) 14%,var(--surface))}
+svg rect.warn{stroke:var(--warn);fill:color-mix(in srgb,var(--warn) 14%,var(--surface))}
+svg rect.good{stroke:var(--good);fill:color-mix(in srgb,var(--good) 14%,var(--surface))}
+svg rect.acc{stroke:var(--accent);fill:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+svg rect.dash{stroke-dasharray:4 3;fill:none;stroke:var(--muted)}
+svg line.ar{stroke:var(--ink);stroke-width:1.4;marker-end:url(#ah)}
+svg line.ar.bad{stroke:var(--bad);marker-end:url(#ahb)}
+svg line.ar.good{stroke:var(--good);marker-end:url(#ahg)}
+svg line.ar.warn{stroke:var(--warn);marker-end:url(#ahw)}
+svg line.ar.dash{stroke-dasharray:4 3}
+svg text.bad{fill:var(--bad)}svg text.good{fill:var(--good)}svg text.warn{fill:var(--warn)}
+/* animations */
+figure.anim{margin-top:1rem}
+.anim .s{transition:opacity .35s;opacity:.28}
+.anim .s.on{opacity:1}
+.ctrls{display:flex;gap:.4rem;flex-wrap:wrap;margin:.5rem 0}
+.cap{font-size:.88rem;min-height:3.2em;margin:.2rem 0;border-left:3px solid var(--accent);padding-left:.6rem}
+.step{font:500 .75rem var(--f-mono);color:var(--muted)}
+.animwrap h3{margin-top:2rem}
+.cmp{width:100%;min-width:720px;font-size:.83rem}
+.cmp td:first-child{font-weight:600}
+.st{display:inline-block;width:.65rem;height:.65rem;border-radius:50%;margin-right:.4rem;vertical-align:baseline}
+.st.g{background:var(--good)}.st.a{background:var(--warn)}.st.r{background:var(--bad)}
+footer{margin-top:3rem;border-top:1px solid var(--line);padding-top:1rem;font-size:.86rem}
+footer li{margin:.3rem 0}
+@media (max-width:640px){.cols,.ba{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.anim .s{transition:none}}
+</style>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<marker id="ah" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="currentColor"/></marker>
+<marker id="ahb" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--bad)"/></marker>
+<marker id="ahg" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--good)"/></marker>
+<marker id="ahw" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--warn)"/></marker>
+</defs></svg>
+
+<div class="wrap">
+<p class="lens">Improvement report 06 / lens: Cordis, DeepSeek Harness</p>
+<h1>Security, access control, sandboxing, GxP/audit and trust</h1>
+<p class="summary">Bridger is already stricter than Cordis on trust: signed statements, no default policy, a separate first-party statement for in-process code (BEH-LD-065) and explicit "attribution, not isolation" non-claims. The weak point is the gap between declared and reachable authority. Declarations are enforced at compile time and, at run time, only for listen and contribute (BEH-BR-268), with no UNDECLARED/INACTIVE_ACCESS analogue. Partner plugins have no supported tier. Irreversibility is not modelled as a class, so the gate and approval plan cannot order or flag it. Audit integrity is well specified; what remains is tying anchor freshness to irreversible operations and attributing provider-originated mutations.</p>
+<div class="chips"><span class="chip sH">3 High</span><span class="chip sM">6 Medium</span><span class="chip sL">2 Low</span><span class="chip">11 findings / 7 recommendations</span></div>
+
+<nav class="toc" aria-label="Contents">
+<a href="#ahead">Ahead</a><a href="#findings">Findings</a><a href="#R1">R1</a><a href="#R2">R2</a><a href="#R3">R3</a><a href="#R4">R4</a><a href="#R5">R5</a><a href="#R6">R6</a><a href="#R7">R7</a><a href="#anims">Animations</a><a href="#cordis">Cordis</a><a href="#notchecked">Not checked</a>
+</nav>
+
+<h2 id="ahead">Where Bridger is already ahead of Cordis</h2>
+<div class="ahead">
+<div><b>Signed trust pipeline</b>Digest, N-of-M signers, no default policy, roots from the app. <span class="mono">BEH-LD-001/020/022-024</span></div>
+<div><b>Revocation and kill switch</b>Stale set refuses loads; reports <code>outsideScope</code>, <code>residentRevoked</code>. <span class="mono">BEH-LD-025..032</span></div>
+<div><b>Host-minted principal</b>Forgery-proof on records. <span class="mono">BEH-BR-257, INV-BR-035</span></div>
+<div><b>Mandatory interceptions</b>Plugins cannot remove them, unlike Cordis <code>intercept</code>. <span class="mono">BEH-BR-260/262</span></div>
+<div><b>Honest non-claims</b>Normative text says real sandboxing needs an external boundary. <span class="mono">RSK-BR-028</span></div>
+<div><b>Gate and undo</b>Single-use, bound, separated-duty approvals; undo is a linked change. <span class="mono">BEH-GX-089..093, BEH-BR-325</span></div>
+<div><b>Audit chain</b>Anchor-or-say-so, keyed hasher, bundle verification. <span class="mono">ADR-AC-002, SPK-06-07</span></div>
+</div>
+
+<h2 id="findings">Findings</h2>
+<div class="filters" role="group" aria-label="Filter by severity">
+<button type="button" data-f="all" aria-pressed="true">All 11</button><button type="button" data-f="H" aria-pressed="false">High 3</button><button type="button" data-f="M" aria-pressed="false">Medium 6</button><button type="button" data-f="L" aria-pressed="false">Low 2</button>
+</div>
+<div class="tbl"><table><thead><tr><th>ID</th><th>Sev</th><th>Evidence</th><th>Issue</th><th>Proposed change</th><th>Rec.</th></tr></thead><tbody id="ftbody"></tbody></table></div>
+
+<div id="cards"></div>
+
+<h2 id="anims">How the mechanisms work</h2>
+<p class="summary">Three step-through animations. Each opens on its final state with every part visible; Play loops through the steps.</p>
+<div class="animwrap" id="animbox"></div>
+
+<h2 id="cordis">Cordis comparison</h2>
+<div class="tbl"><table class="cmp"><thead><tr><th>Concern</th><th>Cordis</th><th>Bridger today</th><th>Proposed</th></tr></thead><tbody>
+<tr><td>Access to services</td><td><i class="st g"></i>Proxy-mediated <code>ctx[key]</code>; undeclared throws UNDECLARED_ACCESS</td><td><i class="st a"></i>Layer <code>RIn</code> at compile time; build context closure unspecified (S1)</td><td><i class="st g"></i>Closed build context plus <code>UndeclaredAccess</code> (R1)</td></tr>
+<tr><td>Declared but unavailable</td><td><i class="st g"></i>INACTIVE_ACCESS</td><td><i class="st r"></i>Captured service after lease is "contradicts contract", no signal (S2)</td><td><i class="st g"></i>Lease-bound wrapper throws <code>InactiveAccess</code> (R1)</td></tr>
+<tr><td>Load-time review</td><td><i class="st a"></i>Capability set knowable before run, informal</td><td><i class="st a"></i>Listens and contributions only (BEH-BR-268)</td><td><i class="st g"></i>Emits, mounts, hostOps plus manifest diff (R2)</td></tr>
+<tr><td>Trust and signing</td><td><i class="st r"></i>No signing concept</td><td><i class="st g"></i>Signed digest, N-of-M, revocation</td><td><i class="st g"></i>Digest closure, <code>OutsideDigest</code> (R7)</td></tr>
+<tr><td>Sandboxing</td><td><i class="st a"></i>States an external boundary is needed</td><td><i class="st a"></i>Same statement; no tier for partner code (S4)</td><td><i class="st g"></i>Per-adapter conformance evidence, <code>partner</code> class (R3)</td></tr>
+<tr><td>Interception</td><td><i class="st a"></i>Merged metadata a parent may override</td><td><i class="st g"></i>Mandatory, not removable; records caller only (S8)</td><td><i class="st g"></i>Adds <code>via</code> provider principal (R6)</td></tr>
+<tr><td>External effects</td><td><i class="st a"></i>Output-commit problem acknowledged</td><td><i class="st r"></i>Handled case by case, no reversibility class (S6)</td><td><i class="st g"></i>Reversibility annotation, irreversible last (R4)</td></tr>
+<tr><td>Kill / revoke</td><td><i class="st a"></i>Unload reverts effects</td><td><i class="st a"></i>Revoked module stays resident (BEH-LD-031)</td><td><i class="st g"></i><code>restartRequired</code> visible to gate (R5)</td></tr>
+</tbody></table></div>
+
+<footer id="notchecked">
+<h2 style="margin-top:0">Not checked / uncertainties</h2>
+<ul>
+<li>Whether the host's fiber context actually contains host ports at plugin build time. S1 is inferred from <code>Effect.provideContext</code> semantics and the spec's silence, not from a run.</li>
+<li>Exact ordering semantics of BEH-BR-32 plan entries, and whether a ticket consumed by a rolled-back forward action is re-issued for the undo (BEH-GX-090/093 suggest the plan covers undos; not confirmed per case).</li>
+<li>Files not opened in full: federation behaviours 04/06, keyring risks, entitlement behaviours, docs/ERP-ACCESS.md, ERP-IDENTITY.md, GXP-COMPANION.html, spikes 06/08 test bodies. ERP-layer authorization (spike 08) is not assessed.</li>
+<li>Prototype <code>actor.ts</code>, <code>config.ts</code> and most of <code>gxp.ts</code> only skimmed; <code>policy.ts</code> principal code read in part.</li>
+<li>Everything is Draft/Planned: findings are about specified behaviour, not shipped code.</li>
+</ul>
+<p class="tag">Sibling reports: 01 through 05 and 07 in the same improvement-reports folder (see the folder listing for their names). S10 and S11 have no numbered recommendation in the report; their proposed changes are in the findings table only.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+var NS='http://www.w3.org/2000/svg';
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function T(x,y,s,c,a){return '<text x="'+x+'" y="'+y+'" text-anchor="'+(a||'middle')+'" class="'+(c||'')+'">'+esc(s)+'</text>'}
+function B(x,y,w,h,t,c){var o='<rect class="bx '+(c||'')+'" x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="3"/>';var ls=String(t).split('\n');var y0=y+h/2-(ls.length-1)*6+4;ls.forEach(function(l,i){o+=T(x+w/2,y0+i*12,l)});return o}
+function A(x1,y1,x2,y2,t,c,lx,ly){var o='<line class="ar '+(c||'')+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/>';if(t)o+=T(lx!=null?lx:(x1+x2)/2,ly!=null?ly:(y1+y2)/2-4,t,(c==='bad'||c==='good'||c==='warn')?c:'t2');return o}
+function S(inner,label){return '<svg viewBox="0 0 340 190" role="img" aria-label="'+esc(label)+'">'+inner+'</svg>'}
+
+var R=[
+{id:'R1',t:'A closed plugin context and typed access errors',f:'S1, S2',sev:'H',
+rat:'Cordis proxy-mediates ctx[key]: undeclared throws UNDECLARED_ACCESS, declared but unavailable throws INACTIVE_ACCESS. Bridger gets the first half from the Layer type and from the resolver supplying only declared services (host.ts:1033-1038), but the spec never says the build fiber context is exactly that set. Effect.provideContext merges onto the caller context, so host ports may be readable by type erasure or as any.',
+chg:'(a) New BEH in core 05 Activation: build, finalizers, background fibers, listeners and hooks run in a context holding only declared and optional requirements, Plugin.Runtime, Plugin.Config and Effect References. AuditSink, OperationGate, AccessPolicy, CallLog, RefusalList MUST NOT be present. (b) Define UndeclaredAccess and InactiveAccess defects with plugin id and key; Runtime.optional captures and lease-released services are wrapped to throw InactiveAccess. (c) Acceptance checks for both. (d) Record the reachable References list in Host.controls (BEH-BR-265).',
+cost:'Low to medium. A proxy per delivered service; Effect-internal services (Scope, Clock) must stay. A plugin using a host service through a cast breaks, which is intended.',
+ver:'Prototype test under TestHost: a plugin whose build calls Effect.service(AuditSink) must die with UndeclaredAccess; property test on lease release.',
+bef:S(B(10,60,90,50,'plugin build\nfiber')+B(150,20,180,150,'','warn')+T(240,38,'inherited fiber context','t2')+B(165,48,150,26,'AuditSink','bad')+B(165,82,150,26,'OperationGate','bad')+B(165,116,150,26,'declared service','bx')+A(100,80,163,61,'Effect.service / as any','bad',130,52)+T(240,160,'provideContext merges','warn'),'Before: plugin build can reach host ports in the merged context'),
+bcap:'provideContext adds to the caller context, so host ports are reachable. No runtime signal.',
+aft:S(B(10,60,90,50,'plugin build\nfiber')+B(150,20,180,98,'','good')+T(240,38,'replaced context','t2')+B(165,48,150,26,'declared + optional','bx')+B(165,80,150,26,'Runtime, Config, Refs','bx')+B(150,134,180,26,'AuditSink (absent)','dash')+A(100,86,148,142,'UndeclaredAccess','good',70,140)+A(100,70,163,60,'','good'),'After: build runs in a closed context, undeclared lookup fails typed'),
+acap:'Context is replaced, not merged. Undeclared lookup dies with UndeclaredAccess; a released lease throws InactiveAccess.'},
+
+{id:'R2',t:'Make the load-time review complete',f:'S3',sev:'M',
+rat:'A manifest read by a consent screen or agent (BEH-BR-241) is only as true as what is enforced. declaredOnly leaves emits and child mounts out because the manifest declares none (BEH-BR-268 settled 3).',
+chg:'Add manifest fields emits, mounts, hostOps (which host operations it may call via Plugin.Runtime.install/unmount). Extend DeclaredAccess and declaredOnly to deny undeclared emit/mount by exact-string comparison. Add a manifest diff (old vs new on replace) as input to the approval plan so an upgrade that widens declarations needs a fresh ticket (BEH-GX-092 binding). Keep withoutManifest without default.',
+cost:'Manifest churn; existing eager plugins without manifests are unaffected under "allow". Cordis does this only informally.',
+ver:'Acceptance checks mirroring check 102; golden manifest-diff fixtures.',
+bef:S(B(10,15,150,30,'listens','good')+B(10,50,150,30,'contributes','good')+B(10,95,150,30,'emits','warn')+B(10,130,150,30,'child mounts','warn')+B(220,15,110,145,'load-time\nreview\n(BEH-BR-268)')+A(160,30,218,60,'','good')+A(160,65,218,75,'','good')+T(190,118,'not compared','warn'),'Before: only listens and contributions are reviewed'),
+bcap:'Emits and child mounts are never compared; host mutations and egress are undeclared.',
+aft:S(B(10,10,100,24,'listens','good')+B(10,40,100,24,'contributes','good')+B(10,70,100,24,'emits','good')+B(10,100,100,24,'mounts','good')+B(10,130,100,24,'hostOps','good')+B(150,10,90,144,'declaredOnly\nexact string')+A(110,22,148,60,'','good')+A(110,142,148,110,'','good')+B(260,20,72,50,'diff old\nvs new','acc')+B(260,95,72,50,'fresh\nticket','acc')+A(240,45,258,45,'')+A(296,70,296,93,'widens','warn',320,84),'After: every declared access is compared and an upgrade diff feeds approval'),
+acap:'Emits, mounts and hostOps join the manifest. A widening upgrade needs a new ticket.'},
+
+{id:'R3',t:'A partner-plugin tier built from evidence, not an enum',f:'S4',sev:'H',
+rat:'ADR-RM-006 correctly rejects an isolation-level enum, yet GxP integrators then have nothing to cite for partner code. The Cordis conclusion (an external sandbox is needed) is accepted by Bridger but not operationalised.',
+chg:'In remote BEH-RM-070s: a normative negative conformance suite each adapter publishes (egress denied, fs/env unreadable, CPU/memory cap, no shared module cache), recorded in the GxP OQ evidence pack (BEH-GX-127). Add a loader trust-class value partner meaning "remote link only; first-party statement refused", so Loader.lazy cannot admit it by accident (BEH-LD-067 already refuses non-first-party; make the class explicit in the catalog).',
+cost:'Medium: suite content per adapter. Avoids false claims.',
+ver:'Run the suite against the worker_threads adapter and expect specific known leaks documented as failures, showing the suite has teeth.',
+bef:S(B(10,20,110,40,'partner plugin','warn')+B(10,120,110,40,'first-party plugin')+B(200,20,130,40,'remote link','warn')+B(200,120,130,40,'in-process')+A(120,40,198,40,'no tier','warn',160,32)+A(120,140,198,140,'first-party stmt','',160,132)+T(265,85,'isolation is the host\'s','warn')+T(265,98,'(ADR-RM-006)','t2'),'Before: partner code has no defined tier and isolation is left to the integrator'),
+bcap:'Isolation evidence is entirely the integrator\'s; no shipped negative conformance for an adapter.',
+aft:S(B(10,15,100,36,'partner class','good')+B(10,130,100,36,'first-party')+B(130,15,90,36,'remote link','acc')+B(130,130,90,36,'in-process')+A(110,33,128,33,'','good')+A(110,148,128,148,'')+B(240,15,92,100,'adapter\nconformance\nsuite\negress, fs/env\nCPU/mem\nmodule cache','acc')+A(220,33,238,33,'')+B(240,130,92,36,'OQ evidence','good')+A(286,115,286,128,'','good')+T(65,78,'stmt refused','good')+A(65,53,65,70,'','good'),'After: partner is remote-link-only and each adapter publishes suite results as evidence'),
+acap:'Class partner admits only a remote link. The suite result goes into the OQ pack. No isolation enum.'},
+
+{id:'R4',t:'Reversibility class and output-commit ordering',f:'S6, S7',sev:'H',
+rat:'The paper\'s own stated limit: effects crossing the system boundary need withholding or compensation. Bridger says "does not compensate external effects" and handles each case separately, but a GxP approver reading an atomic-apply plan cannot see which entries cannot be undone.',
+chg:'(a) Annotation Reversibility = reversible | compensable | irreversible on plan entries (BEH-BR-32); install/replace/remove reversible via ADR-BR-051 undo; keyring shred, remote calls with unknown outcome, ticket consumption and external-egress contributions declared irreversible by their owners. (b) Atomic apply orders irreversible entries after all reversible ones and fails the plan, not the run, if an irreversible entry precedes a reversible one it depends on. (c) Approval binding (BEH-GX-092) covers the class. (d) With S7, the gate may require anchoredHead >= headAtPlanTime before an irreversible entry; this respects INV-AC-005 since the wait is at the gate.',
+cost:'Medium; one annotation, one ordering rule. Risk: authors under-declare, so companions (keyring, remote) must set it too.',
+ver:'Scenario: apply with shred plus a failing replace rolls back everything except the (last) shred, which never ran; property test on ordering.',
+bef:S(B(10,20,90,34,'1 replace')+B(125,20,90,34,'2 shred','bad')+B(240,20,90,34,'3 replace\nFAILS','bad')+A(100,37,123,37,'')+A(215,37,238,37,'')+B(10,110,90,34,'undo 1','good')+B(125,110,90,34,'cannot undo','bad')+A(285,54,170,108,'rollback','warn',250,92)+T(170,170,'key already shredded','bad'),'Before: rollback cannot know the shred is irreversible'),
+bcap:'Atomic apply undoes in reverse order but cannot tell which action is irreversible.',
+aft:S(B(10,20,90,34,'1 replace','good')+B(125,20,90,34,'2 replace\nFAILS','bad')+B(240,20,90,34,'3 shred\nirreversible','acc')+A(100,37,123,37,'')+A(215,37,238,37,'','dash')+B(10,100,90,34,'undo 1','good')+A(170,54,60,98,'rollback','good',130,84)+B(190,100,142,34,'gate: anchoredHead\n>= headAtPlanTime','acc')+T(285,150,'shred never ran','good'),'After: irreversible entries run last, after the gate, so failure rolls back cleanly'),
+acap:'Irreversible entries are ordered last and gated on anchor freshness. A failing reversible entry never reaches the shred.'},
+
+{id:'R5',t:'Revoked resident code must be visible to the gate',f:'S5',sev:'M',
+rat:'BEH-LD-031 admits revoked modules stay in memory. For a high-risk revocation (compromised signer), "removed from host" is not "stopped".',
+chg:'When status.residentRevoked is non-empty and the policy is strict, Host.controls reports restartRequired, and the GxP gate refuses new GMP-class operations (reason from the eleven of BEH-GX-091, plus one) until a process incarnation begins. Federation kill frames (ADR-FD-009) trigger the same.',
+cost:'Availability cost; make it opt-in per deployment.',
+ver:'Kill switch scenario in TestHost plus gate acceptance check.',
+bef:S(B(10,20,110,34,'kill switch')+B(10,80,110,34,'plugin removed','good')+B(10,140,110,34,'module resident\nstill runs','bad')+A(65,54,65,78,'')+A(65,114,65,138,'')+B(200,60,130,50,'gate\nGMP op accepted','bad')+A(120,157,198,100,'no signal','bad',175,142),'Before: revoked code keeps running and the gate is unaware'),
+bcap:'The kill switch removes the plugin but not its scheduled outside work. residentRevoked is reported but unused.',
+aft:S(B(10,20,110,34,'kill switch')+B(10,80,110,34,'plugin removed','good')+B(10,140,110,34,'residentRevoked\nnon-empty','warn')+A(65,54,65,78,'')+A(65,114,65,138,'')+B(150,100,100,36,'restartRequired','acc')+A(120,157,148,125,'strict','warn',130,152)+B(270,100,62,36,'gate\nrefuses','good')+A(250,118,268,118,'')+B(150,20,182,40,'new process incarnation\nclears the state','good')+A(332,100,332,62,''),'After: restartRequired makes the gate refuse GMP operations until recycle'),
+acap:'Opt-in per deployment. A new process incarnation clears the refusal.'},
+
+{id:'R6',t:'Attribute provider-originated mutations',f:'S8',sev:'M',
+rat:'BEH-BR-258 consciously records the caller, not the module. In an audit this makes a provider-originated change look consumer-originated; Cordis has the same blind spot but no regulatory duty.',
+chg:'Ship a mandatory interception (core-built, like grant narrowing BEH-BR-275) that adds via: providerPrincipal as an annotation while a service method runs, recorded in a field beside onBehalfOf.',
+cost:'One wrapper per service call, tolerable since interceptions already exist. Shallow: does not reach captured sub-objects, same limit as grants.',
+ver:'Record-shape tests; spike against the awthaq adapter (SPK-09-03).',
+bef:S(B(10,70,80,40,'consumer A')+B(130,70,80,40,'provider\nservice','warn')+B(250,70,82,40,'host\nmutation')+A(90,90,128,90,'call')+A(210,90,248,90,'writes')+B(60,135,220,34,'record: onBehalfOf = A','bad')+T(170,25,'provider code not in record','bad'),'Before: the record names only the consumer'),
+bcap:'A provider mutating the host while serving A is recorded onBehalfOf A with no trace of the provider.',
+aft:S(B(10,70,80,40,'consumer A')+B(130,70,80,40,'provider\nservice','good')+B(250,70,82,40,'host\nmutation')+A(90,90,128,90,'call')+A(210,90,248,90,'writes')+B(130,22,80,24,'via interception','acc')+A(170,46,170,68,'')+B(30,135,280,34,'onBehalfOf = A   via = provider','good'),'After: a mandatory interception adds via beside onBehalfOf'),
+acap:'The record carries both the caller and the provider principal.'},
+
+{id:'R7',t:'Digest closure',f:'S9',sev:'M',
+rat:'The digest commits to a file set (ADR-LD-002) but evaluation can still import outside it.',
+chg:'Add to BEH-LD-002: the evaluator MUST resolve imports only inside the digested file map; a bare or dynamic specifier outside it fails with OutsideDigest. Keep SBOM interpretation out of scope.',
+cost:'Packaging constraint for bundling; matches Cordis HMR import-graph analysis in spirit.',
+ver:'Fixture package with a dynamic import of node:fs and a sibling path.',
+bef:S(B(10,20,140,120,'','good')+T(80,38,'digested file map','t2')+B(25,50,110,26,'index.js')+B(25,86,110,26,'lib/util.js')+B(220,30,110,34,'node:fs','bad')+B(220,90,110,34,'../sibling.js','bad')+A(135,63,218,47,'import','bad',178,48)+A(135,99,218,107,'dynamic','bad',178,92)+T(270,150,'evaluates, not in digest','bad'),'Before: imports can leave the digested file set'),
+bcap:'Transitive imports at evaluation are not tied to the digest. SBOM is opaque to the loader.',
+aft:S(B(10,20,140,120,'','good')+T(80,38,'digested file map','t2')+B(25,50,110,26,'index.js')+B(25,86,110,26,'lib/util.js')+A(80,76,80,84,'','good')+B(220,30,110,34,'node:fs','dash')+B(220,90,110,34,'../sibling.js','dash')+A(135,63,218,47,'OutsideDigest','bad',172,38)+A(135,99,218,107,'OutsideDigest','bad',172,128)+T(270,150,'fails typed','good'),'After: the evaluator resolves only inside the digested map')
+,bcap:'',acap:'Bare or dynamic specifiers outside the map fail with OutsideDigest.'}
+];
+
+var F=[
+['S1','H','ADR-BR-002; host.ts:1016-1067; RSK-BR-001','Closed build context not specified or tested; no UNDECLARED_ACCESS equivalent.','Replaced context for build, finalizers, fibers; typed defect on undeclared lookup.','R1'],
+['S2','M','BEH-BR-130; RSK-BR-001 residual','Captured service used after lease end has no runtime signal.','Lease-bound wrapper throws InactiveAccess.','R1'],
+['S3','M','BEH-BR-268 settled (3)','Emits, child mounts, host mutations, egress undeclared.','Add emits, mounts to manifest; consent-diff on upgrade.','R2'],
+['S4','H','INV-LD-009; ADR-RM-006; RSK-BR-028','No Bridger-defined tier for partner plugins; no negative conformance per adapter.','Isolation conformance suite per adapter as evidence.','R3'],
+['S5','M','BEH-LD-031','Revoked module keeps running until restart.','Gate-visible restartRequired.','R5'],
+['S6','H','Core exclusions; ADR-BR-051/004; ADR-RM-008; ADR-KR-001; BEH-GX-093','No operation-level reversibility class.','Reversibility annotation; irreversible last.','R4'],
+['S7','M','INV-AC-005; SPK-06-07; FINDINGS #9','Nothing couples anchor freshness to a high-risk operation.','Gate option "anchored head at least n".','R4'],
+['S8','M','BEH-BR-258/259; RSK-BR-028','Provider-originated mutation recorded as consumer-originated.','Mandatory interception adds via.','R6'],
+['S9','M','BEH-LD-001/ADR-LD-002','Imports at evaluation not tied to the digest.','File-set closure.','R7'],
+['S10','L','SPK-09-12; BEH-BR-281','Stateless tokens valid until expiry (900 s).','Document the bound; per-call token TTL max.',''],
+['S11','L','Cordis paper; ADR-BR-011','Nominal key identity allows a lookalike provider.','Mitigated by BEH-BR-229; add provider-principal allow-list docs.','']
+];
+document.getElementById('ftbody').innerHTML=F.map(function(r){return '<tr class="'+r[1]+'"><td class="mono">'+r[0]+'</td><td class="sev">'+r[1]+'</td><td class="mono">'+esc(r[2])+'</td><td>'+esc(r[3])+'</td><td>'+esc(r[4])+'</td><td>'+(r[5]?'<a href="#'+r[5]+'">'+r[5]+'</a>':'<span class="tag">none</span>')+'</td></tr>'}).join('');
+var fb=document.querySelectorAll('.filters button');
+fb.forEach(function(b){b.addEventListener('click',function(){fb.forEach(function(x){x.setAttribute('aria-pressed',x===b)});var f=b.dataset.f;document.querySelectorAll('#ftbody tr').forEach(function(tr){tr.hidden=!(f==='all'||tr.classList.contains(f))})})});
+
+document.getElementById('cards').innerHTML=R.map(function(r){
+return '<article class="card" id="'+r.id+'" data-view="both"><header><h3>'+r.id+'. '+esc(r.t)+'</h3><span class="tag">Findings '+r.f+' / severity '+r.sev+'</span></header>'+
+'<div class="cols"><div><h4>Rationale</h4><p>'+esc(r.rat)+'</p><h4>Cost / risk</h4><p>'+esc(r.cost)+'</p><h4>Verification</h4><p>'+esc(r.ver)+'</p></div><div><h4>Proposed change</h4><p>'+esc(r.chg)+'</p></div></div>'+
+'<div class="ctl" role="group" aria-label="Show"><button type="button" class="on" data-v="both">Both</button><button type="button" data-v="before">Before</button><button type="button" data-v="after">After</button></div>'+
+'<div class="ba"><figure class="before"><h4 class="b">Before: current spec</h4>'+r.bef+'<figcaption>'+esc(r.bcap)+'</figcaption></figure><figure class="after"><h4 class="a">After: proposed</h4>'+r.aft+'<figcaption>'+esc(r.acap)+'</figcaption></figure></div></article>'}).join('');
+document.querySelectorAll('.card .ctl button').forEach(function(b){b.addEventListener('click',function(){var c=b.closest('.card');c.dataset.view=b.dataset.v;c.querySelectorAll('.ctl button').forEach(function(x){x.classList.toggle('on',x===b)})})});
+
+/* animations: elements carry data-on="step list"; off elements dim, never hide */
+function box(x,y,w,h,t,c,on){return '<g class="s" data-on="'+on+'">'+B(x,y,w,h,t,c)+'</g>'}
+function ar(x1,y1,x2,y2,t,c,on,lx,ly){return '<g class="s" data-on="'+on+'">'+A(x1,y1,x2,y2,t,c,lx,ly)+'</g>'}
+function tx(x,y,t,c,on){return '<g class="s" data-on="'+on+'">'+T(x,y,t,c)+'</g>'}
+var ANIMS=[
+{h:'Ambient access versus a declared-capability proxy check',
+svg:'<svg viewBox="0 0 560 230" role="img" aria-label="Plugin build looking up AuditSink: reachable before, UndeclaredAccess after">'+
+box(10,80,110,50,'plugin build','','0,1,2,3,4')+
+box(190,15,170,90,'','warn','0,1')+tx(275,32,'merged fiber context','warn','0,1')+box(205,42,140,24,'AuditSink','bad','0,1')+box(205,72,140,24,'declared service','','0,1,2,3,4')+
+box(190,130,170,90,'','good','2,3,4')+tx(275,147,'replaced context','good','2,3,4')+box(205,157,140,24,'declared + Runtime + Config','good','2,3,4')+box(205,187,140,24,'lease: released','warn','4')+
+ar(120,95,203,56,'service(AuditSink) found','bad','1',140,62)+
+ar(120,115,188,170,'service(AuditSink)','good','3',110,168)+box(400,150,150,34,'UndeclaredAccess\n(typed defect)','good','3')+ar(360,167,398,167,'','good','3')+
+box(400,190,150,34,'InactiveAccess\n(after lease)','good','4')+ar(360,198,398,206,'','good','4')+
+box(400,40,150,34,'reached host port\nno signal','bad','1')+ar(345,54,398,54,'','bad','1')+
+'</svg>',
+caps:['Before: the host fiber context holds host ports and the declared service. Nothing is wrong yet.','Before: the build calls Effect.service(AuditSink) and finds it. The merge made it reachable and nothing signals the access.','After: the build fiber gets a replaced context with only declared services, Plugin.Runtime, Plugin.Config and References.','After: the same lookup fails with the UndeclaredAccess defect, naming plugin id and key.','After: a captured optional service used once its lease is released throws InactiveAccess. Final state shown.']},
+{h:'An irreversible operation waits for an anchored audit head',
+svg:'<svg viewBox="0 0 560 230" role="img" aria-label="Plan with reversible entries then a shred that waits at the gate until the anchored head reaches the plan-time head">'+
+box(10,15,150,34,'plan: replace, install, shred','acc','0,1,2,3,4')+tx(85,66,'headAtPlanTime = h42','t2','0,1,2,3,4')+
+box(10,90,70,34,'replace','good','1,2,3,4')+box(90,90,70,34,'install','good','1,2,3,4')+ar(160,32,60,88,'run reversible first','good','1',130,75)+
+box(200,15,160,90,'','warn','2,3,4')+tx(280,32,'gate','warn','2,3,4')+tx(280,56,'anchoredHead = h40','bad','2')+tx(280,56,'anchoredHead = h42','good','3,4')+tx(280,76,'need >= h42','t2','2,3,4')+tx(280,94,'WAIT','warn','2')+tx(280,94,'PASS','good','3,4')+
+ar(160,115,198,85,'','','2,3,4')+
+box(400,15,150,50,'shred (irreversible)\nruns last','bad','4')+ar(360,45,398,45,'','good','4')+
+box(200,140,350,34,'audit writes continue; anchoring never delays a write (INV-AC-005)','','2,3,4')+
+box(200,185,160,34,'anchor lands: h42','good','3,4')+ar(280,185,280,107,'','good','3',296,150)+
+'</svg>',
+caps:['The plan is created. Its head at plan time is h42. The last entry, a keyring shred, is irreversible.','Reversible entries run first (replace, install). Any failure here rolls back cleanly because the shred has not run.','The gate checks anchoredHead (h40) against headAtPlanTime (h42) and waits. Writes keep flowing; only the gate waits.','The anchor reaches h42 and the gate passes.','The irreversible shred runs last. Final state shown.']},
+{h:'Trust tiers and what each can reach',
+svg:'<svg viewBox="0 0 560 230" role="img" aria-label="Three trust tiers: first-party in-process, partner remote link only with conformance evidence, other remote code with isolation left to the integrator">'+
+tx(110,16,'tier','t2','0,1,2,3')+tx(260,16,'admitted by','t2','0,1,2,3')+tx(440,16,'isolation evidence','t2','0,1,2,3')+
+box(10,26,200,52,'first-party\nin-process','good','1,3')+box(220,26,150,52,'Loader.lazy with the\nfirst-party statement','good','1,3')+box(380,26,170,52,'attribution, not isolation\n(RSK-BR-028)','warn','1,3')+ar(210,52,218,52,'','good','1,3')+
+box(10,92,200,52,'partner (proposed)\nclass: partner','acc','2,3')+box(220,92,150,52,'remote link only;\nfirst-party stmt refused','acc','2,3')+box(380,92,170,52,'adapter conformance suite\nin OQ evidence pack','good','2,3')+ar(210,118,218,118,'','good','2,3')+
+box(10,158,200,52,'other remote code','bad','3')+box(220,158,150,52,'remote link;\nno isolation provided','warn','3')+box(380,158,170,52,'integrator\'s own evidence\n(ADR-RM-006)','warn','3')+ar(210,184,218,184,'','warn','3')+
+'</svg>',
+caps:['Three tiers, and what each is admitted by and what evidence backs its isolation.','First-party: in-process code, admitted under the separate first-party statement (BEH-LD-065/067). Bridger claims attribution, not isolation.','Partner, proposed in R3: remote link only. The first-party statement is refused, and each adapter publishes negative conformance results as evidence.','Remote code today has no Bridger-defined partner tier; isolation evidence is the integrator\'s. All tiers shown.']}
+];
+var box2=document.getElementById('animbox');
+ANIMS.forEach(function(a,i){
+var d=document.createElement('div');
+d.innerHTML='<h3>'+esc(a.h)+'</h3><figure class="anim">'+a.svg+'<figcaption><div class="step"></div><div class="cap" aria-live="polite"></div><div class="ctrls"><button type="button" data-a="play">Play</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button></div></figcaption></figure>';
+box2.appendChild(d);
+var fig=d.querySelector('figure'),n=a.caps.length,cur=n-1,timer=null,play=d.querySelector('[data-a=play]');
+var reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+function show(k){cur=k;fig.querySelectorAll('.s').forEach(function(e){var on=e.dataset.on.split(',').indexOf(String(k))>-1;e.classList.toggle('on',on)});
+ // final step shows everything lit so the resting state is complete
+ if(k===n-1&&!timer)fig.querySelectorAll('.s').forEach(function(e){e.classList.add('on')});
+ fig.querySelector('.step').textContent='Step '+(k+1)+' of '+n;fig.querySelector('.cap').textContent=a.caps[k]}
+function stop(){clearInterval(timer);timer=null;play.textContent='Play'}
+function go(){clearInterval(timer);play.textContent='Pause';timer=setInterval(function(){show((cur+1)%n)},2200)}
+play.addEventListener('click',function(){if(timer){stop()}else{if(cur===n-1)show(0);go()}});
+d.querySelector('[data-a=step]').addEventListener('click',function(){stop();show((cur+1)%n)});
+d.querySelector('[data-a=replay]').addEventListener('click',function(){show(0);go()});
+show(n-1);
+});
+})();
+</script>

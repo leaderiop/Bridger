@@ -10,6 +10,8 @@ export class DuplicateRealm extends Schema.TaggedError<DuplicateRealm>()("Duplic
 export type InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | InvalidDefinition | UnknownRealm | IncompatibleContract | IncompatibleEngine
 
 export class ReplaceError extends Schema.TaggedError<ReplaceError>()("ReplaceError", { id: Schema.String, cause: Schema.String }) {}
+/** `replace` with `onFailure: { rollback }`: the new activation failed; `rollback` says whether the previous definition is running again (report 01 R4). */
+export class ReplaceRolledBack extends Schema.TaggedError<ReplaceRolledBack>()("ReplaceRolledBack", { id: Schema.String, phase: Schema.String, message: Schema.String, rollback: Schema.Literals(["restored", "failed"]), rollbackMessage: Schema.optional(Schema.String) }) {}
 export class UnknownPlugin extends Schema.TaggedError<UnknownPlugin>()("UnknownPlugin", { id: Schema.String }) {}
 export class Conflict extends Schema.TaggedError<Conflict>()("Conflict", { id: Schema.String, pending: Schema.String }) {}
 export class HostClosed extends Schema.TaggedError<HostClosed>()("HostClosed", {}) {}
@@ -17,6 +19,8 @@ export class CleanupError extends Schema.TaggedError<CleanupError>()("CleanupErr
 /** `id`: the plugin whose leases did not drain; `target`: the plugin the call named, when different (BEH-BR-085). */
 export class DrainTimeout extends Schema.TaggedError<DrainTimeout>()("DrainTimeout", { id: Schema.String, leases: Schema.Number, target: Schema.optional(Schema.String) }) {}
 export class WouldDeadlock extends Schema.TaggedError<WouldDeadlock>()("WouldDeadlock", { id: Schema.String }) {}
+/** `awaitSettled` did not settle within its timeout (report 01 R6); `ids` names the plugins still unsettled. */
+export class SettleTimeout extends Schema.TaggedError<SettleTimeout>()("SettleTimeout", { ids: Schema.Array(Schema.String) }) {}
 export class ServiceUnavailable extends Schema.TaggedError<ServiceUnavailable>()("ServiceUnavailable", { serviceId: Schema.String }) {}
 export class LeaseRevoked extends Schema.TaggedError<LeaseRevoked>()("LeaseRevoked", { serviceId: Schema.String }) {}
 export class LeaseTimeout extends Schema.TaggedError<LeaseTimeout>()("LeaseTimeout", { serviceId: Schema.String }) {}

@@ -30,7 +30,7 @@ Two forms cover soft dependencies, and neither ever gates activation.
 
 - Optional keys never gate activation, never appear in `missingServiceIds`, and take no part in dependency-cycle detection or start ordering.
 - A key listed in both `requires` and `optional` is an `InvalidDefinition`.
-- `Plugin.Runtime.optional(key)` returns `Option<Service>` as of that moment and does not track later changes.
+- `Plugin.Runtime.optional(key)` returns an existence witness `Option<void>` as of that moment and does not track later changes; the service is reached only through `useOptional`, inside its lease (report 01, R8).
 - `Plugin.Runtime.useOptional(key, run)` runs the callback under a lease and returns `None` when the service is unavailable. A lease on an optional provider delays that provider's removal like any lease; it never stops the optional consumer.
 
 **`whenAvailable(keys, run)`** is the reactive form. Inside an activation it runs `run` in a child scope while *all* `keys` are available: it takes a scoped lease, runs `run`, and when any provider starts leaving it interrupts the run, closes the child scope (finalizers run) and releases the lease; when the keys return it runs `run` again.
@@ -56,7 +56,7 @@ Two forms cover soft dependencies, and neither ever gates activation.
 
 **Negative**:
 
-- `Plugin.Runtime.optional` returns a point-in-time reference; a plugin that holds it beyond the moment is outside the lease guarantee, and this is the author's responsibility, as for any escaping reference.
+- `Plugin.Runtime.optional` returns a point-in-time witness with no service, so there is no reference to hold beyond the moment; a plugin that needs the service uses `useOptional`.
 - Because optional edges are excluded from cycle detection, two plugins may use each other optionally; each must tolerate the other's absence.
 - A plugin's observable behaviour now depends on which optional providers happen to be present, which the snapshot shows only indirectly (through the other plugins' states).
 

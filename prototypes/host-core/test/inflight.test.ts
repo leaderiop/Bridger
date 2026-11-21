@@ -16,11 +16,11 @@ const settledWithin = <A, E>(f: Fiber.Fiber<A, E>, ms = 20) =>
 
 // BEH-BR-072 transcribed from references/core/behaviors/08-operation-legality.md, without the reconfigure row and column.
 const expected: Record<FlightOp, Record<Op, string>> = {
-  remove:      { install: "duplicate-plugin", remove: "join",      replace: "conflict",  retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "conflict",  enable: "conflict" },
-  replace:     { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "conflict",  enable: "conflict" },
-  reconfigure: { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "join-if-equal", restart: "join",    disable: "supersede", enable: "conflict" },
-  restart:     { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "join",          restart: "join",      disable: "supersede", enable: "conflict" },
-  disable:     { install: "duplicate-plugin", remove: "supersede", replace: "conflict",  retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "join",      enable: "conflict" },
+  remove:      { install: "duplicate-plugin", remove: "join",      replace: "conflict",  retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "conflict",  enable: "conflict", abort: "abort-if-parked" },
+  replace:     { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "conflict",  enable: "conflict", abort: "abort-if-parked" },
+  reconfigure: { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "join-if-equal", restart: "join",    disable: "supersede", enable: "conflict", abort: "abort-if-parked" },
+  restart:     { install: "duplicate-plugin", remove: "supersede", replace: "supersede", retry: "conflict", reconfigure: "join",          restart: "join",      disable: "supersede", enable: "conflict", abort: "abort-if-parked" },
+  disable:     { install: "duplicate-plugin", remove: "supersede", replace: "conflict",  retry: "conflict", reconfigure: "conflict",      restart: "conflict",  disable: "join",      enable: "conflict", abort: "abort-if-parked" },
 }
 /** Where a winning operation lands once the lease is released. */
 const landing = (op: Op): { state: string; version?: string } =>
@@ -33,7 +33,7 @@ describe("in-flight table (BEH-BR-072)", () => {
   })
 
   // reconfigure cells need a plugin with configuration: covered in test/p2.test.ts.
-  for (const f of FLIGHT_OPS.filter((x) => x !== "reconfigure")) for (const op of OPS.filter((x) => x !== "reconfigure")) {
+  for (const f of FLIGHT_OPS.filter((x) => x !== "reconfigure")) for (const op of OPS.filter((x) => x !== "reconfigure" && x !== "abort")) {
     const outcome = expected[f][op]
     it(`live: ${op} while ${f} is in flight → ${outcome}`, async () => {
       const j = journal()

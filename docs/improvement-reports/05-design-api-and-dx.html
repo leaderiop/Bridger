@@ -1,0 +1,346 @@
+<title>Bridger API and DX Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: engineering notebook. Sticky nav, single reading column, before/after pairs, stepper animations. */
+:root{--bg:#f6f7f9;--surface:#fff;--ink:#1b2430;--muted:#5b6676;--line:#d9dee6;--accent:#0b6e8a;--bad:#c0392b;--warn:#b7791f;--good:#1f8a5b;
+--code-bg:#eef1f5;--f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;--f-head:"Space Grotesk","IBM Plex Sans",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;--code-bg:#0f1318;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;--code-bg:#0f1318;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:0 3rem}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+h1,h2,h3{font-family:var(--f-head);text-wrap:balance;line-height:1.2;margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);margin-inline:calc(-1*max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px));overflow-x:auto;white-space:nowrap;display:flex;gap:4px;align-items:center}
+nav.toc a{font:500 12px var(--f-mono);padding:10px 8px;text-decoration:none;color:var(--muted)}
+nav.toc a:hover{color:var(--accent)}
+header.top{padding-block:2rem 1rem}
+.eyebrow{font:500 12px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-size:clamp(1.8rem,5vw,2.6rem);margin-block:.4rem .8rem}
+.lede{max-width:70ch;color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-block:1rem}
+.chip{font:500 12px var(--f-mono);padding:4px 10px;border-radius:99px;border:1px solid currentColor}
+.chip.H,.sev.H{color:var(--bad)}.chip.M,.sev.M{color:var(--warn)}.chip.L,.sev.L{color:var(--good)}
+h2{font-size:1.4rem;margin-block:2.4rem .8rem}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.strip div{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--good);padding:10px 12px;font-size:13px}
+.strip b{display:block;font-family:var(--f-head);margin-bottom:2px}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sev{font:600 12px var(--f-mono)}
+.filters{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+button{font:500 12px var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);padding:6px 12px;border-radius:4px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);margin-block:1.2rem;padding:16px;scroll-margin-top:60px}
+.card header{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;justify-content:space-between}
+.card h3{font-size:1.15rem;flex:1 1 260px}
+.rid{font:600 13px var(--f-mono);color:var(--accent);margin-right:8px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 20px;margin-block:12px}
+.facts div{min-width:0}
+.facts b{display:block;font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.facts p{margin:2px 0 0;font-size:14px}
+.seg{display:flex;gap:4px;margin-block:8px}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card[data-view="before"] .ba>:nth-child(2),.card[data-view="after"] .ba>:nth-child(1){display:none}
+.card[data-view="before"] .ba,.card[data-view="after"] .ba{grid-template-columns:1fr}
+@media(max-width:700px){.ba{grid-template-columns:1fr}}
+figure{margin:0;min-width:0;border:1px solid var(--line);background:var(--bg);padding:8px}
+figure.b{border-top:3px solid var(--bad)}figure.a{border-top:3px solid var(--good)}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:6px}
+figcaption b{font:600 11px var(--f-mono);text-transform:uppercase;color:var(--ink);margin-right:6px}
+svg{display:block;width:100%;height:auto;color:var(--ink)}
+.dg{min-width:300px}
+.scroll{overflow-x:auto}
+.bx{fill:var(--surface);stroke:var(--muted);stroke-width:1.2}
+.bx.bad{fill:color-mix(in srgb,var(--bad) 14%,var(--surface));stroke:var(--bad)}
+.bx.warn{fill:color-mix(in srgb,var(--warn) 16%,var(--surface));stroke:var(--warn)}
+.bx.good{fill:color-mix(in srgb,var(--good) 14%,var(--surface));stroke:var(--good)}
+.bx.acc{fill:color-mix(in srgb,var(--accent) 12%,var(--surface));stroke:var(--accent)}
+.bx.dash{stroke-dasharray:4 3}
+.tx{fill:currentColor;font:500 11px var(--f-body);text-anchor:middle}
+.tx.sm{font:400 9.5px var(--f-mono);fill:var(--muted)}
+.tx.l{text-anchor:start}.tx.r{text-anchor:end}
+.tx.cbad{fill:var(--bad)}.tx.cgood{fill:var(--good)}.tx.cwarn{fill:var(--warn)}
+.ln{stroke:var(--muted);stroke-width:1.4;fill:none}
+.ln.bad{stroke:var(--bad)}.ln.good{stroke:var(--good)}.ln.warn{stroke:var(--warn)}.ln.acc{stroke:var(--accent)}.ln.dash{stroke-dasharray:4 3}
+pre.code{margin:0;background:var(--code-bg);border:1px solid var(--line);padding:10px 12px;overflow-x:auto;font:12px/1.55 var(--f-mono);white-space:pre}
+.k{color:var(--accent)}.s{color:var(--good)}.c{color:var(--muted);font-style:italic}.t{color:var(--warn)}
+.cb{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media(max-width:700px){.cb{grid-template-columns:1fr}}
+.cb>div{min-width:0}
+.cb h4{margin:0 0 4px;font:600 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em}
+.cb .b h4{color:var(--bad)}.cb .a h4{color:var(--good)}
+.anim{background:var(--surface);border:1px solid var(--line);padding:14px;margin-block:1rem}
+.anim h3{font-size:1.05rem;margin-bottom:8px}
+.anim [data-s]{transition:opacity .35s}
+.anim .ctl{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.anim .cap{min-height:3em;font-size:14px;margin:8px 0 0;padding:8px 10px;border-left:3px solid var(--accent);background:var(--bg)}
+.anim .stp{font:500 11px var(--f-mono);color:var(--muted);margin-left:auto}
+.cmp{width:100%;min-width:680px}
+.cmp td:first-child{font-weight:600;font-family:var(--f-head)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--muted)}
+.dot.g{background:var(--good)}.dot.w{background:var(--warn)}.dot.r{background:var(--bad)}
+footer ul{padding-left:1.2rem}footer li{margin-block:.3rem;max-width:80ch}
+.sib{font:12px var(--f-mono);color:var(--muted);margin-top:1.5rem}
+@media(prefers-reduced-motion:reduce){.anim [data-s]{transition:none}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<marker id="ar-n" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--muted)"/></marker>
+<marker id="ar-bad" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--bad)"/></marker>
+<marker id="ar-good" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--good)"/></marker>
+<marker id="ar-warn" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--warn)"/></marker>
+<marker id="ar-acc" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--accent)"/></marker>
+</defs></svg>
+
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+<a href="#summary">summary</a><a href="#ahead">ahead</a><a href="#findings">findings</a><a href="#recs">R1-R10</a><a href="#anims">animations</a><a href="#cordis">cordis</a><a href="#notchecked">not checked</a>
+</nav>
+
+<header class="top" id="summary">
+<div class="eyebrow">Improvement report 05</div>
+<h1>Design API surface and developer experience</h1>
+<p class="lede">Bridger's authoring story is specified, but only the core half is executable: <code>define</code> exists (prototypes/host-core/src/plugin.ts:46) while the <code>definePlugin</code> facade used by every guide snippet has no code. Every guide snippet is marked "type-checked: not yet", and the CI check that would fix it (BEH-KT-028) is a requirement on a CLI that does not exist. The 264-entry error catalog is hand-maintained against 68 prototype TaggedErrors with no comparing script. <code>config</code> is <code>Schema.Codec&lt;any, any&gt;</code>, so authors get no decoded-config type. There is no cookbook and no generated config, tool or event catalog. Lens: Cordis / DeepSeek Harness ergonomics.</p>
+<div class="chips"><span class="chip H">3 High</span><span class="chip M">6 Medium</span><span class="chip L">3 Low</span><span class="chip" style="color:var(--accent)">10 recommendations</span><span class="chip" style="color:var(--accent)">3 animations</span></div>
+</header>
+
+<section id="ahead">
+<h2>Where Bridger is already ahead</h2>
+<div class="strip">
+<div><b>Compile-time dependencies</b>build is <code>Layer&lt;IdentifiersOf&lt;P&gt;, E, ...&gt;</code> (plugin.ts:20); Cordis checks at run time. Prototype fixed spec bug G10.</div>
+<div><b>Typed errors, stated rule</b>Tags carry identifiers, never values (errors.ts). Catalog has Cause/Example/Fix per tag.</div>
+<div><b>Versioned contracts</b>Ranges and method sets (contract.ts, BEH-BR-225..234) answer Cordis's open problem.</div>
+<div><b>Review before load</b>Manifest/definition <code>disagreement</code> and <code>consentDiff</code> versus a capability set.</div>
+<div><b>Deterministic testing</b><code>TestHost</code> with stepping and fault injection (BEH-BR-177..182); leak checks (BEH-KT-011).</div>
+<div><b>Honest status banners</b>"Prospective, nothing implemented" on every guide.</div>
+</div>
+</section>
+
+<section id="findings">
+<h2>Findings</h2>
+<div class="filters" role="group" aria-label="Filter by severity">
+<button type="button" data-f="all" aria-pressed="true">All 12</button><button type="button" data-f="H" aria-pressed="false">High 3</button><button type="button" data-f="M" aria-pressed="false">Medium 6</button><button type="button" data-f="L" aria-pressed="false">Low 3</button>
+</div>
+<div class="tblwrap"><table id="ftable"><thead><tr><th>ID</th><th>Sev</th><th>Evidence</th><th>Issue</th><th>Proposed change</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="recs"><h2>Recommendations</h2><div id="cards"></div>
+<div class="card" id="extra"><header><h3><span class="rid">No R</span>Table-only proposals (DX-10, DX-12)</h3><span class="chip L">L</span></header>
+<div class="facts">
+<div><b>DX-10 flaky settlement</b><p>testing.ts:60 notes Effect exposes no quiescence signal (G27); tests rely on yield-until-stable. Proposed: document the guarantee; expose the <code>runUntilIdle</code> bound/timeout in kit docs.</p></div>
+<div><b>DX-12 "Never write as const"</b><p>The guide documents a footgun rule. plugin.ts:46 already uses <code>const</code> type params. Proposed: verify in the prototype and delete the rule if redundant.</p></div>
+</div></div>
+</section>
+
+<section id="anims"><h2>Mechanisms, step by step</h2>
+<div id="animhost"></div></section>
+
+<section id="cordis">
+<h2>Cordis comparison</h2>
+<div class="tblwrap"><table class="cmp"><thead><tr><th>Aspect</th><th>Cordis</th><th>Bridger today</th><th>Proposed</th></tr></thead><tbody>
+<tr><td>Authoring shape</td><td><span class="dot g"></span>One shape: <code>apply(ctx, config)</code> plus <code>ctx.effect</code></td><td><span class="dot r"></span>Four shapes (provides Key / record / run / build); facade unprototyped</td><td><span class="dot w"></span>R1: shapes shown as sugar over <code>define</code></td></tr>
+<tr><td>Undeclared access</td><td><span class="dot w"></span>Run time only: UNDECLARED_ACCESS / INACTIVE_ACCESS</td><td><span class="dot g"></span>Compile error for build-time use; call-time use only ServiceUnavailable after the call</td><td><span class="dot g"></span>R8: <code>ctx.use</code> bound to requires | optional</td></tr>
+<tr><td>Config typing</td><td><span class="dot g"></span>Typed via its Schema</td><td><span class="dot r"></span><code>Codec&lt;any, any&gt;</code>, volatile accepts any string</td><td><span class="dot g"></span>R7: generic <code>C</code>, <code>volatile: keyof C</code></td></tr>
+<tr><td>Dependency links</td><td><span class="dot r"></span>Nominal by key only (open problem)</td><td><span class="dot g"></span>Versioned contracts, ranges, method sets; method specs still <code>unknown</code></td><td><span class="dot g"></span>R7: <code>Contract</code> typed from methods</td></tr>
+<tr><td>Docs vs code</td><td><span class="dot g"></span>doc-typecheck, doc-sync, verify-cordis-catalog</td><td><span class="dot r"></span>Snippets "not yet"; BEH-KT-028 requirement only</td><td><span class="dot g"></span>R2 doc-typecheck now; R3, R5 generated catalogs with CI diff</td></tr>
+<tr><td>Error model</td><td><span class="dot w"></span>One CordisError with codes</td><td><span class="dot g"></span>Tagged errors with Cause/Example/Fix; completeness unenforced</td><td><span class="dot g"></span>R3: entries record satisfies Record&lt;ErrorTag, Entry&gt;</td></tr>
+<tr><td>Event modes</td><td><span class="dot g"></span>One mode per event, call sites checked</td><td><span class="dot w"></span>Hook roles in manifest.ts:21, no catalog</td><td><span class="dot g"></span>R6: <code>HookPoint.define</code> with mode and lint</td></tr>
+<tr><td>Testing</td><td><span class="dot w"></span>Nothing comparable in the primer</td><td><span class="dot g"></span>TestHost stepping, faults, leak checks</td><td><span class="dot g"></span>Keep; R4 recipes use <code>it.plugin</code></td></tr>
+<tr><td>Cookbook</td><td><span class="dot g"></span>Add-a-tool / adapter / settings recipes</td><td><span class="dot r"></span>Outline only (ERP-DX section 6)</td><td><span class="dot g"></span>R4: seven compiled recipes</td></tr>
+</tbody></table></div>
+</section>
+
+<footer id="notchecked">
+<h2>Not checked / uncertainties</h2>
+<ul>
+<li>The prototypes and their tests were not run; type claims come from reading plugin.ts, manifest.ts, contract.ts and errors.ts, not compiling.</li>
+<li>The 264 vs 68 error count compares catalog headings with <code>export class</code> in prototypes/host-core/src only. The catalog also covers companion specs (kit, loader, federation, ...) with no prototype, so the delta is not itself a defect.</li>
+<li>The full 976-line SPEC.md, REACT-UI-PLUGINS.md, ERP-SPEC.md and ERP-TODO-WALKTHROUGH.md were not read; findings about them rely on headers and cross-references.</li>
+<li>Not verified whether a <code>host.use</code> / ctx-style accessor (R8) already exists in core behaviours 09/14.</li>
+<li>Not confirmed whether an events catalog with modes exists in references/core/behaviors/19 or the event bus spec; R6 may duplicate it.</li>
+<li>Diagrams are simplifications drawn from the report text; code panels marked "current" quote only facts the report cites.</li>
+</ul>
+<p class="sib">Sibling reports: 01 through 07 in docs/improvement-reports/ (this is 05, Design API and DX). Names are in that folder.</p>
+</footer>
+</div>
+
+<script>
+/* ---------- helpers ---------- */
+const mk={n:'ar-n',bad:'ar-bad',good:'ar-good',warn:'ar-warn',acc:'ar-acc'};
+const X=(s)=>s;
+function B(x,y,w,h,t,c,t2,d){c=c||'';let o='<rect class="bx '+c+(d?' dash':'')+'" x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="3"/>';
+ if(t2){o+='<text class="tx" x="'+(x+w/2)+'" y="'+(y+h/2-2)+'">'+t+'</text><text class="tx sm" x="'+(x+w/2)+'" y="'+(y+h/2+10)+'">'+t2+'</text>'}
+ else o+='<text class="tx" x="'+(x+w/2)+'" y="'+(y+h/2+4)+'">'+t+'</text>';return o}
+function A(x1,y1,x2,y2,lab,c,d,lx,ly){c=c||'n';let o='<line class="ln '+(c=='n'?'':c)+(d?' dash':'')+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" marker-end="url(#'+mk[c]+')"/>';
+ if(lab)o+='<text class="tx sm" x="'+(lx!=null?lx:(x1+x2)/2)+'" y="'+(ly!=null?ly:(y1+y2)/2-4)+'">'+lab+'</text>';return o}
+function T(x,y,t,cls){return '<text class="tx '+(cls||'')+'" x="'+x+'" y="'+y+'">'+t+'</text>'}
+function D(inner,label){return '<div class="scroll"><svg class="dg" viewBox="0 0 320 170" role="img" aria-label="'+label+'">'+inner+'</svg></div>'}
+
+/* ---------- recommendations ---------- */
+const R=[
+{id:'R1',dx:'DX-01',sev:'H',t:'Prototype the definePlugin facade',
+ rat:'Four shapes (provides: Key / record / run / build) are the whole learnability story; Cordis wins on one shape. Bridger should show its four shapes are really sugar and that the compile error reads well.',
+ chg:'Add prototypes/host-core/src/kit.ts, normalising every shape to define.',
+ cost:'Small; the type-level KitTypeError is the hard part.',
+ ver:'Type tests (tsd/expect-type) for BEH-KT-001..006, including a negative test that an undeclared key yields KitTypeError.',
+ bc:'// current: grep finds no definePlugin in\n// prototypes/host-core/src\n// guides use definePlugin in 12 places\n// define exists at plugin.ts:46',
+ ac:'export const definePlugin = <const R extends Keys, const P extends Keys | Record<string, Key>, C>(d: Shape<R, P, C>) =>\n  define({ id: d.id, requires: d.requires ?? [], provides: toTuple(d.provides),\n           build: "make" in d ? Layer.effect(...) : "run" in d ? Layer.effectDiscard(d.run) : d.build })',
+ b:D(S4('provides: Key',10,12)+S4('provides: {...}',10,48)+S4('run',10,84)+S4('build',10,120)+B(150,56,80,44,'definePlugin','bad','no code',1)+A(110,25,150,70,'','bad',1)+A(110,61,150,76,'','bad',1)+A(110,97,150,84,'','bad',1)+A(110,133,150,92,'','bad',1)+B(250,56,62,44,'define','good','plugin.ts:46')+A(230,78,250,78,'','n',1)+T(160,160,'all four guide shapes unverified','cbad'),'Four guide shapes point at a definePlugin facade that has no code'),
+ a:D(S4('provides: Key',10,12)+S4('provides: {...}',10,48)+S4('run',10,84)+S4('build',10,120)+B(140,56,92,44,'definePlugin','good','kit.ts')+A(110,25,140,70,'','good')+A(110,61,140,76,'','good')+A(110,97,140,84,'','good')+A(110,133,140,92,'','good')+B(250,56,62,44,'define','good','core')+A(232,78,250,78,'normalise','good',0,241,72)+B(140,120,92,28,'KitTypeError','warn')+A(186,100,186,120,'undeclared key','warn')+T(160,164,'shapes proven to be sugar','cgood'),'The facade normalises each shape to define and reports undeclared keys as KitTypeError'),
+ bl:'Facade absent',al:'kit.ts normalises to define'},
+{id:'R2',dx:'DX-02',sev:'H',t:'Compile every guide snippet in CI',
+ rat:'Cordis has doc-typecheck/doc-sync. Bridger has the requirement (BEH-KT-028) but no vehicle; a 40-line script does it today.',
+ chg:'scripts/doc-typecheck.ts extracts fenced ts blocks following "// type-checked: yes", writes a temp project with paths to prototypes/host-core, runs tsc --noEmit. Fail CI when a "yes" snippet does not compile or imports a symbol absent from the package exports (doc-sync). Flip markers as snippets pass.',
+ cost:'Snippets using @bridger/kit stay "not yet" until R1; the marker count becomes a visible progress metric.',
+ ver:'Seed one broken snippet and confirm the red build.',
+ b:D(B(10,20,120,44,'guide snippet','warn','type-checked: not yet')+B(190,20,120,44,'tsc','n','never run',1)+A(130,42,190,42,'no gate','bad',1)+B(10,100,150,40,'BEH-KT-028','warn','requirement only, no CLI')+T(235,115,'drift goes unseen','cbad')+T(235,130,'', ''),'Guide snippets carry a not-yet marker and nothing compiles them'),
+ a:D(B(10,10,100,40,'guide snippet','good','type-checked: yes')+B(120,10,90,40,'doc-typecheck','acc','scripts/')+B(220,10,92,40,'tsc --noEmit','acc','temp project')+A(110,30,120,30,'','good')+A(210,30,220,30,'','good')+B(10,100,130,40,'CI green','good','snippet compiles')+B(170,100,142,40,'CI red','bad','yes but fails, or missing export')+A(266,50,250,100,'','bad')+A(266,50,90,100,'','good')+T(160,165,'marker count = progress metric','cgood'),'The script extracts yes-marked snippets, compiles them against host-core, and fails CI on drift'),
+ bl:'No compile gate',al:'doc-typecheck in CI'},
+{id:'R3',dx:'DX-03',sev:'H',t:'Generate and verify the error catalog',
+ rat:'BEH-KT-049..052 already say "one entry per tag, as data" and "generated". Implement as data first.',
+ chg:'errors.catalog.ts exports entries: Record<Tag, {cause, example, fix, raisedBy, kind}>; markdown is rendered from it; a test enumerates Schema.TaggedError tags across prototypes/ and references/*/ and fails on unmatched tags either way. Type-level check via satisfies Record<ErrorTag, Entry>.',
+ cost:'The catalog is 2189 lines; migrating is mechanical, but prose stays authored.',
+ ver:'Delete one entry, expect compile failure.',
+ bc:'// errors.ts: 68 TaggedError classes (hand-kept)\n// error-catalog.md: 264 headings (hand-kept)\n// BEH-KT-051: completeness check is a requirement only',
+ ac:'export type ErrorTag = InstanceType<typeof Errors[keyof typeof Errors]>["_tag"]\nexport const entries = { DuplicatePlugin: { origin: "core", raisedBy: ["install"], ... } } satisfies Record<ErrorTag, Entry>',
+ b:D(B(10,20,130,40,'error-catalog.md','warn','264 headings, authored')+B(180,20,130,40,'errors.ts','warn','68 classes')+A(140,40,180,40,'no script','bad',1)+T(160,45,'?','cbad')+B(10,100,300,40,'BEH-KT-051','warn','completeness promised, not enforced',1),'Catalog and errors.ts are two hand-kept lists with no comparison'),
+ a:D(B(100,8,120,38,'errors.catalog.ts','good','entries as data')+B(10,100,120,38,'catalog.md','acc','rendered')+B(190,100,120,38,'errors.ts','acc','satisfies check')+A(140,46,70,100,'render','good')+A(180,46,250,100,'tag set','good')+B(110,64,100,24,'test: both ways','good')+T(160,160,'unmatched tag fails build','cgood'),'Entries are data; markdown is rendered and a test compares tag sets both ways'),
+ bl:'264 vs 68, unlinked',al:'one record, checked'},
+{id:'R4',dx:'DX-07',sev:'M',t:'Cookbook with executable recipes',
+ rat:'Cordis documents add-a-tool/adapter/settings recipes. ERP-TODO-WALKTHROUGH.md (504 lines) walks one app and is not core-level.',
+ chg:'docs/guides/cookbook/, one page per task with a compiled snippet (R2) and an it.plugin test: (1) add a service plugin, (2) add a contribution, (3) add an adapter behind a contract, (4) add a settings page via REACT-UI-PLUGINS slot, (5) add a volatile config field, (6) replace with handoff, (7) test a failing activation with Fault.buildFails.',
+ cost:'Pages are cheap once R2 exists; they rot if not compiled, so the gate is a precondition.',
+ ver:'Each recipe is a test file; page text is included from it.',
+ b:D(B(10,20,140,44,'ERP-DX section 6','warn','outline only')+B(170,20,140,44,'ERP walkthrough','warn','one app, 504 lines')+B(10,100,300,36,'no recipe: tool / adapter / settings / contribution','bad','',1),'Only an outline and one app walkthrough exist, no recipes'),
+ a:D(['service','contribution','adapter','settings','volatile cfg','handoff','failing build'].map((n,i)=>B(8+(i%4)*77,10+Math.floor(i/4)*50,70,40,n,'good')).join('')+B(10,112,300,28,'each: compiled snippet (R2) + it.plugin test','acc')+T(160,160,'page text included from the test file','cgood'),'Seven recipe pages, each backed by a compiled snippet and a test'),
+ bl:'Outline only',al:'7 compiled recipes'},
+{id:'R5',dx:'DX-06',sev:'M',t:'One schema for the manifest plus generated catalogs',
+ rat:'manifest.ts hand-writes a decoder beside an interface. Cordis generates config/tool/event catalogs from code and verifies them.',
+ chg:'Define PluginManifest as an Effect Schema; derive the TS type, decodeProblem (path-naming, value-free messages), and a JSON Schema for bridger pack. Add generated service, config and contribution/event catalogs. CI regenerates and runs git diff --exit-code.',
+ cost:'The Schema formatter must keep BEH-BR-241 "path never value"; existing manifest tests cover it.',
+ ver:'Round-trip every fixture manifest; catalog diff clean.',
+ b:D(B(10,10,90,38,'interface','warn','type')+B(115,10,90,38,'decoder','warn','hand-written')+B(220,10,90,38,'JSON schema','warn','copy 3')+T(160,70,'three copies drift apart','cbad')+B(10,90,300,34,'[extra: string]: unknown','bad','weakens the type'),'Manifest type, decoder and JSON Schema are three hand-kept copies'),
+ a:D(B(90,8,140,34,'PluginManifest Schema','good')+B(8,80,92,34,'TS type','acc')+B(114,80,92,34,'decodeProblem','acc','path, no value')+B(220,80,92,34,'JSON Schema','acc')+A(130,42,54,80,'','good')+A(160,42,160,80,'','good')+A(190,42,266,80,'','good')+B(10,130,300,28,'catalogs: service, config, events; git diff --exit-code','good'),'One schema derives the type, decoder, JSON Schema and catalogs; CI diffs regenerated output'),
+ bl:'3 copies',al:'1 schema, derived'},
+{id:'R6',dx:'none',sev:'M',t:'Event/hook modes as declared data',
+ rat:'Cordis declares one mode per event and checks call sites. Bridger has roles (veto/enrich/advisory, manifest.ts:21) but the guide lists no hook-point catalog or whether a listener may veto an observation-only event.',
+ chg:'HookPoint.define({id, mode: "veto"|"enrich"|"advisory", payload}), mode part of the generated catalog (R5), and a lint that a contribution role matches the point mode.',
+ cost:'Possible overlap with BEH-BR-19 registry semantics; reconcile first.',
+ ver:'Negative test of a mismatched role.',
+ b:D(B(10,20,130,40,'hook point','warn','mode undeclared')+B(180,20,130,40,'listener','n','role: veto?')+A(140,40,180,40,'?','warn',1)+T(160,95,'may a listener veto an','cwarn')+T(160,110,'observation-only event?','cwarn')+B(10,125,300,30,'no catalog of hook points in the guide','bad','',1),'Hook points have roles but no declared mode, so a mismatch is not caught'),
+ a:D(B(10,14,150,40,'HookPoint.define','good','mode: advisory')+B(200,14,110,40,'catalog','acc','generated (R5)')+A(160,34,200,34,'','acc')+B(10,100,120,36,'role: advisory','good')+B(190,100,120,36,'role: veto','bad')+A(70,54,70,100,'ok','good')+A(120,54,230,100,'lint fails','bad',1,190,80)+T(160,160,'mode checked against role','cgood'),'The mode is declared data; a lint compares each contribution role with it'),
+ bl:'Mode undeclared',al:'mode as data + lint'},
+{id:'R7',dx:'DX-04, DX-09',sev:'M',t:'Type the config and contract surfaces',
+ rat:'Type-safety is Bridger\'s pitch, yet two of the most author-visible values are any/unknown.',
+ chg:'Generic C on PluginDefinition; volatile: keyof C; PluginConfigOf<C> in the build requirement. Contract.method({payload, success, error}) accumulates into Shape. Keep PluginAny erased (plugin.ts:36-37).',
+ cost:'Variance of PluginAny and the any default for existing callers; do it behind a type-test suite.',
+ ver:'volatile: ["nope"] fails to compile; yield* PluginConfig is the decoded type.',
+ bc:'// plugin.ts:18\nconfig?: Schema.Codec<any, any>\n// plugin.ts:20 build requires PluginConfig (untyped key)\n// manifest/volatile: ReadonlyArray<string>\n// contract.ts:12-18 MethodSpec.payload?: unknown',
+ ac:'interface PluginDefinition<R, P, E, C = never> {\n  readonly config?: Schema.Codec<C, any>\n  readonly volatile?: ReadonlyArray<keyof C & string>\n  readonly build: Layer.Layer<IdentifiersOf<P>, E, IdentifiersOf<R> | PluginRuntime | PluginConfigOf<C>>\n}',
+ b:D(B(10,14,140,36,'config','bad','Codec<any, any>')+B(170,14,140,36,'volatile','bad','string[]')+B(10,70,140,36,'yield* PluginConfig','warn','any')+B(170,70,140,36,'MethodSpec.payload','bad','unknown')+T(160,135,'no decoded type in build/make','cbad')+T(160,152,'contract methods not bound to Shape','cbad'),'Config and contract method values are any or unknown'),
+ a:D(B(10,14,140,36,'config','good','Codec<C, any>')+B(170,14,140,36,'volatile','good','keyof C')+B(10,70,140,36,'yield* PluginConfig','good','decoded C')+B(170,70,140,36,'Contract.method','good','payload, success, error')+A(80,50,80,70,'','good')+A(240,50,240,70,'','good')+T(160,135,'volatile: ["nope"] fails to compile','cgood')+T(160,152,'methods accumulate into Shape','cgood'),'C flows to volatile and the decoded config; contract methods accumulate into the Shape'),
+ bl:'any / unknown',al:'C flows through'},
+{id:'R8',dx:'DX-05',sev:'M',t:'Close the call-time dependency gap',
+ rat:'A service used only inside a returned method is unchecked, so the author keeps two lists in sync by hand. Cordis\'s proxy catches it at run time; Bridger\'s lease path (host.use) reports ServiceUnavailable only after the call.',
+ chg:'Either (a) a ctx.use(Key, f) helper inside make whose R is bound to requires | optional, so anything else is a compile error, or (b) a kit lint (bridger check) flagging yield* of a non-required key inside returned closures. (a) is cleaner.',
+ cost:'(a) changes the idiom; keep yield* Key for build-time use.',
+ ver:'Type test plus a lint fixture.',
+ b:D(B(10,14,130,34,'requires','good','[Db]')+B(10,70,300,40,'returned method uses Cache','warn','yield* Cache inside closure, not in requires')+A(75,48,75,70,'compiler blind','warn',1,120,62)+B(10,128,300,32,'ServiceUnavailable after the call','bad'),'An undeclared service used inside a returned method is only found at call time'),
+ a:D(B(10,14,130,34,'requires | optional','good','[Db]')+B(10,70,300,40,'ctx.use(Cache, f)','acc','R bound to requires | optional')+A(75,48,75,70,'bounds R','good',0,115,62)+B(10,128,300,32,'compile error at authoring time','good'),'ctx.use binds R, so an undeclared service fails to compile'),
+ bl:'caught after call',al:'caught at compile'},
+{id:'R9',dx:'DX-08',sev:'M',t:'A shared UI-adapter conformance script',
+ rat:'FOLDKIT-API.md and REACT-API.md specify the same behaviours (available, pluginState, changes, dispose idempotence, activation failure rejects creation) in two documents with separate examples; drift is likely.',
+ chg:'A framework-neutral scenario list in references/kit (or a new appendix) naming the ten adapter behaviours; each adapter test imports it.',
+ cost:'Low.',
+ ver:'Both adapters run the same list; a divergent behaviour fails one of them.',
+ b:D(B(10,20,130,40,'FOLDKIT-API.md','warn','own examples')+B(180,20,130,40,'REACT-API.md','warn','own examples')+A(140,40,180,40,'drift?','warn',1)+B(10,100,130,34,'own client lifecycle','bad')+B(180,100,130,34,'own use','bad'),'Two adapter specs describe the same behaviours separately'),
+ a:D(B(80,8,160,36,'scenario list','good','ten behaviours')+B(10,100,130,40,'FoldKit tests','acc','import list')+B(180,100,130,40,'React tests','acc','import list')+A(140,44,75,100,'','good')+A(180,44,245,100,'','good')+T(160,160,'divergence fails one adapter','cgood'),'One scenario list is imported by both adapter test suites'),
+ bl:'two docs, two examples',al:'one list, two suites'},
+{id:'R10',dx:'DX-11',sev:'L',t:'Converge the CLI specs',
+ rat:'ERP-DX.md section 2 and references/kit/behaviors/04-cli.md both define bridger commands (new plugin vs create; check; dev). Two names for one thing hurts learnability.',
+ chg:'Mark ERP-DX commands as bridger add ... extensions registered through the kit CLI; rename new plugin to create.',
+ cost:'Documentation-only.',
+ ver:'Grep gate that every command in docs appears in BEH-KT-025..032 or is tagged as an extension.',
+ b:D(B(10,20,130,44,'ERP-DX.md','warn','bridger new plugin')+B(180,20,130,44,'kit 04-cli.md','warn','bridger create')+A(140,42,180,42,'same job','bad',1)+B(10,100,300,36,'bridger add model (ERP-DX)','warn','overlaps kit CLI BEH-KT-025..032',1),'Two specs name the same command differently'),
+ a:D(B(80,8,160,40,'kit CLI','good','create, check, dev')+B(80,100,160,40,'bridger add ...','acc','ERP extensions')+A(160,100,160,48,'registered through','good',0,230,78)+T(160,164,'grep gate: documented or tagged extension','cgood'),'ERP commands become extensions registered through the kit CLI'),
+ bl:'two names',al:'one CLI + extensions'}
+];
+function S4(t,x,y){return B(x,y,100,26,t,'')}
+
+/* ---------- highlighter ---------- */
+function hl(src){const e=src.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ return e.replace(/(\/\/.*)|("[^"]*")|\b(export|const|interface|readonly|extends|type|typeof|satisfies|keyof|in)\b|\b([A-Z][A-Za-z]*)\b/g,(m,c,s,k,t)=>c?'<span class="c">'+m+'</span>':s?'<span class="s">'+m+'</span>':k?'<span class="k">'+m+'</span>':'<span class="t">'+m+'</span>')}
+
+/* ---------- cards ---------- */
+const cards=document.getElementById('cards');
+cards.innerHTML=R.map(r=>'<article class="card" id="'+r.id.toLowerCase()+'" data-view="both"><header><h3><span class="rid">'+r.id+'</span>'+r.t+'</h3><span class="sev '+r.sev+'">'+r.sev+' / '+r.dx+'</span></header>'
++'<div class="facts"><div><b>Rationale</b><p>'+r.rat+'</p></div><div><b>Proposed change</b><p>'+r.chg+'</p></div><div><b>Cost / risk</b><p>'+r.cost+'</p></div><div><b>Verification</b><p>'+r.ver+'</p></div></div>'
++'<div class="seg" role="group" aria-label="View"><button type="button" data-v="both" aria-pressed="true">Both</button><button type="button" data-v="before" aria-pressed="false">Before</button><button type="button" data-v="after" aria-pressed="false">After</button></div>'
++'<div class="ba"><figure class="b">'+r.b+'<figcaption><b>Before</b>'+r.bl+'</figcaption></figure><figure class="a">'+r.a+'<figcaption><b>After</b>'+r.al+'</figcaption></figure></div>'
++(r.ac?'<div class="cb"><div class="b"><h4>Before (current)</h4><pre class="code">'+hl(r.bc)+'</pre></div><div class="a"><h4>After (report sketch)</h4><pre class="code">'+hl(r.ac)+'</pre></div></div>':'')
++'</article>').join('');
+cards.addEventListener('click',e=>{const b=e.target.closest('button[data-v]');if(!b)return;const c=b.closest('.card');c.dataset.view=b.dataset.v;c.querySelectorAll('button[data-v]').forEach(x=>x.setAttribute('aria-pressed',x===b))});
+
+/* ---------- findings ---------- */
+const F=[
+['DX-01','H','docs/guides/*.md: definePlugin in 12 places; none in prototypes/host-core/src','Facade the guides teach is unprototyped; KitTypeError (BEH-KT-003) untested','Prototype @bridger/kit definePlugin over define','r1'],
+['DX-02','H','guides/README.md:6-10, BEH-KT-028 (REQUIREMENT only)','No snippet compile gate; all "type-checked: not yet"','Doc-typecheck script before the CLI','r2'],
+['DX-03','H','error-catalog.md (264 headings) vs errors.ts (68 classes); BEH-KT-051','Catalog completeness promised, not enforced','Generated catalog plus CI diff','r3'],
+['DX-04','M','plugin.ts:18 config Codec<any, any>; plugin.ts:20 PluginConfig','Decoded config untyped in build/make; volatile accepts any string','Generic C and volatile: keyof C','r7'],
+['DX-05','M','plugin-author-guide.md "Declare what your methods reach at call time"','Hand-declared services used only in returned methods; compiler blind','ctx-style lease accessor or lint','r8'],
+['DX-06','M','manifest.ts:2, manifest.ts:10-37','Type, decoder, JSON schema are three copies; extra: unknown','Single Schema, derive all','r5'],
+['DX-07','M','docs/guides, ERP-DX.md section 6','Cookbook is an outline only','Recipes with CI-compiled examples','r4'],
+['DX-08','M','REACT-API.md:25, FOLDKIT-API.md:60','Two adapters define own lifecycle and use; no shared conformance test','Adapter conformance suite','r9'],
+['DX-09','M','contract.ts:12-18 MethodSpec.payload?: unknown','Contract methods untyped','Type Contract<Self, Shape> from methods','r7'],
+['DX-10','L','testing.ts:60; G27','Settlement relies on yield-until-stable heuristic','Document guarantee; expose runUntilIdle bound','extra'],
+['DX-11','L','SPEC.md:3, ERP-DX.md banner','Old API sketches; ERP CLI overlaps kit CLI','One CLI spec; ERP as kit extension','r10'],
+['DX-12','L','plugin-author-guide.md "Never write as const"','Footgun rule documented, not removed','Verify and delete rule if redundant','extra']];
+const tb=document.querySelector('#ftable tbody');
+tb.innerHTML=F.map(f=>'<tr data-s="'+f[1]+'"><td class="mono">'+f[0]+'</td><td class="sev '+f[1]+'">'+f[1]+'</td><td>'+f[2]+'</td><td>'+f[3]+'</td><td>'+f[4]+' <a href="#'+f[5]+'">'+(f[5]=='extra'?'see note':f[5].toUpperCase())+'</a></td></tr>').join('');
+document.querySelector('.filters').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+ document.querySelectorAll('.filters button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+ tb.querySelectorAll('tr').forEach(r=>r.hidden=!(b.dataset.f=='all'||r.dataset.s==b.dataset.f))});
+
+/* ---------- animations ---------- */
+const g=(s,e,inner)=>'<g data-s="'+s+'"'+(e?' data-e="'+e+'"':'')+'>'+inner+'</g>';
+const AN=[
+{t:'(a) Doc snippet drift caught by a CI doc-typecheck pipeline',lab:'Pipeline from guide snippet to CI result',
+ caps:['A guide snippet carries "// type-checked: yes".','doc-typecheck.ts extracts the snippet into a temp project with paths to host-core.','tsc --noEmit compiles it against the host-core exports.','The API changes: the export the snippet imports is renamed.','tsc reports a missing export (doc-sync failure).','CI fails the build, so the drift is seen before readers find it.','The snippet is updated; tsc passes and CI is green again.'],
+ svg:g(1,0,B(10,16,130,44,'guide snippet','good','type-checked: yes'))+g(2,0,A(140,38,200,38,'extract','acc')+B(200,16,130,44,'doc-typecheck.ts','acc','temp project'))+g(3,0,A(330,38,390,38,'run','acc')+B(390,16,150,44,'tsc --noEmit','acc','paths: host-core'))+
+ g(3,3,B(390,120,150,44,'host-core exports','good','define'))+g(4,0,B(390,120,150,44,'host-core exports','warn','define renamed'))+g(3,0,A(465,120,465,60,'imports','n',0,500,94))+
+ g(5,5,A(390,60,300,125,'TS2305','bad')+B(150,120,150,44,'tsc: missing export','bad'))+g(6,6,B(150,120,150,44,'CI: build red','bad','snippet marked yes'))+g(7,0,B(150,120,150,44,'CI: build green','good','snippet fixed')+A(330,38,300,120,'','good',1)),
+ },
+{t:'(b) Generated error catalog versus hand-written drift (264 vs 68)',lab:'Bars of catalog headings against prototype error classes',
+ caps:['error-catalog.md has 264 headings, hand-maintained (one pixel per entry).','prototypes/host-core errors.ts declares 68 TaggedError classes.','No script compares the two sets; BEH-KT-051 is a requirement only.','The gap is not itself a defect: the catalog also covers kit, loader and federation specs with no prototype. That is why the check must enumerate tags across prototypes/ and references/*/.','Proposed: errors.catalog.ts entries, satisfies Record<ErrorTag, Entry>; markdown is rendered from it.','Deleting one entry fails to compile; a test fails on an unmatched tag in either direction.'],
+ svg:g(1,0,T(10,38,'catalog.md','l')+'<rect class="bx warn" x="110" y="22" width="264" height="24"/>'+T(378,38,'264','l'))+g(2,0,T(10,78,'errors.ts','l')+'<rect class="bx warn" x="110" y="62" width="68" height="24"/>'+T(182,78,'68','l'))+g(3,3,T(300,80,'? no script compares','cbad'))+g(4,4,B(110,98,300,26,'companion specs, no prototype: delta is not a defect','warn'))+g(5,0,B(110,134,300,28,'errors.catalog.ts : satisfies Record<ErrorTag, Entry>','good'))+g(6,0,B(420,134,130,28,'delete entry: TS error','bad')+T(480,176,'unmatched tag: test fails','cgood')),
+ },
+{t:'(c) Author-declared services versus compiler-bound requires',lab:'Build-time use versus use inside a returned method',
+ caps:['The author declares requires: [Db].','Build-time use of Db is checked: it compiles.','A returned method also uses Cache, which is not in requires.','The compiler cannot see closures, so it compiles; the lists drift apart by hand.','At run time the lease path fails with ServiceUnavailable, after the call.','Proposal (a): ctx.use(Cache, f), with R bound to requires | optional.','Cache is not declared, so the build fails with a compile error before anything runs.'],
+ svg:g(1,0,B(10,16,150,40,'requires: [Db]','good'))+g(2,0,A(160,36,230,36,'build: yield* Db','good')+B(230,16,150,40,'build-time use ok','good'))+g(3,0,B(10,80,200,40,'returned method','warn','yield* Cache (not declared)'))+g(4,4,T(290,104,'compiler blind: passes','cwarn'))+g(5,0,A(210,100,300,100,'call','bad')+B(300,80,200,40,'ServiceUnavailable','bad','after the call'))+g(6,0,B(10,140,200,34,'ctx.use(Cache, f)','acc','R bound to requires | optional'))+g(7,0,A(210,157,300,157,'check','good')+B(300,138,200,38,'compile error: Cache','good','caught at authoring')),
+ }
+];
+const host=document.getElementById('animhost');
+const rm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+AN.forEach((a,i)=>{const d=document.createElement('div');d.className='anim';
+ d.innerHTML='<h3>'+a.t+'</h3><div class="scroll"><svg class="dg" style="min-width:540px" viewBox="0 0 560 190" role="img" aria-label="'+a.lab+'">'+a.svg+'</svg></div><p class="cap" aria-live="polite"></p><div class="ctl"><button type="button" data-a="play" id="p'+i+'">Play</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button><span class="stp"></span></div>';
+ host.appendChild(d);
+ const N=a.caps.length,els=[...d.querySelectorAll('[data-s]')],cap=d.querySelector('.cap'),stp=d.querySelector('.stp'),pb=d.querySelector('[data-a=play]');
+ let n=N,timer=null;
+ function show(k){n=k;els.forEach(el=>{const s=+el.dataset.s,end=el.dataset.e?+el.dataset.e:N;el.style.opacity=(s<=k&&k<=end)?1:0});cap.textContent=a.caps[k-1];stp.textContent='step '+k+' / '+N}
+ function stop(){clearInterval(timer);timer=null;pb.textContent='Play'}
+ function play(){if(n>=N)show(0+1);pb.textContent='Pause';timer=setInterval(()=>{if(n>=N){show(1)}else show(n+1)},2600)}
+ d.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const k=b.dataset.a;
+  if(k=='play'){timer?stop():play()}
+  else if(k=='step'){stop();show(n>=N?1:n+1)}
+  else{stop();show(1);play()}});
+ show(N);if(!rm)play();
+});
+</script>

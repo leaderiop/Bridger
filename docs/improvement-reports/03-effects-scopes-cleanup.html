@@ -1,0 +1,301 @@
+<title>Bridger Cleanup Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: engineering notebook. Sticky TOC strip, single reading column, cards with side-by-side before/after diagrams. */
+:root{--bg:#f6f7f9;--surface:#ffffff;--ink:#1b2430;--muted:#5b6676;--line:#d9dee6;--accent:#0b6e8a;--bad:#c0392b;--warn:#b7791f;--good:#1f8a5b;
+--f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;--f-head:"Space Grotesk","IBM Plex Sans",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.6 var(--f-body);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));padding-block:24px 64px}
+h1,h2,h3{font-family:var(--f-head);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(1.7rem,4vw,2.4rem)}h2{font-size:1.4rem;margin:44px 0 14px}h3{font-size:1.1rem}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+.eyebrow{font:500 11px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+p{margin:0 0 10px;max-width:75ch}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--surface);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+nav.toc div{display:flex;gap:4px;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px));max-width:1080px;margin:0 auto}
+nav.toc a{font:500 12px var(--f-mono);text-decoration:none;color:var(--muted);padding:4px 8px;border-radius:4px}
+nav.toc a:hover{color:var(--ink);background:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.chip{font:500 12px var(--f-mono);padding:3px 10px;border-radius:99px;border:1px solid currentColor}
+.chip.H{color:var(--bad)}.chip.M{color:var(--warn)}.chip.L{color:var(--good)}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.strip div{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--good);padding:10px 12px;font-size:13.5px;border-radius:4px}
+.strip b{display:block;font:500 11px var(--f-mono);color:var(--good);margin-bottom:2px}
+.filters{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+button{font:500 12px var(--f-mono);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px 12px;cursor:pointer}
+button[aria-pressed="true"],button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sev{font:500 11px var(--f-mono);padding:2px 8px;border-radius:3px;color:var(--bg)}
+.sev.H{background:var(--bad)}.sev.M{background:var(--warn)}.sev.L{background:var(--good)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:18px;margin-bottom:22px;scroll-margin-top:60px}
+.card h3{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px}
+.card h3 .id{font:500 12px var(--f-mono);color:var(--accent)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:10px 0 16px}
+.facts div{min-width:0;font-size:13.5px}.facts b{display:block;font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ba figure{margin:0;min-width:0;border:1px solid var(--line);border-radius:4px;padding:8px;background:var(--bg)}
+.ba figcaption{font:500 11px var(--f-mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.ba .b figcaption{color:var(--bad)}.ba .a figcaption{color:var(--good)}
+@media(max-width:700px){.ba{grid-template-columns:1fr}}
+svg{max-width:100%;height:auto;display:block;color:var(--ink)}
+svg text{fill:currentColor;font-family:var(--f-mono)}
+.nd rect{stroke-width:1.5;fill:var(--surface);stroke:var(--line);transition:fill .3s,stroke .3s}
+.nd .l{font-size:11.5px;font-weight:500}.nd .n{font-size:10px;fill:var(--muted)}
+.nd.bad rect{stroke:var(--bad);fill:color-mix(in srgb,var(--bad) 14%,var(--surface))}
+.nd.warn rect{stroke:var(--warn);fill:color-mix(in srgb,var(--warn) 14%,var(--surface))}
+.nd.good rect,.nd.ok rect{stroke:var(--good);fill:color-mix(in srgb,var(--good) 14%,var(--surface))}
+.nd.run rect{stroke:var(--accent);fill:color-mix(in srgb,var(--accent) 16%,var(--surface))}
+.ar{stroke:var(--muted);stroke-width:1.3;fill:none}.arh{fill:var(--muted)}.al{font-size:10px;fill:var(--muted)}
+.anim{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px;margin-bottom:22px;scroll-margin-top:60px}
+.ctl{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.ctl .sp{flex:1}
+.cap{min-height:3.2em;font-size:14px;border-left:3px solid var(--accent);padding:4px 10px;background:var(--bg)}
+.step{font:500 11px var(--f-mono);color:var(--muted)}
+.cmp td:first-child{font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--muted)}
+.dot.g{background:var(--good)}.dot.w{background:var(--warn)}.dot.b{background:var(--bad)}
+footer li{margin-bottom:6px;max-width:80ch}
+.tri{display:flex;gap:8px;flex-wrap:wrap;font:12px var(--f-mono);color:var(--muted);margin-top:8px}
+</style>
+
+<nav class="toc"><div><a href="#summary">Summary</a><a href="#ahead">Already ahead</a><a href="#findings">Findings</a><a href="#anims">Animations</a><a href="#recs">Recommendations</a><a href="#cordis">Cordis</a><a href="#unchecked">Not checked</a></div></nav>
+<div class="wrap">
+<header id="summary">
+<div class="eyebrow">Report 03 · Cordis lens</div>
+<h1>Temporal composability, scopes, contributions and cleanup</h1>
+<p style="margin-top:12px">Bridger's cleanup model (one forked Effect Scope per activation, a ContributionRegistry for shared state, dependency-ordered stops, sticky <code>failed(cleanup)</code>) is stricter and better specified than Cordis's. The largest real gap is liveness: nothing bounds a hung finalizer in the activation scope (INV-BR-030) or in a revoked registry holder (BEH-BR-167). Failures are reported as one squashed message, there is no resource-level diagnostic tree, and nothing lets a plugin mark an effect irreversible or withhold build-time emissions until publication. Most fixes are additive diagnostics plus one new timeout; none change the lifecycle state machine.</p>
+<p class="mono" style="color:var(--muted)">Scope: references/core behaviours 05, 06, 13, 19; command BEH-CM-050; prototypes/host-core/src/{host,registry}.ts</p>
+<div class="chips"><span class="chip H">2 High</span><span class="chip M">5 Medium</span><span class="chip L">3 Low</span><span class="chip" style="color:var(--accent)">8 recommendations</span></div>
+</header>
+
+<h2 id="ahead">Where Bridger is already ahead</h2>
+<div class="strip">
+<div><b>BEH-BR-046 / 047</b>Failure is sticky and honest; leak acknowledgement is an audited act. Cordis has no leak ledger.</div>
+<div><b>BEH-BR-046 prose</b>A leaked slot stays reserved. Cordis would simply re-run.</div>
+<div><b>BEH-BR-161-168</b>Keyed uniqueness, id reservation, hide-drain-revoke, revisioned views, gap-detectable revocations feed.</div>
+<div><b>BEH-BR-161 / 048</b>Refuses to claim mutations commute or that removal compensates emissions.</div>
+<div><b>BEH-BR-036 / 119 / 037</b>No ambient mutation after death; failed activation publishes nothing. Approximates INACTIVE_EFFECT.</div>
+<div><b>ADR-BR-038, INV-BR-016</b>Dependents stop first and deadlocks are guarded.</div>
+<div><b>BEH-CM-050</b>Declared compensation one layer up: <code>compensatedBy</code>, <code>CommandBatchPartial</code> with <code>notUndone</code>.</div>
+</div>
+
+<h2 id="findings">Findings</h2>
+<div class="filters" role="group" aria-label="Filter by severity">
+<button aria-pressed="true" data-f="all">All 10</button><button aria-pressed="false" data-f="H">High 2</button><button aria-pressed="false" data-f="M">Medium 5</button><button aria-pressed="false" data-f="L">Low 3</button></div>
+<div class="scroll"><table id="ft"><thead><tr><th>ID</th><th>Sev</th><th>Issue</th><th>Evidence</th><th>Go to</th></tr></thead><tbody></tbody></table></div>
+
+<h2 id="anims">How the mechanisms work</h2>
+<p>Each animation opens on its final state. Press Replay to watch it from the start, or Step to advance one beat.</p>
+<div id="animhost"></div>
+
+<h2 id="recs">Recommendations</h2>
+<div id="cards"></div>
+
+<h2 id="cordis">Cordis comparison</h2>
+<div class="scroll"><table class="cmp"><thead><tr><th>Topic</th><th>Cordis</th><th>Bridger today</th><th>Proposed</th></tr></thead><tbody>
+<tr><td>Async disposers / close bound</td><td><span class="dot w"></span>Awaited, no bound</td><td><span class="dot b"></span>Claims no unbounded default (INV-BR-017) but scope close is unbounded</td><td><span class="dot g"></span><code>closeTimeout</code> 30 s (R1), plus <code>revokeTimeout</code> (T2)</td></tr>
+<tr><td>Failure reporting</td><td><span class="dot w"></span>First error survives, <code>FAILED</code> state</td><td><span class="dot w"></span>Sticky <code>failed(cleanup)</code>, one squashed message</td><td><span class="dot g"></span>All causes, LIFO, labelled (R2)</td></tr>
+<tr><td>Diagnostics tree</td><td><span class="dot g"></span><code>getEffects</code> EffectMeta tree</td><td><span class="dot w"></span>Contributions and listeners only</td><td><span class="dot g"></span><code>PluginInspection.resources</code> (R3), partial by design</td></tr>
+<tr><td>Irreversible effects</td><td><span class="dot b"></span>Inverse is the author's problem</td><td><span class="dot w"></span>Compensation application-defined; <code>compensatedBy</code> only in command</td><td><span class="dot g"></span><code>irreversible</code> tag in ledger and inspection (R4)</td></tr>
+<tr><td>Output commit (emissions)</td><td><span class="dot b"></span>Named as a paper limit, unsolved</td><td><span class="dot w"></span>Publication atomic, emission not (T6)</td><td><span class="dot g"></span>Optional <code>afterPublish</code> (R5)</td></tr>
+<tr><td>In-flight transition</td><td><span class="dot w"></span>Inertia completes it</td><td><span class="dot w"></span>Stale build settles, no signal</td><td><span class="dot g"></span>Cooperative <code>superseded</code> signal (R6)</td></tr>
+<tr><td>Leak handling</td><td><span class="dot w"></span>Would re-run</td><td><span class="dot g"></span>Slot reserved, audited acknowledgement</td><td><span class="dot g"></span>Optional <code>retryCleanup</code>, deferred (R8)</td></tr>
+<tr><td>Cross-plugin order</td><td><span class="dot w"></span>UNLOADING plus inertia</td><td><span class="dot g"></span>Dependents stop first, deadlock-guarded</td><td><span class="dot g"></span>Unchanged; intra-scope LIFO stated (R7)</td></tr>
+</tbody></table></div>
+<p class="tri"><span><span class="dot g"></span>specified / fixed</span><span><span class="dot w"></span>partial</span><span><span class="dot b"></span>gap</span></p>
+
+<footer>
+<h2 id="unchecked">Not checked / uncertainties</h2>
+<ul>
+<li>The prototype was read, not run. Claims about unbounded <code>Scope.close</code> (host.ts:1620) and <code>Fiber.interruptAll</code> in registry <code>withdraw</code> come from reading. Whether Effect v4's <code>Scope.close</code> has an implicit bound is not verified.</li>
+<li>Shutdown (12) was not read in detail; it may already bound per-plugin close (BEH-BR-105). If so, T1 narrows to non-shutdown stops.</li>
+<li>Disposer idempotence and async disposers are assumed to follow Effect finalizer semantics (run once, awaited); finalizers added to an already closed scope were not verified in Effect v4.</li>
+<li>BEH-BR-141, 16 and 05 were searched, not fully read, for any rule withholding build-time emissions; T6 assumes none. Durable-bus outbox and event-store were not read beyond grep hits.</li>
+<li>Generator-style incremental registration (Cordis iterator effects) has no direct Bridger counterpart; judged no change needed.</li>
+<li>Drawing note: diagrams are simplified step flows of the report's description, not extracted from the spec files.</li>
+</ul>
+<p class="mono" style="color:var(--muted);margin-top:18px">Sibling reports: 01 through 07 in docs/improvement-reports (this is 03, effects-scopes-cleanup). See that folder for the others by name.</p>
+</footer>
+</div>
+
+<script>
+// ---------- data ----------
+const FINDINGS=[
+["T1","H","Hung async finalizer blocks stop, cascade, replace and shutdown forever; scope close is the one unbounded step","INV-BR-030; host.ts:1620; BEH-BR-040","r1"],
+["T2","H","Revocation bounds the holder's run but not its finalizers; id stays reserved, owner scope close pinned","BEH-BR-167; registry.ts interruptAll","anim-b"],
+["T3","M","CleanupError keeps one squashed message; what leaked is unknowable","BEH-BR-046; host.ts:1625","r2"],
+["T4","M","No diagnostic tree of what an activation holds","BEH-BR-119; PluginInspection.contributions","r3"],
+["T5","M","No way to mark a resource or emission irreversible; no core counterpart of compensatedBy","BEH-BR-161/048; BEH-CM-050","r4"],
+["T6","M","A build that emits then fails or goes stale has already told the world","BEH-BR-141, 037, 039","r5"],
+["T7","M","A stale build keeps acquiring resources for up to buildTimeout with no signal","BEH-BR-039","r6"],
+["T8","L","Finalizer interleaving of contributions and Layer resources is unstated","BEH-BR-164, 163","r7"],
+["T9","L","Removed value reachable through a plain reference; acceptable, documented, no change now","BEH-BR-167, 166",""],
+["T10","L","No retry for failed cleanup; only exit discards the leak ledger","BEH-BR-047","r8"]];
+const tb=document.querySelector("#ft tbody");
+FINDINGS.forEach(f=>{const tr=document.createElement("tr");tr.dataset.s=f[1];
+tr.innerHTML=`<td class="mono">${f[0]}</td><td><span class="sev ${f[1]}">${f[1]}</span></td><td>${f[2]}</td><td class="mono">${f[3]}</td><td class="mono">${f[4]?`<a href="#${f[4]}">${f[4].startsWith("anim")?"animation b":f[4].toUpperCase()}</a>`:"no change"}</td>`;tb.appendChild(tr)});
+document.querySelectorAll(".filters button").forEach(b=>b.onclick=()=>{
+document.querySelectorAll(".filters button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+tb.querySelectorAll("tr").forEach(r=>r.hidden=b.dataset.f!=="all"&&r.dataset.s!==b.dataset.f)});
+
+// rows: [title, sub, status, arrowLabelToNext]
+const RECS=[
+{id:"r1",t:"Bound the activation-scope close",ref:"T1 · High",
+why:"Bridger claims no default is unbounded (INV-BR-017), yet the activation scope close has no timeout. Cordis awaits async disposers with no bound either, but Bridger makes the claim. Shutdown (12) inherits the exposure.",
+chg:"Add BridgerOptions.closeTimeout (default 30 s, no forever default). In BEH-BR-046: on expiry record failed(cleanup) \"close timed out after N ms\", interrupt the closing fiber, claim nothing released, keep the plugin registered. Amend INV-BR-030 to \"finalizers that return within closeTimeout\" and add it to the INV-BR-017 bound sum.",
+cost:"Medium. Interrupting a finalizer mid-write can leave a half-done external write (same caveat as BEH-BR-167). Mitigate with a per-plugin manifest override (27).",
+ver:"TestHost Fault.closeHangs (extends BEH-BR-180 stopFails): assert failed(cleanup) within the limit, shutdown completes, other plugins' scopes still close.",
+b:[["Scope.close(scope, Exit.void)","host.ts:1620, no timeout","warn","runs finalizer"],["Finalizer hangs","async call never returns","bad","blocks"],["stop / cascade / replace / shutdown","all wait forever","bad"]],
+a:[["Scope.close + closeTimeout","default 30 s","good","timer expires"],["failed(cleanup)","\"close timed out after N ms\"","warn","fiber interrupted"],["Plugin stays registered","slot reserved, nothing claimed released","warn","others proceed"],["Shutdown and cascade continue","bounded","good"]]},
+{id:"r2",t:"Report every finalizer failure",ref:"T3 · Medium",
+why:"Effect's Scope.close aggregates, but Cause.squash (host.ts:1625) keeps one. Bridger's value in BEH-BR-046/047 is truthful leak reporting.",
+chg:"CleanupError, the failed(cleanup) snapshot failure and the leak-acknowledged record's error gain causes: readonly {message; label?}[] in LIFO order. Existing message stays as the first. BEH-BR-047 requires the warning log and record to list all.",
+cost:"Low. Additive in schema (08, 23). Audit hash chains cover the new field, so version the record.",
+ver:"Two failing finalizers: both appear, LIFO order. Record round-trips through AuditSink idempotence (BEH-BR-193).",
+b:[["Finalizers B and A both fail","two distinct causes","bad","Cause.squash"],["CleanupError { id, realm, message }","one message survives","bad","operator reads"],["\"Something leaked\"","not what, not how many","bad"]],
+a:[["Finalizers B and A both fail","two distinct causes","bad","collected LIFO"],["causes: [{message, label?}, ...]","message kept as first","good","logged and recorded"],["Warning log + leak-acknowledged","list every failure","good"]]},
+{id:"r3",t:"A resource tree for diagnostics",ref:"T4 · Medium",
+why:"Cordis getEffects returns an EffectMeta tree. Bridger's inspect shows contributions and listeners; Layer-acquired pools and sockets are invisible, so failed(cleanup) says nothing about what to fix.",
+chg:"Extend ActivePlugin.report (BEH-BR-119) with {kind:\"resource\", label, irreversible?} and add PluginInspection.resources. Provide Plugin.Runtime.acquire(label, acquire, release) as a thin wrapper over Effect.acquireRelease that reports. Optional; names only, never values (as BEH-BR-168).",
+cost:"Low-medium. A convention plugins may ignore, so coverage is partial. State that so absence is not read as \"nothing held\".",
+ver:"Inspection lists resources while active, none after close; under failed(cleanup) lists those whose release failed (needs R2 labels).",
+b:[["Layer resources: pool, socket","invisible to inspect","bad","report kinds"],["inspect: contributions, listeners","only two kinds","warn","on failure"],["failed(cleanup)","no hint what is pending","bad"]],
+a:[["Runtime.acquire(label, ...)","optional wrapper","good","reports"],["report({kind:\"resource\"})","label only, no values","good","feeds"],["PluginInspection.resources","partial coverage, stated","warn"]]},
+{id:"r4",t:"Irreversibility tagging and the leak ledger",ref:"T5 · Medium",
+why:"Cordis leaves inverse correctness to the author. Bridger says compensation is application-defined but gives the application nothing to attach it to, while command batches have compensatedBy.",
+chg:"Resources/emissions reported with irreversible: true (R3) appear in the leak-acknowledged record and in inspection of a failed(cleanup) plugin. Add to BEH-BR-161: \"core never verifies that a finalizer is the inverse of its acquisition\". Cross-reference BEH-CM-050; add Plugin.compensate to the roadmap only if a second consumer appears.",
+cost:"Low. Wording plus one field. Risk of over-promising, so keep the \"not verified\" sentence.",
+ver:"Record fixture includes the flag; docs conformance check (INV-BR-026-style differential) covers the new field.",
+b:[["Leak recorded","closed handle or money moved?","bad","indistinguishable"],["Compensation: application-defined","nothing to attach to","warn","only in command"],["compensatedBy (BEH-CM-050)","no core counterpart","warn"]],
+a:[["Resource reported irreversible:true","via R3 report","good","surfaces in"],["leak-acknowledged + inspection","distinguishes the two cases","good","with"],["BEH-BR-161 non-claim","core never verifies inverses","warn","points to"],["BEH-CM-050 pattern","supported compensation","good"]]},
+{id:"r5",t:"Withheld emissions until publication",ref:"T6 · Medium",
+why:"BEH-BR-037 makes publication atomic and BEH-BR-039 discards stale builds, but a build that already called bus.emit or an external API cannot be discarded. The paper calls for withholding or compensation.",
+chg:"State in BEH-BR-037 that emissions during build are not withheld. Add optional Plugin.Runtime.afterPublish(effect): queued during the build, run in order only after the plugin is active in the publishing revision; never run if the activation fails or goes stale. Durable-bus transactional outbox is the cross-process analogue.",
+cost:"Medium. New ordering point relative to plugin-activated events; must not run under CurrentTransition re-entrancy rules (INV-BR-016). Optional.",
+ver:"Stale-build test (BEH-BR-039): queued effects never ran. Successful build: they ran after the snapshot revision.",
+b:[["Build emits (bus / external)","fire-and-forget, BEH-BR-141","bad","then"],["Build fails or goes stale","BEH-BR-039","warn","but"],["World already told","publication atomic, emission not","bad"]],
+a:[["Build queues afterPublish(effect)","nothing emitted yet","good","if stale or failed"],["Queue discarded, never run","world untouched","good","if published"],["Runs in order after active","in the publishing revision","good"]]},
+{id:"r6",t:"Cooperative cancellation signal",ref:"T7 · Medium",
+why:"Inertia lets a transition complete in Cordis and Bridger alike (\"letting the step settle keeps finalizers in a known state\"). A build waiting on a slow call after going stale wastes resources and widens the leak window.",
+chg:"Plugin.Runtime gains superseded: Effect<boolean> (or a Deferred) set when BEH-BR-039 makes the build stale. Builds MAY poll it and fail fast with a tagged Superseded, treated as the stale outcome. Core does no interruption, keeping the settle rule.",
+cost:"Low. Purely cooperative.",
+ver:"A build awaiting the signal ends within one scheduler turn of supersession; scope still closes via the normal path.",
+b:[["Build made stale","BEH-BR-039","warn","no signal"],["Keeps acquiring resources","up to buildTimeout","bad","then"],["Settles; scope closes","wasted work, wider leak window","warn"]],
+a:[["Build made stale","superseded flips true","good","build polls"],["Fails fast: Superseded","host treats as stale outcome","good","then"],["Scope closes normally","no core interruption","good"]]},
+{id:"r7",t:"State the finalizer interleaving rule",ref:"T8 · Low",
+why:"Likely already true (registry.ts Effect.addFinalizer), but unstated, and withdrawal can wait up to drainTimeout so the order matters.",
+chg:"In BEH-BR-036/164 add: a contribution's withdrawal is a finalizer of the scope add ran in and is ordered with all other finalizers of that scope by acquisition (LIFO). Add a conformance test.",
+cost:"Low.",
+ver:"Resource A acquired, contribution C added using A, then close: C withdraws (draining use holders) before A releases.",
+b:[["Order of contribution vs Layer finalizers","not stated in spec","warn","risk"],["C withdrawn after A closes","C depends on A","bad"]],
+a:[["Rule: withdrawal is a scope finalizer","LIFO by acquisition","good","conformance test"],["C withdraws, then A releases","drain finishes while A is alive","good"]]},
+{id:"r8",t:"Optional retry of a failed cleanup",ref:"T10 · Low",
+why:"BEH-BR-047 never re-runs cleanup. An operator who fixed the fault cannot retry; the only exit is acknowledgement, which discards the leak ledger.",
+chg:"Host.retryCleanup(id) for failed(cleanup) only, attributed and gated like other operator actions (22, 25), re-running only previously failed finalizers. Needs R2's per-finalizer record, so hold behind R2. BEH-BR-047 stays the acknowledgement path.",
+cost:"Medium-high. Partial finalizer state must survive after the scope has \"closed\"; conflicts with BEH-BR-046 prose. Defer unless operators ask.",
+ver:"Fault injects a one-shot failure; retry succeeds and the plugin leaves failed(cleanup) without a leak-acknowledged record.",
+b:[["failed(cleanup)","operator fixed the fault","warn","only exit"],["Acknowledge leak","BEH-BR-047","warn","discards"],["Leak ledger lost","nothing was retried","bad"]],
+a:[["failed(cleanup)","operator fixed the fault","warn","retryCleanup(id)"],["Re-run failed finalizers only","needs R2 record; deferred","warn","success"],["Plugin leaves failed(cleanup)","no leak-acknowledged record","good"]]}];
+
+function diagram(rows,label){
+const W=320,H=44,G=30,top=6;const h=top*2+rows.length*H+(rows.length-1)*G;
+let s=`<svg viewBox="0 0 ${W} ${h}" role="img" aria-label="${label}"><defs><marker id="m" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" class="arh"/></marker></defs>`;
+rows.forEach((r,i)=>{const y=top+i*(H+G);
+s+=`<g class="nd ${r[2]}"><rect x="6" y="${y}" width="${W-12}" height="${H}" rx="4"/><text class="l" x="16" y="${y+19}">${r[0]}</text><text class="n" x="16" y="${y+35}">${r[1]}</text></g>`;
+if(i<rows.length-1){const y2=y+H;s+=`<line class="ar" x1="${W/2}" y1="${y2}" x2="${W/2}" y2="${y2+G-2}" marker-end="url(#m)"/>`;
+if(r[3])s+=`<text class="al" x="${W/2+8}" y="${y2+19}">${r[3]}</text>`}});
+return s+"</svg>"}
+const ch=document.getElementById("cards");
+RECS.forEach(r=>{const d=document.createElement("article");d.className="card";d.id=r.id;
+d.innerHTML=`<h3><span class="id">${r.id.toUpperCase()} · ${r.ref}</span>${r.t}</h3>
+<div class="facts"><div><b>Rationale</b>${r.why}</div><div><b>Proposed change</b>${r.chg}</div><div><b>Cost / risk</b>${r.cost}</div><div><b>Verification</b>${r.ver}</div></div>
+<div class="ba"><figure class="b"><figcaption>Before (today)</figcaption>${diagram(r.b,r.t+", before")}</figure><figure class="a"><figcaption>After (proposed)</figcaption>${diagram(r.a,r.t+", after")}</figure></div>`;
+ch.appendChild(d)});
+
+// ---------- animations ----------
+const ANIMS=[
+{id:"anim-a",title:"a. LIFO finalizer unwinding: hung finalizer vs bounded close",
+nodes:[["t","closeTimeout timer",330,10,290,50,"no timer today"],["n0","Scope.close(scope)",10,10,290,50,"stop requested"],["n1","C: close pool (acquired last)",10,80,290,50,"runs first"],["n2","B: withdraw contribution",10,150,290,50,"runs second"],["n3","A: release socket",10,220,290,50,"runs last"],["s1","Plugin state",330,80,290,50,"stopping"],["s2","stop / cascade / replace / shutdown",330,150,290,50,"in progress"]],
+edges:[[155,60,155,80],[155,130,155,150],[155,200,155,220]],
+modes:{"Today":[
+{c:"Stop requested. Scope.close starts and runs finalizers in LIFO order.",s:{n0:"run",t:"idle"}},
+{c:"Finalizer C starts closing the pool.",s:{n0:"run",n1:"run"}},
+{c:"C waits on an async call that never returns. Nothing bounds it.",s:{n0:"run",n1:"bad"},x:{n1:"hung, no timeout",t:"none"}},
+{c:"B and A never run. Stop, cascade, replace and shutdown wait forever.",s:{n0:"bad",n1:"bad",n2:"warn",n3:"warn",s2:"bad",s1:"warn"},x:{n1:"hung, no timeout",n2:"never reached",n3:"never reached",s2:"blocked forever",s1:"stopping, never ends"}}],
+"With closeTimeout":[
+{c:"Stop requested. Scope.close starts with closeTimeout (30 s) armed.",s:{n0:"run",t:"run"},x:{t:"counting down"}},
+{c:"Finalizer C starts closing the pool.",s:{n0:"run",n1:"run",t:"run"},x:{t:"counting down"}},
+{c:"C hangs on an async call. The timer keeps counting.",s:{n0:"run",n1:"bad",t:"warn"},x:{n1:"hung",t:"nearly expired"}},
+{c:"Timer expires. The closing fiber is interrupted, not awaited. State becomes failed(cleanup): \"close timed out after N ms\".",s:{n0:"warn",n1:"bad",t:"bad",s1:"bad",n2:"warn",n3:"warn"},x:{t:"expired",n1:"interrupted",n2:"not claimed released",n3:"not claimed released",s1:"failed(cleanup)"}},
+{c:"The plugin stays registered with its slot reserved. Shutdown and cascade continue; other plugins close.",s:{n0:"warn",n1:"bad",t:"bad",s1:"bad",n2:"warn",n3:"warn",s2:"good"},x:{t:"expired",n1:"interrupted",n2:"not claimed released",n3:"not claimed released",s1:"failed(cleanup), slot reserved",s2:"proceeds"}}]}},
+{id:"anim-b",title:"b. Revoked registry holder drain, with and without a timeout",
+nodes:[["n0","revoke(owner)",10,10,290,50,"BEH-BR-167"],["n1","Hide from get / view",10,80,290,50,"new readers stop seeing it"],["n2","Drain use holders",10,150,290,50,"bounded by drainTimeout"],["n3","Interrupt holder fibers",10,220,290,50,"Fiber.interruptAll"],["n4","Holder finalizers run",330,220,290,50,"must complete first"],["s1","Id reservation",330,80,290,50,"held"],["s2","Owner scope close",330,150,290,50,"waiting"],["s3","HoldRevoked event",330,10,290,50,"not emitted yet"]],
+edges:[[155,60,155,80],[155,130,155,150],[155,200,155,220],[300,245,330,245]],
+modes:{"Today":[
+{c:"Owner revoked. The value is hidden from new readers.",s:{n0:"ok",n1:"run"}},
+{c:"Drain waits for existing use holders, bounded by drainTimeout.",s:{n0:"ok",n1:"ok",n2:"run"}},
+{c:"drainTimeout expires. The holder fibers are interrupted.",s:{n0:"ok",n1:"ok",n2:"ok",n3:"run"}},
+{c:"BEH-BR-167: the host MUST wait for the holder's finalizers. One finalizer never returns.",s:{n3:"ok",n4:"bad",n2:"warn"},x:{n4:"stuck, no bound"}},
+{c:"The id stays reserved and the owner's scope close is pinned. No bound applies.",s:{n3:"ok",n4:"bad",s1:"bad",s2:"bad",n2:"ok"},x:{n4:"stuck, no bound",s1:"reserved forever",s2:"pinned forever"}}],
+"With revokeTimeout":[
+{c:"Owner revoked. The value is hidden from new readers.",s:{n0:"ok",n1:"run"}},
+{c:"Drain waits for use holders, bounded by drainTimeout.",s:{n0:"ok",n1:"ok",n2:"run"}},
+{c:"Holder fibers interrupted; their finalizers start. A second bound, revokeTimeout, is now running.",s:{n3:"ok",n4:"run",n2:"ok"},x:{n4:"bounded by revokeTimeout"}},
+{c:"One finalizer hangs; revokeTimeout expires.",s:{n3:"ok",n4:"warn",n2:"ok"},x:{n4:"timed out"}},
+{c:"Removal completes anyway. HoldRevoked reports stuck: 1, the id is released, the owner scope close proceeds.",s:{n3:"ok",n4:"warn",s1:"good",s2:"good",s3:"good"},x:{n4:"timed out",s1:"released",s2:"proceeds",s3:"HoldRevoked { stuck: 1 }"}}]}},
+{id:"anim-c",title:"c. Build-time emission: emitted-then-stale vs withheld until afterPublish",
+nodes:[["n0","Build starts",10,10,290,50,"activation in flight"],["n1","Build emits / queues effect",10,80,290,50,"bus or external API"],["n2","Build goes stale",10,150,290,50,"BEH-BR-039"],["n3","Publication (atomic)",10,220,290,50,"BEH-BR-037"],["s1","Outside world",330,80,290,50,"untold"],["s2","afterPublish queue",330,150,290,50,"empty"],["s3","Plugin state",330,220,290,50,"building"]],
+edges:[[155,60,155,80],[155,130,155,150],[155,200,155,220]],
+modes:{"Today (stale build)":[
+{c:"Build starts.",s:{n0:"run"}},
+{c:"The build calls bus.emit or an external API. Nothing withholds it (BEH-BR-141).",s:{n0:"ok",n1:"bad",s1:"bad"},x:{s1:"already told"}},
+{c:"Another revision makes the build stale. Its publication is discarded.",s:{n0:"ok",n1:"bad",n2:"warn",s1:"bad",n3:"warn"},x:{s1:"already told",n3:"discarded"}},
+{c:"Publication is atomic, emission is not. The world heard from a build that never published.",s:{n0:"ok",n1:"bad",n2:"warn",s1:"bad",n3:"warn",s3:"bad"},x:{s1:"told, stale fact",n3:"discarded",s3:"not active"}}],
+"afterPublish (stale build)":[
+{c:"Build starts.",s:{n0:"run"}},
+{c:"The build calls afterPublish(effect). The effect is queued, not run.",s:{n0:"ok",n1:"good",s2:"run"},x:{s2:"1 effect queued"}},
+{c:"The build goes stale.",s:{n0:"ok",n1:"good",s2:"run",n2:"warn"},x:{s2:"1 effect queued"}},
+{c:"The queue is discarded and never ran. The world was never told.",s:{n0:"ok",n1:"good",n2:"warn",s2:"good",s1:"good",n3:"warn",s3:"warn"},x:{s2:"discarded, never run",s1:"untouched",n3:"discarded",s3:"not active"}}],
+"afterPublish (published)":[
+{c:"Build starts.",s:{n0:"run"}},
+{c:"The build queues its effect with afterPublish.",s:{n0:"ok",n1:"good",s2:"run"},x:{s2:"1 effect queued"}},
+{c:"The build finishes and publishes atomically.",s:{n0:"ok",n1:"good",s2:"run",n3:"good",s3:"good"},x:{s2:"1 effect queued",s3:"active"}},
+{c:"Queued effects run in order, after the plugin is active in the publishing revision.",s:{n0:"ok",n1:"good",n3:"good",s3:"good",s2:"good",s1:"good"},x:{s2:"ran in order",s1:"told, after publication",s3:"active"}}]}}];
+
+function mk(a){
+const host=document.createElement("section");host.className="anim";host.id=a.id;
+const modes=Object.keys(a.modes);let mode=modes[0],idx=a.modes[mode].length-1,timer=null;
+host.innerHTML=`<h3>${a.title}</h3><div class="ctl modesel" role="group" aria-label="Scenario"></div>
+<figure style="margin:0"><svg viewBox="0 0 630 280" role="img" aria-label="${a.title}"></svg></figure>
+<div class="step"></div><div class="cap" aria-live="polite"></div>
+<div class="ctl"><button class="play">Play</button><button class="pause">Pause</button><button class="stp">Step</button><button class="rep">Replay</button></div>`;
+const svg=host.querySelector("svg"),cap=host.querySelector(".cap"),stp=host.querySelector(".step");
+let g=`<defs><marker id="m${a.id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" class="arh"/></marker></defs>`;
+a.edges.forEach(e=>g+=`<line class="ar" x1="${e[0]}" y1="${e[1]}" x2="${e[2]}" y2="${e[3]}" marker-end="url(#m${a.id})"/>`);
+a.nodes.forEach(n=>g+=`<g class="nd idle" id="${a.id}-${n[0]}"><rect x="${n[2]}" y="${n[3]}" width="${n[4]}" height="${n[5]}" rx="4"/><text class="l" x="${n[2]+10}" y="${n[3]+21}">${n[1]}</text><text class="n" x="${n[2]+10}" y="${n[3]+39}">${n[6]}</text></g>`);
+svg.innerHTML=g;
+function draw(){const st=a.modes[mode][idx];
+a.nodes.forEach(n=>{const el=svg.querySelector("#"+a.id+"-"+n[0]);let k=(st.s&&st.s[n[0]])||"idle";el.setAttribute("class","nd "+k);
+el.querySelector(".n").textContent=(st.x&&st.x[n[0]])||n[6]});
+cap.textContent=st.c;stp.textContent=`${mode} · step ${idx+1} of ${a.modes[mode].length}`}
+function stop(){clearInterval(timer);timer=null}
+function next(){if(idx<a.modes[mode].length-1){idx++;draw()}else stop()}
+host.querySelector(".play").onclick=()=>{stop();if(idx>=a.modes[mode].length-1){idx=0;draw()}timer=setInterval(next,1700)};
+host.querySelector(".pause").onclick=stop;
+host.querySelector(".stp").onclick=()=>{stop();idx=idx>=a.modes[mode].length-1?0:idx+1;draw()};
+host.querySelector(".rep").onclick=()=>{stop();idx=0;draw();if(!matchMedia("(prefers-reduced-motion: reduce)").matches)timer=setInterval(next,1700)};
+const ms=host.querySelector(".modesel");
+modes.forEach(m=>{const b=document.createElement("button");b.textContent=m;b.setAttribute("aria-pressed",m===mode);b.onclick=()=>{stop();mode=m;idx=a.modes[m].length-1;ms.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));draw()};ms.appendChild(b)});
+draw();return host}
+const ah=document.getElementById("animhost");ANIMS.forEach(a=>ah.appendChild(mk(a)));
+</script>

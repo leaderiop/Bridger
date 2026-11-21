@@ -254,6 +254,7 @@ Findings for the specification (written into references/core as CCR-BR-010):
 - **G21** A parent that awaits a child inside its build holds a build slot the child's build needs;
   with `concurrency` 1 (or `concurrency` such parents) it always fails at `buildTimeout`. BEH-BR-124
   names only the self-wait on a child that requires the parent's services.
+  **Resolved (report 01, R9):** a build awaiting a child now releases its slot for the wait and takes one again after (`CurrentBuildSlot`); BEH-BR-034 and BEH-BR-124 say so.
 - **G22** BEH-BR-128 gives a member's `InstallError` phase "activation"; it fails the group's
   build Layer, which BEH-BR-037 and BEH-BR-121 call phase "build". The prototype reports "build".
 - **G23** The outcome of `parallel`, `serial` and `waterfall` when a listener is interrupted because

@@ -1,0 +1,341 @@
+<title>Bridger Spec Verification Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: engineering-notebook; sticky TOC, report sections as ruled pages, diagram pairs side by side */
+:root{--bg:#f6f7f9;--surface:#ffffff;--ink:#1b2430;--muted:#5b6676;--line:#d9dee6;--accent:#0b6e8a;--bad:#c0392b;--warn:#b7791f;--good:#1f8a5b;
+--f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;--f-head:"Space Grotesk","IBM Plex Sans",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1318;--surface:#171c23;--ink:#e6ebf2;--muted:#9aa6b6;--line:#2a323d;--accent:#4cc2e0;--bad:#ff7b6b;--warn:#f0b44c;--good:#5dd39e;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+.wrap{max-width:1080px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-head);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:clamp(1.6rem,4.5vw,2.3rem)} h2{font-size:1.4rem;margin:2.6rem 0 .8rem;padding-top:.6rem;border-top:2px solid var(--ink)} h3{font-size:1.1rem}
+code,.mono{font-family:var(--f-mono);font-size:.88em}
+a{color:var(--accent)} :focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:3px}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);margin:0 calc(-1*max(16px,env(safe-area-inset-left,0px)));padding:.4rem max(16px,env(safe-area-inset-left,0px))}
+nav.toc div{display:flex;gap:.3rem;overflow-x:auto;white-space:nowrap;max-width:1080px;margin:0 auto;font-family:var(--f-mono);font-size:.78rem}
+nav.toc a{padding:.25rem .55rem;border:1px solid var(--line);border-radius:4px;text-decoration:none;color:var(--ink)}
+nav.toc a:hover{border-color:var(--accent)}
+header.top{padding:1.6rem 0 .5rem}
+.eyebrow{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lede{max-width:70ch;margin:.8rem 0}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0}
+.chip{font-family:var(--f-mono);font-size:.8rem;padding:.2rem .6rem;border-radius:99px;border:1.5px solid currentColor;background:var(--surface)}
+.chip.H,.sev.H{color:var(--bad)}.chip.M,.sev.M{color:var(--warn)}.chip.L,.sev.L{color:var(--good)}
+.sev{font-family:var(--f-mono);font-weight:500;border:1.5px solid currentColor;border-radius:4px;padding:0 .35rem}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem}
+.strip div{background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--good);padding:.6rem .7rem;font-size:.86rem}
+.strip b{display:block;font-family:var(--f-head);margin-bottom:.15rem}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.84rem}
+th,td{padding:.5rem .6rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-family:var(--f-mono);font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td.ev{font-family:var(--f-mono);font-size:.76rem;min-width:180px}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;margin:.5rem 0}
+button,.btn{font:inherit;font-family:var(--f-mono);font-size:.8rem;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:.3rem .7rem;cursor:pointer}
+button:hover{border-color:var(--accent)} button[aria-pressed="true"]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);margin:1.2rem 0;padding:1rem 1.1rem}
+.card h3 .id{font-family:var(--f-mono);color:var(--accent);margin-right:.4rem}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:.7rem 1.2rem;margin:.8rem 0}
+.facts div{min-width:0;font-size:.88rem}
+.facts b{display:block;font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+@media(max-width:700px){.pair{grid-template-columns:1fr}}
+figure{margin:0;border:1px solid var(--line);background:var(--bg);padding:.5rem;min-width:0}
+figure.before{border-top:3px solid var(--bad)} figure.after{border-top:3px solid var(--good)}
+figcaption{font-size:.8rem;color:var(--muted);margin-top:.3rem}
+figcaption b{font-family:var(--f-mono);text-transform:uppercase;font-size:.72rem;color:var(--ink)}
+svg{display:block;max-width:100%;height:auto;color:var(--ink)}
+svg text{font-family:var(--f-mono);font-size:10.5px;fill:var(--ink)}
+svg .mu{fill:var(--muted)} svg .tbad{fill:var(--bad)}
+.bx rect{fill:var(--surface);stroke:var(--line);stroke-width:1.4}
+.bx.bad rect{stroke:var(--bad);fill:color-mix(in srgb,var(--bad) 14%,var(--surface))}
+.bx.warn rect{stroke:var(--warn);fill:color-mix(in srgb,var(--warn) 14%,var(--surface))}
+.bx.good rect{stroke:var(--good);fill:color-mix(in srgb,var(--good) 14%,var(--surface))}
+.bx.acc rect{stroke:var(--accent);fill:color-mix(in srgb,var(--accent) 14%,var(--surface))}
+.bx.dash rect{stroke-dasharray:4 3}
+.ln{stroke:var(--muted);stroke-width:1.4;fill:none} .ln.bad{stroke:var(--bad)} .ln.good{stroke:var(--good)} .ln.acc{stroke:var(--accent)} .ln.warn{stroke:var(--warn)} .ln.dash{stroke-dasharray:4 3}
+.anim{border:1px solid var(--line);background:var(--surface);padding:.8rem;margin:1rem 0}
+.anim .stage{overflow-x:auto}
+.anim svg{min-width:560px;width:100%}
+.ctl{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-top:.5rem}
+.cap{flex:1 1 100%;font-size:.9rem;min-height:3.2em;border-left:3px solid var(--accent);padding:.2rem .6rem;background:var(--bg)}
+.stepno{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
+[data-s],[data-d]{transition:opacity .4s}
+.off{opacity:.13}.struck{opacity:.28}
+.struck rect{stroke-dasharray:3 3}
+.cmp td:first-child{font-weight:600;min-width:130px}
+.pill{display:inline-block;font-size:.78rem;padding:.05rem .45rem;border-radius:99px;border:1.5px solid}
+.pill.g{color:var(--good)}.pill.w{color:var(--warn)}.pill.r{color:var(--bad)}
+.pill{color:var(--ink)}
+footer{margin:3rem 0 2rem;border-top:2px solid var(--ink);padding-top:1rem;font-size:.88rem}
+footer li{margin:.3rem 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--muted)"/></marker>
+<marker id="arbad" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--bad)"/></marker>
+<marker id="argood" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--good)"/></marker>
+<marker id="aracc" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--accent)"/></marker>
+<marker id="arwarn" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L8 4L0 8z" fill="var(--warn)"/></marker>
+</defs></svg>
+
+<nav class="toc" aria-label="Contents"><div>
+<a href="#summary">Summary</a><a href="#ahead">Ahead</a><a href="#findings">Findings</a><a href="#recs">Recommendations</a><a href="#animations">Animations</a><a href="#cordis">Cordis</a><a href="#notchecked">Not checked</a>
+</div></nav>
+
+<div class="wrap">
+<header class="top" id="summary">
+<div class="eyebrow">Bridger improvement report 07</div>
+<h1>Specification quality, traceability, formal guarantees and verification</h1>
+<p class="lede">Bridger's spec is far more traceable than Cordis's paper (BEH/INV/REQ/RSK/ADR/CCR ids, 14 mechanical checks, an in-spec test-host contract) but far less executable. 52 invariants are prose; the prototype cites 2 distinct INV ids against 223 BEH ids. Nine audit rounds keep finding the same four classes, always in the previous round's fix (round 8: 4 H / 24 M / 36 L; round 9: 6 H / 23 M / 27 L), and the mechanical verifiers pass every time, so they police form, not meaning. The four highest-value changes are one executable reference model, a spec-to-code correspondence table, a gate-walk process rule, and fast-check model-based suites.</p>
+<div class="chips" aria-label="Severity summary"><span class="chip H">4 High</span><span class="chip M">7 Medium</span><span class="chip L">2 Low</span><span class="chip" style="color:var(--muted)">13 findings / 8 recommendations</span></div>
+</header>
+
+<h2 id="ahead" style="margin-top:1.5rem">Where Bridger is already ahead</h2>
+<div class="strip">
+<div><b>Stable ids, 14 checks</b>Range-allocated ids and <code>verify-traceability.sh</code>. Cordis has no requirement-level traceability.</div>
+<div><b>Status honesty</b>"Planned" paths, Document Control, restricted-claims allowlist, no-independent-reviewer disclosed.</div>
+<div><b>Testable by contract</b><code>TestHost</code> (BEH-BR-177-184) and a total state x operation table (56 live cells).</div>
+<div><b>Findings fed back</b>RESULTS.md G10-G12, G-P7 closed in spec; spikes decision-grade (394 tests).</div>
+<div><b>Invariants with Source</b>Source / Implication / Verification, risks linked to controls, SpecForge migration rightly refused.</div>
+<div><b>Limits named</b>INV-BR-024 and INV-BR-043 name unchecked obligations, as Cordis does for inverses.</div>
+</div>
+
+<h2 id="findings">Findings</h2>
+<div class="filters" role="group" aria-label="Filter by severity">
+<button type="button" data-f="all" aria-pressed="true">All 13</button><button type="button" data-f="H" aria-pressed="false">High 4</button><button type="button" data-f="M" aria-pressed="false">Medium 7</button><button type="button" data-f="L" aria-pressed="false">Low 2</button>
+</div>
+<div class="tblwrap"><table id="ftable"><thead><tr><th>ID</th><th>Sev</th><th>Evidence</th><th>Issue</th><th>Fix</th></tr></thead><tbody></tbody></table></div>
+
+<h2 id="recs">Recommendations</h2>
+<p style="color:var(--muted);max-width:70ch">Each card shows the current Bridger behaviour (before) beside the proposed one (after). Colour: red problem, amber partial, green fixed, teal new mechanism.</p>
+<div id="cards"></div>
+
+<h2 id="animations">How the mechanisms work</h2>
+<p style="color:var(--muted);max-width:70ch">Three step-through animations. Each opens on its final state; press Replay to watch it build. Illustrative data is labelled.</p>
+
+<div class="anim" id="animA">
+<h3>A. The audit-round loop versus the gate-walk</h3>
+<div class="stage"><svg viewBox="0 0 640 290" role="img" aria-label="Fix in one audit round reintroduces a finding in the next; an outcome matrix walked before landing catches the uncovered cell">
+<g class="bx"><rect x="20" y="30" width="150" height="44" rx="3"/><text x="95" y="49" text-anchor="middle">CCR fix, round N</text><text x="95" y="63" text-anchor="middle" class="mu">new MUST on primitive</text></g>
+<g class="bx good" data-s="1"><rect x="215" y="30" width="150" height="44" rx="3"/><text x="290" y="49" text-anchor="middle">verifiers</text><text x="290" y="63" text-anchor="middle">0 failures</text></g>
+<g class="bx bad" data-s="2"><rect x="410" y="30" width="210" height="44" rx="3"/><text x="515" y="49" text-anchor="middle">audit N+1: AUDIT-09 H1</text><text x="515" y="63" text-anchor="middle">take-over wait deadlocks</text></g>
+<line class="ln" data-s="1" x1="170" y1="52" x2="213" y2="52" marker-end="url(#ar)"/>
+<line class="ln" data-s="2" x1="365" y1="52" x2="408" y2="52" marker-end="url(#ar)"/>
+<path class="ln bad dash" data-s="2" d="M515 74 V100 H95 V76" marker-end="url(#arbad)"/>
+<text data-s="2" class="tbad" x="305" y="95" text-anchor="middle">regression of the prior fix, every round</text>
+<g data-s="3"><text x="20" y="128" class="mu">Gate-walk: outcome matrix attached to the CCR (cols = states, rows = operations; illustrative cell)</text>
+<text x="132" y="146" class="mu" font-size="9">building</text><text x="186" y="146" class="mu">active</text><text x="236" y="146" class="mu">draining</text><text x="296" y="146" class="mu">parked</text><text x="346" y="146" class="mu">failed(cleanup)</text></g>
+<g id="mx"></g>
+<g data-s="5" data-e="6" class="bx bad"><rect x="400" y="190" width="224" height="40" rx="3"/><text x="512" y="207" text-anchor="middle">cell with no rule found</text><text x="512" y="221" text-anchor="middle" class="mu">replace x draining (example)</text></g>
+<g data-s="6" class="bx good"><rect x="400" y="190" width="224" height="40" rx="3"/><text x="512" y="207" text-anchor="middle">cell cited or n/a + reason</text><text x="512" y="221" text-anchor="middle" class="mu">+ scenario id per H finding</text></g>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Pause</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button><span class="stepno"></span><div class="cap" aria-live="polite"></div></div>
+</div>
+
+<div class="anim" id="animB">
+<h3>B. A failing random history shrunk to a minimal counterexample</h3>
+<div class="stage"><svg viewBox="0 0 640 250" role="img" aria-label="Twelve operation history fails the confluence property and is shrunk to three operations">
+<text x="20" y="30" class="mu">history over {install, remove, enable, disable, restart, reconfigure, replace, reconcile, mount, wake} (illustrative)</text>
+<g id="ops"></g>
+<g data-s="1" class="bx bad"><rect x="20" y="110" width="600" height="34" rx="3"/><text x="320" y="131" text-anchor="middle">after awaitIdle: snapshot differs from fresh install of final set (BEH-BR-160)</text></g>
+<text data-s="2" x="20" y="172" class="mu">shrink: drop chunks, re-run, keep the drop if it still fails</text>
+<text data-s="3" x="20" y="190" class="mu">shrink: try each remaining op, stop when all are needed</text>
+<g data-s="4" class="bx good"><rect x="20" y="202" width="600" height="34" rx="3"/><text x="320" y="223" text-anchor="middle">minimal counterexample: 3 ops + failing seed logged, seed pinned in CI</text></g>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Pause</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button><span class="stepno"></span><div class="cap" aria-live="polite"></div></div>
+</div>
+
+<div class="anim" id="animC">
+<h3>C. The correspondence table generated from @spec tags</h3>
+<div class="stage"><svg viewBox="0 0 640 260" role="img" aria-label="A generator scans @spec tags in source and test files and emits a correspondence table, failing on a dangling id">
+<g class="bx"><rect x="14" y="30" width="230" height="110" rx="3"/></g>
+<text x="24" y="22" class="mu">src + test (illustrative tag lines)</text>
+<text x="24" y="56">// @spec BEH-BR-160</text>
+<text x="24" y="82">// @spec BEH-BR-159 INV-BR-017</text>
+<text x="24" y="108" class="tbad">// @spec INV-BR-999</text>
+<text x="24" y="130" class="mu">...</text>
+<g data-s="1"><line class="ln acc" x1="248" y1="85" x2="292" y2="85" marker-end="url(#aracc)"/><text x="270" y="78" text-anchor="middle" class="mu">scan</text></g>
+<g class="bx acc"><rect x="296" y="30" width="334" height="22" rx="0"/></g>
+<text x="304" y="45">spec id</text><text x="400" y="45">status</text><text x="470" y="45">file:line</text><text x="560" y="45">test</text>
+<g data-s="2"><rect x="296" y="56" width="334" height="22" fill="none" stroke="var(--line)"/><text x="304" y="71">BEH-BR-160</text><text x="400" y="71">Tested</text><text x="470" y="71">&lt;file&gt;:&lt;n&gt;</text><text x="560" y="71">&lt;name&gt;</text></g>
+<g data-s="2"><rect x="296" y="82" width="334" height="22" fill="none" stroke="var(--line)"/><text x="304" y="97">BEH-BR-159</text><text x="400" y="97">Tested</text><text x="470" y="97">&lt;file&gt;:&lt;n&gt;</text><text x="560" y="97">&lt;name&gt;</text></g>
+<g data-s="3"><rect x="296" y="108" width="334" height="22" fill="none" stroke="var(--line)"/><text x="304" y="123">INV-BR-017</text><text x="400" y="123">Tested</text><text x="470" y="123">&lt;file&gt;:&lt;n&gt;</text><text x="560" y="123">&lt;name&gt;</text></g>
+<g data-s="4" class="bx bad"><rect x="296" y="134" width="334" height="22" rx="0"/><text x="304" y="149">INV-BR-999: undefined id, verify-traceability check 9 fails</text></g>
+<g data-s="5" class="bx good"><rect x="14" y="176" width="616" height="64" rx="3"/><text x="26" y="198">baseline report expected today: INV 2/52 tagged, BEH 223/324 (grep of id strings)</text><text x="26" y="218" class="mu">then ratchet; INV Effective with no test tag fails; targets: Specified / Prototyped / Implemented / Tested</text></g>
+</svg></div>
+<div class="ctl"><button type="button" data-a="play">Pause</button><button type="button" data-a="step">Step</button><button type="button" data-a="replay">Replay</button><span class="stepno"></span><div class="cap" aria-live="polite"></div></div>
+</div>
+
+<h2 id="cordis">Cordis comparison</h2>
+<div class="tblwrap"><table class="cmp"><thead><tr><th>Topic</th><th>Cordis</th><th>Bridger today</th><th>Proposed</th></tr></thead><tbody>
+<tr><td>Formal core</td><td><span class="pill g">One calculus; preservation, progress, confluence, quiescence</span></td><td><span class="pill w">Confluence BEH-BR-160 stated by exclusion; rules are prose</span></td><td><span class="pill g">R1 model.ts + testable theorems</span></td></tr>
+<tr><td>Theory to code</td><td><span class="pill g">Table 2 construct to API, checked in CI</span></td><td><span class="pill r">BEH maps to Planned paths only</span></td><td><span class="pill g">R2 generated correspondence.md</span></td></tr>
+<tr><td>Docs and catalogs</td><td><span class="pill g">Generated from vendored code; verify scripts</span></td><td><span class="pill r">Hand-edited, agent cross-checked</span></td><td><span class="pill g">R6 verify-catalogs, doc-typecheck</span></td></tr>
+<tr><td>Event dispatch mode</td><td><span class="pill g">One mode per event, call sites checked</span></td><td><span class="pill w">No generated check named in report</span></td><td><span class="pill g">R6(ii) one mode per bus event</span></td></tr>
+<tr><td>Unchecked obligations</td><td><span class="pill w">Inverse correctness is the author's duty</span></td><td><span class="pill w">INV-BR-024, 043 name them in prose</span></td><td><span class="pill g">R8 <code>unchecked:</code> field, linted</span></td></tr>
+<tr><td>Traceability</td><td><span class="pill r">No requirement-level ids</span></td><td><span class="pill g">Ids + 14 checks</span></td><td><span class="pill g">Kept, extended (check 9)</span></td></tr>
+</tbody></table></div>
+
+<footer id="notchecked">
+<h3>Not checked / uncertainties</h3>
+<ul>
+<li>Not every INV or all of <code>verify-traceability.sh</code> was read (14 checks from its header); verifier scripts and the spike suite were not run. The prototype suite was run: 32 files, 340 tests pass (4.1 s).</li>
+<li>Audit counts (round 8: 4/24/36, round 9: 6/23/27) come from report summaries; "about a third are propagation" is a reading of pattern lists, not a count. Rounds 03-07 and fix plans were not read in depth, so recurrence across all rounds is inferred from 7-9 and CCR history.</li>
+<li>The 2-INV / 223-BEH counts are a grep of id strings in prototype src+test; tests may cover invariants without citing ids.</li>
+<li>Sibling trees (agent, loader, federation, keyring, sequence, etc.) were only sampled via audit text.</li>
+<li>Cost estimates are rough. Diagram simplifications: the three animations use illustrative histories, tag lines and matrix cells, labelled as such; file:line values are placeholders.</li>
+</ul>
+<p>Sibling reports: 01 Lifecycle state machine, 02 Dependency model and seams, 03 Effects, scopes and cleanup, 04 Events, hooks and pipelines, 05 Design, API and DX, 06 Security, GxP and audit, 07 Specification quality and verification (this page).</p>
+</footer>
+</div>
+
+<script>
+(function(){
+var NS="http://www.w3.org/2000/svg";
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+/* tiny diagram DSL: b box, a arrow, t text */
+function diag(items,h){
+ var o='<svg viewBox="0 0 320 '+h+'" role="img" aria-label="diagram">';
+ items.forEach(function(it){
+  var k=it[0];
+  if(k==='b'){var x=it[1],y=it[2],w=it[3],hh=it[4],ls=it[5].split('|'),c=it[6]||'',n=ls.length;
+   o+='<g class="bx '+c+(it[7]?' dash':'')+'"><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+hh+'" rx="3"/>';
+   ls.forEach(function(l,i){o+='<text x="'+(x+w/2)+'" y="'+(y+hh/2+4-(n-1)*6+i*12)+'" text-anchor="middle"'+(i>0&&n>1?' class="mu"':'')+'>'+esc(l)+'</text>'});
+   o+='</g>';}
+  else if(k==='a'){var c2=it[6]||'',m='ar'+(c2==='dash'?'':c2);
+   o+='<line class="ln '+c2+(it[7]?' dash':'')+'" x1="'+it[1]+'" y1="'+it[2]+'" x2="'+it[3]+'" y2="'+it[4]+'" marker-end="url(#'+(m==='ar'?'ar':m)+')"/>';
+   if(it[5])o+='<text class="mu" x="'+((it[1]+it[3])/2)+'" y="'+((it[2]+it[4])/2-5)+'" text-anchor="middle" font-size="9">'+esc(it[5])+'</text>';}
+  else{o+='<text x="'+it[1]+'" y="'+it[2]+'" text-anchor="'+(it[5]||'middle')+'" class="'+(it[4]||'mu')+'">'+esc(it[3])+'</text>';}
+ });
+ return o+'</svg>';
+}
+var R=[
+{id:"R1",t:"A formal core: one transition system, prose tables generated from it",
+ why:"Cordis proves preservation, progress and confluence over one calculus. Bridger's equivalents (INV-BR-009 per-step, 016 WouldDeadlock, 017 bounded drain, 026, 030 no cross-plugin build wait, 045 cold) are separate prose rules; the recurring regressions (AUDIT-08 H1, 09 H1) are interactions between rules nobody can enumerate.",
+ chg:"Add references/core/formal/model.ts (pure, no Effect): state per plugin x in-flight operation x lease set x slot count; transitions = operations of BEH-BR-040..; observation = quiescent(desired set). Export the legality table (replacing hand-kept legality.ts) and invariants as predicates inv017(trace), inv030(trace). Lift the 56 settled live cells. State Preservation, Progress and Confluence as testable properties (BEH-BR-160).",
+ cost:"M-L (2-3 weeks). Risk: a second source of truth; mitigated by generating the spec tables from the model and checking the prototype against it (R5).",
+ ver:"A model-checker scenario for AUDIT-09 H1 (slot + finalizer take-over) must find the deadlock in the round-8 spec and not in the fixed one.",
+ bc:"Five prose rules; regressions sit in the gaps between them.",ac:"One model; tables and predicates derive from it.",
+ B:[['t',160,12,'five prose rules, one per paragraph'],['b',8,18,56,34,'INV|009','warn'],['b',70,18,56,34,'INV|016','warn'],['b',132,18,56,34,'INV|017','warn'],['b',194,18,56,34,'INV|030','warn'],['b',256,18,56,34,'INV|045','warn'],['a',98,52,98,104,'','bad',1],['a',222,52,222,104,'','bad',1],['b',8,104,304,40,'AUDIT-08 H1, 09 H1|regressions between the rules','bad'],['t',160,162,'no one can enumerate the interactions']],bh:170,
+ A:[['b',90,10,140,40,'model.ts|pure transition system','acc'],['a',160,50,42,80,'','acc'],['a',160,50,120,80,'','acc'],['a',160,50,198,80,'','acc'],['a',160,50,276,80,'','acc'],['b',6,80,72,34,'legality|table'],['b',84,80,72,34,'inv017|(trace)'],['b',162,80,72,34,'inv030|(trace)'],['b',240,80,72,34,'quiescent|(desired)'],['a',42,114,42,132,'','good'],['a',276,114,276,132,'','good'],['b',8,132,304,28,'spec tables generated from model','good']],ah:170},
+{id:"R2",t:"Spec-to-code correspondence table (Cordis Table 2) as a checked artefact",
+ why:"traceability.md section 4 maps BEH to Planned paths; nothing maps spec elements to code. Cordis's Table 2 is verified in CI.",
+ chg:"Generate references/core/correspondence.md from // @spec BEH-BR-xxx INV-BR-yyy tags in prototypes/host-core/src and test (later packages/core). Columns: spec id, status (Specified / Prototyped / Implemented / Tested), file:line, test name. Extend verify-traceability.sh check 9: a tag naming an undefined id fails; an INV with status Effective and no test tag fails. One CI target verify-spec running core, companions, gxp scripts plus this.",
+ cost:"S-M. Risk: tag rot; mitigated because dangling ids fail the check.",
+ ver:"Run on the prototype; expect a baseline like INV 2/52 tagged, BEH 223/324, then ratchet.",
+ bc:"BEH points to Planned paths; no edge to code.",ac:"Tags in code generate the table; the check fails on drift.",
+ B:[['b',8,20,90,36,'BEH-BR-xxx'],['a',98,38,206,38,'maps to','warn'],['b',206,20,106,36,'Planned path|(not on disk)','warn',1],['b',206,100,106,36,'host-core|src + test'],['t',120,122,'no edge','tbad'],['t',160,160,'nothing maps spec elements to code']],bh:170,
+ A:[['b',8,16,100,40,'// @spec|BEH-BR-xxx'],['a',108,36,150,36,'scan','acc'],['b',150,16,100,40,'correspondence|.md','acc'],['a',200,56,200,86,'','good'],['b',100,86,212,40,'check 9: dangling id fails|INV Effective w/o test fails','good'],['t',160,150,'status: Specified / Prototyped / Implemented / Tested']],ah:170},
+{id:"R3",t:"Process rules that kill the recurring finding classes",
+ why:"Classes by count: (a) fix propagation (CL/PL about 30% of each round), (b) new gate not walked across callers (H4-H6 whenReadable), (c) fail-safe rules checked only against the fail case (H2), (d) follow-up rules decided against one case (AUDIT-08 pattern 1).",
+ chg:"In process/change-control.md and definitions-of-done.md, every CCR adding a MUST on a shared primitive attaches (i) a callers table, (ii) an outcome matrix (operations remove / restart / replace / reconfigure / shutdown / reconcile / system stop x states building / active / draining / parked / failed(cleanup), each cell cited or n/a because), (iii) one executable scenario id per H finding in the acceptance check list, (iv) a freeze: no spec edit lands the round it is audited without the matrix.",
+ cost:"S; adds friction per CCR, but rounds 7-9 cost 64+64+56 findings each.",
+ ver:"Round N+1 high count trends to 0 and the regression tag disappears; track in AUDIT front matter.",
+ bc:"Fix lands, next audit finds it regressed a neighbour.",ac:"A gate with callers table + matrix before the spec lands.",
+ B:[['b',8,60,76,40,'CCR fix|new MUST'],['b',122,60,76,40,'audit N+1'],['b',236,60,76,40,'H regression','bad'],['a',84,80,122,80,''],['a',198,80,236,80,''],['a',274,100,274,130,'','bad',1],['a',274,130,46,130,'','bad',1],['a',46,130,46,102,'','bad',1],['t',160,148,'fix reintroduces a finding','tbad']],bh:160,
+ A:[['b',8,10,76,36,'CCR + new|MUST'],['b',112,10,100,36,'gate: callers|table + matrix','good'],['b',240,10,72,36,'spec lands'],['a',84,28,112,28,''],['a',212,28,240,28,'','good'],['a',140,46,81,76,'','acc'],['a',184,46,239,76,'','acc'],['b',8,76,146,40,'outcome matrix|ops x states','acc'],['b',166,76,146,40,'1 scenario id|per H finding','acc'],['t',160,140,'freeze: no matrix, no spec edit']],ah:150},
+{id:"R4",t:"Property-based and model-based test plan (fast-check on TestHost)",
+ why:"Current random histories are a hand LCG with 5 fixed seeds (confluence.test.ts:18-23); failures are not shrunk and the operation alphabet is partial.",
+ chg:"Add fast-check and prototypes/host-core/test/pbt/: (1) confluence over {install, remove, enable, disable, restart, reconfigure, replace, reconcile, child mount/unmount, wake} with TestClock; (2) state x operation table vs legality.ts incl. in-flight (BEH-BR-183 check 4); (3) LIFO revert with finalizer logs; (4) drain bound within drainTimeout + handoffTimeout + removal steps (INV-BR-017/030); (5) audit chain gapless auditSeq; (6) reconcile twice = once (BEH-BR-159).",
+ cost:"M; flaky if wall time leaks, so TestClock only. Pin fast-check seeds in CI and log the failing seed.",
+ ver:"Mutation check: re-introduce known bugs (G11 cross-plugin order, finalizer slot wait) and require a counterexample.",
+ bc:"5 seeds x 40 ops; failures arrive unshrunk.",ac:"Full alphabet, shrinking, seed logged.",
+ B:[['b',8,20,100,36,'LCG|5 seeds x 40 ops','warn'],['a',108,38,150,38,'run'],['b',150,20,162,36,'fails: raw 40-op log','bad'],['t',160,90,'no shrinking, partial op alphabet'],['b',8,110,304,30,'confluence.test.ts:18 hand-rolled LCG']],bh:150,
+ A:[['b',8,20,92,36,'fast-check|full alphabet','good'],['a',100,38,124,38,''],['b',124,20,70,36,'fails','bad'],['a',194,38,214,38,''],['b',214,20,98,36,'shrink','acc'],['a',263,56,263,92,'','good'],['b',160,92,152,40,'minimal case +|failing seed','good'],['t',160,155,'TestClock only; seeds pinned in CI']],ah:165},
+{id:"R5",t:"Bound prototype divergence",
+ why:"RESULTS.md says the prototype evidences nothing, yet it is the only executable semantics, and it sits at effect 4.0.0 while spikes are at 4.1.4 (340/340 pass unchanged per FINDINGS 07).",
+ chg:"(a) bump the pin; (b) coverage table in RESULTS.md derived from R2 (behaviours 26-34 unprototyped, P7 slice listed); (c) when packages/core starts, run the same PBT suite against both implementations through the TestHost interface; (d) CI fails when a CCR touches a prototyped BEH without a prototype/test change or a prototype-exempt note.",
+ cost:"S for a-b, M for c-d. Risk: treating a throwaway as product; keep the label.",
+ ver:"Not stated beyond the coverage table and the CI rule in the report.",
+ bc:"Stale pin, no divergence detector.",ac:"Coverage table + differential testing.",
+ B:[['b',8,20,140,40,'prototype|effect 4.0.0','warn'],['b',172,20,140,40,'spikes|effect 4.1.4'],['t',160,86,'340/340 pass unchanged (FINDINGS 07)'],['b',8,104,304,40,'RESULTS.md: evidences no requirement|no divergence detector','bad']],bh:155,
+ A:[['b',8,10,144,34,'pin bumped|coverage table','good'],['b',168,10,144,34,'CI: CCR on BEH needs|test or exempt note','good'],['b',8,72,90,36,'prototype'],['b',115,72,90,36,'PBT via|TestHost','acc'],['b',222,72,90,36,'packages/core'],['a',98,90,115,90,'','acc'],['a',222,90,205,90,'','acc'],['t',160,135,'differential testing']],ah:150},
+{id:"R6",t:"Generate what is currently hand-synchronised",
+ why:"Cordis generates docs from vendored code and verifies in CI and gives each event one mode. Bridger's catalogs (error rows, kit catalog, risk rows, glossary) are hand-edited and cross-checked by agents.",
+ chg:"python3 scripts: (i) verify-catalogs.sh: every error tag named in a behaviour appears in exactly one catalog row and vice versa; (ii) every event in 16-event-bus.md declares one dispatch mode, checked against emit sites; (iii) every code fence in guides and spec type-checked against the prototype signatures; (iv) move Change History out of 6-10 KB single-line cells into CHANGES.md per tree; (v) RSK/INV rows in traceability regenerated from Related: fields.",
+ cost:"M; python parsing of markdown prose is fragile, so parse only structured fields.",
+ ver:"Seed deliberate drift (rename an error tag) and see CI fail; the AUDIT Low-class count should fall.",
+ bc:"Hand-edited rows; history in huge cells.",ac:"Scripts check and generate; history in CHANGES.md.",
+ B:[['b',8,16,90,34,'error rows','warn'],['b',108,16,90,34,'risk rows','warn'],['b',208,16,104,34,'glossary|kit catalog','warn'],['b',8,70,304,34,'agent task: cross-check every row of both catalogs','bad'],['b',8,120,304,34,'Change History: 6-10 KB single-line cell','warn']],bh:165,
+ A:[['b',8,10,148,34,'verify-catalogs.sh','good'],['b',164,10,148,34,'one mode per event','good'],['b',8,56,148,34,'doc-typecheck|guides + spec','good'],['b',164,56,148,34,'CHANGES.md per tree','good'],['b',8,104,304,34,'RSK/INV rows regenerated|from Related fields','acc'],['t',160,158,'seed drift, CI must fail']],ah:168},
+{id:"R7",t:"Decide the SpecForge question",
+ why:"specforge.json + spec/hello.spec are a stub; the assessment (verdict: do not migrate) is sound.",
+ chg:"Either delete the stub and mention it in the assessment, or generate a read-only .spec projection of BEH/INV/edges (trace/query value only) in CI. Do not add hand-written .spec.",
+ cost:"S.",ver:"specforge check passes on the generated projection.",
+ bc:"Empty starter stub invites false confidence.",ac:"Deleted, or a generated read-only projection.",
+ B:[['b',8,40,140,44,'specforge.json|spec/hello.spec','warn',1],['b',172,40,140,44,'assessment:|do not migrate'],['t',78,106,'starter stub only'],['t',160,140,'stub invites false confidence','tbad']],bh:150,
+ A:[['b',8,20,100,36,'BEH / INV|edges'],['a',108,38,140,38,'gen','good'],['b',140,20,172,36,'read-only .spec|projection (CI)','good'],['a',226,56,226,86,'','good'],['b',140,86,172,36,'specforge check|passes','good'],['t',58,110,'else: delete stub'],['t',160,150,'never hand-write .spec']],ah:160},
+{id:"R8",t:"Make invariants checkable: structured block per INV",
+ why:"INV text mixes statement, exceptions, sources and test narrative; verification paragraphs cannot be linted.",
+ chg:"Front-matter block per INV: predicate: (model predicate from R1), scope: (events/records inspected), evidence: (test ids, status Planned/Prototyped/Tested), unchecked: (author obligations, e.g. INV-BR-024 generator uniqueness, INV-BR-043 code binding via meta.digest). The verifier checks evidence ids exist and unchecked is non-empty or none.",
+ cost:"M one-off; touches 52 + about 100 INV in other trees. Do core first.",
+ ver:"Table of INV with evidence status in correspondence.md.",
+ bc:"One paragraph mixing everything.",ac:"Four fields a script can lint.",
+ B:[['b',8,10,304,90,'statement + nested exceptions|sources + test narrative|free-text Verification','warn'],['t',160,125,'cannot be linted','tbad']],bh:140,
+ A:[['b',8,10,148,34,'predicate: inv017','acc'],['b',164,10,148,34,'scope: events/records','acc'],['b',8,52,148,34,'evidence: test ids','acc'],['b',164,52,148,34,'unchecked: or none','acc'],['b',8,100,304,34,'verifier: evidence ids exist|unchecked non-empty or none','good'],['t',160,155,'core first, then about 100 INV elsewhere']],ah:165}
+];
+var F=[
+["F1","H","invariants.md (52 INV, INV-BR-017 at :673, INV-BR-016/030 :715-720)","Invariants are paragraphs with nested exceptions; re-amended in CCR-BR-035..041 (7+ revisions)","R1","R8"],
+["F2","H","SPEC-AUDIT-09 H1 vs INV-BR-030; AUDIT-08 H1","Every high regresses the prior round's rule (take-over wait grew a build wait)","R3"],
+["F3","H","traceability.md section 2 line 123; 154 Planned hits","Executable evidence for INV is a column of Planned; prototype cites 2 INV ids","R2","R4"],
+["F4","H","RESULTS.md header (CCR-BR-004); effect 4.0.0 vs 4.1.4","Prototype covers 01-25 + P7; no divergence detector; stale pin","R5"],
+["F5","M","confluence.test.ts:18; p7-confluence.test.ts","Confluence sampled (5 seeds x 40 ops), no shrinking, partial alphabet","R4"],
+["F6","M","BEH-BR-160, 18-reconciliation-and-confluence.md","Confluence stated by exclusion; quiescent-state function never defined","R1"],
+["F7","M","traceability.md Change History cell ~6.4 KB; 114 KB file","History inlined in tables is unreviewable, forces many-row fixes","R6"],
+["F8","M","AUDIT-09 pattern 4; CL1-CL9, PL3-PL18","About a third of findings are stale summaries/rows/glossary scripts could catch","R6"],
+["F9","M","AUDIT-09 H3 (INV-AG-006), H4-H6 whenReadable","Gate added to one primitive without enumerating callers","R3"],
+["F10","M","specforge.json, spec/hello.spec","SpecForge installed but empty; stub invites false confidence","R7"],
+["F11","M","references/*/invariants.md 15 trees; scripts only core + companions","Verifier coverage uneven; no cross-tree id/CCR/catalog check","R2"],
+["F12","L","fast-check absent in host-core and spikes package.json","No PBT dependency","R4"],
+["F13","L","AUDIT-08/09 agent-reported vs verified tags","Resolution not tracked as test; every H gets a scenario id","R3"]];
+var tb=document.querySelector("#ftable tbody");
+F.forEach(function(f){var tr=document.createElement("tr");tr.dataset.sev=f[1];
+ var links=f.slice(4).map(function(r){return '<a href="#'+r+'">'+r+'</a>'}).join(", ");
+ tr.innerHTML='<td class="mono">'+f[0]+'</td><td><span class="sev '+f[1]+'">'+f[1]+'</span></td><td class="ev">'+esc(f[2])+'</td><td>'+esc(f[3])+'</td><td>'+links+'</td>';tb.appendChild(tr)});
+document.querySelectorAll(".filters button").forEach(function(b){b.onclick=function(){
+ document.querySelectorAll(".filters button").forEach(function(x){x.setAttribute("aria-pressed",x===b)});
+ var v=b.dataset.f;tb.querySelectorAll("tr").forEach(function(r){r.hidden=!(v==="all"||r.dataset.sev===v)})}});
+var cards=document.getElementById("cards");
+R.forEach(function(r){var d=document.createElement("article");d.className="card";d.id=r.id;
+ d.innerHTML='<h3><span class="id">'+r.id+'</span>'+esc(r.t)+'</h3><div class="facts"><div><b>Rationale</b>'+esc(r.why)+'</div><div><b>Proposed change</b>'+esc(r.chg)+'</div><div><b>Cost / risk</b>'+esc(r.cost)+'</div><div><b>Verification</b>'+esc(r.ver)+'</div></div>'+
+ '<div class="pair"><figure class="before">'+diag(r.B,r.bh)+'<figcaption><b>Before</b> '+esc(r.bc)+'</figcaption></figure><figure class="after">'+diag(r.A,r.ah)+'<figcaption><b>After</b> '+esc(r.ac)+'</figcaption></figure></div>';
+ cards.appendChild(d)});
+/* matrix for animation A */
+var mx=document.getElementById("mx"),rows=["remove","restart","replace","reconfigure","shutdown","reconcile","system stop"],h="";
+rows.forEach(function(n,i){var y=152+i*16;h+='<g data-s="3"><text x="20" y="'+(y+11)+'" class="mu" font-size="9.5">'+n+'</text></g>';
+ for(var c=0;c<5;c++){var gap=(n==="replace"&&c===2);
+  h+='<rect data-s="'+(gap?5:4)+'" '+(gap?'data-e="6" ':'')+'x="'+(132+c*50+(c>1?6:0)+(c>3?8:0)-(c>1?0:0))+'" y="'+y+'" width="44" height="13" fill="'+(gap?'var(--bad)':'color-mix(in srgb,var(--good) 35%,var(--surface))')+'" stroke="var(--line)"/>';
+  if(gap)h+='<rect data-s="6" x="'+(132+c*50+6)+'" y="'+y+'" width="44" height="13" fill="color-mix(in srgb,var(--good) 35%,var(--surface))" stroke="var(--line)"/>'}});
+mx.innerHTML=h;
+/* ops for animation B */
+var ops=["ins A","ins B","wake","cfg A","mnt","rcn","rst B","dis A","rpl B","rcn","rem B","wake"],drop={0:2,2:2,3:2,4:2,5:3,7:3,8:3,9:3,11:3},og="";
+ops.forEach(function(o,i){og+='<g class="bx'+(drop[i]?'':' acc')+'" '+(drop[i]?'data-d="'+drop[i]+'"':'')+'><rect x="'+(20+i*51)+'" y="48" width="46" height="34" rx="3"/><text x="'+(43+i*51)+'" y="69" text-anchor="middle" font-size="9.5">'+o+'</text></g>'});
+document.getElementById("ops").innerHTML=og;
+/* animation engine */
+var CAP={
+animA:["Today: a CCR adds a MUST on a shared primitive in round N.","The fix lands and the mechanical verifiers report 0 failures. They check form, not meaning.","Round N+1 audit: the fix regressed a neighbouring rule. The take-over wait grew a build wait that deadlocks on the slot (AUDIT-09 H1 vs INV-BR-030). The pattern repeats every round.","Proposed: the CCR attaches an outcome matrix first, operations x states, plus a callers table.","Each cell is walked and cited, or marked n/a with a reason.","The walk exposes a cell with no rule (illustrative: replace x draining) before the spec lands.","The cell is cited, and one executable scenario id per H finding joins the acceptance check list."],
+animB:["A random history of 12 operations is generated over the full alphabet (illustrative).","Run on TestHost with TestClock: after awaitIdle the snapshot differs from a fresh install of the final set. The confluence property (BEH-BR-160) fails.","Shrinking drops chunks of the history and re-runs; each drop that still fails is kept.","It then tries removing each remaining operation and stops when every one is needed.","Report the 3-operation counterexample and the failing seed; CI pins the seed."],
+animC:["Source and tests carry // @spec tags (illustrative lines).","The generator scans src and test for tags.","Rows appear for tagged behaviours, with status, file:line and test name.","An invariant tag adds its own row.","A tag naming an undefined id fails verify-traceability check 9.","Baseline report expected today: INV 2/52 tagged, BEH 223/324, then ratchet upward."]};
+var reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+["animA","animB","animC"].forEach(function(id){
+ var root=document.getElementById(id),caps=CAP[id],N=caps.length,step=N-1,timer=null;
+ var cap=root.querySelector(".cap"),no=root.querySelector(".stepno"),pb=root.querySelector('[data-a=play]');
+ function draw(){root.querySelectorAll("[data-s]").forEach(function(e){var s=+e.dataset.s,en=e.dataset.e?+e.dataset.e:1e9;e.classList.toggle("off",!(step>=s&&step<en))});
+  root.querySelectorAll("[data-d]").forEach(function(e){e.classList.toggle("struck",step>=+e.dataset.d)});
+  cap.textContent=caps[step];no.textContent="Step "+(step+1)+" / "+N}
+ function stop(){clearInterval(timer);timer=null;pb.textContent="Play"}
+ function start(){stop();pb.textContent="Pause";timer=setInterval(function(){step=(step+1)%N;draw()},2200)}
+ pb.onclick=function(){timer?stop():start()};
+ root.querySelector('[data-a=step]').onclick=function(){stop();step=(step+1)%N;draw()};
+ root.querySelector('[data-a=replay]').onclick=function(){step=0;draw();start()};
+ draw();if(reduce)stop();else{pb.textContent="Play"}
+});
+})();
+</script>

@@ -22,7 +22,8 @@ export class PluginRuntime extends Context.Service<PluginRuntime, {
   readonly entitled: import("effect").Stream.Stream<import("./policy.js").EntitlementState>
   readonly unmount: (child: PluginHandle, options: { readonly context: import("./gxp.js").OperationContext }) => Effect.Effect<void>
   /** Point-in-time read of an optional key; never leased (BEH-BR-130). */
-  readonly optional: <S>(key: Context.Key<any, S>) => Effect.Effect<Option.Option<S>>
+  /** Existence check only (report 01, R8): `Some` when an active, compatible provider exists now; the service itself is reached only through `useOptional`, inside its lease. */
+  readonly optional: <S>(key: Context.Key<any, S>) => Effect.Effect<Option.Option<void>>
   /** Runs `run` under a lease when the optional key is available (BEH-BR-131). */
   readonly useOptional: <S, A, E>(key: Context.Key<any, S>, run: (service: S) => Effect.Effect<A, E>) => Effect.Effect<Option.Option<A>, E | LeaseRevoked | LeaseTimeout>
   /** Runs `run` in a child scope whenever every key is available (BEH-BR-132). */

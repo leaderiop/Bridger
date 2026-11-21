@@ -11,7 +11,14 @@ export class FamilyMemberUnavailable extends Schema.TaggedError<FamilyMemberUnav
   family: Schema.String, key: Schema.String, reason: Schema.Literals(["rejected", "failed", "activation-timeout", "options-changed", "invalid-key", "closed"])
 }) {}
 export interface FamilyEvent { readonly type: "family-eviction"; readonly family: string; readonly key: string; readonly outcome: "completed" | "incomplete" | "realm-kept" | "forced" }
-interface Member { readonly realm: string; status: "creating" | "ready" | "failed" | "evicting"; holders: number; lastUse: number; readonly options: string; created: Deferred.Deferred<boolean>; evicted?: Deferred.Deferred<void> }
+interface Member { readonly realm: string; status: "creating" | "ready" | "failed" | "evicting"; holders: number; lastUse: number; readonly options: RealmOptions; created: Deferred.Deferred<boolean>; evicted?: Deferred.Deferred<void> }
+
+/** BEH-BR-330: the same isolated ServiceIds and the same interceptor and mandatory-interception objects, in the same order. */
+const sameOptions = (a: RealmOptions, b: RealmOptions) => {
+  const eq = <T>(x: ReadonlyArray<T> = [], y: ReadonlyArray<T> = [], same: (p: T, q: T) => boolean) => x.length === y.length && x.every((v, i) => same(v, y[i]!))
+  return eq(a.isolate, b.isolate, (p, q) => (p as unknown as { key: string }).key === (q as unknown as { key: string }).key)
+    && eq(a.interceptors, b.interceptors, Object.is) && eq(a.mandatory, b.mandatory, Object.is)
+}
 
 /** Waits until every plugin of `realm` is active, or fails (BEH-BR-331). */
 const awaitActive = (host: Host, realm: string, timeout: number) => Effect.gen(function* () {
@@ -19,7 +26,8 @@ const awaitActive = (host: Host, realm: string, timeout: number) => Effect.gen(f
   while (true) {
     const ps = (yield* host.snapshot).plugins.filter((p) => p.realm === realm)
     if (ps.some((p) => p.state === "failed")) return "failed" as const
-    if (ps.every((p) => p.state === "active")) return "ready" as const
+    if (ps.some((p) => p.state === "disabled" && p.reason === "refused-digest")) return "rejected" as const   // BEH-BR-331
+    if (ps.every((p) => p.state === "active" || p.state === "dormant" || p.state === "disabled")) return "ready" as const   // BEH-BR-331
     if ((yield* Clock.currentTimeMillis) >= deadline) return "activation-timeout" as const
     yield* Effect.sleep(1)
   }
@@ -43,20 +51,19 @@ export const family = <K extends string>(host: Host, o: {
   /** One creation per key, shared by concurrent uses (BEH-BR-331). */
   const ensure = (key: K): Effect.Effect<Member, FamilyMemberUnavailable> => Effect.gen(function* () {
     if (closed) return yield* Effect.fail(unavailable(key, "closed"))
-    if (!/^[A-Za-z0-9._-]{1,64}$/.test(key)) return yield* Effect.fail(unavailable(key, "invalid-key"))
+    if (key === "" || key.includes("/") || key.startsWith("bridger:")) return yield* Effect.fail(unavailable(key, "invalid-key"))   // BEH-BR-330
     const realmOpts = o.realm(key)
-    const fingerprint = JSON.stringify({ isolate: realmOpts.isolate.map((k) => (k as unknown as { key: string }).key), n: realmOpts.interceptors?.length ?? 0, m: realmOpts.mandatory?.length ?? 0 })
     let m = members.get(key)
     if (m?.evicted) { yield* Deferred.await(m.evicted); m = members.get(key) }   // a use during eviction waits, then recreates
     if (m) {
-      if (m.options !== fingerprint) return yield* Effect.fail(unavailable(key, "options-changed"))
+      if (!sameOptions(m.options, realmOpts)) return yield* Effect.fail(unavailable(key, "options-changed"))
       if (m.status === "failed") return yield* Effect.fail(unavailable(key, "failed"))   // not recreated until reset (BEH-BR-334)
       if (m.status === "creating" && !(yield* Deferred.await(m.created))) return yield* Effect.fail(unavailable(key, "failed"))
       return m
     }
     const realm = `${o.id}/${key}`
     const created = yield* Deferred.make<boolean>()
-    const fresh: Member = { realm, status: "creating", holders: 0, lastUse: yield* Clock.currentTimeMillis, options: fingerprint, created }
+    const fresh: Member = { realm, status: "creating", holders: 0, lastUse: yield* Clock.currentTimeMillis, options: realmOpts, created }
     members.set(key, fresh)
     const outcome = yield* Effect.gen(function* () {
       yield* host.defineRealm(realm, realmOpts, opts)

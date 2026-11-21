@@ -210,7 +210,7 @@ describe("children (behaviour 14)", () => {
     }))
   })
 
-  it("finding G21: a parent that awaits its child inside its build starves when the child needs the build slot it holds", async () => {
+  it("finding G21 (report 01 R9): a parent that awaits its child inside its build gives its slot back, so the child can build", async () => {
     const j = journal()
     await run((host) => Effect.gen(function* () {
       const parent: AnyPlugin = {
@@ -225,9 +225,9 @@ describe("children (behaviour 14)", () => {
       yield* host.install(parent, as())
       yield* idle(host)
       const app = yield* find(host, "app")
-      expect(app?.state === "failed" && app.failure.message).toContain("timeout")
-      expect(yield* stateIn(host, "app/child")).toBe("uninstalled")         // unmounted with the failed activation
-    }), { options: { concurrency: 1, buildTimeout: 100 } })
+      expect(app?.state).toBe("active")
+      expect(yield* stateIn(host, "app/child")).toBe("active")
+    }), { options: { concurrency: 1, buildTimeout: 4000 } })
   })
 })
 

@@ -184,7 +184,8 @@ export const make = (options: Host.Options = {}): Effect.Effect<TestHost, never,
   const testHost: TestHost = {
     ...host,
     install: (def: AnyPlugin | import("./plugin.js").PluginAny | LazyPluginDefinition, o: InstallOptions & { readonly owner?: string } = {}) => host.install(isLazy(def) ? def : wrap(def as AnyPlugin, o.realm ?? "default"), o),
-    replace: (def: AnyPlugin, o: Host.RemoveOptions & { readonly realm?: string } = {}) => host.replace(wrap(def, o.realm ?? "default"), o),
+    replace: (def: AnyPlugin, o: Host.ReplaceOptions = {}) => host.replace(wrap(def, o.realm ?? "default"),
+      o.onFailure && o.onFailure !== "stay-failed" ? { ...o, onFailure: { rollback: wrap(o.onFailure.rollback, o.realm ?? "default") } } : o),
     reconcile: (desired: ReadonlyArray<DesiredPlugin>, o?: Host.ReconcileOptions & import("./gxp.js").OperationOptions) =>
       host.reconcile(desired.map((d) => ({ ...d, plugin: isLazy(d.plugin) ? d.plugin : wrap(d.plugin, d.realm ?? "default") })), o),
     step, stepPlugin: (ref) => {
