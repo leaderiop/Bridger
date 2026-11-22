@@ -94,10 +94,32 @@
 
 **Cost/risk.** Trivial. **Verification.** Test that a failing listener's event names its owner.
 
+## Resolution status (2026-11-22)
+
+Branch `spec/events-report-04`; prototype suite 663/663 (649 at the start); `verify-traceability.sh --strict` and `verify-events.sh` report 0 failures. The recommendations above are the proposals; this table is what was built. Differences: `around` takes `(event, listener, {role})`, the parallel policy lives in the key, and a decide-role listener is unrecorded (a recorded decision is a hook point).
+
+| Finding | Rec. | Status | As built |
+| --- | --- | --- | --- |
+| EV-01 | R1 | Resolved | `Event.make(id, {mode})`: the key carries one of `emit`, `parallel`, `serial`, `waterfall`; `on` takes the three `on` modes, `around` only `waterfall`; a wrong pair is a compile error (`@ts-expect-error` tests). For an untyped caller the bus dies with `EventModeMismatch` naming the event, and it remembers each id's first mode, so a second key object with another mode is refused. The report said no event was used with two modes; the prototype's own tests did (four ids in `bus.test` and `p7-lifecycle`), and were split. |
+| EV-02 | R2 | Resolved | `references/core/scripts/verify-events.sh` extracts every `Event.make` (prototype and specs), `HookPoint.make` and `HostEventBody` tag, fails on a missing mode, an id with two modes, a call site of another mode, a host event 13 does not specify and a stale `appendices/event-catalog.md` (generated, BRIDGER-APP-03). Documentation gate D2 and the change-control rule require the catalog row in the same change. Its first run found real drift: spec 31 listed `HookPointOptions.drainTimeout` and the prototype did not have it; it is implemented now. |
+| EV-03 | R4 | Resolved | `BridgerOptions.listenerConcurrency` (default 64) and per-listener `maxInFlight`: running plus waiting invocations are bounded; an overflowing invocation is dropped and `listener-overflow` is reported once per overflow episode and again with `ended` and the total, so a storm is one event, not thousands. |
+| EV-04 | R4 | Resolved | BEH-BR-141 states that completion order is unspecified and that cross-emit order holds only for listeners registered with `serialised: true` (a per-listener mailbox, FIFO, counted by the bound). |
+| EV-05 | R3 | Resolved | `around(event, fn, {role})`, role required. `observe` must run `next`: if it returns without, the bus runs the tail, uses its result and reports `listener-failed` “observer skipped next”. `decide` may answer without it. `next` is once-only: the second call is a `NextCalledTwice` defect and the tail runs once (not memoised, which would hide the double call). |
+| EV-06 | R1, R5 | Resolved | A decision table in 16 (emit, serial/parallel, waterfall observe/decide, hook point, OperationGate); `serial` is first-answer-wins and is not an audited decision; the roles mark intent. |
+| EV-07 | (none in the report) | Resolved, recommendation added | `parallel` runs at a bounded concurrency (default `listenerConcurrency`) and `failure: "settle"` is the default: every listener finishes, the first failure in listener order fails the dispatch, the others are reported as `listener-failed`. `failure: "fail-fast"` keeps the old behaviour; both are options of the key. |
+| EV-08 | R2, R6 | Resolved | `listener-failed` and `listener-overflow` carry `listenerId` and the owner as `pluginId`; `inspect` lists each listener with the same `id`; the catalog check ties every host-event tag to the union in 13. |
+| EV-09 | R5 | Resolved | Glossary section “Failure policies” separates the listener failure policy, `onError` (hook point) and `onFailure` (runtime fiber); the listener policy is stated: isolated, reported, never retried. |
+| EV-10 | R5 | Resolved | One “Option defaults” table in 31 for all 17 `HookPointOptions` fields, checked by `verify-events.sh` against both the interface in 31 and `hooks.ts` in both directions. `allowSkipOnVeto` (default false): a point with codes whose `onError` can let a veto fail open must say so, or `HookPoint.make` dies. Several existing tests relied on the one-word form and now state it. |
+| EV-11 | (none in the report) | Resolved, documented | BEH-BR-140: `priority` orders first and `prepend` only among equals. The report's pointer to BEH-BR-146 was wrong: that behaviour is about key resolution in realms. The bus is one service shared by all realms (BEH-BR-137), so there is no global option and a listener filters on arguments or `CurrentPlugin` if it needs to. |
+| EV-12 | R4 | Resolved | `BridgerOptions.emitDepthCap` (default 16) over `CurrentDispatchChain`: a dispatch started inside that many nested listeners dies with `EmitDepthExceeded` naming the chain; under `emit` it is reported as `listener-failed`. |
+| EV-13 | R2 | Not reproduced as stated | No companion specification declares a `Bridger.Events` key: the agent loop streams `ModelEvent`s and the command and agent companions use hook points, not bus events. The catalog lists their hook points (`@bridger/agent/eval`, `checkout`), and any future `Event.make` in a companion is extracted and checked by the same script. |
+
 ## Not checked / uncertainties
 
-- I did not read BEH-BR-301-312 or the hook implementation line by line (`hooks.ts`, 466 lines); hook findings rely on type signatures and behaviour headings.
-- I did not verify durable-bus order guarantees (BEH-DB-xxx) or event-store projection ordering, nor `references/mcp` pipeline behaviour; only grep-level checks.
-- BEH-BR-146 (cited in EV-11 as the realm answer to `global`) was not opened; treat as an unverified pointer.
-- EV-07 and EV-12 are inferred from code behaviour, not from a failing test; no prototype tests were run.
-- Whether `Event.make` ids are used with more than one dispatcher in the prototype's tests was not counted.
+- Corrected from the first reading: BEH-BR-146 is about key resolution in realms, not a global-listener answer; the gate behaviours are BEH-BR-217 to 224; the "no event is used with two modes" remark was wrong for the prototype's tests; EV-13 does not hold as stated.
+- No throwaway reproduction of EV-05, EV-07 or EV-12 was run against the old code first; each fix has a test and a mutation check.
+- `hooks.ts` was read at option validation and the registry only; the defaults table is checked for field names, not for each value.
+- The catalog extractor is regex-based and checks call sites within one file; a key imported from another file is checked by the compiler.
+- `listener-overflow` counts drops per episode; there is no cumulative per-listener counter.
+- Durable-bus ordering, event-store projection ordering and the `references/mcp` pipeline were not changed or re-read.
+- Loaded-run stability: the touched test files ran 8 times, and the full suite once, under six busy-loop processes with no failure; no longer sweep.
