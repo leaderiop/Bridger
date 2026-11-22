@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-02                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-22): BEH-KT-013 the settlement guarantee and the `runUntilIdle` bound are stated in the kit documentation (improvement report 05, DX-10)<br>0.3 (2026-11-11): BEH-KT-011: the close check excludes a "cleanup" entry whose plugin id is listed in `expectFailed` (L5) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.2 (2026-11-08): Core fixtures `scriptedRefusalList` and `memoryCallLog` (`onFailure`, `queue`) re-exported; hook `settle` observed through core (core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.5 (2026-11-22): as-built note: the prototype implements mount, stub, partial, actor, context and it.plugin (improvement report 05 follow-up)<br>0.4 (2026-11-22): BEH-KT-013 the settlement guarantee and the `runUntilIdle` bound are stated in the kit documentation (improvement report 05, DX-10)<br>0.3 (2026-11-11): BEH-KT-011: the close check excludes a "cleanup" entry whose plugin id is listed in `expectFailed` (L5) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.2 (2026-11-08): Core fixtures `scriptedRefusalList` and `memoryCallLog` (`onFailure`, `queue`) re-exported; hook `settle` observed through core (core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -26,7 +26,7 @@ Every helper here runs through a `TestHost`; none has a path of its own
 This file owns BEH-KT-009–016 and uses BEH-KT-009–014; 015 and 016 are
 reserved.
 
-Planned source: `packages/kit/src/testing/PluginTest.ts` *(Planned)*.
+Planned source: `packages/kit/src/testing/PluginTest.ts` *(Planned)*. Prototype: `prototypes/host-core/src/plugin-test.ts` and `kit-testing.ts` (`mount`, `stub`, `partial`, `actor`, `context`, `it.plugin`; `test/plugin-test.test.ts`). Not in the prototype: `record`, `holdLease`, the `mount` realm definition and the `KitTypeError` for a missing provision.
 
 ## BEH-KT-009: mount installs one plugin with its provisions and waits for it
 

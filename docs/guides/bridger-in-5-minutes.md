@@ -2,9 +2,8 @@
 
 Status: **partly executable.** The names follow
 the [core specification](../../references/core/overview.md) and the
-[kit specification](../../references/kit/overview.md). Snippets 1 and 2 are
-compiled in CI (`type-checked: yes`); 3 to 5 need the host facade and the
-testing kit, which have no code yet.
+[kit specification](../../references/kit/overview.md). Snippets 1 to 4 are
+compiled in CI (`type-checked: yes`); the `bridger` commands of 5 need the CLI, which has no code yet.
 
 Bridger composes an application from **plugins**. A plugin declares the
 services it **requires** and **provides**; a **host** starts each plugin when
@@ -73,10 +72,24 @@ No `as const`, no casts.
 
 ## 3. Run them in a host
 
+<!-- prelude
+import { Context, Schema } from "effect"
+import { definePlugin } from "@bridger/kit"
+class Logger extends Context.Service<Logger, { readonly log: (message: string) => Effect.Effect<void> }>()("example/Logger") {}
+class Greeter extends Context.Service<Greeter, { readonly greet: (name: string) => Effect.Effect<string> }>()("example/Greeter") {}
+const logger = definePlugin({ id: "example/logger", provides: Logger, make: Effect.succeed({ log: (message: string) => Effect.log(message) }) })
+const greeter = definePlugin({
+  id: "example/greeter", requires: [Logger], provides: Greeter, config: Schema.Struct({ greeting: Schema.String }),
+  make: ({ config }) => Effect.gen(function* () {
+    const log = yield* Logger
+    return { greet: (name: string) => log.log(`greeting ${name}`).pipe(Effect.as(`${config.greeting}, ${name}!`)) }
+  })
+})
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
 import { Effect } from "effect"
-import { Actor, Bridger } from "@bridger/core"
+import { Bridger, type Actor } from "@bridger/core"
 
 const operator: Actor = { id: "user-42", kind: "user", display: "J. Doe" }
 const ctx = { context: { actor: operator, reason: "first run" } }
@@ -86,7 +99,7 @@ const program = Effect.scoped(Effect.gen(function* () {
 
   yield* host.install(greeter, { ...ctx, config: { greeting: "Hello" } })  // waiting: Logger missing
   yield* host.install(logger, ctx)                                          // logger starts, then greeter
-  yield* host.awaitIdle()
+  yield* host.awaitIdle
 
   const text = yield* host.use(Greeter, (g) => g.greet("Ada"))
   yield* Effect.log(text)                                                   // "Hello, Ada!"
@@ -105,8 +118,21 @@ sequenced record.
 
 ## 4. Test one plugin
 
+<!-- prelude
+import { Context, Schema } from "effect"
+import { definePlugin } from "@bridger/kit"
+class Logger extends Context.Service<Logger, { readonly log: (message: string) => Effect.Effect<void> }>()("example/Logger") {}
+class Greeter extends Context.Service<Greeter, { readonly greet: (name: string) => Effect.Effect<string> }>()("example/Greeter") {}
+const greeter = definePlugin({
+  id: "example/greeter", requires: [Logger], provides: Greeter, config: Schema.Struct({ greeting: Schema.String }),
+  make: ({ config }) => Effect.gen(function* () {
+    const log = yield* Logger
+    return { greet: (name: string) => log.log(`greeting ${name}`).pipe(Effect.as(`${config.greeting}, ${name}!`)) }
+  })
+})
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
 import { Effect } from "effect"
 import { expect } from "vitest"
 import { PluginTest, it } from "@bridger/kit/testing"

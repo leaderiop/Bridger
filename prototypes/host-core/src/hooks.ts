@@ -4,7 +4,7 @@
 //  - The owner is read from `@bridger/core/ActivePlugin` (no plugin principal in this prototype, core 28).
 //  - Durations are milliseconds. The wake step polls the registry and the HostLink every millisecond.
 //  - The deadline annotation of core 30 is not read; the effective deadline is min(point, call option).
-import { Cause, Clock, Deferred, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Stream } from "effect"
+import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Stream } from "effect"
 import { ActivePlugin } from "./active.js"
 import { HostLink, type DeclaredContribution } from "./host.js"
 import * as Registry from "./registry.js"
@@ -38,10 +38,10 @@ export interface HookPointOptions<In, En, Ad, Code extends string, Target, Sel> 
   readonly advice?: Schema.Schema<Ad>
   readonly who: AdmissionRule<Sel>
   readonly labelsOf?: (owner: HookOwner) => Labels
-  readonly timeout: number
-  readonly deadline: number
+  readonly timeout: Duration.Input                        // per hook call (BEH-BR-302)
+  readonly deadline: Duration.Input                       // per dispatch (BEH-BR-303)
   readonly onError: OnErrorPolicy
-  readonly breaker?: { readonly failures: number; readonly window: number; readonly cooldown: number } | "off"
+  readonly breaker?: { readonly failures: number; readonly window: Duration.Input; readonly cooldown: Duration.Input } | "off"
   readonly breakerScope?: "contribution" | "plugin"
   readonly dormant?: DormantPolicy
   readonly targets?: { readonly descriptor: (input: In) => Target; readonly selector: Schema.Schema<Sel>; readonly matches: (sel: Sel, target: Target) => boolean }
@@ -92,7 +92,9 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
   id: string, options: HookPointOptions<In, En, Ad, Code, Target, Sel>
 ): Effect.Effect<HookPoint<In, En, Ad, Code, Target, Sel>, never, Scope.Scope> => Effect.gen(function* () {
   // BEH-BR-297: option defects.
-  const o = options
+  // Durations are `Duration.Input` (BEH-BR-297): "200 millis", 200 and Duration.millis(200) are one thing; the rest of the point reads milliseconds.
+  const ms = Duration.toMillis
+  const o = { ...options, timeout: ms(options.timeout), deadline: ms(options.deadline), breaker: options.breaker === undefined || options.breaker === "off" ? options.breaker : { ...options.breaker, window: ms(options.breaker.window), cooldown: ms(options.breaker.cooldown) } }
   const defect = (why: string) => Effect.die(new Error(`hook point ${id}: ${why}`))
   if (new Set(o.codes).size !== o.codes.length) return yield* defect("a code repeats")
   if (!(o.timeout > 0 && Number.isFinite(o.timeout)) || !(o.deadline > 0 && Number.isFinite(o.deadline)) || o.timeout > o.deadline) return yield* defect("timeout/deadline")
@@ -195,10 +197,10 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
     })
 
   // ------------------------------------------------------------ dispatch (BEH-BR-299–312)
-  const dispatch = (input: In, dopts: { readonly deadline?: number } = {}): Effect.Effect<HookOutcome<En, Ad, Code>> => Effect.gen(function* () {
+  const dispatch = (input: In, dopts: { readonly deadline?: Duration.Input } = {}): Effect.Effect<HookOutcome<En, Ad, Code>> => Effect.gen(function* () {
     const startedMs = yield* Clock.currentTimeMillis
     const dispatchId = `${id}#${++dispatchSeq}`
-    const deadlineMs = Math.min(o.deadline, dopts.deadline ?? Infinity)
+    const deadlineMs = Math.min(o.deadline, dopts.deadline === undefined ? Infinity : Duration.toMillis(dopts.deadline))
     const end = startedMs + deadlineMs
     const remaining = Effect.map(Clock.currentTimeMillis, (now) => Math.max(0, end - now))
     type Step = HookDecisionRecord["steps"][number]

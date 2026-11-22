@@ -60,15 +60,20 @@ if blocks:
         # one scope per snippet: wrapping in a block keeps names from clashing, imports stay at the top
         imports = [l for l in body.split("\n") if re.match(r'\s*import\b', l)]
         rest = [l for l in body.split("\n") if l not in imports]
+        # `//# file <name>` lines in a prelude start a fixture file written beside the snippet (a JSON manifest, a module it imports)
+        parts = re.split(r'^//# file (\S+)\n', prelude, flags=re.M)
+        prelude, fixtures = parts[0], list(zip(parts[1::2], parts[2::2]))
         pre_imports = [l for l in prelude.split("\n") if re.match(r'\s*import\b', l)]
         pre_rest = [l for l in prelude.split("\n") if l not in pre_imports]
         src = "\n".join(pre_imports + imports) + "\n" + "\n".join(pre_rest) + "\n" + "\n".join(rest) + "\nexport {}\n"
-        open(os.path.join(scratch, f"s{i}.ts"), "w", encoding="utf-8").write(src)
-    json.dump({"extends": "../tsconfig.json", "compilerOptions": {"baseUrl": "..", "paths": {"@bridger/kit": ["src/kit.ts"], "@bridger/core": ["src/index.ts"]}}, "include": ["./*.ts"]},
+        os.makedirs(os.path.join(scratch, f"s{i}"))
+        open(os.path.join(scratch, f"s{i}", "main.ts"), "w", encoding="utf-8").write(src)
+        for name, content in fixtures: open(os.path.join(scratch, f"s{i}", name), "w", encoding="utf-8").write(content)
+    json.dump({"extends": "../tsconfig.json", "compilerOptions": {"resolveJsonModule": True, "baseUrl": "..", "paths": {"@bridger/kit": ["src/kit.ts"], "@bridger/core": ["src/index.ts"], "@bridger/kit/testing": ["src/kit-testing.ts"], "@bridger/core/testing": ["src/core-testing.ts"]}}, "include": ["./*/*.ts"]},
               open(os.path.join(scratch, "tsconfig.json"), "w"))
     r = subprocess.run(["npx", "tsc", "-p", os.path.join(scratch, "tsconfig.json"), "--pretty", "false"], cwd=PROTO, capture_output=True, text=True)
     for l in (r.stdout + r.stderr).splitlines():
-        m = re.match(r'\.doc-snippets/s(\d+)\.ts\((\d+),\d+\): (.*)', l) or re.match(r'(?:.*/)?s(\d+)\.ts\((\d+),\d+\): (.*)', l)
+        m = re.match(r'(?:.*/)?s(\d+)/main\.ts\((\d+),\d+\): (.*)', l)
         if m:
             f, line, _, _ = blocks[int(m.group(1))]
             fails.append(f"{os.path.relpath(f, ROOT)}:{line}: snippet does not compile: {m.group(3)[:160]}")

@@ -5,11 +5,12 @@ import type * as annotations_ from "./annotations.js"
 import type * as errors_ from "./errors.js"
 import type * as gxp_ from "./gxp.js"
 import type * as hooks_ from "./hooks.js"
+import type * as plugin_test_ from "./plugin-test.js"
 import type * as policy_ from "./policy.js"
 import type * as realms_ from "./realms.js"
 
 type TagOf<M> = { readonly [K in keyof M]: M[K] extends abstract new (...a: any) => { readonly _tag: infer T } ? T : never }[keyof M]
-export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof errors_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof policy_> | TagOf<typeof realms_>
+export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof errors_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof plugin_test_> | TagOf<typeof policy_> | TagOf<typeof realms_>
 export interface Entry { readonly kind: string; readonly raisedBy: string; readonly cause: string; readonly fix: string }
 export const entries = {
   AccessDenied: { kind: "defect", raisedBy: "bus listen or emit, registry contribute, child mount", cause: "A wired `AccessPolicy` denied the request (`kind`, `subject`, `principal`, `reason`); nothing was registered", fix: "Ask the integrator to allow the access, or do not attempt it" },
@@ -46,6 +47,7 @@ export const entries = {
   LeaseTimeout: { kind: "error", raisedBy: "per-call timeout", cause: "The callback exceeded its `timeout`", fix: "Raise the timeout or make the call shorter" },
   LoadFailed: { kind: "error (cause)", raisedBy: "activation of a lazy plugin, phase \"load\"", cause: "The lazy plugin's `load` failed, died or timed out (`id`, `message`); the plugin is `failed` with phase \"load\" and published nothing", fix: "Fix the code source or the loader, then `retry` (which loads again)" },
   ManifestMismatch: { kind: "error (cause)", raisedBy: "activation of a lazy plugin, phase \"load\"", cause: "The loaded definition differs from the registered manifest in `field` (id, version, digest, keys or contract references)", fix: "Register the matching manifest (`replace`) or load the code the manifest describes" },
+  MissingProvision: { kind: "error", raisedBy: "`PluginTest.mount`", cause: "The subject stayed `waiting`: `missingServiceIds` have no provision", fix: "Add a `PluginTest.stub` for each, or pass `allowWaiting`" },
   MonotonicAnnotation: { kind: "defect", raisedBy: "`Annotation.replace`", cause: "The key is declared `monotonic: true` (for example `Annotation.Taint`); its value can only be combined, never replaced (`id`)", fix: "Start new work from a fresh context only where the key's owner allows it; never strip a monotonic label" },
   NoPluginPrincipal: { kind: "error", raisedBy: "`CurrentPlugin.require`", cause: "Called outside plugin code", fix: "Call it only from plugin code, or use the non-failing form" },
   OperationRejected: { kind: "error", raisedBy: "every mutating operation except `shutdown` (per entry for `reconcile`)", cause: "The `OperationGate` refused (`reason`)", fix: "Obtain the approval the gate requires" },
@@ -62,6 +64,7 @@ export const entries = {
   ResolutionRefused: { kind: "error", raisedBy: "`use`, `useAll`, `lease`", cause: "The `CapabilityPolicy` refused the resolution (`reason`)", fix: "Ask for a grant for this key" },
   ServiceUnavailable: { kind: "error", raisedBy: "`use`, `useAll`, `lease`", cause: "No active provider for the key", fix: "Check `bridger inspect <plugin>`; in tests add a provision" },
   SettleTimeout: { kind: "error", raisedBy: "`awaitSettled` (BEH-BR-040)", cause: "The named plugins were not settled within the timeout; the error lists their `ids`", fix: "Inspect the plugins in `ids`, provide what they wait for, or raise the timeout" },
+  StubNotImplemented: { kind: "defect", raisedBy: "a `PluginTest.partial` double", cause: "The test reached a member the double does not implement", fix: "Implement the member in the partial, or use `PluginTest.stub`" },
   Superseded: { kind: "error", raisedBy: "an earlier caller", cause: "A later operation on the same plugin overtook this call", fix: "Usually expected; re-read state and decide again" },
   Unattributed: { kind: "error", raisedBy: "every mutating operation", cause: "`attribution.require` is set and no actor was supplied", fix: "Pass `{ context: { actor } }`" },
   UnknownPlugin: { kind: "error", raisedBy: "every operation on a ref; `bridger.host.inspect` (mcp/04)", cause: "No plugin with this id in this realm", fix: "Check the id and realm (`\"id\"` means the default realm)" },

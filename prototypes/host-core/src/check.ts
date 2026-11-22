@@ -6,10 +6,12 @@ import { pathToFileURL } from "node:url"
 import type { Contract } from "./contract.js"
 import { checkRelease, snapshotOf, type Change, type ContractSnapshot } from "./contractcheck.js"
 import { disagreement, plainKeyProblems, plainKeysOfDefinition, type PluginManifest } from "./manifest.js"
+import { undeclaredCallTimeUse, type UndeclaredCallTimeUse } from "./lint.js"
 import type { AnyPlugin } from "./plugin.js"
 
-export interface Package { readonly contracts?: ReadonlyArray<Contract>; readonly manifests?: ReadonlyArray<PluginManifest>; readonly definitions?: ReadonlyArray<AnyPlugin> }
+export interface Package { readonly contracts?: ReadonlyArray<Contract>; readonly manifests?: ReadonlyArray<PluginManifest>; readonly sources?: ReadonlyArray<{ readonly file: string; readonly text: string }>; readonly definitions?: ReadonlyArray<AnyPlugin> }
 export type Finding =
+  | UndeclaredCallTimeUse
   | { readonly _tag: "PlainCrossBoundaryKey"; readonly plugin: string; readonly serviceId: string; readonly path: string }
   | { readonly _tag: "ManifestMismatch"; readonly plugin: string; readonly field: string }
   | { readonly _tag: "DuplicateDependencyCopy"; readonly package: string; readonly copies: ReadonlyArray<{ readonly path: string; readonly version: string }> }
@@ -18,6 +20,7 @@ export type Finding =
 /** Every finding for a package, in a stable order: plain keys by plugin, then contracts by ServiceId. */
 export const check = (pkg: Package, lock: ReadonlyArray<ContractSnapshot>): ReadonlyArray<Finding> => {
   const out: Array<Finding> = []
+  for (const src of pkg.sources ?? []) out.push(...undeclaredCallTimeUse(src.text, src.file))
   const withManifest = new Set((pkg.manifests ?? []).map((m) => m.id))
   for (const m of pkg.manifests ?? []) for (const p of plainKeyProblems(m)) out.push({ _tag: "PlainCrossBoundaryKey", plugin: m.id, serviceId: p.serviceId, path: p.path })
   // A definition without a manifest: every plain key it names (BEH-KT-028).
@@ -62,7 +65,9 @@ export const findDuplicateCopies = async (root: string): Promise<ReadonlyArray<F
   return [...found].filter(([, c]) => c.size > 1).map(([name, c]) => ({ _tag: "DuplicateDependencyCopy" as const, package: name, copies: [...c].map(([path, version]) => ({ path, version })).sort((a, b) => a.path < b.path ? -1 : 1) }))
 }
 
-const line = (f: Finding): string => f._tag === "PlainCrossBoundaryKey"
+const line = (f: Finding): string => f._tag === "UndeclaredCallTimeUse"
+  ? `${f._tag} ${f.pluginId} ${f.serviceId} (${f.file}:${f.line}): use ctx.use or ctx.useOptional and declare it in requires or optional`
+  : f._tag === "PlainCrossBoundaryKey"
   ? `${f._tag} ${f.plugin} ${f.serviceId} (${f.path})`
   : f._tag === "ManifestMismatch" ? `${f._tag} ${f.plugin} (${f.field})`
   : f._tag === "DuplicateDependencyCopy" ? `${f._tag} ${f.package}: ${f.copies.map((c) => `${c.version} at ${c.path}`).join(", ")}`

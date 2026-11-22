@@ -211,8 +211,10 @@ export interface LazyPluginDefinition {
   readonly holdTimeout: Duration.Input
   readonly digestConflict?: true
 }
-export const lazy = (options: { readonly manifest: PluginManifest; readonly load: Effect.Effect<AnyPlugin, unknown>; readonly digest?: string; readonly idle?: Duration.Input; readonly holdTimeout?: Duration.Input }): LazyPluginDefinition => {
-  const m = options.manifest
+/** What a JSON import of a manifest looks like to the compiler: literals widened. `lazy` and the host's decoder check the values (BEH-BR-241), so a file written by `bridger pack` is accepted as it is read. */
+export type FromJson<T> = T extends string ? string : T extends number ? number : T extends boolean ? boolean : T extends ReadonlyArray<infer U> ? ReadonlyArray<FromJson<U>> : T extends object ? { readonly [K in keyof T]: FromJson<T[K]> } : T
+export const lazy = (options: { readonly manifest: PluginManifest | FromJson<PluginManifest>; readonly load: Effect.Effect<AnyPlugin, unknown>; readonly digest?: string; readonly idle?: Duration.Input; readonly holdTimeout?: Duration.Input }): LazyPluginDefinition => {
+  const m = options.manifest as PluginManifest
   const digest = options.digest ?? (isObj(m) ? m.digest : undefined)
   return {
     _tag: "LazyPlugin", id: isObj(m) ? m.id : (undefined as never), manifest: m, load: options.load,

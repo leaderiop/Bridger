@@ -3,10 +3,9 @@
 Status: **partly executable.** The facade (`definePlugin`), typed configuration,
 contracts and `ctx.use` exist in the prototype (`prototypes/host-core/src/kit.ts`);
 every snippet marked `type-checked: yes` is compiled against it by
-[`doc-typecheck.sh`](../../references/kit/scripts/doc-typecheck.sh). The others
-name pieces with no code yet (the testing kit, the host facade, the promise SDK,
-manifest loading) or the specified duration strings the prototype takes as
-numbers. Normative text:
+[`doc-typecheck.sh`](../../references/kit/scripts/doc-typecheck.sh). The testing
+kit, the host entry (`Bridger.make`), hook points with duration strings and
+lazy plugins are all compiled; nothing in this guide is `not yet`. Normative text:
 [kit behaviours 01–02](../../references/kit/behaviors/01-plugin-facade.md) and
 core behaviours [01](../../references/core/behaviors/01-plugin-definition.md)–[34](../../references/core/behaviors/34-state-handoff.md).
 
@@ -147,10 +146,20 @@ last release and fails on a change that breaks this rule.
 A plugin that most sessions never use can be registered from its manifest and
 loaded on first need ([core 27](../../references/core/behaviors/27-manifest-and-lazy-activation.md)):
 
+<!-- prelude
+//# file reports.manifest.json
+{ "manifestVersion": 1, "id": "example/reports", "version": "1.0.0", "provides": [{ "serviceId": "example/Reports" }], "requires": [] }
+//# file reports.ts
+import { Context, Effect } from "effect"
+import { definePlugin } from "@bridger/kit"
+class Reports extends Context.Service<Reports, { readonly run: Effect.Effect<string> }>()("example/Reports") {}
+export const plugin = definePlugin({ id: "example/reports", provides: Reports, make: Effect.succeed({ run: Effect.succeed("ok") }) })
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
+import { Effect } from "effect"
 import { Plugin } from "@bridger/core"
-import manifest from "./reports.manifest.json"   // written by `bridger pack`, with a `role` on hook contributions
+import manifest from "./reports.manifest.json" with { type: "json" }   // written by `bridger pack`, with a `role` on hook contributions
 
 export const reports = Plugin.lazy({
   manifest,                                      // data: id, version, provides, requires, contributions, listens
@@ -179,23 +188,39 @@ Whether a contribution runs at all is the point's `policy`, which returns
 `skip` in earlier drafts. `settle` runs once after each call the policy let
 run, for example to refund a budget.
 
+<!-- prelude
+import { Schema } from "effect"
+const Cart = Schema.Struct({ items: Schema.Number })
+type Cart = typeof Cart.Type
+const Discount = Schema.Struct({ percent: Schema.Number })
+type Discount = typeof Discount.Type
+const trusted = new Set<string>(["stock"])
+const licensed = (_owner: unknown) => true
+const refund = (_owner: unknown) => Effect.void
+const checkStock = (_cart: Cart) => Effect.succeed({ _tag: "Pass" as const })
+-->
 ```ts
-// type-checked: not yet (implementation absent)
-const beforeCheckout = yield* HookPoint.make<Cart, Discount, never, "out-of-stock" | "unlicensed">("shop/before-checkout", {
-  codes: ["out-of-stock", "unlicensed"],
-  enrichment: Discount,
-  who: (contributor, role, point, request) => role !== "veto" || trusted.has(contributor.pluginId ?? ""),
-  timeout: "200 millis",
-  deadline: "1 second",
-  onError: "deny",
-  policy: (step, cart) => licensed(step.owner)
-    ? Effect.succeed({ _tag: "Run" })
-    : Effect.succeed(step.role === "veto" ? { _tag: "Deny", reason: "unlicensed" } : { _tag: "Skip", reason: "unlicensed" }),
-  settle: (step, cart) => step.outcome === "failed" ? refund(step.owner) : Effect.void
-})
+// type-checked: yes
+import { Effect } from "effect"
+import { HookPoint } from "@bridger/core"
 
-// in a contributing plugin's build
-yield* beforeCheckout.register("stock/check", checkStock, { role: "veto" })
+export const program = Effect.gen(function* () {
+  const beforeCheckout = yield* HookPoint.make<Cart, Discount, never, "out-of-stock" | "unlicensed">("shop/before-checkout", {
+    codes: ["out-of-stock", "unlicensed"],
+    enrichment: Discount,
+    who: (contributor, role, point, request) => role !== "veto" || trusted.has(contributor.pluginId ?? ""),
+    timeout: "200 millis",
+    deadline: "1 second",
+    onError: "deny",
+    policy: (step, cart) => licensed(step.owner)
+      ? Effect.succeed({ _tag: "Run" })
+      : Effect.succeed(step.role === "veto" ? { _tag: "Deny", reason: "unlicensed" } : { _tag: "Skip", reason: "unlicensed" }),
+    settle: (step, cart) => step.outcome === "failed" ? refund(step.owner) : Effect.void
+  })
+
+  // in a contributing plugin's build
+  yield* beforeCheckout.register("stock/check", checkStock, { role: "veto" })
+})
 ```
 
 Phases run enrich, then veto, then advise. A `Deny` on a veto contribution ends
@@ -206,8 +231,23 @@ outside a plugin or a lease provides the host's link:
 
 ## Testing
 
+<!-- prelude
+import { Context } from "effect"
+class Database extends Context.Service<Database, { readonly execute: () => Effect.Effect<{ readonly rows: number }> }>()("example/Database") {}
+class Writer extends Context.Service<Writer, { readonly save: (row: { readonly id: string }) => Effect.Effect<void> }>()("example/Writer") {}
+const store = definePlugin({
+  id: "example/store", requires: [Database], provides: Writer,
+  make: Effect.gen(function* () {
+    const db = yield* Database
+    return { save: (_row: { readonly id: string }) => db.execute().pipe(Effect.asVoid) }
+  })
+})
+const fakeDatabase = { execute: () => Effect.succeed({ rows: 0 }) }
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
+import { Effect } from "effect"
+import { definePlugin } from "@bridger/kit"
 import { PluginTest, it } from "@bridger/kit/testing"
 import { Fault } from "@bridger/core/testing"
 
@@ -239,8 +279,27 @@ it.plugin("a failing build is reported", store, {
 
 ## Hosting plugins in an application
 
+<!-- prelude
+import { Context, Schema } from "effect"
+import { definePlugin } from "@bridger/kit"
+import type { Actor } from "@bridger/core"
+class Logger extends Context.Service<Logger, { readonly log: (message: string) => Effect.Effect<void> }>()("example/Logger") {}
+class Greeter extends Context.Service<Greeter, { readonly greet: (name: string) => Effect.Effect<string> }>()("example/Greeter") {}
+const logger = definePlugin({ id: "example/logger", provides: Logger, make: Effect.succeed({ log: (message: string) => Effect.log(message) }) })
+const greeter = definePlugin({
+  id: "example/greeter", requires: [Logger], provides: Greeter, config: Schema.Struct({ greeting: Schema.String }),
+  make: ({ config }) => Effect.gen(function* () {
+    const log = yield* Logger
+    return { greet: (name: string) => log.log(`greeting ${name}`).pipe(Effect.as(`${config.greeting}, ${name}!`)) }
+  })
+})
+const deployBot: Actor = { id: "deploy-bot", kind: "service" }
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
+import { Effect } from "effect"
+import { Bridger, CurrentCorrelation } from "@bridger/core"
+
 const program = Effect.scoped(Effect.gen(function* () {
   const host = yield* Bridger.make({ attribution: { require: true } })
   const desired = [
