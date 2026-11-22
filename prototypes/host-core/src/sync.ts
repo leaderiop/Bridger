@@ -35,7 +35,7 @@ export interface SyncOptions {
   readonly source: (req: { readonly host: string; readonly known: number }) => Effect.Effect<SyncAnswer, unknown>
   readonly policy: SignaturePolicy; readonly store: ManifestStore
   readonly syncEvery: number; readonly syncTimeout: number
-  readonly apply: (m: ManifestBody) => Effect.Effect<void>
+  readonly apply: (m: ManifestBody, envelope: Envelope, acceptedAt: number) => Effect.Effect<void>
   readonly now?: Effect.Effect<number>; readonly onResync?: Effect.Effect<void>; readonly rebootstrapPending?: () => boolean
 }
 /** The sync attempt. Two concurrent `sync` calls share one attempt; the interval backs off on consecutive failures and resets on success. */
@@ -60,7 +60,7 @@ export const makeSync = (o: SyncOptions) => Effect.gen(function* () {
     if (acc.outcome === "stale") return { _tag: "ManifestRejected", reason: "stale-revision" } as const
     if (acc.outcome === "revision-reused") return { _tag: "ManifestRejected", reason: "revision-reused" } as const
     if (acc.outcome === "unchanged") return { unchanged: true } as const
-    yield* o.apply(m)                                                                   // stored as highest before it is applied
+    yield* o.apply(m, a.envelope, yield* now)                                                                   // stored as highest before it is applied
     return { applied: m.revision } as const
   })
   const sync: Effect.Effect<SyncOutcome> = Effect.gen(function* () {

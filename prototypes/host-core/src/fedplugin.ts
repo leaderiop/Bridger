@@ -4,7 +4,9 @@ import { Effect } from "effect"
 import { Desired, type DesiredPlugin } from "./desired.js"
 import type { AnyPlugin } from "./plugin.js"
 import { applyFreshness, applyKills, freshness, type FreshnessInput, type KillEntry, type StaleReason } from "./federation.js"
-import { makeSync, type SyncOptions, type SyncOutcome } from "./sync.js"
+import { makeSync, verifyManifest, type Envelope, type SyncOptions, type SyncOutcome } from "./sync.js"
+import type { StateStore } from "./durable.js"
+import type { Listed } from "./federation.js"
 import type { ReconcileOptions, ReconcileReport } from "./host.js"
 
 export interface ManifestPlugin { readonly id: string; readonly digest: string; readonly version?: string; readonly realm?: string; readonly config?: unknown; readonly disabled?: boolean; readonly requiresFresh?: boolean; readonly mandatoryInterceptions?: ReadonlyArray<string>; readonly allowChildren?: boolean }
@@ -71,6 +73,12 @@ export interface FederationOptions extends Omit<SyncOptions, "apply" | "authorit
   readonly now: Effect.Effect<number>
   readonly freshness: { readonly maxOffline: number | "forever"; readonly skewTolerance: number }
   readonly firstActivation: number
+  /** Durable state; absent: nothing survives a restart. */
+  readonly state?: StateStore
+  /** Plugins installed outside the federation scope, for `kill-unowned`. */
+  readonly outside?: () => ReadonlyArray<Listed>
+  /** Disable a plugin the federation owns (kills that act without a manifest, BEH-FD-048). */
+  readonly disable?: (ref: { readonly id: string; readonly realm: string }, reason: string) => Effect.Effect<void, unknown>
 }
 /** Ties the sync attempt, projection, kills and freshness to one attributed reconcile in the federation's scope. */
 export const makeFederation = (o: FederationOptions) => Effect.gen(function* () {
@@ -79,16 +87,34 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
   const status: { pending: Projection["pending"]; dropped: Projection["dropped"]; patchReports: Projection["patchReports"]; stale: ReadonlyArray<StaleReason>; events: Array<{ _tag: string }> } = { pending: [], dropped: [], patchReports: [], stale: [], events: [] }
   let contact: number | undefined
   const input = (m: HostManifest, now: number): FreshnessInput => ({ now, issuedAt: m.issuedAt, ...(m.validUntil !== undefined ? { validUntil: m.validUntil } : {}), ...(contact !== undefined ? { lastContact: contact } : {}), firstActivation: o.firstActivation, ...o.freshness })
-  const applyWith = (m: HostManifest, fresh: boolean, why: string) => Effect.gen(function* () {
+  const applyWith = (m: HostManifest, fresh: boolean, why: string, stored?: { envelope: Envelope; acceptedAt: number }) => Effect.gen(function* () {
     const patches = o.patches?.() ?? []
-    const proj = yield* projectManifest(m, { resolver: o.resolver, patches, fresh, lastResolved })
+    const pendingKills = (yield* (o.state?.read ?? Effect.succeed({ pendingKills: [] }))).pendingKills
+    const proj = yield* projectManifest(m, { resolver: o.resolver, patches, fresh, pendingKills, lastResolved })
+    const unowned = applyKills([], [...(m.kill ?? []), ...pendingKills], o.outside?.() ?? []).events
+    for (const e of unowned) status.events.push(e)                                 // kill-unowned is published, nothing is done to the plugin
     for (const d of proj.desired) lastResolved.set(d.id, d.plugin)
     status.pending = proj.pending; status.dropped = proj.dropped; status.patchReports = proj.patchReports
     const actors = [...new Set(patches.map((p) => p.actor))].sort()
     yield* o.reconcile(proj.desired, { scope: `federation:${o.authority}`, prune: true, reason: `federation ${why} revision ${m.revision}${actors.length ? ` patches by ${actors.join(",")}` : ""}` })
     last = m; lastFresh = fresh
+    if (o.state && stored) yield* o.state.update((s) => ({ ...s,
+      lastApplied: { ...stored, revision: m.revision, requiresFresh: m.plugins.filter((p) => p.requiresFresh).map((p) => ({ id: p.id, realm: p.realm ?? "default" })) },
+      pendingKills: s.pendingKills.filter((k) => k.revision > m.revision) }))      // a full apply clears the kills up to its revision
   })
-  const sync = yield* makeSync({ ...o, apply: (m) => Effect.suspend(() => applyWith(m as unknown as HostManifest, true, "apply")).pipe(Effect.orDie) })
+  const sync = yield* makeSync({ ...o,
+    apply: (m, env, at) => Effect.gen(function* () {
+      // the highest verified manifest is stored BEFORE it is applied: a crash re-applies it instead of bringing back a killed plugin
+      if (o.state) yield* o.state.update((s) => ({ ...s, highest: { envelope: env, acceptedAt: at, revision: m.revision } }))
+      const cur = yield* readState()
+      if (cur.marker) {                                                            // a re-bootstrap is pending: a kill-only apply, its kills recorded as pending
+        const kills = ((m as unknown as HostManifest).kill ?? []).map((k) => ({ ...k, revision: m.revision }))
+        yield* o.state!.update((s) => ({ ...s, pendingKills: [...s.pendingKills, ...kills] }))
+        yield* killsActWithout(yield* readState())
+        return
+      }
+      yield* applyWith(m as unknown as HostManifest, true, "apply", { envelope: env, acceptedAt: at })
+    }).pipe(Effect.orDie) })
   /** On a fresh/stale transition, re-apply the same revision with the new freshness; staleness removes and reconfigures nothing. */
   const checkFreshness = Effect.gen(function* () {
     if (!last) return "no-manifest" as const
@@ -99,5 +125,35 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
     if (f.fresh !== lastFresh) { yield* applyWith(last, f.fresh, f.fresh ? "freshness restored" : "freshness lost").pipe(Effect.orDie); return f.fresh ? "fresh" as const : "stale" as const }
     return "unchanged" as const
   })
-  return { sync: sync.sync as Effect.Effect<SyncOutcome>, nextInterval: sync.nextInterval, checkFreshness, status, applied: () => last }
+  /** Disable what a pending kill matches without any manifest (BEH-FD-048): by id and realm, or by the digest the stored manifest lists. */
+  const killsActWithout = (s: import("./durable.js").DurableState) => Effect.gen(function* () {
+    if (!o.disable) return
+    const digests = new Map<string, { id: string; realm: string }[]>()
+    try { for (const p of (JSON.parse(s.lastApplied?.envelope.payload ?? "{}") as HostManifest).plugins ?? []) digests.set(p.digest, [...(digests.get(p.digest) ?? []), { id: p.id, realm: p.realm ?? "default" }]) } catch { /* unreadable stored bytes: id kills still act */ }
+    for (const k of s.pendingKills) {
+      const targets = [...(k.id ? [{ id: k.id, realm: k.realm ?? "default" }] : []), ...(k.digest ? digests.get(k.digest) ?? [] : [])]
+      for (const t of targets) yield* o.disable(t, `pending kill of revision ${k.revision}`).pipe(Effect.catch(() => Effect.sync(() => { status.events.push({ _tag: "kill-pending" }) })))
+    }
+  })
+  const readState = () => (o.state?.read ?? Effect.succeed({ pendingKills: [] } as import("./durable.js").DurableState))
+  /**
+   * BEH-FD-010, 048: re-verify the last applied manifest from its stored bytes with `reverify { acceptedAt }`, then apply it. A refusal
+   * reports `store-invalid`, reconciles nothing, keeps the stored manifest, and lets the pending kills act by disabling.
+   */
+  const boot = Effect.gen(function* () {
+    const s = yield* readState()
+    if (s.firstActivation === undefined && o.state) yield* o.state.update((x) => ({ ...x, firstActivation: o.firstActivation }))   // stored once, before the boot apply
+    const target = !s.marker && s.highest && (!s.lastApplied || s.highest.revision > s.lastApplied.revision) ? s.highest : s.lastApplied   // stored before applied: a crash re-applies it
+    if (!target) return "no-state" as const
+    const v = yield* Effect.exit(verifyManifest(o.policy, target.envelope, { acceptedAt: target.acceptedAt }))
+    if (v._tag === "Failure") { status.events.push({ _tag: "store-invalid" }); yield* killsActWithout(s); return "store-invalid" as const }
+    const m = v.value as unknown as HostManifest
+    contact = undefined
+    const f = freshness(input(m, yield* o.now))
+    yield* applyWith(m, f.fresh, s.marker ? "boot (re-bootstrap pending)" : "boot", { envelope: target.envelope, acceptedAt: target.acceptedAt }).pipe(Effect.orDie)     // pending kills are removed from the list (projectManifest)
+    return (s.marker ? "marker-pending" : "applied") as "marker-pending" | "applied"
+  })
+  /** The running loop: sync, check freshness, wait the (jittered, backed-off) interval; ends with its fiber. */
+  const loop = Effect.forever(Effect.gen(function* () { yield* sync.sync; yield* checkFreshness; yield* Effect.sleep(yield* sync.nextInterval) }))
+  return { boot, loop, sync: sync.sync as Effect.Effect<SyncOutcome>, nextInterval: sync.nextInterval, checkFreshness, status, applied: () => last }
 })
