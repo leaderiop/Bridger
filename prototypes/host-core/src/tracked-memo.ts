@@ -44,17 +44,23 @@ export const trackedMemo = (): TrackedMemo => {
       })
   })
   const capture: TrackedMemo["capture"] = (sink, live, causeOf) => {
-    for (const scope of entries) {
+    const seen = new Set<Scope.Scope>()
+    const walk = (scope: Scope.Scope): void => {
       const st = scope.state
-      if (st._tag !== "Open") continue
-      const wrap = (key: {} | undefined, f: Fin): Fin =>
-        isScope(key) || observers.has(f) ? f
+      if (st._tag !== "Open" || seen.has(scope)) return
+      seen.add(scope)
+      // A child scope (made with `Scope.fork` on a layer's scope) is walked, so its own finalizers are kept; the finalizer that closes it is not.
+      const wrap = (key: {} | undefined, f: Fin): Fin => {
+        if (isScope(key)) { walk(key); return f }
+        return observers.has(f) ? f
           : (exit) => Effect.suspend(() => f(exit)).pipe(Effect.onExit((x) => Exit.isFailure(x) && live.open
             ? Effect.sync(() => { sink.push({ cause: causeOf(x.cause), run: Effect.suspend(() => f(Exit.void)) }) })
             : Effect.void))
+      }
       if (st.finalizer !== undefined) st.finalizer = wrap(st.finalizerKey, st.finalizer)
       if (st.finalizers !== undefined) for (const [k, f] of st.finalizers) st.finalizers.set(k, wrap(k, f))
     }
+    for (const scope of entries) walk(scope)
   }
   return { memo, capture }
 }

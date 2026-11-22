@@ -84,4 +84,19 @@ describe("report 03 R8: retryCleanup", () => {
       expect(inner).toBe(1)                                                         // the inner finalizer ran once and was not retried
     }))
   })
+
+  it("a nested scope made with Scope.fork on the layer scope is retried too, unlike a hand-made Scope.make one", async () => {
+    let inner = 0
+    const p = define({ id: "svc", requires: [] as const, provides: [] as const, build: Layer.effectDiscard(Effect.gen(function* () {
+      const sc = yield* Scope.fork(yield* Scope.Scope)
+      yield* Scope.addFinalizer(sc, Effect.sync(() => { inner++ }).pipe(Effect.andThen(Effect.suspend(() => inner === 1 ? Effect.die(new Error("inner failed")) : Effect.void))))
+    })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(p, as()); yield* idle(host)
+      yield* Effect.exit(drive(host, host.restart("svc", as())))
+      yield* drive(host, host.retryCleanup("svc", as()))
+      expect(inner).toBe(2)                                                         // the inner finalizer ran again
+      expect(yield* stateIn(host, "svc")).toBe("disabled")
+    }))
+  })
 })
