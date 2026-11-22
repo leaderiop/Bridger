@@ -1,6 +1,6 @@
 // Kill switch kernel (loader BEH-LD-029, BEH-LD-031, BEH-LD-032; improvement report 06 R5): the scope's one reconciler for revoked digests. It removes
 // through the host (never around it), reports what it cannot reach, and exposes `status` for `restartGate`. Prototype: ids and digests are strings.
-import { Effect } from "effect"
+import { Duration, Effect, Queue } from "effect"
 import { residentRevoked } from "./loader.js"
 
 export interface Installed { readonly id: string; readonly realm: string; readonly digest: string }
@@ -52,5 +52,17 @@ export const makeKillSwitch = (o: KillSwitchOptions) => {
     for (const p of still) if ((yield* Effect.exit(o.remove(p)))._tag === "Success") removed.push(p.id)
     return removed
   })
-  return { run, release, status }
+  /**
+   * The loop of BEH-LD-029: one run now, one on every change of the revocation set or of the desired list, and while anything stays pending (a gate refusal,
+   * a drain timeout, the audit latch) a retry every `retryEvery`. It ends only with its scope. `changes` is a queue the application offers to.
+   */
+  const loop = (changes: Queue.Queue<unknown>, retryEvery: Duration.Input) => Effect.gen(function* () {
+    let r = yield* run
+    for (;;) {
+      const wait = r.pending.length > 0 ? Effect.race(Queue.take(changes), Effect.sleep(retryEvery)) : Queue.take(changes)
+      yield* wait
+      r = yield* run
+    }
+  })
+  return { run, release, status, loop }
 }

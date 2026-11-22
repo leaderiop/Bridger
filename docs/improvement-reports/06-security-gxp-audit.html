@@ -100,7 +100,7 @@ footer li{margin:.3rem 0}
 <div class="chips"><span class="chip sH">3 High</span><span class="chip sM">6 Medium</span><span class="chip sL">2 Low</span><span class="chip">11 findings / 7 recommendations</span></div>
 
 <nav class="toc" aria-label="Contents">
-<a href="#status">Status</a><a href="#ahead">Ahead</a><a href="#findings">Findings</a><a href="#R1">R1</a><a href="#R2">R2</a><a href="#R3">R3</a><a href="#R4">R4</a><a href="#R5">R5</a><a href="#R6">R6</a><a href="#R7">R7</a><a href="#anims">Animations</a><a href="#cordis">Cordis</a><a href="#notchecked">Not checked</a>
+<a href="#status">Status</a><a href="#followup">Follow-up</a><a href="#ahead">Ahead</a><a href="#findings">Findings</a><a href="#R1">R1</a><a href="#R2">R2</a><a href="#R3">R3</a><a href="#R4">R4</a><a href="#R5">R5</a><a href="#R6">R6</a><a href="#R7">R7</a><a href="#anims">Animations</a><a href="#cordis">Cordis</a><a href="#notchecked">Not checked</a>
 </nav>
 
 <h2 id="ahead">Where Bridger is already ahead of Cordis</h2>
@@ -138,6 +138,18 @@ footer li{margin:.3rem 0}
 <tr><td>S11</td><td>-</td><td>Partly wrong, resolved</td><td><code>CapabilityPolicy.resolve</code> (not <code>AccessPolicy</code>) already receives the provider's identity; documented as the allow-list hook in BEH-BR-273. <code>test/sec-provider-allowlist.test.ts</code>.</td></tr>
 </tbody></table></div></section>
 
+<section id="followup"><h2>Follow-up review (2026-11-22)</h2>
+<p>A second read of files the first pass skipped (federation 03, 04 and 06, keyring, entitlement, GXP-COMPANION, spikes 06 and 08, <code>actor.ts</code>, <code>config.ts</code>, <code>gxp.ts</code>) found seven more issues. Three are open and are not resolved by this work.</p>
+<div class="tbl"><table class="cmp"><thead><tr><th>ID</th><th>Status</th><th>Finding</th></tr></thead><tbody>
+<tr><td>S12</td><td>Open</td><td>Peer identity in a federation offer is a claim, and a fence token from an offer is kept as the highest seen, so an unauthenticated offer can poison it (FD 03 line 447, FD 04 lines 272-302). Proposed: an authenticated peer id in the transport profile, persist only fence tokens from signed manifest entries, bound a token against the highest issued.</td></tr>
+<tr><td>S13</td><td>Open</td><td><code>shred</code> and received shred notices never call <code>OperationGate.authorize</code> and write no core audit record (KR 03, BEH-KR-017, BEH-KR-020), while GXP-COMPANION says the gate cannot be bypassed. Proposed: add <code>shred</code> to <code>Operation</code> with <code>reversibility: irreversible</code>, gate it, audit it, and amend the companion text.</td></tr>
+<tr><td>S14</td><td>Residual documented</td><td>Plugin error text is copied into <code>error.message</code> of activation and cleanup records (host.ts, <code>ActivationFailed</code>, <code>CleanupError</code>). RSK-BR-008 now states the residual; the proposed message filter port is not specified.</td></tr>
+<tr><td>S15</td><td>Resolved</td><td>BEH-BR-185 requires lone-surrogate replacement in every string at any depth; the prototype did it for four fields. <code>sanitizeDeep</code> now covers the whole record (<code>test/sec-sanitize-deep.test.ts</code>). The writer's retry of an unencodable record with no permanent-failure path is not changed.</td></tr>
+<tr><td>S16</td><td>Open</td><td><code>Budget</code> and <code>guard</code> take labels and the essential flag from the call site, and an unmatched key is reserved without limit (EN 03 line 82; EN 02 lines 347-359). Proposed: a required <code>onUnmatchedKey</code> option and principal-derived labels.</td></tr>
+<tr><td>S17</td><td>Specified</td><td>A federation kill calls <code>disable</code> under <code>revocationActor</code>, a gate rule that allows only <code>remove</code> (loader BEH-LD-032) would refuse it, and a refused kill had no age bound. BEH-FD-042 now requires the gate to allow <code>disable</code> and <code>remove</code> from that actor and a <code>kill-overdue</code> status past <code>killPendingMaxAge</code>; loader 04 names <code>disable</code>. No federation prototype implements <code>killPendingMaxAge</code>.</td></tr>
+<tr><td>S18</td><td>Resolved (documentation)</td><td>ERP-ACCESS stated qadi properties that the spike 08 results show are not there (the <code>:</code> check is types-only, the decision sink is fail-open and embeds the resource, a built subject is a snapshot). They are now stated as requirements on <code>@bridger/qadi</code> in §7 and §10.</td></tr>
+</tbody></table></div></section>
+
 <h2 id="anims">How the mechanisms work</h2>
 <p class="summary">Three step-through animations. Each opens on its final state with every part visible; Play loops through the steps.</p>
 <div class="animwrap" id="animbox"></div>
@@ -159,7 +171,7 @@ footer li{margin:.3rem 0}
 <ul>
 <li>S1 was run, not inferred: <code>test/sec-closed-context.test.ts</code> shows the leak before the fix and its removal after; reverting <code>closedContext</code> makes two tests fail.</li>
 <li>A ticket consumed by a rolled-back forward action is not re-issued: the undo is gated as its own request with <code>undo: true</code> and needs a binding of its own (gxp BEH-GX-093, core BEH-BR-325). <code>test/sec-undo-binding.test.ts</code> runs both cases with a single-use gate; without the undo's binding the apply ends <code>PartialApply</code>.</li>
-<li>The prototype now has a <code>worker_threads</code> adapter (<code>worker-adapter.ts</code>), a CommonJS evaluator over verified bytes (<code>evaluator.ts</code>) and a kill-switch kernel (<code>kill-switch.ts</code>), each with tests. They are reference implementations: the evaluator does not load ES modules, its timeout bounds synchronous code only, and the adapter is for first-party code and testing. Six probes are not the whole attack surface (BEH-RM-073).</li>
+<li>The prototype now has a <code>worker_threads</code> adapter (<code>worker-adapter.ts</code>), CommonJS and ES module evaluators over verified bytes (<code>evaluator.ts</code>; the ES one needs <code>--experimental-vm-modules</code>, set in <code>vitest.config.ts</code>) and a kill-switch kernel with its change-and-retry loop (<code>kill-switch.ts</code>), each with tests. They are reference implementations: an evaluator timeout bounds synchronous code only, and the adapter is for first-party code and testing. Six probes are not the whole attack surface (BEH-RM-073).</li>
 <li>ERP-layer authorization (<code>docs/ERP-ACCESS.md</code>) was read in full: tenant and company scope is added by Records and cannot be widened by a policy, and permissions are data. The one gap, a lookalike <code>Records</code> or <code>Identity</code> provider, is closed by the provider allow-list (S11) and is now stated in ERP-ACCESS section 5, with custom predicates named as plugin code. Spike 08 is the health spike, not authorization. Everything is Draft/Planned.</li>
 </ul>
 <p class="tag">Sibling reports: 01 through 05 and 07 in the same improvement-reports folder.</p>

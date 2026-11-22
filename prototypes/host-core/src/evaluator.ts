@@ -44,3 +44,59 @@ export const makeEvaluator = (options: EvaluatorOptions) => {
   }
   return { evaluate, resident: () => [...resident.keys()].sort() }
 }
+
+// ---------------------------------------------------------------- ES modules (BEH-LD-011)
+type VmModule = { link: (l: (spec: string, ref: { identifier: string }) => Promise<unknown>) => Promise<void>; evaluate: (o?: { timeout?: number }) => Promise<void>; namespace: Record<string, unknown>; status: string }
+const vmx = vm as unknown as {
+  SourceTextModule?: new (src: string, o: { identifier: string; context: vm.Context }) => VmModule
+  SyntheticModule: new (names: string[], fn: () => void, o: { context: vm.Context }) => VmModule & { setExport: (n: string, v: unknown) => void }
+}
+
+/**
+ * The ES module evaluator: the same closed world as `makeEvaluator` (relative imports inside the package, bare specifiers only through `externals`, no
+ * `import()` since no dynamic-import callback is given), with real `import`/`export` and the entry's namespace as the result. Needs `--experimental-vm-modules`.
+ */
+export const makeEsmEvaluator = (options: EvaluatorOptions) => {
+  checkExternals(options.externals, options.allowBuiltins)
+  if (!vmx.SourceTextModule) throw new Error("vm.SourceTextModule is unavailable: run node with --experimental-vm-modules")
+  const resident = new Map<string, unknown>()
+  const evaluate = async (digest: string, pkg: Package): Promise<unknown> => {
+    if (resident.has(digest)) return resident.get(digest)
+    const ext = (JSON.parse(text.decode(pkg.manifest)).extensions ?? {})["@bridger/loader"]?.entry as { file?: string; export?: string } | undefined
+    if (!ext?.file || !pkg.files.has(ext.file)) throw new EvaluationFailed(digest, "no-entry", "the manifest names no entry file of the package")
+    const context = vm.createContext(Object.create(null))
+    const mods = new Map<string, VmModule>()
+    const fileModule = (path: string): VmModule => {
+      const hit = mods.get(path); if (hit) return hit
+      try { const m = new vmx.SourceTextModule!(text.decode(pkg.files.get(path)!), { identifier: `${digest}:${path}`, context }); mods.set(path, m); return m }
+      catch (e) { throw new EvaluationFailed(digest, "threw", `${path}: ${(e as Error).message}`) }
+    }
+    const external = (name: string): VmModule => {
+      const key = `ext:${name}`, hit = mods.get(key); if (hit) return hit
+      const v = options.externals.get(name) as Record<string, unknown>
+      const names = [...new Set(["default", ...(v && typeof v === "object" ? Object.keys(v) : [])])]
+      const m = new vmx.SyntheticModule(names, function (this: { setExport: (n: string, x: unknown) => void }) { for (const n of names) this.setExport(n, n === "default" ? v : v?.[n]) }, { context }) as VmModule
+      mods.set(key, m); return m
+    }
+    const link = async (spec: string, ref: { identifier: string }): Promise<unknown> => {
+      const from = ref.identifier.slice(digest.length + 1)
+      const r = resolveSpecifier(digest, pkg.files, from, spec, options.externals)
+      return r.kind === "file" ? fileModule(r.path) : external(r.name)
+    }
+    const entry = fileModule(ext.file)
+    try {
+      await entry.link(link)
+      await entry.evaluate({ timeout: options.timeoutMs ?? 1000 })
+    } catch (e) {
+      if (e instanceof EvaluationFailed) throw e
+      const m = (e as Error).message ?? String(e)
+      throw new EvaluationFailed(digest, /timed out/i.test(m) ? "timeout" : "threw", m)
+    }
+    const ns = entry.namespace
+    const value = ext.export ? ns[ext.export] : ns
+    if (value === undefined) throw new EvaluationFailed(digest, "no-entry", `the entry file exports no "${ext.export}"`)
+    resident.set(digest, value)
+    return value
+  }
+  return { evaluate, resident: () => [...resident.keys()].sort() }
+}

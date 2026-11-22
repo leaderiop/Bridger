@@ -62,3 +62,34 @@ describe("kill switch with restartGate", () => {
     }))
   })
 })
+
+describe("kill switch loop (BEH-LD-029)", () => {
+  it("runs on start, on every change, and retries a refused removal on the clock until the gate allows it", async () => {
+    const { Fiber, Queue, Duration } = await import("effect")
+    const { TestClock } = await import("effect/testing")
+    const { makeKillSwitch: make } = await import("../src/kill-switch.js")
+    const revoked = new Set<string>(), present = new Map([["a", "d1"], ["b", "d2"]])
+    let allow = false
+    const removed: Array<string> = []
+    const program = Effect.gen(function* () {
+      const ks = make({
+        revoked: () => revoked, resident: () => [], maxDroppedPerRun: 5,
+        installed: () => Effect.sync(() => [...present].map(([id, digest]) => ({ id, realm: "default", digest }))),
+        remove: (x) => allow ? Effect.sync(() => { present.delete(x.id); removed.push(x.id) }) : Effect.fail("refused")
+      })
+      const changes = yield* Queue.unbounded<unknown>()
+      const f = yield* Effect.forkChild(ks.loop(changes, Duration.seconds(10)))
+      yield* Effect.yieldNow
+      expect(removed).toEqual([])                                   // nothing revoked at start
+      revoked.add("d1"); yield* Queue.offer(changes, 1); yield* Effect.yieldNow; yield* Effect.yieldNow
+      expect(removed).toEqual([])                                   // refused: pending, not forced
+      allow = true
+      yield* TestClock.adjust(Duration.seconds(10)); yield* Effect.yieldNow; yield* Effect.yieldNow
+      expect(removed).toEqual(["a"])                                // retried on the clock
+      revoked.add("d2"); yield* Queue.offer(changes, 2); yield* Effect.yieldNow; yield* Effect.yieldNow
+      expect(removed).toEqual(["a", "b"])
+      yield* Fiber.interrupt(f)
+    })
+    await Effect.runPromise(Effect.scoped(program).pipe(Effect.provide(TestClock.layer())))
+  })
+})

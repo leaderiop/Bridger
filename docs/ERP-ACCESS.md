@@ -26,7 +26,7 @@ Tenant and company scope is **not** a qadi policy. Records always adds it to the
 ```ts
 import { Access } from "@bridger/qadi"
 
-// resource + action; ":" is rejected by qadi in either segment
+// resource + action; the wrapper MUST reject ":" in either segment at runtime (qadi only rejects it in types, spike 08 test 02)
 export const TodoPerms = Access.permissions("todo.task", ["read", "write"])
 //   TodoPerms.read  -> permission("todo.task", "read")   key "todo.task:read"
 
@@ -123,6 +123,8 @@ Open points that need tests before the design is accepted:
 
 ## 7. Audit and obligations
 
+Requirements on `@bridger/qadi`, each stated by the spike 08 results (`spikes/08-qadi/RESULT.md`) as something to build, not as a property of qadi today: (1) the `DecisionSink` is fail-closed: an `Allow` is returned only after its audit write committed, otherwise `Deny` (qadi's sink is fail-open); (2) the recorded `resource` is reduced to its id and classified attributes (qadi embeds the whole resource, PII included); (3) a subject is rebuilt, or its generation checked, at each decision, because a built subject is a frozen snapshot that keeps a revoked grant; (4) permission keys are `resource:action`, so `("a:b","c")` and `("a","b:c")` would alias: segments are validated at runtime.
+
 A `DecisionSink` layer records each decision trace with the command's audit entry in the same transaction. `@qadi/audit` can be composed on top for retention and e-signature needs. Obligations (`obliged(...)`) are discharged by a handler that writes outbox or audit rows inside the transaction; with no handler, qadi refuses the allow.
 
 ## 8. UI and catalog
@@ -141,9 +143,9 @@ Decision D13 ([ERP-APOTHEKA-DECISIONS.md](ERP-APOTHEKA-DECISIONS.md), 2026-11-11
 - The same actor in two companies sees only the selected company's rows.
 - A plugin policy that cannot be translated is rejected at activation or uses the row-lock fallback, and never returns denied rows.
 - A failed attribute lookup surfaces as `InternalError`, not `Forbidden`.
-- A permission segment containing `:` is rejected at declaration.
+- A permission segment containing `:` is rejected at declaration by the wrapper's runtime check (qadi rejects it in types only).
 - Extension fields appear in row predicates only while their extension is active.
-- Removing a role from an actor changes the next request's decisions; cached decisions never outlive a generation change.
+- Removing a role from an actor changes the next request's decisions; cached decisions never outlive a generation change (requirement 3 of §7; qadi's subject is a snapshot).
 - Examples remain design sketches until the pinned dependencies exist.
 
 Change log: 2026-11-08, round-2 agent review fixes — status banner links the event-store, sequence and keyring companions instead of calling event-store "planned, not yet drafted" (R5-20).

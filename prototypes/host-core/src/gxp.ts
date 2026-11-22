@@ -136,9 +136,17 @@ export const sanitizeContext = <T extends { readonly actor: Actor; readonly reas
   const value = { ...c, actor, ...(c.reason !== undefined ? { reason: sanitizeString(c.reason) } : {}), ...(c.correlationId !== undefined ? { correlationId: sanitizeString(c.correlationId) } : {}) }
   return { value, sanitized: JSON.stringify(value) !== JSON.stringify(c) }
 }
+/** BEH-BR-185: every string of the record, at any depth, is made well-formed; keys, numbers and shapes are untouched. */
+export const sanitizeDeep = <T>(x: T): T => {
+  if (typeof x === "string") return sanitizeString(x) as T
+  if (Array.isArray(x)) return x.map(sanitizeDeep) as T
+  if (x !== null && typeof x === "object" && Object.getPrototypeOf(x) === Object.prototype) return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, sanitizeDeep(v)])) as T
+  return x
+}
 const sanitizeDraft = (d: Draft): Draft => {
-  const { value, sanitized } = sanitizeContext(d)
-  return sanitized ? { ...value, sanitized: true } : d
+  const { value } = sanitizeContext(d)
+  const deep = sanitizeDeep(value)
+  return JSON.stringify(deep) !== JSON.stringify(d) ? { ...deep, sanitized: true } : d
 }
 export interface RefusalSubject { readonly id: string; readonly realm: string; readonly version?: string; readonly digest: string }
 /** `@bridger/core/RefusalList` (BEH-BR-267): synchronous and pure; Some(reason) refuses. */

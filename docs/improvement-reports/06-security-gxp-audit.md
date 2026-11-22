@@ -22,6 +22,20 @@ Corrected citations: BEH-BR-32 is BEH-BR-313..326, BEH-RM-06x is BEH-RM-041..044
 | S10 | - | Partly wrong, resolved | The 900 s is awthaq's JWT (SPK-09-12), now documented in RSK-RM-009, the entitlement traceability and ERP-IDENTITY. The per-call cap `tokenTtl` existed; the checker now enforces it against custom authorities. `test/sec-token-cap.test.ts`. |
 | S11 | - | Partly wrong, resolved | `CapabilityPolicy.resolve` (not `AccessPolicy`) already receives the provider's identity; documented as the allow-list hook in BEH-BR-273. `test/sec-provider-allowlist.test.ts`. |
 
+## Follow-up review (2026-11-22)
+
+A second read of files the first pass skipped (federation 03, 04 and 06, keyring, entitlement, GXP-COMPANION, spikes 06 and 08, `actor.ts`, `config.ts`, `gxp.ts`) found seven more issues. Three are open and are not resolved by this work.
+
+| ID | Status | Finding |
+|---|---|---|
+| S12 | Open | Peer identity in a federation offer is a claim, and a fence token from an offer is kept as the highest seen, so an unauthenticated offer can poison it (FD 03 line 447, FD 04 lines 272-302). Proposed: an authenticated peer id in the transport profile, persist only fence tokens from signed manifest entries, bound a token against the highest issued. |
+| S13 | Open | `shred` and received shred notices never call `OperationGate.authorize` and write no core audit record (KR 03, BEH-KR-017, BEH-KR-020), while GXP-COMPANION says the gate cannot be bypassed. Proposed: add `shred` to `Operation` with `reversibility: irreversible`, gate it, audit it, and amend the companion text. |
+| S14 | Residual documented | Plugin error text is copied into `error.message` of activation and cleanup records (host.ts, `ActivationFailed`, `CleanupError`). RSK-BR-008 now states the residual; the proposed message filter port is not specified. |
+| S15 | Resolved | BEH-BR-185 requires lone-surrogate replacement in every string at any depth; the prototype did it for four fields. `sanitizeDeep` now covers the whole record (`test/sec-sanitize-deep.test.ts`). The writer's retry of an unencodable record with no permanent-failure path is not changed. |
+| S16 | Open | `Budget` and `guard` take labels and the essential flag from the call site, and an unmatched key is reserved without limit (EN 03 line 82; EN 02 lines 347-359). Proposed: a required `onUnmatchedKey` option and principal-derived labels. |
+| S17 | Specified | A federation kill calls `disable` under `revocationActor`, a gate rule that allows only `remove` (loader BEH-LD-032) would refuse it, and a refused kill had no age bound. BEH-FD-042 now requires the gate to allow `disable` and `remove` from that actor and a `kill-overdue` status past `killPendingMaxAge`; loader 04 names `disable`. No federation prototype implements `killPendingMaxAge`. |
+| S18 | Resolved (documentation) | ERP-ACCESS stated qadi properties that the spike 08 results show are not there (the `:` check is types-only, the decision sink is fail-open and embeds the resource, a built subject is a snapshot). They are now stated as requirements on `@bridger/qadi` in §7 and §10. |
+
 ## Executive summary
 
 1. Bridger is already stricter than Cordis on trust: signed statements, no default policy, a separate "first-party" statement for in-process code (BEH-LD-065), and explicit "attribution, not isolation" non-claims.
@@ -132,5 +146,5 @@ Corrected citations: BEH-BR-32 is BEH-BR-313..326, BEH-RM-06x is BEH-RM-041..044
 
 - S1 was run, not inferred: `test/sec-closed-context.test.ts` shows the leak before the fix and its removal after.
 - A ticket consumed by a rolled-back forward action is not re-issued: the undo is gated as its own request with `undo: true` and needs a binding of its own (gxp BEH-GX-093, core BEH-BR-325). `test/sec-undo-binding.test.ts` runs both cases with a single-use gate (without the undo's binding the apply ends `PartialApply`).
-- The prototype now has a `worker_threads` adapter (`worker-adapter.ts`), a CommonJS evaluator over verified bytes (`evaluator.ts`) and a kill-switch kernel (`kill-switch.ts`), each with tests. They are reference implementations: the evaluator does not load ES modules, its timeout bounds synchronous code only, and the adapter is for first-party code and testing. Six probes are not the whole attack surface (BEH-RM-073).
+- The prototype now has a `worker_threads` adapter (`worker-adapter.ts`), CommonJS and ES module evaluators over verified bytes (`evaluator.ts`; the ES one needs `--experimental-vm-modules`, set in `vitest.config.ts`) and a kill-switch kernel with its change-and-retry loop (`kill-switch.ts`), each with tests. They are reference implementations: an evaluator timeout bounds synchronous code only, and the adapter is for first-party code and testing. Six probes are not the whole attack surface (BEH-RM-073).
 - ERP-layer authorization (`docs/ERP-ACCESS.md`) was read in full: tenant and company scope is added by Records and cannot be widened by a policy, and permissions are data. The one gap, a lookalike `Records` or `Identity` provider, is closed by the provider allow-list (S11) and is now stated in ERP-ACCESS §5, with custom predicates named as plugin code. Spike 08 is the health spike and is not about authorization. Everything is Draft/Planned.
