@@ -1029,6 +1029,8 @@ REQUIREMENT: When no cause remains, the plugin MUST leave `failed(cleanup)` for
              others (22, 25), and it never starts a build.
 ```
 
+A release kept for retry MUST be safe to run a second time after it failed: core runs it again on the operator's request and makes no claim that it is idempotent, unlike runtimes that fire a recovery at most once. A finalizer outside `acquire` is not kept because a `Layer` registers its finalizers in nested scopes the host cannot enumerate.
+
 The retry exists because an operator who has fixed the underlying fault should
 not have to discard the leak ledger to continue. It does not weaken BEH-BR-046:
 a release that was not kept cannot be run again through a scope that has

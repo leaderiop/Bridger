@@ -114,6 +114,7 @@ export interface PluginInspection {
   readonly optional: ReadonlyArray<string>
   readonly whenAvailable: ReadonlyArray<{ readonly name: string; readonly keys: ReadonlyArray<string>; readonly running: boolean }>
   readonly contributions: ReadonlyArray<{ readonly registry: string; readonly id: string }>
+  readonly listeners: ReadonlyArray<{ readonly event: string; readonly priority: number }>
   /** Report 03 R3, R4: resources acquired through `Runtime.acquire` that are held, or whose release failed or was not confirmed. Partial by design. */
   readonly resources: ReadonlyArray<{ readonly label: string; readonly irreversible?: true; readonly state: "held" | "release-failed" }>
   readonly requires: ReadonlyArray<string>
@@ -268,6 +269,7 @@ interface Entry {
   reactive: Set<Fiber.Fiber<unknown, unknown>> // whenAvailable runs holding a lease on this plugin (BEH-BR-133)
   whenAvailable?: Array<{ name: string; keys: ReadonlyArray<string>; running: boolean }>
   contributions: Array<{ registry: string; id: string }>   // reported through ActivePlugin (BEH-BR-168)
+  listeners: Array<{ event: string; priority: number }>    // reported by the event bus (BEH-BR-119)
   /** Resources acquired through `Runtime.acquire`: those not confirmed released stay listed (report 03 R3, R4). */
   resources: Array<{ label: string; irreversible: boolean; state: "held" | "release-failed" }>
   /** The releases that failed, kept so `retryCleanup` can run them again (report 03 R8). */
@@ -1138,6 +1140,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     ctx = Context.add(ctx, PluginConfig, { value: cfg, current: SubscriptionRef.get(configRef), changes: SubscriptionRef.changes(configRef) })
     e.background = []; e.whenAvailable = []
     const scope = yield* Scope.fork(pluginsScope, "sequential")
+    let ended = false
+    yield* Scope.addFinalizer(scope, Effect.sync(() => { ended = true }))   // registered first, so it runs last
     ctx = Context.add(ctx, PluginRuntime, runtimeFor(e, epoch, scope))
     const memo = yield* Layer.makeMemoMap                       // fresh per activation (BEH-BR-036)
     yield* emit({ type: "build-started" }, e.id)
@@ -1157,8 +1161,22 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       // Helpers called inside the activation report ownership through ActivePlugin (BEH-BR-163, 168, 174).
       Effect.provideService(ActivePlugin, Option.some({
         pluginId: e.pluginId, realm: e.realm,
-        contributed: (registry: string, id: string) => { e.contributions.push({ registry, id }) },
-        withdrawn: (registry: string, id: string) => { e.contributions = e.contributions.filter((c) => c.registry !== registry || c.id !== id) },
+        report: (r) => Effect.suspend(() => {
+          if (ended) return Effect.void                            // does nothing once the activation has ended (BEH-BR-119)
+          if (r.kind === "contribution") {
+            e.contributions.push({ registry: r.registry, id: r.id })
+            return Effect.addFinalizer(() => Effect.sync(() => { const i = e.contributions.findIndex((c) => c.registry === r.registry && c.id === r.id); if (i >= 0) e.contributions.splice(i, 1) }))
+          }
+          if (r.kind === "listener") {
+            const l = { event: r.event, priority: r.priority }
+            e.listeners.push(l)
+            return Effect.addFinalizer(() => Effect.sync(() => { const i = e.listeners.indexOf(l); if (i >= 0) e.listeners.splice(i, 1) }))
+          }
+          const res = { label: r.label, irreversible: r.irreversible === true, state: "held" as const } as Entry["resources"][number]
+          e.resources.push(res)
+          // A resource whose release failed stays listed after the scope has closed (BEH-BR-119).
+          return Effect.addFinalizer(() => Effect.sync(() => { if (res.state === "held") { const i = e.resources.indexOf(res); if (i >= 0) e.resources.splice(i, 1) } }))
+        }),
         revoked: (generation: string, leases: number) => { Effect.runFork(emit({ type: "lease-revoked", leases, generation }, e.id)) }
       })),
       Effect.timeoutOrElse({ duration: buildTimeout, orElse: () => Effect.fail(new Error("build timeout")) }),
@@ -1314,7 +1332,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     afterPublish: (effect) => Effect.suspend(() => e.state === "active" && e.epoch === epoch ? effect.pipe(Effect.exit, Effect.asVoid) : Effect.sync(() => { if (e.state === "starting" && e.epoch === epoch) e.afterPublish.push(effect) })),
     // Report 03 R3: a thin wrapper over acquireRelease that names the resource; optional, so absence from the list is not "nothing held".
     acquire: (label, acquire, release, o) => Effect.acquireRelease(
-      Effect.tap(acquire, () => Effect.sync(() => { e.resources.push({ label, irreversible: o?.irreversible === true, state: "held" }) })),
+      Effect.tap(acquire, () => Effect.gen(function* () {
+        const active = yield* ActivePlugin
+        if (Option.isSome(active)) yield* active.value.report({ kind: "resource", label, irreversible: o?.irreversible === true })
+      })),
       (a) => Effect.suspend(() => release(a)).pipe(Effect.matchCauseEffect({
         onSuccess: () => Effect.sync(() => { const i = e.resources.findIndex((r) => r.label === label); if (i >= 0) e.resources.splice(i, 1); e.releasers.delete(label) }),
         onFailure: (cause) => Effect.sync(() => {
@@ -2241,7 +2262,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }
   const newEntry = (def: AnyPlugin, ident: Ident, o: { readonly disabled?: boolean; readonly config?: unknown; readonly intercept?: Entry["intercept"]; readonly owner?: string; readonly mandatoryChain?: ReadonlyArray<MandatoryInterception>; readonly allowChildren?: boolean }): Entry => ({
     id: ident.key, pluginId: ident.id, realm: ident.realm, ...(ident.parentKey !== undefined ? { parentKey: ident.parentKey } : {}),
-    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], resources: [], releasers: new Map(), afterPublish: [], stale: Effect.runSync(Deferred.make<void>()), ...(o.owner !== undefined ? { owner: o.owner } : {}),
+    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], listeners: [], resources: [], releasers: new Map(), afterPublish: [], stale: Effect.runSync(Deferred.make<void>()), ...(o.owner !== undefined ? { owner: o.owner } : {}),
     def, state: o.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), capturedActs: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++,
     stepRunning: false, parkedSystem: false, buildSeq: 0, ...(o.config !== undefined ? { override: { raw: o.config } } : {}),
     mandatoryChain: o.mandatoryChain ?? [], allowChildren: o.allowChildren ?? true, captures: []
@@ -3110,6 +3131,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       id: e.pluginId, realm: e.realm, state: e.state, requires: e.def.requires.map(sid), provides: e.def.provides.map(sid),
       optional: (e.def.optional ?? []).map(sid), whenAvailable: (e.whenAvailable ?? []).map((w) => ({ ...w })),   // BEH-BR-135
       contributions: e.contributions.map((c) => ({ ...c })),
+      listeners: e.listeners.map((l) => ({ ...l })),
       resources: e.resources.map((r) => ({ label: r.label, ...(r.irreversible ? { irreversible: true as const } : {}), state: r.state })),                                                       // BEH-BR-168
       background: (e.background ?? []).map((b) => ({ ...b })), leases: e.leases,
       interceptions: interceptionsOf(e),

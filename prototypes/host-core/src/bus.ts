@@ -58,7 +58,7 @@ export const makeBus = (opts: {
   const registryOf = (eventId: string) => Effect.suspend(() => {
     const r = registries.get(eventId)
     if (r) return Effect.succeed(r)
-    return Registry.make<Listener>({ name: eventId, drainTimeout: opts.drainTimeout }).pipe(
+    return Registry.make<Listener>({ name: eventId, drainTimeout: opts.drainTimeout, report: false }).pipe(
       Effect.provideService(Scope.Scope, opts.supervisor),
       Effect.tap((made) => Effect.sync(() => { registries.set(eventId, made) })))
   })
@@ -76,6 +76,8 @@ export const makeBus = (opts: {
     const cid = o.prepend ? `0${pad(10 ** WIDTH - 1 - n)}` : `1${pad(n)}`
     yield* (yield* registryOf(eventId)).add(cid, { kind, fn, ...(owner ? { owner } : {}), ...(Option.isSome(active) ? { ownerKey: active.value.realm === "default" ? active.value.pluginId : `${active.value.pluginId}@${active.value.realm}` } : {}) }, { priority: o.priority ?? 0 })
       .pipe(Effect.provideService(PrincipalReference, Option.none()), Effect.provideService(PolicySeam, Option.none()), Effect.orDie)   // ids are unique; the bus's own registry is not policed twice
+    // A listener is reported as `listener` only, never also as a contribution (BEH-BR-119).
+    if (Option.isSome(active)) yield* active.value.report({ kind: "listener", event: eventId, priority: o.priority ?? 0 })
   })
   /** The listeners of one style as of the dispatch start (BEH-BR-140). */
   const snapshot = (eventId: string, kind: Listener["kind"], only?: string) => Effect.gen(function* () {

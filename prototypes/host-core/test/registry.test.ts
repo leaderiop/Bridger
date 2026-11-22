@@ -1,6 +1,7 @@
 // Phase-P5 scenarios for ContributionRegistry (behaviour 19, BEH-BR-161–168).
 import { Context, Deferred, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from "effect"
 import { describe, expect, it } from "vitest"
+import { ActivePlugin } from "../src/active.js"
 import * as Registry from "../src/registry.js"
 import type { AnyPlugin } from "../src/plugin.js"
 import { Event, Events } from "../src/bus.js"
@@ -99,12 +100,31 @@ describe("ContributionRegistry (behaviour 19)", () => {
       yield* host.install(contributor, as())
       yield* idle(host)
       const i = yield* host.inspect("pages")
-      expect(i.contributions.map((c) => c.registry)).toEqual(["routes", "ops/ping"])
+      expect(i.contributions.map((c) => c.registry)).toEqual(["routes"])          // a listener is reported as `listener` only (BEH-BR-119)
+      expect(i.listeners).toEqual([{ event: "ops/ping", priority: 0 }])
       expect(i.contributions[0]!.id).toBe("pages/home")
       expect(JSON.stringify(i)).not.toContain("route-value-secret")             // the value is never reported
       yield* drive(host, host.restart("pages", as()))
       yield* idle(host)
-      expect((yield* host.inspect("pages")).contributions).toHaveLength(2)      // withdrawn, then added again
+      const again = yield* host.inspect("pages")
+      expect([again.contributions.length, again.listeners.length]).toEqual([1, 1])   // withdrawn, then added again
     }), { options: { base: [[Routes, Effect.runSync(Effect.scoped(Registry.make<string>({ name: "routes" })))]] } })
+  })
+
+  it("BEH-BR-119: report lists a resource until the scope closes, and does nothing once the activation has ended", async () => {
+    let ref: import("../src/active.js").ActivePluginRef | undefined
+    await run((host) => Effect.gen(function* () {
+      const p: AnyPlugin = { id: "rep", requires: [], provides: [],
+        build: Layer.effectDiscard(Effect.gen(function* () {
+          const a = yield* ActivePlugin
+          if (Option.isSome(a)) { ref = a.value; yield* a.value.report({ kind: "resource", label: "socket", irreversible: true }) }
+        })) as unknown as AnyPlugin["build"] }
+      yield* host.install(p, as()); yield* idle(host)
+      expect((yield* host.inspect("rep")).resources).toEqual([{ label: "socket", irreversible: true, state: "held" }])
+      yield* drive(host, host.restart("rep", as())); yield* idle(host)
+      expect((yield* host.inspect("rep")).resources).toHaveLength(1)            // the old one left with its scope, the new activation listed its own
+      yield* drive(host, host.remove("rep", as()))
+      yield* Effect.scoped(ref!.report({ kind: "resource", label: "late" }))    // the activation has ended: nothing happens, nothing fails
+    }))
   })
 })

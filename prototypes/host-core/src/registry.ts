@@ -38,7 +38,7 @@ export interface Registry<A> {
   readonly revocations: Stream.Stream<HoldRevoked>
 }
 /** `revokeTimeout` (default 30 s) bounds the wait for revoked holders' finalizers (BEH-BR-167, report 03 T2); "forever" only when declared. */
-export interface RegistryOptions { readonly drainTimeout?: number | "forever"; readonly revokeTimeout?: number | "forever"; readonly name?: string; readonly contract?: Contract; readonly range?: string }
+export interface RegistryOptions { readonly drainTimeout?: number | "forever"; readonly revokeTimeout?: number | "forever"; readonly name?: string; readonly contract?: Contract; readonly range?: string; readonly report?: boolean }
 
 interface Slot<A> {
   readonly id: string
@@ -140,10 +140,10 @@ export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A
     const s: Slot<A> = { id, priority, value, hidden: false, holders: new Set(), ...(Option.isSome(ownerRef) ? { owner: { pluginId: ownerRef.value.pluginId, realm: ownerRef.value.realm } } : {}), ...(declared ? { version: declared.version, methods: declared.methods } : {}) }
     slots.set(id, s)
     yield* bump
-    const owner = yield* ActivePlugin
-    if (Option.isSome(owner)) owner.value.contributed(name, id)
+    // Reported first, so its removal runs after the withdrawal: listed until the removal has completed (BEH-BR-119, 164).
+    if (options.report !== false && Option.isSome(ownerRef)) yield* ownerRef.value.report({ kind: "contribution", registry: name, id })
     // Scope finalizers run last in, first out (BEH-BR-164).
-    yield* Effect.addFinalizer(() => withdraw(s).pipe(Effect.ensuring(Effect.sync(() => { if (Option.isSome(owner)) owner.value.withdrawn(name, id) }))))
+    yield* Effect.addFinalizer(() => withdraw(s))
   })
 
   /** Runs `run` in a child fiber that holds `held`, with the edge rules of Host.use (BEH-BR-166). */

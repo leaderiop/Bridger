@@ -13,7 +13,7 @@ Lens: Cordis / DeepSeek Harness (revertible effects, one `ctx.effect` primitive,
 ## Where Bridger is already ahead
 
 - Failure is sticky and honest: BEH-BR-046 forbids claiming a failed finalizer's resource was released; BEH-BR-047 makes the acknowledgement of a leak a named, audited act (`leak-acknowledged` record, `Actor.system`) rather than a silent retry. Cordis has `FAILED` but no leak ledger.
-- A leaked slot stays reserved (BEH-BR-046 prose): a replacement cannot reacquire the same external resource. Cordis would simply re-run.
+- A leaked slot stays reserved (BEH-BR-046 prose): a replacement cannot reacquire the same external resource. In Cordis a failure stays on the fiber and withholds re-entry (paper §4.4); the paper does not model a failed inverse.
 - Shared state has a real independence contract: `ContributionRegistry` (BEH-BR-161-168) gives keyed uniqueness (BEH-BR-163), id reservation until removal completes (BEH-BR-164), hide-then-drain-then-revoke with a bounded drain (BEH-BR-167), revisioned views, and a `revocations` feed with gap-detectable `seq`. Cordis only offers "inverse is the author's problem".
 - Honest limits: BEH-BR-161 refuses to claim arbitrary mutations commute; BEH-BR-048 says removal does not compensate emissions. This is the paper's own stated threat, written as a requirement.
 - No ambient mutation after death: activation scopes are fresh per activation (BEH-BR-036, INV-BR-014), `ActivePlugin.report` "does nothing once the activation has ended" (BEH-BR-119), and a failed activation publishes nothing (BEH-BR-037). This approximates INACTIVE_EFFECT without a throwing primitive.
@@ -113,14 +113,14 @@ Verification: fault injects a one-shot failure; retry succeeds and the plugin le
 
 ## Resolution status (2026-11-22)
 
-Branch `spec/cleanup-report-03`; prototype suite 645/645 (622 when the work started), `verify-traceability.sh` 0 failures. Every finding is resolved; the cards above are the proposals, and this table is what was built.
+Branch `spec/cleanup-report-03`; prototype suite 646/646 (622 when the work started), `verify-traceability.sh` 0 failures. Every finding is resolved; the cards above are the proposals, and this table is what was built.
 
 | Finding | Rec. | Status | As built |
 |---|---|---|---|
 | T1 | R1 | Resolved | `closeTimeout` (default 30 s). Effect cannot interrupt a finalizer (probed), so the close runs detached and only the wait is bounded; expiry ends the stop `failed(cleanup)` and claims no release. BEH-BR-107 amended: the overall shutdown limit still never interrupts, the per-scope limit records a failure. A plugin definition may override the bound (`closeTimeout`); the manifest override was replaced by it, since a manifest is data. |
 | T2 | R1 | Resolved | `Registry.revokeTimeout` (default 30 s) and `HoldRevoked.stuck`. The prototype had no `revocations` feed at all; BEH-BR-167's feed (`seq`, no notice without a revoked holder) is now implemented with it. |
 | T3 | R2 | Resolved | `causes` (LIFO, `label?`) on `CleanupError`, the failed snapshot entry and the `leak-acknowledged` error; `message` is the first. The `unmount` hook still carries one message. |
-| T4 | R3 | Resolved | `Runtime.acquire` and `PluginInspection.resources` (held, or release failed or unconfirmed). Opt-in: an empty list does not mean nothing is held. Prototype wires it in the runtime, not through `ActivePlugin.report`; the spec states the report kind. |
+| T4 | R3 | Resolved | `Runtime.acquire` and `PluginInspection.resources` (held, or release failed or unconfirmed). Opt-in: an empty list does not mean nothing is held. The prototype's `ActivePlugin` now has the specified scoped `report` (contribution, listener, resource); a listener is listed under `listeners` only. |
 | T5 | R4 | Resolved | `irreversible` resources appear in the leak record's `error.resources` and in inspection; BEH-BR-161 non-claim added; roadmap keeps `Plugin.compensate` as not planned. |
 | T6 | R5 | Resolved | BEH-BR-037 states emissions during build are not withheld; `Runtime.afterPublish` runs the queue in order after publication, never for a failed or stale build. |
 | T7 | R6 | Resolved | `Runtime.superseded` and `whenSuperseded`. No `Superseded` tag: any failure of a stale build is already discarded. |
@@ -134,5 +134,5 @@ Branch `spec/cleanup-report-03`; prototype suite 645/645 (622 when the work star
 - Checked: shutdown (12) bounded the whole shutdown only, never a single plugin's close; T1 stood as written. BEH-BR-107 was amended.
 - Checked: no rule withheld build-time emissions (05, 16); T6 stood.
 - The prototype was run: every change has a test and a mutation check (breaking the code failed the test).
-- Not done: `retryCleanup` cannot retry a finalizer not acquired through `acquire`; `Plugin.compensate` stays unplanned; the per-plugin `closeTimeout` lives on the plugin definition, not the manifest.
-- Cordis comparisons still rely on the supplied brief, and the diagrams are still simplified.
+- Not done: `retryCleanup` cannot retry a finalizer not acquired through `acquire`, because a `Layer` hides its finalizers in closures of nested scopes that the host cannot reach (probed); a retry also runs a release a second time, which Cordis forbids (at most once), so a kept release must be safe to repeat; `Plugin.compensate` stays unplanned; the per-plugin `closeTimeout` lives on the plugin definition, not the manifest.
+- Cordis comparisons were checked against the paper (arXiv 2608.25512): inertia (§4.4), the failure outcome that withholds re-entry (§4.4), awaiting `fiber.dispose()` with no bound (Algorithm, §5.1.3), recovery at most once (§5.1.1) and acquisition versus emission with withholding and compensation (§6.1) are stated there. `getEffects` and `INACTIVE_EFFECT` come from the Cordis fiber documentation, not the paper. One row was wrong and is corrected: Cordis does not "re-run" after a failure. The diagrams are still simplified.
