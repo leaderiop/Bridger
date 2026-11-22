@@ -5,7 +5,7 @@ import type * as Host from "../src/host.js"
 import * as Testing from "../src/testing.js"
 import { withHost } from "./fixtures.js"
 import { Contract } from "../src/contract.js"
-import { lazy, type PluginManifest } from "../src/manifest.js"
+import { lazy, type ManifestData, type PluginManifest } from "../src/manifest.js"
 import { define, type AnyPlugin } from "../src/plugin.js"
 
 export const failedWith = (exit: Exit.Exit<unknown, unknown>, tag: string) => Exit.isFailure(exit) && JSON.stringify(exit.cause).includes(tag)
@@ -30,7 +30,7 @@ export const dependent = (id: string, ref: any, seen?: Array<string>) => define(
 
 export class Reports extends Context.Service<Reports, { readonly run: Effect.Effect<string> }>()("example/Reports") {}
 export class Store extends Context.Service<Store, { readonly get: Effect.Effect<number> }>()("example/Store") {}
-export const reportsManifest: PluginManifest = {
+export const reportsManifest: ManifestData = {
   manifestVersion: 1, id: "reports", version: "1.0.0", provides: [{ serviceId: "example/Reports" }], requires: [],
   contributions: [{ registry: "example/price-change", id: "reports/guard", role: "veto" }],
   activation: [{ _tag: "OnEvent", eventId: "billing/invoice-posted" }], description: "Reports", "x-vendor": { keep: true }

@@ -1,94 +1,98 @@
 // Manifests, consentDiff and Plugin.lazy (references/core behaviour 27, BEH-BR-241–244). Prototype.
-// The schema check is hand-written (structural, path-naming, value-free) rather than an Effect Schema.
-import { Context, Duration, Effect, Layer, Option } from "effect"
+// The manifest is one Effect Schema; the type, the decoder and the JSON Schema derive from it (report 05 R5).
+import { Cause, Context, Duration, Effect, Exit, Layer, Option, Schema, type SchemaIssue } from "effect"
 import { CONTRACT, parseRange, refKind, satisfies } from "./contract.js"
 import type { AnyPlugin } from "./plugin.js"
 
 export const BRIDGER_VERSION = "0.3.0"     // `Bridger.version` of this prototype (BEH-BR-242)
 
-export type LazyTrigger =
-  | { readonly _tag: "OnService"; readonly serviceId: string }
-  | { readonly _tag: "OnContribution"; readonly registry: string; readonly id: string }
-  | { readonly _tag: "OnEvent"; readonly eventId: string }
-export interface ProvidedRef { readonly serviceId: string; readonly internal?: boolean; readonly version?: string; readonly methods?: ReadonlyArray<string> }
-export interface RequiredRef { readonly serviceId: string; readonly internal?: boolean; readonly range?: string; readonly version?: string; readonly methods?: ReadonlyArray<string> }
-export interface PluginManifest {
-  readonly manifestVersion: 1
-  readonly id: string
-  readonly version: string
-  readonly digest?: string
-  readonly provides: ReadonlyArray<ProvidedRef>
-  readonly requires: ReadonlyArray<RequiredRef>
-  readonly optional?: ReadonlyArray<RequiredRef>
-  readonly engines?: Readonly<Record<string, string>>
-  readonly activation?: ReadonlyArray<LazyTrigger>
-  readonly contributions?: ReadonlyArray<{ readonly registry: string; readonly id: string; readonly role?: "veto" | "enrich" | "advisory"; readonly target?: unknown }>
-  readonly listens?: ReadonlyArray<string>
-  readonly description?: string
-  readonly publisher?: string
-  readonly tier?: string
-  readonly requested?: {
-    readonly capabilities?: ReadonlyArray<{ readonly serviceId: string; readonly methods?: ReadonlyArray<string> }>
-    readonly permissions?: ReadonlyArray<string>
-    readonly egress?: ReadonlyArray<{ readonly host: string; readonly purpose?: string }>
+// The manifest is declared once, as a Schema; the type, the decoder and the JSON Schema `bridger pack` writes all derive from it
+// (improvement report 05 R5, DX-06).
+const Str = Schema.String
+const refFields = { serviceId: Str, internal: Schema.optionalKey(Schema.Boolean), version: Schema.optionalKey(Str), methods: Schema.optionalKey(Schema.Array(Str)) }
+export const ProvidedRef = Schema.Struct(refFields)
+export const RequiredRef = Schema.Struct({ ...refFields, range: Schema.optionalKey(Str) })
+export const LazyTrigger = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal("OnService"), serviceId: Str }),
+  Schema.Struct({ _tag: Schema.Literal("OnContribution"), registry: Str, id: Str }),
+  Schema.Struct({ _tag: Schema.Literal("OnEvent"), eventId: Str })
+])
+export const ManifestSchema = Schema.Struct({
+  manifestVersion: Schema.Literal(1),
+  id: Str,
+  version: Str,
+  digest: Schema.optionalKey(Str),
+  provides: Schema.Array(ProvidedRef),
+  requires: Schema.Array(RequiredRef),
+  optional: Schema.optionalKey(Schema.Array(RequiredRef)),
+  engines: Schema.optionalKey(Schema.Record(Str, Str)),
+  activation: Schema.optionalKey(Schema.Array(LazyTrigger)),
+  contributions: Schema.optionalKey(Schema.Array(Schema.Struct({ registry: Str, id: Str, role: Schema.optionalKey(Schema.Literals(["veto", "enrich", "advisory"])), target: Schema.optionalKey(Schema.Unknown) }))),
+  listens: Schema.optionalKey(Schema.Array(Str)),
+  description: Schema.optionalKey(Str),
+  publisher: Schema.optionalKey(Str),
+  tier: Schema.optionalKey(Str),
+  requested: Schema.optionalKey(Schema.Struct({
+    capabilities: Schema.optionalKey(Schema.Array(Schema.Struct({ serviceId: Str, methods: Schema.optionalKey(Schema.Array(Str)) }))),
+    permissions: Schema.optionalKey(Schema.Array(Str)),
+    egress: Schema.optionalKey(Schema.Array(Schema.Struct({ host: Str, purpose: Schema.optionalKey(Str) })))
+  })),
+  residency: Schema.optionalKey(Str),
+  config: Schema.optionalKey(Schema.Struct({ schema: Schema.Unknown, volatile: Schema.optionalKey(Schema.Array(Str)) })),
+  /** Companion-owned data, by package name (BEH-BR-241): the only open part of a manifest. */
+  extensions: Schema.optionalKey(Schema.Record(Str, Schema.Unknown))
+})
+export type LazyTrigger = typeof LazyTrigger.Type
+export type ProvidedRef = typeof ProvidedRef.Type
+export type RequiredRef = typeof RequiredRef.Type
+export type PluginManifest = typeof ManifestSchema.Type
+/**
+ * A decoded manifest as read: known fields typed, unknown properties kept (BEH-BR-241 clause 2: a newer manifest read by an older
+ * core keeps what it does not understand, and `consentDiff` still sees it). The type of a manifest a plugin author writes is
+ * `PluginManifest`, closed; only the decoded form is open.
+ */
+export type ManifestData = PluginManifest & { readonly [extra: string]: unknown }
+/** The JSON Schema of a manifest, for `bridger pack` and editors (kit BEH-KT-029). */
+export const manifestJsonSchema = () => Schema.toJsonSchemaDocument(ManifestSchema)
+
+/** The path of the first problem an issue names, never a value (BEH-BR-241): `provides[1].serviceId`. */
+const pathOf = (issue: SchemaIssue.Issue, prefix = ""): string => {
+  switch (issue._tag) {
+    case "Pointer": {
+      const here = issue.path.reduce<string>((acc, k) => typeof k === "number" ? `${acc}[${k}]` : acc === "" ? String(k) : `${acc}.${String(k)}`, prefix)
+      return pathOf(issue.issue, here)
+    }
+    case "Composite": return issue.issues.length > 0 ? pathOf(issue.issues[0]!, prefix) : prefix
+    case "MissingKey": return prefix
+    case "AnyOf": return issue.issues.length > 0 ? pathOf(issue.issues[0]!, prefix) : prefix
+    case "OneOf": return prefix
+    case "Filter": case "Encoding": return pathOf(issue.issue, prefix)
+    default: return prefix
   }
-  readonly residency?: string
-  readonly config?: { readonly schema: unknown; readonly volatile?: ReadonlyArray<string> }
-  readonly extensions?: Readonly<Record<string, unknown>>
-  readonly [extra: string]: unknown
 }
-
-const isObj = (u: unknown): u is Record<string, unknown> => typeof u === "object" && u !== null && !Array.isArray(u)
-const isStr = (u: unknown): u is string => typeof u === "string"
-const strArr = (u: unknown) => Array.isArray(u) && u.every(isStr)
-
-/** The decode of BEH-BR-241: a path naming the first problem, never a value; undefined when it decodes. */
-export const decodeProblem = (m: unknown): string | undefined => {
-  if (!isObj(m)) return "manifest: <root> is not an object"
-  if (m.manifestVersion !== 1) return "manifest: manifestVersion"
-  if (!isStr(m.id)) return "manifest: id"
-  if (!isStr(m.version)) return "manifest: version"
-  if (m.digest !== undefined && !isStr(m.digest)) return "manifest: digest"
-  const refs = (field: "provides" | "requires" | "optional", required: boolean): string | undefined => {
-    const v = m[field]
-    if (v === undefined && !required) return undefined
-    if (!Array.isArray(v)) return `manifest: ${field}`
-    for (let i = 0; i < v.length; i++) {
-      const r = v[i]
-      if (!isObj(r) || !isStr(r.serviceId)) return `manifest: ${field}[${i}].serviceId`
-      if (r.version !== undefined && !isStr(r.version)) return `manifest: ${field}[${i}].version`
-      if (r.methods !== undefined && !strArr(r.methods)) return `manifest: ${field}[${i}].methods`
-      if (field !== "provides" && r.range !== undefined && !isStr(r.range)) return `manifest: ${field}[${i}].range`
-      if (r.internal !== undefined && typeof r.internal !== "boolean") return `manifest: ${field}[${i}].internal`
+/** Rules across the fields of one reference, which a structural schema does not express (BEH-BR-241). */
+const crossProblem = (m: PluginManifest): string | undefined => {
+  for (const field of ["provides", "requires", "optional"] as const) {
+    const refs = (m[field] ?? []) as ReadonlyArray<{ internal?: boolean; version?: string; methods?: ReadonlyArray<string> }>
+    for (let i = 0; i < refs.length; i++) {
+      const r = refs[i]!
       if (r.internal !== undefined && r.version !== undefined) return `manifest: ${field}[${i}].internal (on a contract key)`
       if (r.version !== undefined && r.methods === undefined) return `manifest: ${field}[${i}].methods (version without methods)`
       if (r.version === undefined && r.methods !== undefined) return `manifest: ${field}[${i}].methods (methods on a plain key)`
     }
-    return undefined
   }
-  const bad = refs("provides", true) ?? refs("requires", true) ?? refs("optional", false)
-  if (bad) return bad
-  if (m.engines !== undefined && (!isObj(m.engines) || !Object.values(m.engines).every(isStr))) return "manifest: engines"
-  if (m.activation !== undefined) {
-    if (!Array.isArray(m.activation)) return "manifest: activation"
-    for (let i = 0; i < m.activation.length; i++) {
-      const t = m.activation[i]
-      const ok = isObj(t) && ((t._tag === "OnService" && isStr(t.serviceId)) || (t._tag === "OnContribution" && isStr(t.registry) && isStr(t.id)) || (t._tag === "OnEvent" && isStr(t.eventId)))
-      if (!ok) return `manifest: activation[${i}]`
-    }
-  }
-  if (m.contributions !== undefined) {
-    if (!Array.isArray(m.contributions)) return "manifest: contributions"
-    for (let i = 0; i < m.contributions.length; i++) {
-      const c = m.contributions[i]
-      if (!isObj(c) || !isStr(c.registry) || !isStr(c.id)) return `manifest: contributions[${i}]`
-      if (c.role !== undefined && c.role !== "veto" && c.role !== "enrich" && c.role !== "advisory") return `manifest: contributions[${i}].role`
-    }
-  }
-  if (m.listens !== undefined && !strArr(m.listens)) return "manifest: listens"
-  for (const f of ["description", "publisher", "tier", "residency"]) if (m[f] !== undefined && !isStr(m[f])) return `manifest: ${f}`
-  if (m.extensions !== undefined && !isObj(m.extensions)) return "manifest: extensions"
   return undefined
+}
+/** The decode of BEH-BR-241: a path naming the first problem, never a value; undefined when it decodes. */
+export const decodeProblem = (m: unknown): string | undefined => {
+  if (typeof m !== "object" || m === null || Array.isArray(m)) return "manifest: <root> is not an object"
+  const exit = Schema.decodeUnknownExit(ManifestSchema, { errors: "first" })(m)
+  if (Exit.isFailure(exit)) {
+    const err = Cause.squash(exit.cause) as { readonly issue?: SchemaIssue.Issue }
+    const path = err.issue ? pathOf(err.issue) : ""
+    return `manifest: ${path === "" ? "<root>" : path}`
+  }
+  return crossProblem(exit.value)
 }
 
 /** Engines (BEH-BR-242): undefined, or the range problem ("invalid") or the unsatisfied range. */
@@ -149,8 +153,9 @@ export interface ConsentDiff {
   readonly requiresConsent: boolean
 }
 const cu = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0
+const isObj = (u: unknown): u is Record<string, unknown> => typeof u === "object" && u !== null && !Array.isArray(u)
 const canon = (u: unknown): string => JSON.stringify(u, (_k, v) => isObj(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => cu(a, b))) : v)
-export const consentDiff = (previous: PluginManifest | undefined, next: PluginManifest): ConsentDiff => {
+export const consentDiff = (previous: ManifestData | undefined, next: ManifestData): ConsentDiff => {
   const widened: Array<ConsentChange> = [], narrowed: Array<ConsentChange> = [], relabelled: Array<ConsentChange> = [], unclassified: Array<ConsentChange> = []
   const setDiff = (path: string, a: ReadonlyArray<string>, b: ReadonlyArray<string>) => {
     const added = [...new Set(b.filter((x) => !a.includes(x)))].sort(cu), removed = [...new Set(a.filter((x) => !b.includes(x)))].sort(cu)
