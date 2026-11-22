@@ -54,4 +54,12 @@ describe("event catalog (improvement report 04, R2)", { timeout: 60_000 }, () =>
       expect(r.stdout).toContain("ns.K is a 'emit' event used with .waterfall()")
     })
   })
+  it("a helper-built key and a dispatch through an undeclared key fail", () => {
+    withFixture({ "a.ts": `const make = (id: string) => ${MK}<[], void>()(id, { mode: "emit" })\n`, "b.ts": `${WF.replace("waterfall", "emit")}(Nowhere)\n` }, (dir) => {
+      const r = check(dir)
+      expect(r.status).toBe(1)
+      expect(r.stdout).toContain("not a declaration with a literal id and mode")
+      expect(r.stdout).toContain("uses a key nothing in the file declares or imports")
+    })
+  })
 })

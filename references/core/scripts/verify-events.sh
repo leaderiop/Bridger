@@ -42,6 +42,13 @@ for p in sources:
         if not mode or mode.group(1) not in MODES:
             fails.append(f"{rel(p)}: Event.make for {ident!r} declares no mode (one of {', '.join(MODES)})"); continue
         bus.append((ident, mode.group(1), rel(p)))
+# every `Event.make` occurrence must be a recognised declaration: a helper that builds keys, or a computed id or mode, would hide them from this check
+for p in sources:
+    t = read(p)
+    total = len(re.findall(r'Event\.make<', t))
+    seen = len(MAKE.findall(t))
+    if total != seen and not p.endswith("bus.ts"):
+        fails.append(f"{rel(p)}: {total - seen} Event.make use(s) are not a declaration with a literal id and mode (a helper-built key is not checked)")
 # one id, one mode
 by_id = {}
 for ident, mode, f in bus: by_id.setdefault(ident, set()).add(mode)
@@ -87,6 +94,15 @@ for p in sources + list(walk(os.path.join(ROOT, "prototypes/host-core/test"), ".
                 line = t.count("\n", 0, m.start()) + 1
                 if "@ts-expect-error" in t.split("\n")[line - 2]: continue   # a deliberate mismatch the compiler is asserted to refuse
                 fails.append(f"{rel(p)}:{line}: {name} is a {mode!r} event used with .{m.group(1)}()")
+
+# a dispatch or listener registration whose key is a bare identifier that is neither declared nor imported in the file is flagged in the prototype's own source
+for p in [x for x in sources if x.endswith(".ts") and not x.endswith("bus.ts")]:
+    t = read(p)
+    for m in re.finditer(r'\bbus\.(emit|parallel|serial|waterfall|on|around)\(\s*([A-Za-z_]\w*)\b', t):
+        name = m.group(2)
+        n = re.escape(name)
+        declared = re.search(r'\b(?:const|let|var)\s+' + n + r'\b', t) or re.search(r'import[^;]*\b' + n + r'\b[^;]*from', t) or re.search(r'\([^()]*\b' + n + r'\b[^()]*\)\s*(?::[^=]*)?=>', t) or re.search(r'function[^(]*\([^)]*\b' + n + r'\b', t)
+        if not declared: fails.append(f"{rel(p)}: .{m.group(1)}({name}) uses a key nothing in the file declares or imports")
 
 # hook points
 hooks = []
