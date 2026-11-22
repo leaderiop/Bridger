@@ -104,11 +104,29 @@ for p in [x for x in sources if x.endswith(".ts") and not x.endswith("bus.ts")]:
         declared = re.search(r'\b(?:const|let|var)\s+' + n + r'\b', t) or re.search(r'import[^;]*\b' + n + r'\b[^;]*from', t) or re.search(r'\([^()]*\b' + n + r'\b[^()]*\)\s*(?::[^=]*)?=>', t) or re.search(r'function[^(]*\([^)]*\b' + n + r'\b', t)
         if not declared: fails.append(f"{rel(p)}: .{m.group(1)}({name}) uses a key nothing in the file declares or imports")
 
-# hook points
-hooks = []
+# hook points: the roles a point serves are in its type arguments, HookPoint.make<In, Enrich, Advice, Code>: a `never` Enrich or Advice
+# or Code means no enrich, no advise, no veto role (report 05 R6, DX-06; a role mismatch is also a compile error in the hook).
+def split_args(a):
+    out, depth, cur = [], 0, ""
+    for ch in a:
+        if ch in "<([{": depth += 1
+        elif ch in ">)]}": depth -= 1
+        if ch == "," and depth == 0: out.append(cur.strip()); cur = ""
+        else: cur += ch
+    out.append(cur.strip())
+    return out
+hooks, hook_roles = [], {}
 for p in sources:
-    for m in re.finditer(r'HookPoint\.make<[^>]*(?:<[^>]*>[^>]*)*>\(\s*"([^"]+)"', read(p)):
-        hooks.append((m.group(1), rel(p)))
+    t = read(p)
+    for m in re.finditer(r'(?:(?:const|let)\s+(\w+)\s*=\s*(?:yield\*\s*)?)?HookPoint\.make<((?:[^<>]|<[^<>]*>)*)>\(\s*"([^"]+)"', t):
+        var, targs, name = m.group(1), split_args(m.group(2)), m.group(3)
+        hooks.append((name, rel(p)))
+        g = lambda i: targs[i].strip() if len(targs) > i else "never"
+        roles = ["enrich"] * (g(1) != "never") + ["advisory"] * (g(2) != "never") + ["veto"] * (g(3) != "never")
+        hook_roles.setdefault(name, set()).update(roles)
+        if var:   # a register of a role the point's type arguments rule out, in the same file
+            for r in re.finditer(re.escape(var) + r'\.register\([^;]*?role:\s*"(veto|enrich|advisory)"', t, re.S):
+                if r.group(1) not in roles: fails.append(f"{rel(p)}: {var}.register uses role '{r.group(1)}' on hook point {name}, whose type arguments allow {roles or 'none'}")
 
 # host events
 ev_ts = read(os.path.join(ROOT, "prototypes/host-core/src/events.ts"))
@@ -178,10 +196,10 @@ for ident in sorted(by_id):
     L.append(f"| `{ident}` | `{mode}` | {', '.join('`'+w+'`' for w in where)} |")
 if not by_id: L.append("| — | — | — |")
 L.append("\n## Hook points (`HookPoint.make`)\n")
-L.append("| Hook point | Declared in |\n| --- | --- |")
+L.append("| Hook point | Roles | Declared in |\n| --- | --- | --- |")
 for name in sorted({h for h, _ in hooks}):
-    L.append(f"| `{name}` | {', '.join('`'+f+'`' for f in sorted({f for h, f in hooks if h == name}))} |")
-if not hooks: L.append("| — | — |")
+    L.append(f"| `{name}` | {', '.join(sorted(hook_roles.get(name, ())) ) or 'none'} | {', '.join('`'+f+'`' for f in sorted({f for h, f in hooks if h == name}))} |")
+if not hooks: L.append("| — | — | — |")
 L.append("\n## Host events (`Host.events`)\n\nThe `HostEventBody` tags of the prototype. \"Specified in\" lists the behaviour files that name the tag.\n")
 L.append("| Tag | Fields (besides the common ones) | Specified in |\n| --- | --- | --- |")
 for tag in sorted(host_events):

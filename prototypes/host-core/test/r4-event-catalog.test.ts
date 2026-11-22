@@ -62,4 +62,15 @@ describe("event catalog (improvement report 04, R2)", { timeout: 60_000 }, () =>
       expect(r.stdout).toContain("uses a key nothing in the file declares or imports")
     })
   })
+  it("report 05 R6: a register of a role the hook point's type arguments rule out fails, and the catalog lists each point's roles", () => {
+    const HK = "Hook" + "Point.make"
+    withFixture({ "h.ts": `const P = yield* ${HK}<In, never, never, never>("x/no-veto", {})\nyield* P.register("a", h, { role: "veto" })\n` }, (dir) => {
+      const r = check(dir)
+      expect(r.status).toBe(1)
+      expect(r.stdout).toContain("role 'veto' on hook point x/no-veto")
+    })
+    withFixture({ "h.ts": `const P = yield* ${HK}<In, never, never, "c">("x/veto", {})\nyield* P.register("a", h, { role: "veto" })\n` }, (dir) => {
+      expect(check(dir).stdout).not.toContain("role 'veto' on hook point")
+    })
+  })
 })

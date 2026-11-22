@@ -28,13 +28,13 @@ Each event has exactly one dispatch mode (BEH-BR-138). Declarations are those of
 
 ## Hook points (`HookPoint.make`)
 
-| Hook point | Declared in |
-| --- | --- |
-| `@bridger/agent/eval` | `references/agent/behaviors/05-agent-testing.md` |
-| `checkout` | `references/entitlement/behaviors/02-gate-and-runtime.md` |
-| `example/before-command` | `references/core/behaviors/31-hook-points.md` |
-| `example/order-check` | `references/core/behaviors/31-hook-points.md` |
-| `example/price-change` | `references/core/behaviors/31-hook-points.md` |
+| Hook point | Roles | Declared in |
+| --- | --- | --- |
+| `@bridger/agent/eval` | advisory | `references/agent/behaviors/05-agent-testing.md` |
+| `checkout` | veto | `references/entitlement/behaviors/02-gate-and-runtime.md` |
+| `example/before-command` | advisory, veto | `references/core/behaviors/31-hook-points.md` |
+| `example/order-check` | veto | `references/core/behaviors/31-hook-points.md` |
+| `example/price-change` | veto | `references/core/behaviors/31-hook-points.md` |
 
 ## Host events (`Host.events`)
 
