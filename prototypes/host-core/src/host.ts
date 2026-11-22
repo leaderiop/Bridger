@@ -251,6 +251,7 @@ interface EntryAction {
   readonly causedBy?: string; readonly reached?: () => void
   readonly undoes?: string; readonly undo?: true                    // an atomic apply's undo action (BEH-BR-325)
   readonly onRequested?: (recordId: string) => void                 // the forward action's requested record, for `undoes`
+  readonly owner?: string; readonly catalogIds?: ReadonlyArray<string>   // the reconcile scope that installs, and the catalog ids it named (BEH-BR-153, 155)
 }
 
 /** Record id of the operator record that caused the work running in this fiber (for system records' causationId). */
@@ -2342,9 +2343,9 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const policyOf = (tkey: string | undefined, o: unknown): { allowChildren?: boolean; mandatoryInterceptions?: ReadonlyArray<{ serviceId: string; id?: string }> } => {
     if (tkey === undefined) return {}
     const e = entries.get(tkey)
-    const io = (o ?? {}) as InstallOptions & { catalogIds?: ReadonlyArray<string> }
+    const io = (o ?? {}) as InstallOptions & { [ENTRY]?: EntryAction }
     const chain = e ? e.mandatoryChain : io.mandatory ?? []
-    const ids = e ? e.catalogIds : io.catalogIds
+    const ids = e ? e.catalogIds : io[ENTRY]?.catalogIds
     return { allowChildren: e ? e.allowChildren : io.allowChildren ?? true, mandatoryInterceptions: chain.map((m, i) => ({ serviceId: sid(m.key), ...(ids?.[i] ? { id: ids[i] } : {}) })) }
   }
   const newEntry = (def: AnyPlugin, ident: Ident, o: { readonly disabled?: boolean; readonly config?: unknown; readonly intercept?: Entry["intercept"]; readonly owner?: string; readonly mandatoryChain?: ReadonlyArray<MandatoryInterception>; readonly allowChildren?: boolean }): Entry => ({
@@ -2402,13 +2403,14 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       } : {}),
       validate: knownRealm(realm).pipe(Effect.andThen(legalEarly(ident.key, "install")), Effect.andThen(validate(def, ident, undefined, !!opts.disabled))),   // registers nothing on error (BEH-BR-018)
       linearize: (call) => immediate(call, Effect.gen(function* () {
+        const ent = (opts as { [ENTRY]?: EntryAction })[ENTRY]
         yield* legal(ident.key, "install"); yield* validate(def, ident, undefined, !!opts.disabled)
         return yield* locked(Effect.gen(function* () {
           entries.set(ident.key, newEntry(def, ident, {
-            ...(opts.disabled ? { disabled: true } : {}), ...(opts.config !== undefined ? { config: opts.config } : {}), ...(opts.owner !== undefined ? { owner: opts.owner } : {}),
+            ...(opts.disabled ? { disabled: true } : {}), ...(opts.config !== undefined ? { config: opts.config } : {}), ...(ent?.owner !== undefined ? { owner: ent.owner } : {}),   // adoption is the reconcile's alone, never a caller's option (S75)
             ...(opts.intercept ? { intercept: { inherited: [], own: opts.intercept } } : {}),
             ...(opts.mandatory ? { mandatoryChain: opts.mandatory } : {}), ...(opts.allowChildren !== undefined ? { allowChildren: opts.allowChildren } : {}) }))
-          const cids = (opts as { catalogIds?: ReadonlyArray<string> }).catalogIds
+          const cids = ent?.catalogIds
           if (cids) entries.get(ident.key)!.catalogIds = cids
           const created = entries.get(ident.key)!
           if (lazyDef) { created.lazy = { def: lazyDef, loaded: false, loading: false }; if (!opts.disabled) created.state = "dormant" }   // BEH-BR-244
@@ -3089,7 +3091,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         const prevOf = (key: string): Prev | undefined => { const e = entries.get(key); return e ? { def: e.def, ...(e.override ? { override: e.override.raw } : {}), disabled: operatorDisabled(e), ...(e.owner !== undefined ? { owner: e.owner } : {}), ...(e.catalogIds ? { catalogIds: e.catalogIds } : {}), allowChildren: e.allowChildren } : undefined }
         const runAction = (a: ActionTag, d: { id: string; realm: string; plugin?: AnyPlugin; config?: unknown; disabled?: boolean; owner?: string; catalogIds?: ReadonlyArray<string>; allowChildren?: boolean }, o: OperationOptions & EntryAction): Effect.Effect<unknown, unknown> => {
           const ref = { id: d.id, realm: d.realm }
-          return a === "install" ? install(d.plugin!, { ...o, realm: d.realm, owner: d.owner ?? scope, ...(d.config !== undefined ? { config: d.config } : {}), ...(d.disabled ? { disabled: true } : {}), ...policyInstall(d.catalogIds, d.allowChildren) }) :
+          return a === "install" ? install(d.plugin!, ((pi) => ({ ...o, realm: d.realm, [ENTRY]: { ...(o as { [ENTRY]?: EntryAction })[ENTRY], owner: d.owner ?? scope, ...(pi.catalogIds ? { catalogIds: pi.catalogIds } : {}) }, ...(d.config !== undefined ? { config: d.config } : {}), ...(d.disabled ? { disabled: true } : {}), ...(pi.mandatory ? { mandatory: pi.mandatory } : {}), ...(pi.allowChildren !== undefined ? { allowChildren: pi.allowChildren } : {}) }))(policyInstall(d.catalogIds, d.allowChildren) as { mandatory?: never; catalogIds?: ReadonlyArray<string>; allowChildren?: boolean })) :
             a === "replace" ? replaceBase(d.plugin!, { ...o, realm: d.realm }) :
             a === "reconfigure" ? reconfigure(ref, d.config, o) :
             a === "disable" ? disable(ref, o) :

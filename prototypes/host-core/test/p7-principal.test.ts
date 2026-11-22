@@ -328,5 +328,13 @@ describe("S69 shutdown past the gate and required ports", () => {
       expect((r as { undo?: unknown }).undo).toBeUndefined()
     }), { gate })
   })
+  it("S75: an install cannot claim reconcile ownership through a public owner option", async () => {
+    await onHost((host) => Effect.gen(function* () {
+      yield* host.install(storePlugin(), { ...as(), owner: "some-scope" } as never); yield* idle(host)
+      const rep = yield* host.reconcile([], { scope: "some-scope", prune: true } as never)
+      expect((rep as { removed: ReadonlyArray<unknown> }).removed).toEqual([])
+      expect((yield* host.snapshot).plugins.map((p) => p.id)).toEqual(["store"])
+    }))
+  })
 })
 
