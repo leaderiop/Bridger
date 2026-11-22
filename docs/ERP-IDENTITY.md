@@ -190,6 +190,7 @@ interface Grants {
 - If the module that declares a role is disabled or the role name is unknown, that grant contributes **no permissions** (fail closed). The grant row is retained, and re-enabling the module restores the effect.
 - Company-scoped grants apply only inside that company. A tenant-wide grant (`company_id = '*'`) applies to tenant-scoped models and to administrative permissions, never to company-scoped model data. Roles do not bypass owner or scope rules ([ERP-ACCESS.md](ERP-ACCESS.md) §2).
 - `assign` verifies the actor is a member of the awthaq organization (tenant) and the company is active. A grant cannot exceed the assigner's own authority: the assigner must hold the permission `bridger.grant:manage` in that company (or tenant-wide), and may assign only roles whose permissions are a subset of their own (`GrantEscalation` otherwise), unless they hold platform administration.
+- Session tokens: awthaq's `exp - iat` is 900 s by default and a stateless `Jwt.verify` still succeeds after `Sessions.revoke` until `exp`; `Jwt.verifyLive` fails at once but needs `Sessions` and so is online (spike SPK-09-12). A deployment that needs faster revocation sets a short ttl and uses `verifyLive` on sensitive routes. Bridger's per-call capability token is a separate, shorter bound (`tokenTtl`, remote BEH-RM-043).
 - Revocation takes effect on the next request. Sessions keep their selected company; if the last grant in it is revoked, step 4 of §3 clears the context.
 - Expired grants are ignored at resolution time and removed by a cleanup job.
 

@@ -57,7 +57,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
       yield* Effect.forkDetach(Effect.gen(function* () {
         const exit = f.epoch !== o.epoch ? { refused: { reason: "stale-epoch", tag: "StaleEpoch" } }
           : !o.callbacks ? { refused: { reason: "denied", tag: "CallbackDenied" } }
-          : yield* handleCallback({ ...o.callbacks, epoch: o.epoch, revoked: o.callbacks.revoked?.() ?? false, rev: { pluginIds: new Set(), digests: new Set() }, now: Clock.currentTimeMillis, inFlight: (id) => pending.has(id), seen: callbackSeen, authority: tokens },
+          : yield* handleCallback({ ...o.callbacks, epoch: o.epoch, revoked: o.callbacks.revoked?.() ?? false, rev: { pluginIds: new Set(), digests: new Set() }, now: Clock.currentTimeMillis, inFlight: (id) => pending.has(id), seen: callbackSeen, authority: tokens, tokenTtl: o.tokenTtl ?? 30_000 },
             { epoch: String(f.epoch), callId: String(f.callId), parent: String(f.parent), token: String(f.token), contract: String(f.contract), method: String(f.method), payload: f.payload })
         if (f.epoch !== o.epoch) yield* Ref.update(refusals, (x) => x + 1)
         if (o.log) {                                                                 // one entry per callback at its end; every refusal is a "refusal" entry; no payload, token or message

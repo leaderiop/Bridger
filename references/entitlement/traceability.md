@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-TRACE                                             |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix (companion)                              |
-> | Change History | 0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — REQ-EN-012 cites BEH-EN-005, as check 12 does (PL12) (CCR-EN-008)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — rows BEH-EN-025–032, REQ-EN-017–023, INV-EN-006–007, ADR-EN-004; BEH-EN-016 and 023 cite core `policy` and `settle`; risk note 3 updated (CCR-EN-003)<br>0.3 (2026-11-08): Rows for the skip policies and the piece timeout; RSK-BR-046 named (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.6 (2026-11-22): §3 notes the 900 s awthaq token bound (improvement report 06, S10)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — REQ-EN-012 cites BEH-EN-005, as check 12 does (PL12) (CCR-EN-008)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — rows BEH-EN-025–032, REQ-EN-017–023, INV-EN-006–007, ADR-EN-004; BEH-EN-016 and 023 cite core `policy` and `settle`; risk note 3 updated (CCR-EN-003)<br>0.3 (2026-11-08): Rows for the skip policies and the piece timeout; RSK-BR-046 named (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -102,6 +102,13 @@ mistaken for a record),
 entitlement piece composes into),
 [RSK-BR-018](../core/gxp/03-risk-assessment.md#rsk-br-018) (over-claiming
 evidence).
+
+An entitlement or identity decision made from an awthaq bearer token inherits
+its lifetime: `exp - iat` is 900 s by default and a stateless verify still
+succeeds after `Sessions.revoke` until `exp` (spike SPK-09-12). Bridger's
+per-call capability token is separate and capped by `tokenTtl` (remote,
+BEH-RM-043, BEH-RM-044); a deployment that needs a shorter window sets a
+short awthaq ttl and uses the revocation feed.
 
 Hazards this package introduces, proposed for the core register under change
 control; the first is registered in core as
