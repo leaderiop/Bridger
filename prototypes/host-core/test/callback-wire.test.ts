@@ -85,7 +85,7 @@ describe("call log entries through Host.offerCallEntry (BEH-RM-047)", () => {
       yield* Effect.forkChild(serveGuest(b, guest({ post: (p, ctx) => Effect.gen(function* () { yield* ctx.callback("stock/Query", "count", p); yield* ctx.callback("stock/Query", "drop", p); return "done" }) })))
       const s = (yield* openSession(a, { ...base("e-9"), callbacks: hostSide(ran), log: callLogTo(host as never, "link-1", "example/Board@1") })) as Session
       yield* s.call("post", "secret-payload")
-      for (let i = 0; i < 200 && entries.length < 3; i++) yield* Effect.sleep(5)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && entries.length < 3;) yield* Effect.sleep(5)
       yield* s.close
       const kinds = entries.map((e) => `${e.kind}:${e.crossing?.direction ?? e.refusal?.stage}:${e.member}:${e.outcome}`).sort()
       expect(kinds).toEqual(["crossing:inbound:count:success", "crossing:outbound:post:success", "refusal:boundary:drop:refused"])

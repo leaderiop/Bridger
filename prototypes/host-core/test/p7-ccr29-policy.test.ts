@@ -40,7 +40,7 @@ describe("P7 third pass: a removal that waits for a running load (G-P14, BEH-BR-
       while ((yield* stateIn(host, "ear")) !== "stopping") { if (!(yield* host.step)) yield* Effect.yieldNow }
       yield* Deferred.succeed(gate, undefined)                                       // the load settles only after the target changed
       yield* drive(host, Fiber.join(removal))
-      for (let i = 0; i < 500 && drops(events).length === 0; i++) yield* Effect.sleep(2)   // the collector fiber catches up
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && drops(events).length === 0;) yield* Effect.sleep(2)   // the collector fiber catches up
       expect(drops(events)).toEqual(["activation-failed"])
     }))
   })
@@ -57,7 +57,7 @@ describe("P7 third pass: a removal that waits for a running load (G-P14, BEH-BR-
       while ((yield* stateIn(host, "ear")) !== "stopping") { if (!(yield* host.step)) yield* Effect.yieldNow }
       yield* Deferred.succeed(gate, undefined)                                       // the load settles only after the target changed
       yield* drive(host, Fiber.join(removal))
-      for (let i = 0; i < 500 && drops(events).length === 0; i++) yield* Effect.sleep(2)   // the collector fiber catches up
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && drops(events).length === 0;) yield* Effect.sleep(2)   // the collector fiber catches up
       expect(heard).toEqual([])
       expect(drops(events)).toEqual(["ended"])
       expect(yield* stateIn(host, "ear")).toBe("uninstalled")

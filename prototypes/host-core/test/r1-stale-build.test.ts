@@ -21,7 +21,7 @@ const run = (cause: "provider-removed" | "operator-removed") => withHost((host) 
   yield* drive(host, host.remove(cause === "provider-removed" ? "example/logger" : "repro/dependent", { drain: 5000 }))
   yield* idle(host)
   const isStale = (e: HostEvent) => e.type === "build-finished" && (e as { stale?: boolean }).stale
-  for (let i = 0; i < 1000 && !seen.some(isStale); i++) yield* Effect.sleep(2)   // the collector fiber catches up
+  for (const t0 = Date.now(); Date.now() - t0 < 30_000 && !seen.some(isStale);) yield* Effect.sleep(2)   // the collector fiber catches up: a deadline, not an iteration count, so a loaded machine only slows it
   const state = cause === "provider-removed" ? yield* stateOf(host, "repro/dependent") : undefined
   return { state, stale: seen.filter((e) => e.type === "build-finished" && (e as { stale?: boolean }).stale) as Array<HostEvent & { discardedFailures?: number; outcome?: string }> }
 }))
@@ -58,7 +58,7 @@ describe("BEH-BR-039: repeated discarded failures mark the build flapping", () =
         yield* Deferred.succeed(gate, undefined)
         yield* drive(host, Fiber.join(removal))
         yield* idle(host)
-        for (let i = 0; i < 400 && !seen.some((e) => e.type === "build-finished" && (e as { stale?: boolean }).stale && (e as { discardedFailures?: number }).discardedFailures === attempts); i++) yield* Effect.sleep(2)
+        for (const t0 = Date.now(); Date.now() - t0 < 30_000 && !seen.some((e) => e.type === "build-finished" && (e as { stale?: boolean }).stale && (e as { discardedFailures?: number }).discardedFailures === attempts);) yield* Effect.sleep(2)
       })
       let attempts = 0
       for (attempts = 1; attempts <= 2; attempts++) yield* lose()
@@ -66,7 +66,7 @@ describe("BEH-BR-039: repeated discarded failures mark the build flapping", () =
       expect(seen.filter((e) => e.type === "build-flapping")).toHaveLength(0)
       attempts = 3; yield* lose()
       expect(yield* flappingOf()).toEqual({ discardedFailures: 3 })
-      for (let i = 0; i < 400 && !seen.some((e) => e.type === "build-flapping"); i++) yield* Effect.sleep(2)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && !seen.some((e) => e.type === "build-flapping");) yield* Effect.sleep(2)
       expect(seen.filter((e) => e.type === "build-flapping")).toMatchObject([{ discardedFailures: 3 }])
       // A real (non-stale) outcome clears the counter.
       failing = false

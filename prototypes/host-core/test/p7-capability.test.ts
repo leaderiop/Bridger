@@ -106,10 +106,10 @@ describe("P7 core 29: CapabilityPolicy and grants (checks 71, 72, 111)", () => {
     }))
     await onHost((host) => Effect.gen(function* () {
       yield* host.install(bank, as()); yield* host.install(holder, as()); yield* idle(host)
-      for (let i = 0; i < 1000 && results.length === 0; i++) yield* Effect.sleep(2)           // the caller has run once under the wide grant
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && results.length === 0;) yield* Effect.sleep(2)           // the caller has run once under the wide grant
       narrow = true
       yield* PubSub.publish(changes, { consumers: ["plugin:holder@default"] })
-      for (let i = 0; i < 1000 && results.at(-1) !== "denied"; i++) yield* Effect.sleep(2)    // until the re-resolved grant is seen
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && results.at(-1) !== "denied";) yield* Effect.sleep(2)    // until the re-resolved grant is seen
       expect(results[0]).toBe("ok")
       expect(results.at(-1)).toBe("denied")
       expect(yield* stateIn(host, "holder")).toBe("active")
@@ -126,7 +126,7 @@ describe("P7 core 29: CallLog (checks 73, 107, 110)", () => {
         balance: Effect.map(CurrentCall.get, (c) => { inside.push(Option.isSome(c) ? c.value.member : "none"); return 10 }), withdraw: (n) => Effect.succeed(n * 1000 + 7), fail: Effect.fail(new Boom()) }) }) as unknown as AnyPlugin, as())
       yield* host.install(user("spender", (b) => Effect.gen(function* () { yield* b.balance; yield* b.withdraw(3); yield* Effect.exit(b.fail) })), as())
       yield* idle(host)
-      for (let i = 0; i < 1000 && log.entries.length < 1; i++) yield* Effect.sleep(2)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && log.entries.length < 1;) yield* Effect.sleep(2)
       expect(log.entries.map((e) => [e.kind, e.member, e.outcome, e.consumer.kind])).toEqual([["call", "balance", "success", "plugin"], ["call", "withdraw", "success", "plugin"], ["call", "fail", "failure", "plugin"]])
       expect(log.entries[2]!.errorTag).toBe("Boom")
       expect(log.entries.every((e) => e.origin === "core" && typeof e.durationMs === "number" && e.startedAt.endsWith("Z"))).toBe(true)
@@ -159,7 +159,7 @@ describe("P7 core 29: CallLog (checks 73, 107, 110)", () => {
     await onHost((host) => Effect.gen(function* () {
       yield* host.install(bank, as()); yield* idle(host)
       expect(yield* host.use(Bank, (b) => b.balance)).toBe(10)
-      for (let i = 0; i < 1000 && (yield* host.controls).callLog!.failed < 1; i++) yield* Effect.sleep(2)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && (yield* host.controls).callLog!.failed < 1;) yield* Effect.sleep(2)
       expect((yield* host.controls).callLog!.failed).toBe(1)
     }), { layers: [dropping.layer] })
   })

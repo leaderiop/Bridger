@@ -74,7 +74,7 @@ describe("report 02 R3: broker (BEH-BR-168)", () => {
       yield* host.install(consumer(seen), as())
       yield* idle(host)
       yield* drive(host, host.use(Board, (x) => x.post("y")))
-      for (let i = 0; i < 500 && entries.filter((e) => e.serviceId === "example/Board@1").length < 2; i++) yield* Effect.sleep(2)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && entries.filter((e) => e.serviceId === "example/Board@1").length < 2;) yield* Effect.sleep(2)
       const calls = entries.filter((e) => e.serviceId === "example/Board@1")
       expect(calls.length).toBeGreaterThanOrEqual(1)
       expect(calls.every((e) => e.member === "post" && e.contribution === "acme")).toBe(true)

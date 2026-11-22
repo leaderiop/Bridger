@@ -74,7 +74,7 @@ describe("P7 core 28: principals (checks 67, 68)", () => {
       yield* host.install(listener, as()); yield* idle(host)
       const bus = (yield* host.use(Events, (b) => Effect.succeed(b)))
       yield* bus.emit(Posted, 1)
-      for (let i = 0; i < 1000 && heard.length === 0; i++) yield* Effect.sleep(2)   // the listener runs asynchronously: wait for it, not a fixed time
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && heard.length === 0;) yield* Effect.sleep(2)   // the listener runs asynchronously: wait for it, not a fixed time
       expect(heard).toEqual([Option.some("ear")])
       yield* drive(host, host.remove("ear", as()))
       expect(yield* stateIn(host, "ear")).toBe("uninstalled")

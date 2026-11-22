@@ -136,7 +136,7 @@ const lazyListener = (id: string, heard: Array<string>, o: { listen?: boolean; l
   return { lz, loads: () => loads }
 }
 /** Polls (real clock, bounded) until `cond` holds: asynchronous deliveries are awaited, never guessed with a fixed sleep. */
-const until = (cond: () => boolean) => Effect.gen(function* () { for (let i = 0; i < 1000 && !cond(); i++) yield* Effect.sleep(2) })
+const until = (cond: () => boolean) => Effect.gen(function* () { for (const t0 = Date.now(); Date.now() - t0 < 30_000 && !cond();) yield* Effect.sleep(2) })
 const emitFrom = (host: Testing.TestHost, value: string) => host.use(Events, (bus) => bus.emit(Evt, value))
 
 describe("P7 core 27: held event (check 96)", () => {

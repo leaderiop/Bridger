@@ -68,7 +68,7 @@ describe("R5: abort a parked stop", () => {
       yield* idle(host)
       yield* drive(host, host.abort("probed")); yield* idle(host)
       const at = checks
-      for (let i = 0; i < 400 && checks <= at + 1; i++) yield* Effect.sleep(5)    // the loop keeps probing the same, still active, activation
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && checks <= at + 1;) yield* Effect.sleep(5)    // the loop keeps probing the same, still active, activation
       expect(checks).toBeGreaterThan(at + 1)
       expect(yield* stateOf(host, "probed")).toBe("active")
       yield* Fiber.interrupt(holder)
@@ -85,7 +85,7 @@ describe("R5: abort a parked stop", () => {
     })) as unknown as AnyPlugin["build"] } as AnyPlugin
     await withHost((host) => Effect.gen(function* () {
       yield* host.install(search); yield* host.install(ui); yield* idle(host)
-      for (let i = 0; i < 400 && j.lines.length < 1; i++) yield* Effect.sleep(2)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && j.lines.length < 1;) yield* Effect.sleep(2)
       expect(j.lines).toEqual(["lit"])
       const entered = yield* Deferred.make<void>()
       const holder = yield* Effect.forkChild(host.use(Search, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
@@ -93,7 +93,7 @@ describe("R5: abort a parked stop", () => {
       expect(failedWith(yield* Effect.exit(drive(host, host.restart("search", { drain: 20 }))), "DrainTimeout")).toBe(true)
       yield* idle(host)
       yield* drive(host, host.abort("search")); yield* idle(host)
-      for (let i = 0; i < 400 && j.lines.length < 2; i++) yield* Effect.sleep(2)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && j.lines.length < 2;) yield* Effect.sleep(2)
       expect(j.lines).toEqual(["lit", "lit"])
       expect(yield* stateOf(host, "ui")).toBe("active")
       yield* Fiber.interrupt(holder)
@@ -145,7 +145,7 @@ describe("R5: abort a parked stop", () => {
     await withHost((host) => Effect.gen(function* () {
       yield* host.install(probed); yield* idle(host)
       const healthOf = () => Effect.map(host.snapshot, (s) => (s.plugins.find((p) => p.id === "hp") as { health?: string }).health)
-      for (let i = 0; i < 400 && (yield* healthOf()) !== "degraded"; i++) yield* Effect.sleep(5)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && (yield* healthOf()) !== "degraded";) yield* Effect.sleep(5)
       expect(yield* healthOf()).toBe("degraded")
       const entered = yield* Deferred.make<void>()
       const holder = yield* Effect.forkChild(host.use(Probe, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
@@ -155,7 +155,7 @@ describe("R5: abort a parked stop", () => {
       yield* drive(host, host.abort("hp")); yield* idle(host)
       expect(yield* healthOf()).toBe("degraded")                                 // not reset to `unknown`
       fail = false
-      for (let i = 0; i < 400 && (yield* healthOf()) !== "healthy"; i++) yield* Effect.sleep(5)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && (yield* healthOf()) !== "healthy";) yield* Effect.sleep(5)
       expect(yield* healthOf()).toBe("healthy")                                  // the loop runs again
       yield* Fiber.interrupt(holder)
     }))

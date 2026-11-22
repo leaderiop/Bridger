@@ -187,7 +187,7 @@ describe("P7 core 32: atomic apply (checks 99, 100)", () => {
       const e = errorOf(exit)
       expect(e._tag).toBe("PartialApply")
       expect(e.notUndone).toEqual([{ id: "audit", realm: "default", action: "install", reason: { _tag: "ChangedSinceApply", message: "ChangedSinceApply" } }])
-      for (let i = 0; i < 1000 && events.length === 0; i++) yield* Effect.sleep(2)       // the collector fiber catches up
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && events.length === 0;) yield* Effect.sleep(2)       // the collector fiber catches up
       expect(events).toHaveLength(1)
       yield* settleWriter
       expect(records.some((x) => x.undoes && x.target?.id === "audit")).toBe(false)      // ChangedSinceApply writes no record
