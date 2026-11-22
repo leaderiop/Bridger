@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-15                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-21): BEH-BR-130 `optional` returns an existence witness, the service only through `useOptional` (improvement report 01, R8)<br>0.7 (2026-11-11): BEH-BR-134 a revocation of a run's lease on one of its keys is the provider leaving, not a failure, and why; a revocation of a scoped lease on another provider follows the background rule (CL6); BEH-BR-136 a `whenAvailable` run inherits a scoped lease the forking fiber held (C8) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.6 (2026-11-10): BEH-BR-131 `useOptional` takes `options.timeout`, without which `LeaseTimeout` cannot occur (CL6); BEH-BR-134 a `whenAvailable` re-run under "restart" consults the `RefusalList` as a background restart does (C11); BEH-BR-136 `HeldPlugins` and `CurrentTransition` carry canonical keys `JSON.stringify([realm, id])` (C1) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-136 a `whenAvailable` run carries no plugin in `CurrentTransition` (H1) (CCR-BR-035)<br>0.4 (2026-11-09): BEH-BR-130 a key is declared for the optional members only when listed in `optional`; BEH-BR-132 `whenAvailable` with an undeclared key never runs and warns once (U-13); BEH-BR-134 a failing `wrap` fails the run under `onFailure` (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.9 (2026-11-22): BEH-BR-130 a service reference kept past its lease throws `InactiveAccess` once the activation it came from has ended (improvement report 06, R1)<br>0.8 (2026-11-21): BEH-BR-130 `optional` returns an existence witness, the service only through `useOptional` (improvement report 01, R8)<br>0.7 (2026-11-11): BEH-BR-134 a revocation of a run's lease on one of its keys is the provider leaving, not a failure, and why; a revocation of a scoped lease on another provider follows the background rule (CL6); BEH-BR-136 a `whenAvailable` run inherits a scoped lease the forking fiber held (C8) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.6 (2026-11-10): BEH-BR-131 `useOptional` takes `options.timeout`, without which `LeaseTimeout` cannot occur (CL6); BEH-BR-134 a `whenAvailable` re-run under "restart" consults the `RefusalList` as a background restart does (C11); BEH-BR-136 `HeldPlugins` and `CurrentTransition` carry canonical keys `JSON.stringify([realm, id])` (C1) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-136 a `whenAvailable` run carries no plugin in `CurrentTransition` (H1) (CCR-BR-035)<br>0.4 (2026-11-09): BEH-BR-130 a key is declared for the optional members only when listed in `optional`; BEH-BR-132 `whenAvailable` with an undeclared key never runs and warns once (U-13); BEH-BR-134 a failing `wrap` fails the run under `onFailure` (U-06) (CCR-BR-032)<br>0.3 (2026-11-08): BEH-BR-129 an incompatible optional contract provider is absent; optional keys never trigger a lazy plugin (CCR-BR-017)<br>0.2 (2026-10-02): A `whenAvailable` run is drained as a lease on its provider; P's stop does not stop the run's plugin on account of the run; a run carries only the leases it holds (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -100,6 +100,20 @@ REQUIREMENT: `optional` MUST NOT hand out the service, leased or not, so a
 ```
 REQUIREMENT: Interceptions in scope for the consumer MUST apply to the
              returned service as they do to required services.
+```
+
+```
+REQUIREMENT: A service obtained from a provider plugin through `use`,
+             `useAll`, `useOptional`, `Host.use` or `Host.lease` MUST be
+             bound to its provider's activation. While that activation is
+             active, a reference kept past the call that obtained it keeps
+             working; once the lease has ended and the activation has
+             ended or is no longer `active`, every member of the
+             reference, including a method taken from it earlier, MUST
+             throw the defect `InactiveAccess`, naming the `ServiceId` and
+             the provider's id. The binding is shallow, as grants are: a
+             sub-object a member returns is not wrapped. Services of the
+             base are not bound, as they have no activation.
 ```
 
 ```

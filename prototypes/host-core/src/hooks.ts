@@ -6,6 +6,7 @@
 //  - The deadline annotation of core 30 is not read; the effective deadline is min(point, call option).
 import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Stream } from "effect"
 import { ActivePlugin } from "./active.js"
+import { closedContext } from "./closed.js"
 import { HostLink, type DeclaredContribution } from "./host.js"
 import * as Registry from "./registry.js"
 
@@ -354,7 +355,7 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
         const ctx: HookContext<En, Target> = { hookPoint: id, dispatchId, phase, enrichments: phase === "enrich" ? [] : Object.freeze([...enrichments]), missing: phase === "enrich" ? [] : Object.freeze([...missing]), ...(o.targets ? { target: target as Target } : {}) }
         // The call runs in a fiber supervised by the hook point; the dispatcher never waits for its finalizers.
         const settled = yield* Deferred.make<Exit.Exit<HookResult<En, Ad, Code>, unknown>>()
-        const fiber = yield* Effect.forkIn(Effect.suspend(() => c.hook(input, ctx)).pipe(Effect.exit, Effect.flatMap((x) => Deferred.succeed(settled, x))), scope)
+        const fiber = yield* Effect.forkIn(Effect.suspend(() => c.hook(input, ctx)).pipe(Effect.updateContext(closedContext), Effect.exit, Effect.flatMap((x) => Deferred.succeed(settled, x))), scope)
         const timedOut = Symbol("t"), deadlined = Symbol("d")
         const waited = yield* Deferred.await(settled).pipe(
           Effect.timeoutOrElse({ duration: Math.min(o.timeout, left), orElse: () => Effect.succeed(o.timeout <= left ? timedOut : deadlined) }),

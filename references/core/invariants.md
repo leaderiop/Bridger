@@ -527,7 +527,8 @@ provider services, that activation's `Plugin.Runtime` and its
 resources again instead of receiving memoized values whose scope has already
 closed, and one plugin's resources never live in, or are released with,
 another plugin's scope. Stopping one activation releases exactly what it
-acquired.
+acquired. The activation's fibers also start from a closed context (BEH-BR-036):
+nothing of the caller's environment but References is inherited.
 
 **Verification** *(Planned)*: scenarios in which a layer counts its
 acquisitions, asserting one acquisition per activation across `restart` and

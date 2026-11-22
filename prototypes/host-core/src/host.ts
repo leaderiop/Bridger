@@ -30,7 +30,8 @@ import {
   type Operation, type OperationContext, type OperationOptions, type SystemTransition
 } from "./gxp.js"
 import type { AnyPlugin, InstallOptions, Interception, Keys, PluginAny, PluginHandle, ServicesOf } from "./plugin.js"
-import { Events, makeBus } from "./bus.js"
+import { CurrentDispatchChain, Events, makeBus } from "./bus.js"
+import { closedContext, keepReferences, leaseBound, undeclaredAccessOf } from "./closed.js"
 import { ActivePlugin } from "./active.js"
 import { trackedMemo, type Retained as TrackedRetained, type TrackedMemo } from "./tracked-memo.js"
 import {
@@ -244,6 +245,11 @@ export const CurrentCause = Context.Reference<string | undefined>("bridger/proto
 
 /** `@bridger/core/HeldPlugins`: plugin ids leased by the current fiber (BEH-BR-088). */
 export const HeldPlugins = Context.Reference<ReadonlySet<string>>("@bridger/core/HeldPlugins", { defaultValue: () => new Set<string>() })
+
+keepReferences(
+  ActivePlugin, CurrentAnnotations, CurrentDispatchChain, CurrentActor, PrincipalReference, PolicySeam, CurrentCall.reference,
+  CurrentCorrelation.reference, HostLink.reference, CurrentBuildSlot, CurrentOwner, CurrentCause, HeldPlugins
+)
 
 // ------------------------------------------------------------------ internal state
 interface Entry {
@@ -1200,6 +1206,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         revoked: (generation: string, leases: number) => { Effect.runFork(emit({ type: "lease-revoked", leases, generation }, e.id)) }
       })),
       Effect.timeoutOrElse({ duration: buildTimeout, orElse: () => Effect.fail(new Error("build timeout")) }),
+      // The build fiber starts from an empty context, not the install caller's: finalizers and forked fibers inherit it (BEH-BR-036, ADR-BR-055).
+      Effect.updateContext(closedContext),
       Effect.exit)
     yield* releaseSlot                                         // discarding below may wait for children's builds
     // Handoff import (BEH-BR-349): after the build, before publication; each step under handoffTimeout.
@@ -1259,7 +1267,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         yield* dropHeld(e, "activation-failed"); yield* commit; return
       }
       if (Exit.isFailure(exit)) {
-        discard = true; e.state = "failed"; e.failure = { phase: "build", message: msg(Cause.squash(exit.cause)) }
+        discard = true; e.state = "failed"; const err = Cause.squash(exit.cause), undeclared = undeclaredAccessOf(err)
+        e.failure = { phase: "build", message: undeclared !== undefined ? `UndeclaredAccess ${undeclared}: ${e.id} reached a service it does not declare` : msg(err) }
         yield* commit; yield* writeHandoff; yield* systemRecord("system-start", e, e.cause, { _tag: "ActivationFailed", message: e.failure.message }); yield* dropHeld(e, "activation-failed"); return
       }
       if (handoff?.importFailed) {
@@ -2658,7 +2667,9 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       for (const f of found) { const e = entries.get(f.id); if (e) { e.leases++; e.holders.add(holder); if (reactive) e.reactive.add(holder) } }
       return found
     }))
+    let ended = false
     yield* Effect.addFinalizer(() => locked(Effect.gen(function* () {
+      ended = true
       for (const f of claimed) {
         const e = entries.get(f.id); if (!e) continue
         e.leases--; e.holders.delete(holder); e.reactive.delete(holder)
@@ -2666,7 +2677,11 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       }
     })))
     const byId = new Map(claimed.map((c) => [sid(c.key), c]))
-    return { services: keys.map((k) => byId.get(sid(k))!.service) as unknown as ServicesOf<K>, ids: claimed.map((c) => c.id).filter((i) => i !== "base"), providerIds: keys.map((k) => byId.get(sid(k))!.id as string) }
+    return { services: keys.map((k) => { const c = byId.get(sid(k))!; if (c.id === "base") return c.service
+        // The reference is inactive once its lease has ended and the activation it was taken from is gone (BEH-BR-036, INACTIVE_ACCESS).
+        const act = entries.get(c.id)?.activation
+        return leaseBound(c.service, sid(k), c.id, () => { if (!ended) return false; const e = entries.get(c.id); return e === undefined || e.activation !== act || e.state !== "active" })
+      }) as unknown as ServicesOf<K>, ids: claimed.map((c) => c.id).filter((i) => i !== "base"), providerIds: keys.map((k) => byId.get(sid(k))!.id as string) }
   })
   const knownRealm = (realm: string) => realms.has(realm) ? Effect.void : Effect.fail(new UnknownRealm({ id: realm }))
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-002                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-08): Heterogeneous lists use `Plugin.Any`; reference to ADR-KT-002 (CCR-BR-020)<br>0.2 (2026-10-02): Layer.effectContext and the memo-map behaviour confirmed (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.4 (2026-11-22): The build and its fibers run in a closed context (improvement report 06, R1)<br>0.3 (2026-11-08): Heterogeneous lists use `Plugin.Any`; reference to ADR-KT-002 (CCR-BR-020)<br>0.2 (2026-10-02): Layer.effectContext and the memo-map behaviour confirmed (CCR-BR-003)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 ---
 
 ## Context
@@ -34,6 +34,7 @@ A plugin's `build` is an ordinary Effect `Layer`:
 - Each activation builds the layer with `Layer.buildWithMemoMap(build, memoMap, activationScope)`, where `memoMap` is created **fresh for that activation** (`Layer.makeMemoMap`) and `activationScope` is `Scope.fork(hostScope, "sequential")`. Inside one activation, memoization applies as usual, so two sub-layers sharing a third build it once. The captured provider services, `Plugin.Runtime` and `Plugin.Config` are the layer's input.
 - The provided services are published as one unit after the build succeeds; an omitted declared service is an activation failure and nothing is published.
 - `Plugin.fromEffect` is sugar for authors who prefer an `Effect<Context<…>>`; it lifts the effect with `Layer.effectContext`, confirmed to exist in effect 4.0.0 (prototype checks E2a–E2b, [ADR-BR-001](../decisions/001-effect-v4-as-effect-system.md)). The prototype also confirmed the memo-map trap this ADR avoids: one shared `MemoMap` reuses a build across activations, a fresh one rebuilds (E4a–E4b).
+- The layer is built in a **closed context** (improvement report 06, R1). `Effect.provideContext` merges onto the fiber context of whoever started the build, and finalizers and forked fibers inherit that context, so a service in the install caller's environment would be reachable by `Effect.service` or a cast. Core replaces the context with the References of the caller's fiber plus the declared services; a lookup of anything else fails the activation as `UndeclaredAccess`. A service kept past its lease throws `InactiveAccess` once the activation it came from has ended.
 - Bridger introduces no second resource abstraction beside `Scope` and `Layer`.
 
 ## Alternatives considered

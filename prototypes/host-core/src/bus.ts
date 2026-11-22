@@ -5,6 +5,7 @@ import { Cause, Context, Effect, Exit, Option, Scope, Semaphore } from "effect"
 import { ContributionUnavailable, LeaseRevoked } from "./errors.js"
 import { Actor, CurrentActor } from "./gxp.js"
 import { ActivePlugin } from "./active.js"
+import { closedContext } from "./closed.js"
 import { Annotations, CurrentAnnotations, isBag, type Annotations as Bag } from "./annotations.js"
 import { AccessDenied, CurrentPlugin, PolicySeam, PrincipalReference, refOf, type AccessDecision, type AccessRequest, type DeclaredAccess, type PluginPrincipal, type PrincipalRef } from "./policy.js"
 import * as Registry from "./registry.js"
@@ -149,7 +150,8 @@ export const makeBus = (opts: {
       // A listener runs under its owner's principal, with the dispatcher's "events" annotations only (BEH-BR-144, 292).
       Effect.provideService(PrincipalReference, l.owner ? Option.some(l.owner) : Option.none()),
       Effect.provideService(CurrentAnnotations, ann),
-      Effect.updateService(CurrentDispatchChain, (c) => [...c, eventId]))).pipe(
+      Effect.updateService(CurrentDispatchChain, (c) => [...c, eventId]),
+      Effect.updateContext(closedContext))).pipe(
       Effect.catchIf((e): e is ContributionUnavailable | LeaseRevoked => e instanceof ContributionUnavailable || e instanceof LeaseRevoked,
         () => Effect.die(new ListenerRemoved(eventId)))) as Effect.Effect<A, E>
   /** At every dispatch start: the emit access check, the "events" annotations, and the OnEvent trigger hook. */

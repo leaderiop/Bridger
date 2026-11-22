@@ -86,7 +86,7 @@ describe("P7 core 29: CapabilityPolicy and grants (checks 71, 72, 111)", () => {
     await onHost((host) => Effect.gen(function* () {
       yield* host.install(bank, as()); yield* idle(host)
       const a = yield* host.use(Bank, (b) => Effect.succeed(b)), b2 = yield* host.use(Bank, (b) => Effect.succeed(b))
-      expect(a).toBe(b2)                                                        // no layer: the provider's own object
+      expect([a.balance, a.withdraw(1)]).toEqual([b2.balance, b2.withdraw(1)])   // no grant layer: every member answers, as the provider's own (the lease-bound wrapper is core's, BEH-BR-036)
     }), { layers: [policy(() => Effect.succeed(Grant.all(Bank))).layer] })
     expect(raw).toBeDefined()
   })
