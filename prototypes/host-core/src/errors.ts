@@ -36,7 +36,7 @@ export class AdmissionClosed extends Schema.TaggedError<AdmissionClosed>()("Admi
 // ---- round 2 (behaviours 26–34; prototype P7)
 export class IncompatibleContract extends Schema.TaggedError<IncompatibleContract>()("IncompatibleContract", {
   serviceId: Schema.String, dependentId: Schema.String, providerId: Schema.String, required: Schema.String,
-  provided: Schema.optional(Schema.String), missingMethods: Schema.Array(Schema.String)
+  provided: Schema.optional(Schema.String), missingMethods: Schema.Array(Schema.String), mismatchedMethods: Schema.Array(Schema.String)
 }) {}
 export class IncompatibleEngine extends Schema.TaggedError<IncompatibleEngine>()("IncompatibleEngine", { id: Schema.String, engine: Schema.String, range: Schema.String, actual: Schema.String }) {}
 export class LoadFailed extends Schema.TaggedError<LoadFailed>()("LoadFailed", { id: Schema.String, message: Schema.String }) {}

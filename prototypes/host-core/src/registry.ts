@@ -3,13 +3,14 @@ import { Cause, Deferred, Effect, Exit, Fiber, Option, Stream, SubscriptionRef, 
 import { ActivePlugin } from "./active.js"
 import { ContributionUnavailable, DuplicateContribution, IncompatibleContract, LeaseRevoked, LeaseTimeout } from "./errors.js"
 import { AccessDenied, CurrentPlugin, PolicySeam, refOf } from "./policy.js"
-import { incompatibility, parseRange, parseVersion, rangeWithinMajor, satisfies, type Contract } from "./contract.js"
+import { incompatibility, parseRange, parseVersion, provisionOf, rangeWithinMajor, refKind, satisfies, type Contract, type ContractDescriptor, type ContractProvision } from "./contract.js"
 
 export interface RegistryView<A> {
   readonly revision: number
   readonly entries: ReadonlyArray<{ readonly id: string; readonly priority: number; readonly value: A; readonly version?: string; readonly methods?: ReadonlyArray<string> }>
 }
-export type Implements = string | { readonly version: string; readonly methods: ReadonlyArray<string> }
+/** A version, a version with its method names (and optionally their schema digests), or a `Contract.at` provision, whose contract copy is compared method by method (BEH-BR-228 clause 3b). */
+export type Implements = string | { readonly version: string; readonly methods: ReadonlyArray<string>; readonly schemas?: ContractDescriptor["schemas"] } | ContractProvision
 export interface AddOptions { readonly priority?: number; readonly implements?: Implements }
 export interface Registry<A> {
   readonly name: string
@@ -82,10 +83,10 @@ export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A
   const add: Registry<A>["add"] = (id, value, o = {}) => Effect.gen(function* () {
     const priority = o.priority ?? 0
     if (!Number.isFinite(priority)) return yield* Effect.die(new Error(`priority of contribution ${id} is not a finite number`))
-    let declared: { version: string; methods: ReadonlyArray<string> } | undefined
+    let declared: { version: string; methods: ReadonlyArray<string>; schemas?: ContractDescriptor["schemas"] } | undefined
     if (o.implements !== undefined) {
       if (!contract) return yield* Effect.die(new Error(`registry ${name}: implements on a registry without a contract`))
-      declared = typeof o.implements === "string" ? { version: o.implements, methods: contract.descriptor.methods } : o.implements
+      declared = typeof o.implements === "string" ? { version: o.implements, methods: contract.descriptor.methods } : refKind(o.implements as never) === "provision" ? provisionOf(o.implements as never)! : o.implements as { version: string; methods: ReadonlyArray<string> }
       if (declared.methods.length === 0) return yield* Effect.die(new Error(`registry ${name}: implements with empty methods`))
     }
     // A wired AccessPolicy decides every contribution (BEH-BR-264, 268); a denial is a defect.
@@ -99,7 +100,7 @@ export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A
     }
     if (contract) {
       // After a wired AccessPolicy and before the id is reserved (BEH-BR-233).
-      const bad = incompatibility({ range: range!, version: contract.version, methods: contract.descriptor.methods }, declared)
+      const bad = incompatibility({ range: range!, version: contract.version, methods: contract.descriptor.methods, schemas: contract.descriptor.schemas }, declared)
       if (bad) {
         const owner = yield* ActivePlugin
         return yield* Effect.fail(new IncompatibleContract({ serviceId: contract.key, dependentId: `registry:${name}`, providerId: Option.isSome(owner) ? owner.value.pluginId : "application", required: range!, ...bad }))

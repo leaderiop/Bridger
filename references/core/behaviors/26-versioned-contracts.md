@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-26                                               |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-22): BEH-BR-233 `within(range)` reports a misuse as the same defect as `make`, in the Effect channel, never a synchronous throw (report 02 D-10)<br>0.10 (2026-11-11): BEH-BR-228 provider-side pairs ordered by dependent ID, then dependent realm (CL9) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.9 (2026-11-11): `IncompatibleContract` gains `dependentRealm` and `providerRealm`, absent for a registry, "base" and "application", so both sides are named by id and realm (BEH-BR-147; round-5 residual of C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-232 a proxy's accepted range is `"^" + V`, inside the `ContractRange` grammar and, for major 0, within one minor (C9) (CCR-BR-036)<br>0.7 (2026-11-09): BEH-BR-225 a *local* contract, `Contract.local(Key, { version, members })`: members without codecs, `local` and `descriptor.local` true, every other rule of this file unchanged, never served, proxied or derived across a host boundary, locality fixed per major; BEH-BR-231 and BEH-BR-234 do not apply to it; BEH-BR-232 a companion refuses a local contract at a boundary (requested by event-store CCR-ES-003 and sequence CCR-SQ-003); the signature of `Contract.local` rejects a `members` list that omits an own key (`MissingMembers`), the example is a self-contained shape, and `Contract.local` is pure like `Contract.make` (CCR-BR-033)<br>0.6 (2026-11-09): BEH-BR-228 a `replace` that leaves the plugin disabled forms no registered pair; pairs checked at `enable` (U-07) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
+> | Change History | 0.12 (2026-11-22): BEH-BR-228 clause 3b: a method both sides name must have equal schema digests, `IncompatibleContract.mismatchedMethods`; `descriptor.schemas` and `MethodSpec.digest`; BEH-BR-233 `implements` may be a `Contract.at` provision; the "core never compares schemas" requirement now limits core to opaque digests (report 02 R1, D-01)<br>0.11 (2026-11-22): BEH-BR-233 `within(range)` reports a misuse as the same defect as `make`, in the Effect channel, never a synchronous throw (report 02 D-10)<br>0.10 (2026-11-11): BEH-BR-228 provider-side pairs ordered by dependent ID, then dependent realm (CL9) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.9 (2026-11-11): `IncompatibleContract` gains `dependentRealm` and `providerRealm`, absent for a registry, "base" and "application", so both sides are named by id and realm (BEH-BR-147; round-5 residual of C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.8 (2026-11-10): BEH-BR-232 a proxy's accepted range is `"^" + V`, inside the `ContractRange` grammar and, for major 0, within one minor (C9) (CCR-BR-036)<br>0.7 (2026-11-09): BEH-BR-225 a *local* contract, `Contract.local(Key, { version, members })`: members without codecs, `local` and `descriptor.local` true, every other rule of this file unchanged, never served, proxied or derived across a host boundary, locality fixed per major; BEH-BR-231 and BEH-BR-234 do not apply to it; BEH-BR-232 a companion refuses a local contract at a boundary (requested by event-store CCR-ES-003 and sequence CCR-SQ-003); the signature of `Contract.local` rejects a `members` list that omits an own key (`MissingMembers`), the example is a self-contained shape, and `Contract.local` is pure like `Contract.make` (CCR-BR-033)<br>0.6 (2026-11-09): BEH-BR-228 a `replace` that leaves the plugin disabled forms no registered pair; pairs checked at `enable` (U-07) (CCR-BR-032)<br>0.5 (2026-11-08): BEH-BR-233 Settled (3): a hook point is not a contract registry (agent review R1-14) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-225 `serviceKey` holds the key passed to `Contract.make` and `key` is the `ServiceId` string, Settled (4) (prototype finding G-P1); BEH-BR-228 an `install` with `disabled: true` forms no registered pair and is checked at `enable` (G-P2); BEH-BR-229 compares with `Contract.serviceKey` (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-233 contract-checked contribution registries (`ContributionRegistry.make({ contract })`, `implements` on `add`, `within(range)` reader and `Selector` range); BEH-BR-234 optional per-method `timeout` in `MethodSpec` and `descriptor.timeouts`, not enforced by core (gap G48); BEH-BR-228 Open on `reconcile` order closed by BEH-BR-156 (gap G36); BEH-BR-230 timeout row; BEH-BR-232 seams list the timeouts; acceptance check 102 (CCR-BR-025)<br>0.2 (2026-11-08): acceptance checks 59–61; BEH-BR-232 rewritten to match the remote companion (build opens no session; a provision serves only peers at its major and at least its version; one provision per major);  divergence from npm stated (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-017)                 |
 
 ---
 
@@ -97,6 +97,7 @@ interface MethodSpec {
   readonly error?: Schema.Codec<any, any>              // absent = never
   readonly stream?: boolean                            // true: the method returns a Stream of `success`
   readonly timeout?: Duration.Input                    // default bound of one remote call (BEH-BR-234); never enforced by core
+  readonly digest?: string                             // overrides the computed schema digest (BEH-BR-228 clause 3b)
 }
 
 interface Contract<Self, Shape, M extends Record<string, MethodSpec> | Record<string, LocalMember>>
@@ -118,6 +119,8 @@ interface ContractDescriptor {                         // plain data; JSON-seria
   readonly methods: readonly string[]                  // method (or member) names, sorted by code unit
   readonly timeouts: readonly { readonly method: string; readonly millis: number }[]
                                                        // declared method timeouts, sorted by method (BEH-BR-234); [] when local
+  readonly schemas: readonly { readonly method: string; readonly digest: string }[]
+                                                       // per method, a stable hash of its encoded-side JSON Schema (BEH-BR-228 clause 3b); a method without one is absent; [] when local
   readonly local: boolean                              // the contract's `local`
 }
 
@@ -433,7 +436,8 @@ class IncompatibleContract extends Schema.TaggedError<IncompatibleContract>()("I
   providerRealm: Schema.optional(Schema.String),  // its realm; absent for "base" and "application" (BEH-BR-147)
   required: Schema.String,                        // the dependent's range
   provided: Schema.optional(Schema.String),       // the provision's version; absent when the provider declares no contract
-  missingMethods: Schema.Array(Schema.String)     // sorted; empty unless only method names failed
+  missingMethods: Schema.Array(Schema.String),    // sorted; empty unless only method names failed
+  mismatchedMethods: Schema.Array(Schema.String)  // sorted; methods both sides name whose schema digests differ (clause 3b)
 }) {}
 
 type InstallError = DuplicatePlugin | DuplicateProvider | DependencyCycle | InvalidDefinition | UnknownRealm
@@ -450,7 +454,11 @@ base. The pair is *compatible* when:
 2. the provision's version satisfies D's range (BEH-BR-226), and
 3. when the provision's version is not below the version of D's contract
    object, every method name of D's contract object appears in the
-   provision's methods.
+   provision's methods, and
+3b. every method named by both D's contract object and the provision, and
+   fingerprinted on both sides, has the same schema digest in both. An
+   add-only evolution (BEH-BR-230) never changes a method the older side
+   knows, so this holds across every compatible minor and patch.
 
 ```
 REQUIREMENT: `install`, `replace` and `enable` MUST fail with
@@ -466,6 +474,21 @@ REQUIREMENT: `install`, `replace` and `enable` MUST fail with
              plugin disabled (07 — Replacement and Reactivation,
              BEH-BR-050). Their pairs are checked at `enable`
              (BEH-BR-062).
+```
+
+```
+REQUIREMENT: `Contract.make` MUST give every method a *schema digest*: a
+             stable hash of the encoded-side JSON Schema of its `payload`,
+             `success` and `error` and of its `stream` flag, computed over
+             sorted keys and ignoring `title`, `description` and `examples`,
+             so two separately built copies of one contract agree. A method
+             whose codecs have no canonical JSON Schema MUST take
+             `MethodSpec.digest` when given and otherwise carry no digest,
+             and a method without a digest on either side MUST NOT be
+             compared. `descriptor.schemas` MUST list the digests, sorted by
+             method. A pair failing 3b MUST fail with `IncompatibleContract`,
+             `provided` the provision's version, `missingMethods` empty and
+             `mismatchedMethods` the differing methods, sorted.
 ```
 
 ```
@@ -598,10 +621,12 @@ REQUIREMENT: Documentation MUST state these rules, and MUST state that core
 ```
 
 ```
-REQUIREMENT: The core MUST NOT compare schemas, decide whether a schema
-             change is additive, or reject a contract for a schema change.
-             A schema diff belongs to a companion (`@bridger/kit`'s contract
-             check, `references/kit/`).
+REQUIREMENT: The core MUST compare schemas only as the opaque per-method
+             digests of BEH-BR-228 clause 3b. It MUST NOT interpret a
+             schema, decide whether a schema change is additive, or reject a
+             contract for a schema change. A schema diff and the
+             classification of a change belong to a companion (`@bridger/kit`'s
+             contract check, `references/kit/`).
 ```
 
 ```
@@ -790,10 +815,12 @@ REQUIREMENT: `ContributionRegistry.make` MUST accept an optional `contract`
 REQUIREMENT: On a registry made with a `contract`, every `add` MUST declare
              what its value implements: `implements: v` (a version, read as a
              provision of `v` with all the method names of the registry's
-             contract) or `implements: { version, methods }`. The pair formed
+             contract) or `implements: { version, methods }`, or a `Contract.at` provision, whose
+             contract copy then takes part in clause 3b of BEH-BR-228 method
+             by method. The pair formed
              by the registry — as the dependent, with its `range` and its
              contract object — and the contribution — as the provision — MUST
-             be compatible by the three conditions of BEH-BR-228. A
+             be compatible by the conditions of BEH-BR-228. A
              contribution without `implements` MUST be incompatible, as a
              plain-key provider is (BEH-BR-228, Settled 3).
 ```

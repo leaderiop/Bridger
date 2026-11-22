@@ -4,7 +4,8 @@
 // `Contract extends Context.Key`. In Effect 4 every `Context.Key` already has `key: string` (its identifier),
 // and `Context.add`/`getOption` read it. The prototype therefore names the wrapped key `contractKey` and keeps
 // `key` as the string identifier, so a contract (and each reference made from it) is usable as a key.
-import { Duration, Option, type Context } from "effect"
+import { createHash } from "node:crypto"
+import { Duration, Option, Schema, type Context } from "effect"
 
 export const CONTRACT = Symbol.for("@bridger/core/Contract")
 
@@ -14,6 +15,8 @@ export interface MethodSpec {
   readonly error?: unknown
   readonly stream?: boolean
   readonly timeout?: Duration.Input
+  /** Overrides the computed schema digest, for a codec that has no canonical JSON Schema (BEH-BR-228 clause 3b). */
+  readonly digest?: string
 }
 export interface ContractDescriptor {
   readonly serviceId: string
@@ -21,6 +24,8 @@ export interface ContractDescriptor {
   readonly version: string
   readonly methods: ReadonlyArray<string>
   readonly timeouts: ReadonlyArray<{ readonly method: string; readonly millis: number }>
+  /** A stable hash per method of its encoded-side schema (payload, success, error, stream flag); a method without one is not compared (BEH-BR-228 clause 3b). */
+  readonly schemas: ReadonlyArray<{ readonly method: string; readonly digest: string }>
 }
 export interface Contract<Self = any, Shape = any> extends Context.Key<Self, Shape> {
   readonly [CONTRACT]: "contract"
@@ -120,6 +125,22 @@ const codeUnit = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0
 
 export const method = (spec: MethodSpec): MethodSpec => spec
 
+/** Sorted-key JSON, so that equal schemas hash equally whatever their construction order. */
+const canonical = (v: unknown): string => JSON.stringify(v, (_, x) => x && typeof x === "object" && !Array.isArray(x)
+  ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== "title" && k !== "description" && k !== "examples").sort(([a], [b]) => codeUnit(a, b)))   // documentation never changes the wire
+  : x)
+const isSchema = (x: unknown): boolean => (typeof x === "object" || typeof x === "function") && x !== null && "ast" in x
+/** shortcut: only Effect Schemas are fingerprinted; anything else needs `MethodSpec.digest`, else the method is not compared. */
+export const digestOf = (spec: MethodSpec): string | undefined => {
+  if (spec.digest !== undefined) return spec.digest
+  const parts = [spec.payload, spec.success, spec.error]
+  if (parts.some((x) => x !== undefined && !isSchema(x))) return undefined
+  try {
+    const doc = parts.map((x) => x === undefined ? null : Schema.toJsonSchemaDocument(x as never))
+    return createHash("sha256").update(canonical({ schemas: doc, stream: spec.stream === true })).digest("hex").slice(0, 16)
+  } catch { return undefined }
+}
+
 export const make = <Self, Shape>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Record<string, MethodSpec> }): Contract<Self, Shape> => {
   const serviceId = sidOf(key)
   const at = serviceId.lastIndexOf("@")
@@ -140,7 +161,8 @@ export const make = <Self, Shape>(key: Context.Key<Self, Shape>, options: { read
     if (ms === undefined) { invalid ??= `method ${m}: timeout is not a finite positive duration`; continue }
     timeouts.push({ method: m, millis: ms })
   }
-  const descriptor: ContractDescriptor = Object.freeze({ serviceId, name, version: options.version, methods: Object.freeze(names), timeouts: Object.freeze(timeouts) })
+  const schemas = names.flatMap((m) => { const d = digestOf(options.methods[m]!); return d === undefined ? [] : [{ method: m, digest: d }] })
+  const descriptor: ContractDescriptor = Object.freeze({ serviceId, name, version: options.version, methods: Object.freeze(names), timeouts: Object.freeze(timeouts), schemas: Object.freeze(schemas) })
   let c: Record<PropertyKey, unknown> = {}
   c = extend(key as object, {
     [CONTRACT]: "contract", key: serviceId, contractKey: key, name, version: options.version, methods: options.methods, descriptor,
@@ -164,17 +186,17 @@ export const contractOf = (k: ContractRef): Contract => refKind(k) === "contract
 export const underlyingKey = (k: Context.Key<any, any>): Context.Key<any, any> => refKind(k) ? contractOf(k as ContractRef).contractKey : k
 
 /** A requirement as declared: its range and the dependent's copy of the contract (BEH-BR-227). */
-export const requirementOf = (k: Context.Key<any, any>): { readonly range: string; readonly version: string; readonly methods: ReadonlyArray<string> } | undefined => {
+export const requirementOf = (k: Context.Key<any, any>): { readonly range: string; readonly version: string; readonly methods: ReadonlyArray<string>; readonly schemas?: ContractDescriptor["schemas"] } | undefined => {
   const kind = refKind(k)
-  if (kind === "contract") { const c = k as unknown as Contract; return { range: "^" + c.version, version: c.version, methods: c.descriptor.methods } }
-  if (kind === "requirement") { const r = k as unknown as ContractRequirement; return { range: r.range, version: r.contract.version, methods: r.contract.descriptor.methods } }
+  if (kind === "contract") { const c = k as unknown as Contract; return { range: "^" + c.version, version: c.version, methods: c.descriptor.methods, schemas: c.descriptor.schemas } }
+  if (kind === "requirement") { const r = k as unknown as ContractRequirement; return { range: r.range, version: r.contract.version, methods: r.contract.descriptor.methods, schemas: r.contract.descriptor.schemas } }
   return undefined
 }
 /** A provision as declared (BEH-BR-227); undefined for a plain key. */
-export const provisionOf = (k: Context.Key<any, any>): { readonly version: string; readonly methods: ReadonlyArray<string> } | undefined => {
+export const provisionOf = (k: Context.Key<any, any>): { readonly version: string; readonly methods: ReadonlyArray<string>; readonly schemas?: ContractDescriptor["schemas"] } | undefined => {
   const kind = refKind(k)
-  if (kind === "contract") { const c = k as unknown as Contract; return { version: c.version, methods: c.descriptor.methods } }
-  if (kind === "provision") { const p = k as unknown as ContractProvision; return { version: p.version, methods: [...p.methods] } }
+  if (kind === "contract") { const c = k as unknown as Contract; return { version: c.version, methods: c.descriptor.methods, schemas: c.descriptor.schemas } }
+  if (kind === "provision") { const p = k as unknown as ContractProvision; return { version: p.version, methods: [...p.methods], schemas: p.contract.descriptor.schemas } }
   return undefined
 }
 
@@ -202,18 +224,26 @@ export const refProblem = (k: Context.Key<any, any>, position: "requires" | "opt
   return undefined
 }
 
-/** The three conditions of BEH-BR-228; undefined when compatible, else `{ provided?, missingMethods }`. */
+type Side = { readonly version: string; readonly methods: ReadonlyArray<string>; readonly schemas?: ContractDescriptor["schemas"] }
+/**
+ * The conditions of BEH-BR-228; undefined when compatible, else `{ provided?, missingMethods, mismatchedMethods }`.
+ * Clause 3b: a method both sides name, and both sides fingerprint, must have equal digests — an add-only
+ * evolution (BEH-BR-230) never changes a method the older side knows.
+ */
 export const incompatibility = (
-  req: { readonly range: string; readonly version: string; readonly methods: ReadonlyArray<string> },
-  prov: { readonly version: string; readonly methods: ReadonlyArray<string> } | undefined
-): { readonly provided?: string; readonly missingMethods: ReadonlyArray<string> } | undefined => {
-  if (!prov) return { missingMethods: [] }
-  if (!satisfies(prov.version, req.range)) return { provided: prov.version, missingMethods: [] }
+  req: Side & { readonly range: string },
+  prov: Side | undefined
+): { readonly provided?: string; readonly missingMethods: ReadonlyArray<string>; readonly mismatchedMethods: ReadonlyArray<string> } | undefined => {
+  if (!prov) return { missingMethods: [], mismatchedMethods: [] }
+  if (!satisfies(prov.version, req.range)) return { provided: prov.version, missingMethods: [], mismatchedMethods: [] }
   const pv = parseVersion(prov.version)!, dv = parseVersion(req.version)!
   if (cmp(pv, dv) >= 0) {
     const missing = req.methods.filter((m) => !prov.methods.includes(m)).sort(codeUnit)
-    if (missing.length) return { provided: prov.version, missingMethods: missing }
+    if (missing.length) return { provided: prov.version, missingMethods: missing, mismatchedMethods: [] }
   }
+  const theirs = new Map((prov.schemas ?? []).map((x) => [x.method, x.digest]))
+  const mismatched = (req.schemas ?? []).filter((x) => prov.methods.includes(x.method) && theirs.has(x.method) && theirs.get(x.method) !== x.digest).map((x) => x.method).sort(codeUnit)
+  if (mismatched.length) return { provided: prov.version, missingMethods: [], mismatchedMethods: mismatched }
   return undefined
 }
 

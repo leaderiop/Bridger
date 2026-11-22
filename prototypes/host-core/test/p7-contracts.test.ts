@@ -62,7 +62,8 @@ describe("P7 core 26: contracts", () => {
   it("check 59/102: descriptor is plain data with sorted methods and timeouts; timeouts never enforced", async () => {
     class Pay extends Context.Service<Pay, { readonly authorize: Effect.Effect<string>; readonly status: Effect.Effect<string> }>()("example/Payments@1") {}
     const Payments = Contract.make(Pay, { version: "1.2.0", methods: { status: Contract.method({ timeout: "2 seconds" }), authorize: Contract.method({ timeout: 20 }) } })
-    expect(Payments.descriptor).toEqual({ serviceId: "example/Payments@1", name: "example/Payments", version: "1.2.0", methods: ["authorize", "status"], timeouts: [{ method: "authorize", millis: 20 }, { method: "status", millis: 2000 }] })
+    expect(Payments.descriptor).toEqual({ serviceId: "example/Payments@1", name: "example/Payments", version: "1.2.0", methods: ["authorize", "status"], timeouts: [{ method: "authorize", millis: 20 }, { method: "status", millis: 2000 }],
+      schemas: [{ method: "authorize", digest: expect.any(String) }, { method: "status", digest: expect.any(String) }] })
     expect(JSON.parse(JSON.stringify(Payments.descriptor))).toEqual(Payments.descriptor)
     // A provider whose method takes far longer than the declared 20 ms is not bounded in-process.
     const slow = define({ id: "pay", requires: [] as const, provides: [Payments] as const,
