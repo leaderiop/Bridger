@@ -42,7 +42,7 @@ for f in must_exist:
 for f in must_be_gone:
     if f.exists(): bad.append(f"{f} should have been deleted")
 for name, text in (("html", report), ("md", md)):
-    for phrase in ("Resolution status", "F13", "Not built", "40 of 187", "395 of 1,054", "effect 4.1.5", "quiescent", "verify-spec.sh", "Check", "CHANGES.md", "Bridger now" if name == "html" else "Not checked"):
+    for phrase in ("Resolution status", "F13", "Not built", "40 of 187", "399 of 1,054", "effect 4.1.5", "quiescent", "verify-spec.sh", "Check", "CHANGES.md", "Bridger now" if name == "html" else "Not checked"):
         if phrase not in text: bad.append(f"report {name} no longer shows '{phrase}'")
     for s in stale:
         if s in text: bad.append(f"report {name} still says '{s}'")

@@ -25,12 +25,12 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | Series | Named in the prototype | Defined |
 | --- | --- | --- |
 | BEH-AC | 14 | 40 |
-| BEH-AG | 0 | 36 |
+| BEH-AG | 1 | 36 |
 | BEH-BR | 244 | 327 |
 | BEH-CM | 1 | 37 |
-| BEH-DB | 2 | 56 |
+| BEH-DB | 3 | 56 |
 | BEH-EN | 7 | 32 |
-| BEH-ES | 1 | 40 |
+| BEH-ES | 2 | 40 |
 | BEH-FD | 26 | 42 |
 | BEH-GX | 17 | 179 |
 | BEH-KR | 5 | 24 |
@@ -38,7 +38,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-LD | 20 | 71 |
 | BEH-MC | 0 | 26 |
 | BEH-RM | 19 | 64 |
-| BEH-SQ | 0 | 20 |
+| BEH-SQ | 1 | 20 |
 | INV-AC | 1 | 7 |
 | INV-AG | 0 | 8 |
 | INV-BR | 10 | 52 |
@@ -130,7 +130,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-AG-030 | Specified | — | — |
 | BEH-AG-033 | Specified | — | — |
 | BEH-AG-034 | Specified | — | — |
-| BEH-AG-035 | Specified | — | — |
+| BEH-AG-035 | Tested | src/agent.ts:17 | test/h3h6-scenarios.test.ts:7 |
 | BEH-AG-036 | Specified | — | — |
 | BEH-AG-037 | Specified | — | — |
 | BEH-AG-038 | Specified | — | — |
@@ -174,16 +174,16 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-037 | Tested | src/host.ts:1338 | test/children.test.ts:260 “BEH-BR-128: a member that fails its install checks fails the group's activation and leaves no member mounted” |
 | BEH-BR-038 | Tested | src/host.ts:1174 | test/lifecycle.test.ts:46 “check 11 / BEH-BR-038: two key objects with one ServiceId fail the activation with KeyMismatch” |
 | BEH-BR-039 | Tested | src/host.ts:105 | test/confluence-faults.test.ts:1 |
-| BEH-BR-040 | Prototyped | src/errors.catalog.ts:87 | — |
+| BEH-BR-040 | Prototyped | src/errors.catalog.ts:91 | — |
 | BEH-BR-041 | Prototyped | src/host.ts:1638 | — |
 | BEH-BR-042 | Tested | src/host.ts:1852 | test/ordering.test.ts:32 “check 43 / BEH-BR-078, 088: a lease holder's calls never wait on the drain its lease blocks” |
 | BEH-BR-043 | Tested | src/host.ts:663 | test/lifecycle.test.ts:104 “check 1 / BEH-BR-043, 044: dependents stop first and can use their provider in their finalizers” |
 | BEH-BR-044 | Specified | — | — |
 | BEH-BR-045 | Specified | — | — |
 | BEH-BR-046 | Tested | src/errors.ts:19 | test/children.test.ts:291 “report 03 R2 (BEH-BR-046, 047): every failing finalizer is reported, last acquired first, on the error, the snapshot and the leak record” |
-| BEH-BR-047 | Tested | src/errors.catalog.ts:37 | test/r3-retry-cleanup.test.ts:1 |
+| BEH-BR-047 | Tested | src/errors.catalog.ts:39 | test/r3-retry-cleanup.test.ts:1 |
 | BEH-BR-048 | Prototyped | src/host.ts:2471 | — |
-| BEH-BR-049 | Prototyped | src/errors.catalog.ts:82 | — |
+| BEH-BR-049 | Prototyped | src/errors.catalog.ts:85 | — |
 | BEH-BR-050 | Tested | src/host.ts:2454 | test/children.test.ts:97 “BEH-BR-121: a mount edge closes a cycle only through the parent's own definition — a replace that requires its child's service” |
 | BEH-BR-051 | Specified | — | — |
 | BEH-BR-052 | Specified | — | — |
@@ -203,10 +203,10 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-068 | Specified | — | — |
 | BEH-BR-069 | Tested | src/host.ts:2038 | test/inflight.test.ts:1 |
 | BEH-BR-070 | Specified | — | — |
-| BEH-BR-071 | Tested | src/errors.catalog.ts:37 | test/leases.test.ts:87 “check 18 / BEH-BR-082, 083: useAll is all-or-nothing and goes through the same drain path” |
+| BEH-BR-071 | Tested | src/errors.catalog.ts:39 | test/leases.test.ts:87 “check 18 / BEH-BR-082, 083: useAll is all-or-nothing and goes through the same drain path” |
 | BEH-BR-072 | Tested | src/host.ts:6 | test/inflight.test.ts:17 |
 | BEH-BR-073 | Tested | src/host.ts:2058 | test/children.test.ts:464 “BEH-BR-121: a sub-scope close takes over a draining stop of the child begun outside the parent: one stop, no rebuild” |
-| BEH-BR-074 | Tested | src/errors.catalog.ts:41 | test/inflight.test.ts:108 “BEH-BR-074: a call that supersedes a parked operation resumes it under its own options” |
+| BEH-BR-074 | Tested | src/errors.catalog.ts:43 | test/inflight.test.ts:108 “BEH-BR-074: a call that supersedes a parked operation resumes it under its own options” |
 | BEH-BR-075 | Prototyped | src/host.ts:1878 | — |
 | BEH-BR-076 | Prototyped | src/host.ts:653 | — |
 | BEH-BR-077 | Prototyped | src/legality.ts:3 | — |
@@ -220,7 +220,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-085 | Tested | src/errors.ts:24 | test/leases.test.ts:10 “check 2 / BEH-BR-085, 086: removal waits for a lease, fails with DrainTimeout, succeeds with force” |
 | BEH-BR-086 | Prototyped | src/host.ts:1662 | — |
 | BEH-BR-087 | Tested | — | test/leases.test.ts:62 “BEH-BR-087: a per-call timeout interrupts the callback and fails with LeaseTimeout” |
-| BEH-BR-088 | Tested | src/errors.catalog.ts:101 | test/leases.test.ts:29 “check 3 / BEH-BR-088: a callback that removes its own provider fails at once with WouldDeadlock” |
+| BEH-BR-088 | Tested | src/errors.catalog.ts:107 | test/leases.test.ts:29 “check 3 / BEH-BR-088: a callback that removes its own provider fails at once with WouldDeadlock” |
 | BEH-BR-089 | Prototyped | src/host.ts:961 | — |
 | BEH-BR-090 | Tested | src/host.ts:1394 | test/p2.test.ts:71 “check 5 / BEH-BR-090, 094, 096: a failing background fiber stops dependents first and ends failed(runtime), sticky until retry” |
 | BEH-BR-091 | Tested | src/host.ts:315 | test/p2.test.ts:131 “BEH-BR-091: a failure reported during the build fails the activation and publishes nothing” |
@@ -237,7 +237,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-102 | Tested | src/config.ts:13 | test/p2.test.ts:229 “check 28 / BEH-BR-102: a volatile-only change updates in place; a non-volatile change restarts with configChange paths” |
 | BEH-BR-103 | Tested | src/errors.ts:35 | test/p2.test.ts:251 “check 37 / BEH-BR-103: no configuration value appears in any record, event, snapshot or error” |
 | BEH-BR-104 | Specified | — | — |
-| BEH-BR-105 | Tested | src/errors.catalog.ts:37 | test/fixtures.ts:57 |
+| BEH-BR-105 | Tested | src/errors.catalog.ts:39 | test/fixtures.ts:57 |
 | BEH-BR-106 | Prototyped | src/host.ts:92 | — |
 | BEH-BR-107 | Prototyped | src/host.ts:418 | — |
 | BEH-BR-108 | Tested | src/gxp.ts:169 | test/p2.test.ts:364 “BEH-BR-108, 110: closing the scope shuts down as Actor.system despite required attribution and a set latch; onClose gets the report once” |
@@ -253,12 +253,12 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-118 | Tested | src/host.ts:3257 | test/p2.test.ts:441 “BEH-BR-118: inspect shows parked and pending during a parked removal” |
 | BEH-BR-119 | Tested | src/active.ts:1 | test/children.test.ts:308 “report 03 R3, R4 (BEH-BR-119): Runtime.acquire lists a resource while held, names a failed release in causes, and carries irreversible into the leak record” |
 | BEH-BR-120 | Specified | — | — |
-| BEH-BR-121 | Tested | src/errors.catalog.ts:37 | test/children.test.ts:1 |
+| BEH-BR-121 | Tested | src/errors.catalog.ts:39 | test/children.test.ts:1 |
 | BEH-BR-122 | Prototyped | src/host.ts:1435 | — |
 | BEH-BR-123 | Tested | — | test/children.test.ts:101 “BEH-BR-123: a failing child does not fail its parent; its failure shows under its own id” |
 | BEH-BR-124 | Tested | src/host.ts:1162 | test/children.test.ts:112 “BEH-BR-124: a child requiring its parent's service waits for publication and stops first, using it in its finalizer” |
 | BEH-BR-125 | Tested | src/host.ts:293 | test/children.test.ts:125 “BEH-BR-125: a new activation mounts again; a child removed directly stays removed until then” |
-| BEH-BR-126 | Tested | src/errors.catalog.ts:54 | test/children.test.ts:330 “BEH-BR-126: unmount fails UnknownPlugin for a non-child and for a repeat, CleanupError with a leak-acknowledged record, and HostClosed once the host has closed” |
+| BEH-BR-126 | Tested | src/errors.catalog.ts:56 | test/children.test.ts:330 “BEH-BR-126: unmount fails UnknownPlugin for a non-child and for a repeat, CleanupError with a leak-acknowledged record, and HostClosed once the host has closed” |
 | BEH-BR-127 | Tested | src/host.ts:2380 | test/children.test.ts:235 “finding G21 (report 01 R9): a parent that awaits its child inside its build gives its slot back, so the child can build” |
 | BEH-BR-128 | Tested | — | test/children.test.ts:254 “BEH-BR-128: a member that fails its install checks fails the group's activation and leaves no member mounted” |
 | BEH-BR-129 | Tested | src/host.ts:1038 | test/optional.test.ts:1 |
@@ -287,9 +287,9 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-152 | Tested | — | test/realms.test.ts:185 “BEH-BR-152: a wrap that throws fails only the consumer's activation, with phase activation” |
 | BEH-BR-153 | Tested | src/desired.ts:1 | test/reconcile.test.ts:1 |
 | BEH-BR-154 | Tested | src/desired.ts:25 | test/reconcile.test.ts:42 “BEH-BR-154: an entry needing several actions gets them in the fixed order, so it builds at most once” |
-| BEH-BR-155 | Tested | src/errors.catalog.ts:37 | test/reconcile.test.ts:61 “BEH-BR-155: a scope prunes only what it installed; an entry naming someone else's plugin is rejected, not adopted” |
-| BEH-BR-156 | Tested | src/errors.catalog.ts:44 | test/reconcile.test.ts:91 “BEH-BR-153, 156: invalid and duplicate entries are rejected, their plugin untouched and unpruned; prunes run dependents first” |
-| BEH-BR-157 | Tested | src/errors.catalog.ts:54 | test/reconcile.test.ts:97 “BEH-BR-157, 158, 201: the gate is consulted per entry action; a refusal rejects that entry only and is counted in children” |
+| BEH-BR-155 | Tested | src/errors.catalog.ts:39 | test/reconcile.test.ts:61 “BEH-BR-155: a scope prunes only what it installed; an entry naming someone else's plugin is rejected, not adopted” |
+| BEH-BR-156 | Tested | src/errors.catalog.ts:46 | test/reconcile.test.ts:91 “BEH-BR-153, 156: invalid and duplicate entries are rejected, their plugin untouched and unpruned; prunes run dependents first” |
+| BEH-BR-157 | Tested | src/errors.catalog.ts:56 | test/reconcile.test.ts:97 “BEH-BR-157, 158, 201: the gate is consulted per entry action; a refusal rejects that entry only and is counted in children” |
 | BEH-BR-158 | Tested | src/host.ts:246 | test/reconcile.test.ts:113 “BEH-BR-158: requireReason applies to the operations a provisional diff would issue — a prune needs a reason, refused with no record” |
 | BEH-BR-159 | Tested | — | test/pbt/properties.pbt.test.ts:5 |
 | BEH-BR-160 | Tested | — | test/confluence-faults.test.ts:1 |
@@ -372,7 +372,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-243 | Prototyped | src/manifest.ts:152 | — |
 | BEH-BR-244 | Prototyped | src/host.ts:274 | — |
 | BEH-BR-245 | Prototyped | src/bus.ts:85 | — |
-| BEH-BR-246 | Prototyped | src/errors.catalog.ts:58 | — |
+| BEH-BR-246 | Prototyped | src/errors.catalog.ts:60 | — |
 | BEH-BR-247 | Specified | — | — |
 | BEH-BR-248 | Prototyped | src/gxp.ts:62 | — |
 | BEH-BR-249 | Specified | — | — |
@@ -390,7 +390,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-264 | Prototyped | src/bus.ts:85 | — |
 | BEH-BR-265 | Prototyped | src/host.ts:109 | — |
 | BEH-BR-266 | Specified | — | — |
-| BEH-BR-267 | Prototyped | src/errors.catalog.ts:36 | — |
+| BEH-BR-267 | Prototyped | src/errors.catalog.ts:38 | — |
 | BEH-BR-268 | Tested | src/host.ts:520 | test/p7-principal.test.ts:257 “check 109: declaredOnly refuses undeclared listeners and contributions; ask consults the wired policy and denies a retired principal” |
 | BEH-BR-269 | Prototyped | src/policy.ts:88 | — |
 | BEH-BR-273 | Tested | src/policy.ts:99 | test/sec-provider-allowlist.test.ts:2 |
@@ -400,7 +400,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-277 | Specified | — | — |
 | BEH-BR-278 | Specified | — | — |
 | BEH-BR-279 | Tested | src/host.ts:490 | test/p7-ccr29-policy.test.ts:108 “G-P16: a plugin's Host.use keeps its installation and registration-realm sets; a call realm adds its own outside them; 'plugins' layers apply; the application gets 'all' only” |
-| BEH-BR-280 | Prototyped | src/errors.catalog.ts:57 | — |
+| BEH-BR-280 | Prototyped | src/errors.catalog.ts:59 | — |
 | BEH-BR-281 | Prototyped | src/host.ts:279 | — |
 | BEH-BR-282 | Tested | src/annotations.ts:84 | test/p7-capability.test.ts:89 “check 72: a grant naming members — ungranted members die CapabilityDenied; Grant.all adds no layer; leases unaffected” |
 | BEH-BR-289 | Prototyped | src/annotations.ts:1 | — |
@@ -411,7 +411,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-294 | Specified | — | — |
 | BEH-BR-295 | Specified | — | — |
 | BEH-BR-296 | Specified | — | — |
-| BEH-BR-297 | Tested | src/errors.catalog.ts:53 | test/dx-hook-durations.test.ts:1 |
+| BEH-BR-297 | Tested | src/errors.catalog.ts:55 | test/dx-hook-durations.test.ts:1 |
 | BEH-BR-298 | Prototyped | src/hooks.ts:173 | — |
 | BEH-BR-299 | Prototyped | src/hooks.ts:206 | — |
 | BEH-BR-300 | Specified | — | — |
@@ -421,7 +421,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-304 | Prototyped | src/hooks.ts:132 | — |
 | BEH-BR-305 | Prototyped | src/hooks.ts:74 | — |
 | BEH-BR-306 | Tested | src/hooks.ts:207 | test/sec-hook-input.test.ts:8 |
-| BEH-BR-307 | Prototyped | src/errors.catalog.ts:49 | — |
+| BEH-BR-307 | Prototyped | src/errors.catalog.ts:51 | — |
 | BEH-BR-308 | Specified | — | — |
 | BEH-BR-309 | Prototyped | src/hooks.ts:53 | — |
 | BEH-BR-310 | Specified | — | — |
@@ -433,12 +433,12 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-316 | Prototyped | src/gate.ts:56 | — |
 | BEH-BR-317 | Prototyped | src/host.ts:870 | — |
 | BEH-BR-318 | Tested | src/host.ts:154 | test/sec-declared-access.test.ts:1 |
-| BEH-BR-319 | Prototyped | src/errors.catalog.ts:73 | — |
+| BEH-BR-319 | Prototyped | src/errors.catalog.ts:76 | — |
 | BEH-BR-320 | Specified | — | — |
 | BEH-BR-321 | Prototyped | src/gate.ts:38 | — |
 | BEH-BR-322 | Tested | src/host.ts:140 | test/r4-rollback.test.ts:70 “without `settle` the same apply succeeds and leaves `bad` failed (BEH-BR-322)” |
 | BEH-BR-323 | Prototyped | src/host.ts:2975 | — |
-| BEH-BR-324 | Prototyped | src/errors.catalog.ts:28 | — |
+| BEH-BR-324 | Prototyped | src/errors.catalog.ts:30 | — |
 | BEH-BR-325 | Tested | src/gxp.ts:67 | test/sec-undo-binding.test.ts:2 |
 | BEH-BR-326 | Prototyped | src/host.ts:3131 | — |
 | BEH-BR-327 | Tested | src/audit-chain.ts:438 | test/sec-reversibility.test.ts:1 |
@@ -447,21 +447,21 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-330 | Tested | src/realms.ts:16 | test/divergence-repro.test.ts:37 “a stale build that FAILS after the loss of a captured provider is discarded (`waiting`)” |
 | BEH-BR-331 | Tested | src/realms.ts:23 | test/divergence-repro.test.ts:68 “a member whose only other plugin is `dormant` (lazy) is ready” |
 | BEH-BR-332 | Specified | — | — |
-| BEH-BR-333 | Prototyped | src/errors.catalog.ts:37 | — |
+| BEH-BR-333 | Prototyped | src/errors.catalog.ts:39 | — |
 | BEH-BR-334 | Prototyped | src/realms.ts:63 | — |
 | BEH-BR-335 | Prototyped | src/host.ts:2618 | — |
 | BEH-BR-336 | Prototyped | src/realms.ts:125 | — |
 | BEH-BR-337 | Prototyped | src/actor.ts:1 | — |
 | BEH-BR-338 | Specified | — | — |
 | BEH-BR-345 | Prototyped | src/plugin.ts:38 | — |
-| BEH-BR-346 | Prototyped | src/errors.catalog.ts:58 | — |
+| BEH-BR-346 | Prototyped | src/errors.catalog.ts:60 | — |
 | BEH-BR-347 | Prototyped | src/host.ts:208 | — |
 | BEH-BR-348 | Prototyped | src/host.ts:280 | — |
 | BEH-BR-349 | Prototyped | src/host.ts:1267 | — |
 | BEH-BR-350 | Prototyped | src/host.ts:1341 | — |
 | BEH-BR-351 | Specified | — | — |
 | BEH-BR-352 | Specified | — | — |
-| BEH-BR-353 | Prototyped | src/errors.catalog.ts:41 | — |
+| BEH-BR-353 | Prototyped | src/errors.catalog.ts:43 | — |
 | BEH-CM-001 | Specified | — | — |
 | BEH-CM-002 | Specified | — | — |
 | BEH-CM-003 | Specified | — | — |
@@ -506,8 +506,8 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-DB-005 | Specified | — | — |
 | BEH-DB-006 | Specified | — | — |
 | BEH-DB-007 | Specified | — | — |
-| BEH-DB-008 | Prototyped | src/errors.catalog.ts:72 | — |
-| BEH-DB-009 | Prototyped | src/errors.catalog.ts:72 | — |
+| BEH-DB-008 | Prototyped | src/errors.catalog.ts:75 | — |
+| BEH-DB-009 | Prototyped | src/errors.catalog.ts:75 | — |
 | BEH-DB-010 | Specified | — | — |
 | BEH-DB-011 | Specified | — | — |
 | BEH-DB-012 | Specified | — | — |
@@ -544,7 +544,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-DB-045 | Specified | — | — |
 | BEH-DB-046 | Specified | — | — |
 | BEH-DB-047 | Specified | — | — |
-| BEH-DB-048 | Specified | — | — |
+| BEH-DB-048 | Prototyped | src/errors.catalog.ts:96 | — |
 | BEH-DB-049 | Specified | — | — |
 | BEH-DB-050 | Specified | — | — |
 | BEH-DB-051 | Specified | — | — |
@@ -618,7 +618,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-ES-029 | Specified | — | — |
 | BEH-ES-030 | Specified | — | — |
 | BEH-ES-031 | Specified | — | — |
-| BEH-ES-032 | Prototyped | src/errors.catalog.ts:71 | — |
+| BEH-ES-032 | Prototyped | src/errors.catalog.ts:74 | — |
 | BEH-ES-033 | Specified | — | — |
 | BEH-ES-034 | Specified | — | — |
 | BEH-ES-035 | Specified | — | — |
@@ -626,7 +626,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-ES-037 | Specified | — | — |
 | BEH-ES-038 | Specified | — | — |
 | BEH-ES-039 | Specified | — | — |
-| BEH-ES-040 | Specified | — | — |
+| BEH-ES-040 | Tested | src/eventstore.ts:54 | test/h3h6-scenarios.test.ts:36 “fails an old handle with NotOwner, holds new calls until the step commits, supersedes each series once with its highest” |
 | BEH-FD-001 | Prototyped | src/fedplugin.ts:23 | — |
 | BEH-FD-002 | Tested | src/sync.ts:16 | test/sync.test.ts:1 |
 | BEH-FD-003 | Specified | — | — |
@@ -859,12 +859,12 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-KR-009 | Specified | — | — |
 | BEH-KR-010 | Specified | — | — |
 | BEH-KR-011 | Specified | — | — |
-| BEH-KR-012 | Prototyped | src/errors.catalog.ts:71 | — |
+| BEH-KR-012 | Prototyped | src/errors.catalog.ts:74 | — |
 | BEH-KR-013 | Prototyped | src/keyring.ts:48 | — |
 | BEH-KR-014 | Specified | — | — |
 | BEH-KR-015 | Specified | — | — |
 | BEH-KR-016 | Specified | — | — |
-| BEH-KR-017 | Tested | src/errors.catalog.ts:72 | test/sec-shred-gate.test.ts:1 |
+| BEH-KR-017 | Tested | src/errors.catalog.ts:75 | test/sec-shred-gate.test.ts:1 |
 | BEH-KR-018 | Specified | — | — |
 | BEH-KR-019 | Specified | — | — |
 | BEH-KR-020 | Tested | src/shred.ts:1 | test/sec-shred-gate.test.ts:1 |
@@ -917,7 +917,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-KT-052 | Tested | — | test/dx-error-catalog.test.ts:21 “a tag with no row in BEH-KT-052 fails” |
 | BEH-KT-053 | Specified | — | — |
 | BEH-KT-057 | Specified | — | — |
-| BEH-LD-001 | Tested | src/errors.catalog.ts:69 | test/release.test.ts:1 |
+| BEH-LD-001 | Tested | src/errors.catalog.ts:72 | test/release.test.ts:1 |
 | BEH-LD-002 | Tested | src/loader.ts:42 | test/release.test.ts:41 |
 | BEH-LD-003 | Prototyped | src/loader.ts:48 | — |
 | BEH-LD-004 | Specified | — | — |
@@ -981,7 +981,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-LD-062 | Specified | — | — |
 | BEH-LD-063 | Specified | — | — |
 | BEH-LD-064 | Specified | — | — |
-| BEH-LD-065 | Prototyped | src/errors.catalog.ts:91 | — |
+| BEH-LD-065 | Prototyped | src/errors.catalog.ts:95 | — |
 | BEH-LD-066 | Specified | — | — |
 | BEH-LD-067 | Specified | — | — |
 | BEH-LD-068 | Prototyped | src/kit-release.ts:69 | — |
@@ -1079,7 +1079,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-RM-072 | Specified | — | — |
 | BEH-RM-073 | Tested | src/isolation-conformance.ts:1 | test/sec-isolation.test.ts:2 |
 | BEH-SQ-001 | Specified | — | — |
-| BEH-SQ-002 | Specified | — | — |
+| BEH-SQ-002 | Tested | src/sequence.ts:31 | test/h3h6-scenarios.test.ts:22 “a missing or different call fails with ReplayDiverged” |
 | BEH-SQ-003 | Specified | — | — |
 | BEH-SQ-004 | Specified | — | — |
 | BEH-SQ-005 | Specified | — | — |

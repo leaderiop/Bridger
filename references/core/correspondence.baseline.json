@@ -1,14 +1,15 @@
 {
+  "BEH-AG": 1,
   "BEH-AC": 14,
   "INV-AC": 1,
   "BEH-CM": 1,
   "BEH-BR": 244,
   "INV-BR": 10,
-  "BEH-DB": 2,
+  "BEH-DB": 3,
   "INV-DB": 1,
   "BEH-EN": 7,
   "INV-EN": 1,
-  "BEH-ES": 1,
+  "BEH-ES": 2,
   "BEH-FD": 26,
   "INV-FD": 1,
   "BEH-GX": 17,
@@ -20,5 +21,6 @@
   "BEH-LD": 20,
   "INV-LD": 2,
   "BEH-RM": 19,
-  "INV-RM": 3
+  "INV-RM": 3,
+  "BEH-SQ": 1
 }

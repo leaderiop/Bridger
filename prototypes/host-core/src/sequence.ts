@@ -23,3 +23,32 @@ export const makeSequenceAuthority = () => {
   }
   return { accept, verifySeries, quarantined: () => quarantine.length }
 }
+
+export class NotOwner extends Error { readonly _tag = "NotOwner"; constructor(readonly series: string) { super(`not owner of ${series}`) } }
+export class SupersessionPending extends Error { readonly _tag = "SupersessionPending"; constructor() { super("supersession pending") } }
+export interface Superseded { readonly kind: "SeriesSuperseded"; readonly series: string; readonly highest: number; readonly lastKnownOnly: false; readonly actor: { readonly kind: "service"; readonly id: string } }
+/**
+ * BEH-SQ-002, 009, 010 (SPEC-AUDIT-09 H4): after a whole-store install the node has a new origin. A handle opened before it fails with NotOwner and writes nothing;
+ * calls under the new origin fail with SupersessionPending until the step commits; the step supersedes every series open in the replaced store once, with its highest number.
+ */
+export const makeSeriesNode = (node: string) => {
+  let origin = 1, pending = false; const issued = new Map<string, number>(), events: Array<Superseded | { kind: "NumberIssued"; series: string; number: number; previous?: number }> = [], superseded = new Map<string, number>()
+  const open = (series: string) => ({ series, origin })
+  const next = (h: { series: string; origin: number }) => {
+    if (h.origin !== origin) throw new NotOwner(h.series)
+    if (pending) throw new SupersessionPending()
+    const n = (issued.get(h.series) ?? 0) + 1, previous = superseded.get(h.series)
+    issued.set(h.series, n); superseded.delete(h.series)
+    events.push({ kind: "NumberIssued", series: h.series, number: n, ...(previous !== undefined ? { previous } : {}) }); return n
+  }
+  const installed = () => { origin++; pending = true }
+  /** `replaced` is the highest number of each series open in the replaced store; `inSnapshot` names those the snapshot already superseded. */
+  const commitStep = (replaced: ReadonlyMap<string, number>, inSnapshot: ReadonlySet<string> = new Set()) => {
+    for (const [series, highest] of [...replaced].sort(([a], [b]) => a.localeCompare(b))) {
+      if (inSnapshot.has(series)) continue
+      events.push({ kind: "SeriesSuperseded", series, highest, lastKnownOnly: false, actor: { kind: "service", id: `sequence:${node}` } }); superseded.set(series, highest); issued.set(series, highest)
+    }
+    pending = false
+  }
+  return { open, next, installed, commitStep, events: () => events }
+}

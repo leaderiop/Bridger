@@ -47,3 +47,35 @@ export const makeEventStore = (o: { readonly ask: (r: { mode: "append" | "read";
     shred: (affected: Iterable<string>) => snaps.onShred(affected)
   }
 }
+
+export class StoreSwapInProgress extends Error { readonly _tag = "StoreSwapInProgress"; constructor(readonly read: "page-interrupted" | "fence-refused") { super(`store swap in progress: ${read}`) } }
+export type Page = ReadonlyArray<string>
+/**
+ * BEH-ES-040 check 18 (SPEC-AUDIT-09 H5, H6): reads across a whole-store freeze. `read` decodes no page between the freeze's second step and `whenReadable`; a lazy read begun
+ * before it fails at its page in flight; `readIn` takes the fence with its transaction instead of waiting; a participant's `prepare` reads through `readForSwap` only.
+ */
+export const makeSwapReads = (pages: ReadonlyMap<string, ReadonlyArray<Page>>) => {
+  let frozen = false, epoch = 0, running: { participant: string; step: number } | undefined
+  const freeze = () => { frozen = true; epoch++ }
+  const whenReadable = () => { frozen = false }
+  const iterate = (stream: string, fence: (() => void) | undefined, tx?: { ended: boolean }) => {
+    const born = epoch; let i = 0, dead = false
+    return {
+      next: (): { page: Page } | "waiting" | "done" => {
+        if (tx?.ended) throw new Error("page pulled after its transaction ended")
+        if (dead) throw new StoreSwapInProgress("page-interrupted")
+        if (frozen) { if (born !== epoch) { dead = true; throw new StoreSwapInProgress("page-interrupted") } if (!fence) return "waiting" }
+        const p = pages.get(stream)?.[i]; if (!p) return "done"; i++; return { page: p }
+      }
+    }
+  }
+  const guard = () => { if (running) throw new Error(`read from prepare of ${running.participant} at step ${running.step}: use readForSwap`) }
+  const read = (stream: string) => { guard(); return iterate(stream, undefined) }
+  const readIn = (tx: { ended: boolean }, stream: string) => { guard(); if (frozen) throw new StoreSwapInProgress("fence-refused"); return iterate(stream, () => undefined, tx) }
+  const readForSwap = (step: { participant: string; step: number }, stream: string) => {
+    if (!running || running.participant !== step.participant || running.step !== step.step) throw new Error("readForSwap needs the SwapStep it was handed")
+    const all = pages.get(stream) ?? []; return all.flat()               // reads the replaced store at once, never waiting
+  }
+  const prepare = <A>(participant: string, step: number, body: (s: { participant: string; step: number }) => A): A => { running = { participant, step }; try { return body(running) } finally { running = undefined } }
+  return { freeze, whenReadable, read, readIn, readForSwap, prepare }
+}
