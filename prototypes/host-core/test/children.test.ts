@@ -451,4 +451,42 @@ describe("groups (BEH-BR-127, 128)", () => {
       expect(j.lines.filter((l) => l === "child:build")).toHaveLength(0)                  // the queued build never ran
     }), { options: { concurrency: 1 } })
   })
+
+  it("ADR-BR-038 items 4, 7: a cascade whose dependent will not drain parks the dependent's stop under the named target, emits stop-parked, and a parked stop does not hold awaitIdle", async () => {
+    const base = define({ id: "base", requires: [] as const, provides: [Parent] as const, build: Layer.succeed(Parent, { name: "base" }) as never }) as unknown as AnyPlugin
+    const mid = define({ id: "mid", requires: [Parent] as const, provides: [Feature] as const,
+      build: Layer.effect(Feature, Effect.gen(function* () { yield* Parent; return { on: true } })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      const parked: Array<unknown> = []
+      yield* Effect.forkScoped(host.events.pipe(Stream.runForEach((ev) => Effect.sync(() => { if (ev.type === "stop-parked") parked.push(ev) }))))
+      yield* Effect.yieldNow
+      yield* host.install(base, as()); yield* host.install(mid, as()); yield* idle(host)
+      const entered = yield* Deferred.make<void>()
+      yield* Effect.forkChild(host.use(Feature, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
+      yield* Deferred.await(entered)
+      const exit = yield* Effect.exit(drive(host, host.remove("base", { ...as(), drain: 20 })))
+      expect(failed(exit, "DrainTimeout")).toBe(true)
+      expect(failed(exit, `"id":"mid"`)).toBe(true)                                        // names the plugin that did not drain
+      const m = yield* find(host, "mid")
+      expect(m?.state === "stopping" && [m.parked, m.reason]).toEqual([true, "dependency-loss"])
+      expect(parked).toContainEqual(expect.objectContaining({ type: "stop-parked", target: "base" }))
+      yield* idle(host)                                                                    // returns: a parked stop is not a running transition
+    }))
+  })
+
+  it("ADR-BR-038 item 2: a stop takes no build slot, so it completes while another plugin's build holds the only slot", async () => {
+    const gate = Effect.runSync(Deferred.make<void>())
+    const other = define({ id: "other", requires: [] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
+    const slow = define({ id: "slow", requires: [] as const, provides: [] as const, build: Layer.effectDiscard(Deferred.await(gate)) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(other, as()); yield* idle(host)
+      const building = yield* Effect.forkChild(host.install(slow, as()))                   // holds the only slot
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      expect(yield* stateIn(host, "slow")).toBe("starting")
+      yield* drive(host, host.remove("other", as()))                                        // must not wait for the slot
+      expect(yield* stateIn(host, "other")).toBe("uninstalled")
+      yield* Deferred.succeed(gate, undefined)
+      yield* stepAll(host, [building])
+    }), { options: { concurrency: 1 } })
+  })
 })
