@@ -69,7 +69,7 @@ This document carries the rest of the chain.
 | BEH-BR-225–234 | [26-versioned-contracts.md](behaviors/26-versioned-contracts.md) | `packages/core/src/Contract.ts` *(Planned)*, `packages/core/src/Resolver.ts` *(Planned)*, `packages/core/src/ContributionRegistry.ts` *(Planned)* |
 | BEH-BR-241–253 | [27-manifest-and-lazy-activation.md](behaviors/27-manifest-and-lazy-activation.md) | `packages/core/src/Manifest.ts` *(Planned)*, `packages/core/src/Lazy.ts` *(Planned)* |
 | BEH-BR-257–269 | [28-plugin-principal-and-mandatory-policy.md](behaviors/28-plugin-principal-and-mandatory-policy.md) | `packages/core/src/Principal.ts` *(Planned)*, `packages/core/src/AccessPolicy.ts` *(Planned)*, `packages/core/src/Resolver.ts` *(Planned)*, `packages/core/src/RefusalList.ts` *(Planned)* |
-| BEH-BR-273–281 | [29-capability-grants-and-call-log.md](behaviors/29-capability-grants-and-call-log.md) | `packages/core/src/Capability.ts` *(Planned)*, `packages/core/src/CallLog.ts` *(Planned)* |
+| BEH-BR-273–282 | [29-capability-grants-and-call-log.md](behaviors/29-capability-grants-and-call-log.md) | `packages/core/src/Capability.ts` *(Planned)*, `packages/core/src/CallLog.ts` *(Planned)* |
 | BEH-BR-289–296 | [30-operation-context-annotations.md](behaviors/30-operation-context-annotations.md) | `packages/core/src/Annotations.ts` *(Planned)* |
 | BEH-BR-297–312 | [31-hook-points.md](behaviors/31-hook-points.md) | `packages/core/src/HookPoint.ts` *(Planned)*, `packages/core/src/Selector.ts` *(Planned)* |
 | BEH-BR-313–328 | [32-generic-gate-and-plan.md](behaviors/32-generic-gate-and-plan.md) | `packages/core/src/Gate.ts` *(Planned)*, `packages/core/src/Plan.ts` *(Planned)*, `packages/core/src/Reconcile.ts` *(Planned)* |

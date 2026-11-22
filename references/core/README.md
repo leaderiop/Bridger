@@ -110,7 +110,7 @@ either: no Bridger package is a sandbox.
 | 26 | [Versioned contracts](./behaviors/26-versioned-contracts.md) | BEH-BR-225–234 |
 | 27 | [Manifest and lazy activation](./behaviors/27-manifest-and-lazy-activation.md) | BEH-BR-241–253 |
 | 28 | [Plugin principal and mandatory policy](./behaviors/28-plugin-principal-and-mandatory-policy.md) | BEH-BR-257–269 |
-| 29 | [Capability grants and call log](./behaviors/29-capability-grants-and-call-log.md) | BEH-BR-273–281 |
+| 29 | [Capability grants and call log](./behaviors/29-capability-grants-and-call-log.md) | BEH-BR-273–282 |
 | 30 | [Operation context annotations](./behaviors/30-operation-context-annotations.md) | BEH-BR-289–296 |
 | 31 | [Hook points](./behaviors/31-hook-points.md) | BEH-BR-297–312 |
 | 32 | [Generic gate and plan](./behaviors/32-generic-gate-and-plan.md) | BEH-BR-313–328 |

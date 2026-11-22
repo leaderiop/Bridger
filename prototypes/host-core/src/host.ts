@@ -649,9 +649,26 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
    * The composition of BEH-BR-261 for one capture: ordinary interceptions (activation captures only), the mandatory
    * layers, then grant narrowing and the call recorder. `hostRoute`: Host.use/useAll/lease, wrapped by "all" layers only.
    */
+  /**
+   * BEH-BR-282 (improvement report 06 R6): core's own mandatory delivery layer. While a method of a delivered service runs, the fiber carries
+   * `bridger:via` naming the provider plugin, so a host mutation the method makes is recorded with the module it came from beside the principal
+   * it acted for. The principal is never changed (BEH-BR-258). Shallow, as grants are: a sub-object a member returns is not wrapped.
+   */
+  const viaProvider = <S>(service: S, provider: { readonly id: string; readonly realm: string; readonly version?: string; readonly digest?: string }): S => {
+    if (service === null || typeof service !== "object") return service
+    const mark = <A, E, R>(effect: Effect.Effect<A, E, R>) => Annotation.add(Annotation.Via, [provider])(effect)
+    return new Proxy(service as object, { get: (t, prop, r) => {
+      const v = Reflect.get(t, prop, r)
+      if (typeof prop !== "string") return v
+      if (typeof v === "function") return (...args: Array<unknown>) => { const out = v.apply(t, args); return Effect.isEffect(out) ? mark(out) : out }
+      return Effect.isEffect(v) ? mark(v) : v
+    } }) as S
+  }
   const deliver = (a: { consumer: Consumer; entry?: Entry; realm: string; key: Context.Key<any, any>; providerId: string; service: unknown; route: Route; hostRoute: boolean }): Effect.Effect<unknown, ResolutionRefused> => Effect.gen(function* () {
     const k = a.key, serviceId = sid(k)
-    let svc = a.service
+    const pe = a.providerId === "base" ? undefined : [...entries.values()].find((x) => x.pluginId === a.providerId && x.def.provides.some((p) => sid(p) === serviceId))
+    // BEH-BR-282: innermost, so the provider's own code runs with its principal named `via` (the caller's principal is unchanged, BEH-BR-258).
+    let svc = pe ? viaProvider(a.service, { id: pe.pluginId, realm: pe.realm, ...defRef(pe.def) }) : a.service
     if (a.entry && !a.hostRoute) svc = wrapFor(a.entry, k, svc)
     // BEH-BR-262 (G-P16 not adopted, CCR-BR-029): a plugin consumer of Host.use/useAll/lease keeps its own
     // installation set and its registration realm's set; a call `realm` naming another realm adds that realm's set
@@ -661,7 +678,6 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const layers = [...(caller ? caller.mandatoryChain : []), ...(realms.get(regRealm)?.mandatory ?? []), ...(regRealm !== a.realm ? realms.get(a.realm)?.mandatory ?? [] : []), ...(options.mandatory ?? [])]
       .filter((m) => sid(m.key) === serviceId && (a.consumer.kind === "plugin" ? true : (m.appliesTo ?? "all") === "all"))
     for (const m of layers) svc = m.wrap(svc, a.consumer)
-    const pe = a.providerId === "base" ? undefined : [...entries.values()].find((x) => x.pluginId === a.providerId && x.def.provides.some((p) => sid(p) === serviceId))
     const provider: ResolutionRequest["provider"] = pe ? { kind: "plugin", id: pe.pluginId, realm: pe.realm, ...defRef(pe.def) } : { kind: "base" }
     const label = consumerLabel(a.consumer)
     let holder: { grant: Grant } | undefined

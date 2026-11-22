@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-30                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-11): BEH-BR-292 a `Deadline` shortens `useOptional`'s given timeout and bounds none without one (CL12) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-293 and BEH-BR-295 the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-09): BEH-BR-292 a handoff's `export`, `upgrade` and `import` run with `Annotations.empty`, whatever the call that caused the stop carries (U-04) (CCR-BR-033)<br>0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
+> | Change History | 0.7 (2026-11-22): BEH-BR-290 the fourth core key `bridger:via`, set only by core's delivery layer (29, BEH-BR-282) (improvement report 06, R6)<br>0.6 (2026-11-11): BEH-BR-292 a `Deadline` shortens `useOptional`'s given timeout and bounds none without one (CL12) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-293 and BEH-BR-295 the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-09): BEH-BR-292 a handoff's `export`, `upgrade` and `import` run with `Annotations.empty`, whatever the call that caused the stop carries (U-04) (CCR-BR-033)<br>0.3 (2026-11-08): BEH-BR-292 `CallerContext` carries `correlationId` and `serve` sets `CurrentCorrelation` (G58); check 106 (CCR-BR-026)<br>0.2 (2026-11-08): a deadline shortens the per-call timeout of `use`/`useAll` only (not `lease`, not an absent timeout); flow "wire" and `Annotations.decode` for host boundaries (BEH-BR-296, `Deadline` never crosses); `CallerContext` for code served on behalf of a caller; `reconcile` entry records carry the parent call's annotations (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018); hook dispatch among the waits a deadline shortens (CCR-BR-019) |
 
 ---
 
@@ -147,16 +147,21 @@ Annotation.Taint       // id "bridger:taint"       A = ReadonlySet<string>      
 Annotation.Provenance  // id "bridger:provenance"  A = readonly { readonly source: string; readonly ref?: string }[]
                        //   combine: append, keeping the first occurrence of each (source, ref), at most 32 entries;
                        //   monotonic: true; flows: events, gate, policy, callLog, audit, wire
+Annotation.Via         // id "bridger:via"         A = readonly { id, realm, version?, digest? }[]   the provider plugins
+                       //   combine: append, keeping the first occurrence of each (id, realm), at most 8;
+                       //   monotonic: true; flows: gate, policy, callLog, audit
 ```
 
 ```
-REQUIREMENT: Core MUST define exactly these three keys, with the ids,
+REQUIREMENT: Core MUST define exactly these four keys, with the ids,
              types, combining rules, monotonicity and flows shown.
 ```
 
 ```
 REQUIREMENT: Core MUST NOT assign meaning to a taint label or a provenance
-             entry, and MUST NOT set either itself.
+             entry, and MUST NOT set either itself. Core alone sets
+             `bridger:via`, while a delivered service's method runs
+             (29, BEH-BR-282).
 ```
 
 ```

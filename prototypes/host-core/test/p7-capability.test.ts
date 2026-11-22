@@ -86,7 +86,7 @@ describe("P7 core 29: CapabilityPolicy and grants (checks 71, 72, 111)", () => {
     await onHost((host) => Effect.gen(function* () {
       yield* host.install(bank, as()); yield* idle(host)
       const a = yield* host.use(Bank, (b) => Effect.succeed(b)), b2 = yield* host.use(Bank, (b) => Effect.succeed(b))
-      expect([a.balance, a.withdraw(1)]).toEqual([b2.balance, b2.withdraw(1)])   // no grant layer: every member answers, as the provider's own (the lease-bound wrapper is core's, BEH-BR-036)
+      expect([yield* a.balance, yield* a.withdraw(1)]).toEqual([yield* b2.balance, yield* b2.withdraw(1)])   // no grant layer: every member answers (core's own layers wrap the service, BEH-BR-036, BEH-BR-282)
     }), { layers: [policy(() => Effect.succeed(Grant.all(Bank))).layer] })
     expect(raw).toBeDefined()
   })
@@ -206,7 +206,7 @@ describe("P7 core 30/22: annotations, correlation, CallerContext (checks 75, 76,
       }))
       yield* Effect.sleep(5)
       expect(seen.build).toEqual([])
-      expect(seen.provider).toEqual(["example/ev", "example/private", "example/ticket"])
+      expect(seen.provider).toEqual(["bridger:via", "example/ev", "example/private", "example/ticket"])   // core adds `via` naming the provider (BEH-BR-282)
       expect(seen.listener).toEqual(["example/ev"])
       expect(Annotations.isBag(requests.at(-1)!.annotations) && (requests.at(-1)!.annotations as { keys: Array<string> }).keys).toEqual(["example/ticket"])
     }), { gate })

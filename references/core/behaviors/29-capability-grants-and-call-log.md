@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-29                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-22): BEH-BR-276 `CallEntry.contribution`, BEH-BR-277 `CallInfo.contributed(id)`: the contribution a broker chose (19, BEH-BR-168; report 02 R3)<br>0.7 (2026-11-10): BEH-BR-280 the core-produced `refusal` entry is the one exception to kind "call" and always follows "drop" (audit round 2, Low); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-280 `CrossingInfo.disclosed`, the names of the identity claims that crossed with the call, never their values, accepted on offered crossing entries and checked for empty or repeated names (requested by remote CCR-RM-004 and MCP CCR-MC-004, finding F-07) (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.9 (2026-11-22): BEH-BR-282 core's mandatory delivery layer names the provider as `via` while a delivered service's method runs (improvement report 06, R6)<br>0.8 (2026-11-22): BEH-BR-276 `CallEntry.contribution`, BEH-BR-277 `CallInfo.contributed(id)`: the contribution a broker chose (19, BEH-BR-168; report 02 R3)<br>0.7 (2026-11-10): BEH-BR-280 the core-produced `refusal` entry is the one exception to kind "call" and always follows "drop" (audit round 2, Low); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-280 `CrossingInfo.disclosed`, the names of the identity claims that crossed with the call, never their values, accepted on offered crossing entries and checked for empty or repeated names (requested by remote CCR-RM-004 and MCP CCR-MC-004, finding F-07) (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 
@@ -41,7 +41,7 @@ contract are the remote companion's ([`references/remote/`](../../remote/README.
 only the `CurrentCall` reference they plug into (BEH-BR-277). This file has
 no SPEC.md source section
 ([ADR-BR-044](../decisions/044-capability-policy-and-call-log-ports.md)). It
-owns BEH-BR-273–288 and uses BEH-BR-273–281; numbers 282–288 of the block are reserved.
+owns BEH-BR-273–288 and uses BEH-BR-273–282; numbers 283–288 of the block are reserved.
 
 > **What this is not**
 >
@@ -861,6 +861,59 @@ grant been narrower from the start. (3) The layer is added even for
 `Grant.all` when the policy declares `changes`, because a layer that does
 not exist cannot narrow later; a policy without `changes` keeps the zero
 cost of BEH-BR-275.
+
+## BEH-BR-282: A delivered service's methods run with the provider named as `via`
+
+> **Invariant:** [INV-BR-035](../invariants.md#inv-br-035-only-the-host-mints-a-plugin-principal), [INV-BR-039](../invariants.md#inv-br-039-annotations-reach-records-only-through-declared-flows)
+> **See:** [ADR-BR-043](../decisions/043-plugin-principal-and-mandatory-policy.md), [ADR-BR-045](../decisions/045-operation-context-annotations.md)
+> **Satisfies:** [URS-BR-032](../urs.md#urs-br-032-know-which-plugin-made-a-change-and-for-whom)
+> **Risk:** [RSK-BR-028](../gxp/03-risk-assessment.md#rsk-br-028)
+
+```ts
+// illustrative — not type-checked
+Annotation.Via   // id "bridger:via"  A = readonly { id: string; realm: string; version?: string; digest?: string }[]
+                 //   combine: append, keeping the first occurrence of each (id, realm), at most 8; monotonic: true
+                 //   flows: gate, policy, callLog, audit
+```
+
+```
+REQUIREMENT: When core delivers a service that a plugin provides (to a
+             required capture, `Host.use`, `useAll`, `useOptional`, a lease
+             or a `whenAvailable` run), it MUST wrap the delivered members
+             with a layer of its own, applied innermost, so that while a
+             member's `Effect` runs the fiber's annotations carry
+             `bridger:via` naming the provider plugin (`id`, `realm`, and
+             `version` and `digest` when its definition has them). Nested
+             providers MUST accumulate outermost first, once each. Services
+             of the base MUST NOT be wrapped.
+```
+
+```
+REQUIREMENT: The layer MUST NOT change the principal, the actor or the
+             correlation (BEH-BR-258), and MUST NOT depend on a `CallLog` or
+             a `CapabilityPolicy` being wired: it applies unconditionally.
+             It is shallow, as grants are (BEH-BR-275): a member that returns
+             neither an `Effect` nor a function returning one is left as it
+             is, and a sub-object a member returns is not wrapped.
+```
+
+```
+REQUIREMENT: A host mutation made while `bridger:via` is set MUST carry it,
+             as every audit-flow annotation (BEH-BR-293), in its `requested`,
+             `rejected` and terminal records and in the gate request's
+             annotations. A reviewer thereby reads `onBehalfOf` as the
+             principal the code acted for and `via` as the module the code
+             came from. `Plugin.Runtime.asSelf` records the provider as the
+             principal and still carries `via`.
+```
+
+A provider serving consumer A used to leave a trail that named only A
+(BEH-BR-258). The layer adds the missing half without touching the rule that
+a method runs under its caller's principal: core now sees every method entry
+because it delivers every service, so it can name the module without
+changing who is acting. It is a label for review, not isolation: a plugin
+that hands out a sub-object, or that calls the host from a fiber it forked
+outside the method, is not covered (RSK-BR-028).
 
 ---
 

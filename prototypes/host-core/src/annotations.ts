@@ -30,7 +30,7 @@ const bagOf = (entries: ReadonlyMap<string, { key: AnnotationKey<any>; value: un
 const entriesOf = (b: Annotations) => (b as unknown as { entries: ReadonlyMap<string, { key: AnnotationKey<any>; value: unknown }> }).entries
 /** A bag not made by core is treated as empty (BEH-BR-289). */
 export const isBag = (u: unknown): u is Annotations => typeof u === "object" && u !== null && made.has(u)
-const CORE_IDS = new Set(["bridger:deadline", "bridger:taint", "bridger:provenance"])
+const CORE_IDS = new Set(["bridger:deadline", "bridger:taint", "bridger:provenance", "bridger:via"])
 
 export const empty = bagOf(new Map())
 export const add = <A>(bag: Annotations, key: AnnotationKey<A>, value: A): Annotations => {
@@ -81,6 +81,12 @@ export const Annotation = {
   current: Effect.map(readCurrent, (b) => isBag(b) ? b : empty),
   Deadline: key<{ readonly at: number }>("bridger:deadline", { schema: Schema.Struct({ at: Schema.Number }), combine: (a, b) => a.at <= b.at ? a : b, monotonic: true, flows: ["events", "gate", "policy", "callLog"] }),
   Taint: key<ReadonlySet<string>>("bridger:taint", { schema: Schema.ReadonlySet(Schema.String) as never, combine: (a, b) => new Set([...a, ...b]), monotonic: true, flows: ["events", "gate", "policy", "callLog", "audit", "wire"] }),
+  /** BEH-BR-282: the provider plugins whose service methods are running in this fiber, outermost first; core adds it, as a delivered service's methods run (report 06 R6). */
+  Via: key<ReadonlyArray<{ readonly id: string; readonly realm: string; readonly version?: string; readonly digest?: string }>>("bridger:via", {
+    schema: Schema.Array(Schema.Struct({ id: Schema.String, realm: Schema.String, version: Schema.optional(Schema.String), digest: Schema.optional(Schema.String) })) as never,
+    combine: (a, b) => { const out = [...a]; for (const x of b) if (!out.some((y) => y.id === x.id && y.realm === x.realm)) out.push(x); return out.slice(0, 8) },
+    monotonic: true, flows: ["gate", "policy", "callLog", "audit"]
+  }),
   Provenance: key<ReadonlyArray<{ readonly source: string; readonly ref?: string }>>("bridger:provenance", {
     schema: Schema.Array(Schema.Struct({ source: Schema.String, ref: Schema.optional(Schema.String) })) as never,
     combine: (a, b) => { const out = [...a]; for (const x of b) if (!out.some((y) => y.source === x.source && y.ref === x.ref)) out.push(x); return out.slice(0, 32) },
