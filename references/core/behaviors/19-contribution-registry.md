@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-22): BEH-BR-161 core never verifies a finalizer is the inverse of its acquisition (improvement report 03, R4)<br>0.10 (2026-11-22): BEH-BR-167 `Options.revokeTimeout` bounds the wait for revoked holders' finalizers, `HoldRevoked.stuck` (improvement report 03, T2)<br>0.9 (2026-11-22): BEH-BR-168 `Broker.make`, a stable facade that leases each call on a contribution of a contract registry, so a provider swap restarts no dependent (report 02 R3, D-03, D-12)<br>0.8 (2026-11-11): BEH-BR-162 `Options.report` (default true); BEH-BR-163 a registry made with `report: false` reports nothing (CL4); BEH-BR-168 excepts such registries (C4); BEH-BR-163 `ActivePlugin` also gives an `IncompatibleContract` its `providerRealm` (CL7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.12 (2026-11-22): BEH-BR-164 a contribution's removal is ordered with the scope's other finalizers by acquisition; BEH-BR-166 plain references are not holds, no freeze option (improvement report 03, T8, T9, R7)<br>0.11 (2026-11-22): BEH-BR-161 core never verifies a finalizer is the inverse of its acquisition (improvement report 03, R4)<br>0.10 (2026-11-22): BEH-BR-167 `Options.revokeTimeout` bounds the wait for revoked holders' finalizers, `HoldRevoked.stuck` (improvement report 03, T2)<br>0.9 (2026-11-22): BEH-BR-168 `Broker.make`, a stable facade that leases each call on a contribution of a contract registry, so a provider swap restarts no dependent (report 02 R3, D-03, D-12)<br>0.8 (2026-11-11): BEH-BR-162 `Options.report` (default true); BEH-BR-163 a registry made with `report: false` reports nothing (CL4); BEH-BR-168 excepts such registries (C4); BEH-BR-163 `ActivePlugin` also gives an `IncompatibleContract` its `providerRealm` (CL7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -249,6 +249,15 @@ REQUIREMENT: When the scope a contribution was added in closes, that
 ```
 
 ```
+REQUIREMENT: A contribution's removal is a finalizer of the scope `add` ran in,
+             and MUST be ordered with every other finalizer of that scope —
+             a `Layer` resource, a `Runtime.acquire`, another contribution —
+             by acquisition, last in first out. A contribution added after a
+             resource it uses MUST therefore finish its removal, draining its
+             holders (BEH-BR-167), before that resource is released.
+```
+
+```
 REQUIREMENT: Removing one contribution MUST leave every other contribution
              intact, whoever added it.
 ```
@@ -356,6 +365,13 @@ the plugin's stop drains before its activation scope closes, and a `use`
 hold on the entry, for contributions withdrawn while their owner stays
 active (docs/REACT-UI-PLUGINS.md §5.1); it learns the owner from the entry's
 `owner` (BEH-BR-165).
+
+**Settled here.** A plain reference from `get` or `view` is not a hold (improvement
+report 03, T9): the value it names may be removed and its resource released
+while the reader still holds it, and only `use` and `useAll` keep it alive. Core
+offers no option that freezes or poisons a withdrawn value; such a hook is
+considered only when a second consumer shows renderers misusing plain
+references, and until then this note is the documented limit.
 
 ## BEH-BR-167: Removal waits for holders, bounded by drainTimeout, then revokes
 

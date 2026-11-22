@@ -372,13 +372,14 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
    * Closes an activation scope under `closeTimeout` (BEH-BR-046). Effect finalizers cannot be interrupted, so the close runs
    * detached and only the wait is bounded: on expiry the exit is a failure that claims no release (BEH-BR-107).
    */
-  const closeScope = (scope: Scope.Closeable): Effect.Effect<Exit.Exit<void, never>> => closeTimeout === "forever"
-    ? Effect.exit(Scope.close(scope, Exit.void))
+  const boundedDetached = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<Exit.Exit<A, E> | undefined> => closeTimeout === "forever"
+    ? Effect.exit(effect)
     : Effect.gen(function* () {
-      const fiber = yield* Effect.forkDetach(Scope.close(scope, Exit.void), { startImmediately: true })
-      const done = yield* Fiber.await(fiber).pipe(Effect.timeoutOrElse({ duration: closeTimeout, orElse: () => Effect.succeed(undefined) }))
-      return done ?? Exit.die(new Error(`close timed out after ${closeTimeout} ms; a finalizer is still running and no release is claimed`))
+      const fiber = yield* Effect.forkDetach(effect, { startImmediately: true })
+      return yield* Fiber.await(fiber).pipe(Effect.timeoutOrElse({ duration: closeTimeout, orElse: () => Effect.succeed(undefined) }))
     })
+  const closeScope = (scope: Scope.Closeable): Effect.Effect<Exit.Exit<void, never>> => boundedDetached(Scope.close(scope, Exit.void)).pipe(
+    Effect.map((done) => done ?? Exit.die(new Error(`close timed out after ${closeTimeout} ms; a finalizer is still running and no release is claimed`))))
 
   const entries = new Map<string, Entry>()
   const flights = new Map<string, Flight>()      // operator operations in flight, per plugin (BEH-BR-072)
@@ -2451,6 +2452,38 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     })
   }
 
+  /**
+   * Report 03 R8: runs again the releases of a `failed(cleanup)` plugin that failed, each bounded by `closeTimeout`. Only releases
+   * acquired through `Runtime.acquire` are kept for it; a failure with no kept release (a bare finalizer, a close that timed out)
+   * can be acknowledged by `remove`, never retried. When nothing is left the plugin becomes `disabled`, so no build runs unattended.
+   */
+  const retryCleanup = (ref: PluginRef, opts: OperationOptions = {}) => {
+    const id = refKey(ref)
+    return mutating<void, UnknownPlugin | DuplicatePlugin | Conflict | CleanupError>({
+      operation: "retryCleanup", target: toRef(ref), options: opts, validate: legalEarly(id, "retryCleanup"),
+      linearize: (call) => immediate(call, Effect.gen(function* () {
+        const flight = flights.get(id)
+        if (flight) return yield* Effect.fail(new Conflict({ id, pending: flight.op }))              // BEH-BR-072: the operation in flight
+        yield* legal(id, "retryCleanup")
+        const e = entries.get(id)!
+        const causes = e.failure?.causes ?? [{ message: e.failure?.message ?? "" }]
+        const stillFailing = new Map<string, string>()
+        for (const [label, run] of [...e.releasers]) {
+          const done = yield* boundedDetached(run())
+          if (done !== undefined && Exit.isSuccess(done)) { e.releasers.delete(label); const i = e.resources.findIndex((r) => r.label === label); if (i >= 0) e.resources.splice(i, 1) }
+          else stillFailing.set(label, done === undefined ? `release still running after ${closeTimeout} ms` : causesOf(done.cause)[0]!.message)
+        }
+        const remaining = causes.flatMap((c): ReadonlyArray<CleanupCause> => c.label === undefined ? [c] : stillFailing.has(c.label) ? [{ label: c.label, message: stillFailing.get(c.label)! }] : [])
+        if (remaining.length === 0) {
+          yield* locked(Effect.gen(function* () { e.cleanupFailed = false; e.failure = undefined; e.disabledReason = undefined; e.state = "disabled"; yield* commit }))
+          return { value: undefined }
+        }
+        yield* locked(Effect.gen(function* () { e.failure = { phase: "cleanup", message: remaining[0]!.message, causes: remaining }; yield* commit }))
+        return yield* Effect.fail(new CleanupError({ id: e.pluginId, realm: e.realm, message: remaining[0]!.message, causes: remaining }))
+      }))
+    })
+  }
+
   /** defineRealm (BEH-BR-145): a mutating operation; `DuplicateRealm` is its validation step. */
   /** BEH-BR-335: retires an empty realm in one revision; "default" and a realm with registrations are refused. */
   const retireRealm = (id: string, opts: OperationOptions = {}) => mutating<void, UnknownRealm | RealmInUse>({
@@ -3173,7 +3206,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }))
 
   return {
-    install, remove, replace, retry, reconfigure, restart, disable, enable, abort, acknowledgeAuditDegraded, defineRealm, reconcile, plan, wake, declaredContributions, link,
+    install, remove, replace, retry, reconfigure, restart, disable, enable, abort, retryCleanup, acknowledgeAuditDegraded, defineRealm, reconcile, plan, wake, declaredContributions, link,
     use, useAll, lease, awaitIdle, awaitSettled, inspect, shutdown,
     snapshot: Effect.sync(snapshotOf),
     /** Read-only; available after close, when it reports records flushed after the CloseReport (CCR-BR-014). */

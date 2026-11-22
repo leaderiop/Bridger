@@ -3,7 +3,7 @@ import { FLIGHT_TABLE, STATE_TABLE } from "./legality.table.js"
 // total function. Every route to an operation consults it (BEH-BR-077).
 export type PluginState = "dormant" | "waiting" | "starting" | "active" | "stopping" | "failed" | "disabled"
 export type Row = PluginState | "unknown" | "failed-cleanup"
-export type Op = "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart" | "disable" | "enable" | "abort"
+export type Op = "install" | "remove" | "replace" | "retry" | "reconfigure" | "restart" | "disable" | "enable" | "abort" | "retryCleanup"
 export type Outcome =
   | { readonly kind: "proceed" }
   | { readonly kind: "noop" }
@@ -16,7 +16,7 @@ const N: Outcome = { kind: "noop" }
 const C = (pending: string): Outcome => ({ kind: "conflict", pending })
 
 export const ROWS: ReadonlyArray<Row> = ["unknown", "waiting", "starting", "active", "stopping", "failed", "failed-cleanup", "disabled"]
-export const OPS: ReadonlyArray<Op> = ["install", "remove", "replace", "retry", "reconfigure", "restart", "disable", "enable", "abort"]
+export const OPS: ReadonlyArray<Op> = ["install", "remove", "replace", "retry", "reconfigure", "restart", "disable", "enable", "abort", "retryCleanup"]
 
 const outcomeOf = (cell: string): Outcome =>
   cell === "proceed" ? P : cell === "noop" ? N : cell === "unknown-plugin" || cell === "duplicate-plugin" ? { kind: cell } : C(cell.replace(/^conflict:/, ""))

@@ -61,4 +61,18 @@ describe("report 03 T2: a revoked holder's finalizer is bounded by revokeTimeout
     yield* Effect.yieldNow
     expect(seen).toEqual([])
   })))
+
+  it("report 03 R7 (BEH-BR-036, 164): a contribution is withdrawn, draining its holders, before a resource acquired earlier in the same scope is released", () => run(Effect.gen(function* () {
+    const reg = yield* Registry.make<string>({ name: "menu", drainTimeout: 1000 })
+    const order: string[] = []
+    const owner = yield* Scope.make()
+    yield* Scope.addFinalizer(owner, Effect.sync(() => { order.push("resource released") }))   // acquired first
+    yield* reg.add("c", "v").pipe(Scope.provide(owner))                                       // uses the resource, added after it
+    yield* Effect.forkDetach(reg.use("c", () => Effect.sleep(50).pipe(Effect.andThen(Effect.sync(() => { order.push("holder done") })))))
+    yield* Effect.yieldNow
+    const closing = yield* Effect.forkChild(Scope.close(owner, Exit.void))
+    yield* TestClock.adjust(50)
+    yield* Fiber.await(closing)
+    expect(order).toEqual(["holder done", "resource released"])
+  })))
 })
