@@ -17,7 +17,7 @@ import {
   InvalidDefinition, LeaseRevoked, LeaseTimeout, ReplaceRolledBack, SettleTimeout, ServiceUnavailable, UnknownPlugin, WouldDeadlock,
   ActivationFailed, PluginRemoved, type InstallError, ReplaceError, Superseded, ConfigInvalid, UnknownRealm, DuplicateRealm, IncompatibleContract, IncompatibleEngine, LoadFailed, ManifestMismatch, PlanStale, RealmInUse, ApplyRolledBack, PartialApply
 } from "./errors.js"
-import { decodeProblem, disagreement, engineProblem, idleProblem, isLazy, manifestDefinition, triggersOf, BRIDGER_VERSION, type LazyPluginDefinition, type LazyTrigger } from "./manifest.js"
+import { consentDiff, decodeProblem, disagreement, engineProblem, idleProblem, isLazy, manifestDefinition, triggersOf, BRIDGER_VERSION, type ConsentDiff, type LazyPluginDefinition, type LazyTrigger, type ManifestData } from "./manifest.js"
 import { incompatibility, provisionOf, refKind, refProblem, requirementOf, underlyingKey } from "./contract.js"
 import { PluginConfig, changedPaths } from "./config.js"
 import { makeEvents, type EventExtra, type HostEvent, type HostEventBody, type StateTrigger } from "./events.js"
@@ -149,6 +149,8 @@ export interface PlannedEntry {
   readonly configChange?: { readonly paths: ReadonlyArray<string> }
   readonly policy?: { readonly mandatoryInterceptions: ReadonlyArray<string>; readonly allowChildren: boolean }
   readonly undo?: ReadonlyArray<PlanAction>
+  /** Installed against incoming manifest, for an `install` or `replace` whose definitions carry one (BEH-BR-318, 243). */
+  readonly consentDiff?: ConsentDiff
 }
 export interface ReconcilePlan {
   readonly hostId: string
@@ -493,7 +495,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const e = entries.get(keyOf(p.id, p.realm))
     const m = e?.lazy?.def.manifest ?? e?.def.manifest
     if (!m) return undefined
-    return { contributions: (m.contributions ?? []).map((c) => ({ registry: c.registry, id: c.id })), events: [...(m.activation ?? []).flatMap((t) => t._tag === "OnEvent" ? [t.eventId] : []), ...(m.listens ?? [])] }
+    return { contributions: (m.contributions ?? []).map((c) => ({ registry: c.registry, id: c.id })), events: [...(m.activation ?? []).flatMap((t) => t._tag === "OnEvent" ? [t.eventId] : []), ...(m.listens ?? [])], emits: m.emits ?? [], mounts: m.mounts ?? [] }
   }
   const seam = Option.isSome(accessOpt) ? Option.some({ decide: (r: AccessRequest) => decideSafely(accessOpt.value, r), declaredFor }) : Option.none()
   if (Option.isSome(seam)) busHooks.access = seam.value
@@ -1391,7 +1393,9 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         const refuseChild = (reason: string) => emit({ type: "child-refused", childId: { id, realm }, reason } as never, e.id).pipe(Effect.andThen(Effect.fail(new ChildNotAllowed({ parentId: { id: e.pluginId, realm: e.realm }, childId: { id, realm }, reason }))))
         if (!e.allowChildren) return yield* refuseChild("allowChildren: false")
         if (Option.isSome(accessOpt) && e.principal) {
-          const d = decideSafely(accessOpt.value, { kind: "child", principal: refOf(e.principal), childId: id, definition: defRef(child) })
+          const own = declaredFor({ id: e.pluginId, realm: e.realm })
+          const declared = own ? { ...own, mounts: (own.mounts ?? []).map((m) => `${e.pluginId}/${m}`) } : undefined   // manifests name a child as the parent writes it
+          const d = decideSafely(accessOpt.value, { kind: "child", principal: refOf(e.principal), childId: id, definition: defRef(child), ...(declared ? { declared } : {}) })
           if (d !== "allow") return yield* refuseChild(d.deny)
         }
         yield* validate(child, ident)                        // registers nothing on error (BEH-BR-121)
@@ -2856,6 +2860,15 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     return { _tag: tag, message: `${tag}` }                    // core-written: the tag only, never the error's text (BEH-BR-324)
   }
   /** The plain, value-free plan (BEH-BR-318). */
+  /** BEH-BR-318: the consent diff of an `install` or `replace` entry, from manifests only; none unless the incoming (and, for `replace`, the installed) definition carries one. */
+  const consentOf = (actions: ReadonlyArray<PlanAction>, e: Entry | undefined, incoming: AnyPlugin | LazyPluginDefinition): { consentDiff?: ConsentDiff } => {
+    if (actions[0] !== "install" && actions[0] !== "replace") return {}
+    const next = (isLazy(incoming) ? incoming.manifest : (incoming as AnyPlugin).manifest) as ManifestData | undefined
+    if (!next) return {}
+    const installed = actions[0] === "replace" ? (e?.lazy?.def.manifest ?? e?.def.manifest) as ManifestData | undefined : undefined
+    if (actions[0] === "replace" && !installed) return {}
+    return { consentDiff: consentDiff(installed, next) }
+  }
   const planValue = (plan: Plan, opts: ReconcileOptions): ReconcilePlan => {
     const scope = opts.scope ?? "default", prune = opts.prune ?? true
     const steps = orderOf(plan)
@@ -2872,6 +2885,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         target: { id: d.id, realm: d.realm ?? "default" }, actions: [...actions],
         expected: e ? { installed: true, registeredAt: e.registeredAt ?? 0, ...defRef(e.def) } : { installed: false },
         incoming: defRef(d.plugin),
+        ...consentOf(actions, e, d.plugin as AnyPlugin | LazyPluginDefinition),
         ...(actions[0] === "install" ? { policy: { mandatoryInterceptions: [...(d.mandatoryInterceptions ?? [])], allowChildren: d.allowChildren ?? true } } : {}),
         ...(cfg ? { configChange: { paths: changedPaths(actions.includes("replace") || !e ? undefined : e.override?.raw, d.config) } } : {}),
         // `replace` is undone by `replace` and, when the entry's previous override is not none, `reconfigure` (BEH-BR-323).
@@ -2903,7 +2917,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     else if ((now.prune.enabled || now.atomic) &&
       (now.prune.drain !== expected.prune.drain || now.prune.force !== expected.prune.force)) host("prune options")
     if (now.atomic !== expected.atomic) host("atomic")
-    const strip = (p: PlannedEntry) => JSON.stringify({ t: p.target, a: p.actions, e: p.expected, c: p.configChange?.paths, p: p.policy })
+    const strip = (p: PlannedEntry) => JSON.stringify({ t: p.target, a: p.actions, e: p.expected, c: p.configChange?.paths, p: p.policy, i: p.incoming, d: p.consentDiff })
     const n = Math.max(now.entries.length, expected.entries.length)
     for (let i = 0; i < n; i++) {
       const a = now.entries[i], b = expected.entries[i]

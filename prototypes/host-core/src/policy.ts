@@ -54,12 +54,16 @@ export class ChildNotAllowed extends Schema.TaggedError<ChildNotAllowed>()("Chil
 export class PolicyMismatch extends Schema.TaggedError<PolicyMismatch>()("PolicyMismatch", { id: Schema.String, realm: Schema.String, fields: Schema.Array(Schema.String) }) {}
 
 // ---------------------------------------------------------------- AccessPolicy (BEH-BR-264, 268, 269)
-export interface DeclaredAccess { readonly contributions: ReadonlyArray<{ readonly registry: string; readonly id: string }>; readonly events: ReadonlyArray<string> }
+export interface DeclaredAccess {
+  readonly contributions: ReadonlyArray<{ readonly registry: string; readonly id: string }>; readonly events: ReadonlyArray<string>
+  /** Events the plugin may emit and plugins it may mount as children; absent means none declared (BEH-BR-268). */
+  readonly emits?: ReadonlyArray<string>; readonly mounts?: ReadonlyArray<string>
+}
 export type AccessRequest =
   | { readonly kind: "listen"; readonly principal?: PrincipalRef; readonly event: string; readonly style: "on" | "around" | "subscribe" | "delivery"; readonly origin?: string; readonly declared?: DeclaredAccess }
-  | { readonly kind: "emit"; readonly principal?: PrincipalRef; readonly event: string; readonly mode: "emit" | "parallel" | "serial" | "waterfall" | "publish" }
+  | { readonly kind: "emit"; readonly principal?: PrincipalRef; readonly event: string; readonly mode: "emit" | "parallel" | "serial" | "waterfall" | "publish"; readonly declared?: DeclaredAccess }
   | { readonly kind: "contribute"; readonly principal?: PrincipalRef; readonly registry: string; readonly id: string; readonly declared?: DeclaredAccess }
-  | { readonly kind: "child"; readonly principal: PrincipalRef; readonly childId: string; readonly definition: { readonly version?: string; readonly digest?: string } }
+  | { readonly kind: "child"; readonly principal: PrincipalRef; readonly childId: string; readonly definition: { readonly version?: string; readonly digest?: string }; readonly declared?: DeclaredAccess }
 export type AccessDecision = "allow" | { readonly deny: string }
 export interface AccessPolicyShape { readonly decide: (request: AccessRequest) => AccessDecision }
 export class AccessPolicy extends Context.Service<AccessPolicy, AccessPolicyShape>()("@bridger/core/AccessPolicy") {}
@@ -71,9 +75,12 @@ export const decideSafely = (p: AccessPolicyShape, r: AccessRequest): AccessDeci
 export const PolicySeam = Context.Reference<Option.Option<{ readonly decide: (r: AccessRequest) => AccessDecision; readonly declaredFor: (p: PrincipalRef | undefined) => DeclaredAccess | undefined }>>("bridger/prototype/PolicySeam", { defaultValue: () => Option.none() })
 export const declaredOnly = (inner: AccessPolicyShape, options: { readonly withoutManifest: "allow" | "deny" }): AccessPolicyShape => ({
   decide: (r) => {
-    if (r.kind === "listen" || r.kind === "contribute") {
+    if (r.kind === "listen" || r.kind === "contribute" || r.kind === "emit" || r.kind === "child") {
       if (!r.declared) { if (options.withoutManifest === "deny") return { deny: "undeclared: no manifest" } }
-      else if (r.kind === "listen" ? !r.declared.events.includes(r.event) : !r.declared.contributions.some((c) => c.registry === r.registry && c.id === r.id)) return { deny: "undeclared" }
+      else if (!(r.kind === "listen" ? r.declared.events.includes(r.event)
+        : r.kind === "contribute" ? r.declared.contributions.some((c) => c.registry === r.registry && c.id === r.id)
+        : r.kind === "emit" ? (r.declared.emits ?? []).includes(r.event)
+        : (r.declared.mounts ?? []).includes(r.childId))) return { deny: "undeclared" }
     }
     return decideSafely(inner, r)
   }

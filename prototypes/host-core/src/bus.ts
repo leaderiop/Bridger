@@ -162,7 +162,8 @@ export const makeBus = (opts: {
     if (chain.length >= depthCap) return yield* Effect.die(new EmitDepthExceeded([...chain, eventId], depthCap))
     if (opts.access) {
       const p = yield* CurrentPlugin.acting
-      const d = opts.access.decide({ kind: "emit", event: eventId, mode, ...(Option.isSome(p) ? { principal: refOf(p.value) } : {}) })
+      const principal = Option.isSome(p) ? refOf(p.value) : undefined, declared = principal ? opts.access.declaredFor(principal) : undefined
+      const d = opts.access.decide({ kind: "emit", event: eventId, mode, ...(principal ? { principal } : {}), ...(declared ? { declared } : {}) })
       if (d !== "allow") return yield* Effect.die(new AccessDenied("emit", eventId, d.deny))
     }
     const cur = yield* CurrentAnnotations

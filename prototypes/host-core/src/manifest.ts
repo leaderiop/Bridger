@@ -29,6 +29,12 @@ export const ManifestSchema = Schema.Struct({
   activation: Schema.optionalKey(Schema.Array(LazyTrigger)),
   contributions: Schema.optionalKey(Schema.Array(Schema.Struct({ registry: Str, id: Str, role: Schema.optionalKey(Schema.Literals(["veto", "enrich", "advisory"])), target: Schema.optionalKey(Schema.Unknown) }))),
   listens: Schema.optionalKey(Schema.Array(Str)),
+  /** Event ids the plugin may emit (BEH-BR-268, improvement report 06 R2). */
+  emits: Schema.optionalKey(Schema.Array(Str)),
+  /** Plugin ids the plugin may mount as children with `Plugin.Runtime.install`. */
+  mounts: Schema.optionalKey(Schema.Array(Str)),
+  /** Host operations the plugin may call through `Plugin.Runtime`, by name (`install`, `unmount`). */
+  hostOps: Schema.optionalKey(Schema.Array(Str)),
   description: Schema.optionalKey(Str),
   publisher: Schema.optionalKey(Str),
   tier: Schema.optionalKey(Str),
@@ -179,6 +185,9 @@ export const consentDiff = (previous: ManifestData | undefined, next: ManifestDa
   setDiff("requested.egress", egA.map((e) => e.host), egB.map((e) => e.host))
   // A purpose change on an unchanged host is a difference the table does not classify (finding G-P6).
   for (const b of egB) { const a = egA.find((x) => x.host === b.host); if (a && a.purpose !== b.purpose) unclassified.push({ path: `requested.egress[${b.host}].purpose`, ...(a.purpose !== undefined ? { from: a.purpose } : {}), ...(b.purpose !== undefined ? { to: b.purpose } : {}) }) }
+  setDiff("emits", p?.emits ?? [], next.emits ?? [])
+  setDiff("mounts", p?.mounts ?? [], next.mounts ?? [])
+  setDiff("hostOps", p?.hostOps ?? [], next.hostOps ?? [])
   setDiff("requires", (p?.requires ?? []).map((r) => r.serviceId), next.requires.map((r) => r.serviceId))
   setDiff("optional", (p?.optional ?? []).map((r) => r.serviceId), (next.optional ?? []).map((r) => r.serviceId))
   for (const f of ["publisher", "tier", "residency"] as const) {
@@ -186,7 +195,7 @@ export const consentDiff = (previous: ManifestData | undefined, next: ManifestDa
     if (a !== b) relabelled.push({ path: f, ...(a !== undefined ? { from: a } : {}), ...(b !== undefined ? { to: b } : {}) })
   }
   if (p) {
-    const skip = new Set(["version", "digest", "description", "manifestVersion", "requested", "requires", "optional", "publisher", "tier", "residency"])
+    const skip = new Set(["version", "digest", "description", "manifestVersion", "requested", "requires", "optional", "publisher", "tier", "residency", "emits", "mounts", "hostOps"])
     const keys = [...new Set([...Object.keys(p), ...Object.keys(next)])].filter((k) => !skip.has(k)).sort(cu)
     for (const k of keys) if (canon(p[k]) !== canon(next[k])) unclassified.push({ path: k })
     // Fields of `requested` the table does not name.

@@ -254,7 +254,11 @@ describe("P7 core 28: allowChildren, AccessPolicy, RefusalList on mounts (checks
     expect(p.decide({ kind: "listen", event: "b", style: "on", declared: { contributions: [], events: ["a"] } })).toEqual({ deny: "undeclared" })
     expect(p.decide({ kind: "contribute", registry: "r", id: "x" })).toEqual({ deny: "undeclared: no manifest" })
     expect(declaredOnly(inner, { withoutManifest: "allow" }).decide({ kind: "contribute", registry: "r", id: "x" })).toBe("allow")
-    expect(p.decide({ kind: "emit", event: "b", mode: "emit" })).toBe("allow")
+    expect(p.decide({ kind: "emit", event: "b", mode: "emit" })).toEqual({ deny: "undeclared: no manifest" })   // emits are compared too (BEH-BR-268)
+    expect(p.decide({ kind: "emit", event: "b", mode: "emit", declared: { contributions: [], events: [], emits: ["b"] } })).toBe("allow")
+    expect(p.decide({ kind: "emit", event: "c", mode: "emit", declared: { contributions: [], events: [], emits: ["b"] } })).toEqual({ deny: "undeclared" })
+    expect(p.decide({ kind: "child", principal: { id: "p", realm: "default", revision: 1 } as never, childId: "k", definition: {}, declared: { contributions: [], events: [], mounts: ["k"] } })).toBe("allow")
+    expect(p.decide({ kind: "child", principal: { id: "p", realm: "default", revision: 1 } as never, childId: "z", definition: {}, declared: { contributions: [], events: [], mounts: ["k"] } })).toEqual({ deny: "undeclared" })
     const box: { rt?: PluginRuntime["Service"] } = {}
     await onHost((host) => Effect.gen(function* () {
       yield* host.install(storePlugin(box), as()); yield* idle(host)
