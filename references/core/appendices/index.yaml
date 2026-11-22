@@ -8,3 +8,6 @@ entries:
   - file: "cordis-comparison.md"
     id: "BRIDGER-APP-02"
     title: "Cordis comparison"
+  - file: "event-catalog.md"
+    id: "BRIDGER-APP-03"
+    title: "Event catalog"

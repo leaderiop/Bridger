@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-03                                              |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see §5)                      |
 > | Approved by    | — (pending; single maintainer, see §5)                       |
 > | Classification | Process Specification                                        |
-> | Change History | 0.2 (2026-10-03): CCRs before CCR-BR-006 carry no impact record (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.3 (2026-11-22): §1 a new event, hook point or host event needs its row in the event catalog in the same change (improvement report 04, R2)<br>0.2 (2026-10-03): CCRs before CCR-BR-006 carry no impact record (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 _Previous: [Definitions of Done](./definitions-of-done.md)_
 
@@ -31,6 +31,14 @@ REQUIREMENT: Any change to a normative document (URS, behaviours, invariants,
              decisions, GxP documents, process documents) MUST be made under a
              CCR. Editorial changes (spelling, formatting, a broken link) MAY
              share one CCR but MUST still be recorded.
+```
+
+```
+REQUIREMENT: A change that adds, renames or re-moded an event (`Event.make`),
+             a hook point (`HookPoint.make`) or a `Host.events` tag MUST
+             regenerate `appendices/event-catalog.md` in the same change
+             (`bash references/core/scripts/verify-events.sh --write`); the
+             documentation gate fails on a stale catalog.
 ```
 
 ```
