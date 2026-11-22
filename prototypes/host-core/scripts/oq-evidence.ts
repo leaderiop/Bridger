@@ -3,6 +3,7 @@
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { hostname } from "node:os"
+import { coverage, writeEvidencePack } from "../src/evidencepack.js"
 import { collect, readTraceRows, readVitestReport, rollup } from "../src/evidence.js"
 import { captureRunEnvironment, installedPackage, judgeRun } from "../src/runenv.js"
 
@@ -26,5 +27,10 @@ const rows = readTraceRows(readFileSync(new URL("../../../references/core/tracea
 const reqs = rollup(ev, rows)
 writeFileSync(root + "evidence/requirements.json", JSON.stringify(reqs, null, 2) + "\n")   // derived from oq.json; traceability.md itself is not edited
 const tally: Record<string, number> = {}; for (const r of Object.values(reqs)) tally[r.outcome] = (tally[r.outcome] ?? 0) + 1
+const pkg = JSON.parse(readFileSync(root + "package.json", "utf8")) as { version?: string }
+const { packDigest } = writeEvidencePack(root + "evidence/pack", { generatedAt: new Date().toISOString(), packageVersion: pkg.version ?? "0.0.0", coreVersion: pkg.version ?? "0.0.0",
+  oq: { runCounted: judged.counted, run, counts: ev.counts, requirements: ev.requirements, statement: ev.statement }, deviations, coverage: coverage(ev, rows),
+  attachments: [{ as: "vitest-report.json", bytes: readFileSync(reportPath) }] })
+console.log("pack digest:", packDigest)
 console.log("requirement rows:", JSON.stringify(tally))
 console.log(JSON.stringify({ ...ev.counts, requirements: known.length, deviations: deviations.length, runCounted: judged.counted }), ev.statement)
