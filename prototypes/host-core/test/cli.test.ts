@@ -107,4 +107,15 @@ export default Dev.app({ plugins: [definePlugin({ id: "example/hello", provides:
       expect(declining.log).toContain("plan declined")
     })))
   })
+
+  it("BEH-KT-026: the 100th reload warns once that earlier module instances are not released, and suggests a restart", async () => {
+    await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+      const s = yield* devSession({ plugins: [] })
+      yield* s.start([hello("a")], { "example/hello": "v0" })
+      for (let i = 1; i <= 101; i++) yield* s.reload([hello("a")], { "example/hello": `v${i}` }, ["a.ts"])
+      const warnings = s.log.filter((l) => l.startsWith("warning: 100 reloads"))
+      expect(warnings).toHaveLength(1); expect(warnings[0]).toContain("restart")
+    })))
+  })
 })
+

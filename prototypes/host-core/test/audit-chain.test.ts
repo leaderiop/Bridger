@@ -1,13 +1,13 @@
 import { createHmac } from "node:crypto"
 import { describe, expect, it } from "vitest"
-import { chainEntries, exportBundle, renderReport, statementHash, verifyBundle, type AnchorStatement, type ChainEntry, type OfflineReceiptVerifier, type TrustRoot } from "../src/audit-chain.js"
+import { BundleExportFailed, chainEntries, exportBundle, jcs, makeStatement, merkleRoot, proveInclusion, renderReport, statementHash, verifyBundle, verifyInclusion, type AnchorStatement, type ChainEntry, type OfflineReceiptVerifier, type TrustRoot } from "../src/audit-chain.js"
 
 const rec = (n: number) => ({ hostId: "h1", auditSeq: n, recordId: `r${n}`, kind: "x", auditDropped: 0 })
 const entries = () => chainEntries({ seriesId: "h1", records: [1, 2, 3, 4].map(rec) })
 const root: TrustRoot = { kind: "anchor-key", anchor: "log", publicKey: "k" }
 const mk = (e: ChainEntry[] = entries(), extra: object = {}) =>
   exportBundle({ createdAt: "2026-01-01T00:00:00.000Z", series: [{ seriesId: "h1", entries: e }], trustRoots: [root], ...extra })
-const stmt = (e: ChainEntry[], from: number, to: number, previous?: string): AnchorStatement => ({ seriesId: "h1", fromSeq: from, toSeq: to, head: e[to - 1]!.link!.hash, ...(previous ? { previous } : {}) })
+const stmt = (e: ChainEntry[], from: number, to: number, previous?: string): AnchorStatement => makeStatement({ seriesId: "h1", entries: e, fromSeq: from, toSeq: to, createdAt: "2026-01-01T00:00:00.000Z", ...(previous ? { previous } : {}) })
 const yes: OfflineReceiptVerifier = { anchorKind: "log", confirm: () => ({ _tag: "Confirmed", by: "test" }) }
 const online: OfflineReceiptVerifier = { anchorKind: "log", confirm: () => ({ _tag: "NeedsOnline" }) }
 const withAnchor = (v: OfflineReceiptVerifier | undefined, to = 2) => {
@@ -82,5 +82,74 @@ describe("audit-chain offline verification", () => {
     const dropped = chainEntries({ seriesId: "h1", records: [rec(1), { ...rec(2), auditDropped: 3 }] })
     expect(verifyBundle(mk(dropped)).chain.h1!.notices).toEqual([{ seq: 2, kind: "loss-counter-rose" }])
     for (const junk of [null, 5, "x", {}, { format: "bridger-chain-bundle/v1", series: [1], segments: [{}], anchors: [null] }]) expect(verifyBundle(junk).inconsistent).toBe(true)
+  })
+
+  it("anchors match on the Merkle root: a root or head forged in the statement is a mismatch", () => {
+    const e = entries(); const good = stmt(e, 1, 3)
+    const run = (st: AnchorStatement) => verifyBundle(mk(e, { anchors: [{ statement: st, receipt: { anchor: "log", statementHash: statementHash(st) } }] }), { receiptVerifiers: [yes] }).chain.h1!
+    expect(run(good).verifiedThrough).toBe(3)
+    expect(run({ ...good, merkleRoot: "00".repeat(32) } as AnchorStatement).anchorMismatches[0]!.kind).toBe("root-mismatch")
+    expect(run({ ...good, headHash: "00".repeat(32), merkleRoot: good.merkleRoot } as AnchorStatement).anchorMismatches[0]!.kind).toBe("head-mismatch")
+    expect(statementHash(good)).toMatch(/^[0-9a-f]{64}$/)
+    expect(statementHash(good)).not.toBe(statementHash({ ...good, createdAt: "x" } as AnchorStatement))
+  })
+  it("RFC 6962 root: single leaf is the leaf hash; inclusion proofs verify for every position of windows of 1..7", () => {
+    for (let n = 1; n <= 7; n++) {
+      const e = chainEntries({ seriesId: "h1", records: Array.from({ length: n }, (_, i) => rec(i + 1)) }); const st = stmt(e, 1, n)
+      for (let q = 1; q <= n; q++) { const p = proveInclusion(e, st, q)!; expect(verifyInclusion(e[q - 1]!.record, p, st)).toBe(true); expect(verifyInclusion({ ...(e[q - 1]!.record as object), kind: "z" }, p, st)).toBe(false) }
+    }
+    expect(merkleRoot("sha-256", 1, ["aa", "bb", "cc"])).not.toBe(merkleRoot("sha-256", 1, ["aa", "bb", "cc", "dd"]))
+    expect(proveInclusion(entries(), stmt(entries(), 1, 2), 3)).toBeUndefined()
+  })
+  it("disclose inclusions: only the requested record, reported 'included'; a tampered disclosed record is 'not-included'", () => {
+    const e = entries(); const s = stmt(e, 1, 4)
+    const anchors = [{ statement: s, receipt: { anchor: "log", statementHash: statementHash(s) } }]
+    const b = exportBundle({ createdAt: "t", series: [{ seriesId: "h1", entries: e }], anchors, trustRoots: [root], disclose: "inclusions", include: new Map([["h1", [3]]]) })
+    expect(b.segments).toEqual([]); expect(b.inclusions).toHaveLength(1); expect(JSON.stringify(b)).not.toContain('"recordId":"r2"')
+    const r = verifyBundle(b, { receiptVerifiers: [yes] })
+    expect(r.inclusions).toEqual([{ seriesId: "h1", seq: 3, result: "included" }]); expect(r.inconsistent).toBe(false); expect(r.chain.h1).toBeUndefined()
+    const bad = JSON.parse(JSON.stringify(b)); bad.inclusions[0].record.kind = "evil"
+    const rb = verifyBundle(bad, { receiptVerifiers: [yes] }); expect(rb.inclusions[0]!.result).toBe("not-included"); expect(rb.inconsistent).toBe(true)
+    const nc = verifyBundle(b); expect(nc.inclusions[0]!.result).toBe("not-checked"); expect(nc.incomplete).toBe(true)
+  })
+  it("export range and BundleExportFailed; anchors only for overlapping windows", () => {
+    const e = entries(); const s1 = stmt(e, 1, 2); const s2 = stmt(e, 3, 4, statementHash(s1))
+    const anchors = [s1, s2].map((st) => ({ statement: st, receipt: { anchor: "log", statementHash: statementHash(st) } }))
+    const b = exportBundle({ createdAt: "t", series: [{ seriesId: "h1", entries: e }], anchors, trustRoots: [root], range: new Map([["h1", { fromSeq: 3, toSeq: 4 }]]) })
+    expect(b.segments[0]).toMatchObject({ fromSeq: 3, toSeq: 4 }); expect(b.anchors).toHaveLength(1)
+    const r = verifyBundle(b, { receiptVerifiers: [yes] }); expect(r.chain.h1).toMatchObject({ linksCheckedThrough: 4, verifiedThrough: 4 }); expect(r.chain.h1!.sequence.problems).toEqual([])
+    const req = { createdAt: "t", series: [{ seriesId: "h1", entries: e }], trustRoots: [root] }
+    expect(() => exportBundle({ ...req, range: new Map([["h1", { fromSeq: 3, toSeq: 9 }]]) })).toThrow(BundleExportFailed)
+    expect(() => exportBundle({ ...req, range: new Map([["nope", { fromSeq: 1, toSeq: 2 }]]) })).toThrow(BundleExportFailed)
+    expect(() => exportBundle({ ...req, disclose: "inclusions", include: new Map([["h1", [1]]]) })).toThrow(BundleExportFailed)
+  })
+  it("sequence follows core's verifyAuditSequence: gap, duplicate and order are reported and cap links", () => {
+    const e = entries(); const gap = [e[0]!, e[2]!, e[3]!]
+    const r = verifyBundle(mk(gap)).chain.h1!; expect(r.sequence.gaps).toEqual([{ after: 1, before: 3 }]); expect(r.linksCheckedThrough).toBe(1)
+    expect(verifyBundle(mk([e[0]!, e[0]!, e[1]!])).chain.h1!.sequence.duplicates).toEqual([1])
+  })
+  it("version 1 statements are read and listed as anchoring no loss counter", () => {
+    const e = entries(); const v2 = stmt(e, 1, 2) as Extract<AnchorStatement, { v: 2 }>
+    const v1 = { v: 1 as const, alg: v2.alg, hostId: "h1", fromSeq: 1, toSeq: 2, merkleRoot: v2.merkleRoot, headHash: v2.headHash, createdAt: v2.createdAt }
+    const r = verifyBundle(mk(e, { anchors: [{ statement: v1, receipt: { anchor: "log", statementHash: statementHash(v1) } }] }), { receiptVerifiers: [yes] })
+    expect(r.chain.h1!.verifiedThrough).toBe(2); expect(r.chain.h1!.lossCounterUnanchored).toEqual([{ fromSeq: 1, toSeq: 2, statementHash: statementHash(v1) }])
+  })
+})
+
+describe("jcs (RFC 8785)", () => {
+  it("sorts keys by UTF-16 code units (RFC 8785 section 3.2.3)", () => {
+    const o: Record<string, number> = { "\u20ac": 1, "\r": 2, "\ufb33": 3, "1": 4, "\ud83d\ude00": 5, "\u0080": 6, "\u00f6": 7 }
+    expect([...jcs(o).matchAll(/"((?:[^"\\]|\\.)*)":/g)].map((m) => JSON.parse(`"${m[1]}"`))).toEqual(["\r", "1", "\u0080", "\u00f6", "\u20ac", "\ud83d\ude00", "\ufb33"])
+    expect(jcs({ b: 1, a: { d: 1, c: [3, { z: 1, y: 2 }] } })).toBe('{"a":{"c":[3,{"y":2,"z":1}],"d":1},"b":1}')
+  })
+  it("serialises numbers like ECMAScript (RFC 8785 section 3.2.2)", () => {
+    expect([1e21, 4.5, 0.002, 1e-7, -0, 333333333.33333329, 1e30, 123456789012345680000].map((n) => jcs(n))).toEqual(["1e+21", "4.5", "0.002", "1e-7", "0", "333333333.3333333", "1e+30", "123456789012345680000"])
+    expect(() => jcs(NaN)).toThrow(); expect(() => jcs(Infinity)).toThrow()
+  })
+  it("escapes strings (RFC 8785 section 3.2.2.2) and keeps absent fields absent", () => {
+    expect(jcs("\u20ac$\u000f\u000aA'B\"\\/")).toBe('"\u20ac$\\u000f\\nA\'B\\"\\\\/"')
+    expect(jcs("\u0007\u007f")).toBe('"\\u0007\u007f"')
+    expect(jcs("\ud800")).toBe('"\\ud800"')
+    expect(jcs({ a: undefined, b: null, c: [] })).toBe('{"b":null,"c":[]}')
   })
 })

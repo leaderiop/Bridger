@@ -2,6 +2,7 @@
 // (improvement report 05 R3, BEH-KT-049): one entry per tag, taken from its row in references/kit/behaviors/07-error-catalog.md.
 // A tag added to the prototype without an entry is a compile error here; an entry that differs from the table fails the script.
 import type * as annotations_ from "./annotations.js"
+import type * as audit_chain_ from "./audit-chain.js"
 import type * as conformance_ from "./conformance.js"
 import type * as errors_ from "./errors.js"
 import type * as gxp_ from "./gxp.js"
@@ -13,7 +14,7 @@ import type * as realms_ from "./realms.js"
 import type * as sdk_ from "./sdk.js"
 
 type TagOf<M> = { readonly [K in keyof M]: M[K] extends abstract new (...a: any) => { readonly _tag: infer T } ? (string extends T ? never : T) : never }[keyof M]
-export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof conformance_> | TagOf<typeof errors_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof loader_> | TagOf<typeof plugin_test_> | TagOf<typeof policy_> | TagOf<typeof realms_> | TagOf<typeof sdk_>
+export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof audit_chain_> | TagOf<typeof conformance_> | TagOf<typeof errors_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof loader_> | TagOf<typeof plugin_test_> | TagOf<typeof policy_> | TagOf<typeof realms_> | TagOf<typeof sdk_>
 export interface Entry { readonly kind: string; readonly raisedBy: string; readonly cause: string; readonly fix: string }
 export const entries = {
   AccessDenied: { kind: "defect", raisedBy: "bus listen or emit, registry contribute, child mount", cause: "A wired `AccessPolicy` denied the request (`kind`, `subject`, `principal`, `reason`); nothing was registered", fix: "Ask the integrator to allow the access, or do not attempt it" },
@@ -23,6 +24,7 @@ export const entries = {
   ApplyRolledBack: { kind: "error", raisedBy: "`reconcile(desired, { atomic: true })`", cause: "An entry failed (`failed`) and every applied entry was undone (`undone`); also when the apply stopped \u2014 for any cause, the latch, an unwritten `requested` record or shutdown included \u2014 before any action completed, with `undone` empty (BEH-BR-324)", fix: "Fix the failed entry's cause and run again; nothing stayed applied" },
   AuditUnavailable: { kind: "error", raisedBy: "every mutating operation except `shutdown`", cause: "The `requested` record could not be written, or the audit latch is set", fix: "Restore the sink; an operator acknowledges with `acknowledgeAuditDegraded`" },
   AuditWriteFailed: { kind: "port-error", raisedBy: "`AuditSink.record`", cause: "The sink failed one write; never reaches an operation caller", fix: "Fix the sink; the host maps it to `AuditUnavailable` or the latch" },
+  BundleExportFailed: { kind: "error", raisedBy: "`exportBundle`; the `ReceiptReader` read by gxp `verifySeals` and `exportTrail`", cause: "The chain store or receipt store could not be read, the series is unknown, or the range is invalid (`reason`); no partial bundle is produced. Gxp `verifySeals` fails with it; gxp `exportTrail` fails with `ExportFailed`", fix: "Fix the store access or the requested range and export again" },
   CallLogUnavailable: { kind: "defect (in calls); error (`Host.offerCallEntry`)", raisedBy: "recorded service calls under `onFailure: \"refuse\"`, `Host.offerCallEntry`", cause: "The call log could not take the entry (`why`: queue-full, record-failed, record-timeout, host-closing)", fix: "Restore the call-log store, raise `queue`, or choose \"drop\" for captures that may lose entries" },
   CallbackDenied: { kind: "error", raisedBy: "guest callbacks", cause: "The callback was refused at the host boundary (`link`, `contract`, `method`, `reason`: not-granted, local-contract, invocation-ended, call-log-unavailable, or the admission's reason); for every reason but call-log-unavailable nothing was resolved; with call-log-unavailable the host service ran and its result was withheld because the call log could not record it (BEH-RM-046)", fix: "Make the callback within the call, or ask the integrator for a grant or an admission rule that covers it; for call-log-unavailable, restore the call log, and do not retry a non-idempotent callback without checking whether its effect happened" },
   CapabilityDenied: { kind: "defect", raisedBy: "calling an ungranted member", cause: "The grant names members and this one is not among them", fix: "Ask for a grant that includes the member" },

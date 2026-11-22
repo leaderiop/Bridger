@@ -23,14 +23,38 @@ const decode = (file: string): L.Package => {
   return { manifest: L.fromB64u(j.manifest), sbom: { format: j.sbom.format, bytes: L.fromB64u(j.sbom.bytes) }, files: new Map(Object.entries(j.files).map(([k, v]) => [k, L.fromB64u(v)])) }
 }
 interface Signatures { digest: string; package: Array<{ scheme: string; keyHint?: string; bytes: string }>; firstParty: Array<{ scheme: string; keyHint?: string; bytes: string }> }
-const sigFile = (pkg: string) => pkg.replace(/\.bpkg$/, "") + ".signatures.json"
+const sigFile = (pkg: string) => pkg.replace(/\.(bpkg|bdp)$/, "") + ".signatures.json"
+/** What publish and countersign sign: a package or a data pack, with the statement type its digest belongs to (BEH-KT-032, loader 08). */
+interface Subject { readonly kind: "package" | "data-pack"; readonly digest: string; readonly id: string; readonly version: string; readonly publisher?: string }
+const subjectOf = (file: string): Subject => {
+  const j = JSON.parse(readFileSync(file, "utf8")) as { format?: string; manifest: string; payload?: string }
+  if (j.format === "bridger-data-pack/v1") {
+    const pack: L.DataPack = { manifestBytes: L.fromB64u(j.manifest), payload: L.fromB64u(j.payload!) }
+    const m = L.decodeDataPackManifest(pack.manifestBytes)
+    return { kind: "data-pack", digest: L.dataPackDigest(pack), id: m.id, version: m.version, ...(m.publisher ? { publisher: m.publisher } : {}) }
+  }
+  const pkg = decode(file), m = manifestOf(pkg)
+  return { kind: "package", digest: L.packageDigest(pkg), id: m.id, version: m.version, ...(m.publisher ? { publisher: m.publisher } : {}) }
+}
 const readSigs = (pkg: string): Signatures | undefined => existsSync(sigFile(pkg)) ? JSON.parse(readFileSync(sigFile(pkg), "utf8")) : undefined
 const toSig = (s: Signatures["package"][number]): L.Signature => ({ scheme: s.scheme, ...(s.keyHint ? { keyHint: s.keyHint } : {}), bytes: L.fromB64u(s.bytes) })
 const fromSig = (s: L.Signature): Signatures["package"][number] => ({ scheme: s.scheme, ...(s.keyHint ? { keyHint: s.keyHint } : {}), bytes: L.b64u(s.bytes) })
 const walk = (root: string, dir: string): ReadonlyArray<string> => readdirSync(join(root, dir)).sort().flatMap((n) => { const rel = join(dir, n); return statSync(join(root, rel)).isDirectory() ? walk(root, rel) : [rel] })
 
 // ---------------------------------------------------------------------------------------------- pack (BEH-KT-029)
+const packData = (args: ReadonlyArray<string>, io: Io): number => {
+  const manifestFile = flag(args, "--manifest"), payloadFile = flag(args, "--payload")
+  if (!manifestFile || !payloadFile) { io.err("usage: bridger pack --data --manifest <file> --payload <file> [--out <dir>]"); return 2 }
+  const pack: L.DataPack = { manifestBytes: new Uint8Array(readFileSync(resolve(io.cwd, manifestFile))), payload: new Uint8Array(readFileSync(resolve(io.cwd, payloadFile))) }
+  let digest: string, m: L.DataPackManifest
+  try { m = L.decodeDataPackManifest(pack.manifestBytes); digest = L.dataPackDigest(pack) } catch (e) { io.err(`PackageMalformed: ${(e as Error).message}`); return 1 }
+  const out = resolve(io.cwd, flag(args, "--out") ?? "dist"), name = `${m.id.split("/").pop()}-${m.version}.bdp`
+  mkdirSync(out, { recursive: true }); writeFileSync(join(out, name), stable({ format: "bridger-data-pack/v1", manifest: L.b64u(pack.manifestBytes), payload: L.b64u(pack.payload) }))
+  io.out(`packed ${join(flag(args, "--out") ?? "dist", name)}  ${m.id} ${m.version}  ${digest}  (data pack)`)
+  return 0
+}
 export const pack = async (args: ReadonlyArray<string>, io: Io): Promise<number> => {
+  if (args.includes("--data")) return packData(args, io)
   const [mod, ...rest] = args
   const entry = flag(rest, "--entry")
   if (!mod || !entry) { io.err("usage: bridger pack <package-module> --entry <file> [--export <name>] [--files <dir>] [--lock <file>] [--out <dir>] [--partner]"); return 2 }
@@ -57,12 +81,13 @@ export const pack = async (args: ReadonlyArray<string>, io: Io): Promise<number>
   const out = resolve(io.cwd, flag(rest, "--out") ?? "dist")
   const name = `${String(manifest.id).split("/").pop()}-${manifest.version}.bpkg`
   mkdirSync(out, { recursive: true }); writeFileSync(join(out, name), encode(built))
+  writeFileSync(join(out, name.replace(/\.bpkg$/, ".check.json")), stable({ module: resolve(io.cwd, mod), lock: resolve(io.cwd, flag(rest, "--lock") ?? "bridger.lock.json") }))   // publish re-runs `check` from these (BEH-KT-030)
   io.out(`packed ${join(flag(rest, "--out") ?? "dist", name)}  ${manifest.id} ${manifest.version}  ${digest}  (${files.size} files)`)
   return 0
 }
 
 // ---------------------------------------------------------------------------------------------- shared: signer, rules, revocation (BEH-KT-030)
-interface Rules { readonly policy: L.SignaturePolicy }
+interface Rules { readonly policy: L.SignaturePolicy; readonly revocation?: { readonly issuer: string; readonly trustRoot: L.SignaturePolicy } }
 const config = (io: Io): { signer?: string; rules?: string; revocation?: string } => existsSync(join(io.cwd, "bridger.config.json")) ? JSON.parse(readFileSync(join(io.cwd, "bridger.config.json"), "utf8")) : {}
 const loadSigner = async (file: string, io: Io): Promise<L.StatementSigner> => {
   const m = (await import(pathToFileURL(resolve(io.cwd, file)).href)) as { default?: L.StatementSigner; signer?: L.StatementSigner }
@@ -70,8 +95,8 @@ const loadSigner = async (file: string, io: Io): Promise<L.StatementSigner> => {
   if (!s || typeof s.sign !== "function") throw new Error(`${file} exports no StatementSigner`)
   return s
 }
-/** The policy line's inputs: the rules, and the revocation source (a saved list, or `unbounded` = an empty set with a warning). */
-const policyInputs = (args: ReadonlyArray<string>, io: Io): { rules?: Rules; revocations?: L.Revocations } | { usage: string } => {
+/** The policy line's inputs: the rules, and the revocation source (a signed list verified under the rules' revocation trust root, or `unbounded` = an empty set with a warning). */
+const policyInputs = (args: ReadonlyArray<string>, io: Io): { rules?: Rules; revocations?: L.Revocations } | { usage: string } | { fail: string } => {
   const c = config(io)
   const rulesFile = flag(args, "--rules") ?? c.rules
   if (!rulesFile) return {}
@@ -79,10 +104,13 @@ const policyInputs = (args: ReadonlyArray<string>, io: Io): { rules?: Rules; rev
   if (!rev) return { usage: "the rules are given without --revocation (a saved list, or `unbounded`)" }
   const rules = JSON.parse(readFileSync(resolve(io.cwd, rulesFile), "utf8")) as Rules
   if (rev === "unbounded") { io.out("warning: no revocation was checked (unbounded)"); return { rules, revocations: {} } }
-  // shortcut: the saved list is read as `{ issuedAt, digests, identities }` and its own signature is not verified (loader BEH-LD-026), when RevocationSource.verified exists
-  const list = JSON.parse(readFileSync(resolve(io.cwd, rev), "utf8")) as L.Revocations
-  io.out(`revocation list issued ${list.issuedAt ?? "(undated)"}`)
-  return { rules, revocations: list }
+  if (!rules.revocation) return { usage: "the rules name no revocation issuer and trust root, so a saved list cannot be verified" }
+  const j = JSON.parse(readFileSync(resolve(io.cwd, rev), "utf8")) as { statementType: "revocation-list"; id: string; version: string; payload: string; signatures: Signatures["package"] }
+  try {
+    const list = L.verifyRevocationList({ statementType: j.statementType, id: j.id, version: j.version, payload: L.fromB64u(j.payload), signatures: j.signatures.map(toSig) }, rules.revocation)
+    io.out(`revocation list issued ${list.issuedAt}, revision ${list.revision}`)
+    return { rules, revocations: list }
+  } catch (e) { return { fail: `revocation list refused: ${(e as { reason?: string }).reason ?? "error"}: ${(e as Error).message}` } }
 }
 const sign = async (signer: L.StatementSigner, statement: L.Statement): Promise<{ ok: true; sig: L.Signature } | { ok: false; message: string }> => {
   const exit = await Effect.runPromiseExit(signer.sign(L.Statement.signingInput(statement)))
@@ -91,8 +119,8 @@ const sign = async (signer: L.StatementSigner, statement: L.Statement): Promise<
   return { ok: false, message: (err.failures?.[0]?.error ?? err.reasons?.find((r) => r.error)?.error)?.message ?? "the signer failed" }
 }
 const manifestOf = (p: L.Package) => JSON.parse(text(p.manifest)) as { id: string; version: string; publisher?: string }
-const report = (inputs: ReturnType<typeof policyInputs>, statement: L.Statement, sigs: ReadonlyArray<L.Signature>, publisher: string | undefined, io: Io, label = "policy"): L.Verification | "policy-unknown" | "stop" => {
-  if ("usage" in inputs || !inputs.rules) { io.out(`${label}    policy unknown: the deployment's rules were not given`); return "policy-unknown" }
+const report = (inputs: { rules?: Rules; revocations?: L.Revocations } | { usage: string } | { fail: string }, statement: L.Statement, sigs: ReadonlyArray<L.Signature>, publisher: string | undefined, io: Io, label = "policy"): L.Verification | "policy-unknown" | "stop" => {
+  if ("usage" in inputs || "fail" in inputs || !inputs.rules) { io.out(`${label}    policy unknown: the deployment's rules were not given`); return "policy-unknown" }
   try {
     const v = L.verifyStatement({ statement, signatures: sigs, policy: inputs.rules.policy, ...(publisher !== undefined ? { publisher } : {}), ...(inputs.revocations ? { revocations: inputs.revocations } : {}) })
     io.out(v.satisfied ? `${label}    ${v.policyId}: satisfied (${v.verified.map((x) => x.signerId).join(", ")})` : `${label}    ${v.policyId}: ${v.missing}${v.missing.includes("role") ? ": run bridger countersign" : ""}`)
@@ -101,6 +129,12 @@ const report = (inputs: ReturnType<typeof policyInputs>, statement: L.Statement,
 }
 
 // ---------------------------------------------------------------------------------------------- publish (BEH-KT-030)
+const stop = (inputs: object, io: Io): number | undefined => {
+  if ("usage" in inputs) { io.err(`usage: ${inputs.usage}`); return 2 }
+  if ("fail" in inputs) { io.err(String(inputs.fail)); return 1 }
+  return undefined
+}
+type Inputs = { rules?: Rules; revocations?: L.Revocations }
 export const publish = async (args: ReadonlyArray<string>, io: Io): Promise<number> => {
   const [file] = args
   const target = flag(args, "--target")
@@ -109,70 +143,73 @@ export const publish = async (args: ReadonlyArray<string>, io: Io): Promise<numb
   const signerFile = flag(args, "--signer") ?? config(io).signer
   if (!signerFile) { io.err("usage: no signer named: give --signer or set `signer` in bridger.config.json"); return 2 }
   const inputs = policyInputs(args, io)
-  if ("usage" in inputs) { io.err(`usage: ${inputs.usage}`); return 2 }
+  const early = stop(inputs, io); if (early !== undefined) return early
   const pkgFile = resolve(io.cwd, file)
-  let pkg: L.Package, digest: string
-  try { pkg = decode(pkgFile); digest = L.packageDigest(pkg) } catch (e) { io.err(String((e as Error).message)); return 1 }
-  const m = manifestOf(pkg)
-  io.out(`package   ${m.id} ${m.version}  ${digest} (recomputed)`)
-  const statement = L.Statement.make({ statementType: "package", subject: { digest }, id: m.id, version: m.version })
+  let subject: Subject
+  try { subject = subjectOf(pkgFile) } catch (e) { io.err(String((e as Error).message)); return 1 }
+  if (subject.kind === "package") {                                   // refuse to run while `check` fails (a data pack has no code to check)
+    const recorded = existsSync(pkgFile.replace(/\.bpkg$/, ".check.json")) ? JSON.parse(readFileSync(pkgFile.replace(/\.bpkg$/, ".check.json"), "utf8")) as { module: string; lock: string } : undefined
+    if (!recorded) { io.err("bridger publish: no check record beside the package (it was not made by `bridger pack`): refused"); return 1 }
+    const lines: Array<string> = []
+    if ((await check([recorded.module, recorded.lock], { out: (x) => lines.push(x) })) !== 0) { for (const l of lines) io.err(l); io.err("bridger publish: refused while check fails"); return 1 }
+  }
+  io.out(`package   ${subject.id} ${subject.version}  ${subject.digest} (recomputed)`)
+  const statement = L.Statement.make({ statementType: subject.kind, subject: { digest: subject.digest }, id: subject.id, version: subject.version })
   const signer = await loadSigner(signerFile, io).catch((e: Error) => { io.err(e.message); return undefined })
   if (!signer) return 3
   const s = await sign(signer, statement)
   if (!s.ok) { io.err(`SigningFailed: ${s.message}`); return 1 }
-  const existing = readSigs(pkgFile) ?? { digest, package: [], firstParty: [] }
-  existing.package.push(fromSig(s.sig)); existing.digest = digest
+  const existing = readSigs(pkgFile) ?? { digest: subject.digest, package: [], firstParty: [] }
+  existing.package.push(fromSig(s.sig)); existing.digest = subject.digest
   writeFileSync(sigFile(pkgFile), stable(existing))
   io.out(`signing   ${signer.scheme}  ok`)
-  const r = report(inputs, statement, existing.package.map(toSig), m.publisher, io)
+  const r = report(inputs as Inputs, statement, existing.package.map(toSig), subject.publisher, io)
   if (r === "stop") return 1
   const complete = r !== "policy-unknown" && r.satisfied
-  if (!complete && !rest(args, "--partial")) { io.err(r === "policy-unknown" ? "nothing uploaded: give --rules, or --partial" : `nothing uploaded: ${r.missing}`); return 1 }
+  if (!complete && !args.includes("--partial")) { io.err(r === "policy-unknown" ? "nothing uploaded: give --rules, or --partial" : `nothing uploaded: ${r.missing}`); return 1 }
   const dest = resolve(io.cwd, target.slice(4)); mkdirSync(dest, { recursive: true })
   writeFileSync(join(dest, basename(pkgFile)), readFileSync(pkgFile)); writeFileSync(join(dest, basename(sigFile(pkgFile))), stable(existing))
   io.out(`uploaded  ${join(target.slice(4), basename(pkgFile))}${complete ? "" : "  (partial)"}`)
   return 0
 }
-const rest = (args: ReadonlyArray<string>, name: string) => args.includes(name)
 
 // ---------------------------------------------------------------------------------------------- countersign (BEH-KT-032)
 export const countersign = async (args: ReadonlyArray<string>, io: Io): Promise<number> => {
   const [file] = args
-  if (!file) { io.err("usage: bridger countersign <package> [--statement package|first-party] [--signer <module>] [--rules <file>] [--revocation <file>|unbounded]"); return 2 }
+  if (!file) { io.err("usage: bridger countersign <package|data-pack> [--statement package|first-party] [--signer <module>] [--rules <file>] [--revocation <file>|unbounded]"); return 2 }
   const signerFile = flag(args, "--signer") ?? config(io).signer
   if (!signerFile) { io.err("usage: no signer named: give --signer or set `signer` in bridger.config.json"); return 2 }
   const kind = flag(args, "--statement") ?? "package"
   if (kind !== "package" && kind !== "first-party") { io.err("usage: --statement is package or first-party"); return 2 }
   const inputs = policyInputs(args, io)
-  if ("usage" in inputs) { io.err(`usage: ${inputs.usage}`); return 2 }
+  const early = stop(inputs, io); if (early !== undefined) return early
+  const ins = inputs as Inputs
   const pkgFile = resolve(io.cwd, file)
-  let pkg: L.Package, digest: string
-  try { pkg = decode(pkgFile); digest = L.packageDigest(pkg) } catch (e) { io.err(String((e as Error).message)); return 1 }
+  let subject: Subject
+  try { subject = subjectOf(pkgFile) } catch (e) { io.err(String((e as Error).message)); return 1 }
+  if (kind === "first-party" && subject.kind !== "package") { io.err("usage: --statement first-party applies to a package, not a data pack"); return 2 }
   const sigs = readSigs(pkgFile)
   if (!sigs) { io.err("no signatures beside the package: publish it first"); return 1 }
-  if (sigs.digest !== digest) { io.err(`the package digest ${digest} differs from the one its signatures name (${sigs.digest})`); return 1 }
-  const m = manifestOf(pkg)
-  io.out(`package   ${m.id} ${m.version}  ${digest} (recomputed)`)
-  const stmt = (t: "package" | "first-party") => L.Statement.make({ statementType: t, subject: { digest }, id: m.id, version: m.version })
-  const pkgStatement = stmt("package")
-  if (kind === "first-party") { if (report(inputs, pkgStatement, sigs.package.map(toSig), m.publisher, io, "package  ") === "stop") return 1 }
-  else if (inputs.rules && "rules" in inputs) {
-    const before = report(inputs, pkgStatement, sigs.package.map(toSig), m.publisher, io, "verified ")
-    if (before === "stop") return 1
-  } else io.out("policy    policy unknown: the deployment's rules were not given")
+  if (sigs.digest !== subject.digest) { io.err(`the package digest ${subject.digest} differs from the one its signatures name (${sigs.digest})`); return 1 }
+  io.out(`package   ${subject.id} ${subject.version}  ${subject.digest} (recomputed)`)
+  const stmt = (t: string) => L.Statement.make({ statementType: t, subject: { digest: subject.digest }, id: subject.id, version: subject.version })
+  const mainStatement = stmt(subject.kind)
+  if (kind === "first-party") { if (report(ins, mainStatement, sigs.package.map(toSig), subject.publisher, io, "package  ") === "stop") return 1 }
+  else if (ins.rules) { if (report(ins, mainStatement, sigs.package.map(toSig), subject.publisher, io, "verified ") === "stop") return 1 }
+  else io.out("policy    policy unknown: the deployment's rules were not given")
   const signer = await loadSigner(signerFile, io).catch((e: Error) => { io.err(e.message); return undefined })
   if (!signer) return 3
-  const statement = stmt(kind)
+  const statement = kind === "first-party" ? stmt("first-party") : mainStatement
   const s = await sign(signer, statement)
   if (!s.ok) { io.err(`SigningFailed: ${s.message}`); return 1 }
   const list = kind === "package" ? sigs.package : sigs.firstParty
-  const known = inputs.rules ? L.verifyStatement({ statement, signatures: list.map(toSig), policy: inputs.rules.policy, ...(inputs.revocations ? { revocations: inputs.revocations } : {}) }).verified.map((v) => v.signerId) : []
-  const now = inputs.rules ? L.verifyStatement({ statement, signatures: [s.sig], policy: inputs.rules.policy }).verified.map((v) => v.signerId) : []
+  const known = ins.rules ? L.verifyStatement({ statement, signatures: list.map(toSig), policy: ins.rules.policy, ...(ins.revocations ? { revocations: ins.revocations } : {}) }).verified.map((v) => v.signerId) : []
+  const now = ins.rules ? L.verifyStatement({ statement, signatures: [s.sig], policy: ins.rules.policy }).verified.map((v) => v.signerId) : []
   if (now.length > 0 && known.includes(now[0]!)) { io.out(`signer ${now[0]} already signed this statement: nothing added`); return 0 }
   list.push(fromSig(s.sig)); writeFileSync(sigFile(pkgFile), stable(sigs))
   io.out(`signing   ${signer.scheme}  ok${now[0] ? ` (signer entry ${now[0]})` : ""}`)
-  if (report(inputs, pkgStatement, sigs.package.map(toSig), m.publisher, io) === "stop") return 1
-  if (kind === "first-party") report(inputs, statement, sigs.firstParty.map(toSig), undefined, io, "first-party")
+  if (report(ins, mainStatement, sigs.package.map(toSig), subject.publisher, io) === "stop") return 1
+  if (kind === "first-party") report(ins, statement, sigs.firstParty.map(toSig), undefined, io, "first-party")
   return 0
 }
 

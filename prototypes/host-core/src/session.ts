@@ -102,7 +102,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
 
 /** What a served call can do: call back into the host under the call's token. */
 export interface ServeContext { readonly callback: (contract: string, method: string, payload: unknown) => Effect.Effect<{ readonly exit: unknown }> }
-export type Handlers = Readonly<Record<string, (payload: unknown, ctx: ServeContext) => Effect.Effect<unknown>>>
+export type Handlers = Readonly<Record<string, (payload: unknown, ctx: ServeContext) => Effect.Effect<unknown, unknown>>>
 /** The guest's end: answer the handshake, adopt the epoch, then serve calls of that epoch only and answer pings. Never answers a call of another epoch by executing it. */
 export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArray<number>; readonly served: ReadonlyArray<WireSide>; readonly maxInFlight: number; readonly handlers: Handlers }): Effect.Effect<{ readonly answered: "welcome" | "refuse" }> =>
   Effect.gen(function* () {
@@ -124,7 +124,10 @@ export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArr
         yield* conn.send(JSON.stringify({ t: "callback", epoch: h.epoch, callId: id, parent: f.callId, token: f.token, contract, method, payload }))
         return { exit: yield* Deferred.await(d) }
       }) }
-      yield* Effect.forkDetach(fn(f.payload, ctx).pipe(Effect.flatMap((value) => conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, value })))))   // a handler may await a callback: it must not block the loop
+      yield* Effect.forkDetach(fn(f.payload, ctx).pipe(Effect.matchEffect({
+        onFailure: (error) => conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, error })),        // a typed failure of the handler crosses as the call's error, the caller sees RemoteError with it as `detail`
+        onSuccess: (value) => conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, value }))
+      })))   // a handler may await a callback: it must not block the loop
     })))
     return { answered: "welcome" as const }
   })

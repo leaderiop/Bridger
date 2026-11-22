@@ -33,6 +33,7 @@ const project = (d: string, extra: Record<string, unknown> = {}) => {
   writeFileSync(join(d, "package.json"), JSON.stringify({ name: "report-export", version: "1.4.0", dependencies: { effect: "4.0.0" } }))
   writeFileSync(join(d, "pkg.mjs"), `export const manifests = [${JSON.stringify({ manifestVersion: 1, id: "example/report-export", version: "1.4.0", provides: [{ serviceId: "example/Export@1", internal: true }], requires: [], publisher: "acme", ...extra })}]\nexport const contracts = []\nexport const definitions = []\n`)
 }
+const decodePkg = (d: string, pkg: string): L.Package => { const j = JSON.parse(readFileSync(join(d, pkg), "utf8")); return { manifest: L.fromB64u(j.manifest), sbom: { format: j.sbom.format, bytes: L.fromB64u(j.sbom.bytes) }, files: new Map(Object.entries(j.files as Record<string, string>).map(([k, v]) => [k, L.fromB64u(v)])) } }
 const rules = (d: string, signers: Array<{ id: string; key: string; roles: Array<string>; publishers?: Array<string> }>, require: unknown) =>
   writeFileSync(join(d, "rules.json"), JSON.stringify({ policy: { id: "release-v1", signers: signers.map((s) => ({ scheme: "ed25519", ...s })), require } }))
 
@@ -136,12 +137,39 @@ describe("publish and countersign (BEH-KT-030, 032)", () => {
     const u = await cli(d, ["publish", pkg, "--target", "dir:out", "--signer", "other.mjs", "--rules", "rules.json", "--revocation", "unbounded"])
     expect(u.code).toBe(1); expect(u.out).toContain("needs 1 signer with role publisher")
   })
-  it("a revoked signer identity stops counting; a revoked digest stops the statement", async () => {
-    const { d, pkg, pub } = await setup()
-    rules(d, [{ id: "publisher-key", key: pub.raw, roles: ["publisher"], publishers: ["acme"] }], { role: "publisher", threshold: 1 })
-    writeFileSync(join(d, "rev.json"), JSON.stringify({ issuedAt: "2026-11-01T00:00:00Z", identities: [L.ed25519Identity(pub.raw)] }))
+  /** A revocation list signed by the revocation issuer's key, as the issuer's own tooling would produce it. */
+  const revocationList = (d: string, issuer: ReturnType<typeof keys>, body: object, revision = 1, forIssuer = "acme-revocations") => {
+    const payload = new TextEncoder().encode(JSON.stringify({ issuer: forIssuer, revision, issuedAt: "2026-11-01T00:00:00Z", ...body }))
+    const statement = L.Statement.make({ statementType: "revocation-list", subject: { bytes: payload }, id: forIssuer, version: String(revision) })
+    const sig = edSign(null, L.Statement.signingInput(statement), issuer.privateKey)
+    writeFileSync(join(d, "rev.json"), JSON.stringify({ statementType: "revocation-list", id: forIssuer, version: String(revision), payload: L.b64u(payload), signatures: [{ scheme: "ed25519", bytes: L.b64u(new Uint8Array(sig)) }] }))
+  }
+  const withRevocationRules = (d: string, pub: ReturnType<typeof keys>, issuer: ReturnType<typeof keys>) =>
+    writeFileSync(join(d, "rules.json"), JSON.stringify({
+      policy: { id: "release-v1", signers: [{ id: "publisher-key", scheme: "ed25519", key: pub.raw, roles: ["publisher"], publishers: ["acme"] }], require: { role: "publisher", threshold: 1 } },
+      revocation: { issuer: "acme-revocations", trustRoot: { id: "revocation-root", signers: [{ id: "rev-key", scheme: "ed25519", key: issuer.raw, roles: [] }], require: { threshold: 1 } } }
+    }))
+  it("a signed revocation list is verified under the revocation trust root: a revoked signer stops counting, a list signed by another key or naming another issuer is refused", async () => {
+    const { d, pkg, pub } = await setup(); const issuer = keys("issuer"), stranger = keys("stranger")
+    withRevocationRules(d, pub, issuer)
+    revocationList(d, issuer, { identities: [L.ed25519Identity(pub.raw)] })
     const r = await cli(d, ["publish", pkg, "--target", "dir:out", "--signer", "pubsigner.mjs", "--rules", "rules.json", "--revocation", "rev.json"])
-    expect(r.out).toContain("revocation list issued 2026-11-01T00:00:00Z"); expect(r.out).toContain("needs 1 signer with role publisher"); expect(r.code).toBe(1)
+    expect(r.out).toContain("revocation list issued 2026-11-01T00:00:00Z, revision 1"); expect(r.out).toContain("needs 1 signer with role publisher"); expect(r.code).toBe(1)
+    revocationList(d, stranger, {})
+    const bad = await cli(d, ["publish", pkg, "--target", "dir:out", "--signer", "pubsigner.mjs", "--rules", "rules.json", "--revocation", "rev.json"])
+    expect(bad.code).toBe(1); expect(bad.err).toContain("no-trust-root")
+    revocationList(d, issuer, {}, 1, "someone-else")
+    expect((await cli(d, ["publish", pkg, "--target", "dir:out", "--signer", "pubsigner.mjs", "--rules", "rules.json", "--revocation", "rev.json"])).err).toContain("wrong-issuer")
+    revocationList(d, issuer, { digests: [L.packageDigest(decodePkg(d, pkg))] })
+    expect((await cli(d, ["publish", pkg, "--target", "dir:out", "--signer", "pubsigner.mjs", "--rules", "rules.json", "--revocation", "rev.json"])).err).toContain("StatementRevoked")
+  })
+  it("`publish` refuses a package whose check no longer passes, and one with no check record", async () => {
+    const { d, pkg } = await setup()
+    writeFileSync(join(d, "pkg.mjs"), readFileSync(join(d, "pkg.mjs"), "utf8").replace(',"internal":true', ""))        // a plain cross-boundary key appears after packing
+    const r = await cli(d, ["publish", pkg, "--target", "dir:out", "--signer", "pubsigner.mjs", "--partial"])
+    expect(r.code).toBe(1); expect(r.err).toContain("refused while check fails"); expect(existsSync(join(d, "out"))).toBe(false)
+    rmSync(join(d, "dist/report-export-1.4.0.check.json"))
+    expect((await cli(d, ["publish", pkg, "--target", "dir:out", "--signer", "pubsigner.mjs", "--partial"])).err).toContain("no check record")
   })
   it("--statement first-party signs the first-party statement and appends it to firstParty, never to the package signatures", async () => {
     const { d, pkg, sigs, pub } = await setup()
@@ -151,5 +179,32 @@ describe("publish and countersign (BEH-KT-030, 032)", () => {
     expect(c.code).toBe(0)
     const s = JSON.parse(readFileSync(join(d, sigs), "utf8")); expect([s.package.length, s.firstParty.length]).toEqual([1, 1])
     expect(c.out.indexOf("package")).toBeLessThan(c.out.indexOf("first-party"))
+  })
+})
+
+describe("data packs (loader 08, BEH-KT-032)", () => {
+  const manifest = { dataPackVersion: 1, id: "example/prices", version: "3.1.0", schemaId: "price-list/v3", mediaType: "application/json", issuedAt: "2026-11-01T00:00:00Z", effectiveFrom: "2026-11-01T00:00:00Z", maxAge: "30 days", publisher: "acme" }
+  const dataSetup = (m: object = manifest) => {
+    const d = tmp(); writeFileSync(join(d, "m.json"), JSON.stringify(m)); writeFileSync(join(d, "p.json"), '{"widget":12}')
+    const pub = keys("publisher-key"); signerModule(d, "pubsigner", pub)
+    rules(d, [{ id: "publisher-key", key: pub.raw, roles: ["publisher"], publishers: ["acme"] }], { role: "publisher", threshold: 1 })
+    return { d, pub }
+  }
+  it("the data-pack digest is the spec's construction under its own domain string; a shape or date violation is PackageMalformed", () => {
+    const mb = new TextEncoder().encode(JSON.stringify(manifest)), payload = new TextEncoder().encode("{}")
+    const h = (...p: Array<Uint8Array | string>) => { const x = createHash("sha256"); for (const q of p) x.update(q); return "sha256:" + x.digest("hex") }
+    expect(L.dataPackDigest({ manifestBytes: mb, payload })).toBe(h("bridger-data-pack-v1\n", h(mb), "\n", h("application/json", Uint8Array.of(0), payload), "\n"))
+    const bad = (m: object) => () => L.dataPackDigest({ manifestBytes: new TextEncoder().encode(JSON.stringify(m)), payload })
+    expect(bad({ ...manifest, provides: [] })).toThrow("data-pack-shape")
+    expect(bad({ ...manifest, effectiveUntil: "2026-10-01T00:00:00Z" })).toThrow("earlier than effectiveUntil")
+    expect(bad({ ...manifest, maxAge: "soon" })).toThrow("maxAge")
+  })
+  it("pack --data, publish and countersign work on a data pack with statementType data-pack; first-party is refused for it", async () => {
+    const { d } = dataSetup()
+    const p = await cli(d, ["pack", "--data", "--manifest", "m.json", "--payload", "p.json"]); expect(p.code).toBe(0); expect(p.out).toContain("data pack")
+    const pub = await cli(d, ["publish", "dist/prices-3.1.0.bdp", "--target", "dir:out", "--signer", "pubsigner.mjs", "--rules", "rules.json", "--revocation", "unbounded"])
+    expect(pub.code).toBe(0); expect(pub.out).toContain("satisfied"); expect(existsSync(join(d, "out/prices-3.1.0.bdp"))).toBe(true)
+    expect((await cli(d, ["countersign", "dist/prices-3.1.0.bdp", "--statement", "first-party", "--signer", "pubsigner.mjs"])).code).toBe(2)
+    expect((await cli(dataSetup({ ...manifest, provides: [] }).d, ["pack", "--data", "--manifest", "m.json", "--payload", "p.json"])).code).toBe(1)
   })
 })

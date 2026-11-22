@@ -74,10 +74,11 @@ const line = (f: Finding): string => f._tag === "UndeclaredCallTimeUse"
   : `${f._tag} ${f.serviceId} ${f.from} -> ${f.to}: ${f.changes.map((c) => `${c.method} ${c.detail}`).join("; ")}`
 
 /** `bridger check <package-module> <lockfile> [--write-lock] [--root <dir>]`: exit 0 when clean, 1 with findings, 2 on a usage error. */
+let loads = 0
 export const main = async (argv: ReadonlyArray<string>, io: { readonly out: (s: string) => void } = { out: (s) => console.log(s) }): Promise<number> => {
   const [modPath, lockPath, ...flags] = argv
   if (!modPath || !lockPath) { io.out("usage: bridger check <package-module> <lockfile> [--write-lock] [--root <dir>]"); return 2 }
-  const pkg = (await import(pathToFileURL(resolve(modPath)).href)) as Package
+  const pkg = (await import(pathToFileURL(resolve(modPath)).href + `?t=${++loads}`)) as Package   // a fresh module each run: a long-lived process must not check stale code
   const lock: ReadonlyArray<ContractSnapshot> = await readFile(lockPath, "utf8").then((s) => JSON.parse(s), () => [])
   const rootAt = flags.indexOf("--root")
   const root = rootAt >= 0 && flags[rootAt + 1] ? flags[rootAt + 1]! : process.cwd()

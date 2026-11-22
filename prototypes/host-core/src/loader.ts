@@ -134,3 +134,47 @@ export const verifyStatement = (request: { readonly statement: Statement; readon
   }
   return { digest: s.subject.digest, statementDigest: Statement.digest(s), policyId: policy.id, verified: live, ignored, satisfied, missing, ...(publisherBound !== undefined ? { publisherBound } : {}) }
 }
+
+// ---------------------------------------------------------------------------------------------- data packs (BEH-LD-057, 058)
+export interface DataPackManifest {
+  readonly dataPackVersion: 1; readonly id: string; readonly version: string; readonly schemaId: string; readonly mediaType: string
+  readonly issuedAt: string; readonly effectiveFrom: string; readonly effectiveUntil?: string; readonly maxAge: string; readonly publisher?: string; readonly description?: string
+}
+export interface DataPack { readonly manifestBytes: Bytes; readonly payload: Bytes }
+const PLUGIN_FIELDS = ["provides", "requires", "optional", "activation", "contributions", "listens", "files", "entry", "sbom", "manifestVersion"]
+/** BEH-LD-057: the shape (no plugin fields), the dates and `maxAge` are checked; a pack that breaks a rule is refused with PackageMalformed. */
+export const decodeDataPackManifest = (bytes: Bytes): DataPackManifest => {
+  let m: Record<string, unknown>
+  try { m = JSON.parse(Buffer.from(bytes).toString("utf8")) } catch { throw new PackageMalformed("data-pack-manifest", "not JSON") }
+  const bad = PLUGIN_FIELDS.find((f) => f in m); if (bad) throw new PackageMalformed("data-pack-shape", `field ${bad} belongs to a plugin manifest`)
+  for (const f of ["id", "version", "schemaId", "mediaType", "issuedAt", "effectiveFrom", "maxAge"]) if (typeof m[f] !== "string" || m[f] === "") throw new PackageMalformed("data-pack-manifest", `${f} is required`)
+  if (m.dataPackVersion !== 1) throw new PackageMalformed("data-pack-manifest", "dataPackVersion must be 1")
+  const t = (f: string) => Date.parse(String(m[f]))
+  for (const f of ["issuedAt", "effectiveFrom", ...(m.effectiveUntil !== undefined ? ["effectiveUntil"] : [])]) if (Number.isNaN(t(f))) throw new PackageMalformed("data-pack-manifest", `${f} is not a date`)
+  if (m.effectiveUntil !== undefined && !(t("effectiveFrom") < t("effectiveUntil"))) throw new PackageMalformed("data-pack-manifest", "effectiveFrom must be earlier than effectiveUntil")
+  if (m.effectiveUntil !== undefined && t("issuedAt") > t("effectiveUntil")) throw new PackageMalformed("data-pack-manifest", "issuedAt must not be later than effectiveUntil")
+  if (m.maxAge !== "unbounded" && !/^[1-9]\d*\s+(second|minute|hour|day|week)s?$/.test(String(m.maxAge))) throw new PackageMalformed("data-pack-manifest", "maxAge is a positive duration or `unbounded`")
+  return m as unknown as DataPackManifest
+}
+/** BEH-LD-058: the digest commits to the manifest bytes as published and to the payload under its media type; its domain string differs from the package's. */
+export const dataPackDigest = (p: DataPack): string => {
+  const m = decodeDataPackManifest(p.manifestBytes)
+  return H(utf8("bridger-data-pack-v1"), Uint8Array.of(10), utf8(H(p.manifestBytes)), Uint8Array.of(10), utf8(H(utf8(m.mediaType), Uint8Array.of(0), p.payload)), Uint8Array.of(10))
+}
+
+// ---------------------------------------------------------------------------------------------- signed revocation lists (BEH-LD-026)
+export interface RevocationList { readonly issuer: string; readonly revision: number; readonly issuedAt: string; readonly digests?: ReadonlyArray<string>; readonly identities?: ReadonlyArray<string> }
+export interface SignedRevocationList { readonly statementType: "revocation-list"; readonly id: string; readonly version: string; readonly payload: Bytes; readonly signatures: ReadonlyArray<Signature> }
+/** The source answers `Rejected` with a reason (BEH-LD-026); it is a result, not a catalog error. */
+export class RevocationRejected extends Error { constructor(readonly reason: "wrong-issuer" | "envelope-mismatch" | "no-trust-root" | "not-newer", message: string) { super(message) } }
+/** The checks in the spec's order, before the payload is decoded: envelope type and issuer, the signatures against the trust root over `{ bytes: payload }`, then the decoded issuer and revision against the envelope. */
+export const verifyRevocationList = (env: SignedRevocationList, o: { readonly issuer: string; readonly trustRoot: SignaturePolicy; readonly heldRevision?: number }): RevocationList => {
+  if (env.statementType !== "revocation-list") throw new RevocationRejected("envelope-mismatch", "the envelope is not a revocation list")
+  if (env.id !== o.issuer) throw new RevocationRejected("wrong-issuer", `the list names issuer ${env.id}, not the configured one`)
+  const v = verifyStatement({ statement: Statement.make({ statementType: "revocation-list", subject: { bytes: env.payload }, id: env.id, version: env.version }), signatures: env.signatures, policy: o.trustRoot })
+  if (!v.satisfied) throw new RevocationRejected("no-trust-root", `the signatures do not satisfy the revocation trust root: ${v.missing}`)
+  const list = JSON.parse(Buffer.from(env.payload).toString("utf8")) as RevocationList
+  if (list.issuer !== env.id || String(list.revision) !== env.version) throw new RevocationRejected("envelope-mismatch", "the decoded issuer or revision differs from the envelope's")
+  if (o.heldRevision !== undefined && list.revision <= o.heldRevision) throw new RevocationRejected("not-newer", `revision ${list.revision} is not greater than ${o.heldRevision}`)
+  return list
+}
