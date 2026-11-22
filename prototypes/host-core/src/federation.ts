@@ -86,7 +86,7 @@ export class FenceTable {
     if (stale) return this.see(key, f, endpoint)                                       // a stale offer is refused whoever sends it
     if (link.authenticatedPeer === undefined) return { outcome: "advisory", key, reason: "unauthenticated" }
     if (f.owner !== link.authenticatedPeer || (cur && f.owner !== cur.owner)) return { outcome: "advisory", key, reason: "not-owner" }   // a peer raises the fence only for itself, and an owner change comes from the signed manifest, never an offer
-    if (cur && f.token > cur.token + link.maxJump) return { outcome: "advisory", key, reason: "out-of-window" }
+    if (f.token > (cur?.token ?? 0) + link.maxJump) return { outcome: "advisory", key, reason: "out-of-window" }
     return this.see(key, f, endpoint)
   }
   conflictOf(key: string, scope: string): ReadonlyArray<string> | undefined { const c = this.conflicts.get(this.k(key, scope)); return c && [...c].sort() }

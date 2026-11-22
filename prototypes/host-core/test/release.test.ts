@@ -298,6 +298,9 @@ describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
     expect(count(f.bundle(), f.policy({ ...f.pin, issuer: "https://evil.example" })).satisfied).toBe(false)
     expect(count(f.bundle(), f.policy({ ...f.pin, roots: other.pin.roots })).satisfied).toBe(false)
     expect(count(f.bundle({ logKeyFile: "root.key" })).satisfied).toBe(false)                                   // the SET is not by the pinned log key
+    // S65: a signer's validity window is checked against signedAt; a windowed signer with no time to test fails closed
+    const win = (w: { validFrom?: number; validUntil?: number }, sig = f.bundle()) => { const p = f.policy(); return L.verifyStatement({ statement: f.statement, signatures: [sig], policy: { ...p, signers: [{ ...p.signers[0]!, ...w }] } }).satisfied }
+    expect(win({ validUntil: 1 })).toBe(false); expect(win({ validFrom: 32503680000000 })).toBe(false); expect(win({ validFrom: 1, validUntil: 32503680000000 })).toBe(true)
     // S61: a checkpoint signs no time, so without allowUnsignedTime the proof path is refused while the SET path still verifies
     const strict = f.policy({ ...f.pin, allowUnsignedTime: false })
     expect(count(f.bundle({ path: "checkpoint" }), strict).satisfied).toBe(false); expect(count(f.bundle({ path: "set" }), strict).satisfied).toBe(true)

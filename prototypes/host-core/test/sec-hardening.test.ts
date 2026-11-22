@@ -63,7 +63,8 @@ describe("sequence, agent tasks, remote, loader", () => {
     expect(H.transcriptEntry("secret", false)).not.toHaveProperty("content"); expect(H.transcriptEntry("secret", true)).toEqual({ content: "secret" })
   })
   it("S53 a peer whose digest is not accepted gets no actor; S54 refs need 128 bits and are bound to session, epoch, call and guest", () => {
-    expect(H.servedActor({ pluginId: "p", digest: "sha256:aaaaaaaaaaaaaaaa" }, new Set(["sha256:aaaaaaaaaaaaaaaa"]))?.id).toMatch(/^remote:p@/); expect(H.servedActor({ pluginId: "p", digest: "x" }, new Set())).toBeUndefined()
+    expect(H.servedActor({ pluginId: "p", digest: "sha256:aaaaaaaaaaaaaaaa" }, new Map([["sha256:aaaaaaaaaaaaaaaa", { pluginId: "p" }]]))?.id).toMatch(/^remote:p@/); expect(H.servedActor({ pluginId: "p", digest: "x" }, new Map())).toBeUndefined()
+    expect(H.servedActor({ pluginId: "other", digest: "sha256:aaaaaaaaaaaaaaaa" }, new Map([["sha256:aaaaaaaaaaaaaaaa", { pluginId: "p" }]]))).toBeUndefined()   // a claimed name that is not the accepted one (S65)
     expect(() => H.mintRef(() => new Uint8Array(8))).toThrow(/128/); expect(H.mintRef(() => new Uint8Array(16).fill(7))).toHaveLength(22)
     const c = { session: "s", epoch: "e", callId: "p", guest: "g" }
     expect(H.tokenBound(c, { session: "s", epoch: "e", parent: "p", guest: "g" })).toBe(true); expect(H.tokenBound(c, { session: "s", epoch: "e", parent: "p", guest: "h" })).toBe(false)

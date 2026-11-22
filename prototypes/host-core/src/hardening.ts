@@ -85,8 +85,11 @@ export const taskStore = (retain: number) => {
 export const transcriptEntry = (content: string, withContent: boolean) => withContent ? { content } : { digest: sha(content) }
 
 // ---- S53 remote: the peer's package digest must be one the host accepts, and the served actor derives from it
-export const servedActor = (claim: { pluginId: string; digest: string }, accepted: ReadonlySet<string>): { id: string } | undefined =>
-  accepted.has(claim.digest) ? { id: `remote:${claim.pluginId}@${claim.digest.slice(0, 12)}` } : undefined
+/** The plugin id comes from the accepted record for the digest, never from the claim; a claim that disagrees is refused (S65). */
+export const servedActor = (claim: { pluginId: string; digest: string }, accepted: ReadonlyMap<string, { pluginId: string }>): { id: string } | undefined => {
+  const rec = accepted.get(claim.digest)
+  return rec && rec.pluginId === claim.pluginId ? { id: `remote:${rec.pluginId}@${claim.digest.slice(0, 12)}` } : undefined
+}
 
 // ---- S54 remote: a token ref is long, random and bound to its session, epoch, call and guest
 export const mintRef = (random: () => Uint8Array): string => { const b = random(); if (b.length < 16) throw new Error("token ref needs at least 128 bits"); return Buffer.from(b).toString("base64url") }

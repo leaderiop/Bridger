@@ -26,10 +26,12 @@ export interface CallbackContext {
   /** Step 8: `Host.use` in the link's realm; the caller bounds it by the remaining deadline of the call it serves. */
   readonly run: (claims: TokenClaims, contract: string, method: string, payload: unknown) => Effect.Effect<unknown, { readonly _tag: string }>
 }
+/** BEH-RM-044: no unbounded default; a deployment that wants more states it. */
+export const DEFAULT_MAX_CALLBACKS = 64
 const denied = (tag: string) => ({ refused: { reason: "denied", tag } }) as const
 
 export const handleCallback = (c: CallbackContext, f: CallbackRequest): Effect.Effect<CallbackExit> => Effect.gen(function* () {
-  const a = yield* admitCallback(c.authority, f, { ...(c.tokenTtl !== undefined ? { maxLifetime: c.tokenTtl } : {}), ...(c.maxCallbacks !== undefined ? { maxCallbacks: c.maxCallbacks } : {}), epoch: c.epoch, revoked: c.revoked, now: c.now, inFlight: c.inFlight, seen: c.seen, rev: c.rev })   // steps 1 to 4
+  const a = yield* admitCallback(c.authority, f, { ...(c.tokenTtl !== undefined ? { maxLifetime: c.tokenTtl } : {}), maxCallbacks: c.maxCallbacks ?? DEFAULT_MAX_CALLBACKS, epoch: c.epoch, revoked: c.revoked, now: c.now, inFlight: c.inFlight, seen: c.seen, rev: c.rev })   // steps 1 to 4
   if ("refused" in a) return a
   if ("duplicate" in a) return a
   const claims = a.admitted

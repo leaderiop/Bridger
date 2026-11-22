@@ -2,7 +2,7 @@
 // bound to session, epoch, call and guest, and callbacks per parent are bounded. Framing, deadlines and the session loop are not modelled.
 import { mintRef, servedActor, tokenBound } from "./hardening.js"
 
-export const makeRemoteLink = (o: { readonly accepted: ReadonlySet<string>; readonly random: () => Uint8Array; readonly session: string; readonly epoch: string; readonly maxCallbacks: number }) => {
+export const makeRemoteLink = (o: { readonly accepted: ReadonlyMap<string, { pluginId: string }>; readonly random: () => Uint8Array; readonly session: string; readonly epoch: string; readonly maxCallbacks: number }) => {
   const tokens = new Map<string, { callId: string; guest: string }>(), callbacks = new Map<string, number>()
   const hello = (claim: { pluginId: string; digest: string }) => servedActor(claim, o.accepted)
   const mint = (callId: string, guest: string) => { const ref = mintRef(o.random); tokens.set(ref, { callId, guest }); return ref }

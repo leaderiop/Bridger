@@ -72,7 +72,9 @@ export interface StatementSigner { readonly scheme: string; readonly sign: (sign
 
 // ---------------------------------------------------------------------------------------------- policy (BEH-LD-018..021, 053)
 /** `key` is the scheme's pin: a base64 raw public key for ed25519, `{ issuer, subject, roots, logKey }` for sigstore (BEH-LD-018, 019). */
-export interface TrustedSigner { readonly id: string; readonly scheme: string; readonly key: string | SigstorePin; readonly roles: ReadonlyArray<string>; readonly publishers?: ReadonlyArray<string> }
+export interface TrustedSigner { readonly id: string; readonly scheme: string; readonly key: string | SigstorePin; readonly roles: ReadonlyArray<string>; readonly publishers?: ReadonlyArray<string>
+  /** BEH-LD-019: epoch ms; a signature whose `signedAt` (or the verifier's `now`) falls outside [validFrom, validUntil] does not count. */
+  readonly validFrom?: number; readonly validUntil?: number }
 export type Requirement = { readonly threshold: number } | { readonly role: string; readonly threshold: number } | { readonly allOf: ReadonlyArray<Requirement> }
 export interface SignaturePolicy { readonly id: string; readonly signers: ReadonlyArray<TrustedSigner>; readonly require: Requirement }
 export interface VerifiedSigner { readonly signerId: string; readonly identity: string; readonly scheme: string; readonly roles: ReadonlyArray<string>; readonly signedAt?: string }
@@ -225,7 +227,7 @@ const placed = (ls: ReturnType<typeof leaves>, signers: ReadonlyArray<VerifiedSi
 export interface Verification { readonly digest: string; readonly statementDigest: string; readonly policyId: string; readonly verified: ReadonlyArray<VerifiedSigner>; readonly ignored: number; readonly satisfied: boolean; readonly missing: string; readonly publisherBound?: boolean }
 
 /** BEH-LD-050 in the order the spec gives: build the statement, verify each signature, evaluate the rule, bind the publisher, check revocation. A pure function. */
-export const verifyStatement = (request: { readonly statement: Statement; readonly signatures: ReadonlyArray<Signature>; readonly policy: SignaturePolicy; readonly publisher?: string; readonly revocations?: Revocations }): Verification => {
+export const verifyStatement = (request: { readonly statement: Statement; readonly signatures: ReadonlyArray<Signature>; readonly policy: SignaturePolicy; readonly publisher?: string; readonly revocations?: Revocations; readonly now?: number }): Verification => {
   const { statement: s, policy } = request
   checkPolicy(policy)
   const input = Statement.signingInput(s)
@@ -240,6 +242,10 @@ export const verifyStatement = (request: { readonly statement: Statement; readon
     })
     if (matches.length !== 1) { ignored++; continue }                  // a scheme with no wired verifier, or a signature no signer matches, counts for nothing
     const { t, signedAt } = matches[0]!
+    if (t.validFrom !== undefined || t.validUntil !== undefined) {                                   // fail closed: a windowed signer with no time to test against counts for nothing
+      const at = signedAt !== undefined ? Date.parse(signedAt) : request.now
+      if (at === undefined || Number.isNaN(at) || (t.validFrom !== undefined && at < t.validFrom) || (t.validUntil !== undefined && at > t.validUntil)) { ignored++; continue }
+    }
     verified.set(t.id, { signerId: t.id, identity: t.scheme === "ed25519" ? ed25519Identity(t.key as string) : sigstoreIdentity(t.key as SigstorePin), scheme: t.scheme, roles: t.roles, ...(signedAt ? { signedAt } : {}) })   // two signatures by one signer entry count once
   }
   if (request.revocations?.digests?.includes(s.subject.digest)) throw new StatementRevoked(s.subject.digest)

@@ -217,4 +217,10 @@ describe("offers and the fence table (BEH-FD-029, improvement report 06 S12)", (
     expect(t.offer("k", { scope: "s", token: 4, owner: "a" }, "e0", { host: "a", authenticatedPeer: "a", maxJump: 8 })).toMatchObject({ outcome: "accepted" })
     expect(t.offer("k", { scope: "s", token: 5, owner: "a" }, "e2", mallory)).toEqual({ outcome: "advisory", key: "k", reason: "not-owner" })
   })
+  it("a first offer is bounded by maxJump from zero, so the first authenticated peer cannot claim an enormous token (S65)", async () => {
+    const { FenceTable } = await import("../src/federation.js")
+    const t = new FenceTable(), a = { host: "a", authenticatedPeer: "a", maxJump: 8 }
+    expect(t.offer("k", { scope: "s", token: 2 ** 40, owner: "a" }, "e", a)).toEqual({ outcome: "advisory", key: "k", reason: "out-of-window" })
+    expect(t.offer("k", { scope: "s", token: 3, owner: "a" }, "e", a)).toMatchObject({ outcome: "accepted" })
+  })
 })

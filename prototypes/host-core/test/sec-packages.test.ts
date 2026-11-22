@@ -23,7 +23,7 @@ describe("mcp host tools", () => {
   })
 })
 describe("remote link", () => {
-  const link = () => { let n = 0; return makeRemoteLink({ accepted: new Set(["sha256:good"]), random: () => new Uint8Array(16).fill(++n), session: "s", epoch: "e", maxCallbacks: 1 }) }
+  const link = () => { let n = 0; return makeRemoteLink({ accepted: new Map([["sha256:good", { pluginId: "p" }]]), random: () => new Uint8Array(16).fill(++n), session: "s", epoch: "e", maxCallbacks: 1 }) }
   it("an unaccepted peer gets no actor; a token is bound to its guest and the callbacks per parent are bounded", () => {
     const l = link()
     expect(l.hello({ pluginId: "p", digest: "sha256:bad" })).toBeUndefined(); expect(l.hello({ pluginId: "p", digest: "sha256:good" })?.id).toMatch(/^remote:p@/)
@@ -38,5 +38,14 @@ describe("loader admission", () => {
     const a = makeAdmission(new Uint8Array(32).fill(3)), r = a.seal({ digest: "d", acceptedAt: 100 })
     expect(a.acceptedAt(r)).toBe(100); expect(a.acceptedAt({ ...r, acceptedAt: 1 })).toBeUndefined()
     expect(a.link(["net", "fs"], ["net"])).toEqual({ ok: false, excess: ["fs"] })
+  })
+})
+
+describe("S65 evidence attachments", () => {
+  it("an attachment name must be one plain unique segment", async () => {
+    const { writeEvidencePack } = await import("../src/evidencepack.js"), { mkdtempSync } = await import("node:fs"), { tmpdir } = await import("node:os"), { join } = await import("node:path")
+    const base = { oq: {}, deviations: [], coverage: {}, packageVersion: "1", coreVersion: "1", generatedAt: "2026-01-01T00:00:00.000Z", requester: { id: "qa" } } as never
+    for (const as of ["../x", "a/b", "..", ".hidden"]) expect(() => writeEvidencePack(mkdtempSync(join(tmpdir(), "ev-")), { ...(base as object), attachments: [{ as, bytes: Buffer.from("x") }] } as never)).toThrow(/refused/)
+    expect(() => writeEvidencePack(mkdtempSync(join(tmpdir(), "ev-")), { ...(base as object), attachments: [{ as: "a", bytes: Buffer.from("x") }, { as: "a", bytes: Buffer.from("y") }] } as never)).toThrow(/refused/)
   })
 })

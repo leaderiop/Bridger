@@ -48,6 +48,11 @@ const readJson = <T>(dir: string, f: string, fallback: T): T => existsSync(join(
 export const writeEvidencePack = (dir: string, p: PackInput): { packDigest: string } => {
   const sorted = p.deviations.map((d) => ({ id: deviationId(d), ...d })).sort((a, b) => (a.id < b.id ? -1 : 1))
   const contents = new Map<string, Buffer | string>([["oq.json", jsonFile(p.oq)], ["deviations.json", jsonFile(sorted)], ["coverage.json", jsonFile(p.coverage)]])
+  const names = new Set<string>()
+  for (const a of p.attachments ?? []) {                                                              // one plain segment, no duplicates: an attachment never writes outside the pack (S65)
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(a.as) || a.as === ".." || names.has(a.as)) throw new Error(`attachment name refused: ${a.as}`)
+    names.add(a.as)
+  }
   const inputs = (p.attachments ?? []).map((a) => ({ as: a.as, digest: sha(a.bytes) }))
   for (const a of p.attachments ?? []) contents.set(`attachments/${a.as}`, a.bytes)             // byte for byte, no decoding or conversion
   for (const [path, c] of contents) write(dir, path, c)
