@@ -46,7 +46,7 @@ export const makeSync = (o: SyncOptions) => Effect.gen(function* () {
   let failures = 0
   const attempt: Effect.Effect<SyncOutcome> = Effect.gen(function* () {
     const known = o.store.current(o.authority, o.host)?.revision ?? 0
-    const answer = yield* o.source({ host: o.host, known }).pipe(Effect.timeout(o.syncTimeout), Effect.map((a) => ({ a })), Effect.catch(() => Effect.succeed({ a: undefined })))
+    const answer = yield* o.source({ host: o.host, known }).pipe(Effect.timeout(o.syncTimeout), Effect.map((a) => ({ a })), Effect.catchCause(() => Effect.succeed({ a: undefined })))    // a failed, timed-out or dying source is ManifestUnavailable
     if (!answer.a) { failures++; return { _tag: "ManifestUnavailable" } as const }       // lastContact is not updated
     failures = 0; lastContact = yield* now                          // any successful answer is contact
     const a = answer.a
