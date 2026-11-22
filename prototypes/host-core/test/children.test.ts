@@ -414,7 +414,7 @@ describe("groups (BEH-BR-127, 128)", () => {
       const holder = yield* Effect.forkChild(host.use(Feature, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
       yield* Deferred.await(entered)
       const restart = yield* Effect.forkChild(host.restart("app/child", { ...as(), drain: 5000 }))     // draining: the lease is held
-      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      for (let i = 0; i < 500 && (yield* stateIn(host, "app/child")) !== "stopping"; i++) { if (!(yield* host.step)) yield* Effect.sleep(2) }   // wait for the stop to begin; a fixed count of yields is load-dependent
       expect(yield* stateIn(host, "app/child")).toBe("stopping")
       const close = yield* Effect.forkChild(Scope.close(out.sub!, Exit.void))
       for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }

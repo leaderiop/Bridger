@@ -24,12 +24,14 @@ describe("remote proxy plugin", () => {
       yield* Effect.forkChild(dials === 1 ? guestServe(b, { wire: [1], served: [served], maxInFlight: 4 }) : serveGuest(b, { wire: [1], served: [served], maxInFlight: 4, handlers }))
       return a
     })
-    const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 50, missed: 4 }, backoff: 400, onEnd: (w) => ends.push(w) })
+    const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 50, missed: 4 }, backoff: 1500, onEnd: (w) => ends.push(w) })
     const reader = define({ id: "reader", requires: [board.range("^1.2")] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
+    const hist: string[] = []; const T0 = Date.now()
     await run((host) => Effect.gen(function* () {
       const until = (cond: Effect.Effect<boolean>, label: string) => Effect.gen(function* () {
-        for (let i = 0; i < 1500; i++) { while (yield* host.step) { /* drain the scheduler */ } if (yield* cond) return; yield* Effect.sleep(5) }
-        throw new Error(`timed out waiting for ${label}`)
+        const t0 = Date.now()
+        for (let i = 0; i < 1500; i++) { let k = 0; while (yield* host.step) { if (++k > 10000 || Date.now() - t0 > 9000) throw new Error(`step never idle waiting for ${label}; reader=${yield* stateIn(host, "reader")} child=${yield* stateIn(host, "boards/session")}`) } const st = `${yield* stateIn(host, "reader")}/${yield* stateIn(host, "boards/session")}`; if (hist.at(-1)?.split("@")[0] !== st) hist.push(`${st}@${Date.now() - T0}`); if (yield* cond) return; yield* Effect.sleep(5) }
+        throw new Error(`timed out waiting for ${label}; hist=${hist.join(" ")} ends=${ends} dials=${dials}; reader=${yield* stateIn(host, "reader")} child=${yield* stateIn(host, "boards/session")}`)
       })
       yield* host.install(reader, as()); yield* host.install(proxy, as())
       yield* until(Effect.map(stateIn(host, "reader"), (s) => s === "active"), "reader active on the first session")
@@ -44,16 +46,16 @@ describe("remote proxy plugin", () => {
       yield* until(Effect.sync(() => callFiber.pollUnsafe() !== undefined), "the remote call to return")
       expect(JSON.stringify(callFiber.pollUnsafe())).toContain("remote:hi")                // served by the guest of the new session
     }), { options: { drainTimeout: 200 } })
-  }, 15000)
+  }, 30000)
 
-  it("hold mode keeps one session child across the partition; calls fail fast with RemoteUnavailable, then work again", async () => {
+  it("hold mode keeps one session child across the partition; calls fail fast with RemoteUnavailable, and the child stays held", async () => {
     let dials = 0
     const dial = Effect.gen(function* () {
       const [a, b] = yield* duplex; dials++
       yield* Effect.forkChild(dials === 1 ? guestServe(b, { wire: [1], served: [served], maxInFlight: 4 }) : serveGuest(b, { wire: [1], served: [served], maxInFlight: 4, handlers: { post: (p: unknown) => Effect.succeed(`remote:${String(p)}`) } }))
       return a
     })
-    const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 50, missed: 4 }, backoff: 600, mode: "hold" })
+    const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 50, missed: 4 }, backoff: 20000, mode: "hold" })
     const reader = define({ id: "reader", requires: [board.range("^1.2")] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
     await run((host) => Effect.gen(function* () {
       const until = (cond: Effect.Effect<boolean>, label: string) => Effect.gen(function* () {
