@@ -202,6 +202,8 @@ export interface Options {
   readonly eventBuffer?: number      // default 1024
   readonly onClose?: (report: CloseReport) => Effect.Effect<void>
   readonly handoffTimeout?: number   // ms (default 5 s; BEH-BR-347)
+  /** BEH-EN-009: called synchronously for each child mount, after the refusal list; a deny fails the mount like `allowChildren: false`. */
+  readonly mountPolicy?: (m: { readonly parent: { readonly id: string; readonly realm: string }; readonly child: { readonly id: string; readonly realm: string } }) => "allow" | { readonly deny: string }
   readonly auditMessage?: (message: string) => string                 // BEH-BR-197: scrubs plugin-authored error text in records; default none
   readonly mandatory?: ReadonlyArray<MandatoryInterception>           // BEH-BR-260
   readonly mandatoryCatalog?: ReadonlyArray<RegisteredInterception>   // BEH-BR-153
@@ -1415,6 +1417,11 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
           const own = declaredFor({ id: e.pluginId, realm: e.realm })
           const declared = own ? { ...own, mounts: (own.mounts ?? []).map((m) => `${e.pluginId}/${m}`) } : undefined   // manifests name a child as the parent writes it
           const d = decideSafely(accessOpt.value, { kind: "child", principal: refOf(e.principal), childId: id, definition: defRef(child), ...(declared ? { declared } : {}) })
+          if (d !== "allow") return yield* refuseChild(d.deny)
+        }
+        if (options.mountPolicy) {
+          let d: "allow" | { readonly deny: string }
+          try { d = options.mountPolicy({ parent: { id: e.pluginId, realm: e.realm }, child: { id, realm } }) } catch { d = { deny: "mount policy threw" } }   // fail closed
           if (d !== "allow") return yield* refuseChild(d.deny)
         }
         yield* validate(child, ident)                        // registers nothing on error (BEH-BR-121)

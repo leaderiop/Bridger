@@ -1784,6 +1784,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A subject id containing a name with spaces.
 - **Fix.** Use an opaque id; the subject id stays readable after a shred. Give every shred a reason that carries no personal data.
 
+### KeyVersionLimit
+
+*error* · origin: keyring/01 (BEH-KR-005, BEH-KR-006) · raised by: `Keyring.rotate`
+
+- **Cause.** A subject already holds `maxKeyVersions` key versions (`subject`); no version is added.
+- **Example.** A plugin granted `rotate` calling it in a loop.
+- **Fix.** Shred the subject where the law allows, or raise `maxKeyVersions` deliberately.
+
 ### ShredRefused
 
 *error* · origin: keyring/03 (BEH-KR-017, BEH-KR-020) · raised by: `Keyring.shred`, `shredIn`; the keyring's handler of a received shred notice

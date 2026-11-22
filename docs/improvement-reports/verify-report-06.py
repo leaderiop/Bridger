@@ -22,7 +22,7 @@ grounded = [  # (phrase the report shows, file that must state it)
     ("BEH-BR-282", ref / "core/behaviors/29-capability-grants-and-call-log.md"), ("restartRequired", ref / "loader/behaviors/04-revocation-and-kill-switch.md"),
     ("allowBuiltins", ref / "loader/behaviors/02-load-pipeline.md"), ("BEH-RM-073", ref / "remote/behaviors/09-placement-budgets-and-adapters.md"),
     ("anchor-behind", ref / "audit-chain/behaviors/02-anchoring.md"), ("bridger:via", ref / "core/behaviors/30-operation-context-annotations.md"),
-    ("SPK-09-12", ref / "remote/risks.md"), ("KeyVersionLimit", ref / "keyring/behaviors/01-keys-and-subjects.md"), ("childSubject", ref / "entitlement/behaviors/02-gate-and-runtime.md"), ("anchor", ref / "entitlement/behaviors/03-budgets.md"), ("SubjectFromEncryptedField", ref / "keyring/behaviors/02-field-encryption.md"), ("ADR-RM-011", ref / "remote/README.md"),
+    ("SPK-09-12", ref / "remote/risks.md"), ("KeyVersionLimit", src / "keyring.ts"), ("childMountPolicy", src / "entitlement-mount.ts"), ("onLedgerUnavailable", src / "budget.ts"), ("KeyVersionLimit", ref / "keyring/behaviors/01-keys-and-subjects.md"), ("childSubject", ref / "entitlement/behaviors/02-gate-and-runtime.md"), ("anchor", ref / "entitlement/behaviors/03-budgets.md"), ("SubjectFromEncryptedField", ref / "keyring/behaviors/02-field-encryption.md"), ("ADR-RM-011", ref / "remote/README.md"),
 ]
 for t in ("sec-closed-context", "sec-declared-access", "sec-reversibility", "sec-chain-gate", "sec-restart-required", "sec-via", "sec-digest-closure", "sec-token-cap", "sec-provider-allowlist", "sec-isolation", "sec-undo-binding", "sec-evaluator", "sec-kill-switch", "sec-evaluator-esm", "sec-sanitize-deep"):
     grounded.append(("describe(", test / f"{t}.test.ts"))
