@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-ADR-005                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — the callback admission order includes steps 4a (placement) and 4b (budget) of BEH-RM-043 (PL17) (CCR-RM-007)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (F-07): identity claims cross only when the link discloses them, default none; the earlier always-send reading recorded as a rejected alternative (CCR-RM-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — tokens carry core-encoded wire annotations, not labels; the core policy decides through the host's own capture; admission by actor in a companion `CallbackAdmission` with `CallbackDenied` (R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.6 (2026-11-22): the call log carries the disclosure now that core does (BEH-BR-280)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — the callback admission order includes steps 4a (placement) and 4b (budget) of BEH-RM-043 (PL17) (CCR-RM-007)<br>0.4 (2026-11-09): Specification audit of 2026-11-09 (F-07): identity claims cross only when the link discloses them, default none; the earlier always-send reading recorded as a rejected alternative (CCR-RM-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — tokens carry core-encoded wire annotations, not labels; the core policy decides through the host's own capture; admission by actor in a companion `CallbackAdmission` with `CallbackDenied` (R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -36,7 +36,7 @@ BEH-BR-273–278), and an annotation bag on `OperationContext` (core behaviour
   claims (actor, `onBehalfOf`, organisation, correlation), **only those the
   link lists in `disclose`; the default is none** (CCR-RM-004). A link that
   discloses is recorded as a data transfer to its peer (`LinkStatus`, the
-  session log, and the call log once core can carry it).
+  session log, and the call log, `CrossingInfo.disclosed`, core BEH-BR-280).
 - Tokens are minted and checked through a `TokenAuthority` port; the default
   is an in-process table of opaque references. Bridger implements no
   signature scheme.

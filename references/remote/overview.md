@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-OVW                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification — Overview                          |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, review of the round) — names core's `CurrentTransition` export beside `HeldPlugins` (BEH-RM-022) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: `RemoteOptions.manifest` and `disclose`, `LinkStatus` disclosed claims, `OrgOf` on the wire only when disclosed, `Transport.fromBundle`; loader's `RevokedDigests` and `LoaderRemote.link` in the package boundary; error `LocalContractRefused` (BEH-RM-007); call-log entries name the disclosed claims (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): round 2: recheck items 20, 23 and 25 — API rows for file 09, errors `PlacementRefused` and `RemoteBudgetExceeded`, core seams G43, G57, G58 and G60 cited as closed (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-22): per-method schema digests named where compatibility is summarised (improvement report 02, R1)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03, review of the round) — names core's `CurrentTransition` export beside `HeldPlugins` (BEH-RM-022) (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: `RemoteOptions.manifest` and `disclose`, `LinkStatus` disclosed claims, `OrgOf` on the wire only when disclosed, `Transport.fromBundle`; loader's `RevokedDigests` and `LoaderRemote.link` in the package boundary; error `LocalContractRefused` (BEH-RM-007); call-log entries name the disclosed claims (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): round 2: recheck items 20, 23 and 25 — API rows for file 09, errors `PlacementRefused` and `RemoteBudgetExceeded`, core seams G43, G57, G58 and G60 cited as closed (CCR-RM-003)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — claim narrowed to the link and session child as plugins, with the finalizer deviation; `Remote.serve`, multiplexer, `CallbackAdmission`, `CallbackDenied`, `MethodNotServed`; wire annotations (R3-01, R3-09, R3-10, R3-11) (CCR-RM-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-RM-001)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -48,7 +48,7 @@ and from the consumer's deployment of it
 | Concern | Where |
 | ------- | ----- |
 | Plugins, leases, children, legality, reconcile, attribution, gate, audit | Core — [references/core](../core/README.md) |
-| Contract identity, versions, ranges, `IncompatibleContract`, add-only evolution (wire schema) | Core — [core 26 — Versioned contracts](../core/behaviors/26-versioned-contracts.md) (BEH-BR-225–232) |
+| Contract identity, versions, ranges, per-method schema digests (`ContractDescriptor.schemas`), `IncompatibleContract`, add-only evolution (wire schema) | Core — [core 26 — Versioned contracts](../core/behaviors/26-versioned-contracts.md) (BEH-BR-225–232) |
 | Plugin principal, `onBehalfOf` | Core — [core 28 — Plugin principal and mandatory policy](../core/behaviors/28-plugin-principal-and-mandatory-policy.md) (BEH-BR-257–266) |
 | `Grant.of`, `CapabilityPolicy`, `CallLog` ports | Core — [core 29 — Capability grants and call log](../core/behaviors/29-capability-grants-and-call-log.md) (BEH-BR-273–278) |
 | Annotation bag, flow "wire", `Annotations.encode`/`decode`, `CallerContext` | Core — [core 30 — Operation context annotations](../core/behaviors/30-operation-context-annotations.md) (BEH-BR-289–296) |
