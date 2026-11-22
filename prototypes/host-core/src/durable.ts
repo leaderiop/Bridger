@@ -10,8 +10,10 @@ import type { Marker } from "./rebootstrap.js"
 export interface Stored { readonly envelope: Envelope; readonly acceptedAt: number }
 export interface DurableState {
   readonly highest?: Stored & { readonly revision: number }
-  readonly lastApplied?: Stored & { readonly revision: number; readonly requiresFresh: ReadonlyArray<{ readonly id: string; readonly realm: string }> }
+  readonly lastApplied?: Stored & { readonly revision: number; readonly requiresFresh: ReadonlyArray<{ readonly id: string; readonly realm: string }>; readonly plugins?: ReadonlyArray<{ readonly id: string; readonly realm: string; readonly digest: string }> }
   readonly pendingKills: ReadonlyArray<KillEntry & { readonly revision: number }>
+  /** Digests a released revocation list revokes: killed at every apply, whether or not a manifest lists them (BEH-FD-007, 042). */
+  readonly revoked?: ReadonlyArray<string>
   readonly marker?: Marker
   readonly firstActivation?: number
 }

@@ -38,8 +38,8 @@ export const listen = (onConnection: (c: Connection) => Effect.Effect<void>, tls
   const server: Server = tls ? tlsServer(tls, handler) : netServer(handler)
   server.listen(0, "127.0.0.1", () => resume(Effect.succeed({ port: (server.address() as { port: number }).port, close: Effect.callback<void>((r) => { server.close(() => r(Effect.void)); for (const c of open) c.destroy() }) })))
 })
-/** Dials `127.0.0.1:port`; with `tls` the connection is TLS and fails unless the server's certificate verifies. */
-export const dialSocket = (port: number, tls?: ConnectionOptions): Effect.Effect<Connection, Error> => Effect.callback<Connection, Error>((resume) => {
-  const sock = tls ? tlsConnect({ host: "127.0.0.1", port, ...tls }, () => resume(Effect.succeed(fromSocket(sock)))) : netConnect({ host: "127.0.0.1", port }, () => resume(Effect.succeed(fromSocket(sock))))
+/** Dials `host:port` (default loopback); with `tls` the connection is TLS and fails unless the server's certificate verifies. */
+export const dialSocket = (port: number, tls?: ConnectionOptions, host = "127.0.0.1"): Effect.Effect<Connection, Error> => Effect.callback<Connection, Error>((resume) => {
+  const sock = tls ? tlsConnect({ host, port, ...tls }, () => resume(Effect.succeed(fromSocket(sock)))) : netConnect({ host, port }, () => resume(Effect.succeed(fromSocket(sock))))
   sock.once("error", (e) => resume(Effect.fail(e)))
 })

@@ -74,10 +74,14 @@ export const agreeProtocol = (a: PeerOffer, b: PeerOffer): number | undefined =>
 }
 
 /** One end of the offer exchange: send mine, read the peer's, decide the agreement; every import accepted or refused alone. */
-export const offerExchange = (conn: Connection, mine: PeerOffer, peer: { readonly host: string; readonly authority: string }): Effect.Effect<LinkAgreement> =>
+export const offerExchange = (conn: Connection, mine: PeerOffer, peer: { readonly host: string; readonly authority: string }, o: { readonly onKill?: (k: { readonly revision: number; readonly list: unknown }) => Effect.Effect<void> } = {}): Effect.Effect<LinkAgreement> =>
   Effect.gen(function* () {
     yield* conn.send(JSON.stringify({ t: "offer", offer: mine }))
-    const f = parse(yield* conn.receive)
+    let f = parse(yield* conn.receive)
+    while (f?.t === "kill") {                                                  // BEH-FD-043: a revocation list is the first control frame, before the offer
+      if (o.onKill) yield* o.onKill({ revision: Number(f.revision), list: f.list })
+      f = parse(yield* conn.receive)
+    }
     const theirs = f?.t === "offer" ? f.offer as PeerOffer : undefined
     if (!theirs) return { _tag: "IncompatiblePeer" as const, reason: "protocol" as const }
     if (theirs.host !== peer.host) return { _tag: "IncompatiblePeer" as const, reason: "wrong-host" as const }

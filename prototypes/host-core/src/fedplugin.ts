@@ -90,7 +90,8 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
   const applyWith = (m: HostManifest, fresh: boolean, why: string, stored?: { envelope: Envelope; acceptedAt: number }) => Effect.gen(function* () {
     const patches = o.patches?.() ?? []
     const pendingKills = (yield* (o.state?.read ?? Effect.succeed({ pendingKills: [] }))).pendingKills
-    const proj = yield* projectManifest(m, { resolver: o.resolver, patches, fresh, pendingKills, lastResolved })
+    const revokedKills = ((yield* readState()).revoked ?? []).map((digest) => ({ digest }))
+    const proj = yield* projectManifest(m, { resolver: o.resolver, patches, fresh, pendingKills: [...pendingKills, ...revokedKills], lastResolved })
     const unowned = applyKills([], [...(m.kill ?? []), ...pendingKills], o.outside?.() ?? []).events
     for (const e of unowned) status.events.push(e)                                 // kill-unowned is published, nothing is done to the plugin
     for (const d of proj.desired) lastResolved.set(d.id, d.plugin)
@@ -99,7 +100,7 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
     yield* o.reconcile(proj.desired, { scope: `federation:${o.authority}`, prune: true, reason: `federation ${why} revision ${m.revision}${actors.length ? ` patches by ${actors.join(",")}` : ""}` })
     last = m; lastFresh = fresh
     if (o.state && stored) yield* o.state.update((s) => ({ ...s,
-      lastApplied: { ...stored, revision: m.revision, requiresFresh: m.plugins.filter((p) => p.requiresFresh).map((p) => ({ id: p.id, realm: p.realm ?? "default" })) },
+      lastApplied: { ...stored, revision: m.revision, requiresFresh: m.plugins.filter((p) => p.requiresFresh).map((p) => ({ id: p.id, realm: p.realm ?? "default" })), plugins: m.plugins.map((p) => ({ id: p.id, realm: p.realm ?? "default", digest: p.digest })) },
       pendingKills: s.pendingKills.filter((k) => k.revision > m.revision) }))      // a full apply clears the kills up to its revision
   })
   const sync = yield* makeSync({ ...o,
@@ -129,10 +130,10 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
   const killsActWithout = (s: import("./durable.js").DurableState) => Effect.gen(function* () {
     if (!o.disable) return
     const digests = new Map<string, { id: string; realm: string }[]>()
-    try { for (const p of (JSON.parse(s.lastApplied?.envelope.payload ?? "{}") as HostManifest).plugins ?? []) digests.set(p.digest, [...(digests.get(p.digest) ?? []), { id: p.id, realm: p.realm ?? "default" }]) } catch { /* unreadable stored bytes: id kills still act */ }
-    for (const k of s.pendingKills) {
+    for (const p of s.lastApplied?.plugins ?? []) digests.set(p.digest, [...(digests.get(p.digest) ?? []), { id: p.id, realm: p.realm }])   // stored with the manifest: no parsing of bytes
+    for (const k of [...s.pendingKills.map((k) => ({ ...k, why: `pending kill of revision ${k.revision}` })), ...(s.revoked ?? []).map((digest) => ({ digest, id: undefined, realm: undefined, why: "revoked digest" }))]) {
       const targets = [...(k.id ? [{ id: k.id, realm: k.realm ?? "default" }] : []), ...(k.digest ? digests.get(k.digest) ?? [] : [])]
-      for (const t of targets) yield* o.disable(t, `pending kill of revision ${k.revision}`).pipe(Effect.catch(() => Effect.sync(() => { status.events.push({ _tag: "kill-pending" }) })))
+      for (const t of targets) yield* o.disable(t, k.why).pipe(Effect.catch(() => Effect.sync(() => { status.events.push({ _tag: "kill-pending" }) })))
     }
   })
   const readState = () => (o.state?.read ?? Effect.succeed({ pendingKills: [] } as import("./durable.js").DurableState))
@@ -153,7 +154,18 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
     yield* applyWith(m, f.fresh, s.marker ? "boot (re-bootstrap pending)" : "boot", { envelope: target.envelope, acceptedAt: target.acceptedAt }).pipe(Effect.orDie)     // pending kills are removed from the list (projectManifest)
     return (s.marker ? "marker-pending" : "applied") as "marker-pending" | "applied"
   })
+  /**
+   * A released revocation list (BEH-FD-042): applied at once, in any state, before any manifest. Its digests are recorded, killed at every
+   * later apply, and disabled now by what the last applied manifest lists; the list is accepted into the relay by the caller.
+   */
+  const revoke = (digests: ReadonlyArray<string>) => Effect.gen(function* () {
+    if (!o.state) return
+    yield* o.state.update((s) => ({ ...s, revoked: [...new Set([...(s.revoked ?? []), ...digests])] }))
+    const s = yield* readState()
+    if (last && !s.marker) yield* applyWith(last, lastFresh, "revocation").pipe(Effect.orDie)     // reconcile removes what the revoked digests match
+    else yield* killsActWithout(s)                                                               // without a usable manifest the kills still act by disabling
+  })
   /** The running loop: sync, check freshness, wait the (jittered, backed-off) interval; ends with its fiber. */
   const loop = Effect.forever(Effect.gen(function* () { yield* sync.sync; yield* checkFreshness; yield* Effect.sleep(yield* sync.nextInterval) }))
-  return { boot, loop, sync: sync.sync as Effect.Effect<SyncOutcome>, nextInterval: sync.nextInterval, checkFreshness, status, applied: () => last }
+  return { boot, loop, revoke, sync: sync.sync as Effect.Effect<SyncOutcome>, nextInterval: sync.nextInterval, checkFreshness, status, applied: () => last }
 })
