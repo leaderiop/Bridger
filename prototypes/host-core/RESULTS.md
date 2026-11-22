@@ -1,11 +1,19 @@
 # Host-core prototype — results (phases P1–P5, G11, in-flight table, CCR-BR-008, CCR-BR-012, CCR-BR-014, P7 round 2)
 
-Throwaway prototype of the Bridger host core — behaviours 01–09 of
-`references/core/` (definition, installation, states and snapshots,
-activation, removal, replacement and reactivation, operation legality,
-leases) — on `effect@4.0.0`. Its purpose is to find where the specification
-is wrong or incomplete before the real implementation starts. It is **not**
-the implementation and evidences no requirement (CCR-BR-004).
+Throwaway prototype of the Bridger host core and, since the later reports, slices of the companion trees. It is on
+`effect@4.1.5` (the 4.0.0 notes further down record the decision at the time). Its purpose is to find where the
+specification is wrong or incomplete before the real implementation starts. It is **not** the implementation and
+evidences no requirement (CCR-BR-004).
+
+**What it covers is a generated table, not prose here.** `references/core/appendices/correspondence.md` lists every
+behaviour and invariant of the fifteen trees as *Tested*, *Prototyped* or *Specified* from the ids the sources name
+(`node scripts/gen-correspondence.mjs`; `--check` fails on a stale table, a dangling id or a coverage drop). A
+*Specified* row is unprototyped. `bash references/core/scripts/verify-spec.sh --since <rev>` also fails when a
+behaviour the prototype names changes with no change under `src/` or `test/` and no `prototype-exempt: <reason>` line
+in a commit message (`scripts/check-drift.mjs`).
+
+**Entry condition for `packages/core`.** The property suites of report 07 (`test/pbt/`) run through the `TestHost`
+interface; the real package runs the same suites against its own host and any difference is a finding.
 
 Run: `npm install && npm run check && npm test` (Node 22). `src/host.ts` is
 about 1,700 lines; `src/legality.ts` is the total state × operation table.
