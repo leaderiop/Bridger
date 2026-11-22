@@ -304,5 +304,19 @@ describe("S69 shutdown past the gate and required ports", () => {
       yield* host.install(kid, as()); yield* idle(host); expect(yield* stateIn(host, "kid")).toBe("active")
     }), { options: { requireDigest: true } })
   })
+  it("S73: a denied listen does not pin the event's mode for later legitimate users", async () => {
+    const out: string[] = []
+    let deny = true
+    const policy = { decide: (r: AccessRequest) => (r.kind === "listen" && deny ? { deny: "no" } : "allow"), declaredFor: () => undefined } as never
+    const p = define({ id: "pin", requires: [Events] as const, provides: [] as const, build: Layer.effectDiscard(Effect.gen(function* () {
+      const bus = yield* Events
+      const first = yield* Effect.exit(bus.on(Event.make<[], void>()("pin/ev", { mode: "emit" }), () => Effect.void) as Effect.Effect<unknown, unknown, any>)
+      deny = false
+      const second = yield* Effect.exit(bus.on(Event.make<[], void>()("pin/ev", { mode: "serial" }), () => Effect.void) as Effect.Effect<unknown, unknown, any>)
+      out.push(`${Exit.isFailure(first) ? "denied" : "allowed"}:${Exit.isFailure(second) ? "failed" : "allowed"}`)
+    })) }) as unknown as AnyPlugin
+    await onHost((host) => Effect.gen(function* () { yield* host.install(p, as()); yield* idle(host) }), { layers: [Layer.succeed(AccessPolicy, policy)] })
+    expect(out).toEqual(["denied:allowed"])
+  })
 })
 

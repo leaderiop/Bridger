@@ -1,7 +1,7 @@
 // GxP hooks of the host core (references/core behaviours 22–25): attribution, the
 // AuditSink port and its single writer, the audit sequence, IdGenerator and the
 // OperationGate port. Phase-P3 prototype — not product code.
-import { Clock, Context, Deferred, Effect, Option, Schema } from "effect"
+import { Cause, Clock, Context, Deferred, Effect, Option, Schema } from "effect"
 
 // ---------------------------------------------------------------- attribution (behaviour 22)
 export interface Actor { readonly id: string; readonly kind: "user" | "service" | "system"; readonly display?: string }
@@ -236,7 +236,7 @@ export const makeWriter = (opts: {
     while (true) {
       const next = queue.shift()
       if (!next) { yield* Deferred.await(wake.signal); wake.signal = yield* Deferred.make<void>(); continue }
-      yield* writeOne(next)
+      yield* writeOne(next).pipe(Effect.catchCause((c) => Cause.hasInterrupts(c) && !Cause.hasFails(c) ? Effect.failCause(c) : degrade("writer defect")))   // a defect inside one write latches the failure but never ends the writer (S73)
       writing = false
     }
   })

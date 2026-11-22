@@ -113,7 +113,6 @@ export const makeBus = (opts: {
   const depthCap = opts.emitDepthCap ?? 16
   const register = (event: { readonly id: string; readonly mode: EventMode }, kind: Listener["kind"], fn: Listener["fn"], o: Partial<AroundOptions> & ListenerOptions = {}) => Effect.gen(function* () {
     const eventId = event.id
-    yield* claim(event, kind === "on" ? "an `on` listener" : "an `around` listener", kind === "on" ? ["emit", "parallel", "serial"] : ["waterfall"])
     const p = yield* CurrentPlugin.get
     const active = yield* ActivePlugin
     const owner = Option.isSome(p) ? p.value : undefined
@@ -122,6 +121,7 @@ export const makeBus = (opts: {
       const d = opts.access.decide({ kind: "listen", event: eventId, style: kind, ...(principal ? { principal } : {}), ...(principal && opts.access.declaredFor(principal) ? { declared: opts.access.declaredFor(principal)! } : {}) })
       if (d !== "allow") return yield* Effect.die(new AccessDenied("listen", eventId, d.deny))
     }
+    yield* claim(event, kind === "on" ? "an `on` listener" : "an `around` listener", kind === "on" ? ["emit", "parallel", "serial"] : ["waterfall"])
     const n = ++counter
     // Descending IDs for `prepend` sort before every ascending one of equal priority (BEH-BR-140).
     const cid = o.prepend ? `0${pad(10 ** WIDTH - 1 - n)}` : `1${pad(n)}`
@@ -157,7 +157,6 @@ export const makeBus = (opts: {
   /** At every dispatch start: the emit access check, the "events" annotations, and the OnEvent trigger hook. */
   const begin = (event: { readonly id: string; readonly mode: EventMode }, mode: EventMode, args: ReadonlyArray<unknown>) => Effect.gen(function* () {
     const eventId = event.id
-    yield* claim(event, `\`${mode}\``, [mode])
     const chain = yield* CurrentDispatchChain
     if (chain.length >= depthCap) return yield* Effect.die(new EmitDepthExceeded([...chain, eventId], depthCap))
     if (opts.access) {
@@ -166,6 +165,7 @@ export const makeBus = (opts: {
       const d = opts.access.decide({ kind: "emit", event: eventId, mode, ...(principal ? { principal } : {}), ...(declared ? { declared } : {}) })
       if (d !== "allow") return yield* Effect.die(new AccessDenied("emit", eventId, d.deny))
     }
+    yield* claim(event, `\`${mode}\``, [mode])                          // the mode is pinned only after access is granted (S73)
     const cur = yield* CurrentAnnotations
     const ann = Annotations.filter(isBag(cur) ? cur : Annotations.empty, "events")
     if (opts.onDispatch) yield* opts.onDispatch(eventId, args, ann)

@@ -704,9 +704,12 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         const target = svc as object, h = holder
         svc = new Proxy(target, { get: (t, prop, r) => {
           const v = Reflect.get(t, prop, r)
-          if (typeof prop !== "string" || h.grant.members === "all" || h.grant.members.includes(prop)) return v
-          const die = Effect.die(new CapabilityDenied(serviceId, prop, label))
-          return typeof v === "function" ? () => die : die
+          if (typeof prop !== "string") return v
+          const allowed = () => h.grant.members === "all" || h.grant.members.includes(prop)
+          const die = () => Effect.die(new CapabilityDenied(serviceId, prop, label))
+          // The grant is judged again at call time, so a member captured before a live narrowing is refused after it (S73).
+          if (typeof v === "function") return (...args: Array<unknown>) => allowed() ? v.apply(r, args) : die()
+          return Effect.isEffect(v) ? Effect.suspend(() => allowed() ? v : die()) : (allowed() ? v : die())
         } })
       }
     }
@@ -2997,7 +3000,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       const scope = opts.scope ?? "default", prune = opts.prune ?? true, atomic = opts.atomic ?? false
       // Steps 1–3 once for the call (BEH-BR-158).
       if (closed || closing) return yield* Effect.fail(new HostClosed())
-      const ctx: OperationContext = opts.context ?? { actor: yield* CurrentActor }
+      const ctx: OperationContext = sanitizeContext(opts.context ?? { actor: yield* CurrentActor }).value   // lone surrogates → U+FFFD on the parent records too (BEH-BR-185, S73)
       if (!ctx.actor.id.trim() || ((attribution.require || ctx.actor.id !== Actor.unattributed.id) && ctx.actor.id.startsWith("bridger:"))) return yield* Effect.fail(new Unattributed({ operation: "reconcile" }))
       const needReason = (ops: Set<Operation>) => !ctx.reason?.trim() && (attribution.requireReason ?? []).some((o) => o === "reconcile" || ops.has(o))
       const principal = yield* CurrentPlugin.acting
