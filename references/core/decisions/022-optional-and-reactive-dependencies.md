@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-022                                              |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.2 (2026-11-22): Non-goal stated: no "required at install, tolerate later loss" form (report 02 X3, D-11)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -39,12 +39,16 @@ Two forms cover soft dependencies, and neither ever gates activation.
 - A registered `whenAvailable` counts as a dependent in removal ordering: its child scope closes before the provider closes, so the guarded-withdrawal guarantee of [ADR-BR-015](../decisions/015-leases-one-primitive.md) holds for it.
 - A failure in `run` follows the same `onFailure` policy as `Plugin.Runtime.background` (default `fail-plugin`).
 
+**Non-goal: a required key that tolerates its own later loss.** `requires` is strict at install *and* afterwards: when its provider leaves, the plugin stops (the Cordis rule, kept on purpose). There is no third form meaning "required to start, tolerate a temporary loss". A plugin that can tolerate the loss declares the key `optional` (it then never gates activation); one that needs a service continuously across provider swaps requires a *broker* facade, so the provider behind it can change without a stop ([19 — Contribution Registry](../behaviors/19-contribution-registry.md), BEH-BR-168). A third form would make `missingServiceIds`, start ordering and the stop cascade depend on a per-key mode, for a case the two forms already cover.
+
 ## Alternatives considered
 
 - **A soft flag on `requires` entries.** Rejected: it keeps optional keys inside the gating and cycle machinery, so the resolver would have to special-case them everywhere `requires` is read. A separate field keeps `requires` meaning exactly one thing.
 - **Restart the plugin when an optional provider arrives or leaves.** Rejected: it reintroduces the cascade the feature exists to avoid, and repeats `build` side effects for a non-essential change.
 - **Include optional keys in cycle detection.** Rejected: an optional edge cannot block a start, so it cannot form a deadlock, and counting it would reject legitimate mutual soft use (two plugins that each enhance the other when present).
 - **Unleased optional access only (`optional` without `useOptional`).** Rejected: a caller that uses the returned reference after its provider started stopping would call a closing service, the failure leases exist to prevent.
+
+- **A "required, tolerate loss" mode on `requires`.** Rejected: see the non-goal above; `optional` and a broker cover its cases without a third mode of gating.
 
 ## Consequences
 

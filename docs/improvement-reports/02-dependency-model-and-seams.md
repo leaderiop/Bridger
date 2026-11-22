@@ -41,66 +41,84 @@
 
 **Rationale.** BEH-BR-228 clause 3 only checks that every method name of the dependent's contract appears in the provision. The contract already holds `MethodSpec` codecs, and BEH-BR-230 states add-only evolution, but nothing enforces it. In a GxP product (RSK-BR-010, RSK-BR-025) a silent payload change is the exact failure the contract layer exists to stop.
 
-**Concrete spec change.** Extend `ContractDescriptor` with `schemas: readonly { method: string; digest: string }[]` where `digest` is a stable hash of the method's encoded-side JSON Schema (payload, success, error, stream flag), sorted by method. Add to BEH-BR-228: "3b. For every method in D's contract object, when the provision's version has the same major, the provision's digest MUST equal D's digest unless the provision's minor/patch is higher and the change is classified add-only by `Contract.diff` (BEH-BR-230); otherwise the pair is incompatible with `mismatchedMethods`." `IncompatibleContract` gains `mismatchedMethods: Schema.Array(Schema.String)`. Core computes no hash itself if ADR-BR-039's port pattern is preferred: a `SchemaFingerprinter` port, defaulting to unwired (names only, today's behaviour), keeping INV-BR-013 style neutrality.
+**Change (as built).** `ContractDescriptor.schemas` lists a stable per-method digest: a sha-256 of the sorted-key JSON Schema of payload, success, error and the stream flag, ignoring title, description and examples. `MethodSpec.digest` overrides it for a codec with no canonical JSON Schema, and a method without a digest is skipped. BEH-BR-228 clause 3b: a method both sides name must have equal digests in every compatible pair; an add-only evolution never changes a method the older side knows, so no "unless higher" exception is needed. `IncompatibleContract.mismatchedMethods` names the methods, and a registry `add` accepts a `Contract.at` provision so its copy is compared too. BEH-BR-231's "core never compares schemas" now limits core to opaque digests; classification stays in the kit. There is no `SchemaFingerprinter` port: the default is always on.
 
 **Cost/risk.** Medium: canonical JSON Schema of arbitrary codecs is hard (transformations, brands). Start with descriptor-level opt-in. False positives on harmless refactors, mitigated by add-only classification.
 
-**Verification.** Conformance tests: same name, widened payload (add-only) binds; narrowed payload fails; two bundled copies of an identical contract bind; stream flag change fails. Add to kit BEH acceptance checks (kit 08).
+**Verification (as built).** `r1-schema-digest.test.ts`: identical copies bind (annotations ignored); a changed payload is refused from both install orders naming `post`; a flipped stream flag changes the digest; an add-only higher provision binds and one that edits a method does not; explicit digest and skipped methods; registry with a `Contract.at` provision. Mutation check: with clause 3b disabled, 3 tests fail. Kit acceptance check 30.
 
 ### R2. Make plain keys across package boundaries a conformance failure (D-02)
 
 **Rationale.** ADR-BR-011 admits drift under an unchanged `ServiceId` passes. ADR-BR-040 added contracts but left plain keys fully legal, so the weak path is the easy path.
 
-**Concrete spec change.** In kit conformance (references/kit behaviors/03) add: "A plugin definition whose `provides` or `requires` contains a plain key MUST be reported by `bridger kit check` as `plain-cross-boundary-key` unless the key is annotated `internal`." Core is unchanged. Add a manifest field (BEH-BR-241 family) flagging `internal` keys so the loader (references/loader 02) can refuse a manifest requiring a plain key from outside its package.
+**Change (as built).** Core only decodes a new `internal` flag on a plain-key manifest reference (BEH-BR-241; refused on a contract key). The loader refuses a manifest naming a plain key not marked `internal` with `PackageRefused` predicate "plain-cross-boundary-key" (loader BEH-LD-014), and `bridger check` fails it with `PlainCrossBoundaryKey` (kit BEH-KT-028, error catalog entry). ADR-BR-011 records that the weak path is now explicit.
 
 **Cost/risk.** Low. Possible friction for first-party internal keys; the `internal` annotation absorbs it.
 
-**Verification.** Kit CLI fixture with one plain and one contract key; loader pipeline test with a third-party manifest.
+**Verification (as built).** `r2-internal-key.test.ts` covers the decode rules. The loader and kit rules are specification only: no loader or kit prototype exists, so they are covered by kit acceptance check 30 (REQ-KT-030, not run).
 
 ### R3. A broker seam for provider swaps (D-03, D-12)
 
 **Rationale.** ADR-BR-003 correctly refuses multiple providers per key. But Cordis's broker pattern (a stable facade absorbing provider swaps) answers a real operational need: replacing a provider currently stops all dependents (BEH-BR-050, "Dependents do not survive a replace"). For a long-running ERP host that is a large blast radius for a patch. Registries (`registry.ts`) multiplex by id but consumers pick ids; they do not give "one service, many implementations behind it".
 
-**Concrete spec change.** Specify, in 24 (shared-state helpers), `Broker.make(Contract, { select })`: a base-service facade implementing the contract by delegating each call to `registry.use(id, ...)` under a lease (registry `use` already provides drain and `LeaseRevoked`, `registry.ts:holding`). Providers contribute implementations to the registry (`implements` version and methods are already checked by BEH-BR-233). Consumers require the facade key and are never restarted when implementations come and go. State: calls with no live implementation fail with `ContributionUnavailable`; selection (`first`, `by-priority`, `by-key`) is declared by the broker's author, not by core. Federation (BEH-FD-026) and remote (references/remote 01) proxies then become ordinary registry contributors, giving a documented path for rolling update and cross-process fan-in.
+**Change (as built).** `Broker.make(contract, {name, range, select, drainTimeout})` (BEH-BR-168, `src/broker.ts`) makes a contract registry and a facade with one function member per contract method. Each call chooses a contribution (`"first"` = lowest priority number, a function, or `Broker.byKey`), runs the member under a lease, and reselects once if the choice was withdrawn meanwhile; no contribution gives `ContributionUnavailable`. The chosen id reaches the call log through `CurrentCall.contributed`, recorded as `CallEntry.contribution`. The Cordis porting recipe is a paragraph of BEH-BR-168. The selector names differ from the proposal (`first`, function, `byKey`; `by-priority` equals `first` because the view order is priority order). Limit stated as Open: a stream method is leased while it is produced, not consumed.
 
 **Cost/risk.** Medium; strictly additive and expressed with existing primitives. Risk: broker hides provider identity from audit; require the `CallLog` (BEH-BR-029) to record the chosen contribution id.
 
-**Verification.** Test: swap implementation under in-flight call (drain, no consumer restart); remove last implementation (fail typed); contract-version-mismatched contribution rejected at `add` (BEH-BR-233).
+**Verification (as built).** `r3-broker.test.ts`: delegation, selection by key, typed failure when empty; a swap under an in-flight call (old drains, new calls reach the new one, no plugin restarts); contract-mismatched contribution refused at `add`; the call log carries the contribution.
 
 ### R4. Make the interception limits unmistakable and inspectable (D-04, D-09)
 
 **Rationale.** BEH-BR-151 deliberately wraps at capture only, and BEH-BR-152 notes authorization or rate-limit wrappers must not be called a boundary (line 467). Cordis's intercept is also consulted at read time, but it is also not security. The risk here is documentation, not design, plus invisibility: `inspect` shows no interceptions.
 
-**Concrete spec change.** (a) Add to BEH-BR-151 a one-line normative note referencing BEH-BR-262 for restriction. (b) Extend BEH-BR-232's `PluginInspection` with `interceptions: readonly { key: ServiceId; source: "realm" | "install" | "inherited" | "mandatory"; id?: string }[]` in composition order. Ids only, honouring ADR-BR-033-style no-values rule.
+**Change (as built).** As proposed. BEH-BR-151 states that restriction belongs to mandatory interception (BEH-BR-262). `Interception` and `MandatoryInterception` take an optional `id`; `PluginInspection.interceptions` lists `{key, source, id?}` in composition order: realm, inherited, install, then mandatory (own chain, realm, host). Ids only.
 
 **Cost/risk.** Low. Needs an optional `id` on `Interception`.
 
-**Verification.** Inspect fixture asserting order realm, inherited/own, mandatory (BEH-BR-261).
+**Verification (as built).** `realms.test.ts` (report 02 R4): parent, inheriting child, child with its own, and a plugin with none.
 
 ### R5. Fix realm-family option fingerprinting (D-05, D-06)
 
 **Rationale.** BEH-BR-330 requires identical isolated keys and the same interceptor objects in order. `realms.ts` computes `{isolate ids, interceptors.length, mandatory.length}`. A family whose `realm(K)` returns a different interceptor of equal count produces `options-changed` never; the member keeps the old wrap. This is the one prototype/spec divergence I found.
 
-**Concrete spec change (prototype).** Replace the count with an identity list: assign each interceptor/mandatory entry a stable id via a module-level `WeakMap<object, number>` and fingerprint `interceptors.map(idOf)`. Spec side: add to BEH-BR-330 an explicit verification line "same count, different object fails with options-changed". For D-06, align the key grammar: either state `[A-Za-z0-9._-]{1,64}` in BEH-BR-330 (cleanest, matches `realm` id use in audit) or relax the prototype.
+**Change (as built).** Already in the prototype (`sameOptions` compares interceptor and mandatory objects with `Object.is`, and the key grammar follows BEH-BR-330, so `tenant:1` is valid); the three repro tests pass and BEH-BR-330 states both rules. No `WeakMap` was needed.
 
 **Cost/risk.** Low.
 
-**Verification.** Unit test in prototypes/host-core: second `use` with swapped interceptor returns `FamilyMemberUnavailable { reason: "options-changed" }`; key `"a:b"` behaviour pinned either way.
+**Verification (as built).** `divergence-repro.test.ts` (interceptor swap of the same count, key `tenant:1`, a dormant member).
 
 ### R6. Guard the default-realm leak (D-08)
 
 **Rationale.** BEH-BR-146 lets a non-isolated key provided inside a realm land in the default slot. That is intended for shared services but is the classic tenant-leak mistake: forget to list the key in `isolate`, and tenant B's install fails `DuplicateProvider` (best case) or tenant A's data service is visible to everyone (worst case, if only one tenant exists at first).
 
-**Concrete spec change.** Add `RealmOptions.provideNonIsolated?: "allow" | "refuse"` default `"allow"` (back-compat); with `"refuse"`, `install` of a plugin whose `provides` includes a key not isolated by its realm fails `InvalidDefinition { reason: "non-isolated-provide-in-realm" }`. Family helpers default to `"refuse"`.
+**Change (as built).** As proposed. `RealmOptions.provideNonIsolated: "allow" | "refuse"` (BEH-BR-146); `"refuse"` fails the install with `InvalidDefinition` "non-isolated-provide-in-realm". Realm families define every member with `"refuse"` (BEH-BR-330), so a leaking member is "rejected". The snapshot does not show the policy.
 
 **Cost/risk.** Low; opt-in.
 
-**Verification.** Install tests per realm; family test showing the refusal and that BEH-BR-148 cross-realm ordering is unchanged for allowed keys.
+**Verification (as built).** `realms.test.ts` (refusal, isolated key allowed, default "allow" unchanged) and `r2-family-leak.test.ts` (family rejects, isolated key accepted).
+
+## Resolution status (2026-11-22)
+
+Branch `spec/dependency-report-02`; prototype suite 396/396, `verify-traceability.sh` 0 failures. Every finding is resolved; the cards below describe what was built.
+
+| Finding | Rec. | Status | Notes |
+|---|---|---|---|
+| D-01 | R1 | Resolved | Per-method schema digests, BEH-BR-228 clause 3b, `mismatchedMethods`. |
+| D-02 | R2 | Resolved (spec + decode) | `internal` flag decoded by core; loader and kit refusal specified, no prototype exists for them. |
+| D-03 / D-12 | R3 | Resolved | `Broker.make` (BEH-BR-168) and the porting recipe; stream lease limit stated as Open. |
+| D-04 / D-09 | R4 | Resolved | BEH-BR-151 note; `PluginInspection.interceptions`; interception ids. |
+| D-05 / D-06 | R5 | Resolved | Already in the prototype; both rules in BEH-BR-330; repro tests pass. |
+| D-07 | X1 | Resolved | `awaitActive` subscribes to `Host.changes`. |
+| D-08 | R6 | Resolved | `provideNonIsolated`; families default to `"refuse"`. |
+| D-10 | X2 | Resolved | `within` is an Effect (defect channel). |
+| D-11 | X3 | Resolved | Non-goal documented in ADR-BR-022. |
+
+The minor proposals X1 (D-07), X2 (D-10) and X3 (D-11) are in the rows above. As built differs from proposed: R1 has no "unless higher" exception and no `SchemaFingerprinter` port; R2 is a manifest `internal` flag enforced by the loader and kit specifications (no prototype for those); R3's selectors are `first`, a function and `byKey`; R5 needed no change (already built); X2 uses the defect channel. The Rationale text of each card is the original finding.
 
 ## Not checked / uncertainties
 
 - I did not read federation, remote, loader or kit behaviour files line by line; claims about them (BEH-FD-026 proxies as registry-compatible contributors, kit conformance hooks) are inferred from headings and a partial read of federation 04. R2 and R3 integration points need confirming.
 - BEH-BR-020 cycle-path wording and the whole of ADR-BR-038 (stop ordering) and BEH-BR-121..128 (children) were sampled, not fully audited; the claim that child mount edges share the graph is from 08.
-- D-07 (polling) is judged from the prototype only; production host may expose a change stream I did not look for.
-- No tests were run; D-05 is by code reading of `realms.ts`.
+- D-07: the host exposes `Host.changes`; it is now used.
+- The suite was run for every change (396 tests). The loader and kit rules of R2 have no prototype to run against.
 - Cordis comparisons rely on the supplied brief, not the primary paper.
