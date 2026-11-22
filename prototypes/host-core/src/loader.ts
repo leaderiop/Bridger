@@ -97,7 +97,8 @@ export interface SigstoreBundle {
       readonly inclusionProof?: { readonly logIndex: string | number; readonly rootHash: string; readonly treeSize: string | number; readonly hashes: ReadonlyArray<string>; readonly checkpoint: { readonly envelope: string } }
     }>
   }
-  readonly messageSignature: { readonly signature: string }
+  readonly messageSignature?: { readonly signature: string }
+  readonly dsseEnvelope?: { readonly payload: string; readonly payloadType: string; readonly signatures: ReadonlyArray<{ readonly sig: string }> }
 }
 const FULCIO_ISSUER_OID = Buffer.from("2b0601040183bf300101", "hex")   // 1.3.6.1.4.1.57264.1.1
 const oidcIssuerOf = (c: X509Certificate): string | undefined => {
@@ -120,6 +121,21 @@ export const verifyInclusion = (leafHash: Bytes, index: number, size: number, ha
   }
   return sn === 0 && Buffer.compare(Buffer.from(r), Buffer.from(root)) === 0
 }
+/** The Rekor entry kinds read: `hashedrekord` and `dsse`, each as v0.0.1 (a hex hash value) and v0.0.2 (the Rekor v2 form, a base64 digest and a signature `content`). The entry must name
+ *  this signature and the hash of the signed bytes (the input for hashedrekord, the envelope payload for dsse). */
+const entryBinds = (e: { kind?: string; apiVersion?: string; spec?: Record<string, any> }, sigB64: string, input: Bytes, payloadB64?: string): boolean => {
+  const spec = e.spec ?? {}, hex = createHash("sha256").update(input).digest("hex"), b64 = Buffer.from(hex, "hex").toString("base64")
+  if (e.kind === "hashedrekord") {
+    const v2 = spec.hashedRekordV002
+    return v2 ? v2.signature?.content === sigB64 && v2.data?.digest === b64 : spec.signature?.content === sigB64 && spec.data?.hash?.value === hex
+  }
+  if (e.kind === "dsse" && payloadB64 !== undefined) {
+    const ph = createHash("sha256").update(Buffer.from(payloadB64, "base64")).digest("hex"), pb = Buffer.from(ph, "hex").toString("base64")
+    const v2 = spec.dsseV002
+    return v2 ? v2.payloadHash?.digest === pb && (v2.signatures ?? []).some((x: { content?: string }) => x.content === sigB64) : spec.payloadHash?.value === ph && (spec.signatures ?? []).some((x: { signature?: string }) => x.signature === sigB64)
+  }
+  return false
+}
 /** A signed checkpoint (a signed note): the text the log key signed, and a signature line `— <name> <base64(4-byte key hint || signature)>`. Returns its tree size and root. */
 const checkpointOf = (envelope: string, logKey: ReturnType<typeof createPublicKey>): { size: number; root: Buffer } | undefined => {
   const cut = envelope.indexOf("\n\n"); if (cut < 0) return undefined
@@ -135,14 +151,21 @@ const sigstoreVerifies = (input: Bytes, sig: Signature, t: TrustedSigner): { rea
     const pin = t.key as SigstorePin, b = JSON.parse(Buffer.from(sig.bytes).toString("utf8")) as SigstoreBundle
     const vm = b.verificationMaterial, leaf = new X509Certificate(Buffer.from((vm.certificate ?? vm.x509CertificateChain!.certificates[0]!).rawBytes, "base64"))
     const pinned = pin.roots.map((r) => new X509Certificate(r))
-    const signed = Buffer.from(b.messageSignature.signature, "base64")
+    // the signed bytes: a message signature covers the statement's signing input; a DSSE envelope's PAE must be that same signing input, so the envelope carries this statement
+    const env = b.dsseEnvelope
+    const sigB64 = env ? env.signatures[0]?.sig : b.messageSignature?.signature
+    if (!sigB64) return undefined
+    if (env) {
+      const payload = Buffer.from(env.payload, "base64")
+      if (Buffer.compare(Buffer.concat([utf8(`DSSEv1 ${utf8(env.payloadType).length} ${env.payloadType} ${payload.length} `), payload]), Buffer.from(input)) !== 0) return undefined
+    }
+    const signed = Buffer.from(sigB64, "base64")
     if (!edVerify(hashAlg(leaf.publicKey), input, leaf.publicKey, signed)) return undefined
     const entry = vm.tlogEntries[0]; if (!entry) return undefined
     const logKey = createPublicKey(pin.logKey), body = Buffer.from(entry.canonicalizedBody, "base64")
     const logHex = createHash("sha256").update(logKey.export({ format: "der", type: "spki" })).digest("hex")
     if (Buffer.from(entry.logId.keyId, "base64").toString("hex") !== logHex) return undefined                  // the entry is from the pinned log
-    const rekor = JSON.parse(body.toString("utf8")) as { spec?: { signature?: { content?: string }; data?: { hash?: { value?: string } } } }
-    if (rekor.spec?.signature?.content !== b.messageSignature.signature || rekor.spec?.data?.hash?.value !== createHash("sha256").update(input).digest("hex")) return undefined   // the entry is about this signature of this input
+    if (!entryBinds(JSON.parse(body.toString("utf8")), sigB64, input, env?.payload)) return undefined          // the entry is about this signature of this input
     const integrated = Number(entry.integratedTime)
     const set = entry.inclusionPromise?.signedEntryTimestamp
     let proven = false
