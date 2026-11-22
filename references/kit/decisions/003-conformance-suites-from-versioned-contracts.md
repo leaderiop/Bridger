@@ -5,21 +5,23 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-ADR-003                                           |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.2 (2026-11-22): compatibility includes per-method schema digests (core BEH-BR-228 clause 3b; improvement report 02, R1)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
 ## Context
 
 Core checks that a provider's version satisfies a dependent's range and that
-method names are present (BEH-BR-228), and compares no schemas (BEH-BR-230).
+method names are present and per-method schema digests are equal
+(BEH-BR-228 clause 3b), and compares no schema structure beyond those opaque
+digests (BEH-BR-230).
 Whether a provider honours the contract is a testing question. Hand-written
 suites drift from the contract; suites edited at each release cannot test the
 add-only promise.

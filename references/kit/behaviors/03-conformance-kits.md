@@ -5,21 +5,22 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-03                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-11): BEH-KT-018: `ConformanceReport` carries `kitVersion`, which BEH-KT-022 requires (PL20) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-09): BEH-KT-017 a suite of a local contract (core `Contract.local`) holds author cases only; BEH-KT-020 a local contract is never verified through a wire subject (`LocalContractRefused`) (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.5 (2026-11-22): compatibility includes per-method schema digests (core BEH-BR-228 clause 3b; improvement report 02, R1)<br>0.4 (2026-11-11): BEH-KT-018: `ConformanceReport` carries `kitVersion`, which BEH-KT-022 requires (PL20) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-09): BEH-KT-017 a suite of a local contract (core `Contract.local`) holds author cases only; BEH-KT-020 a local contract is never verified through a wire subject (`LocalContractRefused`) (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
 A versioned contract ([26 — Versioned contracts](../../core/behaviors/26-versioned-contracts.md))
 says what a provider's methods accept and return. Core checks version ranges
-and method names when a pair is registered (BEH-BR-228) and deliberately
-compares no schemas (BEH-BR-230). Whether a provider actually honours the
+and method names, and equal per-method schema digests, when a pair is
+registered (BEH-BR-228 clause 3b) and deliberately compares no schema
+structure beyond those opaque digests (BEH-BR-230). Whether a provider actually honours the
 contract — decodes what it must accept, returns what decodes, fails only with
 declared errors, keeps the behaviour the contract's authors wrote down — is
 what a conformance kit tests. This file owns BEH-KT-017–024 and uses
