@@ -61,9 +61,11 @@ Rules worth remembering:
   or a list accepts a plugin (`Plugin.Any`). If you feel a cast is needed,
   read the [error catalog](./error-catalog.md) or the compiler's
   `KitTypeError` first.
-- **Declare what your methods reach at call time.** The compiler checks what
-  `make` uses while building. A service used only inside a method you return
-  is invisible to that check; list it in `requires` anyway.
+- **Reach services from your methods through `use`.** The compiler checks
+  what `make` uses while building. For a service a returned method needs, call
+  `ctx.use(Key, ...)` (or `ctx.useOptional` for an optional one): it accepts
+  only a key you declared. A bare `yield* Key` inside the returned method is
+  invisible to the compiler; `bridger check` reports it.
 - **One shape per definition.** If `provides` would depend on a run-time flag,
   write two definitions and install the one you need.
 

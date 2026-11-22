@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-01                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-22): prototype `prototypes/host-core/src/kit.ts` implements the four forms of BEH-KT-001 over `define`; BEH-KT-002, BEH-KT-003 (undeclared use, key both required and provided, volatile name, non-literal id, `provides` not returned) are evidenced by compile-time assertions in `test/dx-kit.test.ts`; the guide's "never write `as const`" rule is deleted, the inference making it redundant (improvement report 05 R1, DX-01, DX-12)<br>0.4 (2026-11-11): BEH-KT-004: `Plugin.Any` is core's type (core 01, BEH-BR-001; CCR-BR-020), no longer a requested amendment (PL18) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-10): BEH-KT-001: every form takes `manifest` and `handoff` and passes them through unchanged; BEH-KT-004: the `PluginAny` copy carries both, as core 01 does (L3) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.6 (2026-11-22): BEH-KT-003: `use` and `useOptional` on the object `make` and `run` receive, bound to `requires` and `optional`, close the call-time gap (improvement report 05 R8, DX-05)<br>0.5 (2026-11-22): prototype `prototypes/host-core/src/kit.ts` implements the four forms of BEH-KT-001 over `define`; BEH-KT-002, BEH-KT-003 (undeclared use, key both required and provided, volatile name, non-literal id, `provides` not returned) are evidenced by compile-time assertions in `test/dx-kit.test.ts`; the guide's "never write `as const`" rule is deleted, the inference making it redundant (improvement report 05 R1, DX-01, DX-12)<br>0.4 (2026-11-11): BEH-KT-004: `Plugin.Any` is core's type (core 01, BEH-BR-001; CCR-BR-020), no longer a requested amendment (PL18) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-10): BEH-KT-001: every form takes `manifest` and `handoff` and passes them through unchanged; BEH-KT-004: the `PluginAny` copy carries both, as core 01 does (L3) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -171,9 +171,23 @@ REQUIREMENT: The facade MUST report, in the same way: a `provides` key whose
 ```
 
 ```
+REQUIREMENT: The object `make` and `run` receive MUST carry `use(key, run)`
+             and `useOptional(key, run)`. `use` MUST accept only a key of
+             `requires` and run `run` with the service the build captured;
+             `useOptional` MUST accept only a key of `optional` and behave as
+             `Plugin.Runtime.useOptional` (core, BEH-BR-131: a lease, `None`
+             when no provider is active). A key outside those lists MUST be a
+             compile error, so a service a returned method reaches through
+             `use` is checked exactly as one `make` uses while building.
+```
+
+```
 REQUIREMENT: Documentation MUST state, next to these errors, that a service
-             reached only at call time by a method that `make` returns is
-             not seen by the check and must still be declared (BEH-BR-002).
+             reached at call time by a method that `make` returns is seen by
+             the check only when it goes through `use` or `useOptional`; one
+             reached by `yield*` inside the returned closure is not seen and
+             MUST still be declared (BEH-BR-002). `check` (04, BEH-KT-028)
+             reports the second form.
 ```
 
 Core already rejects an undeclared requirement (BEH-BR-002), but the error a

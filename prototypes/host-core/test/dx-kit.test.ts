@@ -59,4 +59,20 @@ describe("definePlugin (report 05 R1, kit BEH-KT-001..006)", () => {
     const _tuple: readonly [typeof Db, typeof Mail] = p.requires
     expect(_tuple).toHaveLength(2)
   })
+
+  it("report 05 R8 (DX-05): ctx.use reaches a declared service from a returned method; an undeclared key is a compile error", async () => {
+    const Greeter = Context.Service<{ readonly greet: () => Effect.Effect<string> }>("example/Greeter")
+    const provider = definePlugin({ id: "greeter", requires: [Db], provides: Greeter,
+      make: ({ use }) => Effect.succeed({ greet: () => use(Db, (db) => Effect.succeed(`hello ${db.url}`)) }) })
+    const out: Array<string> = []
+    const client = definePlugin({ id: "client", requires: [Greeter], run: Effect.gen(function* () { out.push(yield* (yield* Greeter).greet()) }) })
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(asAny(definePlugin({ id: "db", provides: Db, make: Effect.succeed({ url: "pg" }) })), as())
+      yield* host.install(asAny(provider), as()); yield* host.install(asAny(client), as()); yield* idle(host)
+      expect(out).toEqual(["hello pg"])
+    }))
+    // @ts-expect-error Mail is neither required nor optional, so ctx.use refuses it
+    definePlugin({ id: "bad", requires: [Db], provides: Audit, make: ({ use }) => Effect.succeed({ note: use(Mail, () => Effect.void) as never }) })
+    definePlugin({ id: "opt", provides: Audit, optional: [Mail], make: ({ useOptional }) => Effect.succeed({ note: String(useOptional(Mail, (m) => m.send("x"))) }) })
+  })
 })
