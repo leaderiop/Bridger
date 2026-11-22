@@ -94,7 +94,7 @@ export interface LinkStatus { readonly state: "active" | "partitioned" | "stoppe
  * A link that keeps one session open: after a session ends it dials again and handshakes with a new epoch, never reusing one
  * (BEH-RM-010, 029). `dial` yields a connection to a guest that has already been started on its end.
  */
-export const startLink = (dial: Effect.Effect<Connection>, o: Omit<SessionOptions, "epoch"> & { readonly backoff: number }) => Effect.gen(function* () {
+export const startLink = (dial: Effect.Effect<Connection>, o: Omit<SessionOptions, "epoch"> & { readonly backoff: number; readonly onSession?: (s: Session) => Effect.Effect<void>; readonly onEnd?: (s: Session, why: EndReason) => Effect.Effect<void> }) => Effect.gen(function* () {
   const status = yield* Ref.make<LinkStatus>({ state: "partitioned", sessions: [] })
   const current = yield* Ref.make<Option.Option<Session>>(Option.none())
   let seq = 0
@@ -105,8 +105,10 @@ export const startLink = (dial: Effect.Effect<Connection>, o: Omit<SessionOption
       if ("call" in out) {
         yield* Ref.update(status, (s) => ({ state: "active" as const, sessions: [...s.sessions, { epoch }] }))
         yield* Ref.set(current, Option.some(out))
+        if (o.onSession) yield* o.onSession(out)
         const reason = yield* out.ended
         yield* Ref.set(current, Option.none())
+        if (o.onEnd) yield* o.onEnd(out, reason)
         yield* Ref.update(status, (s) => ({ state: "partitioned" as const, sessions: s.sessions.map((x) => x.epoch === epoch ? { ...x, ended: reason } : x) }))
       }
       yield* Effect.sleep(o.backoff)
