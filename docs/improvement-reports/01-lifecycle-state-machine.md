@@ -179,7 +179,7 @@ Branch `spec/lifecycle-report-01`; prototype suite 368/368, `verify-traceability
 
 | Finding | Rec. | Status | Notes |
 | --- | --- | --- | --- |
-| L1 / L8 | R1 | Resolved | BEH-BR-039 rewritten: stale outcomes always discarded; `build-finished` carries `stale` and `discardedFailures`. Prototype and tests match. |
+| L1 / L8 | R1 | Resolved | BEH-BR-039 rewritten: stale outcomes always discarded; `build-finished` carries `stale` and `discardedFailures`; `build-flapping` event and snapshot `flapping` at `staleFailureLimit` (default 3). Prototype and tests match. |
 | L2 | R2 | Resolved | BEH-BR-160 failure bound added; randomized failure-injection confluence tests (`confluence-faults.test.ts`) with a mutation-checked stale-discard property. |
 | L3 | R3 | Resolved | `activation` on starting/active; `providerIds` carry the provider's `realm` and the captured activation. |
 | L4 | R4 | Resolved | `replace` `onFailure: {rollback}` and reconcile `settle` (with `atomic`). |

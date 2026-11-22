@@ -223,8 +223,9 @@ REQUIREMENT: A removal that a sub-scope close or `unmount` begins itself on
              queued for a slot (05 — Activation, BEH-BR-034) — MUST be
              abandoned, taken out of the queue and never begun, and the
              child removed at once (`reason` "remove", `next` "gone"); a
-             build already begun holds its slot, and the removal waits for
-             it to settle under `buildTimeout`, its result discarded, as
+             build already begun (it holds a slot, except while it awaits a
+             child's `awaitActive`, BEH-BR-124) is waited for, and the
+             removal waits for it to settle under `buildTimeout`, its result discarded, as
              the `starting` × `remove` cell of 08 — Operation Legality,
              BEH-BR-071, gives.
 ```

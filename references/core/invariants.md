@@ -147,7 +147,10 @@ lease observes a mixture of two published values.
 
 A build whose plugin's target changed while it ran — an operation applied to
 the plugin, or one of its captured providers beginning to stop — is allowed
-to settle and its result is never published. For a build that receives
+to settle and its result is never published. A stale build's failure is
+discarded the same way: it records no `failed` state, only a `build-finished`
+event with `stale: true` and the `discardedFailures` counter, and the plugin
+goes `waiting` (BEH-BR-039). For a build that receives
 handed-off state, it runs until the host begins the import; from then on it
 is committed to publication or failure, and a later change applies to what
 it lands in (BEH-BR-349).
@@ -168,7 +171,7 @@ half-acquired resource.
 **Verification** *(Planned)*: scenarios on the steppable test host that hold
 a build open, apply each of `remove`, `replace`, `restart`, `reconfigure` and
 `disable` (and stop a captured provider), release the build, and assert the
-stale result is never `active`; a property test over generated interleavings
+stale result is never `active`, and a stale failing build never yields `failed`; a property test over generated interleavings
 of builds and operations.
 
 **Related**: [BEH-BR-039](behaviors/05-activation.md), [BEH-BR-349](behaviors/34-state-handoff.md), [ADR-BR-004](decisions/004-replace-is-stop-then-start.md), [ADR-BR-013](decisions/013-total-operation-legality.md).
@@ -318,6 +321,7 @@ at a time, whether the step serves an operator or the system; and it has at
 most one operator operation in flight (BEH-BR-072). A parked stop — a parked
 operation or a parked system stop — is the one case of a stop in flight with
 no step running: it runs none until a call, a cascade or shutdown resumes it,
+or an `abort` ends it (returning the plugin to `active`, BEH-BR-074),
 or, for a child whose stop was parked outside its parent's stop, before the
 parent's stop has begun (from the revision in which the parent becomes
 `stopping`, its activation fails or shutdown begins), the close of its sub-scope or
@@ -338,7 +342,8 @@ against the state the plugin landed in (BEH-BR-073); a call that arrives on a
 parked system stop, or whose awaited system stop parks while it waits,
 resumes it, or, for `retry` and `enable`, fails with
 `Conflict { pending: "dependency-loss" }` (BEH-BR-073, BEH-BR-074); a child's
-parked stop that removes it is resumed by no operator call but `remove`, and
+parked stop that removes it is resumed by no operator call but `remove` (`abort` is
+refused for it), and
 otherwise only by a cascade, shutdown, or — when it was parked outside its
 parent's stop, and before the parent's stop has begun — the close of its
 sub-scope or its `unmount`, the last two

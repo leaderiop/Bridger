@@ -1,5 +1,7 @@
 // Report 01 R2 (BEH-BR-160, BEH-BR-039): the confluence property with injected build failures. A stale failed build is
 // discarded, so after a final restart of every faulted plugin a random history equals a direct install of the target.
+// The universe's builds finish inside one step, so no build is ever stale there: the stale-discard property itself is
+// the second test below (it fails when a stale failure is made sticky), the first covers failure x interleaving.
 import { Context, Effect, Exit, Fiber, Layer, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
@@ -109,14 +111,15 @@ describe("a stale build is discarded in every interleaving (report 01 R1/R2)", (
         yield* TestClock.adjust(200)
         yield* t.runUntilIdle
         yield* Fiber.join(loss)
+        if (viaRestart) { yield* TestClock.adjust(200); yield* t.runUntilIdle }        // the new build after the provider returned
         for (let i = 0; i < 300; i++) yield* Effect.yieldNow
         const state = yield* stateOf()
         return { state, stale: seen.filter((e) => e.type === "build-finished" && e.stale && e.pluginId === "stale-dep") }
       }))
-      // A restart returns the provider, so the dependent may start again; either way it is never `failed`.
-      expect({ seed, failed: out.state === "failed" }).toEqual({ seed, failed: false })
-      if (!viaRestart) expect({ seed, state: out.state }).toEqual({ seed, state: "waiting" })
-      expect(out.stale.length).toBeLessThanOrEqual(1)
+      // The stale outcome is discarded in every interleaving. After a plain loss the dependent waits; after a restart
+      // the provider returns and the dependent's NEW build decides: `failed` only if that build really fails.
+      expect({ seed, state: out.state }).toEqual({ seed, state: viaRestart ? (fails ? "failed" : "active") : "waiting" })
+      expect(out.stale).toHaveLength(1)
     }
   }, 60_000)
 })

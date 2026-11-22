@@ -359,10 +359,11 @@ REQUIREMENT: A `DrainTimeout` MUST emit a `drain-timeout` host event whose
 A lease is held for as long as a callback runs, so a stuck callback would
 otherwise hold a removal forever — the failure mode
 [URS-BR-010](../urs.md#urs-br-010-detect-a-plugin-that-waits-forever) exists
-to rule out. `DrainTimeout` leaves the plugin `stopping` rather than rolling
-back to `active`: the provider has already been hidden from new consumers and
-its dependents have already stopped, and silently republishing it would undo
-a removal the caller asked for.
+to rule out. `DrainTimeout` leaves the plugin `stopping`, its stop parked, rather than
+rolling back on its own: the provider has already been hidden from new
+consumers and its dependents have already stopped, and silently republishing
+it would undo a removal the caller asked for. Only an explicit `abort`
+(08 — Operation Legality, BEH-BR-074) republishes a parked stop.
 
 How a `DrainTimeout` interacts with the per-plugin operation order and with a
 repeated call is specified in [08 — Operation Legality](./08-operation-legality.md).
@@ -604,7 +605,7 @@ REQUIREMENT: From a fiber that carries P in `HeldPlugins` or in
              or `enable` of P while a system stop of P is running
              (08 — Operation Legality, BEH-BR-073); `remove`, `replace`,
              `restart`, `disable` or `reconfigure` of any provider whose
-             stopping would first stop P; and `awaitIdle`.
+             stopping would first stop P; and `awaitIdle` and `awaitSettled`.
 ```
 
 ```
@@ -661,7 +662,7 @@ REQUIREMENT: A fiber that P's build, `load` or finalizer forks without
              `Effect.forkDaemon` — inherits P in `CurrentTransition` and
              keeps it for its whole life, since the host does not track it
              (10 — Runtime Failure and Health, BEH-BR-090). Its guarded
-             calls on P, its `awaitIdle` and its `shutdown` MUST fail with
+             calls on P, its `awaitIdle`, its `awaitSettled` and its `shutdown` MUST fail with
              `WouldDeadlock` after the step has returned as well, although
              no cycle remains. This false positive is a documented limit,
              carried by no step token (RSK-BR-011; CCR-BR-036): work that

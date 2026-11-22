@@ -64,7 +64,7 @@ export const HostLink = {
 export type ProviderRef = { readonly id: string; readonly realm?: string; readonly activation?: number }
 export type PluginSnapshot = { readonly id: string; readonly realm: string; readonly parentId?: string; readonly meta?: AnyPlugin["meta"]; readonly lazy?: { readonly loaded: boolean } } & (
   | { readonly state: "dormant"; readonly triggers: ReadonlyArray<LazyTrigger> }
-  | { readonly state: "waiting"; readonly missingServiceIds: ReadonlyArray<string> }
+  | { readonly state: "waiting"; readonly missingServiceIds: ReadonlyArray<string>; readonly flapping?: { readonly discardedFailures: number } }
   | { readonly state: "starting"; readonly activation: number; readonly providerIds: ReadonlyArray<ProviderRef>; readonly loading?: boolean }
   | { readonly state: "active"; readonly activation: number; readonly providerIds: ReadonlyArray<ProviderRef>; readonly health: "healthy" | "degraded" | "unknown" }
   | { readonly state: "stopping"; readonly reason: string; readonly parked: boolean; readonly next?: "gone" }
@@ -100,6 +100,7 @@ export interface HostControls {
   readonly gateTimeout: number
   readonly fingerprintTimeout: number
   readonly buildTimeout: number              // round 2 (BEH-BR-212)
+  readonly staleFailureLimit: number         // BEH-BR-039: consecutive discarded stale failures before `build-flapping`
   readonly idGenerator: "default" | "provided"
   readonly auditPosition?: { readonly lastWritten: number }   // present when a sink is wired
   readonly policy: { readonly access: "wired" | "unwired"; readonly refusal: "wired" | "unwired"; readonly capability: "wired" | "unwired"; readonly callLog: "wired" | "unwired";
@@ -168,6 +169,7 @@ export interface Options {
   readonly base?: ReadonlyArray<readonly [Context.Key<any, any>, unknown]>
   readonly concurrency?: number
   readonly buildTimeout?: number     // ms
+  readonly staleFailureLimit?: number // consecutive discarded stale build failures that mark a build as flapping (default 3, BEH-BR-039)
   readonly drainTimeout?: number     // ms
   readonly attribution?: AttributionOptions
   readonly auditTimeout?: number     // ms (default 10 s)
@@ -332,6 +334,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     yield* scheduling.wait(item(), sem.take(1))
   })
   const buildTimeout = options.buildTimeout ?? 60_000
+  const staleFailureLimit = options.staleFailureLimit ?? 3
   const handoffTimeout = options.handoffTimeout ?? 5_000
   const defaultDrain = options.drainTimeout ?? 30_000
 
@@ -681,7 +684,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       const common = { id: e.pluginId, realm: e.realm, ...(parent ? { parentId: parent.pluginId } : {}), ...(e.def.meta ? { meta: e.def.meta } : {}), ...(e.lazy ? { lazy: { loaded: e.lazy.loaded } } : {}) }
       switch (e.state) {
         case "dormant": return { ...common, state: "dormant", triggers: triggersOf(e.lazy!.def.manifest) }
-        case "waiting": return { ...common, state: "waiting", missingServiceIds: missing(e) }
+        case "waiting": return { ...common, state: "waiting", missingServiceIds: missing(e), ...((e.discardedFailures ?? 0) >= staleFailureLimit ? { flapping: { discardedFailures: e.discardedFailures! } } : {}) }
         case "starting": return { ...common, state: "starting", activation: e.activation!, providerIds: providerRefs(e), ...(e.lazy ? { loading: e.lazy.loading } : {}) }
         case "active": return { ...common, state: "active", activation: e.activation!, providerIds: providerRefs(e), health: e.health ?? "unknown" }
         case "stopping": return { ...common, state: "stopping", reason: e.stopReason ?? "unknown", parked: e.parkedSystem || !!flights.get(e.id)?.parked, ...(e.removing ? { next: "gone" as const } : {}) }
@@ -1155,6 +1158,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       // BEH-BR-039: a stale outcome is always discarded; a discarded failure is counted, not made sticky.
       e.discardedFailures = stale && outcome === "failure" ? (e.discardedFailures ?? 0) + 1 : stale ? e.discardedFailures : 0
       yield* emit({ type: "build-finished", durationMs, outcome, ...(stale ? { stale: true as const, discardedFailures: e.discardedFailures ?? 0 } : {}) }, e.id)
+      if (stale && (e.discardedFailures ?? 0) >= staleFailureLimit) yield* emit({ type: "build-flapping", discardedFailures: e.discardedFailures! }, e.id)   // each further discard re-signals
       if (stale) {
         discard = true
         // A stop waited for this build (G-P14): a failure drops "activation-failed"; a success is discarded by the
@@ -3012,7 +3016,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     /** Read-only; available after close, when it reports records flushed after the CloseReport (CCR-BR-014). */
     controls: Effect.sync((): HostControls => ({
       hostId, wired: { audit: !!writer, gate: Option.isSome(gateOpt), fingerprinter: Option.isSome(fpOpt) },
-      attribution, auditTimeout, gateTimeout, fingerprintTimeout, buildTimeout, idGenerator: Option.isSome(idOpt) ? "provided" : "default",
+      attribution, auditTimeout, gateTimeout, fingerprintTimeout, buildTimeout, staleFailureLimit, idGenerator: Option.isSome(idOpt) ? "provided" : "default",
       ...(writer ? { auditPosition: { lastWritten: writer.state.lastWritten } } : {}),
       policy: {
         access: Option.isSome(accessOpt) ? "wired" : "unwired", refusal: Option.isSome(refusalOpt) ? "wired" : "unwired",

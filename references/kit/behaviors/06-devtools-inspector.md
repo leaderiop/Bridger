@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): BEH-KT-043: `WhyReport.ref` and each `WhyStep.provider` are `{ id, realm }` records (PL9) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.7 (2026-11-11): BEH-KT-042: `edges.from` and `to` name plugins by `{ id, realm }` records, never "id@realm"; `schemaVersion` 2 as BEH-KT-046 requires (PL17) (SPEC-AUDIT-08) (CCR-KT-011)<br>0.6 (2026-11-11): BEH-KT-042 `InspectorReport.controls` comment: `HostControlsData` is the JSON encoding, durations in milliseconds and "forever" as a string (core CL3) (SPEC-AUDIT-07) (CCR-KT-010)<br>0.5 (2026-11-11): BEH-KT-042, BEH-KT-046: `InspectorReport.controls` is core's `HostControlsData`, `HostControls` without the `closed` effect, so the report's `Schema` encodes to JSON (G1) (SPEC-AUDIT-06) (CCR-KT-009)<br>0.4 (2026-11-10): BEH-KT-047: `--keyed <module>` passes a pure MAC function as `keyed` and `--expect-keyed [<seriesId>]` passes `expectKeyed` (true, or the set of series); "key-unavailable" links give exit 4, not 1 (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.9 (2026-11-22): the report's `plugins[]` entries carry `activation?`; the timeline note on `stop-aborted` and `build-flapping` (improvement report 01)<br>0.8 (2026-11-11): BEH-KT-043: `WhyReport.ref` and each `WhyStep.provider` are `{ id, realm }` records (PL9) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.7 (2026-11-11): BEH-KT-042: `edges.from` and `to` name plugins by `{ id, realm }` records, never "id@realm"; `schemaVersion` 2 as BEH-KT-046 requires (PL17) (SPEC-AUDIT-08) (CCR-KT-011)<br>0.6 (2026-11-11): BEH-KT-042 `InspectorReport.controls` comment: `HostControlsData` is the JSON encoding, durations in milliseconds and "forever" as a string (core CL3) (SPEC-AUDIT-07) (CCR-KT-010)<br>0.5 (2026-11-11): BEH-KT-042, BEH-KT-046: `InspectorReport.controls` is core's `HostControlsData`, `HostControls` without the `closed` effect, so the report's `Schema` encodes to JSON (G1) (SPEC-AUDIT-06) (CCR-KT-009)<br>0.4 (2026-11-10): BEH-KT-047: `--keyed <module>` passes a pure MAC function as `keyed` and `--expect-keyed [<seriesId>]` passes `expectKeyed` (true, or the set of series); "key-unavailable" links give exit 4, not 1 (A1) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.3 (2026-11-08): BEH-KT-047 `--profile` and `--verifier` pass profiles and offline receipt verifiers from the inspector's machine; exit code 4 when nothing inconsistent was found but the check is incomplete (carried roots, unchecked receipts, unconfirmed heads, unknown profiles) (round-2 agent review R3-10, R3-11) (CCR-KT-003)<br>0.2 (2026-11-08): BEH-KT-047 `bridger verify-chain` over the audit chain's `verifyBundle`; inspector renders "refused-digest", `plugin-idled`, `held-event-dropped`, `reconcile-partial` and breaker scope (round 2: recheck item 14; core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -73,7 +73,7 @@ interface InspectorReport {
   readonly revision: number                      // HostSnapshot revision the report describes
   readonly consistent: boolean
   readonly plugins: readonly { readonly id: string; readonly realm: string; readonly state: PluginState
-                               readonly leases: number; readonly parked: boolean; readonly pending?: string }[]
+                               readonly leases: number; readonly parked: boolean; readonly pending?: string; readonly activation?: number }[]   // activation: the snapshot's ordinal (report 01, R3)
   // from: the dependent; to: the provider, or "base" or "missing" — plugins named by { id, realm } records, never a
   // separator join (core 17, BEH-BR-147)
   readonly edges: readonly { readonly from: { readonly id: string; readonly realm: string }
@@ -161,6 +161,8 @@ REQUIREMENT: The inspector MUST report leases as the count `inspect` returns
 
 > **See:** [ADR-KT-005](../decisions/005-devtools-are-read-only.md)
 > **Core seam:** [13 — Observability](../../core/behaviors/13-observability-and-diagnostics.md) (BEH-BR-114, BEH-BR-115)
+>
+> Every `HostEvent` type appears in the timeline as it is emitted, so `stop-aborted` and `build-flapping` (core BEH-BR-074, BEH-BR-039) need no special handling.
 
 ```ts
 // illustrative — not type-checked

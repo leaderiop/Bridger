@@ -1,6 +1,6 @@
 // Report 01 R1/R2 (BEH-BR-039, BEH-BR-160): a stale build's outcome is always discarded and reported, never sticky.
 // Prototype only; evidences no requirement (CCR-BR-004).
-import { Effect, Layer, Stream } from "effect"
+import { Deferred, Effect, Fiber, Layer, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { define, type AnyPlugin } from "../src/plugin.js"
 import type { HostEvent } from "../src/events.js"
@@ -36,5 +36,45 @@ describe("BEH-BR-039 (R1): stale failed builds are discarded and reported", () =
   it("operator removal: failure is likewise reported stale", async () => {
     const r = await run("operator-removed")
     expect(r.stale[0]).toMatchObject({ outcome: "failure", discardedFailures: 1 })
+  })
+})
+
+describe("BEH-BR-039: repeated discarded failures mark the build flapping", () => {
+  it("the third consecutive discarded failure emits build-flapping and shows `flapping` on the waiting snapshot; a real outcome clears it", async () => {
+    let gate = Effect.runSync(Deferred.make<void>())
+    let failing = true
+    const dep = dependent(Effect.suspend(() => Deferred.await(gate).pipe(Effect.andThen(failing ? Effect.fail("late failure") : Effect.void))))
+    await withHost((host) => Effect.gen(function* () {
+      const seen: HostEvent[] = []
+      yield* Effect.forkScoped(host.events.pipe(Stream.runForEach((e) => Effect.sync(() => { seen.push(e) }))))
+      const flappingOf = () => Effect.map(host.snapshot, (s) => (s.plugins.find((p) => p.id === "repro/dependent") as { flapping?: { discardedFailures: number } } | undefined)?.flapping)
+      yield* host.install(dep)
+      const lose = () => Effect.gen(function* () {
+        gate = Effect.runSync(Deferred.make<void>())                       // a fresh gate per attempt: the build reads it when it starts
+        yield* host.install(loggerPlugin(journal()))
+        yield* host.stepPlugin("example/logger"); yield* host.stepPlugin("repro/dependent")
+        const removal = yield* Effect.forkChild(host.remove("example/logger"))   // the stop waits for the running build (G-P14), which is now stale
+        while ((yield* stateOf(host, "repro/dependent")) !== "stopping") if (!(yield* host.step)) yield* Effect.yieldNow
+        yield* Deferred.succeed(gate, undefined)
+        yield* drive(host, Fiber.join(removal))
+        yield* idle(host)
+        for (let i = 0; i < 400 && !seen.some((e) => e.type === "build-finished" && (e as { stale?: boolean }).stale && (e as { discardedFailures?: number }).discardedFailures === attempts); i++) yield* Effect.sleep(2)
+      })
+      let attempts = 0
+      for (attempts = 1; attempts <= 2; attempts++) yield* lose()
+      expect(yield* flappingOf()).toBeUndefined()                            // below the limit
+      expect(seen.filter((e) => e.type === "build-flapping")).toHaveLength(0)
+      attempts = 3; yield* lose()
+      expect(yield* flappingOf()).toEqual({ discardedFailures: 3 })
+      for (let i = 0; i < 400 && !seen.some((e) => e.type === "build-flapping"); i++) yield* Effect.sleep(2)
+      expect(seen.filter((e) => e.type === "build-flapping")).toMatchObject([{ discardedFailures: 3 }])
+      // A real (non-stale) outcome clears the counter.
+      failing = false
+      yield* host.install(loggerPlugin(journal()))
+      gate = Effect.runSync(Deferred.make<void>()); yield* Deferred.succeed(gate, undefined)
+      yield* idle(host)
+      expect(yield* stateOf(host, "repro/dependent")).toBe("active")
+      expect(yield* flappingOf()).toBeUndefined()
+    }))
   })
 })

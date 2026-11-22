@@ -14,6 +14,7 @@ export type HostEventBody =
   | { readonly type: "plugin-removed" }
   | { readonly type: "build-started" }
   | { readonly type: "build-finished"; readonly durationMs: number; readonly outcome: "success" | "failure" | "interrupted"; readonly stale?: true; readonly discardedFailures?: number }
+  | { readonly type: "build-flapping"; readonly discardedFailures: number }
   | { readonly type: "state-changed"; readonly from: string; readonly to: string; readonly reason?: string; readonly trigger?: StateTrigger }
   | { readonly type: "runtime-failure"; readonly message: string }
   | { readonly type: "lease-revoked"; readonly leases: number; readonly generation?: string }

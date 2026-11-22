@@ -46,7 +46,8 @@ runtime.
 for the leases on it, and only then closes it. A dependent can still use its
 provider in its own finalizers. Waiting is bounded, and forcing is explicit
 for an operator's call: a call whose drain expires fails with `DrainTimeout`
-and leaves every stop it was driving parked for an operator to resume, while a
+and leaves every stop it was driving parked for an operator to resume or abort (an abort ends the parked intent
+with `intent-ended` and a `stop-aborted` event), while a
 stop that no caller waits for revokes at the limit rather than hang
 ([ADR-BR-015](./decisions/015-leases-one-primitive.md)). When a cascade or
 shutdown ends a parked operator intent instead, an `intent-ended` audit record
@@ -208,7 +209,8 @@ configuration values, keys, fibers or raw causes
 | Operations | `ReplaceError`, `UnknownPlugin`, `Conflict`, `Superseded`, `HostClosed`, `ConfigInvalid`, `CleanupError`, `IdleTimeout`, `DuplicateRealm`, `InvalidRealm` |
 | Policy | `ResolutionRefused`, `ChildNotAllowed`, `NoPluginPrincipal`, `AccessRefused`, `CallLogUnavailable`, `InvalidCallEntry`; defects `PrincipalForged`, `PrincipalRetired`, `AccessDenied`, `CapabilityDenied`, `DuplicateAnnotationKey`, `MonotonicAnnotation` |
 | Decisions, plans, realms, handoff | `HookRegistrationRefused`, `NoImplementation`, `PlanStale`, `PolicyMismatch`, `ApplyRolledBack`, `PartialApply`, `RealmInUse`, `FamilyMemberUnavailable`, `FamilyEvictionError`, `HandoffError` |
-| Leases | `ServiceUnavailable`, `LeaseRevoked`, `LeaseTimeout`, `DrainTimeout`, `WouldDeadlock`, `KeyMismatch` |
+| Leases | `ServiceUnavailable`, `LeaseRevoked`, `LeaseTimeout`, `DrainTimeout`, `WouldDeadlock`, `KeyMismatch`, `SettleTimeout` |
+| Replace | `ReplaceRolledBack` (`replace` with `onFailure: { rollback }`) |
 | Handles | `ActivationFailed`, `PluginRemoved`, `WaitTimeout` |
 | Helpers | `AdmissionClosed`, `DuplicateContribution`, `ContributionUnavailable`, `IncompatibleContract` (contract registries) |
 | GxP | `Unattributed`, `ReasonRequired`, `AuditUnavailable`, `AuditWriteFailed`, `OperationRejected`, `ConfigFingerprintUnavailable` (call error), `ConfigFingerprintFailed` (port error) |

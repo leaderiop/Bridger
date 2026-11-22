@@ -16,7 +16,8 @@
 
 ---
 
-`replace` is stop-then-start with no rollback
+`replace` is stop-then-start with rollback only on request
+(`onFailure`, BEH-BR-049)
 ([ADR-BR-004](../decisions/004-replace-is-stop-then-start.md)): the old
 activation's scope closes before the new build runs, so anything the plugin
 held in memory — a cache it took an hour to warm, the open positions of a
@@ -31,7 +32,10 @@ scope closes, the host holds the encoded value, and the new activation
 imports it after its build and before it is published. When the state cannot
 be carried across — the export fails, the new version cannot decode it, the
 new build fails — the new activation starts cold, and the loss is recorded.
-Stop-then-start, one provider per key and no rollback are unchanged. It has
+Stop-then-start and one provider per key are unchanged, and rollback stays
+opt-in (`onFailure`, BEH-BR-049): a rollback `replace` runs against a `failed`
+plugin, so it exports nothing, imports nothing and the held value is already
+dropped. It has
 no SPEC.md source section
 ([ADR-BR-049](../decisions/049-state-handoff-on-replace.md), complementing
 ADR-BR-004). This file owns BEH-BR-345–360 and uses BEH-BR-345–353;
@@ -233,7 +237,9 @@ Exporting after the drain means the state is quiescent: no admitted call is
 still changing it. Exporting before the scope closes means the services that
 hold it still exist. A stop that waits for a `DrainTimeout` and parks
 (BEH-BR-045) has not reached the export; the export runs when the stop
-resumes and its drain completes.
+resumes and its drain completes. An `abort` (08 — Operation Legality,
+BEH-BR-074) returns the plugin to `active` before the export, so it causes no
+export, no handoff record and no `HandoffAbandoned`; no value is held.
 
 **Settled here.** (1) An export that fails cannot hold up the stop: the old
 activation is already unavailable to new consumers, and a stop that waited
@@ -486,8 +492,8 @@ REQUIREMENT: The handoff MUST be abandoned, with tag `HandoffAbandoned`,
              that will be published: the new build fails or times out; the
              new definition's requirements are missing, so the plugin
              enters `waiting`; the plugin is removed, disabled or replaced
-             again before the new activation is published; or shutdown
-             begins — unless the superseding call passes `cold: true`, which
+             again before the new activation is published; its parked stop
+             is aborted; or shutdown begins — unless the superseding call passes `cold: true`, which
              abandons it with the skip record instead (below).
 ```
 
@@ -531,7 +537,8 @@ REQUIREMENT: A `replace` whose new definition is lazy, so that the plugin
 ```
 
 ```
-REQUIREMENT: A cascade that ends a parked `replace`'s intent before the
+REQUIREMENT: A cascade, an `abort` or shutdown that ends a parked
+             `replace`'s intent before the
              export (08 — Operation Legality, BEH-BR-080) MUST cause no
              export and no handoff record.
 ```
@@ -567,8 +574,9 @@ with no bound on its lifetime (NFR-BR-007).
 
 ```
 REQUIREMENT: Core documentation MUST state that handoff is not rollback
-             (a failed new build leaves the new definition `failed`,
-             BEH-BR-053), not persistence (state does not survive a process
+             (a failed new build leaves the plugin `failed` unless the caller
+             asked for `onFailure: { rollback }`, whose rollback is a second
+             `replace` that carries no state, BEH-BR-049, BEH-BR-053), not persistence (state does not survive a process
              restart), not a transaction over external effects, and not a
              way to run two versions at once.
 ```
