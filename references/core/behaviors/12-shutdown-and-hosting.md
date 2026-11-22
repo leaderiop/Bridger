@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.15 (2026-11-11): BEH-BR-110 a close-flush loss signalled as BEH-BR-108 states: `CloseTail.auditDegraded` for a terminal, `rejected` or system record or this shutdown's `requested` record, `lastWritten` below `lastNumbered` for a numbered one, the error log alone for any other never-numbered `requested` record (CL2) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.14 (2026-11-11): BEH-BR-108 a terminal, `rejected` or system record unwritten at the close flush's end sets the latch (`CloseTail.auditDegraded`) whether numbered or not; the error log alone covers a never-numbered `requested` record only (C2) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.13 (2026-11-11): BEH-BR-106 `CloseReport.stopped`, `failed` and `forced` name each plugin by `id` and `realm` (C2) (SPEC-AUDIT-05); BEH-BR-106 the final audit position read from `Host.controls().closed`; BEH-BR-108 a close-flush loss signalled by the error log and `CloseTail`, the lost reconcile record logged under BEH-BR-192's fourth exception and latched without a snapshot or event, Settled note; BEH-BR-109 a latch set after the final snapshot publishes nothing; BEH-BR-110 the shutdown's terminal-record loss signalled by `CloseTail` (C3, C4, C5) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-108 the wait for a running `reconcile`'s parent record applies only when an `AuditSink` is wired (C3); BEH-BR-108 and BEH-BR-110 a record lost in the close flush, and the shutdown's terminal record, are signalled by the error log and `Host.controls().auditPosition`, not by `CloseReport.auditDegraded`, which is produced before them (C5); BEH-BR-105 `WouldDeadlock` carries `realm` (C1) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-105 `shutdown`'s `WouldDeadlock` read from `CurrentTransition` only, after attribution and before the `requested` record (H1); BEH-BR-108 shutdown waits, bounded, for the parent terminal record of an in-flight `reconcile` before its report and terminal record, Settled note (C14); BEH-BR-109 a refused `shutdown` joins nothing (H1); BEH-BR-110 the union includes `WouldDeadlock` (H2) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-105 `shutdown` from a build, `load` or finalizer fiber of a plugin fails at once with `WouldDeadlock` and begins nothing; the Settled note limited to lease callbacks (C6) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-105 a `starting` plugin whose build has not begun is unregistered without a stop step when shutdown begins, like a `waiting` one, and gets no record of its own; every plugin shutdown moves through `stopping` gets its `system-stop` record (review of CCR-BR-032) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-105 once shutdown begins no plugin enters `starting` and no build or load begins, queued builds are cancelled, every stop ends "gone" (or `failed(cleanup)`), plugins with nothing to stop are unregistered in the first revision, Settled note; BEH-BR-109 the final snapshot defined (U-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.16 (2026-11-22): BEH-BR-105/109 stale build under shutdown, `awaitSettled`, shutdown vs `abort` (improvement report 01 audit)<br>0.15 (2026-11-11): BEH-BR-110 a close-flush loss signalled as BEH-BR-108 states: `CloseTail.auditDegraded` for a terminal, `rejected` or system record or this shutdown's `requested` record, `lastWritten` below `lastNumbered` for a numbered one, the error log alone for any other never-numbered `requested` record (CL2) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.14 (2026-11-11): BEH-BR-108 a terminal, `rejected` or system record unwritten at the close flush's end sets the latch (`CloseTail.auditDegraded`) whether numbered or not; the error log alone covers a never-numbered `requested` record only (C2) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.13 (2026-11-11): BEH-BR-106 `CloseReport.stopped`, `failed` and `forced` name each plugin by `id` and `realm` (C2) (SPEC-AUDIT-05); BEH-BR-106 the final audit position read from `Host.controls().closed`; BEH-BR-108 a close-flush loss signalled by the error log and `CloseTail`, the lost reconcile record logged under BEH-BR-192's fourth exception and latched without a snapshot or event, Settled note; BEH-BR-109 a latch set after the final snapshot publishes nothing; BEH-BR-110 the shutdown's terminal-record loss signalled by `CloseTail` (C3, C4, C5) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-108 the wait for a running `reconcile`'s parent record applies only when an `AuditSink` is wired (C3); BEH-BR-108 and BEH-BR-110 a record lost in the close flush, and the shutdown's terminal record, are signalled by the error log and `Host.controls().auditPosition`, not by `CloseReport.auditDegraded`, which is produced before them (C5); BEH-BR-105 `WouldDeadlock` carries `realm` (C1) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-105 `shutdown`'s `WouldDeadlock` read from `CurrentTransition` only, after attribution and before the `requested` record (H1); BEH-BR-108 shutdown waits, bounded, for the parent terminal record of an in-flight `reconcile` before its report and terminal record, Settled note (C14); BEH-BR-109 a refused `shutdown` joins nothing (H1); BEH-BR-110 the union includes `WouldDeadlock` (H2) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-105 `shutdown` from a build, `load` or finalizer fiber of a plugin fails at once with `WouldDeadlock` and begins nothing; the Settled note limited to lease callbacks (C6) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-105 a `starting` plugin whose build has not begun is unregistered without a stop step when shutdown begins, like a `waiting` one, and gets no record of its own; every plugin shutdown moves through `stopping` gets its `system-stop` record (review of CCR-BR-032) (CCR-BR-033)<br>0.8 (2026-11-09): BEH-BR-105 once shutdown begins no plugin enters `starting` and no build or load begins, queued builds are cancelled, every stop ends "gone" (or `failed(cleanup)`), plugins with nothing to stop are unregistered in the first revision, Settled note; BEH-BR-109 the final snapshot defined (U-01) (CCR-BR-032)<br>0.7 (2026-11-08): BEH-BR-105 `dormant` plugins unregistered without a stop step (CCR-BR-017)<br>0.6 (2026-10-03): BEH-BR-106 `CloseReport.auditLastSeq?`, the highest `auditSeq` written when the report is produced; the shutdown's own terminal record comes after it and is read from `Host.controls` (prototype finding G34) (CCR-BR-014)<br>0.5 (2026-10-02): The scope-close path flushes the audit writer before it closes (prototype finding G18) (CCR-BR-009)<br>0.4 (2026-10-02): Shutdown resumes parked stops of any kind under its own limits; never parks; ends parked intents with an `intent-ended` record; stops take no `concurrency` slot (CCR-BR-008)<br>0.3 (2026-10-02): ManagedRuntime build forced with runtime.context() (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -99,9 +99,13 @@ REQUIREMENT: A build or `load` running when shutdown begins MUST settle,
              bounded by `buildTimeout` (05 — Activation, BEH-BR-040), and
              MUST NOT be interrupted for shutdown. Its outcome, success or
              failure, MUST be discarded and never published
-             (05 — Activation, BEH-BR-039); the plugin MUST then close what
-             the build opened through `stopping`, with `reason` "shutdown"
-             and `next` "gone".
+             (05 — Activation, BEH-BR-039). After a successful build the
+             plugin MUST close what the build opened through `stopping`, with
+             `reason` "shutdown" and `next` "gone". After a failed build or
+             `load` nothing is open: the plugin is unregistered without a stop
+             step and with no system record, as for a plugin whose build never
+             began. A discarded failure under shutdown emits
+             `build-finished` with `stale: true` but not `build-flapping`.
 ```
 
 ```
@@ -126,7 +130,15 @@ REQUIREMENT: Shutdown MUST resume every parked stop — a parked operation or
              shutdown resumes it (04 — States and Snapshots, BEH-BR-027).
              Each resumption MUST emit a `stop-resumed` event with `by`
              "shutdown" and, when it ends a parked operator intent,
-             `endsIntent` (13 — Observability and Diagnostics).
+             `endsIntent` (13 — Observability and Diagnostics). An `abort`
+             (08, BEH-BR-074) is decided at its linearization point: if it
+             linearizes before shutdown begins, the plugin is `active` in
+             that revision, the `intent-ended` record is caused by the abort,
+             and shutdown stops the plugin as any `active` plugin; if it
+             linearizes after, it fails with `HostClosed` and shutdown
+             resumes the parked stop as above. A parked intent ends exactly
+             once, never with both an abort's and shutdown's `intent-ended`
+             record.
 ```
 
 ```
@@ -487,7 +499,9 @@ the base layer.
 ```
 REQUIREMENT: Once shutdown has started, every Host operation that has
              `HostClosed` in its error union MUST fail with `HostClosed`,
-             including `awaitIdle` and `inspect`.
+             including `awaitIdle`, `awaitSettled` and `inspect`. An
+             `awaitIdle` or `awaitSettled` already waiting when shutdown
+             begins MUST complete with `HostClosed`.
 ```
 
 ```

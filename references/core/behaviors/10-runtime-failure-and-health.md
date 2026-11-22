@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.14 (2026-11-11): BEH-BR-090 the host supervises each background fiber from outside, classifies a revocation exit and re-forks under the "restart" schedule; why a revocation is a failure here and not for a `whenAvailable` run (C7, CL6) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.13 (2026-11-11): BEH-BR-090 a background fiber interrupted by the revocation of a scoped lease it holds is a failure under its policy ("fail-plugin" reports a runtime failure, "restart" restarts it, "ignore" logs it), shown in `inspect` (C4); BEH-BR-089 `Plugin.Runtime.unmount` may fail with `CleanupError` (C3) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.12 (2026-11-11): BEH-BR-095 the cascades with no caller include the stops of a child's own dependents during its sub-scope close or unmount (CL3) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.11 (2026-11-11): BEH-BR-089 `Plugin.Runtime.unmount` may fail with `WouldDeadlock` (H1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.10 (2026-11-10): BEH-BR-096 names shutdown's unregistration as the one exit from a runtime `failed` that is not an operation, as INV-BR-007, ADR-BR-005 and BEH-BR-031 do (CL1); BEH-BR-090 an untracked fiber a build forks keeps `CurrentTransition` for life (C2); `Plugin.Runtime.useOptional` takes `options.timeout`, as BEH-BR-131 (CL6); the `EntitlementState` mode "unknown" is no longer core-only: a port may serve it itself (entitlement BEH-EN-005) (E3) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-095 a refused background restart is a cascade with no caller and revokes at the drain limit (C3) (CCR-BR-035)<br>0.8 (2026-11-08): BEH-BR-089 `Plugin.Runtime.unmount` for an attributed child removal (14, BEH-BR-126); BEH-BR-090 a wired `RefusalList` is consulted before each background restart (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-089: `EntitlementView` failure modes (one `watch` per activation, shared latest-wins, unbounded first element, ended port yields a stale state once); unwired mode `unmetered`, core-only mode `unknown` (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-089 `Plugin.Runtime` gains `principal` and `asSelf` and `install` may fail with `ChildNotAllowed` (CCR-BR-018); `install` takes `Plugin.Any`, and the optional `EntitlementView` port with `Plugin.Runtime.entitled` (CCR-BR-020)<br>0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.15 (2026-11-22): BEH-BR-091/092 abort retains a swallowed signal and resumes the health loop; stale build signals (improvement report 01 audit)<br>0.14 (2026-11-11): BEH-BR-090 the host supervises each background fiber from outside, classifies a revocation exit and re-forks under the "restart" schedule; why a revocation is a failure here and not for a `whenAvailable` run (C7, CL6) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.13 (2026-11-11): BEH-BR-090 a background fiber interrupted by the revocation of a scoped lease it holds is a failure under its policy ("fail-plugin" reports a runtime failure, "restart" restarts it, "ignore" logs it), shown in `inspect` (C4); BEH-BR-089 `Plugin.Runtime.unmount` may fail with `CleanupError` (C3) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.12 (2026-11-11): BEH-BR-095 the cascades with no caller include the stops of a child's own dependents during its sub-scope close or unmount (CL3) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.11 (2026-11-11): BEH-BR-089 `Plugin.Runtime.unmount` may fail with `WouldDeadlock` (H1) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.10 (2026-11-10): BEH-BR-096 names shutdown's unregistration as the one exit from a runtime `failed` that is not an operation, as INV-BR-007, ADR-BR-005 and BEH-BR-031 do (CL1); BEH-BR-090 an untracked fiber a build forks keeps `CurrentTransition` for life (C2); `Plugin.Runtime.useOptional` takes `options.timeout`, as BEH-BR-131 (CL6); the `EntitlementState` mode "unknown" is no longer core-only: a port may serve it itself (entitlement BEH-EN-005) (E3) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-095 a refused background restart is a cascade with no caller and revokes at the drain limit (C3) (CCR-BR-035)<br>0.8 (2026-11-08): BEH-BR-089 `Plugin.Runtime.unmount` for an attributed child removal (14, BEH-BR-126); BEH-BR-090 a wired `RefusalList` is consulted before each background restart (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-089: `EntitlementView` failure modes (one `watch` per activation, shared latest-wins, unbounded first element, ended port yields a stale state once); unwired mode `unmetered`, core-only mode `unknown` (CCR-BR-022)<br>0.6 (2026-11-08): BEH-BR-089 `Plugin.Runtime` gains `principal` and `asSelf` and `install` may fail with `ChildNotAllowed` (CCR-BR-018); `install` takes `Plugin.Any`, and the optional `EntitlementView` port with `Plugin.Runtime.entitled` (CCR-BR-020)<br>0.5 (2026-10-03): A phase-"cleanup" failure is left only by `remove` (consistency pass) (CCR-BR-013)<br>0.4 (2026-10-02): `Plugin.Runtime.install` also fails with `Conflict` and `HostClosed` (prototype finding G19) (CCR-BR-010)<br>0.3 (2026-10-02): An in-flight health check is interrupted when the stop begins (prototype finding G17) (CCR-BR-009)<br>0.2 (2026-10-02): Cascades with no caller drain under `drainTimeout` and revoke, never park; shutdown revokes only after its overall limit; an ended parked intent gets an `intent-ended` record (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -283,7 +283,11 @@ REQUIREMENT: `reportFailure(cause)` on an `active` plugin MUST start the
 ```
 REQUIREMENT: Several runtime failure signals for the same activation MUST
              result in one transition. Signals after the first MUST be
-             logged and MUST NOT start a second transition.
+             logged and MUST NOT start a second transition. A signal
+             swallowed because the plugin is `stopping` under a parked stop
+             (BEH-BR-091) is not "the first": it is retained, and if the stop
+             is aborted (08, BEH-BR-074) it starts the runtime failure
+             transition (BEH-BR-094) in the revision after the abort.
 ```
 
 ```
@@ -302,7 +306,13 @@ signal raised while the plugin is already `stopping` for another reason is
 logged and emitted as a `runtime-failure` event but does not change the
 destination of the stop already in flight: the plugin is already leaving
 service, and redirecting a caller's `remove` into `failed` would contradict
-the operation that caller recorded.
+the operation that caller recorded. If that stop is parked and later aborted
+(08 — Operation Legality, BEH-BR-074) the plugin returns to `active`, so the
+first swallowed signal is retained and then starts the runtime failure
+transition; a signal swallowed under a stop that completes is dropped with
+the activation. A signal that arrives while the plugin is still `starting` and
+whose build is stale (05 — Activation, BEH-BR-039) is discarded with the
+build's outcome and counted in `discardedFailures`.
 
 ## BEH-BR-092: Health checks run only while active
 
@@ -381,6 +391,11 @@ REQUIREMENT: When the plugin leaves `active` for any reason (removal,
              replacement, dependency loss, runtime failure, disable, restart,
              reconfigure or shutdown), an in-flight check MUST be interrupted
              and its outcome discarded. It MUST NOT be counted as a failure.
+             When `abort` (08, BEH-BR-074) returns the plugin to `active`, the
+             host MUST resume the check loop in that revision: `health` and
+             the consecutive-failure count are those held when the stop began,
+             the interrupted check is discarded and not counted, and no
+             `health-degraded` record is written for the return.
 ```
 
 ```

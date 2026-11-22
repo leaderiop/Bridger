@@ -165,7 +165,16 @@ A plugin is settled when it has no transition running or ready and no operation 
 
 **Cost/risk.** Tooling work, no semantic change. **Verification.** CI check; prototype `legality.ts` generated from it and the 56 + 28 cell tests still pass.
 
-## Not checked / uncertainties
+## Verification of the original uncertainties (2026-11-22)
+
+- **Files 09, 10, 12, 14, 34 (read in full, 2026-11-22).** Found and fixed: abort wording in 09, a swallowed runtime-failure signal lost across an abort (now retained and replayed), health loop and counters across an abort, stale build under shutdown, shutdown versus abort, `awaitSettled` in `HostClosed` and `WouldDeadlock`, handoff text that contradicted abort. Two real unsoundness cases in `abort` were fixed in spec and prototype: a stop that already removed a child cannot be aborted (`child-removed`), and a dependent returns only when all its providers are active or return with it (`provider-stopping`).
+- **Stop path after line 1548.** Traced: every site that sets `failed` for a build, load or activation is guarded by the epoch check, so a stale build cannot mark a plugin failed; the cleanup failure site is a real stop failure. Mutation-checked by tests.
+- **Companions and docs.** Searched references/kit, the loader, remote, federation and ERP specs and the docs folder. Fixed `docs/SPEC.md`, ERP-RUNTIME, FOLDKIT-API, REACT-UI-PLUGINS, ERP-BROWSER, the error catalogues and the devtools `why` rule. Loader, remote and federation had no conflicts.
+- **BEH-BR-347 and cost.** Read: the export runs after the drain and before the scope closes, so an abort causes no export; BEH-BR-347 is unaffected. Measured in the prototype test host (200 iterations, one machine): `replace` 3.9 ms, `replace` with rollback on the success path 4.7 ms, `restart` 3.6 ms, park and abort about 4 ms beyond the forced 5 ms drain.
+- **As built differs from proposed.** R2 uses a restart oracle plus a mutation-checked stale-discard property instead of the proposed failed-set equality. R1 names its signal `build-flapping` (`plugin-stalled` already exists). R9 releases the slot (no fail-fast). R6 is `awaitSettled(refs | {scope})`; R4 is `onFailure` and reconcile `settle`.
+- **Diagrams.** Still simplified sketches, not spec extracts; the R1 figure now names `build-flapping`, other figures keep the proposed shapes listed above.
+
+## Original uncertainties (as first written)
 
 - I read behaviours 04-08 and 13/18 and ADR-004/010/051 in full; files 09 (leases), 10, 12 (shutdown), 34 (handoff) and 14 only through headings, the RESULTS.md findings and targeted greps. Contradictions there may remain.
 - Prototype conclusions rely on `host.ts` lines 255-270, 1085-1170 and 1540-1550 and grep over `test/`; I did not run the suite. The L1 claim (silent discard) comes from reading line 1125 and its surrounding branch; a separate path in the stop code (line 1548 onward) might record failure for provider-loss, which I did not trace.

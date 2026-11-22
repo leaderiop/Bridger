@@ -262,6 +262,8 @@ interface Entry {
   cleanupFailed: boolean
   failure?: { phase: string; message: string }
   stopReason?: string
+  childRemoved?: boolean                      // a child of this activation was removed by its stop: the stop can no longer be aborted (BEH-BR-074)
+  heldFailure?: string                        // a runtime-failure signal swallowed by a parked stop; replayed if the stop is aborted (BEH-BR-091)
   stopCause?: string                          // the provider whose stop started this dependency-loss stop (R7 causeSeq)
   scope?: Scope.Closeable
   services?: Context.Context<any>
@@ -1006,7 +1008,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (yield* refusedStart(e)) { changed = true; continue }
       e.providers = new Map(e.def.requires.map((k) => [sid(k), Option.getOrThrow(activeProvider(sid(k), e.realm)).id]))
       e.capturedActs = new Map([...new Set(e.providers.values())].flatMap((id) => { const a = entries.get(id)?.activation; return a === undefined ? [] : [[id, a] as [string, number]] }))
-      e.state = "starting"; e.epoch++; e.activation = ++activationSeq; e.buildBegun = false; changed = true
+      e.state = "starting"; e.heldFailure = undefined; e.childRemoved = false; e.epoch++; e.activation = ++activationSeq; e.buildBegun = false; changed = true
       e.cause = e.wakeCause ?? (yield* CurrentCause); e.wakeCause = undefined
       retire(e.principal)
       e.principal = mint({ id: e.pluginId, realm: e.realm, ...defRef(e.def), revision: revision + 1 })   // BEH-BR-257
@@ -1373,6 +1375,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (e.epoch !== epoch || entries.get(e.id) !== e) return
     if (e.state === "starting") { e.pendingFailure ??= message; return }
     if (e.state !== "active" || e.failing || flights.has(e.id) || closing) {
+      // A parked stop may be aborted, which returns the plugin to service: keep the first signal for it (BEH-BR-091).
+      if (!closing && e.state === "stopping" && e.scope && (e.parkedSystem || flights.get(e.id)?.parked)) e.heldFailure ??= message
       yield* Effect.logWarning(`runtime failure of ${e.id} ignored: already leaving service`)
       yield* emit({ type: "runtime-failure", message }, e.id)
       return
@@ -1516,7 +1520,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (pf?.parked) yield* endIntent(d, pf, "cascade")
       else if (d.parkedSystem) yield* emit({ type: "stop-resumed", by: "cascade" }, d.id)
       d.stopCause = id
-      if (isChild && !d.removing) { d.removing = true; yield* commit }
+      if (isChild && !d.removing) { d.removing = true; const parent = entries.get(id); if (parent) parent.childRemoved = true; yield* commit }
     }))
     const r = yield* Effect.exit(stopTree(d.id, "dependency-loss", { ...opts, land: undefined, correlationId: undefined }, id, root))
     if (Exit.isFailure(r)) {
@@ -2284,15 +2288,24 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         if (e.parkedSystem && !f) return yield* Effect.fail(new Conflict({ id, pending: "dependency-loss" }))   // abort the root of the cascade
         if (!f || !f.parked) return yield* Effect.fail(new Conflict({ id, pending: f?.op ?? "stopping" }))      // the drain still runs, or no operation owns the stop
         if (e.removing || !e.scope) return yield* Effect.fail(new Conflict({ id, pending: f.op }))              // a child removal, or a scope already closed
-        const parkedDependents = [...transitiveDependents(id)].map((d) => entries.get(d)!).filter((d) => d.state === "stopping" && d.parkedSystem && !!d.scope)
+        if (e.childRemoved) return yield* Effect.fail(new Conflict({ id, pending: "child-removed" }))          // a child's lifetime is its parent's activation (BEH-BR-121)
+        const providerStopping = (d: Entry, revive: ReadonlySet<Entry>) => [...new Set(d.providers.values())].some((pid) => { const p = entries.get(pid); return p !== undefined && p !== d && !revive.has(p) && p.state !== "active" })
+        if (providerStopping(e, new Set())) return yield* Effect.fail(new Conflict({ id, pending: "provider-stopping" }))   // it would return to `active` on a stopping provider
+        // A dependent returns only if every provider it requires is `active` or returns in the same revision; otherwise it stays a parked stop owned by the other root.
+        const revive = new Set<Entry>([e, ...[...transitiveDependents(id)].map((d) => entries.get(d)!).filter((d) => d.state === "stopping" && d.parkedSystem && !!d.scope && !d.removing)])
+        for (let changed = true; changed;) { changed = false; for (const d of revive) if (d !== e && providerStopping(d, revive)) { revive.delete(d); changed = true } }
+        const parkedDependents = [...revive].filter((d) => d !== e)
         yield* locked(Effect.gen(function* () {
-          for (const d of [e, ...parkedDependents]) {
+          for (const d of revive) {
             d.state = "active"; d.stopReason = undefined; d.parkedSystem = false; d.stepRunning = false; d.drained = undefined
             if (d.restartHealth) yield* d.restartHealth
           }
           yield* endIntent(e, f, "abort")
         }))
+        for (const d of parkedDependents) yield* emit({ type: "stop-aborted" }, d.id)                              // closes each revived dependent's `stop-parked`
         yield* settle
+        // A signal swallowed while the stop was parked starts its failure transition now, in a later revision (BEH-BR-091).
+        for (const d of [e, ...parkedDependents]) if (d.heldFailure !== undefined) { const m = d.heldFailure; d.heldFailure = undefined; yield* failRuntime(d, d.epoch, m) }
         return { value: undefined }
       }))
     })

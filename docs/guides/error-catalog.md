@@ -71,7 +71,7 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: core · raised by: illegal operation pairs; child install after parent stop began
 
-- **Cause.** Another operation on the plugin is pending and this pair is illegal (ADR-BR-013), or the call would join it with a different `cold` (BEH-BR-353; `reason` "cold-mismatch", absent otherwise).
+- **Cause.** Another operation on the plugin is pending and this pair is illegal (ADR-BR-013), or the call would join it with a different `cold` (BEH-BR-353; `reason` "cold-mismatch", absent otherwise). `abort` (BEH-BR-074) raises it for a plugin that is not parked: `pending` is "not-parked", "dependency-loss", "child-removed", "provider-stopping" or the operation in flight.
 - **Example.** `host.enable("x")` while a `remove("x")` is still pending; `restart("x", { cold: true })` while a warm `restart("x")` is in flight.
 - **Fix.** Wait for the pending operation (`inspect(...).pending`) and retry; on "cold-mismatch", join with the `cold` that `inspect(...).pending.cold` shows, or wait.
 

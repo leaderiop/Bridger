@@ -78,3 +78,22 @@ describe("BEH-BR-039: repeated discarded failures mark the build flapping", () =
     }))
   })
 })
+
+describe("BEH-BR-105: a build that fails after shutdown began is discarded, not `failed`", () => {
+  it("the stale failure leaves the host closing cleanly with the plugin unregistered", async () => {
+    const gate = Effect.runSync(Deferred.make<void>())
+    const dep = define({ id: "slow", requires: [] as const, provides: [] as const, build: Layer.effectDiscard(Deferred.await(gate).pipe(Effect.andThen(Effect.fail("late")))) as never }) as unknown as AnyPlugin
+    await withHost((host) => Effect.gen(function* () {
+      const seen: HostEvent[] = []
+      yield* Effect.forkScoped(host.events.pipe(Stream.runForEach((e) => Effect.sync(() => { seen.push(e) }))))
+      yield* host.install(dep); yield* host.stepPlugin("slow")
+      const closing = yield* Effect.forkChild(host.shutdown())
+      for (let i = 0; i < 50; i++) yield* Effect.yieldNow
+      yield* Deferred.succeed(gate, undefined)
+      const report = yield* drive(host, Fiber.join(closing))
+      expect(JSON.stringify(report)).not.toContain("slow")                         // no cleanup failure, nothing left over
+      for (let i = 0; i < 100; i++) yield* Effect.yieldNow
+      expect(seen.some((e) => e.type === "build-flapping")).toBe(false)
+    }))
+  })
+})
