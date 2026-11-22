@@ -61,7 +61,7 @@ export const HostLink = {
   none: { declaredContributions: () => Effect.succeed([]), wake: () => Effect.succeed({ triggered: [] }) } as HostLinkShape
 }
 /** A captured provider: its id and the activation captured ("base" services have none), report 01 R3. */
-export type ProviderRef = { readonly id: string; readonly activation?: number }
+export type ProviderRef = { readonly id: string; readonly realm?: string; readonly activation?: number }
 export type PluginSnapshot = { readonly id: string; readonly realm: string; readonly parentId?: string; readonly meta?: AnyPlugin["meta"]; readonly lazy?: { readonly loaded: boolean } } & (
   | { readonly state: "dormant"; readonly triggers: ReadonlyArray<LazyTrigger> }
   | { readonly state: "waiting"; readonly missingServiceIds: ReadonlyArray<string> }
@@ -260,6 +260,7 @@ interface Entry {
   cleanupFailed: boolean
   failure?: { phase: string; message: string }
   stopReason?: string
+  stopCause?: string                          // the provider whose stop started this dependency-loss stop (R7 causeSeq)
   scope?: Scope.Closeable
   services?: Context.Context<any>
   providers: Map<string, string>              // captured serviceId → provider id ("base" for base services)
@@ -518,7 +519,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const gateTimeout = options.gateTimeout ?? 60_000
   const attribution = options.attribution ?? {}
   let activationSeq = 0
-  let lastStoppingSeq: { id: string; seq: number } | undefined
+  const stoppingSeq = new Map<string, number>()   // plugin id → seq of its latest `stopping` state-changed event (R7)
   let degradedHook: (why: string) => Effect.Effect<void> = () => Effect.void
   const events = yield* makeEvents(hostId, options.eventBuffer ?? 1024)
   const emit = (body: HostEventBody, pluginId?: string, extra: EventExtra = {}) =>
@@ -672,7 +673,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }
 
   // ---------------------------------------------------------------- snapshots (BEH-BR-027..030)
-  const providerRefs = (e: Entry): ReadonlyArray<ProviderRef> => [...new Set(e.providers.values())].map((id) => e.capturedActs.has(id) ? { id, activation: e.capturedActs.get(id)! } : { id })
+  const providerRefs = (e: Entry): ReadonlyArray<ProviderRef> => [...new Set(e.providers.values())].map((id) => { const p = entries.get(id); return { id: p?.pluginId ?? id, ...(p ? { realm: p.realm } : {}), ...(e.capturedActs.has(id) ? { activation: e.capturedActs.get(id)! } : {}) } })
   const snapshotOf = (): HostSnapshot => ({
     revision,
     plugins: [...entries.values()].sort((a, b) => a.order - b.order).map((e): PluginSnapshot => {
@@ -717,10 +718,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
           : e.state === "starting" && from === "waiting" ? "provider-return"
           : e.state === "failed" ? (e.failure?.phase === "build" || e.failure?.phase === "cleanup" ? "system" : "runtime-failure")
           : "operator"
-        // shortcut: causeSeq is the latest earlier `stopping` event of another plugin for a dependency-loss, else absent; precise per-edge causation needs the stop to record its originator
-        const causeSeq = trigger === "dependency-loss" ? lastStoppingSeq : undefined
-        const seq = yield* emit({ type: "state-changed", from, to: e.state, trigger, ...(e.state === "stopping" && e.stopReason ? { reason: e.stopReason } : {}) }, e.id, causeSeq !== undefined && causeSeq.id !== e.id ? { causeSeq: causeSeq.seq } : {})
-        if (e.state === "stopping") lastStoppingSeq = { id: e.id, seq }
+        const causeSeq = trigger === "dependency-loss" && e.stopCause !== undefined ? stoppingSeq.get(e.stopCause) : undefined   // the provider's own stop, not merely the latest one
+        const seq = yield* emit({ type: "state-changed", from, to: e.state, trigger, ...(e.state === "stopping" && e.stopReason ? { reason: e.stopReason } : {}) }, e.id, causeSeq !== undefined ? { causeSeq } : {})
+        if (e.state === "stopping") stoppingSeq.set(e.id, seq)
+        else e.stopCause = undefined
       }
       lastStates.set(e.id, e.state)
     }
@@ -1510,6 +1511,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       const pf = flights.get(d.id)
       if (pf?.parked) yield* endIntent(d, pf, "cascade")
       else if (d.parkedSystem) yield* emit({ type: "stop-resumed", by: "cascade" }, d.id)
+      d.stopCause = id
       if (isChild && !d.removing) { d.removing = true; yield* commit }
     }))
     const r = yield* Effect.exit(stopTree(d.id, "dependency-loss", { ...opts, land: undefined, correlationId: undefined }, id, root))

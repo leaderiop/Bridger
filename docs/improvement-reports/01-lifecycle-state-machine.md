@@ -180,12 +180,12 @@ Branch `spec/lifecycle-report-01`; prototype suite 368/368, `verify-traceability
 | Finding | Rec. | Status | Notes |
 | --- | --- | --- | --- |
 | L1 / L8 | R1 | Resolved | BEH-BR-039 rewritten: stale outcomes always discarded; `build-finished` carries `stale` and `discardedFailures`. Prototype and tests match. |
-| L2 | R2 | Spec only | BEH-BR-160 failure bound added. No randomized failure-injection confluence test yet. |
-| L3 | R3 | Resolved | `activation` on starting/active; `providerIds` carry the captured activation (prototype lacks `realm` in entries). |
+| L2 | R2 | Resolved | BEH-BR-160 failure bound added; randomized failure-injection confluence tests (`confluence-faults.test.ts`) with a mutation-checked stale-discard property. |
+| L3 | R3 | Resolved | `activation` on starting/active; `providerIds` carry the provider's `realm` and the captured activation. |
 | L4 | R4 | Resolved | `replace` `onFailure: {rollback}` and reconcile `settle` (with `atomic`). |
-| L5 | R5 | Resolved | `abort` of a parked stop, folded into BEH-BR-074; tables gain an `abort` column. |
+| L5 | R5 | Resolved | `abort` of a parked stop, folded into BEH-BR-074; tables gain an `abort` column; tests cover remove, health-loop restart and `whenAvailable` re-run. |
 | L6 | R6 | Resolved | `awaitSettled(refs | {scope})` and `SettleTimeout`. |
-| L7 | R7 | Resolved | Events carry `revision`, `activation`, `causeSeq`; `state-changed.trigger`. `causeSeq` is a heuristic. |
+| L7 | R7 | Resolved | Events carry `revision`, `activation`, `causeSeq`; `state-changed.trigger`. `causeSeq` of a dependency-loss stop names the causing provider's own `stopping` event (per edge). |
 | L9 | R8 | Resolved | `Runtime.optional` is an existence witness; the service only through `useOptional`. |
 | L10 | R9 | Resolved | A build awaiting a child releases its slot for the wait. |
 | L11 | R10 | Resolved | `transitions.yaml` ledger, generated `legality.table.ts`, drift test. |
