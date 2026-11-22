@@ -8,3 +8,6 @@ entries:
   - file: "b-partner-publishing.md"
     id: "BRIDGER-KT-APP-B"
     title: "Partner publishing guide"
+  - file: "c-ui-adapter-scenarios.md"
+    id: "BRIDGER-KT-APP-C"
+    title: "UI adapter scenarios"

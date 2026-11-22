@@ -1,5 +1,7 @@
 # Proposed `@bridger/react` API
 
+> **Conformance.** The client behaviours shared with [FOLDKIT-API.md](./FOLDKIT-API.md) are the ten scenarios of [kit appendix C](../references/kit/appendices/c-ui-adapter-scenarios.md); this adapter runs them in its tests.
+
 Status: design examples for review (proposed; revised 2026-11-08, round 2). These APIs do not exist yet and have not been implemented or type-checked. The examples target a client-rendered React application and reuse the `Audit`, `audit`, and `logger` definitions from `SPEC.md`.
 
 `@bridger/react` adapts the generic Bridger host to React. Plugin definitions still use `@bridger/core`. The adapter owns React subscriptions and component actions; the core owns activation, dependency ordering, leases, and finalizers.

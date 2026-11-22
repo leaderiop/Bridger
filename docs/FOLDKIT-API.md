@@ -1,5 +1,7 @@
 # Proposed `@bridger/foldkit` API
 
+> **Conformance.** The client behaviours shared with [REACT-API.md](./REACT-API.md) are the ten scenarios of [kit appendix C](../references/kit/appendices/c-ui-adapter-scenarios.md); this adapter runs them in its tests.
+
 Status: API design for review, checked against the public FoldKit documentation on 2026-10-02. Bridger APIs below are proposed, unimplemented, and not type-checked. Examples reuse `Audit`, `audit`, and `logger` from the core's [worked example](../references/core/overview.md#worked-example), exported from an application-owned `./plugins` module.
 
 The adapter connects a Bridger host to FoldKit's Model → Message → update → Command loop. Plugins keep their ordinary `@bridger/core` definitions. The Model contains data describing the host; live services and scopes stay in Effect resources.
