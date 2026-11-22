@@ -297,3 +297,24 @@ export const verifyRevocationList = (env: SignedRevocationList, o: { readonly is
   if (o.heldRevision !== undefined && list.revision <= o.heldRevision) throw new RevocationRejected("not-newer", `revision ${list.revision} is not greater than ${o.heldRevision}`)
   return list
 }
+
+// ---------------------------------------------------------------- resident revoked code (BEH-LD-031)
+/** The revoked digests whose code is still resident in this process, installed or not (BEH-LD-031): they stay until the process restarts. */
+export const residentRevoked = (resident: Iterable<string>, revoked: ReadonlySet<string>): ReadonlyArray<string> =>
+  [...new Set(resident)].filter((d) => revoked.has(d)).sort()
+
+/**
+ * A gate piece that refuses operator calls while a revoked module is still resident (BEH-LD-031, `restartRequired`). Under `strict` the
+ * condition lasts until a new process incarnation, as the code does; it is opt-in per deployment and never returns `Defer`. A federation
+ * kill frame reaches it through the same revocation set (federation BEH-FD-041), so it needs no second path.
+ * The piece reports "resident-revoked"; `Gate.all` prefixes its name, so the approval gate's closed list of eleven reasons is untouched.
+ */
+export const restartGate = (
+  status: { readonly current: Effect.Effect<{ readonly residentRevoked: ReadonlyArray<string> }> },
+  options: { readonly policy: "strict" | "off"; readonly allow: ReadonlyArray<string> }
+): import("./gate.js").Gate<import("./gxp.js").OperationRequest> => ({
+  decide: (request) => Effect.map(status.current, (s) =>
+    options.policy === "strict" && s.residentRevoked.length > 0 && !options.allow.includes(request.operation)
+      ? { _tag: "Refuse", reason: "resident-revoked" } as const
+      : { _tag: "Allow" } as const)
+})
