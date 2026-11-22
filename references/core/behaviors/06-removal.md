@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.10 (2026-11-22): BEH-BR-046 closing an activation scope is bounded by `closeTimeout`; the close continues detached and claims no release (improvement report 03, R1, T1)<br>0.9 (2026-11-21): BEH-BR-045 a parked stop is republished only by `abort` (improvement report 01, R5)<br>0.8 (2026-11-11): BEH-BR-043 a child whose cleanup fails in a removal not under shutdown is unregistered at once, the leak acknowledged by the system, and a child whose removal or take-over its sub-scope close or `unmount` began is waited for by the cascade, not removed again (R1, C1, C4); BEH-BR-047 a system removal unregisters a `failed(cleanup)` child, logging the leak as acknowledged by the system; under shutdown it stays (R1, C4, C5); second pass (cleanest design): BEH-BR-047 defines once the system acknowledgement — its triggers (a child's removal by the system, a prune `remove` with `pruneAcknowledgeLeaks` as families and ephemeral realms issue it), its effect (unregister in the removal's turn, no cleanup re-run), its warning log and its `leak-acknowledged` record by `Actor.system`; BEH-BR-043 cites it (SPEC-AUDIT-09) (CCR-BR-041)<br>0.7 (2026-11-11): BEH-BR-043 a child of the leaving provider whose cleanup fails stays registered `failed` (cleanup) (C3) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.6 (2026-11-11): BEH-BR-045 `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`; BEH-BR-046 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.11 (2026-11-22): BEH-BR-046 and BEH-BR-047 `CleanupError`, the failure and the `leak-acknowledged` error list every failed finalizer in `causes` (improvement report 03, R2, T3)<br>0.10 (2026-11-22): BEH-BR-046 closing an activation scope is bounded by `closeTimeout`; the close continues detached and claims no release (improvement report 03, R1, T1)<br>0.9 (2026-11-21): BEH-BR-045 a parked stop is republished only by `abort` (improvement report 01, R5)<br>0.8 (2026-11-11): BEH-BR-043 a child whose cleanup fails in a removal not under shutdown is unregistered at once, the leak acknowledged by the system, and a child whose removal or take-over its sub-scope close or `unmount` began is waited for by the cascade, not removed again (R1, C1, C4); BEH-BR-047 a system removal unregisters a `failed(cleanup)` child, logging the leak as acknowledged by the system; under shutdown it stays (R1, C4, C5); second pass (cleanest design): BEH-BR-047 defines once the system acknowledgement — its triggers (a child's removal by the system, a prune `remove` with `pruneAcknowledgeLeaks` as families and ephemeral realms issue it), its effect (unregister in the removal's turn, no cleanup re-run), its warning log and its `leak-acknowledged` record by `Actor.system`; BEH-BR-043 cites it (SPEC-AUDIT-09) (CCR-BR-041)<br>0.7 (2026-11-11): BEH-BR-043 a child of the leaving provider whose cleanup fails stays registered `failed` (cleanup) (C3) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.6 (2026-11-11): BEH-BR-045 `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`; BEH-BR-046 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -347,6 +347,19 @@ REQUIREMENT: When closing a plugin's activation scope fails, the host MUST
 ```
 
 ```
+REQUIREMENT: The host MUST report every failure of the close, not the first
+             alone: `CleanupError`, the `failure` of the `failed` snapshot
+             entry with phase "cleanup", and the `error` of a
+             `leak-acknowledged` record carry `causes`, one
+             `{ message, label? }` for each finalizer that failed, in the
+             order the finalizers ran (last acquired first), and `message`
+             equals the first of them. `label` names the resource when it was
+             acquired through `Plugin.Runtime.acquire` (13 — Observability and
+             Diagnostics, BEH-BR-119) and is otherwise absent. A close that
+             timed out is one cause naming the limit.
+```
+
+```
 REQUIREMENT: Closing one activation scope MUST be bounded by
              `BridgerOptions.closeTimeout` (default 30 seconds; "forever" only
              when stated explicitly, 02). When it expires with a finalizer
@@ -361,7 +374,7 @@ REQUIREMENT: Closing one activation scope MUST be bounded by
 
 ```
 REQUIREMENT: A `remove` whose own target's cleanup failed MUST fail with
-             `CleanupError { id, realm, message }` and MUST NOT unregister the
+             `CleanupError { id, realm, message, causes }` and MUST NOT unregister the
              plugin.
 ```
 
@@ -409,7 +422,7 @@ REQUIREMENT: `remove` of a plugin in `failed` with phase "cleanup" MUST
 REQUIREMENT: Such a removal MUST be reported as an acknowledgement of a
              leak, never as a successful cleanup: the host MUST log at
              warning level that the leak recorded for that plugin was
-             acknowledged by this removal, with the original cleanup message.
+             acknowledged by this removal, with the original cleanup message and every cause.
 ```
 
 ```
@@ -467,8 +480,8 @@ REQUIREMENT: The system acknowledgement MUST be made within the plugin's
                `operation` "leak-acknowledged" (23 — Audit Sink and
                Record, BEH-BR-199): actor `Actor.system`, no `reason`,
                `target` the plugin, `before.state` "failed", no `after`,
-               `error` `{ _tag: "CleanupError", message }` with the
-               original cleanup message, and as `causationId` the
+               `error` `{ _tag: "CleanupError", message, causes }` with the
+               original cleanup message and causes, and as `causationId` the
                `recordId` of the plugin's `system-stop` record when the
                failure arose in a stop by the system, of the prune
                `remove`'s `requested` record when it arose in that

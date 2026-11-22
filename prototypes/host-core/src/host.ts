@@ -13,7 +13,7 @@
 //  - Children, realms, interception, optional dependencies and reconcile: phase P4 (RESULTS.md).
 import { Cause, Clock, Context, Deferred, Duration, Effect, Exit, Fiber, Layer, Option, Schedule, Schema, Scope, Semaphore, Stream, SubscriptionRef } from "effect"
 import {
-  CleanupError, Conflict, DependencyCycle, DrainTimeout, DuplicatePlugin, DuplicateProvider, HostClosed,
+  CleanupError, type CleanupCause, Conflict, DependencyCycle, DrainTimeout, DuplicatePlugin, DuplicateProvider, HostClosed,
   InvalidDefinition, LeaseRevoked, LeaseTimeout, ReplaceRolledBack, SettleTimeout, ServiceUnavailable, UnknownPlugin, WouldDeadlock,
   ActivationFailed, PluginRemoved, type InstallError, ReplaceError, Superseded, ConfigInvalid, UnknownRealm, DuplicateRealm, IncompatibleContract, IncompatibleEngine, LoadFailed, ManifestMismatch, PlanStale, RealmInUse, ApplyRolledBack, PartialApply
 } from "./errors.js"
@@ -68,7 +68,7 @@ export type PluginSnapshot = { readonly id: string; readonly realm: string; read
   | { readonly state: "starting"; readonly activation: number; readonly providerIds: ReadonlyArray<ProviderRef>; readonly loading?: boolean }
   | { readonly state: "active"; readonly activation: number; readonly providerIds: ReadonlyArray<ProviderRef>; readonly health: "healthy" | "degraded" | "unknown" }
   | { readonly state: "stopping"; readonly reason: string; readonly parked: boolean; readonly next?: "gone" }
-  | { readonly state: "failed"; readonly failure: { readonly phase: string; readonly message: string }; readonly missingServiceIds: ReadonlyArray<string> }
+  | { readonly state: "failed"; readonly failure: { readonly phase: string; readonly message: string; readonly causes?: ReadonlyArray<CleanupCause> }; readonly missingServiceIds: ReadonlyArray<string> }
   | { readonly state: "disabled"; readonly reason?: "refused-digest" }
 )
 export interface HostSnapshot {
@@ -269,7 +269,7 @@ interface Entry {
   def: AnyPlugin
   state: PluginState
   cleanupFailed: boolean
-  failure?: { phase: string; message: string }
+  failure?: { phase: string; message: string; causes?: ReadonlyArray<CleanupCause> }
   stopReason?: string
   childRemoved?: boolean                      // a child of this activation was removed by its stop: the stop can no longer be aborted (BEH-BR-074)
   heldFailure?: string                        // a runtime-failure signal swallowed by a parked stop; replayed if the stop is aborted (BEH-BR-091)
@@ -315,6 +315,12 @@ const msg = (u: unknown): string => {
   const m = u instanceof Error ? u.message : String(u)
   const tag = (u as { _tag?: unknown } | null)?._tag
   return (m || (typeof tag === "string" ? tag : "")).split("\n")[0]!.slice(0, 200)
+}
+
+/** Every failure and defect of a closed scope's cause, in the order Effect ran the finalizers (last acquired first). */
+const causesOf = (cause: Cause.Cause<unknown>): ReadonlyArray<CleanupCause> => {
+  const out = cause.reasons.flatMap((r) => r._tag === "Fail" ? [{ message: msg(r.error) }] : r._tag === "Die" ? [{ message: msg(r.defect) }] : [])
+  return out.length > 0 ? out : [{ message: msg(Cause.squash(cause)) }]
 }
 
 export const make = (options: Options = {}) => makeWith(options, immediate)
@@ -1577,7 +1583,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (err instanceof CleanupError) {
         // A dependent's cleanup failure is its own (failed, phase cleanup); the provider's stop continues (BEH-BR-046).
         opts.hooks?.cleanupFailed?.(d.id, err.message)
-        const error = { _tag: "CleanupError", message: err.message }
+        const error = { _tag: "CleanupError", message: err.message, ...(err.causes ? { causes: err.causes } : {}) }
         const stopRecord = yield* locked(Effect.gen(function* () { yield* commit; return yield* systemRecord("system-stop", d, yield* CurrentCause, error) }))
         // A child outside shutdown is unregistered by the system acknowledgement; under shutdown it stays `failed` (BEH-BR-121, 047).
         if (isChild && !closing && !closed) yield* acknowledgeLeak(d, error, stopRecord)
@@ -1594,7 +1600,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     }
     if (isChild && d.state === "failed" && d.cleanupFailed) {
       // Met already failed (cleanup): no stop of its own. Shutdown leaves it registered; otherwise the system acknowledges it (BEH-BR-047, 121).
-      if (!closing && !closed) yield* acknowledgeLeak(d, { _tag: "CleanupError", message: d.failure?.message ?? "" }, yield* CurrentCause)
+      if (!closing && !closed) yield* acknowledgeLeak(d, { _tag: "CleanupError", message: d.failure?.message ?? "", ...(d.failure?.causes ? { causes: d.failure.causes } : {}) }, yield* CurrentCause)
       return
     }
     if (isChild) { yield* unregister(d); opts.hooks?.stopped?.(d.id); return }
@@ -1756,11 +1762,12 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (Exit.isFailure(closeExit)) {
         e.state = "failed"; e.cleanupFailed = true
         // A runtime failure whose close fails ends in phase cleanup; the message records the stop (BEH-BR-094).
-        e.failure = { phase: "cleanup", message: (reason === "runtime-failure" ? "during runtime failure: " : "") + msg(Cause.squash(closeExit.cause)) }
+        const causes = causesOf(closeExit.cause)
+        e.failure = { phase: "cleanup", message: (reason === "runtime-failure" ? "during runtime failure: " : "") + causes[0]!.message, causes }
       } else opts.land?.(e)
       yield* commit
     }))
-    if (Exit.isFailure(closeExit)) return yield* Effect.fail(new CleanupError({ id: e.pluginId, realm: e.realm, message: msg(Cause.squash(closeExit.cause)) }))
+    if (Exit.isFailure(closeExit)) return yield* Effect.fail(new CleanupError({ id: e.pluginId, realm: e.realm, message: causesOf(closeExit.cause)[0]!.message, causes: causesOf(closeExit.cause) }))
     if (cascadeFrom === undefined) opts.hooks?.stopped?.(id)
     return true
     }).pipe(Effect.ensuring(Effect.sync(() => { e.stepRunning = false })))

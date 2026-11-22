@@ -16,7 +16,11 @@ export class ReplaceRolledBack extends Schema.TaggedError<ReplaceRolledBack>()("
 export class UnknownPlugin extends Schema.TaggedError<UnknownPlugin>()("UnknownPlugin", { id: Schema.String }) {}
 export class Conflict extends Schema.TaggedError<Conflict>()("Conflict", { id: Schema.String, pending: Schema.String }) {}
 export class HostClosed extends Schema.TaggedError<HostClosed>()("HostClosed", {}) {}
-export class CleanupError extends Schema.TaggedError<CleanupError>()("CleanupError", { id: Schema.String, realm: Schema.String, message: Schema.String }) {}
+/** One failed finalizer of a closed scope (BEH-BR-046): the message, and the label of the resource when it was acquired through `Runtime.acquire` (BEH-BR-119). */
+export const CleanupCause = Schema.Struct({ message: Schema.String, label: Schema.optional(Schema.String) })
+export type CleanupCause = typeof CleanupCause.Type
+/** `message` is the first of `causes` (kept for older readers); `causes` lists every failure of the close, last-acquired first. */
+export class CleanupError extends Schema.TaggedError<CleanupError>()("CleanupError", { id: Schema.String, realm: Schema.String, message: Schema.String, causes: Schema.optional(Schema.Array(CleanupCause)) }) {}
 /** `id`: the plugin whose leases did not drain; `target`: the plugin the call named, when different (BEH-BR-085). */
 export class DrainTimeout extends Schema.TaggedError<DrainTimeout>()("DrainTimeout", { id: Schema.String, leases: Schema.Number, target: Schema.optional(Schema.String) }) {}
 export class WouldDeadlock extends Schema.TaggedError<WouldDeadlock>()("WouldDeadlock", { id: Schema.String }) {}

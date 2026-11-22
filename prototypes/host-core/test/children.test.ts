@@ -6,6 +6,7 @@ import { define, group, type AnyPlugin } from "../src/plugin.js"
 import { journal, type Journal } from "./fixtures.js"
 import { as, find, memorySink, run, scriptedGate, settleWriter, stateIn } from "./p4fixtures.js"
 import { drive, idle } from "./fixtures.js"
+import { errorOf } from "./p7fixtures.js"
 
 class Parent extends Context.Service<Parent, { readonly name: string }>()("example/Parent") {}
 class Feature extends Context.Service<Feature, { readonly on: boolean }>()("example/Feature") {}
@@ -284,6 +285,23 @@ describe("groups (BEH-BR-127, 128)", () => {
       expect(stop).toBeDefined()
       expect(ack).toMatchObject({ target: { id: "app/kid" }, causationId: stop!.recordId, before: { state: "failed" }, error: { _tag: "CleanupError" } })
       expect(ack!.actor).toMatchObject({ kind: "system" })
+    }), { sink })
+  })
+
+  it("report 03 R2 (BEH-BR-046, 047): every failing finalizer is reported, last acquired first, on the error, the snapshot and the leak record", async () => {
+    const { records, sink } = memorySink()
+    const bad = define({ id: "kid", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.addFinalizer(() => Effect.die(new Error("first acquired"))).pipe(Effect.andThen(Effect.addFinalizer(() => Effect.die(new Error("last acquired")))))) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(bad, as()); yield* idle(host)
+      const exit = yield* Effect.exit(drive(host, host.remove("kid", as())))
+      const err = errorOf(exit)
+      expect(err._tag).toBe("CleanupError")
+      expect(err.message).toBe("last acquired")                                   // the first of causes, for older readers
+      expect(err.causes).toEqual([{ message: "last acquired" }, { message: "first acquired" }])
+      const p = (yield* host.snapshot).plugins[0]!
+      expect(p.state === "failed" && p.failure.causes).toEqual([{ message: "last acquired" }, { message: "first acquired" }])
+      void records
     }), { sink })
   })
 
