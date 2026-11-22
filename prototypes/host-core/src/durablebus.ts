@@ -4,7 +4,6 @@ import { checkEnvelope, receivedStream, retireDestination, type BusOp } from "./
 
 export interface Envelope { readonly origin: string; readonly stream: string; readonly sequence: number; readonly bytes: number; readonly annotations: number; readonly body: string }
 export interface Limits { readonly maxEnvelopeBytes: number; readonly maxStreamBytes: number; readonly maxAnnotations: number }
-export class EnvelopeStopped extends Error { readonly _tag = "EnvelopeStopped"; constructor(readonly origin: string, readonly stream: string, readonly sequence: number) { super("envelope refused") } }
 
 export const makeBus = (o: { readonly limits: Limits; readonly gate: (r: BusOp) => "allow" | "refuse" }) => {
   const outbox = new Map<string, Envelope[]>(), inbox = new Map<string, Envelope[]>(), stopped = new Map<string, { sequence: number }>(), records: unknown[] = []
