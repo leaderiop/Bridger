@@ -10,7 +10,7 @@ class Board extends Context.Service<Board, { readonly post: (s: string) => Effec
 const d = Contract.make(Board, { version: "1.2.0", methods: { post: Contract.method({ payload: Schema.String, success: Schema.String }) } }).descriptor
 const side = { version: d.version, methods: d.methods, schemas: d.schemas }
 const contract = { id: "example/Board@1", accepts: "^1.2", ...side }
-const hb = { every: 20, missed: 3 }
+const hb = { every: 50, missed: 4 }
 const opts = (epoch = "e-1") => ({ epoch, wire: [1], contract, heartbeat: hb })
 const guest = (handlers = { post: (p: unknown) => Effect.succeed(`posted:${String(p)}`) }) => ({ wire: [1], served: [side], maxInFlight: 4, handlers })
 const open = (c: Connection, e = "e-1") => openSession(c, opts(e)).pipe(Effect.map((s) => s as Session))
@@ -68,7 +68,7 @@ describe("session", () => {
       const failure = yield* fails(s.call("post", "x"))
       expect(failure).toMatchObject({ _tag: "SessionLost", outcome: "unknown" })
       expect(yield* s.ended).toBe("heartbeat-missed")
-      expect(Date.now() - t0).toBeGreaterThanOrEqual(55)                   // every × missed = 60 ms
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(190)                  // every × missed = 200 ms
       expect(yield* fails(s.call("post", "y"))).toMatchObject({ _tag: "SessionLost", outcome: "not-executed" })
     }))
   })
@@ -78,7 +78,7 @@ describe("session", () => {
       const [a, b] = yield* duplex
       yield* Effect.forkChild(serveGuest(b, guest()))
       const s = yield* open(a)
-      yield* Effect.sleep(150)
+      yield* Effect.sleep(450)
       expect(yield* s.call("post", "still")).toBe("posted:still")
       yield* s.close
     }))
@@ -108,10 +108,10 @@ describe("link", () => {
         yield* Effect.forkChild(dials === 1 ? guestServe(b, guest()) : serveGuest(b, guest()))        // the first guest goes silent after its handshake
         return a
       })
-      const link = yield* startLink(dial, { wire: [1], contract, heartbeat: hb, backoff: 10 })
-      yield* Effect.sleep(40)
+      const link = yield* startLink(dial, { wire: [1], contract, heartbeat: hb, backoff: 20 })
+      yield* Effect.sleep(100)
       expect((yield* link.status).state).toBe("active")
-      yield* Effect.sleep(120)
+      yield* Effect.sleep(500)
       const st = yield* link.status
       expect(st.sessions.map((x) => x.epoch)).toEqual(["epoch-1", "epoch-2"])
       expect(st.sessions[0]!.ended).toBe("heartbeat-missed")

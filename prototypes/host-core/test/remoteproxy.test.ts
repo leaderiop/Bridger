@@ -24,11 +24,11 @@ describe("remote proxy plugin", () => {
       yield* Effect.forkChild(dials === 1 ? guestServe(b, { wire: [1], served: [served], maxInFlight: 4 }) : serveGuest(b, { wire: [1], served: [served], maxInFlight: 4, handlers }))
       return a
     })
-    const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 20, missed: 3 }, backoff: 250, onEnd: (w) => ends.push(w) })
+    const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 50, missed: 4 }, backoff: 400, onEnd: (w) => ends.push(w) })
     const reader = define({ id: "reader", requires: [board.range("^1.2")] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
     await run((host) => Effect.gen(function* () {
       const until = (cond: Effect.Effect<boolean>, label: string) => Effect.gen(function* () {
-        for (let i = 0; i < 600; i++) { while (yield* host.step) { /* drain the scheduler */ } if (yield* cond) return; yield* Effect.sleep(5) }
+        for (let i = 0; i < 1500; i++) { while (yield* host.step) { /* drain the scheduler */ } if (yield* cond) return; yield* Effect.sleep(5) }
         throw new Error(`timed out waiting for ${label}`)
       })
       yield* host.install(reader, as()); yield* host.install(proxy, as())

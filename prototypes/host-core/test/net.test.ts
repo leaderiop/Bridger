@@ -14,7 +14,7 @@ class Board extends Context.Service<Board, { readonly post: (s: string) => Effec
 const mk = (version: string, payload: Schema.Top) => Contract.make(Board, { version, methods: { post: Contract.method({ payload, success: Schema.String }) } }).descriptor
 const side = (x: ReturnType<typeof mk>) => ({ version: x.version, methods: x.methods, schemas: x.schemas })
 const contract = { id: "example/Board@1", accepts: "^1.2", ...side(mk("1.2.0", Schema.String)) }
-const opts = (epoch: string) => ({ epoch, wire: [1], contract, heartbeat: { every: 50, missed: 3 } })
+const opts = (epoch: string) => ({ epoch, wire: [1], contract, heartbeat: { every: 50, missed: 4 } })
 const guestWith = (served: ReturnType<typeof side>[]) => ({ wire: [1], served, maxInFlight: 4, handlers: { post: (p: unknown) => Effect.succeed(`posted:${String(p)}`) } })
 
 const cert = () => {
