@@ -636,7 +636,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-FD-007 | Tested | src/durable.ts:15 | test/federation.test.ts:33 “keeps one highest per (authority, host)” |
 | BEH-FD-008 | Specified | — | — |
 | BEH-FD-009 | Specified | — | — |
-| BEH-FD-010 | Prototyped | src/fedplugin.ts:155 | — |
+| BEH-FD-010 | Prototyped | src/fedplugin.ts:165 | — |
 | BEH-FD-011 | Tested | src/authority.ts:1 | test/sync.test.ts:53 “has no default signature policy” |
 | BEH-FD-012 | Tested | src/federation.ts:119 | test/federation.test.ts:118 “defines one realm per import, so two peers can both provide the key; defining again is a no-op; retiring an empty realm succeeds” |
 | BEH-FD-013 | Specified | — | — |

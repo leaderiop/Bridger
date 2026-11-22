@@ -126,16 +126,26 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
     const f = freshness(input(last, yield* o.now)); status.stale = f.reasons
     if (f.reasons.includes("offline-capped") && !status.events.some((e) => e._tag === "offline-capped")) status.events.push({ _tag: "offline-capped" })
     if (f.reasons.includes("clock-skew")) status.events.push({ _tag: "clock-skew" })
+    if (f.fresh !== lastFresh && o.state) {
+      // BEH-FD-042: every re-apply verifies the last applied manifest again; a refusal reconciles nothing, keeps the stored manifest and lets the kills act.
+      const st = yield* readState()
+      if (st.lastApplied) {
+        const v = yield* Effect.exit(verifyManifest(o.policy, st.lastApplied.envelope, { acceptedAt: st.lastApplied.acceptedAt }))
+        if (v._tag === "Failure") { status.events.push({ _tag: "store-invalid" }); lastFresh = f.fresh; yield* killsActWithout(st, !f.fresh); return f.fresh ? "fresh" as const : "stale" as const }
+      }
+    }
     if (f.fresh !== lastFresh) { yield* applyWith(last, f.fresh, f.fresh ? "freshness restored" : "freshness lost").pipe(Effect.orDie); return f.fresh ? "fresh" as const : "stale" as const }
     return "unchanged" as const
   })
   const pendingSince = new Map<string, number>()          // (realm/id) -> first time a kill of it was refused
   /** Disable what a pending kill matches without any manifest (BEH-FD-048): by id and realm, or by the digest the stored manifest lists. */
-  const killsActWithout = (s: import("./durable.js").DurableState) => Effect.gen(function* () {
+  const killsActWithout = (s: import("./durable.js").DurableState, stale = false) => Effect.gen(function* () {
     if (!o.disable) return
     const digests = new Map<string, { id: string; realm: string }[]>()
     for (const p of s.lastApplied?.plugins ?? []) digests.set(p.digest, [...(digests.get(p.digest) ?? []), { id: p.id, realm: p.realm }])   // stored with the manifest: no parsing of bytes
-    for (const k of [...s.pendingKills.map((k) => ({ ...k, why: `pending kill of revision ${k.revision}` })), ...(s.revoked ?? []).map((digest) => ({ digest, id: undefined, realm: undefined, why: "revoked digest" }))]) {
+    // BEH-FD-042: a stale host that cannot re-verify its last applied manifest still disables what that manifest marked `requiresFresh`.
+    const freshEntries = stale ? (s.lastApplied?.requiresFresh ?? []).map((r) => ({ digest: undefined, id: r.id, realm: r.realm, why: "freshness lost" })) : []
+    for (const k of [...freshEntries, ...s.pendingKills.map((k) => ({ ...k, why: `pending kill of revision ${k.revision}` })), ...(s.revoked ?? []).map((digest) => ({ digest, id: undefined, realm: undefined, why: "revoked digest" }))]) {
       const targets = [...(k.id ? [{ id: k.id, realm: k.realm ?? "default" }] : []), ...(k.digest ? digests.get(k.digest) ?? [] : [])]
       for (const t of targets) {
         const key = `${t.realm}/${t.id}`

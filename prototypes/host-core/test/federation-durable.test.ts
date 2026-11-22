@@ -21,14 +21,14 @@ const envelope = (m: HostManifest): Envelope => ({ statementType: "host-manifest
 const disk = (path: string) => Effect.runSync(fileState(path).read) as any
 const tmp = () => join(mkdtempSync(join(tmpdir(), "bridger-fed-")), "state.json")
 
-const build = (host: Parameters<Parameters<typeof run>[0]>[0], state: ReturnType<typeof fileState>, o: { answers?: SyncAnswer[]; verify?: (r: { reverify?: unknown }) => Effect.Effect<void, unknown>; disabled?: string[]; outside?: { id: string }[]; reasons?: string[]; syncEvery?: number; refuseDisable?: () => boolean; killPendingMaxAge?: number } = {}) => {
+const build = (host: Parameters<Parameters<typeof run>[0]>[0], state: ReturnType<typeof fileState>, o: { clock?: { t: number }; maxOffline?: number; answers?: SyncAnswer[]; verify?: (r: { reverify?: unknown }) => Effect.Effect<void, unknown>; disabled?: string[]; outside?: { id: string }[]; reasons?: string[]; syncEvery?: number; refuseDisable?: () => boolean; killPendingMaxAge?: number } = {}) => {
   const answers = o.answers ?? []; const seen: unknown[] = []
   return makeFederation({
     authority: "auth", host: "h1", source: () => Effect.succeed(answers.shift() ?? { kind: "none" }), store: new ManifestStore(),
     policy: { verify: (r) => { seen.push(r.reverify); return o.verify ? o.verify(r) : Effect.void } }, syncEvery: o.syncEvery ?? 1000, syncTimeout: 1000,
     reconcile: (d, op) => { o.reasons?.push(op.reason ?? ""); return drive(host, host.reconcile(d, { ...as(op.reason), ...(op.scope ? { scope: op.scope } : {}), ...(op.prune !== undefined ? { prune: op.prune } : {}) } as never)) as never },
-    resolver: (digest) => catalog[digest] ? Effect.succeed(catalog[digest]!) : Effect.fail({ reason: "unknown" }), now: Effect.succeed(100),
-    freshness: { maxOffline: 1e9, skewTolerance: 10 }, firstActivation: 50, state, outside: () => o.outside ?? [],
+    resolver: (digest) => catalog[digest] ? Effect.succeed(catalog[digest]!) : Effect.fail({ reason: "unknown" }), now: Effect.sync(() => o.clock?.t ?? 100),
+    freshness: { maxOffline: o.maxOffline ?? 1e9, skewTolerance: 10 }, firstActivation: 50, state, outside: () => o.outside ?? [],
     ...(o.killPendingMaxAge !== undefined ? { killPendingMaxAge: o.killPendingMaxAge } : {}),
     disable: (ref, reason) => o.refuseDisable?.() ? Effect.fail("gate refused") : Effect.sync(() => { o.disabled?.push(`${ref.id}/${ref.realm}:${reason}`) })
   }).pipe(Effect.map((fed) => ({ fed, seen })))
@@ -224,6 +224,22 @@ describe("log-structured file state", () => {
       expect(yield* drive(host, fed.sync)).toEqual({ _tag: "ManifestRejected", reason: "stale-revision" })
     }))
     expect(disk(path).highest.revision).toBe(5)
+  })
+  it("H2 (SPEC-AUDIT-09, BEH-FD-042): a fresh-to-stale re-apply whose manifest fails re-verification disables the requiresFresh entries and keeps the stored manifest", async () => {
+    const path = tmp(); const clock = { t: 100 }; let refuse = false
+    const m1 = manifest(1, { plugins: [{ id: "a", digest: "dA", requiresFresh: true }, { id: "b", digest: "dB" }] })
+    await run((host) => Effect.gen(function* () {
+      const disabled: string[] = []
+      const { fed } = yield* build(host, fileState(path), { clock, maxOffline: 500, disabled, answers: [{ kind: "manifest", envelope: envelope(m1) }], verify: () => refuse ? Effect.fail({ reason: "revoked-signer" }) : Effect.void })
+      yield* drive(host, fed.sync)
+      refuse = true; clock.t = 5000                                                 // a held revocation of the signer, and the offline cap passed
+      expect(yield* drive(host, fed.checkFreshness)).toBe("stale")
+      expect(disabled).toEqual(["a/default:freshness lost"])                         // only the requiresFresh entry; b is untouched
+      expect(fed.status.events.some((e) => e._tag === "store-invalid")).toBe(true)
+      expect(disk(path).lastApplied.revision).toBe(1)                                // the stored manifest is kept
+      refuse = true; clock.t = 100                                                   // stale to fresh while still refused enables nothing
+      expect(yield* drive(host, fed.checkFreshness)).toBe("fresh"); expect(disabled).toHaveLength(1)
+    }))
   })
 })
 

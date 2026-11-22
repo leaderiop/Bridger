@@ -1,6 +1,6 @@
 # 07 - Specification quality, traceability, formal guarantees and verification
 
-**State (2026-11-22):** the original review is kept as written below. All 13 findings and 8 recommendations were checked against the specification and the prototype; 5 findings or recommendations were partly wrong in their premise or already built by reports 01, 04 and 05 (the transition ledger, the generated catalogs, the effect pin), and all are resolved in `references/*`, `prototypes/host-core` and the verifier scripts except F13, which is resolved in part (see Resolution status). Not built: a second implementation for differential testing, and an independent assessment of what each invariant leaves unchecked.
+**State (2026-11-22):** the original review is kept as written below. All 13 findings and 8 recommendations were checked against the specification and the prototype; 5 findings or recommendations were partly wrong in their premise or already built by reports 01, 04 and 05 (the transition ledger, the generated catalogs, the effect pin), and all are resolved in `references/*`, `prototypes/host-core` and the verifier scripts (see Resolution status). Not built: a second implementation for differential testing, and an independent assessment of what each invariant leaves unchecked.
 
 ## Resolution status (2026-11-22)
 
@@ -20,7 +20,7 @@ Corrected facts: the prototype names 40 of 187 invariants and 395 of 1,054 behav
 | F10 | R7 | True, resolved | `specforge.json` and `spec/hello.spec` deleted; the decision is recorded in `docs/SPECFORGE-ASSESSMENT.md` §7a. Option 3 (a generated projection) is not built. |
 | F11 | R2 | Partly wrong, resolved | Scripts already existed for core, companions, events, gxp and kit; what was missing was one entry point. `verify-spec.sh [--since <rev>]` runs all of them plus the correspondence, invariant, history and risk-row checks (gate D6 in the definitions of done). CI is `.github/workflows/verify.yml`: tsc, the full suite and `verify-spec.sh` (with `--since` on pull requests); it has not run on a remote. |
 | F12 | R4 | True, resolved | `fast-check` added to host-core devDependencies. |
-| F13 | R3 | True, partly resolved | The rule exists now (change control §1). Round-9 H1 has its scenario, check 89 of BEH-BR-183, and the reference model's wait-for scenario. H2 to H6 are recorded under CCR-FD-012, CCR-AG-012, CCR-ES-011 and CCR-KR-011; this work did not verify a numbered scenario for each in the companion acceptance lists, so they are open until it does. |
+| F13 | R3 | True, resolved | The rule exists now (change control §1). Round-9 Highs and their scenarios: H1 core check 89 and the model's wait-for scenario; H2 federation check 14 (extended here) with `test/federation-durable.test.ts`, which also exposed and fixed a prototype gap (a freshness re-apply did not re-verify or disable `requiresFresh` entries); H3 agent check 10; H4 sequence check 11; H5 and H6 event-store check 18. The prototype has tests only for H2 (and the model for H1); H3 to H6 are specified scenarios without a prototype. |
 | R1 | - | Partly wrong, resolved | `transitions.yaml` already was the single source of both legality tables (report 01, R10), so the model imports it and does not copy it. Built: `references/core/formal/model.ts` (pure): `legal`, `flight`, `quiescent`, `waitCycle`/`inv030`, `takeOverWaits` (the round-8 take-over rule closes a cycle through the slot, the fixed rule does not), `inv017`, `inv022`, `inv023`; `appendices/formal-model.md`. Progress is not modelled (stated). |
 | R2, R5 | - | Resolved | See F3, F4, F11. |
 | R3, R4, R6, R7, R8 | - | Resolved | See F1 to F13. |
@@ -120,4 +120,4 @@ Audit classes, ordered by count: (a) fix propagation (stale rows, glossary, cata
 - R8 blocks for the 14 companion trees are formulaic (scope is the invariant's title, predicate `none`), so they pass the linter without being a considered assessment; only the core blocks were authored by reading each invariant.
 - The correspondence table counts a mention of an id in `src` or `test`, so a citation says where to look, not that the rule holds; tests may cover a behaviour without naming it.
 - The CI workflow is written but has not run on a remote. The audit counts (round 8: 4/24/36, round 9: 6/23/27) are from the report summaries, and whether Highs fall in future rounds is not yet known.
-- Round-9 Highs H2 to H6 have no verified numbered scenario (F13). Cost estimates in the original review were rough.
+- Cost estimates in the original review were rough.
