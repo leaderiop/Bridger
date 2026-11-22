@@ -13,17 +13,22 @@ export type EndReason = "heartbeat-missed" | "guest-reset" | "closed" | "unavail
 export interface CallFailure { readonly _tag: "StaleEpoch" | "SessionLost" | "MethodNotServed" | "RemoteError" | "RemoteUnavailable"; readonly outcome: "not-executed" | "unknown"; readonly detail?: unknown }
 export interface Session {
   readonly epoch: string; readonly version: string
-  readonly call: (method: string, payload: unknown) => Effect.Effect<unknown, CallFailure>
+  /** `identity` is the caller's identity claims; only those the link lists in `disclose` and the call has cross, in the frame's `claims` (BEH-RM-024). */
+  readonly call: (method: string, payload: unknown, identity?: Identity) => Effect.Effect<unknown, CallFailure>
   readonly ended: Effect.Effect<EndReason>
   readonly refusals: Effect.Effect<number>
   readonly close: Effect.Effect<void>
 }
+export type IdentityClaim = "actor" | "onBehalfOf" | "org" | "correlationId"
+export type Identity = Partial<Record<IdentityClaim, unknown>>
 export interface LogEntry { readonly kind: "crossing" | "refusal"; readonly direction: "outbound" | "inbound"; readonly method: string; readonly outcome: "success" | "failure" | "refused"; readonly epoch: string; readonly errorTag?: string; readonly reason?: string }
 export interface SessionOptions { readonly epoch: string; readonly wire: ReadonlyArray<number>; readonly contract: WireSide & { readonly id: string; readonly accepts: string }; readonly heartbeat: { readonly every: number; readonly missed: number }
   /** Mints one token per host-to-guest call (BEH-RM-043); default: an in-process table. `tokenTtl` defaults to 30 s, `callTimeout` bounds `expires`. */
   /** Serves the guest's callbacks (BEH-RM-046): the grants, decoding and the way the host service is reached. */
   readonly callbacks?: Pick<CallbackContext, "grants" | "decode" | "run" | "offeredLabels" | "budget" | "admission" | "placement"> & { readonly revoked?: () => boolean }
   readonly tokens?: TokenAuthority; readonly tokenTtl?: number; readonly callTimeout?: number
+  /** The identity claims this link may send; the default is none (INV-RM-012). */
+  readonly disclose?: ReadonlyArray<IdentityClaim>
   /** One entry per call at its end: kind, method, outcome, epoch; never a payload, result, error message or token (BEH-RM-047). */
   readonly log?: (entry: LogEntry) => Effect.Effect<void> }
 
@@ -80,14 +85,17 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
       yield* conn.send(JSON.stringify({ t: "ping", epoch: o.epoch, n: ++n }))
     }
   })))
-  const call = (method: string, payload: unknown): Effect.Effect<unknown, CallFailure> => Effect.gen(function* () {
+  const call = (method: string, payload: unknown, identity: Identity = {}): Effect.Effect<unknown, CallFailure> => Effect.gen(function* () {
     if (yield* Deferred.isDone(endedD)) return yield* Effect.fail({ _tag: "SessionLost", outcome: "not-executed" } satisfies CallFailure)
     const callId = `c-${++n}`
     const d = yield* Deferred.make<{ value?: unknown; error?: { _tag?: string } }>()
     pending.set(callId, d)
     const issuedAt = yield* Clock.currentTimeMillis
     const token = yield* tokens.mint({ pluginId: o.contract.id, realm: "", epoch: o.epoch, callId, contractVersion: h.session.version, issuedAt, expires: issuedAt + Math.min(o.tokenTtl ?? 30_000, o.callTimeout ?? Infinity) })
-    yield* conn.send(JSON.stringify({ t: "call", epoch: o.epoch, callId, method, payload, version: h.session.version, token }))
+    const order: ReadonlyArray<IdentityClaim> = ["actor", "onBehalfOf", "org", "correlationId"]
+    const disclosed = order.filter((k) => (o.disclose ?? []).includes(k) && identity[k] !== undefined)         // a claim the link does not list, or the call lacks, is omitted, never empty
+    const claims = { pluginId: o.contract.id, contractVersion: h.session.version, ...Object.fromEntries(disclosed.map((k) => [k, identity[k]])) }   // never the TokenRef or its id
+    yield* conn.send(JSON.stringify({ t: "call", epoch: o.epoch, callId, method, payload, version: h.session.version, token, claims }))
     const r = yield* Deferred.await(d).pipe(Effect.ensuring(tokens.end(token)))     // the token dies with the call: result, failure, cancellation or session loss
     if (o.log) yield* o.log({ kind: "crossing", direction: "outbound", method, outcome: r.error ? "failure" : "success", epoch: o.epoch, ...(r.error?._tag ? { errorTag: r.error._tag } : {}) })
     if (r.error) {
@@ -101,7 +109,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
 })
 
 /** What a served call can do: call back into the host under the call's token. */
-export interface ServeContext { readonly callback: (contract: string, method: string, payload: unknown) => Effect.Effect<{ readonly exit: unknown }> }
+export interface ServeContext { readonly claims: Readonly<Record<string, unknown>>; readonly callback: (contract: string, method: string, payload: unknown) => Effect.Effect<{ readonly exit: unknown }> }
 export type Handlers = Readonly<Record<string, (payload: unknown, ctx: ServeContext) => Effect.Effect<unknown, unknown>>>
 /** The guest's end: answer the handshake, adopt the epoch, then serve calls of that epoch only and answer pings. Never answers a call of another epoch by executing it. */
 export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArray<number>; readonly served: ReadonlyArray<WireSide>; readonly maxInFlight: number; readonly handlers: Handlers }): Effect.Effect<{ readonly answered: "welcome" | "refuse" }> =>
@@ -119,7 +127,7 @@ export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArr
       if (f.epoch !== h.epoch) return yield* conn.send(JSON.stringify({ t: "result", epoch: f.epoch, callId: f.callId, error: { _tag: "StaleEpoch", epoch: f.epoch }, outcome: "not-executed" }))
       const fn = guest.handlers[String(f.method)]
       if (!fn) return yield* conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, error: { _tag: "MethodNotServed" } }))
-      const ctx: ServeContext = { callback: (contract, method, payload) => Effect.gen(function* () {
+      const ctx: ServeContext = { claims: (f.claims && typeof f.claims === "object" ? f.claims : {}) as Record<string, unknown>, callback: (contract, method, payload) => Effect.gen(function* () {
         const id = `cb-${++cb}`; const d = yield* Deferred.make<unknown>(); waiting.set(id, d)
         yield* conn.send(JSON.stringify({ t: "callback", epoch: h.epoch, callId: id, parent: f.callId, token: f.token, contract, method, payload }))
         return { exit: yield* Deferred.await(d) }

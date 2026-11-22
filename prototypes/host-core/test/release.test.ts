@@ -1,5 +1,6 @@
 // Kit 04 BEH-KT-029, 030, 032 over the loader kernel (loader BEH-LD-001..003, 017, 020, 049, 053, 054): pack, publish and countersign.
-import { createHash, generateKeyPairSync, sign as edSign, type KeyObject } from "node:crypto"
+import { execSync } from "node:child_process"
+import { X509Certificate, createHash, createPrivateKey, generateKeyPairSync, sign as edSign, type KeyObject } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -206,5 +207,59 @@ describe("data packs (loader 08, BEH-KT-032)", () => {
     expect(pub.code).toBe(0); expect(pub.out).toContain("satisfied"); expect(existsSync(join(d, "out/prices-3.1.0.bdp"))).toBe(true)
     expect((await cli(d, ["countersign", "dist/prices-3.1.0.bdp", "--statement", "first-party", "--signer", "pubsigner.mjs"])).code).toBe(2)
     expect((await cli(dataSetup({ ...manifest, provides: [] }).d, ["pack", "--data", "--manifest", "m.json", "--payload", "p.json"])).code).toBe(1)
+  })
+})
+
+describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
+  const sh = (cwd: string, cmd: string) => execSync(cmd, { cwd, stdio: "pipe" })
+  const fixture = () => {
+    const d = tmp()
+    sh(d, "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout root.key -out root.pem -subj /CN=root -days 2")
+    sh(d, "openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout leaf.key -out leaf.csr -subj /CN=leaf")
+    writeFileSync(join(d, "ext.cnf"), "subjectAltName=email:dev@acme.example\n1.3.6.1.4.1.57264.1.1=ASN1:UTF8String:https://accounts.example\n")
+    sh(d, "openssl x509 -req -in leaf.csr -CA root.pem -CAkey root.key -CAcreateserial -days 1 -out leaf.pem -extfile ext.cnf")
+    sh(d, "openssl genpkey -algorithm ed25519 -out log.key"); sh(d, "openssl pkey -in log.key -pubout -out log.pub")
+    const rd = (f: string) => readFileSync(join(d, f), "utf8")
+    const leaf = new X509Certificate(rd("leaf.pem"))
+    const pin = { issuer: "https://accounts.example", subject: "dev@acme.example", roots: [rd("root.pem")], logKey: rd("log.pub") }
+    const statement = L.Statement.make({ statementType: "package", subject: { digest: "sha256:" + "ab".repeat(32) }, id: "x", version: "1" })
+    const bundle = (o: { at?: number; logKeyFile?: string } = {}) => {
+      const signature = edSign("sha256", L.Statement.signingInput(statement), createPrivateKey(rd("leaf.key")))
+      const integratedTime = o.at ?? Math.floor(Date.parse(leaf.validFrom) / 1000) + 60
+      const set = edSign(null, Buffer.from(JSON.stringify({ entryDigest: "sha256:" + createHash("sha256").update(signature).digest("hex"), integratedTime, logId: "log-1" })), createPrivateKey(rd(o.logKeyFile ?? "log.key")))
+      return { scheme: "sigstore", bytes: new TextEncoder().encode(JSON.stringify({ certChain: [rd("leaf.pem")], signature: signature.toString("base64"), log: { integratedTime, logId: "log-1", set: set.toString("base64") } })) }
+    }
+    const policy = (p: object = pin): L.SignaturePolicy => ({ id: "sig-v1", signers: [{ id: "ci", scheme: "sigstore", key: p as L.SigstorePin, roles: ["publisher"] }], require: { threshold: 1 } })
+    return { d, pin, statement, bundle, policy, leaf }
+  }
+  it("verifies the chain to the pinned root, the identity and the log's SET, and reports the integrated time as signedAt", () => {
+    const f = fixture()
+    const v = L.verifyStatement({ statement: f.statement, signatures: [f.bundle()], policy: f.policy() })
+    expect(v.satisfied).toBe(true); expect(v.verified[0]!.identity).toBe("sigstore:https://accounts.example|dev@acme.example")
+    expect(v.verified[0]!.signedAt).toBe(new Date((Math.floor(Date.parse(f.leaf.validFrom) / 1000) + 60) * 1000).toISOString())
+  })
+  it("counts for nothing: another subject or issuer, an unpinned root, a SET by another log key, a time outside the certificate window, an unknown scheme", () => {
+    const f = fixture(), other = fixture()
+    const count = (sig: { scheme: string; bytes: Uint8Array }, policy = f.policy()) => L.verifyStatement({ statement: f.statement, signatures: [sig], policy })
+    expect(count(f.bundle(), f.policy({ ...f.pin, subject: "evil@acme.example" })).satisfied).toBe(false)
+    expect(count(f.bundle(), f.policy({ ...f.pin, issuer: "https://evil.example" })).satisfied).toBe(false)
+    expect(count(f.bundle(), f.policy({ ...f.pin, roots: other.pin.roots })).satisfied).toBe(false)
+    const wrongLog = f.bundle(); expect(count(f.bundle({ logKeyFile: "root.key" })).satisfied).toBe(false); void wrongLog
+    expect(count(f.bundle({ at: Math.floor(Date.parse(f.leaf.validTo) / 1000) + 3600 })).satisfied).toBe(false)
+    const r = count({ scheme: "x509-unknown", bytes: new Uint8Array() }); expect([r.satisfied, r.ignored]).toEqual([false, 1])
+  })
+})
+
+describe("publish targets (BEH-KT-030)", () => {
+  it("module:<file> uploads through the PublishTarget the person wired; a target that fails ends with PublishFailed", async () => {
+    const d = tmp(); project(d)
+    const pub = keys("publisher-key"); signerModule(d, "pubsigner", pub)
+    writeFileSync(join(d, "target.mjs"), `import { Effect } from "effect"\nimport { writeFileSync } from "node:fs"\nexport default { upload: (p, sigs) => Effect.sync(() => { writeFileSync(new URL("./uploaded.txt", import.meta.url), p.name + " " + p.digest + " " + sigs.package.length); return { location: "registry://acme/" + p.name } }) }\n`)
+    writeFileSync(join(d, "bad.mjs"), `import { Effect } from "effect"\nexport default { upload: () => Effect.fail({ message: "the registry is down" }) }\n`)
+    await cli(d, ["pack", "pkg.mjs", "--entry", "src/plugin.ts"])
+    const ok = await cli(d, ["publish", "dist/report-export-1.4.0.bpkg", "--target", "module:target.mjs", "--signer", "pubsigner.mjs", "--partial"])
+    expect(ok.code).toBe(0); expect(ok.out).toContain("registry://acme/report-export-1.4.0.bpkg"); expect(readFileSync(join(d, "uploaded.txt"), "utf8")).toMatch(/^report-export-1.4.0.bpkg sha256:[0-9a-f]{64} 1$/)
+    const bad = await cli(d, ["publish", "dist/report-export-1.4.0.bpkg", "--target", "module:bad.mjs", "--signer", "pubsigner.mjs", "--partial"])
+    expect(bad.code).toBe(1); expect(bad.err).toContain("PublishFailed: the registry is down")
   })
 })

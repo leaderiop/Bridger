@@ -87,6 +87,8 @@ export const pack = async (args: ReadonlyArray<string>, io: Io): Promise<number>
 }
 
 // ---------------------------------------------------------------------------------------------- shared: signer, rules, revocation (BEH-KT-030)
+/** The port of BEH-KT-030: adapters per registry. `dir:<path>` is the prototype's own; `module:<file>` loads one the person publishing wired. */
+export interface PublishTarget { readonly upload: (pkg: { readonly name: string; readonly bytes: Uint8Array; readonly digest: string }, signatures: object) => Effect.Effect<{ readonly location: string }, { readonly message: string }> }
 interface Rules { readonly policy: L.SignaturePolicy; readonly revocation?: { readonly issuer: string; readonly trustRoot: L.SignaturePolicy } }
 const config = (io: Io): { signer?: string; rules?: string; revocation?: string } => existsSync(join(io.cwd, "bridger.config.json")) ? JSON.parse(readFileSync(join(io.cwd, "bridger.config.json"), "utf8")) : {}
 const loadSigner = async (file: string, io: Io): Promise<L.StatementSigner> => {
@@ -139,7 +141,7 @@ export const publish = async (args: ReadonlyArray<string>, io: Io): Promise<numb
   const [file] = args
   const target = flag(args, "--target")
   if (!file || !target) { io.err("usage: bridger publish <package> --target dir:<path> [--signer <module>] [--rules <file>] [--revocation <file>|unbounded] [--partial]"); return 2 }
-  if (!target.startsWith("dir:")) { io.err(`unknown target \`${target}\`: the prototype ships the \`dir:<path>\` target`); return 2 }
+  if (!target.startsWith("dir:") && !target.startsWith("module:")) { io.err(`unknown target \`${target}\`: use \`dir:<path>\` or \`module:<file>\` (a module whose default export is a PublishTarget)`); return 2 }
   const signerFile = flag(args, "--signer") ?? config(io).signer
   if (!signerFile) { io.err("usage: no signer named: give --signer or set `signer` in bridger.config.json"); return 2 }
   const inputs = policyInputs(args, io)
@@ -167,9 +169,12 @@ export const publish = async (args: ReadonlyArray<string>, io: Io): Promise<numb
   if (r === "stop") return 1
   const complete = r !== "policy-unknown" && r.satisfied
   if (!complete && !args.includes("--partial")) { io.err(r === "policy-unknown" ? "nothing uploaded: give --rules, or --partial" : `nothing uploaded: ${r.missing}`); return 1 }
-  const dest = resolve(io.cwd, target.slice(4)); mkdirSync(dest, { recursive: true })
-  writeFileSync(join(dest, basename(pkgFile)), readFileSync(pkgFile)); writeFileSync(join(dest, basename(sigFile(pkgFile))), stable(existing))
-  io.out(`uploaded  ${join(target.slice(4), basename(pkgFile))}${complete ? "" : "  (partial)"}`)
+  const adapter: PublishTarget = target.startsWith("module:")
+    ? ((await import(pathToFileURL(resolve(io.cwd, target.slice(7))).href)) as { default: PublishTarget }).default
+    : { upload: (p, sigs) => Effect.sync(() => { const dest = resolve(io.cwd, target.slice(4)); mkdirSync(dest, { recursive: true }); writeFileSync(join(dest, p.name), p.bytes); writeFileSync(join(dest, p.name.replace(/\.(bpkg|bdp)$/, "") + ".signatures.json"), stable(sigs)); return { location: join(target.slice(4), p.name) } }) }
+  const up = await Effect.runPromiseExit(adapter.upload({ name: basename(pkgFile), bytes: new Uint8Array(readFileSync(pkgFile)), digest: subject.digest }, existing))
+  if (up._tag === "Failure") { const e = up.cause as unknown as { failures?: ReadonlyArray<{ error?: Error }>; reasons?: ReadonlyArray<{ error?: Error }> }; io.err(`PublishFailed: ${(e.failures?.[0]?.error ?? e.reasons?.find((x) => x.error)?.error)?.message ?? "the target refused"}`); return 1 }
+  io.out(`uploaded  ${up.value.location}${complete ? "" : "  (partial)"}`)
   return 0
 }
 

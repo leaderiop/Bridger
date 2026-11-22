@@ -1,7 +1,7 @@
 // The loader companion's kernel (references/loader behaviours 01, 03, 07): the package digest, the statement and its signing input, the Ed25519
 // verifier, the N-of-M policy and the publisher binding. Prototype: no fetch, no load pipeline, no LoadLog; this is what the kit's `pack`, `publish`
 // and `countersign` call so that the kit implements no digest of its own (BEH-KT-029).
-import { createHash, createPublicKey, verify as edVerify } from "node:crypto"
+import { createHash, createPublicKey, verify as edVerify, X509Certificate } from "node:crypto"
 import { Effect } from "effect"
 
 export type Bytes = Uint8Array
@@ -69,24 +69,61 @@ export const Statement = {
 export interface StatementSigner { readonly scheme: string; readonly sign: (signingInput: Bytes) => Effect.Effect<Signature, SigningFailed> }
 
 // ---------------------------------------------------------------------------------------------- policy (BEH-LD-018..021, 053)
-export interface TrustedSigner { readonly id: string; readonly scheme: string; readonly key: string; readonly roles: ReadonlyArray<string>; readonly publishers?: ReadonlyArray<string> }
+/** `key` is the scheme's pin: a base64 raw public key for ed25519, `{ issuer, subject, roots, logKey }` for sigstore (BEH-LD-018, 019). */
+export interface TrustedSigner { readonly id: string; readonly scheme: string; readonly key: string | SigstorePin; readonly roles: ReadonlyArray<string>; readonly publishers?: ReadonlyArray<string> }
 export type Requirement = { readonly threshold: number } | { readonly role: string; readonly threshold: number } | { readonly allOf: ReadonlyArray<Requirement> }
 export interface SignaturePolicy { readonly id: string; readonly signers: ReadonlyArray<TrustedSigner>; readonly require: Requirement }
-export interface VerifiedSigner { readonly signerId: string; readonly identity: string; readonly scheme: string; readonly roles: ReadonlyArray<string> }
+export interface VerifiedSigner { readonly signerId: string; readonly identity: string; readonly scheme: string; readonly roles: ReadonlyArray<string>; readonly signedAt?: string }
 export interface Revocations { readonly issuedAt?: string; readonly digests?: ReadonlyArray<string>; readonly identities?: ReadonlyArray<string> }
 
 const SPKI = Buffer.from("302a300506032b6570032100", "hex")
 /** The scheme-defined identity of an Ed25519 key: "ed25519:sha256:<hex of the raw public key>" (BEH-LD-019). */
 export const ed25519Identity = (rawKeyB64: string): string => "ed25519:sha256:" + hex(createHash("sha256").update(Buffer.from(rawKeyB64, "base64")).digest())
 const ed25519Verifies = (input: Bytes, sig: Signature, t: TrustedSigner): boolean => {
-  try { return edVerify(null, input, createPublicKey({ key: Buffer.concat([SPKI, Buffer.from(t.key, "base64")]), format: "der", type: "spki" }), sig.bytes) } catch { return false }
+  try { return edVerify(null, input, createPublicKey({ key: Buffer.concat([SPKI, Buffer.from(t.key as string, "base64")]), format: "der", type: "spki" }), sig.bytes) } catch { return false }
+}
+
+// ---------------------------------------------------------------------------------------------- the Sigstore adapter (BEH-LD-018), offline
+export interface SigstorePin { readonly issuer: string; readonly subject: string; readonly roots: ReadonlyArray<string>; readonly logKey: string }
+/** shortcut: the bundle is the prototype's own encoding `{ certChain, signature, log: { integratedTime, logId, set } }`, where the SET is a log-key signature over the canonical
+ *  `{ entryDigest, integratedTime, logId }`; Rekor's protobuf bundle and its checkpoint or inclusion-proof forms are read when the loader ships them. */
+export interface SigstoreBundle { readonly certChain: ReadonlyArray<string>; readonly signature: string; readonly log: { readonly integratedTime: number; readonly logId: string; readonly set: string } }
+const FULCIO_ISSUER_OID = Buffer.from("2b0601040183bf300101", "hex")   // 1.3.6.1.4.1.57264.1.1
+const oidcIssuerOf = (c: X509Certificate): string | undefined => {
+  const i = c.raw.indexOf(FULCIO_ISSUER_OID); if (i < 0) return undefined
+  const rest = c.raw.subarray(i + FULCIO_ISSUER_OID.length)
+  const at = rest.indexOf(0x0c)                                    // the UTF8String inside the extension's OCTET STRING
+  return at < 0 || at > 6 ? undefined : rest.subarray(at + 2, at + 2 + rest[at + 1]!).toString("utf8")
+}
+export const sigstoreIdentity = (p: SigstorePin): string => `sigstore:${p.issuer}|${p.subject}`
+/** The chain to a pinned root, the identity against the pin, the SET against the pinned log key, and the certificate window against the log's integrated time (never Clock). */
+const sigstoreVerifies = (input: Bytes, sig: Signature, t: TrustedSigner): { readonly signedAt: string } | undefined => {
+  try {
+    const pin = t.key as SigstorePin, b = JSON.parse(Buffer.from(sig.bytes).toString("utf8")) as SigstoreBundle
+    const chain = b.certChain.map((c) => new X509Certificate(c)), roots = pin.roots.map((r) => new X509Certificate(r)), leaf = chain[0]!
+    const signed = Buffer.from(b.signature, "base64")
+    const certKeyAlg = leaf.publicKey.asymmetricKeyType === "ed25519" ? null : "sha256"
+    if (!edVerify(certKeyAlg, input, leaf.publicKey, signed)) return undefined
+    const atMs = b.log.integratedTime * 1000
+    const logKey = createPublicKey(pin.logKey)
+    const set = utf8(jcs({ entryDigest: H(signed), integratedTime: b.log.integratedTime, logId: b.log.logId }))
+    if (!edVerify(logKey.asymmetricKeyType === "ed25519" ? null : "sha256", set, logKey, Buffer.from(b.log.set, "base64"))) return undefined
+    const links = [...chain, ...[roots.find((r) => chain.at(-1)!.checkIssued(r) && chain.at(-1)!.verify(r.publicKey))].filter((r): r is X509Certificate => r !== undefined)]
+    if (links.length !== chain.length + 1) return undefined
+    for (let i = 0; i < chain.length; i++) if (!chain[i]!.checkIssued(links[i + 1]!) || !chain[i]!.verify(links[i + 1]!.publicKey)) return undefined
+    for (const c of chain) if (atMs < Date.parse(c.validFrom) || atMs > Date.parse(c.validTo)) return undefined
+    const sans = (leaf.subjectAltName ?? "").split(/,\s*/).map((x) => x.replace(/^(email|URI):/, ""))
+    if (!sans.includes(pin.subject) || oidcIssuerOf(leaf) !== pin.issuer) return undefined
+    return { signedAt: new Date(atMs).toISOString() }
+  } catch { return undefined }
 }
 
 export const checkPolicy = (policy: SignaturePolicy): void => {
   const ids = new Set<string>(), keys = new Set<string>()
+  const keyOf = (x: TrustedSigner) => x.scheme + JSON.stringify(x.key)
   for (const s of policy.signers) {
-    if (ids.has(s.id) || keys.has(s.scheme + s.key)) throw new SignatureRejected("", policy.id, "", "policy-invalid", [], 0, `signer ${s.id}: an id or a key appears twice`)
-    ids.add(s.id); keys.add(s.scheme + s.key)
+    if (ids.has(s.id) || keys.has(keyOf(s))) throw new SignatureRejected("", policy.id, "", "policy-invalid", [], 0, `signer ${s.id}: an id or a key appears twice`)
+    ids.add(s.id); keys.add(keyOf(s))
   }
 }
 
@@ -114,10 +151,15 @@ export const verifyStatement = (request: { readonly statement: Statement; readon
   const verified = new Map<string, VerifiedSigner>()
   let ignored = 0
   for (const sig of request.signatures) {
-    const matches = policy.signers.filter((t) => t.scheme === sig.scheme && t.scheme === "ed25519" && ed25519Verifies(input, sig, t))
-    if (matches.length !== 1) { ignored++; continue }
-    const t = matches[0]!
-    verified.set(t.id, { signerId: t.id, identity: ed25519Identity(t.key), scheme: t.scheme, roles: t.roles })   // two signatures by one signer entry count once
+    const matches = policy.signers.flatMap((t) => {
+      if (t.scheme !== sig.scheme) return []
+      if (t.scheme === "ed25519") return ed25519Verifies(input, sig, t) ? [{ t, signedAt: undefined as string | undefined }] : []
+      if (t.scheme === "sigstore") { const r = sigstoreVerifies(input, sig, t); return r ? [{ t, signedAt: r.signedAt as string | undefined }] : [] }
+      return []
+    })
+    if (matches.length !== 1) { ignored++; continue }                  // a scheme with no wired verifier, or a signature no signer matches, counts for nothing
+    const { t, signedAt } = matches[0]!
+    verified.set(t.id, { signerId: t.id, identity: t.scheme === "ed25519" ? ed25519Identity(t.key as string) : sigstoreIdentity(t.key as SigstorePin), scheme: t.scheme, roles: t.roles, ...(signedAt ? { signedAt } : {}) })   // two signatures by one signer entry count once
   }
   if (request.revocations?.digests?.includes(s.subject.digest)) throw new StatementRevoked(s.subject.digest)
   const live = [...verified.values()].filter((v) => !request.revocations?.identities?.includes(v.identity))

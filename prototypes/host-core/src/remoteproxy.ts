@@ -4,7 +4,7 @@ import { Effect, Exit, Layer, Scope } from "effect"
 import { Contract, at, type Contract as ContractT } from "./contract.js"
 import { define, type AnyPlugin } from "./plugin.js"
 import { PluginRuntime } from "./runtime.js"
-import { startLink, type CallFailure, type EndReason, type Session } from "./session.js"
+import { startLink, type CallFailure, type EndReason, type Identity, type IdentityClaim, type Session } from "./session.js"
 import type { Connection } from "./wire.js"
 
 /**
@@ -17,6 +17,8 @@ export const remoteProxy = (o: {
   readonly onEnd?: (why: EndReason) => void
   /** "withdraw" (default): the child follows the session. "hold": one child for the activation; calls fail fast while no session is open (BEH-RM-030). */
   readonly mode?: "withdraw" | "hold"; readonly stableFor?: number
+  /** The identity claims this link discloses to its peer (default none), and how the application reads the caller's identity for a call. */
+  readonly disclose?: ReadonlyArray<IdentityClaim>; readonly identity?: Effect.Effect<Identity>
 }): AnyPlugin => define({
   id: o.id, requires: [] as const, provides: [] as const,
   build: Layer.effectDiscard(Effect.gen(function* () {
@@ -26,7 +28,7 @@ export const remoteProxy = (o: {
     let live: Session | undefined
     const hold = o.mode === "hold"
     const mount = (s: Session) => Effect.gen(function* () {
-      const impl = Object.fromEntries(d.methods.map((m) => [m, (payload: unknown) => (live ? live.call(m, payload) : Effect.fail<CallFailure>({ _tag: "RemoteUnavailable", outcome: "not-executed" }))]))
+      const impl = Object.fromEntries(d.methods.map((m) => [m, (payload: unknown) => (live ? Effect.flatMap(o.identity ?? Effect.succeed({} as Identity), (id) => live!.call(m, payload, id)) : Effect.fail<CallFailure>({ _tag: "RemoteUnavailable", outcome: "not-executed" }))]))
       const child = define({ id: "session", requires: [] as const, provides: [at(o.contract, o.contract.version, { methods: d.methods })] as const,
         build: Layer.succeed(o.contract.contractKey as never, impl as never) as never }) as unknown as AnyPlugin
       sub = yield* Scope.make()
@@ -35,7 +37,7 @@ export const remoteProxy = (o: {
     })
     const link = yield* startLink(o.dial, {
       wire: [1], contract: { id: d.serviceId, accepts: o.accepts, version: d.version, methods: d.methods, schemas: d.schemas },
-      heartbeat: o.heartbeat, backoff: o.backoff,
+      heartbeat: o.heartbeat, backoff: o.backoff, ...(o.disclose ? { disclose: o.disclose } : {}),
       stableFor: o.stableFor,
       onSession: (s: Session) => Effect.gen(function* () { live = s; if (!hold || !sub) yield* mount(s) }),
       onEnd: (_s, why) => Effect.gen(function* () { live = undefined; o.onEnd?.(why); if (!hold && sub) { const sc = sub; sub = undefined; yield* Scope.close(sc, Exit.void) } })    // the sub-scope close withdraws the child (BEH-BR-121)

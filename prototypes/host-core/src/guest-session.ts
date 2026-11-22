@@ -1,7 +1,6 @@
 // The partner SDK over the remote companion's session (remote BEH-RM-020.., kit BEH-KT-034): `serveEntry` answers the link handshake of a started guest
 // and routes each call of the session's epoch to `GuestEntry.call`. A typed failure crosses as the call's error (the caller sees `RemoteError` with it
-// as `detail`); a callback the partner makes goes back over the session under the call's token. shortcut: the call frame carries no disclosed claims
-// (the session's call has no claims parameter), so `ctx.claims` is empty over a session, when the remote companion adds them to the frame.
+// as `detail`); a callback the partner makes goes back over the session under the call's token; the identity claims the link discloses arrive as `ctx.claims`.
 import { Effect } from "effect"
 import type { WireSide } from "./handshake.js"
 import { serveGuest, type Handlers } from "./session.js"
@@ -12,6 +11,7 @@ export const serveEntry = (conn: Connection, entry: GuestEntry, options: { reado
   const handlers: Handlers = Object.fromEntries(entry.served.methods.map((m) => [m, (payload: unknown, ctx) => Effect.gen(function* () {
     const callbacks: Array<Promise<unknown>> = []
     const r: WireResult = yield* Effect.promise(() => entry.call(m, payload as never, {
+      claims: ctx.claims,
       callback: (serviceId, method, p) => {
         const done = Effect.runPromise(ctx.callback(serviceId, method, p)).then((x): WireResult => {
           const exit = x.exit as { ok?: unknown; failed?: { _tag: string }; refused?: { tag: string } }

@@ -172,7 +172,7 @@ export const exportBundle = (req: {
   const fail = (reason: "unknown-series" | "range-invalid" | "receipts-unreadable" | "store-unreadable", seriesId: string | undefined, message: string): never => { throw new BundleExportFailed({ ...(seriesId ? { seriesId } : {}), reason, message }) }
   const ids = new Set(req.series.map((s) => s.seriesId))
   for (const id of [...(req.range?.keys() ?? []), ...(req.include?.keys() ?? [])]) if (!ids.has(id)) fail("unknown-series", id, `no series ${id}`)
-  const inclusions: DisclosedRecord[] = []; const segments: VerificationBundle["segments"][number][] = []; const covered: { seriesId: string; fromSeq: number; toSeq: number }[] = []
+  const continues = new Map<string, NonNullable<SeriesDescription["continuesFrom"]>>(); const inclusions: DisclosedRecord[] = []; const segments: VerificationBundle["segments"][number][] = []; const covered: { seriesId: string; fromSeq: number; toSeq: number }[] = []
   for (const s of req.series) {
     const p = s.profile?.profile
     let seqs: number[]
@@ -180,6 +180,12 @@ export const exportBundle = (req: {
     const lo = Math.min(...seqs); const hi = Math.max(...seqs)
     const r = req.range?.get(s.seriesId) ?? { fromSeq: lo, toSeq: hi }
     if (seqs.length === 0 || r.fromSeq > r.toSeq || r.fromSeq < lo || r.toSeq > hi) fail("range-invalid", s.seriesId, `range ${r.fromSeq}-${r.toSeq} is outside the stored ${lo}-${hi}`)
+    // a range above seq 1 carries its predecessor's link hash, so the verifier can prev-check the first entry
+    if (r.fromSeq > 1 && req.disclose !== "inclusions") {
+      const h = s.entries[seqs.indexOf(r.fromSeq - 1)]?.link?.hash
+      if (h === undefined) fail("range-invalid", s.seriesId, `the entry before seq ${r.fromSeq} (or its link) is missing`)
+      continues.set(s.seriesId, { seriesId: s.seriesId, seq: r.fromSeq - 1, hash: h! })
+    }
     if (req.disclose === "inclusions") {
       for (const seq of req.include?.get(s.seriesId) ?? []) {
         // statement windows come from the supplied anchors; a record in no anchored window cannot be disclosed
@@ -195,10 +201,10 @@ export const exportBundle = (req: {
     }
   }
   // every statement and receipt whose window overlaps what is exported; trust roots from the request only
-  const anchors = (req.anchors ?? []).filter((a) => covered.some((c) => c.seriesId === seriesOf(a.statement) && a.statement.fromSeq <= c.toSeq && c.fromSeq <= a.statement.toSeq))
+  const anchors = (req.anchors ?? []).filter((a) => covered.some((c) => c.seriesId === seriesOf(a.statement) && ((a.statement.fromSeq <= c.toSeq && c.fromSeq <= a.statement.toSeq) || (req.disclose !== "inclusions" && continues.has(c.seriesId) && a.statement.toSeq === c.fromSeq - 1)))) // plus the predecessor window of a range, to check `previous`
   const body = {
     format: "bridger-chain-bundle/v1" as const, createdAt: req.createdAt,
-    series: req.series.map((s) => ({ seriesId: s.seriesId, canon: s.profile?.profile.canon ?? auditProfile.canon, profile: s.profile?.id ?? "audit", alg: s.alg ?? "sha-256", ...(s.continuesFrom ? { continuesFrom: s.continuesFrom } : {}) })),
+    series: req.series.map((s) => ({ seriesId: s.seriesId, canon: s.profile?.profile.canon ?? auditProfile.canon, profile: s.profile?.id ?? "audit", alg: s.alg ?? "sha-256", ...((continues.get(s.seriesId) ?? s.continuesFrom) ? { continuesFrom: continues.get(s.seriesId) ?? s.continuesFrom } : {}) })),
     segments, ...(req.disclose === "inclusions" ? { inclusions } : {}),
     anchors, trustRoots: req.trustRoots, ...(req.expectedHeads ? { expectedHeads: req.expectedHeads } : {})
   }
@@ -266,8 +272,8 @@ const verifySeries = (d: SeriesDescription, profile: ChainProfile<any>, entries:
       if (!idOk) bad(seq, "link-record-mismatch")
       if (l.alg !== d.alg) bad(seq, "alg-changed")
       if (generic && l.canon !== profile.canon) bad(seq, "canon-changed")
-      const expectedPrev = prevLink && prevSeq !== undefined && seq === prevSeq + 1 ? prevLink.hash : seq === 1 ? (d.continuesFrom?.hash ?? genesis(d.alg, d.seriesId, v)) : undefined
-      // shortcut: first entry of a partial range is not prev-checked (no predecessor in the bundle), when exports carry the predecessor hash.
+      const expectedPrev = prevLink && prevSeq !== undefined && seq === prevSeq + 1 ? prevLink.hash : seq === 1 ? (d.continuesFrom?.hash ?? genesis(d.alg, d.seriesId, v)) : d.continuesFrom?.seq === seq - 1 ? d.continuesFrom.hash : undefined
+      // a first entry above seq 1 with no continuesFrom naming seq - 1 has no predecessor to check against
       if (expectedPrev !== undefined && l.prevHash !== expectedPrev) bad(seq, "prev-mismatch")
       if (expectKeyed && !l.keyId) bad(seq, "unkeyed-link")
       const input = generic ? mac(d.alg, 2, l.prevHash, genericTail(profile, e.record)) : mac(d.alg, 1, l.prevHash, auditTail(e.record))
@@ -294,8 +300,10 @@ const verifySeries = (d: SeriesDescription, profile: ChainProfile<any>, entries:
   const linksCheckedThrough = seqs.length === 0 ? 0 : Math.min(highestSeq, firstProblem - 1)
   const lossCounterUnanchored = anchors.filter((x) => x.statement.v === 1).map((x) => ({ fromSeq: x.statement.fromSeq, toSeq: x.statement.toSeq, statementHash: x.hash })).sort((a, b) => a.fromSeq - b.fromSeq)
   const mism: SeriesReport["anchorMismatches"][number][] = []
-  let verifiedThrough = 0; let chainOk = true; let prevStatement: string | undefined
-  for (const { statement: s, hash } of [...anchors].sort((a, b) => a.statement.fromSeq - b.statement.fromSeq)) {
+  let verifiedThrough = 0; let chainOk = true
+  // the statement just before the range, when the bundle carries it, is what the first window's `previous` must name
+  let prevStatement: string | undefined = anchors.find((x) => x.statement.toSeq === first - 1 && first > 1)?.hash
+  for (const { statement: s, hash } of [...anchors].filter((x) => x.statement.toSeq >= first).sort((a, b) => a.statement.fromSeq - b.statement.fromSeq)) {
     const win: string[] = []; for (let q = s.fromSeq; q <= s.toSeq; q++) { const h = hashAt.get(q); if (h === undefined) break; win.push(h) }
     if (win.length !== s.toSeq - s.fromSeq + 1 || win.length === 0) { mism.push({ statementHash: hash, kind: "window-not-in-entries" }); chainOk = false; continue }
     if (merkleRoot(s.alg, v, win) !== s.merkleRoot) { mism.push({ statementHash: hash, kind: "root-mismatch" }); chainOk = false; continue }
@@ -363,7 +371,7 @@ export const verifyBundle = (bundle: unknown, options: VerifyOptions = {}): Bund
       if (!Array.isArray(s.entries)) { malformed.push({ path: `segments[${j}].entries`, problem: "not-an-array" }); continue }
       s.entries.forEach((e: unknown, k: number) => { if (isObj(e) && "record" in e) entries.push(e as ChainEntry); else malformed.push({ path: `segments[${j}].entries[${k}]`, problem: "bad-entry" }) })
     }
-    // shortcut: heads stated by the bundle are never used to confirm, only listed in statedHeads, until carried heads are signed (05 Open 3).
+    // BEH-AC-034: heads stated by the bundle are never used to confirm, only listed in statedHeads (05 Open 3: carried heads are not signed).
     const disclosedOnly = entries.length === 0 && disclosed.some((x) => isObj(x) && x.hostId === d.seriesId)
     // a series disclosed only through inclusion proofs has no segment to check; its statements are checked by those proofs
     if (!disclosedOnly) chain[d.seriesId] = verifySeries(d as SeriesDescription, profile, entries, options, confirmed.get(d.seriesId) ?? [], false)

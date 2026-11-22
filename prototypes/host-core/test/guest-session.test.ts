@@ -34,4 +34,24 @@ describe("the partner SDK guest over a session", () => {
       expect(JSON.stringify(yield* drive(call(7)))).toContain("SdkDecodeFailed")
     }), { gateTimeout: 50 }, TestClock.layer())
   }, 30000)
+
+  it("the identity claims a link discloses reach the handler as ctx.claims; a claim it does not list never crosses (INV-RM-012)", async () => {
+    const seen: Array<unknown> = []
+    const spy = serveContract(schemasOf(greeter), { async greet(i: { name: string }, ctx: { claims: unknown }) { seen.push(ctx.claims); return { text: `hi ${i.name}` } } })
+    const go = async (disclose: Array<"actor" | "onBehalfOf" | "org" | "correlationId">) => {
+      const dial = Effect.gen(function* () { const [a, b] = yield* duplex; yield* Effect.forkChild(serveEntry(b, spy, { schemas: greeter.descriptor.schemas })); return a })
+      const proxy = remoteProxy({ id: "greeters", contract: greeter, accepts: "^1.0", dial, heartbeat: { every: 50, missed: 4 }, backoff: 1500, disclose,
+        identity: Effect.succeed({ actor: { kind: "user", id: "u1" }, org: "acme", correlationId: "c-9" }) })
+      await withHost((host) => Effect.gen(function* () {
+        yield* host.install(proxy, as())
+        for (let i = 0; i < 3000 && (yield* stateIn(host, "greeters/session")) !== "active"; i++) { while (yield* host.step) { /* drain */ } yield* TestClock.adjust(5); yield* Effect.yieldNow }
+        const f = yield* Effect.forkChild(host.use(greeter.range("^1.0") as never, (svc: { greet: (i: unknown) => Effect.Effect<unknown, unknown> }) => svc.greet({ name: "Ada" })))
+        for (let i = 0; i < 2000 && f.pollUnsafe() === undefined; i++) { while (yield* host.step) { /* drain */ } yield* TestClock.adjust(5); yield* Effect.yieldNow }
+      }), { gateTimeout: 50 }, TestClock.layer())
+    }
+    await go([]); await go(["actor", "correlationId", "onBehalfOf"])
+    expect(seen[0]).toEqual({})                                                                 // the default discloses nothing
+    expect(seen[1]).toEqual({ actor: { kind: "user", id: "u1" }, correlationId: "c-9" })      // listed and present; `org` was not listed, `onBehalfOf` had no value
+  }, 30000)
 })
+
