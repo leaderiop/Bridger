@@ -5,7 +5,7 @@ import { Context, Option, type Effect, type Scope } from "effect"
 /** One registration a helper reports under the active plugin (BEH-BR-119): names and ids only, never values. */
 export type Registration =
   | { readonly kind: "contribution"; readonly registry: string; readonly id: string }
-  | { readonly kind: "listener"; readonly event: string; readonly priority: number }
+  | { readonly kind: "listener"; readonly event: string; readonly id: string; readonly priority: number }
   | { readonly kind: "resource"; readonly label: string; readonly irreversible?: boolean }
 
 export interface ActivePluginRef {

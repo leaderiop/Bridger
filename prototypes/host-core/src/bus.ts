@@ -74,7 +74,7 @@ export class ListenerRemoved extends Error { constructor(readonly eventId: strin
 export const makeBus = (opts: {
   readonly drainTimeout: number
   readonly supervisor: Scope.Scope
-  readonly onListenerFailed: (eventId: string, message: string) => Effect.Effect<void>
+  readonly onListenerFailed: (o: { readonly event: string; readonly listenerId: string; readonly pluginId?: string; readonly message: string }) => Effect.Effect<void>
   /** BEH-BR-141: an invocation dropped because the listener was at its bound; `ended` closes an overflow episode with its total. */
   readonly onListenerOverflow?: (o: { readonly event: string; readonly listenerId: string; readonly pluginId?: string; readonly bound: number; readonly dropped: number; readonly ended?: true }) => Effect.Effect<void>
   /** Default `maxInFlight` and `parallel` concurrency (BEH-BR-141, 142); default 64. */
@@ -127,7 +127,7 @@ export const makeBus = (opts: {
     yield* (yield* registryOf(eventId)).add(cid, { kind, ...(o.role ? { role: o.role } : {}), ...(o.maxInFlight !== undefined ? { maxInFlight: o.maxInFlight } : {}), ...(o.serialised ? { serialised: true } : {}), ...(Option.isSome(active) ? { pluginId: active.value.pluginId } : {}), fn, ...(owner ? { owner } : {}), ...(Option.isSome(active) ? { ownerKey: active.value.realm === "default" ? active.value.pluginId : `${active.value.pluginId}@${active.value.realm}` } : {}) }, { priority: o.priority ?? 0 })
       .pipe(Effect.provideService(PrincipalReference, Option.none()), Effect.provideService(PolicySeam, Option.none()), Effect.orDie)   // ids are unique; the bus's own registry is not policed twice
     // A listener is reported as `listener` only, never also as a contribution (BEH-BR-119).
-    if (Option.isSome(active)) yield* active.value.report({ kind: "listener", event: eventId, priority: o.priority ?? 0 })
+    if (Option.isSome(active)) yield* active.value.report({ kind: "listener", event: eventId, id: cid, priority: o.priority ?? 0 })
   })
   /** The listeners of one style as of the dispatch start (BEH-BR-140). */
   const snapshot = (eventId: string, kind: Listener["kind"], only?: string) => Effect.gen(function* () {
@@ -141,10 +141,10 @@ export const makeBus = (opts: {
    * One invocation holding its contribution, as a `use` does (BEH-BR-141). A listener whose plugin was removed
    * during the dispatch — revoked, or withdrawn before its turn — fails the dispatch with a defect (BEH-BR-142, G23).
    */
-  const invoke = <A, E>(eventId: string, r: Registry.Registry<Listener>, cid: string, body: (fn: Listener["fn"], l: Listener) => Effect.Effect<A, E>, ann: Bag): Effect.Effect<A, E> =>
+  const invoke = <A, E>(eventId: string, r: Registry.Registry<Listener>, cid: string, body: (fn: Listener["fn"], l: Listener, cid: string) => Effect.Effect<A, E>, ann: Bag): Effect.Effect<A, E> =>
     r.use(cid, (l) => Effect.acquireUseRelease(
       Effect.sync(() => { if (l.ownerKey) opts.onListenerRun?.(l.ownerKey, 1) }),
-      () => body(l.fn, l),
+      () => body(l.fn, l, cid),
       () => Effect.sync(() => { if (l.ownerKey) opts.onListenerRun?.(l.ownerKey, -1) })).pipe(Effect.provideService(CurrentActor, Actor.unattributed),
       // A listener runs under its owner's principal, with the dispatcher's "events" annotations only (BEH-BR-144, 292).
       Effect.provideService(PrincipalReference, l.owner ? Option.some(l.owner) : Option.none()),
@@ -189,7 +189,7 @@ export const makeBus = (opts: {
           const err = Cause.squash(cause)
           if (Cause.hasInterruptsOnly(cause) || err instanceof ListenerRemoved) return Effect.void   // removal is not a failure
           const message = err instanceof Error ? err.message : String(err)
-          return Effect.logWarning(`listener of ${eventId} failed`, cause).pipe(Effect.andThen(opts.onListenerFailed(eventId, message)))
+          return Effect.logWarning(`listener of ${eventId} failed`, cause).pipe(Effect.andThen(opts.onListenerFailed({ event: eventId, listenerId: cid, ...(l?.pluginId ? { pluginId: l.pluginId } : {}), message })))
         }),
         Effect.ensuring(Effect.suspend(() => {
           st.n--
@@ -214,16 +214,16 @@ export const makeBus = (opts: {
     }),
     parallel: (event, ...args) => Effect.gen(function* () {
       const ann = yield* begin(event, "parallel", args)
-      const { r, ids } = yield* snapshot(event.id, "on")
+      const { r, ids, ls } = yield* snapshot(event.id, "on")
       const run = (cid: string) => invoke(event.id, r!, cid, (fn) => fn(...args), ann)
       const concurrency = event.concurrency ?? concurrencyDefault
       if (event.failure === "fail-fast") return yield* Effect.forEach(ids, run, { concurrency })
       // settle (default): every listener runs to completion; the first failure in listener order fails the dispatch, the others are reported (BEH-BR-142)
       const exits = yield* Effect.forEach(ids, (cid) => Effect.exit(run(cid)), { concurrency })
-      const failures = exits.filter(Exit.isFailure)
+      const failures = exits.flatMap((x, i) => Exit.isFailure(x) ? [{ cause: x.cause, cid: ids[i]!, l: ls[i]! }] : [])
       for (const f of failures.slice(1)) {
         const err = Cause.squash(f.cause)
-        if (!Cause.hasInterruptsOnly(f.cause) && !(err instanceof ListenerRemoved)) yield* opts.onListenerFailed(event.id, err instanceof Error ? err.message : String(err))
+        if (!Cause.hasInterruptsOnly(f.cause) && !(err instanceof ListenerRemoved)) yield* opts.onListenerFailed({ event: event.id, listenerId: f.cid, ...(f.l.pluginId ? { pluginId: f.l.pluginId } : {}), message: err instanceof Error ? err.message : String(err) })
       }
       if (failures.length) return yield* Effect.failCause(failures[0]!.cause)
       return exits.map((x) => (x as Exit.Success<any, any>).value)
@@ -240,12 +240,12 @@ export const makeBus = (opts: {
     waterfall: (event, args, final) => Effect.gen(function* () {
       const ann = yield* begin(event, "waterfall", args)
       const { r, ids } = yield* snapshot(event.id, "around")
-      const at = (i: number): Effect.Effect<any, any> => i === ids.length ? final : invoke(event.id, r!, ids[i]!, (fn, l) => Effect.suspend(() => {
+      const at = (i: number): Effect.Effect<any, any> => i === ids.length ? final : invoke(event.id, r!, ids[i]!, (fn, l, cid) => Effect.suspend(() => {
         let calls = 0
         const next = Effect.suspend(() => ++calls > 1 ? Effect.die(new NextCalledTwice(event.id)) : at(i + 1))
         // An observer that returned without `next` has not vetoed: the bus runs the tail and reports the skip (BEH-BR-143).
         return fn(args, next).pipe(Effect.flatMap((out) => l.role === "observe" && calls === 0
-          ? opts.onListenerFailed(event.id, "observer skipped next").pipe(Effect.andThen(next))
+          ? opts.onListenerFailed({ event: event.id, listenerId: cid, ...(l.pluginId ? { pluginId: l.pluginId } : {}), message: "observer skipped next" }).pipe(Effect.andThen(next))
           : Effect.succeed(out)))
       }), ann)
       return yield* at(0)

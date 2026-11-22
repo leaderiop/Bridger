@@ -111,4 +111,19 @@ describe("bounded emit, ordering and depth (report 04 R4)", () => {
       expect(done).toEqual(["interrupted"])                          // the sibling was cut off
     }))
   })
+
+  it("BEH-BR-141 (R6): listener-failed and listener-overflow name the listener and its owning plugin, matching the id `inspect` lists", async () => {
+    await run((host) => Effect.gen(function* () {
+      const seen = yield* Effect.forkChild(host.events.pipe(Stream.filter((e) => e.type === "listener-failed"), Stream.take(1), Stream.runCollect))
+      yield* host.install(listenerPlugin("owner", (bus) => bus.on(Note, () => Effect.fail("boom") as unknown as Effect.Effect<void>)), as())
+      yield* idle(host)
+      const bus = yield* busOf(host)
+      yield* bus.emit(Note, 1)
+      const e = [...(yield* Fiber.join(seen))][0]!
+      const listed = (yield* host.inspect("owner")).listeners
+      expect(e).toMatchObject({ type: "listener-failed", event: "r4/note", message: "boom", pluginId: "owner" })
+      expect(listed).toHaveLength(1)
+      expect((e as { listenerId: string }).listenerId).toBe(listed[0]!.id)
+    }))
+  })
 })

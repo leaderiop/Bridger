@@ -115,7 +115,7 @@ export interface PluginInspection {
   readonly optional: ReadonlyArray<string>
   readonly whenAvailable: ReadonlyArray<{ readonly name: string; readonly keys: ReadonlyArray<string>; readonly running: boolean }>
   readonly contributions: ReadonlyArray<{ readonly registry: string; readonly id: string }>
-  readonly listeners: ReadonlyArray<{ readonly event: string; readonly priority: number }>
+  readonly listeners: ReadonlyArray<{ readonly event: string; readonly id: string; readonly priority: number }>
   /** Report 03 R3, R4: resources acquired through `Runtime.acquire` that are held, or whose release failed or was not confirmed. Partial by design. */
   readonly resources: ReadonlyArray<{ readonly label: string; readonly irreversible?: true; readonly state: "held" | "release-failed" }>
   readonly requires: ReadonlyArray<string>
@@ -275,7 +275,7 @@ interface Entry {
   reactive: Set<Fiber.Fiber<unknown, unknown>> // whenAvailable runs holding a lease on this plugin (BEH-BR-133)
   whenAvailable?: Array<{ name: string; keys: ReadonlyArray<string>; running: boolean }>
   contributions: Array<{ registry: string; id: string }>   // reported through ActivePlugin (BEH-BR-168)
-  listeners: Array<{ event: string; priority: number }>    // reported by the event bus (BEH-BR-119)
+  listeners: Array<{ event: string; id: string; priority: number }>    // reported by the event bus (BEH-BR-119)
   /** Resources acquired through `Runtime.acquire`: those not confirmed released stay listed (report 03 R3, R4). */
   resources: Array<{ label: string; irreversible: boolean; state: "held" | "release-failed" }>
   /** The releases that failed, kept so `retryCleanup` can run them again (report 03 R8). */
@@ -592,7 +592,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   // Bridger.Events is a base service of the default realm (BEH-BR-137, 147); its listener fibers belong to the host.
   // The bus is made before the ports are read; access and the OnEvent hook are bound late (round 2).
   const bus = makeBus({ drainTimeout: options.drainTimeout ?? 30_000, supervisor: hostScope,
-    onListenerFailed: (event, message) => emit({ type: "listener-failed", event, message }),
+    onListenerFailed: ({ pluginId, ...o }) => emit({ type: "listener-failed", ...o }, pluginId),
     onListenerOverflow: ({ pluginId, ...o }) => emit({ type: "listener-overflow", ...o }, pluginId),
     ...(options.listenerConcurrency !== undefined ? { listenerConcurrency: options.listenerConcurrency } : {}), ...(options.emitDepthCap !== undefined ? { emitDepthCap: options.emitDepthCap } : {}),
     onListenerRun: (k: string, d: 1 | -1) => { const n = (listenerRuns.get(k) ?? 0) + d; if (n > 0) listenerRuns.set(k, n); else listenerRuns.delete(k) },
@@ -1188,7 +1188,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
             return Effect.addFinalizer(() => Effect.sync(() => { const i = e.contributions.findIndex((c) => c.registry === r.registry && c.id === r.id); if (i >= 0) e.contributions.splice(i, 1) }))
           }
           if (r.kind === "listener") {
-            const l = { event: r.event, priority: r.priority }
+            const l = { event: r.event, id: r.id, priority: r.priority }
             e.listeners.push(l)
             return Effect.addFinalizer(() => Effect.sync(() => { const i = e.listeners.indexOf(l); if (i >= 0) e.listeners.splice(i, 1) }))
           }
