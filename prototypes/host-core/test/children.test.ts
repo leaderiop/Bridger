@@ -50,7 +50,7 @@ describe("children (behaviour 14)", () => {
       yield* idle(host)
       const c = yield* find(host, "app/child")
       expect(c?.state).toBe("active")
-      expect(c?.parentId).toBe("app")
+      expect(c?.parentId).toEqual({ id: "app", realm: "default" })
       expect(c?.realm).toBe("default")
       expect(requests.map((r) => r.operation)).toEqual(["install"])        // the mount consulted no gate
       yield* settleWriter

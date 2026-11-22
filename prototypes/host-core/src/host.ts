@@ -62,7 +62,7 @@ export const HostLink = {
 }
 /** A captured provider: its id and the activation captured ("base" services have none), report 01 R3. */
 export type ProviderRef = { readonly id: string; readonly realm?: string; readonly activation?: number }
-export type PluginSnapshot = { readonly id: string; readonly realm: string; readonly parentId?: string; readonly meta?: AnyPlugin["meta"]; readonly lazy?: { readonly loaded: boolean } } & (
+export type PluginSnapshot = { readonly id: string; readonly realm: string; readonly parentId?: { readonly id: string; readonly realm: string }; readonly meta?: AnyPlugin["meta"]; readonly lazy?: { readonly loaded: boolean } } & (
   | { readonly state: "dormant"; readonly triggers: ReadonlyArray<LazyTrigger> }
   | { readonly state: "waiting"; readonly missingServiceIds: ReadonlyArray<string>; readonly flapping?: { readonly discardedFailures: number } }
   | { readonly state: "starting"; readonly activation: number; readonly providerIds: ReadonlyArray<ProviderRef>; readonly loading?: boolean }
@@ -690,7 +690,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     revision,
     plugins: [...entries.values()].sort((a, b) => a.order - b.order).map((e): PluginSnapshot => {
       const parent = e.parentKey !== undefined ? entries.get(e.parentKey) : undefined
-      const common = { id: e.pluginId, realm: e.realm, ...(parent ? { parentId: parent.pluginId } : {}), ...(e.def.meta ? { meta: e.def.meta } : {}), ...(e.lazy ? { lazy: { loaded: e.lazy.loaded } } : {}) }
+      const common = { id: e.pluginId, realm: e.realm, ...(parent ? { parentId: { id: parent.pluginId, realm: parent.realm } } : {}), ...(e.def.meta ? { meta: e.def.meta } : {}), ...(e.lazy ? { lazy: { loaded: e.lazy.loaded } } : {}) }
       switch (e.state) {
         case "dormant": return { ...common, state: "dormant", triggers: triggersOf(e.lazy!.def.manifest) }
         case "waiting": return { ...common, state: "waiting", missingServiceIds: missing(e), ...((e.discardedFailures ?? 0) >= staleFailureLimit ? { flapping: { discardedFailures: e.discardedFailures! } } : {}) }
@@ -1266,7 +1266,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         if (e.epoch !== epoch || entries.get(e.id) !== e || (e.state !== "starting" && e.state !== "active") || e.failing)
           return yield* Effect.fail(new Conflict({ id: e.pluginId, pending: e.stopReason ?? "stopping" }))
         // allowChildren, the AccessPolicy and the RefusalList, before anything is registered (BEH-BR-263, 264, 267).
-        const refuseChild = (reason: string) => emit({ type: "child-refused", childId: id, reason } as never, e.id).pipe(Effect.andThen(Effect.fail(new ChildNotAllowed({ parentId: e.pluginId, childId: id, reason }))))
+        const refuseChild = (reason: string) => emit({ type: "child-refused", childId: { id, realm }, reason } as never, e.id).pipe(Effect.andThen(Effect.fail(new ChildNotAllowed({ parentId: { id: e.pluginId, realm: e.realm }, childId: { id, realm }, reason }))))
         if (!e.allowChildren) return yield* refuseChild("allowChildren: false")
         if (Option.isSome(accessOpt) && e.principal) {
           const d = decideSafely(accessOpt.value, { kind: "child", principal: refOf(e.principal), childId: id, definition: defRef(child) })
@@ -1279,7 +1279,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
           if (Option.isSome(r)) {
             const ghost = newEntry(child, ident, {})
             yield* systemRecord("start-refused", ghost, e.cause, { _tag: "DigestRefused", message: "refused-digest" })
-            return yield* Effect.fail(new ChildNotAllowed({ parentId: e.pluginId, childId: id, reason: `refused-digest: ${r.value}` }))
+            return yield* Effect.fail(new ChildNotAllowed({ parentId: { id: e.pluginId, realm: e.realm }, childId: { id, realm }, reason: `refused-digest: ${r.value}` }))
           }
         }
         const c = newEntry(child, ident, { ...(o.disabled ? { disabled: true } : {}), ...(o.config !== undefined ? { config: o.config } : {}), intercept,
