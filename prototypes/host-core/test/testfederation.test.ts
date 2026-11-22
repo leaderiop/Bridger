@@ -1,5 +1,6 @@
 // Two and three hosts in one scope: an export served by one host, imported by another into its own peer realm (BEH-FD-022, 025-029, 033, 045).
 import { Context, Effect, Layer, Schema } from "effect"
+import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { Contract, at } from "../src/contract.js"
 import { FenceTable, peerRealmId } from "../src/federation.js"
@@ -14,8 +15,9 @@ class Board extends Context.Service<Board, { readonly post: (s: string) => Effec
 const board = Contract.make(Board, { version: "1.2.0", methods: { post: Contract.method({ payload: Schema.String, success: Schema.String }) } })
 const provider = (tag: string) => define({ id: "boards", requires: [] as const, provides: [at(board, "1.2.0", { methods: ["post"] })] as const,
   build: Layer.succeed(board.contractKey as never, { post: (s: string) => Effect.succeed(`${tag}:${s}`) } as never) as never }) as unknown as AnyPlugin
-const scoped = <A>(f: () => Effect.Effect<A, unknown, Scope.Scope>) => E.runPromise(E.scoped(f()))
-const until = (host: { step: Effect.Effect<boolean> }, cond: Effect.Effect<boolean>) => Effect.gen(function* () { for (let i = 0; i < 1000; i++) { while (yield* host.step) { /* drain */ } if (yield* cond) return true; yield* Effect.sleep(5) } return false })
+const scoped = <A>(f: () => Effect.Effect<A, unknown, Scope.Scope>) => E.runPromise(E.scoped(f()).pipe(E.provide(TestClock.layer())))
+const tick = Effect.gen(function* () { yield* TestClock.adjust(5); for (let i = 0; i < 20; i++) yield* Effect.yieldNow })   // virtual time: load cannot reorder the heartbeat
+const until = (host: { step: Effect.Effect<boolean> }, cond: Effect.Effect<boolean>) => Effect.gen(function* () { for (let i = 0; i < 1000; i++) { while (yield* host.step) { /* drain */ } if (yield* cond) return true; yield* tick } return false })
 const callThrough = (host: Parameters<typeof drive>[0], realm: string, arg: string) => Effect.gen(function* () {
   const f = yield* Effect.forkChild(host.use(board.contractKey as never, (svc: { post: (s: string) => Effect.Effect<string> }) => svc.post(arg), { realm } as never))
   yield* until(host, Effect.sync(() => f.pollUnsafe() !== undefined))

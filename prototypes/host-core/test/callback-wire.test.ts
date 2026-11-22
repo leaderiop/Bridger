@@ -1,5 +1,6 @@
 // A guest handler calls back into the host over the session, on the in-memory wire and over loopback TCP (BEH-RM-046, 011).
 import { Context, Effect, Schema } from "effect"
+import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { Contract } from "../src/contract.js"
 import { dialSocket, listen } from "../src/net.js"
@@ -15,9 +16,12 @@ const hostSide = (ran: string[]) => ({ offeredLabels: ["eu"], grants: [{ contrac
   run: (_cl: unknown, _c: string, m: string, p: unknown) => Effect.sync(() => { ran.push(`${m}:${String(p)}`); return 42 }) })
 const guest = (handlers: Parameters<typeof serveGuest>[1]["handlers"]) => ({ wire: [1], served: [side], maxInFlight: 4, handlers })
 
+const runVirtual = <A, E>(e: Effect.Effect<A, E, import("effect").Scope.Scope>) => Effect.runPromise(Effect.scoped(e).pipe(Effect.provide(TestClock.layer())))
+const tick = Effect.gen(function* () { yield* TestClock.adjust(5); for (let i = 0; i < 20; i++) yield* Effect.yieldNow })
+
 describe("callbacks over the session", () => {
   it("a served call calls back into a granted host service and returns what it gave, in memory", async () => {
-    await Effect.runPromise(Effect.gen(function* () {
+    await runVirtual(Effect.gen(function* () {
       const ran: string[] = []
       const [a, b] = yield* duplex
       yield* Effect.forkChild(serveGuest(b, guest({ post: (p, ctx) => ctx.callback("stock/Query", "count", p).pipe(Effect.map((r) => `got:${JSON.stringify(r.exit)}`)) })))
@@ -28,7 +32,7 @@ describe("callbacks over the session", () => {
     }))
   })
   it("refuses a callback outside the grants without running host code", async () => {
-    await Effect.runPromise(Effect.gen(function* () {
+    await runVirtual(Effect.gen(function* () {
       const ran: string[] = []
       const [a, b] = yield* duplex
       yield* Effect.forkChild(serveGuest(b, guest({ post: (p, ctx) => ctx.callback("stock/Query", "drop", p).pipe(Effect.map((r) => JSON.stringify(r.exit))) })))
@@ -39,13 +43,13 @@ describe("callbacks over the session", () => {
     }))
   })
   it("refuses a callback of another epoch with StaleEpoch, and one carrying a token that is not live", async () => {
-    await Effect.runPromise(Effect.gen(function* () {
+    await runVirtual(Effect.gen(function* () {
       const ran: string[] = []
       const [a, b] = yield* duplex
       const seen: Array<{ t: string; exit?: unknown }> = []
       yield* Effect.forkChild(serveGuest({ send: b.send, receive: Effect.tap(b.receive, (f) => Effect.sync(() => { seen.push(JSON.parse(f)) })) }, guest({ post: () => Effect.succeed("done") })))
       const s = (yield* openSession(a, { ...base("e-1"), callbacks: hostSide(ran) })) as Session
-      const result = (n: number) => Effect.gen(function* () { for (let i = 0; i < 200; i++) { const r = seen.filter((x) => x.t === "callback-result"); if (r.length >= n) return r[n - 1]!.exit; yield* Effect.sleep(5) } return undefined })
+      const result = (n: number) => Effect.gen(function* () { for (let i = 0; i < 200; i++) { const r = seen.filter((x) => x.t === "callback-result"); if (r.length >= n) return r[n - 1]!.exit; yield* tick } return undefined })
       yield* b.send(JSON.stringify({ t: "callback", epoch: "old", callId: "z", parent: "c-1", token: "t", contract: "stock/Query", method: "count", payload: 1 }))
       expect(yield* result(1)).toEqual({ refused: { reason: "stale-epoch", tag: "StaleEpoch" } })
       yield* b.send(JSON.stringify({ t: "callback", epoch: "e-1", callId: "y", parent: "c-1", token: "forged", contract: "stock/Query", method: "count", payload: 1 }))
@@ -55,7 +59,7 @@ describe("callbacks over the session", () => {
     }))
   })
   it("works over loopback TCP too", async () => {
-    await Effect.runPromise(Effect.gen(function* () {
+    await runVirtual(Effect.gen(function* () {
       const ran: string[] = []
       const l = yield* listen((c) => serveGuest(c, guest({ post: (p, ctx) => ctx.callback("stock/Query", "count", p).pipe(Effect.map((r) => JSON.stringify(r.exit))) })).pipe(Effect.asVoid))
       const s = (yield* openSession(yield* dialSocket(l.port), { ...base("tcp-1"), callbacks: hostSide(ran) })) as Session
