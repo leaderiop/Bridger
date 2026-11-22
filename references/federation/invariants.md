@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-INV                                               |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-22): compatibility includes per-method schema digests (core BEH-BR-228 clause 3b; improvement report 02, R1)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — INV-FD-002: a stored copy refused at a re-apply still disables its `requiresFresh` entries while stale, and no boot bundle replaces it while a re-bootstrap marker is stored (H2, F1) (CCR-FD-012)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — INV-FD-002: a stored copy that fails re-verification at a re-apply is not reconciled, and a restarted host past `maxAge` starts none of its entries needing a new acceptance until a fresh set arrives (H2, F1); INV-FD-010: kill entries act by `disable` when the last applied manifest fails re-verification (F1) (CCR-FD-011)<br>0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-FD-002: a stored manifest is accepted again under `reverify` with the acceptance time stored with it (L3), verified also by check 33 (PL16); INV-FD-003: verified also by check 48 (H2); INV-FD-011: the explicit opt-out is `outbox: "none"` (F4) (CCR-FD-010)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-FD-006: a peer export's version satisfies `"^" + V` (F4); INV-FD-011: once an install began, no retry, step-2 failure or restart resumes links before completion (H6, F2); INV-FD-012: an import's offered labels are its peer's `ManifestPeer.residency` (H5) (CCR-FD-008)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1, F3, F5, F9, F10) — INV-FD-003 covers pending kills and every apply path; INV-FD-010 conditional on a wired revocation source and the topology, guard holds stated; INV-FD-011 covers the guarded install and resumption (CCR-FD-003)<br>Earlier revisions: [CHANGES.md](CHANGES.md#bridger-fd-inv) |
+> | Change History | 0.10 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.9 (2026-11-22): compatibility includes per-method schema digests (core BEH-BR-228 clause 3b; improvement report 02, R1)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — INV-FD-002: a stored copy refused at a re-apply still disables its `requiresFresh` entries while stale, and no boot bundle replaces it while a re-bootstrap marker is stored (H2, F1) (CCR-FD-012)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — INV-FD-002: a stored copy that fails re-verification at a re-apply is not reconciled, and a restarted host past `maxAge` starts none of its entries needing a new acceptance until a fresh set arrives (H2, F1); INV-FD-010: kill entries act by `disable` when the last applied manifest fails re-verification (F1) (CCR-FD-011)<br>0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-FD-002: a stored manifest is accepted again under `reverify` with the acceptance time stored with it (L3), verified also by check 33 (PL16); INV-FD-003: verified also by check 48 (H2); INV-FD-011: the explicit opt-out is `outbox: "none"` (F4) (CCR-FD-010)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — INV-FD-006: a peer export's version satisfies `"^" + V` (F4); INV-FD-011: once an install began, no retry, step-2 failure or restart resumes links before completion (H6, F2); INV-FD-012: an import's offered labels are its peer's `ManifestPeer.residency` (H5) (CCR-FD-008)<br>0.4 (2026-11-08): Round-2 agent review (R4 F1, F3, F5, F9, F10) — INV-FD-003 covers pending kills and every apply path; INV-FD-010 conditional on a wired revocation source and the topology, guard holds stated; INV-FD-011 covers the guarded install and resumption (CCR-FD-003)<br>Earlier revisions: [CHANGES.md](CHANGES.md#bridger-fd-inv) |
 
 ---
 
@@ -39,6 +39,16 @@ over generated sequences of issue, deliver, crash and boot.
 
 **Related**: [BEH-FD-004](behaviors/01-host-manifest.md#beh-fd-004-revisions-are-monotonic-and-a-reused-revision-is-refused), [BEH-FD-008](behaviors/01-host-manifest.md#beh-fd-008-a-manifest-is-applied-through-one-attributed-reconcile), [BEH-FD-010](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-010-boot-applies-the-highest-verified-manifest-else-the-boot-bundle), [ADR-FD-003](decisions/003-monotonic-manifest-revisions.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Applied manifest revisions never decrease
+evidence:
+  - prototypes/host-core/src/federation.ts
+status: Prototyped
+unchecked: none stated
+```
 ## INV-FD-002: No unverified manifest is applied
 
 Every manifest that reaches `reconcile` was accepted by the wired
@@ -63,6 +73,15 @@ that `Manifest.toDesired` accepts only the verified type.
 
 **Related**: [BEH-FD-001](behaviors/01-host-manifest.md#beh-fd-001-a-host-manifest-is-data-with-a-fixed-schema), [BEH-FD-002](behaviors/01-host-manifest.md#beh-fd-002-the-signed-bytes-are-verified-before-they-are-decoded), [BEH-FD-003](behaviors/01-host-manifest.md#beh-fd-003-a-manifest-is-for-one-host-from-one-authority), [ADR-FD-004](decisions/004-signatures-delegated-to-loader.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: No unverified manifest is applied
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-003: A killed plugin is never in a desired list
 
 No desired list handed to `reconcile` contains an entry matching a kill entry
@@ -85,6 +104,15 @@ property test over generated manifests and patches.
 
 **Related**: [BEH-FD-007](behaviors/01-host-manifest.md#beh-fd-007-a-kill-entry-removes-matching-plugins-at-the-next-apply), [BEH-FD-027](behaviors/04-exports-and-imports.md#beh-fd-027-killed-digests-are-neither-imported-nor-exported).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A killed plugin is never in a desired list
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-004: A host always has a defined desired state
 
 At every moment, the federation scope's desired state is the highest verified
@@ -101,6 +129,15 @@ leave the host running a known state.
 
 **Related**: [BEH-FD-010](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-010-boot-applies-the-highest-verified-manifest-else-the-boot-bundle), [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first), [ADR-FD-007](decisions/007-offline-cap-and-rebootstrap.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A host always has a defined desired state
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-005: A peer's imports resolve only in the realm named for them
 
 An import proxy for key K at major M from peer P is installed only in the
@@ -118,6 +155,15 @@ provider slot. This is resolution only, not isolation
 
 **Related**: [BEH-FD-022](behaviors/03-links-and-skew-handshake.md#beh-fd-022-each-import-has-its-own-peer-realm), [BEH-FD-026](behaviors/04-exports-and-imports.md#beh-fd-026-an-import-is-a-remote-proxy-plugin-installed-by-reconcile), [ADR-FD-005](decisions/005-peer-realms-and-remote-proxies.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A peer's imports resolve only in the realm named for them
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-006: A link uses only versions both ends support
 
 No remote session starts on a link's import endpoints before the offer
@@ -142,6 +188,15 @@ property test of agreement symmetry over generated offers and windows.
 
 **Related**: [BEH-FD-018](behaviors/03-links-and-skew-handshake.md#beh-fd-018-the-handshake-offer), [BEH-FD-019](behaviors/03-links-and-skew-handshake.md#beh-fd-019-the-federation-protocol-version-highest-common-inside-the-window), [BEH-FD-020](behaviors/03-links-and-skew-handshake.md#beh-fd-020-each-import-names-one-major-and-the-offer-accepts-or-refuses-it), [ADR-FD-006](decisions/006-n-minus-one-skew-window.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A link uses only versions both ends support
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-007: Stale epochs and stale fences are refused at the boundary
 
 A reply or offer carrying a previous session's epoch, or a fence token lower
@@ -163,6 +218,15 @@ single-writer effects check the fence where they land (application).
 
 **Related**: [BEH-FD-021](behaviors/03-links-and-skew-handshake.md#beh-fd-021-a-partition-makes-imports-wait-a-new-session-gets-a-new-epoch), [BEH-FD-028](behaviors/04-exports-and-imports.md#beh-fd-028-a-single-owner-export-carries-a-fence), [BEH-FD-029](behaviors/04-exports-and-imports.md#beh-fd-029-importers-refuse-stale-fences-and-stop-on-equal-ones), [BEH-FD-031](behaviors/04-exports-and-imports.md#beh-fd-031-an-export-withdrawn-or-moved-is-refused-at-once), [ADR-FD-008](decisions/008-fenced-single-owner-exports.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Stale epochs and stale fences are refused at the boundary
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-008: No host transition waits on the network
 
 No build, finalizer or host transition of any plugin waits for the authority,
@@ -181,6 +245,15 @@ every peer partitioned.
 
 **Related**: [BEH-FD-008](behaviors/01-host-manifest.md#beh-fd-008-a-manifest-is-applied-through-one-attributed-reconcile), [BEH-FD-009](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-009-the-federation-plugin-and-a-build-that-never-waits-on-the-network), [BEH-FD-017](behaviors/03-links-and-skew-handshake.md#beh-fd-017-the-manifest-names-the-links), [BEH-FD-024](behaviors/03-links-and-skew-handshake.md#beh-fd-024-applying-a-manifest-changes-links-in-a-fixed-order), [ADR-FD-001](decisions/001-federation-is-a-companion-over-reconcile.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: No host transition waits on the network
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-009: Staleness and the offline cap are never silent
 
 Every transition to `stale`, `offline-capped` or `clock-skew`, and every
@@ -196,6 +269,15 @@ one that is current.
 
 **Related**: [BEH-FD-012](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-012-freshness-and-plugins-that-require-a-fresh-manifest), [BEH-FD-013](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-013-the-offline-cap), [BEH-FD-015](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-015-federationstatus-reports-what-the-host-follows), [BEH-FD-016](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-016-time-comes-from-clock-and-a-clock-that-went-backwards-is-stale).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Staleness and the offline cap are never silent
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-010: A kill never waits on a manifest apply, the offline cap or a re-bootstrap
 
 Given a wired `RevocationSource` with a trust root (not the loader's
@@ -223,6 +305,15 @@ no links. A gate refusal or drain timeout still delays it, reported as
 
 **Related**: [BEH-FD-041](behaviors/06-kill-path-placement-and-skew.md#beh-fd-041-revocation-lists-travel-on-their-own-channel-and-are-verified-as-signed-statements), [BEH-FD-042](behaviors/06-kill-path-placement-and-skew.md#beh-fd-042-a-revocation-list-is-applied-at-once-before-re-bootstrap-and-before-any-manifest), [BEH-FD-043](behaviors/06-kill-path-placement-and-skew.md#beh-fd-043-revocation-lists-are-relayed-on-links), [ADR-FD-009](decisions/009-revocation-travels-apart-from-desired-state.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A kill never waits on a manifest apply, the offline cap or a re-bootstrap
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-011: A re-bootstrap never replaces state while local facts are neither pushed nor kept
 
 No `Rebootstrap.fetch` or `install` runs unless `RebootstrapOutbox.settle`
@@ -244,6 +335,15 @@ cannot push or keep them stays on its last state, reported
 
 **Related**: [BEH-FD-014](behaviors/02-sync-offline-and-rebootstrap.md#beh-fd-014-a-host-too-far-behind-re-bootstraps-from-a-snapshot-outbox-first), [BEH-FD-044](behaviors/06-kill-path-placement-and-skew.md#beh-fd-044-re-bootstrap-pushes-or-keeps-the-outbox-before-it-touches-the-snapshot), [ADR-FD-007](decisions/007-offline-cap-and-rebootstrap.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A re-bootstrap never replaces state while local facts are neither pushed nor kept
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-FD-012: No import or export runs over a route that does not offer its residency label
 
 An import or export with a `residency` label is opened or served only over a
@@ -259,3 +359,13 @@ evidence of where a peer runs ([RSK-RM-014](../remote/risks.md#rsk-rm-014)).
 **Verification** *(Planned)*: check 37 of BEH-FD-034.
 
 **Related**: [BEH-FD-045](behaviors/06-kill-path-placement-and-skew.md#beh-fd-045-imports-and-exports-are-refused-on-a-route-that-does-not-offer-their-residency-label), [ADR-RM-010](../remote/decisions/010-placement-labels-compared-at-the-boundary.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: No import or export runs over a route that does not offer its residency label
+evidence: none
+status: Planned
+unchecked: none stated
+```

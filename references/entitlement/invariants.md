@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-INV                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.4 (2026-11-10): INV-EN-005: the essential labels `guard` honours are the application's, from `Entitlement.layer`; a plugin may add, never remove (E2) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — INV-EN-002 covers grant narrowing; INV-EN-005 names the contribution policies and grant narrowing; INV-EN-006 and INV-EN-007 added (CCR-EN-003)<br>0.2 (2026-11-08): INV-EN-001: `enable` never refused, `replace` only under `onReplace: "consult"`; INV-EN-005 names the skip policies (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.5 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.4 (2026-11-10): INV-EN-005: the essential labels `guard` honours are the application's, from `Entitlement.layer`; a plugin may add, never remove (E2) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.3 (2026-11-08): Round 2: recheck item 16; core alignment — INV-EN-002 covers grant narrowing; INV-EN-005 names the contribution policies and grant narrowing; INV-EN-006 and INV-EN-007 added (CCR-EN-003)<br>0.2 (2026-11-08): INV-EN-001: `enable` never refused, `replace` only under `onReplace: "consult"`; INV-EN-005 names the skip policies (CCR-EN-002)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -45,6 +45,16 @@ operation to the gated list must fail it.
 
 **Related**: [BEH-EN-009](behaviors/02-gate-and-runtime.md#beh-en-009-the-entitlement-gate-is-a-gate-piece-for-granting-operations), [BEH-EN-012](behaviors/02-gate-and-runtime.md#beh-en-012-removal-disabling-recovery-and-shutdown-are-never-refused), [ADR-EN-001](decisions/001-entitlement-changes-modes-not-state.md), [ADR-EN-002](decisions/002-runtime-stream-and-gate-only.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Taking a plugin away is never refused for entitlement
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-EN-002: A lapse never changes plugin state by itself
@@ -74,6 +84,16 @@ the host's mutating API.
 
 **Related**: [BEH-EN-003](behaviors/01-entitlement-port.md#beh-en-003-the-entitlementstate-and-its-four-modes), [BEH-EN-004](behaviors/01-entitlement-port.md#beh-en-004-expiry-and-grace-are-evaluated-against-clock), [BEH-EN-015](behaviors/02-gate-and-runtime.md#beh-en-015-a-lapse-never-changes-plugin-state), [ADR-EN-001](decisions/001-entitlement-changes-modes-not-state.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A lapse never changes plugin state by itself
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-EN-003: An uncommitted reservation is released when its scope closes
@@ -96,6 +116,16 @@ asserting conservation of each limit.
 
 **Related**: [BEH-EN-019](behaviors/03-budgets.md#beh-en-019-commit-release-and-release-on-scope-close), [BEH-EN-023](behaviors/03-budgets.md#beh-en-023-budgets-hook-points-and-per-command-budgets), [ADR-EN-003](decisions/003-budgets-are-scoped-reservations.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: An uncommitted reservation is released when its scope closes
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-EN-004: Reserved plus committed never exceeds a limit
@@ -116,6 +146,17 @@ reserving against overlapping label sets; unit tests of overrun and essential
 overdraft counters.
 
 **Related**: [BEH-EN-018](behaviors/03-budgets.md#beh-en-018-a-reservation-debits-every-applicable-limit-atomically), [BEH-EN-019](behaviors/03-budgets.md#beh-en-019-commit-release-and-release-on-scope-close), [BEH-EN-020](behaviors/03-budgets.md#beh-en-020-exhaustion-is-a-typed-outcome-essential-uses-are-never-refused), [ADR-EN-003](decisions/003-budgets-are-scoped-reservations.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Reserved plus committed never exceeds a limit
+evidence:
+  - prototypes/host-core/src/budget.ts
+status: Prototyped
+unchecked: none stated
+```
 
 ---
 
@@ -142,6 +183,16 @@ predicate from any component must fail.
 
 **Related**: [BEH-EN-007](behaviors/01-entitlement-port.md#beh-en-007-essential-labels-are-never-refused-by-this-package), [BEH-EN-010](behaviors/02-gate-and-runtime.md#beh-en-010-the-decision-rule-and-its-refusal-reasons), [BEH-EN-014](behaviors/02-gate-and-runtime.md#beh-en-014-a-plugin-switches-itself-to-read-only-and-guard-helps-it), [BEH-EN-016](behaviors/02-gate-and-runtime.md#beh-en-016-entitlement-of-hook-point-contributions-is-a-contribution-policy-of-the-hook-point), [BEH-EN-020](behaviors/03-budgets.md#beh-en-020-exhaustion-is-a-typed-outcome-essential-uses-are-never-refused), [ADR-EN-001](decisions/001-entitlement-changes-modes-not-state.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Essential uses are never refused by entitlement or budget helpers
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-EN-006: Grant narrowing never refuses a capture and never widens a grant
@@ -165,6 +216,16 @@ fails and hangs asserting no refusal and a live stream.
 
 **Related**: [BEH-EN-025](behaviors/04-grant-narrowing-and-usage.md#beh-en-025-entitlementcapabilitypolicy-wraps-the-applications-policy-and-never-refuses-for-entitlement), [BEH-EN-027](behaviors/04-grant-narrowing-and-usage.md#beh-en-027-the-grant-rule-for-each-mode), [BEH-EN-028](behaviors/04-grant-narrowing-and-usage.md#beh-en-028-a-lapse-re-resolves-the-plugins-live-captures-and-renewal-restores-them), [ADR-EN-004](decisions/004-a-lapse-narrows-capability-grants.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Grant narrowing never refuses a capture and never widens a grant
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-EN-007: A hook call's reservation is settled once, by its outcome
@@ -186,3 +247,13 @@ for a later policy that passes over a reserved call; conservation property of
 each limit across generated dispatches.
 
 **Related**: [BEH-EN-030](behaviors/04-grant-narrowing-and-usage.md#beh-en-030-a-hook-calls-budget-is-reserved-at-admission-and-settled-after-the-call), [BEH-EN-023](behaviors/03-budgets.md#beh-en-023-budgets-hook-points-and-per-command-budgets), [ADR-EN-003](decisions/003-budgets-are-scoped-reservations.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A hook call's reservation is settled once, by its outcome
+evidence: none
+status: Planned
+unchecked: none stated
+```

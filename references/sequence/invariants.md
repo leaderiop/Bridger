@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-SQ-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): INV-SQ-004 source: the origin is checked against `DurableBus.origin` at every `open`, `next` and `close`, so a handle of an earlier origin never writes (CCR-SQ-003)<br>0.2 (2026-11-08): INV-SQ-004 has no exception: a supersession is written in the new incarnation's own stream (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
+> | Change History | 0.4 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.3 (2026-11-09): INV-SQ-004 source: the origin is checked against `DurableBus.origin` at every `open`, `next` and `close`, so a handle of an earlier origin never writes (CCR-SQ-003)<br>0.2 (2026-11-08): INV-SQ-004 has no exception: a supersession is written in the new incarnation's own stream (CCR-SQ-002)<br>0.1 (2026-11-08): Initial draft (CCR-SQ-001)                 |
 
 ---
 
@@ -36,6 +36,16 @@ concurrent `next()`.
 
 **Related**: [BEH-SQ-004](behaviors/01-series-and-ownership.md#beh-sq-004-next-reserves-a-number-in-the-callers-transaction), [BEH-SQ-005](behaviors/01-series-and-ownership.md#beh-sq-005-committed-numbers-are-contiguous-and-never-renumbered), [ADR-SQ-002](decisions/002-a-series-is-an-event-store-stream.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Committed numbers are 1 to n, each once
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-SQ-002: A committed number is never changed or reassigned
@@ -51,6 +61,16 @@ streams across closure and incarnation changes.
 
 **Related**: [BEH-SQ-005](behaviors/01-series-and-ownership.md#beh-sq-005-committed-numbers-are-contiguous-and-never-renumbered).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A committed number is never changed or reassigned
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-SQ-003: No number after closure
@@ -65,6 +85,16 @@ append's expected version excludes a concurrent closure *(Planned)*.
 **Verification** *(Planned)*: concurrent `next()` and `close()` scenario.
 
 **Related**: [BEH-SQ-007](behaviors/01-series-and-ownership.md#beh-sq-007-closereason-ends-a-series), [BEH-SQ-009](behaviors/02-incarnation-and-verification.md#beh-sq-009-a-new-incarnation-closes-the-old-series-as-superseded).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: No number after closure
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -85,6 +115,16 @@ across a re-bootstrap; `verifySeries` foreign writer report.
 
 **Related**: [BEH-SQ-002](behaviors/01-series-and-ownership.md#beh-sq-002-one-owning-host), [BEH-SQ-009](behaviors/02-incarnation-and-verification.md#beh-sq-009-a-new-incarnation-closes-the-old-series-as-superseded), [ADR-SQ-001](decisions/001-numbers-are-issued-by-the-owning-host.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Only the owning origin writes a series
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-SQ-005: Verification reports only what it checked
@@ -103,3 +143,13 @@ the report carries no overall verdict.
 ---
 
 _Previous: [03 — Formats, testing and acceptance](./behaviors/03-formats-testing-and-acceptance.md)_ · _Next: [Risks](./risks.md)_
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Verification reports only what it checked
+evidence: none
+status: Planned
+unchecked: none stated
+```

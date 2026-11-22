@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-INV                                               |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Runtime Invariants                                           |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — INV-RM-007: the callback admission order includes the placement check (step 4a) and the budget check (step 4b) of BEH-RM-043 (PL17) (CCR-RM-007)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (F-07): INV-RM-012 added — a call carries no identity claim its link did not disclose (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F19, F20) — INV-RM-009 holds within the `DedupeStore` retention, duplicates of a running call answered `InProgress`; INV-RM-011 includes the calling fiber's label, checked before sending (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — INV-RM-009 holds across per-call invocations with a `DedupeStore`; INV-RM-011 (residency placement) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.7 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — INV-RM-007: the callback admission order includes the placement check (step 4a) and the budget check (step 4b) of BEH-RM-043 (PL17) (CCR-RM-007)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (F-07): INV-RM-012 added — a call carries no identity claim its link did not disclose (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review (R4 F14, F19, F20) — INV-RM-009 holds within the `DedupeStore` retention, duplicates of a running call answered `InProgress`; INV-RM-011 includes the calling fiber's label, checked before sending (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20 and 23 — INV-RM-009 holds across per-call invocations with a `DedupeStore`; INV-RM-011 (residency placement) added (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — INV-RM-005 states the finalizer deviation; INV-RM-007 and INV-RM-009 sources aligned with BEH-RM-043, BEH-RM-046 and BEH-RM-035; INV-RM-009 limited on per-call transports; INV-RM-010 added (R3-05, R3-06, R3-09, R3-16) (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -61,6 +61,16 @@ a type-level test that `Remote.define` returns `PluginDefinition`.
 
 **Related**: [BEH-RM-001](behaviors/01-remote-proxy-plugin.md), [BEH-RM-002](behaviors/01-remote-proxy-plugin.md), [BEH-RM-027](behaviors/04-heartbeat-and-partition.md), [BEH-RM-060](behaviors/08-test-transport-and-acceptance.md), [ADR-RM-001](decisions/001-remote-plugin-is-a-local-proxy.md), [ADR-RM-002](decisions/002-partition-withdraws-the-session-child.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A remote plugin adds no state, operation or transition
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-RM-002: No lifecycle step waits on a peer
@@ -87,6 +97,16 @@ build must fail this check.
 
 **Related**: [BEH-RM-003](behaviors/01-remote-proxy-plugin.md), [BEH-RM-005](behaviors/01-remote-proxy-plugin.md), [BEH-RM-012](behaviors/02-sessions-and-epochs.md), [BEH-RM-028](behaviors/04-heartbeat-and-partition.md), [ADR-RM-004](decisions/004-bounded-calls-and-peer-free-lifecycle.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: No lifecycle step waits on a peer
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-RM-003: Every remote call is bounded by a timeout
@@ -109,6 +129,17 @@ random drops and delays: every call issued ends by its deadline on the test
 clock; type-level test that `"forever"` is rejected.
 
 **Related**: [BEH-RM-017](behaviors/03-remote-calls.md), [BEH-RM-018](behaviors/03-remote-calls.md), [BEH-RM-045](behaviors/06-capability-tokens-and-call-log.md), [ADR-RM-004](decisions/004-bounded-calls-and-peer-free-lifecycle.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Every remote call is bounded by a timeout
+evidence:
+  - prototypes/host-core/src/session.ts
+status: Prototyped
+unchecked: none stated
+```
 
 ---
 
@@ -136,6 +167,16 @@ execution count and the host's delivered results; a property test over
 random reorderings.
 
 **Related**: [BEH-RM-010](behaviors/02-sessions-and-epochs.md), [BEH-RM-011](behaviors/02-sessions-and-epochs.md), [BEH-RM-035](behaviors/05-guest-serve.md), [BEH-RM-044](behaviors/06-capability-tokens-and-call-log.md), [ADR-RM-003](decisions/003-sessions-carry-epochs.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A stale epoch is refused at the boundary
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -167,6 +208,16 @@ dependent, the absence of `failed`, and the return to `active` after heal.
 
 **Related**: [BEH-RM-025](behaviors/04-heartbeat-and-partition.md), [BEH-RM-026](behaviors/04-heartbeat-and-partition.md), [BEH-RM-027](behaviors/04-heartbeat-and-partition.md), [ADR-RM-002](decisions/002-partition-withdraws-the-session-child.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A partition withdraws the provider and fails no dependent
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-RM-006: Remote adds no second admission path
@@ -190,6 +241,16 @@ proxy exactly as for a local provider
 through a proxy ([BEH-RM-060](behaviors/08-test-transport-and-acceptance.md)).
 
 **Related**: [BEH-RM-019](behaviors/03-remote-calls.md), [BEH-RM-022](behaviors/03-remote-calls.md), [ADR-RM-001](decisions/001-remote-plugin-is-a-local-proxy.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Remote adds no second admission path
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -222,6 +283,16 @@ previous epoch, and a forged token, each refused with its tag and logged.
 
 **Related**: [BEH-RM-036](behaviors/05-guest-serve.md), [BEH-RM-041](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-043](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-044](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md), [ADR-RM-005](decisions/005-per-call-capability-tokens.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A guest reaches only granted contracts, under a live token
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-RM-008: An unknown outcome is reported as unknown and never retried
@@ -242,6 +313,16 @@ needs to retry does so knowingly, with its own idempotency key.
 that no `callId` is sent twice; outcome assertions for each frame state.
 
 **Related**: [BEH-RM-020](behaviors/03-remote-calls.md), [BEH-RM-021](behaviors/03-remote-calls.md), [ADR-RM-008](decisions/008-unknown-outcomes-are-surfaced-never-retried.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: An unknown outcome is reported as unknown and never retried
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -279,6 +360,17 @@ the handler's execution count; a property test over random duplication.
 
 **Related**: [BEH-RM-034](behaviors/05-guest-serve.md), [BEH-RM-035](behaviors/05-guest-serve.md), [BEH-RM-039](behaviors/05-guest-serve.md), [BEH-RM-051](behaviors/07-transports-and-adapters.md), [BEH-RM-067](behaviors/09-placement-budgets-and-adapters.md), [ADR-RM-003](decisions/003-sessions-carry-epochs.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Within one session a call executes at most once on a conforming guest
+evidence:
+  - prototypes/host-core/src/session.ts
+status: Prototyped
+unchecked: none stated
+```
+
 ---
 
 ## INV-RM-010: Within one parent call, a callback executes at most once
@@ -298,6 +390,16 @@ frames, asserting the host service's execution count and one `CallLog`
 entry (check 28 of BEH-RM-061).
 
 **Related**: [BEH-RM-043](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-048](behaviors/06-capability-tokens-and-call-log.md), [ADR-RM-005](decisions/005-per-call-capability-tokens.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Within one parent call, a callback executes at most once
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -325,6 +427,16 @@ it says nothing about where the far end really runs
 **Verification** *(Planned)*: checks 37 and 38 of BEH-RM-061.
 
 **Related**: [BEH-RM-068](behaviors/09-placement-budgets-and-adapters.md), [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md), [ADR-RM-010](decisions/010-placement-labels-compared-at-the-boundary.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: No call crosses a transport that does not offer its residency label
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -355,3 +467,15 @@ disclosed subset crosses with it.
 ---
 
 _Previous: [Decisions](./decisions/001-remote-plugin-is-a-local-proxy.md)_ · _Next: [Traceability](./traceability.md)_
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A call carries no identity claim its link did not disclose
+evidence:
+  - prototypes/host-core/src/session.ts
+  - prototypes/host-core/test/guest-session.test.ts
+status: Tested
+unchecked: none stated
+```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-CM-INV                                               |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-08): INV-CM-003 covers replayed receipts; INV-CM-006 scoped to commands not declared `readOnly` (retitled); INV-CM-007 compares actor, input and digest, and voided receipts; INV-CM-008 admission phases (round-2 agent review A-01, A-02, A-04, A-05) (CCR-CM-003)<br>0.3 (2026-11-08): INV-CM-001 and INV-CM-003 follow the new step numbers and `expectDigest`; INV-CM-007 (completed receipts) and INV-CM-008 (batch admission) added (CCR-CM-003, round 2: recheck items 1, 5, 6)<br>0.2 (2026-11-08): INV-CM-006 added (taint floor) (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
+> | Change History | 0.5 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.4 (2026-11-08): INV-CM-003 covers replayed receipts; INV-CM-006 scoped to commands not declared `readOnly` (retitled); INV-CM-007 compares actor, input and digest, and voided receipts; INV-CM-008 admission phases (round-2 agent review A-01, A-02, A-04, A-05) (CCR-CM-003)<br>0.3 (2026-11-08): INV-CM-001 and INV-CM-003 follow the new step numbers and `expectDigest`; INV-CM-007 (completed receipts) and INV-CM-008 (batch admission) added (CCR-CM-003, round 2: recheck items 1, 5, 6)<br>0.2 (2026-11-08): INV-CM-006 added (taint floor) (CCR-CM-002)<br>0.1 (2026-11-08): Initial draft (CCR-CM-001)                 |
 
 ---
 
@@ -46,6 +46,15 @@ gate call.
 
 **Related**: BEH-CM-003, BEH-CM-004, BEH-CM-009, BEH-CM-011; ADR-CM-001.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: The catalog runs a handler only through dispatch
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-CM-002: A toolset's order depends only on its contents
 
 `Toolset.tools` is ordered by command id; two toolsets with the same
@@ -64,6 +73,15 @@ activation and priority orders on `TestHost` (acceptance check 11).
 
 **Related**: BEH-CM-017, BEH-CM-018, BEH-CM-020; ADR-CM-003.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A toolset's order depends only on its contents
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-CM-003: A pinned tool never runs a different definition
 
 A dispatch made with a pinned toolset or an `expectDigest`, or after a gate
@@ -86,6 +104,15 @@ race with held `TestHost` steps (acceptance checks 9 and 10).
 
 **Related**: BEH-CM-005, BEH-CM-013, BEH-CM-019; ADR-CM-003.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A pinned tool never runs a different definition
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-CM-004: Projection and digest are deterministic
 
 Projecting a command's schemas, and computing its descriptor digest, yields
@@ -103,6 +130,15 @@ two processes and compares bytes (acceptance check 12); golden files.
 
 **Related**: BEH-CM-001, BEH-CM-005, BEH-CM-025, BEH-CM-027; ADR-CM-004.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Projection and digest are deterministic
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-CM-005: Toolset membership grants nothing
 
 Every dispatch of a command that is in a toolset passes the same steps,
@@ -120,6 +156,15 @@ membership after step 1.
 
 **Related**: BEH-CM-011, BEH-CM-021, BEH-CM-022; ADR-CM-002.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Toolset membership grants nothing
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-CM-006: A tainted dispatch not declared read-only never runs on an automatic allow
 
 A dispatch whose resolved annotations carry a non-empty core
@@ -150,6 +195,15 @@ approval and draft source (acceptance check 13); a nested-dispatch scenario
 
 **Related**: BEH-CM-003, BEH-CM-011, BEH-CM-016; ADR-CM-005.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A tainted dispatch not declared read-only never runs on an automatic allow
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-CM-007: A completed receipt never runs its handler again
 
 A dispatch carrying an idempotency key for which the wired `CommandReceipts`
@@ -175,6 +229,15 @@ missing port (acceptance check 14).
 
 **Related**: BEH-CM-041, BEH-CM-042; ADR-CM-006.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A completed receipt never runs its handler again
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-CM-008: No handler of a batch runs before every item is admitted
 
 `Commands.batch` runs step 7 for no item until steps 1–6 have passed for
@@ -195,3 +258,13 @@ reported (`CommandBatchPartial`), never hidden.
 step, with a handler spy (acceptance check 16).
 
 **Related**: BEH-CM-049, BEH-CM-050, BEH-CM-051; ADR-CM-007.
+
+**Check**:
+
+```yaml
+predicate: none
+scope: No handler of a batch runs before every item is admitted
+evidence: none
+status: Planned
+unchecked: that residual is reported (CommandBatchPartial), never hidden.
+```

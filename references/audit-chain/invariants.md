@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-08): INV-AC-006 (bundle verified from the bundle alone), INV-AC-007 (one series, one canonicaliser, one algorithm); store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): INV-AC-002 restated (an unexpected record is marked, not refused); INV-AC-003 markers; INV-AC-005 restated (anchoring never delays or fails a write; fail-closed at the gate) (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.4 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.3 (2026-11-08): INV-AC-006 (bundle verified from the bundle alone), INV-AC-007 (one series, one canonicaliser, one algorithm); store port renamed `ChainStore` (round 2: recheck items 13, 14) (CCR-AC-003)<br>0.2 (2026-11-08): INV-AC-002 restated (an unexpected record is marked, not refused); INV-AC-003 markers; INV-AC-005 restated (anchoring never delays or fails a write; fail-closed at the gate) (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -43,6 +43,16 @@ one distinct link per `recordId` in the store.
 
 **Related**: [BEH-AC-003](behaviors/01-hash-chain-sink.md#beh-ac-003-the-canonical-encoding-and-the-link), [BEH-AC-004](behaviors/01-hash-chain-sink.md#beh-ac-004-a-retried-record-gets-the-identical-link), [BEH-AC-007](behaviors/01-hash-chain-sink.md#beh-ac-007-optional-keyed-hasher-and-continuity-across-hosts), [ADR-AC-001](decisions/001-chain-in-a-wrapping-sink.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: One link per record, identical across retries
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-AC-002: The head advances only on a successful append, and an unexpected record is marked
@@ -68,6 +78,16 @@ exactly once per successful append.
 
 **Related**: [BEH-AC-001](behaviors/01-hash-chain-sink.md#beh-ac-001-hashchainsink-provides-the-core-auditsink-by-wrapping-an-inner-chainstore), [BEH-AC-004](behaviors/01-hash-chain-sink.md#beh-ac-004-a-retried-record-gets-the-identical-link), [BEH-AC-005](behaviors/01-hash-chain-sink.md#beh-ac-005-contiguity-and-order-are-checked-per-host-and-a-violation-is-marked-not-refused), [ADR-AC-001](decisions/001-chain-in-a-wrapping-sink.md), core [INV-BR-023](../core/invariants.md#inv-br-023-the-audit-sequence-is-contiguous-per-host).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: The head advances only on a successful append, and an unexpected record is marked
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-AC-003: The stored record is the record core handed over
@@ -92,6 +112,16 @@ with their markers.
 
 **Related**: [BEH-AC-002](behaviors/01-hash-chain-sink.md#beh-ac-002-the-record-reaches-the-store-unchanged), [BEH-AC-006](behaviors/01-hash-chain-sink.md#beh-ac-006-the-chainstore-obligations-and-chainstoresplit), [ADR-AC-001](decisions/001-chain-in-a-wrapping-sink.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: The stored record is the record core handed over
+evidence: none
+status: Planned
+unchecked: **Related**: [BEH-AC-002](behaviors/01-hash-chain-sink.md#beh-ac-002-the-record-reaches-the-store-unchanged), [BEH-AC-006](behaviors/01-hash-chain-sink.md#beh-ac-006-the-chainstore-obligations-and-chainstoresplit), [ADR-
+```
+
 ---
 
 ## INV-AC-004: Verification never reports more than it checked
@@ -114,6 +144,16 @@ anchored, or anchored records whose chain is broken.
 that no edited record lies at or below `verifiedThrough`.
 
 **Related**: [BEH-AC-010](behaviors/02-anchoring.md#beh-ac-010-windows-and-their-merkle-root), [BEH-AC-017](behaviors/03-verification.md#beh-ac-017-verifychain-is-a-pure-total-function), [BEH-AC-018](behaviors/03-verification.md#beh-ac-018-the-sequence-check-comes-first-from-core), [BEH-AC-019](behaviors/03-verification.md#beh-ac-019-links-are-recomputed-and-anchors-matched), [ADR-AC-002](decisions/002-anchor-defends-against-insider.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Verification never reports more than it checked
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -140,6 +180,17 @@ bound, memory bounded, and with `ChainGate` wired, operator calls refused
 
 **Related**: [BEH-AC-009](behaviors/02-anchoring.md#beh-ac-009-the-anchor-and-receiptstore-ports), [BEH-AC-011](behaviors/02-anchoring.md#beh-ac-011-anchoring-runs-on-a-schedule-off-the-write-path), [BEH-AC-013](behaviors/02-anchoring.md#beh-ac-013-fail-closed-anchoring-is-an-explicit-gate-piece-and-the-sink-keeps-recording), [ADR-AC-003](decisions/003-anchoring-off-the-write-path.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Anchoring never delays or fails a write
+evidence:
+  - prototypes/host-core/src/audit-chain.ts
+status: Prototyped
+unchecked: none stated
+```
+
 ---
 
 ## INV-AC-006: A bundle is verified from the bundle alone
@@ -161,6 +212,16 @@ the report says exactly which evidence was checked there.
 network, clock and file system unavailable.
 
 **Related**: [BEH-AC-034](behaviors/05-verification-bundle.md), [BEH-AC-035](behaviors/05-verification-bundle.md), [BEH-AC-036](behaviors/05-verification-bundle.md), [ADR-AC-005](decisions/005-one-chain-over-any-stream-hashing-the-stored-form.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A bundle is verified from the bundle alone
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -185,3 +246,13 @@ pass silently.
 ---
 
 _Previous: [03 — Verification](./behaviors/03-verification.md)_ · _Next: [Traceability](./traceability.md)_
+
+**Check**:
+
+```yaml
+predicate: none
+scope: One series, one canonicaliser and one algorithm
+evidence: none
+status: Planned
+unchecked: none stated
+```

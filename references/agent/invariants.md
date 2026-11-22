@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AG-INV                                               |
-> | Revision       | 0.12                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-11): INV-AG-001: the reserved spawn tool falls under the same taint floor, refused in a tainted session (A1); INV-AG-006: the replayed loop's snapshots and dispatch requests, a spawn call answered from the transcript and a subagent replayed from its own transcript (H3); second pass (cleanest design): INV-AG-001: the refusal is the agent's own `ToolRefused` (A1) (SPEC-AUDIT-09) (CCR-AG-012)<br>0.11 (2026-11-11): INV-AG-002: the reserved spawn tool is appended to every request of the turn alike and never dispatched (SPEC-AUDIT-08 A2) (CCR-AG-011)<br>0.10 (2026-11-11): INV-AG-008: the parent loop's withdrawal of a handed-over draft it did not publish carries the subagent's task id, and its outcome is only logged — a stated limit of what an observer sees (A3) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): INV-AG-004: `TaskRegistry`'s writers are the only writers of task state, and a stopped loop's unfinished tasks end `failed` "LoopStopped" (H3, A1); INV-AG-008: covers the stopped loop, the unmarked cancel of a subagent whose draft is pending on its parent, and the parent's withdrawal of a handed draft it does not publish (A2) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.8 (2026-11-10): INV-AG-008: the exception is a subagent's task cancelled with the hand-off marker naming its pending draft; a subagent draft not taken by its parent, including when the parent's turn ends with an answer, `needs-input` or its own deferral, is withdrawn by the subagent's own task (BEH-AG-016, BEH-AG-030) (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): INV-AG-008: a subagent's task whose deferral its parent waits on reports its draft as "handed-to-parent", and the parent's task, holding it as pending from the moment the subagent's result settles, reports it if it ends without it (BEH-AG-016, BEH-AG-030) (H3) (CCR-AG-006)<br>Earlier revisions: [CHANGES.md](CHANGES.md#bridger-ag-inv) |
+> | Change History | 0.13 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.12 (2026-11-11): INV-AG-001: the reserved spawn tool falls under the same taint floor, refused in a tainted session (A1); INV-AG-006: the replayed loop's snapshots and dispatch requests, a spawn call answered from the transcript and a subagent replayed from its own transcript (H3); second pass (cleanest design): INV-AG-001: the refusal is the agent's own `ToolRefused` (A1) (SPEC-AUDIT-09) (CCR-AG-012)<br>0.11 (2026-11-11): INV-AG-002: the reserved spawn tool is appended to every request of the turn alike and never dispatched (SPEC-AUDIT-08 A2) (CCR-AG-011)<br>0.10 (2026-11-11): INV-AG-008: the parent loop's withdrawal of a handed-over draft it did not publish carries the subagent's task id, and its outcome is only logged — a stated limit of what an observer sees (A3) (SPEC-AUDIT-06) (CCR-AG-009)<br>0.9 (2026-11-11): INV-AG-004: `TaskRegistry`'s writers are the only writers of task state, and a stopped loop's unfinished tasks end `failed` "LoopStopped" (H3, A1); INV-AG-008: covers the stopped loop, the unmarked cancel of a subagent whose draft is pending on its parent, and the parent's withdrawal of a handed draft it does not publish (A2) (SPEC-AUDIT-05) (CCR-AG-008)<br>0.8 (2026-11-10): INV-AG-008: the exception is a subagent's task cancelled with the hand-off marker naming its pending draft; a subagent draft not taken by its parent, including when the parent's turn ends with an answer, `needs-input` or its own deferral, is withdrawn by the subagent's own task (BEH-AG-016, BEH-AG-030) (H2, T2) (CCR-AG-007)<br>0.7 (2026-11-10): INV-AG-008: a subagent's task whose deferral its parent waits on reports its draft as "handed-to-parent", and the parent's task, holding it as pending from the moment the subagent's result settles, reports it if it ends without it (BEH-AG-016, BEH-AG-030) (H3) (CCR-AG-006)<br>Earlier revisions: [CHANGES.md](CHANGES.md#bridger-ag-inv) |
 
 ---
 
@@ -60,6 +60,15 @@ and command acceptance check 13).
 
 **Related**: BEH-AG-003, BEH-AG-005, BEH-AG-012, BEH-AG-020, BEH-AG-029; ADR-AG-003.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A tainted session is never auto-allowed a change
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-AG-002: A turn sees one toolset
 
 Every model request and every tool call of one turn uses the toolset pinned at
@@ -79,6 +88,15 @@ mid-turn on `TestHost` (acceptance check 3).
 
 **Related**: BEH-AG-003, BEH-AG-005, BEH-AG-027; ADR-AG-001.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A turn sees one toolset
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-AG-003: A subagent is never wider than its parent
 
 A subagent's toolset is a subset of its parent's pinned toolset, its budget is
@@ -97,6 +115,15 @@ budget or attribution.
 
 **Related**: BEH-AG-025, BEH-AG-026, BEH-AG-027, BEH-AG-028, BEH-AG-037; ADR-AG-004.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A subagent is never wider than its parent
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-AG-004: Task terminal states are sticky and revisions never regress
 
 A task in `done`, `failed` or `cancelled` never changes state again, and each
@@ -120,6 +147,15 @@ check 18).
 
 **Related**: BEH-AG-003, BEH-AG-009, BEH-AG-010, BEH-AG-011, BEH-AG-013, BEH-AG-014, BEH-AG-016, BEH-AG-030; INV-AG-008; ADR-AG-002.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Task terminal states are sticky and revisions never regress
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-AG-005: Taint is monotone per session
 
 Once a session is tainted it stays tainted for its lifetime, and taint flows
@@ -137,6 +173,15 @@ before a write later in the session.
 
 **Related**: BEH-AG-004, BEH-AG-017, BEH-AG-018, BEH-AG-019, BEH-AG-022, BEH-AG-029; ADR-AG-003.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Taint is monotone per session
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-AG-006: A replayed run is identical to its recording
 
 Replaying a transcript on `TestHost` with the same plugin set, `TestClock` and
@@ -157,6 +202,15 @@ model, and a gate or tool change shows as a divergence at the call it affects.
 
 **Related**: BEH-AG-033, BEH-AG-034, BEH-AG-035, BEH-AG-038; ADR-AG-005.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A replayed run is identical to its recording
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-AG-007: Untrusted tool output reaches the model only inside an envelope
 
 Every tool result the reference loop shows to a model, stores or replays is a
@@ -177,6 +231,15 @@ paths, an imported command and an oversized output (acceptance check 14).
 
 **Related**: BEH-AG-019, BEH-AG-023; command BEH-CM-030; ADR-AG-003.
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Untrusted tool output reaches the model only inside an envelope
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-AG-008: A task never ends with its pending draft unreported
 
 A task that is cancelled or fails with a pending draft — while
@@ -216,3 +279,13 @@ with a withdrawal that answers, fails and times out (acceptance check 17),
 and that stop a loop with a task awaiting approval (acceptance check 18).
 
 **Related**: BEH-AG-010, BEH-AG-011, BEH-AG-012, BEH-AG-016, BEH-AG-030; INV-AG-004; ADR-AG-002.
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A task never ends with its pending draft unreported
+evidence: none
+status: Planned
+unchecked: none stated
+```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-LD-INV                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification (companion)                         |
-> | Change History | 0.8 (2026-11-11): INV-LD-005: the withdrawn catalog acceptance is kept, so no run judges its digest "verification-unknown" (L2) (SPEC-AUDIT-08) (CCR-LD-011)<br>0.7 (2026-11-11): INV-LD-005: the scope's plugins are those core reports owned by it (`PluginSnapshot.scope`), and a catalog withdrawal is never acted on under the revocation actor (L1, L4) (SPEC-AUDIT-07) (CCR-LD-010)<br>0.6 (2026-11-11): INV-LD-005: a revocation's only actions are the removals of the dropped entries, by `Host.remove`, never a reconcile (H6) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): INV-LD-004: the `RevokedDigests` view serves the refusal list and the remote boundary, and the kill switch and gate agree with it on the same inputs — agreement, not one computation (PL16); INV-LD-005: a revocation reconcile keeps every entry still installed as its last completed action left it, whatever its pending status (H8) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-09): INV-LD-009 (no package is evaluated in the host's process without an accepted first-party statement); INV-LD-001 and INV-LD-004 cite file 09 (specification audit F-06, M-06); INV-LD-009 guest wording (independent review) (CCR-LD-004)<br>0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
+> | Change History | 0.9 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.8 (2026-11-11): INV-LD-005: the withdrawn catalog acceptance is kept, so no run judges its digest "verification-unknown" (L2) (SPEC-AUDIT-08) (CCR-LD-011)<br>0.7 (2026-11-11): INV-LD-005: the scope's plugins are those core reports owned by it (`PluginSnapshot.scope`), and a catalog withdrawal is never acted on under the revocation actor (L1, L4) (SPEC-AUDIT-07) (CCR-LD-010)<br>0.6 (2026-11-11): INV-LD-005: a revocation's only actions are the removals of the dropped entries, by `Host.remove`, never a reconcile (H6) (SPEC-AUDIT-06) (CCR-LD-009)<br>0.5 (2026-11-11): INV-LD-004: the `RevokedDigests` view serves the refusal list and the remote boundary, and the kill switch and gate agree with it on the same inputs — agreement, not one computation (PL16); INV-LD-005: a revocation reconcile keeps every entry still installed as its last completed action left it, whatever its pending status (H8) (SPEC-AUDIT-05) (CCR-LD-008)<br>0.4 (2026-11-09): INV-LD-009 (no package is evaluated in the host's process without an accepted first-party statement); INV-LD-001 and INV-LD-004 cite file 09 (specification audit F-06, M-06); INV-LD-009 guest wording (independent review) (CCR-LD-004)<br>0.3 (2026-11-08): INV-LD-007 (a data pack is never evaluated) and INV-LD-008 (a signature counts only for its statement type) (round 2: recheck items 11, 12) (CCR-LD-003)<br>0.2 (2026-11-08): INV-LD-003 covers lazy definitions built with `Plugin.lazy`'s `digest` and proxies stamped by `stampRemote`; INV-LD-005 states the two actors of the kill switch (CCR-LD-002)<br>0.1 (2026-11-08): Initial draft (CCR-LD-001)                 |
 
 ---
 
@@ -43,6 +43,16 @@ recording evaluator, each step failing in turn; a type-level test that
 
 **Related**: [BEH-LD-004](behaviors/01-package-and-digest.md), [BEH-LD-009](behaviors/02-load-pipeline.md), [BEH-LD-013](behaviors/02-load-pipeline.md), [BEH-LD-024](behaviors/03-signature-policy.md), [BEH-LD-037](behaviors/05-catalog-and-lazy-loading.md), [BEH-LD-065](behaviors/09-trust-class-and-guest-links.md), [ADR-LD-001](decisions/001-verify-before-evaluate.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: No code is evaluated before its digest and signatures are accepted
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-LD-002: The evaluated bytes are the verified bytes
@@ -62,6 +72,16 @@ import that pulls in code no digest covers.
 fetcher's store after verification; URL and unlisted bare imports).
 
 **Related**: [BEH-LD-011](behaviors/02-load-pipeline.md), [BEH-LD-042](behaviors/06-limits-and-acceptance.md), [ADR-LD-001](decisions/001-verify-before-evaluate.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: The evaluated bytes are the verified bytes
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -85,6 +105,16 @@ property test: for generated packages, the stamp equals an independent
 implementation of the construction.
 
 **Related**: [BEH-LD-002](behaviors/01-package-and-digest.md), [BEH-LD-007](behaviors/01-package-and-digest.md), [BEH-LD-034](behaviors/05-catalog-and-lazy-loading.md), [BEH-LD-037](behaviors/05-catalog-and-lazy-loading.md), [BEH-LD-039](behaviors/05-catalog-and-lazy-loading.md), [ADR-LD-002](decisions/002-package-digest-commits-to-manifest-sbom-and-files.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A stamped digest is the verified package digest
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -111,6 +141,17 @@ computation.
 BEH-LD-048.
 
 **Related**: [BEH-LD-027](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-030](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-034](behaviors/05-catalog-and-lazy-loading.md), [BEH-LD-068](behaviors/09-trust-class-and-guest-links.md), [BEH-LD-070](behaviors/09-trust-class-and-guest-links.md), [ADR-LD-004](decisions/004-revocation-acts-through-desired-state.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A revoked digest is never newly loaded
+evidence:
+  - prototypes/host-core/src/loader.ts
+status: Prototyped
+unchecked: none stated
+```
 
 ---
 
@@ -142,6 +183,16 @@ is never credited with a change it did not cause.
 
 **Related**: [BEH-LD-029](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-031](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-032](behaviors/04-revocation-and-kill-switch.md), [BEH-LD-046](behaviors/06-limits-and-acceptance.md), [ADR-LD-004](decisions/004-revocation-acts-through-desired-state.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: The kill switch acts only through Host.reconcile and Host.remove
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-LD-006: No load without an explicit acceptance rule
@@ -162,6 +213,17 @@ visibly does one or the other.
 inventory test over `@bridger/loader` and `@bridger/loader/testing`.
 
 **Related**: [BEH-LD-019](behaviors/03-signature-policy.md), [BEH-LD-022](behaviors/03-signature-policy.md), [BEH-LD-045](behaviors/06-limits-and-acceptance.md), [ADR-LD-003](decisions/003-n-of-m-signature-policy-with-no-default.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: No load without an explicit acceptance rule
+evidence:
+  - prototypes/host-core/src/loader.ts
+status: Prototyped
+unchecked: none stated
+```
 
 ---
 
@@ -184,6 +246,16 @@ passed to the evaluator.
 
 **Related**: [BEH-LD-057](behaviors/08-data-packs.md), [BEH-LD-058](behaviors/08-data-packs.md), [BEH-LD-059](behaviors/08-data-packs.md), [ADR-LD-007](decisions/007-data-packs-are-verified-never-evaluated.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A data pack is never evaluated
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-LD-008: A signature counts only for the statement type it was made for
@@ -204,6 +276,16 @@ types.
 **Verification** *(Planned)*: acceptance checks 17 and 18 of BEH-LD-064.
 
 **Related**: [BEH-LD-049](behaviors/07-signed-statements.md), [BEH-LD-050](behaviors/07-signed-statements.md), [BEH-LD-051](behaviors/07-signed-statements.md), [BEH-LD-054](behaviors/07-signed-statements.md), [ADR-LD-006](decisions/006-one-verification-step-for-every-signed-statement.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A signature counts only for the statement type it was made for
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -231,3 +313,13 @@ evaluated ([BEH-LD-041](behaviors/06-limits-and-acceptance.md)).
 **Verification** *(Planned)*: acceptance checks 25 and 27 of BEH-LD-071.
 
 **Related**: [BEH-LD-009](behaviors/02-load-pipeline.md), [BEH-LD-065](behaviors/09-trust-class-and-guest-links.md), [BEH-LD-067](behaviors/09-trust-class-and-guest-links.md), [ADR-LD-005](decisions/005-in-process-loading-is-for-first-party-code.md), [ADR-LD-008](decisions/008-in-process-eligibility-is-a-signed-statement.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: No package is evaluated in the host process without an accepted first-party statement
+evidence: none
+status: Planned
+unchecked: none stated
+```

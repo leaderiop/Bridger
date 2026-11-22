@@ -101,3 +101,10 @@ the document they belong to (`python3 references/core/scripts/split-history.py`)
 - 0.3 (2026-11-10): BEH-GX-171 `sealing.keyed` is a pure MAC function or `{ mac }`, an effectful one turned into the pure function by audit-chain's `precomputeMacs` (audit-chain CCR-AC-006 follow-up); BEH-GX-170 passes `SealingOptions.keyed` to the sink as `HashChainOptions.keyed` (M19); BEH-GX-171 reads every receipt the reader holds for the host (`toSeq` `Number.MAX_SAFE_INTEGER`), not only up to the store's last entry, so a window above a cut-off tail is reported "window-not-in-entries" (H6); BEH-GX-172 does not apply to a range archive above `auditSeq` 1 (M2) (CCR-GX-006)
 - 0.2 (2026-11-10): BEH-GX-170 names the sink built for each anchoring choice and that it serves one host; BEH-GX-171 reads receipts through audit-chain's `ReceiptReader`, reports unconfirmed receipts as `anchorUnconfirmed`, passes `continuesFrom`, maps the new break and notice kinds, gives chain-derived findings their own names and bounds the entries held (`maxEntries`); BEH-GX-175 `gate` required, and "not-used" with an unanchored chain (H4, H6, P7, P14, P16, P17, P19); follow-up: BEH-GX-171 passes `expectKeyed: true` with `sealing.keyed`, so an unkeyed link in a keyed trail is a `chainBreak` "unkeyed-link" (audit-chain CCR-AC-005 follow-up) (CCR-GX-005)
 - 0.1 (2026-11-09): Initial draft; replaces the withdrawn companion seal chain of 07 by `@bridger/audit-chain` (CCR-GX-002)
+
+## BRIDGER-GX-INV
+
+`gxp/invariants.md`
+
+- 0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)
+- 0.1 (2026-10-03): Initial draft (CCR-GX-001)                

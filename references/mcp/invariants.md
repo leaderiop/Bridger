@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-MC-INV                                               |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-09): INV-MC-003 `owner` is the import's session child (CCR-MC-004)<br>0.4 (2026-11-08): INV-MC-006 implication states the read-only exemption; INV-MC-007 covers keyed calls answered from a receipt (round-2 agent review A-04, A-05) (CCR-MC-003)<br>0.3 (2026-11-08): INV-MC-005 covers resource reads; INV-MC-006 (inbound sessions tainted unless trusted) and INV-MC-007 (a call runs the listed definition) added (CCR-MC-003, round 2: recheck items 6, 9; X7, X8)<br>0.2 (2026-11-08): INV-MC-003 narrowed to the external mark; INV-MC-002 and INV-MC-005 sources aligned (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
+> | Change History | 0.6 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.5 (2026-11-09): INV-MC-003 `owner` is the import's session child (CCR-MC-004)<br>0.4 (2026-11-08): INV-MC-006 implication states the read-only exemption; INV-MC-007 covers keyed calls answered from a receipt (round-2 agent review A-04, A-05) (CCR-MC-003)<br>0.3 (2026-11-08): INV-MC-005 covers resource reads; INV-MC-006 (inbound sessions tainted unless trusted) and INV-MC-007 (a call runs the listed definition) added (CCR-MC-003, round 2: recheck items 6, 9; X7, X8)<br>0.2 (2026-11-08): INV-MC-003 narrowed to the external mark; INV-MC-002 and INV-MC-005 sources aligned (CCR-MC-002)<br>0.1 (2026-11-08): Initial draft (CCR-MC-001)                 |
 
 ---
 
@@ -41,6 +41,15 @@ activation orders comparing listed bytes; stale-cursor scenarios.
 
 **Related**: [BEH-MC-003](behaviors/01-server.md#beh-mc-003-toolslist-follows-the-toolset-order-and-binds-cursors-to-its-revision), [ADR-MC-001](decisions/001-server-projects-a-toolset.md), [ADR-MC-004](decisions/004-target-mcp-2026-07-28.md)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: tools/list order is the toolset order
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-MC-002: A list-changed notification follows the publication it announces
 
 No session receives a notification for a toolset revision before that
@@ -61,6 +70,15 @@ publication and delivery; property test over bursts of contributions.
 
 **Related**: [BEH-MC-010](behaviors/02-list-changed.md#beh-mc-010-a-notification-follows-a-toolset-publication-whose-content-changed), [BEH-MC-011](behaviors/02-list-changed.md#beh-mc-011-notifications-coalesce-and-never-regress)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A list-changed notification follows the publication it announces
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-MC-003: Every imported command is marked external
 
 Every command contributed by `McpClient.import` carries the tag "external"
@@ -83,6 +101,15 @@ session.
 
 **Related**: [BEH-MC-020](behaviors/03-client-import.md#beh-mc-020-imported-commands-are-always-marked-external-and-consumers-taint-by-descriptor), [ADR-MC-002](decisions/002-imported-tools-are-tainted-remote-proxies.md)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Every imported command is marked external
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-MC-004: Host tools never return configuration values
 
 No output of `bridger.host.snapshot`, `bridger.host.inspect`,
@@ -101,6 +128,15 @@ by way of the host tools.
 
 **Related**: [BEH-MC-026](behaviors/04-host-tools.md#beh-mc-026-snapshot-returns-the-host-snapshot-which-carries-no-configuration-values), [BEH-MC-027](behaviors/04-host-tools.md#beh-mc-027-inspect-returns-names-and-counts-only), [BEH-MC-028](behaviors/04-host-tools.md#beh-mc-028-reconcile-plan-returns-a-plan-and-changes-nothing)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Host tools never return configuration values
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-MC-005: Every tools/call is a command dispatch
 
 Every `tools/call` and `resources/read` the server admits for a name in the
@@ -122,6 +158,15 @@ call log.
 
 **Related**: [BEH-MC-004](behaviors/01-server.md#beh-mc-004-toolscall-is-a-command-dispatch), [BEH-MC-029](behaviors/04-host-tools.md#beh-mc-029-reconcile-apply-applies-a-plan-only-through-both-gates), [ADR-MC-003](decisions/003-host-self-service-is-plan-first.md)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Every tools/call is a command dispatch
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-MC-006: An inbound session is tainted unless the application trusts it
 
 Every dispatch made for an MCP session carries core's `Annotation.Taint` with
@@ -144,6 +189,15 @@ including attempts to set it from client fields (acceptance checks 2 and 14).
 
 **Related**: [BEH-MC-002](behaviors/01-server.md#beh-mc-002-a-session-has-one-principal-supplied-by-the-application), [ADR-MC-005](decisions/005-inbound-sessions-are-tainted-and-calls-pinned-to-the-listed-digest.md)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: An inbound session is tainted unless the application trusts it
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-MC-007: A tools/call runs the definition the session listed
 
 A `tools/call` or `resources/read` runs a handler only when the command's
@@ -164,3 +218,13 @@ receipt was made for the same digest (command BEH-CM-041,
 `tools/list` and `tools/call` (acceptance check 4).
 
 **Related**: [BEH-MC-003](behaviors/01-server.md#beh-mc-003-toolslist-follows-the-toolset-order-and-binds-cursors-to-its-revision), [BEH-MC-004](behaviors/01-server.md#beh-mc-004-toolscall-is-a-command-dispatch), [ADR-MC-005](decisions/005-inbound-sessions-are-tainted-and-calls-pinned-to-the-listed-digest.md)
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A tools/call runs the definition the session listed
+evidence: none
+status: Planned
+unchecked: none stated
+```

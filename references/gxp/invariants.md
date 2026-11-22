@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-INV                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Invariants                                                   |
-> | Change History | 0.8 (2026-11-11): INV-GX-009 exception (1) also maps the "previous-mismatch" or "window-gap" of a confirmed statement whose preceding held statement is unconfirmed, in `readArchive` whatever the range and in `verifySeals`, with `detail` "... previous statement not confirmed" (PL10, PL11) (SPEC-AUDIT-09) (CCR-GX-012)<br>0.7 (2026-11-11): INV-GX-009 exception (1) applies to the host's first confirmed statement, the lowest `verifyBundle` passes to `verifyChain` (G1) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.6 (2026-11-11): INV-GX-009 exception (1) reports the first archived entry's "prev-mismatch" as `chainLinkUnchecked` and the first statement's "previous-mismatch" or "window-gap" as `anchorUnconfirmed`, each with a detail, so no checked kind covers a dropped item (G1); INV-GX-003 binding fields name `cold` (PL17) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): INV-GX-009 exception (1) covers only the items resting on `auditSeq` 1, and exception (2) also a window starting below the range (G3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-11): INV-GX-007 source: with sealing on, a keyed-hash failure is counted by the companion's sink around audit-chain's (G2); INV-GX-009 names its two exceptions, both in `readArchive` (BEH-GX-140): an archive above `auditSeq` 1 maps no chain item but unconfirmed receipts, and a mismatch of a window ending above the archived range is reported as `anchorUnconfirmed` (G7) (CCR-GX-008)<br>0.3 (2026-11-10): INV-GX-003 source lists the binding version 2 request fields (H5) (CCR-GX-005)<br>0.2 (2026-11-09): INV-GX-006 amended (a colliding entry is kept beside the primary), INV-GX-007 (acknowledgement of "stored-collision"; failure only when the store does not hold the record), INV-GX-012 (I-JSON domain, escaped encoding for records); INV-GX-013 withdrawn (sealing adopted from `@bridger/audit-chain`); INV-GX-016 added (F-02, C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.9 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.8 (2026-11-11): INV-GX-009 exception (1) also maps the "previous-mismatch" or "window-gap" of a confirmed statement whose preceding held statement is unconfirmed, in `readArchive` whatever the range and in `verifySeals`, with `detail` "... previous statement not confirmed" (PL10, PL11) (SPEC-AUDIT-09) (CCR-GX-012)<br>0.7 (2026-11-11): INV-GX-009 exception (1) applies to the host's first confirmed statement, the lowest `verifyBundle` passes to `verifyChain` (G1) (SPEC-AUDIT-08) (CCR-GX-011)<br>0.6 (2026-11-11): INV-GX-009 exception (1) reports the first archived entry's "prev-mismatch" as `chainLinkUnchecked` and the first statement's "previous-mismatch" or "window-gap" as `anchorUnconfirmed`, each with a detail, so no checked kind covers a dropped item (G1); INV-GX-003 binding fields name `cold` (PL17) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): INV-GX-009 exception (1) covers only the items resting on `auditSeq` 1, and exception (2) also a window starting below the range (G3) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-11): INV-GX-007 source: with sealing on, a keyed-hash failure is counted by the companion's sink around audit-chain's (G2); INV-GX-009 names its two exceptions, both in `readArchive` (BEH-GX-140): an archive above `auditSeq` 1 maps no chain item but unconfirmed receipts, and a mismatch of a window ending above the archived range is reported as `anchorUnconfirmed` (G7) (CCR-GX-008)<br>0.3 (2026-11-10): INV-GX-003 source lists the binding version 2 request fields (H5) (CCR-GX-005)<br>Earlier revisions: [CHANGES.md](CHANGES.md#bridger-gx-inv) |
 
 ---
 
@@ -88,6 +88,16 @@ boundary.
 
 **Related**: [BEH-GX-003](behaviors/01-companion-boundary.md), [BEH-GX-004](behaviors/01-companion-boundary.md), [BEH-GX-009](behaviors/02-trail-store-port.md), [BEH-GX-041](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-073](behaviors/10-signature-capture-port.md), [BEH-GX-080](behaviors/10-signature-capture-port.md), [BEH-GX-145–BEH-GX-152](behaviors/19-testing-entry-point.md), [ADR-GX-003](decisions/003-ports-without-defaults.md), [ADR-GX-024](decisions/024-fixtures-are-marked.md), [ADR-BR-030](../core/decisions/030-audit-sink-port.md), [ADR-BR-032](../core/decisions/032-operation-gate.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: No decision port has a default outside the testing entry point
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-GX-002: A binding is consumed at most once
@@ -126,6 +136,17 @@ testing of the compare-and-set; acceptance checks of
 [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-067](behaviors/09-approval-tickets.md), [BEH-GX-068](behaviors/09-approval-tickets.md), [BEH-GX-071](behaviors/09-approval-tickets.md), [BEH-GX-072](behaviors/09-approval-tickets.md), [BEH-GX-089–BEH-GX-096](behaviors/12-approval-gate.md), [ADR-GX-011](decisions/011-ticket-cited-by-correlation-id.md), [ADR-GX-013](decisions/013-single-use-tickets.md), [BEH-BR-222](../core/behaviors/25-operation-gate.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A binding is consumed at most once
+evidence:
+  - prototypes/host-core/test/sec-undo-binding.test.ts
+status: Tested
+unchecked: none stated
+```
 
 ---
 
@@ -169,6 +190,16 @@ mutation testing of each gate step; acceptance checks of
 
 **Related**: [BEH-GX-061](behaviors/08-approval-policy.md), [BEH-GX-065](behaviors/09-approval-tickets.md), [BEH-GX-066](behaviors/09-approval-tickets.md), [BEH-GX-070](behaviors/09-approval-tickets.md), [BEH-GX-081–BEH-GX-088](behaviors/11-signature-linking.md), [BEH-GX-089–BEH-GX-096](behaviors/12-approval-gate.md), [ADR-GX-010](decisions/010-sign-first-then-call.md), [ADR-GX-012](decisions/012-binding-contents.md), [ADR-GX-014](decisions/014-deny-by-default-policy.md), [BEH-BR-219](../core/behaviors/25-operation-gate.md), [BEH-BR-221](../core/behaviors/25-operation-gate.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: An allowed call holds a valid binding with an equal digest
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-GX-004: The approver is never the requester
@@ -201,6 +232,16 @@ required number of distinct, non-requester, non-reserved signers; acceptance
 checks of [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-060](behaviors/08-approval-policy.md), [BEH-GX-069](behaviors/09-approval-tickets.md), [BEH-GX-078](behaviors/10-signature-capture-port.md), [BEH-GX-089–BEH-GX-096](behaviors/12-approval-gate.md), [ADR-GX-015](decisions/015-separation-of-duties.md), [BEH-BR-191](../core/behaviors/22-attributable-operations.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: The approver is never the requester
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -243,6 +284,16 @@ the error mapping.
 
 **Related**: [BEH-GX-006](behaviors/01-companion-boundary.md), [BEH-GX-019](behaviors/03-trail-sink.md), [BEH-GX-024](behaviors/03-trail-sink.md), [BEH-GX-074](behaviors/10-signature-capture-port.md), [BEH-GX-097–BEH-GX-104](behaviors/13-config-fingerprints.md), [BEH-GX-105–BEH-GX-112](behaviors/14-fingerprint-keys.md), [ADR-GX-017](decisions/017-hmac-through-the-core-port.md), [ADR-GX-019](decisions/019-key-provider-and-rotation.md), [ADR-BR-033](../core/decisions/033-no-config-values-in-audit.md), [ADR-BR-039](../core/decisions/039-config-fingerprint-port.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: No configuration value or key material appears in any companion output
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-GX-006: One primary entry per record and per host sequence number, and no stored record is displaced
@@ -277,6 +328,16 @@ retry sequences; acceptance checks of
 [BEH-GX-153](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-011](behaviors/02-trail-store-port.md), [BEH-GX-012](behaviors/02-trail-store-port.md), [BEH-GX-021](behaviors/03-trail-sink.md), [BEH-GX-028](behaviors/04-conformance-suite.md), [ADR-GX-004](decisions/004-append-only-trail-store.md), [ADR-GX-006](decisions/006-conformance-through-testhost.md), [ADR-GX-030](decisions/030-sink-marks-and-gate-refuses.md), [BEH-BR-202](../core/behaviors/23-audit-sink-and-record.md), [INV-BR-023](../core/invariants.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: One primary entry per record and per host sequence number, and no stored record is displaced
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -314,6 +375,16 @@ mode is specified to produce; a mutation test that acknowledging before
 
 **Related**: [BEH-GX-011](behaviors/02-trail-store-port.md), [BEH-GX-017](behaviors/03-trail-sink.md), [BEH-GX-019](behaviors/03-trail-sink.md), [BEH-GX-020](behaviors/03-trail-sink.md), [BEH-GX-027](behaviors/04-conformance-suite.md), [BEH-GX-029](behaviors/04-conformance-suite.md), [ADR-GX-004](decisions/004-append-only-trail-store.md), [ADR-GX-006](decisions/006-conformance-through-testhost.md), [BEH-BR-203](../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-204](../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-205](../core/behaviors/23-audit-sink-and-record.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: The sink acknowledges only what the store reports stored
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-GX-008: No companion API rewrites a stored entry
@@ -347,6 +418,16 @@ scenario asserting the stored entry, its marks and its chain link are unchanged;
 [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-013](behaviors/02-trail-store-port.md), [BEH-GX-014](behaviors/02-trail-store-port.md), [BEH-GX-022](behaviors/03-trail-sink.md), [BEH-GX-041](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-170](behaviors/21-sealing-through-audit-chain.md), [BEH-GX-068](behaviors/09-approval-tickets.md), [BEH-GX-137–BEH-GX-144](behaviors/18-archive-and-export.md), [ADR-GX-004](decisions/004-append-only-trail-store.md), [ADR-GX-023](decisions/023-archives-keep-original-bytes.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: No companion API rewrites a stored entry
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -413,6 +494,16 @@ mutation testing of each finding's emission; acceptance checks of
 
 **Related**: [BEH-GX-033](behaviors/05-checks-on-read.md), [BEH-GX-035](behaviors/05-checks-on-read.md), [BEH-GX-036](behaviors/05-checks-on-read.md), [BEH-GX-040](behaviors/05-checks-on-read.md), [BEH-GX-045](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-046](behaviors/06-high-water-marks-and-anchors.md), [BEH-GX-140](behaviors/18-archive-and-export.md), [BEH-GX-171](behaviors/21-sealing-through-audit-chain.md), [BEH-GX-172](behaviors/21-sealing-through-audit-chain.md), [ADR-GX-007](decisions/007-checks-never-claim-integrity.md), [BEH-BR-215](../core/behaviors/24-time-ids-and-sequence.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A finding is never suppressed or upgraded
+evidence: none
+status: Planned
+unchecked: There are exactly two named exceptions, both stated where seal findings are mapped (BEH-GX-171): (1) the chain report's items that rest on entries or statements the check does not hold, or holds but could not confirm, ar
+```
+
 ---
 
 ## INV-GX-010: Evidence results come only from runner output and gaps stay gaps
@@ -449,6 +540,16 @@ mutation testing at least 80% on the generator; acceptance checks of
 [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-031](behaviors/04-conformance-suite.md), [BEH-GX-121–BEH-GX-128](behaviors/16-oq-evidence.md), [BEH-GX-129–BEH-GX-136](behaviors/17-evidence-pack.md), [ADR-GX-021](decisions/021-oq-from-runner-output.md), [ADR-GX-022](decisions/022-evidence-pack-format.md), [ADR-BR-035](../core/decisions/035-evidence-from-executed-tests.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Evidence results come only from runner output and gaps stay gaps
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -490,6 +591,16 @@ and [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-005](behaviors/01-companion-boundary.md), [BEH-GX-019](behaviors/03-trail-sink.md), [BEH-GX-077](behaviors/10-signature-capture-port.md), [BEH-GX-089–BEH-GX-096](behaviors/12-approval-gate.md), [BEH-GX-097–BEH-GX-104](behaviors/13-config-fingerprints.md), [ADR-GX-003](decisions/003-ports-without-defaults.md), [ADR-GX-010](decisions/010-sign-first-then-call.md), [INV-BR-026](../core/invariants.md#inv-br-026-an-unwired-sink-or-gate-changes-nothing).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Every port failure on a decision path refuses
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-GX-012: The canonical form is deterministic across platforms
@@ -530,6 +641,16 @@ negative zero, integers at ±(2^53 − 1) and non-integer numbers; acceptance ch
 
 **Related**: [BEH-GX-002](behaviors/01-companion-boundary.md), [BEH-GX-010](behaviors/02-trail-store-port.md), [BEH-GX-018](behaviors/03-trail-sink.md), [BEH-GX-066](behaviors/09-approval-tickets.md), [BEH-GX-097–BEH-GX-104](behaviors/13-config-fingerprints.md), [ADR-GX-005](decisions/005-jcs-and-sha256.md), [ADR-GX-025](decisions/025-core-version-range.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: The canonical form is deterministic across platforms
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-GX-013: A host's seal chain is linear over exactly the stored sequence (withdrawn)
@@ -550,6 +671,16 @@ to be implemented; see [21 — Sealing through audit-chain](behaviors/21-sealing
 adopted mechanism ([BEH-GX-153](behaviors/20-required-acceptance-checks.md)).
 
 **Related**: [BEH-GX-170](behaviors/21-sealing-through-audit-chain.md), [ADR-GX-009](decisions/009-optional-sealing.md) (superseded), [ADR-GX-029](decisions/029-sealing-through-audit-chain.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A host's seal chain is linear over exactly the stored sequence (withdrawn)
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -582,6 +713,16 @@ implementation carries the marker; acceptance checks of
 [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 **Related**: [BEH-GX-113–BEH-GX-120](behaviors/15-installation-checks.md), [BEH-GX-145–BEH-GX-152](behaviors/19-testing-entry-point.md), [ADR-GX-020](decisions/020-iq-proof-and-probe.md), [ADR-GX-024](decisions/024-fixtures-are-marked.md), [BEH-BR-181](../core/behaviors/21-testing-host.md), [BEH-BR-182](../core/behaviors/21-testing-host.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Test fixtures are detectable
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -619,6 +760,16 @@ rendering under `TestClock`; acceptance checks of
 
 **Related**: [BEH-GX-074](behaviors/10-signature-capture-port.md), [BEH-GX-075](behaviors/10-signature-capture-port.md), [BEH-GX-076](behaviors/10-signature-capture-port.md), [BEH-GX-081–BEH-GX-088](behaviors/11-signature-linking.md), [BEH-GX-137–BEH-GX-144](behaviors/18-archive-and-export.md), [ADR-GX-016](decisions/016-signature-port-and-manifestation.md), [BEH-BR-224](../core/behaviors/25-operation-gate.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Every signed binding carries a manifestation
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-GX-016: The sink never refuses a record for a condition of its own
@@ -654,3 +805,12 @@ test that a refusing branch is caught; acceptance checks of
 
 **Related**: [BEH-GX-012](behaviors/02-trail-store-port.md), [BEH-GX-017](behaviors/03-trail-sink.md), [BEH-GX-018](behaviors/03-trail-sink.md), [BEH-GX-019](behaviors/03-trail-sink.md), [BEH-GX-176](behaviors/22-trail-status-and-gate.md), [BEH-GX-177](behaviors/22-trail-status-and-gate.md), [ADR-GX-030](decisions/030-sink-marks-and-gate-refuses.md), [BEH-BR-193](../core/behaviors/23-audit-sink-and-record.md), [BEH-BR-202](../core/behaviors/23-audit-sink-and-record.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: The sink never refuses a record for a condition of its own
+evidence: none
+status: Planned
+unchecked: none stated
+```

@@ -1,0 +1,24 @@
+# Report 07: the mechanical spec gates and the prototype suite on every push and pull request.
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+        working-directory: prototypes/host-core
+      - run: npx tsc --noEmit
+        working-directory: prototypes/host-core
+      - run: npx vitest run
+        working-directory: prototypes/host-core
+      - name: Spec gates (D6), with the drift check on pull requests
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bash references/core/scripts/verify-spec.sh --since "origin/${{ github.base_ref }}"
+          else
+            bash references/core/scripts/verify-spec.sh
+          fi

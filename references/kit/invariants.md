@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-INV                                               |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Runtime Invariants                                           |
-> | Change History | 0.3 (2026-11-09): INV-KT-006: identity claims reach a handler only when the host's link discloses them (F-07) (CCR-KT-004)<br>0.2 (2026-11-08): INV-KT-007 covers `countersign` and the loader's `StatementSigner` (round 2: recheck items 11, 17) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.4 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.3 (2026-11-09): INV-KT-006: identity claims reach a handler only when the host's link discloses them (F-07) (CCR-KT-004)<br>0.2 (2026-11-08): INV-KT-007 covers `countersign` and the loader's `StatementSigner` (round 2: recheck items 11, 17) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -43,6 +43,17 @@ snapshots, audit records and inspections step by step.
 
 **Related**: [BEH-KT-001](./behaviors/01-plugin-facade.md#beh-kt-001-defineplugin-returns-a-core-definition-and-nothing-more), [BEH-KT-003](./behaviors/01-plugin-facade.md#beh-kt-003-the-keys-a-build-uses-are-checked-against-requires-with-a-readable-error), [ADR-KT-001](./decisions/001-kit-is-sugar-and-tools-over-core.md)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A facade plugin behaves as its core equivalent
+evidence:
+  - prototypes/host-core/src/kit.ts
+  - prototypes/host-core/test/dx-kit.test.ts
+status: Tested
+unchecked: none stated
+```
 ## INV-KT-002: Test helpers run only through TestHost
 
 Every `PluginTest`, `it.plugin` and plugin-subject conformance run drives a
@@ -59,6 +70,16 @@ testing entry point imports scheduling only from `@bridger/core/testing`.
 
 **Related**: [BEH-KT-009](./behaviors/02-plugin-test.md#beh-kt-009-mount-installs-one-plugin-with-its-provisions-and-waits-for-it), [BEH-KT-013](./behaviors/02-plugin-test.md#beh-kt-013-faults-and-stepping-stay-cores), [BEH-KT-019](./behaviors/03-conformance-kits.md#beh-kt-019-a-plugin-subject-is-mounted-with-plugintest)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Test helpers run only through TestHost
+evidence:
+  - prototypes/host-core/src/plugin-test.ts
+status: Prototyped
+unchecked: none stated
+```
 ## INV-KT-003: Tooling output carries names and counts, never values
 
 No kit output — inspector report, `why`, timeline, CLI messages, test failure
@@ -74,6 +95,15 @@ containing a sentinel value that must not appear in any output.
 
 **Related**: [BEH-KT-041](./behaviors/06-devtools-inspector.md#beh-kt-041-the-inspector-is-a-plugin-over-core-observation-only), [BEH-KT-044](./behaviors/06-devtools-inspector.md#beh-kt-044-leases-are-counts-per-plugin-never-holders), [BEH-KT-049](./behaviors/07-error-catalog.md#beh-kt-049-one-entry-per-tag-as-data)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Tooling output carries names and counts, never values
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-KT-004: Tooling changes a host only through host operations
 
 Every change the kit makes to a host — `dev` reloads, `PluginTest.mount` — is
@@ -90,6 +120,15 @@ code check that the kit imports no host-internal module.
 
 **Related**: [BEH-KT-026](./behaviors/04-cli.md#beh-kt-026-dev-reloads-changed-plugins-with-replace-on-a-host-it-owns), [BEH-KT-009](./behaviors/02-plugin-test.md#beh-kt-009-mount-installs-one-plugin-with-its-provisions-and-waits-for-it)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Tooling changes a host only through host operations
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-KT-005: A conformance pass comes only from executed cases
 
 A report counts a case as passed only when that case ran and its assertion
@@ -105,6 +144,16 @@ case and must turn the run into a failure.
 
 **Related**: [BEH-KT-018](./behaviors/03-conformance-kits.md#beh-kt-018-verify-runs-every-suite-of-the-subjects-major-up-to-its-version), [BEH-KT-022](./behaviors/03-conformance-kits.md#beh-kt-022-a-conformance-report-is-never-presented-as-more-than-it-is), [BEH-KT-027](./behaviors/04-cli.md#beh-kt-027-test-runs-the-packages-tests-and-conformance-suites)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A conformance pass comes only from executed cases
+evidence:
+  - prototypes/host-core/src/conformance.ts
+status: Prototyped
+unchecked: none stated
+```
 ## INV-KT-006: A partner handler sees only plain data
 
 A Promise SDK handler receives a checked, JSON-compatible payload and a
@@ -123,6 +172,15 @@ partner code, or partner exception text reaches host logs.
 
 **Related**: [BEH-KT-034](./behaviors/05-promise-sdk.md#beh-kt-034-serve-wraps-handlers-for-the-remote-companions-guest-runtime), [ADR-KT-004](./decisions/004-promise-sdk-for-out-of-process-partners.md)
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A partner handler sees only plain data
+evidence: none
+status: Planned
+unchecked: none stated
+```
 ## INV-KT-007: Publish never handles signing key material
 
 `bridger publish` and `bridger countersign` pass the loader's signing input
@@ -141,3 +199,13 @@ that records what it was given.
 ---
 
 _Previous: [08 — Required acceptance checks](./behaviors/08-required-acceptance-checks.md)_ · _Next: [Decisions](./decisions/001-kit-is-sugar-and-tools-over-core.md)_
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Publish never handles signing key material
+evidence: none
+status: Planned
+unchecked: none stated
+```

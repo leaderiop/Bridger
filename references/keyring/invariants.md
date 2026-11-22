@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-INV                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — INV-KR-002: event-store reads gated page by page from the freeze's second step, fenced inside a store transaction; a read a participant step makes itself skips the gate (H4, H6); second pass (cleanest design): the step read is withdrawn — a store-swap step decodes only through its `SwapStep`, which no step gets before the keyring's "codec" `apply` has committed on the store `run` left; reads inside a store transaction take event-store `readIn` and the read fence (CCR-KR-011)<br>0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — INV-KR-002: no tombstone commits during the freeze except in the install's `apply` transaction (PL20); readers named (every subscription, `follow` and event-store read, the application's duty to await `whenReadable`) (H3); residual bounds restated (B4) (CCR-KR-010)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-KR-002: the store-swap participant re-applies tombstones in its `apply`, inside the install before the `OriginChange`, and the refusal of `decrypt` and the codec is removed; the residual narrows to a crash during the install before `apply` commits and a failed `apply` (H4, K2); SPEC-AUDIT-07 residual — INV-KR-002: the failed-`apply` residual is removed, durable-bus holding readers and retrying the `apply`; the residual keeps a stop of the process during the install or that hold and adds the keyring plugin stopping during the hold; the residuals marked accepted, with (c) an `apply` that fails on every retry, holding writes and readers until the operator restores the `KeyStore` (CCR-KR-009)<br>Earlier revisions: [CHANGES.md](CHANGES.md#bridger-kr-inv) |
+> | Change History | 0.8 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — INV-KR-002: event-store reads gated page by page from the freeze's second step, fenced inside a store transaction; a read a participant step makes itself skips the gate (H4, H6); second pass (cleanest design): the step read is withdrawn — a store-swap step decodes only through its `SwapStep`, which no step gets before the keyring's "codec" `apply` has committed on the store `run` left; reads inside a store transaction take event-store `readIn` and the read fence (CCR-KR-011)<br>0.6 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — INV-KR-002: no tombstone commits during the freeze except in the install's `apply` transaction (PL20); readers named (every subscription, `follow` and event-store read, the application's duty to await `whenReadable`) (H3); residual bounds restated (B4) (CCR-KR-010)<br>0.5 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — INV-KR-002: the store-swap participant re-applies tombstones in its `apply`, inside the install before the `OriginChange`, and the refusal of `decrypt` and the codec is removed; the residual narrows to a crash during the install before `apply` commits and a failed `apply` (H4, K2); SPEC-AUDIT-07 residual — INV-KR-002: the failed-`apply` residual is removed, durable-bus holding readers and retrying the `apply`; the residual keeps a stop of the process during the install or that hold and adds the keyring plugin stopping during the hold; the residuals marked accepted, with (c) an `apply` that fails on every retry, holding writes and readers until the operator restores the `KeyStore` (CCR-KR-009)<br>Earlier revisions: [CHANGES.md](CHANGES.md#bridger-kr-inv) |
 
 ---
 
@@ -35,6 +35,17 @@ before the payload leaves encode; encode fails rather than passing plaintext.
 `TestHost` run.
 
 **Related**: [BEH-KR-008](behaviors/01-keys-and-subjects.md#beh-kr-008-access-through-core-grants-no-plaintext-in-core-flows), [BEH-KR-010](behaviors/02-field-encryption.md#beh-kr-010-the-encrypted-field-form), [BEH-KR-012](behaviors/02-field-encryption.md#beh-kr-012-after-a-shred-a-field-decodes-as-shredded).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Plaintext of a selected field never leaves the codec unencrypted
+evidence:
+  - prototypes/host-core/src/eventstore.ts
+status: Prototyped
+unchecked: none stated
+```
 
 ---
 
@@ -90,6 +101,16 @@ whole-store install over a snapshot without the tombstone (check 12).
 
 **Related**: [BEH-KR-003](behaviors/01-keys-and-subjects.md#beh-kr-003-encryption-binds-authenticated-data), [BEH-KR-017](behaviors/03-shred-and-acceptance.md#beh-kr-017-shredsubject-runs-in-a-fixed-order), [BEH-KR-020](behaviors/03-shred-and-acceptance.md#beh-kr-020-shred-notices-reach-other-hosts).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: After a shred begins, the keyring neither encrypts nor decrypts for the subject
+evidence: none
+status: Planned
+unchecked: **Residual (store-swap install window;
+```
+
 ---
 
 ## INV-KR-003: A shredded subject never gets a new key
@@ -104,6 +125,17 @@ for the same subject id by mistake.
 shred scenarios.
 
 **Related**: [BEH-KR-002](behaviors/01-keys-and-subjects.md#beh-kr-002-keyringkeysubject-returns-a-handle-never-key-material), [BEH-KR-018](behaviors/03-shred-and-acceptance.md#beh-kr-018-the-tombstone-closes-the-subject), [ADR-KR-003](decisions/003-a-shredded-subject-is-closed.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A shredded subject never gets a new key
+evidence:
+  - prototypes/host-core/src/keyring.ts
+status: Prototyped
+unchecked: none stated
+```
 
 ---
 
@@ -121,6 +153,16 @@ after a shred.
 
 **Related**: [BEH-KR-014](behaviors/02-field-encryption.md#beh-kr-014-chains-hash-ciphertext-only), [BEH-KR-017](behaviors/03-shred-and-acceptance.md#beh-kr-017-shredsubject-runs-in-a-fixed-order), [ADR-KR-001](decisions/001-shred-keys-never-rewrite-events.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: A shred changes no stored byte
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-KR-005: A shred is reported complete only after every callback acknowledged
@@ -137,3 +179,13 @@ among the registered ones.
 ---
 
 _Previous: [03 — Shred and acceptance](./behaviors/03-shred-and-acceptance.md)_ · _Next: [Risks](./risks.md)_
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A shred is reported complete only after every callback acknowledged
+evidence: none
+status: Planned
+unchecked: none stated
+```

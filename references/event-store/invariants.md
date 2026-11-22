@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-INV                                               |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-08): INV-ES-006 states the savepoint retry, the transaction owner's retry of a commit-time conflict, and that a received fact is halted on, never parked (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.3 (2026-11-22): every invariant carries a Check block (improvement report 07, R8)<br>0.2 (2026-11-08): INV-ES-006 states the savepoint retry, the transaction owner's retry of a commit-time conflict, and that a received fact is halted on, never parked (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -38,6 +38,16 @@ property test over generated append and rollback sequences.
 
 **Related**: [BEH-ES-003](behaviors/01-streams-and-append.md#beh-es-003-streamappend-takes-an-expected-version), [BEH-ES-004](behaviors/01-streams-and-append.md#beh-es-004-wrongexpectedversion-is-a-typed-refusal-that-writes-nothing), [ADR-ES-004](decisions/004-optimistic-concurrency-per-stream.md).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Stream versions are contiguous from 1, one event per version
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-ES-002: An append and its outbox entries commit together or not at all
@@ -57,6 +67,16 @@ without being published, when its type is published.
 transaction, asserting all-or-nothing across the four tables.
 
 **Related**: [BEH-ES-005](behaviors/01-streams-and-append.md#beh-es-005-append-runs-inside-the-callers-storetransaction), [BEH-ES-018](behaviors/03-projections-and-snapshots.md#beh-es-018-inline-projections-commit-with-the-append), [BEH-ES-028](behaviors/04-versions-publication-and-chaining.md#beh-es-028-publication-writes-the-outbox-in-the-appends-transaction), [BEH-ES-034](behaviors/05-storage-port-and-acceptance.md#beh-es-034-one-adapter-one-database-one-transaction-with-the-outbox), [ADR-ES-003](decisions/003-append-in-the-callers-transaction-with-the-outbox.md).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: An append and its outbox entries commit together or not at all
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -78,6 +98,16 @@ codec changes.
 
 **Related**: [BEH-ES-002](behaviors/01-streams-and-append.md#beh-es-002-the-stored-event), [BEH-ES-025](behaviors/04-versions-publication-and-chaining.md#beh-es-025-event-versions-follow-durable-bus-additive-changes-follow-core-26), [BEH-ES-033](behaviors/05-storage-port-and-acceptance.md#beh-es-033-the-eventstoreadapter-port).
 
+**Check**:
+
+```yaml
+predicate: none
+scope: Stored events are never rewritten or deleted by the package
+evidence: none
+status: Planned
+unchecked: none stated
+```
+
 ---
 
 ## INV-ES-004: A projection never skips a committed event
@@ -95,6 +125,16 @@ wrong by omission.
 running follower; fault injection in `apply`.
 
 **Related**: [BEH-ES-008](behaviors/01-streams-and-append.md#beh-es-008-the-store-wide-position-never-goes-back-for-a-reader), [BEH-ES-019](behaviors/03-projections-and-snapshots.md#beh-es-019-async-projections-follow-positions-with-a-checkpoint-in-the-same-transaction), [BEH-ES-020](behaviors/03-projections-and-snapshots.md#beh-es-020-a-failing-projection-halts-and-reports--it-never-skips), [BEH-ES-021](behaviors/03-projections-and-snapshots.md#beh-es-021-rebuild-resets-and-replays).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A projection never skips a committed event
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -114,6 +154,16 @@ written only from folded state and selected only by `stateVersion`.
 without snapshots.
 
 **Related**: [BEH-ES-010](behaviors/02-decide-and-evolve.md#beh-es-010-evolve-is-pure-and-total), [BEH-ES-023](behaviors/03-projections-and-snapshots.md#beh-es-023-snapshots--policy-write-and-load), [BEH-ES-024](behaviors/03-projections-and-snapshots.md#beh-es-024-a-snapshot-is-a-cache-never-a-source-of-truth).
+
+**Check**:
+
+```yaml
+predicate: none
+scope: A snapshot is a cache
+evidence: none
+status: Planned
+unchecked: none stated
+```
 
 ---
 
@@ -142,3 +192,13 @@ shredded subject, and with a receiver that lacks the subject's key.
 ---
 
 _Previous: [05 — Storage port and acceptance](./behaviors/05-storage-port-and-acceptance.md)_ · _Next: [Risks](./risks.md)_
+
+**Check**:
+
+```yaml
+predicate: none
+scope: Recording a fact cannot fail for a rule
+evidence: none
+status: Planned
+unchecked: none stated
+```
