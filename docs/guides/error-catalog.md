@@ -1,8 +1,8 @@
 # Error catalog
 
-Status: **prospective — nothing here is implemented.** This page is the human-facing form of
+Status: **checked by `references/kit/scripts/verify-errors.sh`** against the table and the sources. This page is the human-facing form of
 [kit BEH-KT-052](../../references/kit/behaviors/07-error-catalog.md#beh-kt-052-the-catalog-v01). When the kit exists it will be generated from
-`ErrorCatalog.entries`; until then it is maintained from that table. Every error carries identifiers and a
+`ErrorCatalog.entries`; until then it is maintained from that table, and the script fails on drift. Every error carries identifiers and a
 message, never a configuration value ([ADR-BR-008](../../references/core/decisions/008-error-taxonomy.md)).
 
 Kinds: **error** — a typed error a caller can catch with `Effect.catchTag`; **port-error** — the error of a port you implement, never seen by an operation caller; **record-only** — appears only in an audit record; **defect** — a programming error, not a typed error.
@@ -50,6 +50,22 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** The realm was never defined.
 - **Example.** `host.install(repo, { realm: "tenant-a" })` before `defineRealm("tenant-a", …)`.
 - **Fix.** Call `defineRealm` first.
+
+### ReplaceRolledBack
+
+*error* · origin: core · raised by: `replace` with `onFailure: { rollback }` (BEH-BR-049)
+
+- **Cause.** The new build failed and the rollback `replace` ran; the error carries `id`, `phase`, `message`, `rollback` (whether the previous definition is running again) and `rollbackMessage` when the rollback itself failed.
+- **Example.** `host.replace("db", broken, { onFailure: { rollback: true } })` where `broken`'s build fails: the old plugin runs again and the call fails with this tag.
+- **Fix.** Fix the new definition's build; read `rollback` to know whether the old one is serving.
+
+### SettleTimeout
+
+*error* · origin: core · raised by: `awaitSettled` (BEH-BR-040)
+
+- **Cause.** The named plugins were not settled within the timeout; `ids` lists them.
+- **Example.** `host.awaitSettled({ timeout: 1000 })` while a plugin's build waits on a service nothing provides.
+- **Fix.** Inspect the plugins in `ids` (`inspect`), provide what they wait for, or raise the timeout.
 
 ### ReplaceError
 
@@ -2121,6 +2137,21 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Cause.** The registry adapter refused or failed.
 - **Example.** The registry refuses an upload because the version already exists.
 - **Fix.** Read the adapter's message; the package is unchanged.
+### PlainCrossBoundaryKey
+
+*error* · origin: kit · raised by: `bridger check`
+
+- **Cause.** A manifest's `provides`, `requires` or `optional` names a plain key (no contract) not marked `internal: true` (`serviceId`, `path`).
+- **Example.** A plugin provides `Logger` as a plain key and its manifest does not mark it internal.
+- **Fix.** Use a contract key, or mark the key `internal: true` if it never crosses the package boundary.
+
+### UndeclaredCallTimeUse
+
+*error* · origin: kit · raised by: `bridger check` (BEH-KT-028)
+
+- **Cause.** A function that `make` or `run` returns does `yield*` of a key the definition lists in neither `requires` nor `optional`; the compiler cannot see the closure's requirement (`pluginId`, `serviceId`).
+- **Example.** `make` returns `{ send: () => Effect.gen(function* () { yield* Mail }) }` with `requires: []`.
+- **Fix.** Reach the service through `ctx.use(Key, ...)` (or `ctx.useOptional`), or list it in `requires`.
 
 ## Adapters (outside this specification)
 
