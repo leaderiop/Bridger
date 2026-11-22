@@ -231,14 +231,16 @@ describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
     const input = Buffer.from(L.Statement.signingInput(statement))
     const jcs = (o: Record<string, unknown>) => "{" + Object.keys(o).sort().map((k) => JSON.stringify(k) + ":" + JSON.stringify(o[k])).join(",") + "}"
     /** A Sigstore bundle as Rekor and Fulcio shape it: the SET path, or the inclusion-proof-with-signed-checkpoint path. */
-    const bundle = (o: { kind?: "hashedrekord" | "dsse"; v2?: boolean; path?: "set" | "checkpoint"; at?: number; logKeyFile?: string; tamperBody?: boolean; badProof?: boolean; signInput?: Buffer } = {}) => {
+    const bundle = (o: { kind?: "hashedrekord" | "dsse" | "intoto"; v2?: boolean; path?: "set" | "checkpoint"; at?: number; logKeyFile?: string; tamperBody?: boolean; badProof?: boolean; signInput?: Buffer } = {}) => {
       const signature = edSign("sha256", o.signInput ?? input, createPrivateKey(rd("leaf.key"))).toString("base64")
       const integratedTime = o.at ?? Math.floor(Date.parse(leaf.validFrom) / 1000) + 60
       const data = o.signInput ?? input
       const bodyLen = Number(/^DSSEv1 \d+ \S+ (\d+) /.exec(input.toString())![1])
       const payload = input.subarray(input.length - bodyLen)                      // the canonical statement the DSSE envelope carries
       const hex = H(data).toString("hex"), b64 = H(data).toString("base64"), phex = H(payload).toString("hex"), pb64 = H(payload).toString("base64")
-      const entryBody = o.kind === "dsse"
+      const entryBody = o.kind === "intoto"
+        ? { apiVersion: "0.0.2", kind: "intoto", spec: { content: { envelope: { payloadType: "application/vnd.bridger.statement+json", signatures: [{ keyid: "", sig: Buffer.from(signature).toString("base64"), publicKey: "x" }] }, hash: { algorithm: "sha256", value: phex }, payloadHash: { algorithm: "sha256", value: phex } } } }
+        : o.kind === "dsse"
         ? (o.v2 ? { apiVersion: "0.0.2", kind: "dsse", spec: { dsseV002: { payloadHash: { algorithm: "SHA2_256", digest: pb64 }, signatures: [{ content: signature, verifier: "x" }] } } }
                 : { apiVersion: "0.0.1", kind: "dsse", spec: { payloadHash: { algorithm: "sha256", value: phex }, signatures: [{ signature, verifier: "x" }] } })
         : (o.v2 ? { apiVersion: "0.0.2", kind: "hashedrekord", spec: { hashedRekordV002: { data: { algorithm: "SHA2_256", digest: b64 }, signature: { content: signature, verifier: "x" } } } }
@@ -255,7 +257,7 @@ describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
         entry.inclusionProof = { logIndex: "2", rootHash: root.toString("base64"), treeSize: "5", hashes, checkpoint: { envelope: `${text}\n\u2014 rekor.example ${cpSig}\n` } }
       }
       const material = { certificate: { rawBytes: leaf.raw.toString("base64") }, tlogEntries: [entry] }
-      const json = o.kind === "dsse"
+      const json = o.kind === "dsse" || o.kind === "intoto"
         ? { mediaType: "application/vnd.dev.sigstore.bundle.v0.3+json", verificationMaterial: material, dsseEnvelope: { payload: payload.toString("base64"), payloadType: "application/vnd.bridger.statement+json", signatures: [{ sig: signature }] } }
         : { mediaType: "application/vnd.dev.sigstore.bundle.v0.3+json", verificationMaterial: material, messageSignature: { signature } }
       return { scheme: "sigstore", bytes: new TextEncoder().encode(JSON.stringify(json)) }
@@ -275,6 +277,13 @@ describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
     const f = fixture()
     for (const kind of ["hashedrekord", "dsse"] as const) for (const v2 of [false, true]) for (const path of ["set", "checkpoint"] as const)
       expect(L.verifyStatement({ statement: f.statement, signatures: [f.bundle({ kind, v2, path })], policy: f.policy() }).satisfied, `${kind} v2=${v2} ${path}`).toBe(true)
+  })
+  it("a Rekor v1 intoto entry (v0.0.2, a double-base64 signature) verifies, and one for another payload or signature does not", () => {
+    const f = fixture()
+    for (const path of ["set", "checkpoint"] as const) expect(L.verifyStatement({ statement: f.statement, signatures: [f.bundle({ kind: "intoto", path })], policy: f.policy() }).satisfied, path).toBe(true)
+    expect(L.verifyStatement({ statement: f.statement, signatures: [f.bundle({ kind: "intoto", tamperBody: true })], policy: f.policy() }).satisfied).toBe(false)
+    const other = L.Statement.make({ statementType: "package", subject: { digest: "sha256:" + "cd".repeat(32) }, id: "x", version: "1" })
+    expect(L.verifyStatement({ statement: other, signatures: [f.bundle({ kind: "intoto" })], policy: f.policy() }).satisfied).toBe(false)
   })
   it("a DSSE envelope for another statement, or a dsse entry naming another payload, counts for nothing", () => {
     const f = fixture()

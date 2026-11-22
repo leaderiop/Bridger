@@ -121,8 +121,9 @@ export const verifyInclusion = (leafHash: Bytes, index: number, size: number, ha
   }
   return sn === 0 && Buffer.compare(Buffer.from(r), Buffer.from(root)) === 0
 }
-/** The Rekor entry kinds read: `hashedrekord` and `dsse`, each as v0.0.1 (a hex hash value) and v0.0.2 (the Rekor v2 form, a base64 digest and a signature `content`). The entry must name
- *  this signature and the hash of the signed bytes (the input for hashedrekord, the envelope payload for dsse). */
+/** The Rekor entry kinds read: `hashedrekord` and `dsse`, each as v0.0.1 (a hex hash value) and v0.0.2 (the Rekor v2 form, a base64 digest and a signature `content`), and the Rekor v1 `intoto`
+ *  v0.0.2 that older cosign attestations carry. The entry must name this signature and the hash of the signed bytes (the input for hashedrekord, the envelope payload for dsse and intoto). The other v1
+ *  kinds bind an artifact format (a jar, an rpm, a helm chart), not a signature over a statement, and are refused. */
 const entryBinds = (e: { kind?: string; apiVersion?: string; spec?: Record<string, any> }, sigB64: string, input: Bytes, payloadB64?: string): boolean => {
   const spec = e.spec ?? {}, hex = createHash("sha256").update(input).digest("hex"), b64 = Buffer.from(hex, "hex").toString("base64")
   if (e.kind === "hashedrekord") {
@@ -133,6 +134,10 @@ const entryBinds = (e: { kind?: string; apiVersion?: string; spec?: Record<strin
     const ph = createHash("sha256").update(Buffer.from(payloadB64, "base64")).digest("hex"), pb = Buffer.from(ph, "hex").toString("base64")
     const v2 = spec.dsseV002
     return v2 ? v2.payloadHash?.digest === pb && (v2.signatures ?? []).some((x: { content?: string }) => x.content === sigB64) : spec.payloadHash?.value === ph && (spec.signatures ?? []).some((x: { signature?: string }) => x.signature === sigB64)
+  }
+  if (e.kind === "intoto" && payloadB64 !== undefined) {                                   // the Rekor v1 form of a DSSE-wrapped in-toto statement, v0.0.2: its signatures are base64 of the base64 signature
+    const ph = createHash("sha256").update(Buffer.from(payloadB64, "base64")).digest("hex"), c = spec.content ?? {}
+    return c.payloadHash?.value === ph && (c.envelope?.signatures ?? []).some((x: { sig?: string }) => x.sig !== undefined && Buffer.from(x.sig, "base64").toString("utf8") === sigB64)
   }
   return false
 }
