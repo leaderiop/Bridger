@@ -7,7 +7,13 @@ import { define, type AnyPlugin } from "../src/plugin.js"
 import { remoteProxy } from "../src/remoteproxy.js"
 import { serveGuest } from "../src/session.js"
 import { duplex, guestServe } from "../src/wire.js"
-import { as, run, stateIn } from "./p4fixtures.js"
+import { TestClock } from "effect/testing"
+import { as, stateIn } from "./p4fixtures.js"
+import { withHost } from "./fixtures.js"
+
+/** The host runs on the test clock: heartbeats, back-off and drain limits are virtual, so load cannot reorder them. */
+const run = <A, E>(body: Parameters<typeof withHost<A, E>>[0], o: { options?: Parameters<typeof withHost>[1] } = {}) => withHost(body, { gateTimeout: 50, ...o.options }, TestClock.layer())
+const tick = Effect.gen(function* () { yield* TestClock.adjust(5); for (let i = 0; i < 20; i++) yield* Effect.yieldNow })
 
 class Board extends Context.Service<Board, { readonly post: (s: string) => Effect.Effect<string> }>()("example/Board@1") {}
 const board = Contract.make(Board, { version: "1.2.0", methods: { post: Contract.method({ payload: Schema.String, success: Schema.String }) } })
@@ -26,12 +32,11 @@ describe("remote proxy plugin", () => {
     })
     const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 50, missed: 4 }, backoff: 1500, onEnd: (w) => ends.push(w) })
     const reader = define({ id: "reader", requires: [board.range("^1.2")] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
-    const hist: string[] = []; const T0 = Date.now()
+    const hist: string[] = []
     await run((host) => Effect.gen(function* () {
       const until = (cond: Effect.Effect<boolean>, label: string) => Effect.gen(function* () {
-        const t0 = Date.now()
-        for (let i = 0; i < 1500; i++) { let k = 0; while (yield* host.step) { if (++k > 10000 || Date.now() - t0 > 9000) throw new Error(`step never idle waiting for ${label}; reader=${yield* stateIn(host, "reader")} child=${yield* stateIn(host, "boards/session")}`) } const st = `${yield* stateIn(host, "reader")}/${yield* stateIn(host, "boards/session")}`; if (hist.at(-1)?.split("@")[0] !== st) hist.push(`${st}@${Date.now() - T0}`); if (yield* cond) return; yield* Effect.sleep(5) }
-        throw new Error(`timed out waiting for ${label}; hist=${hist.join(" ")} ends=${ends} dials=${dials}; reader=${yield* stateIn(host, "reader")} child=${yield* stateIn(host, "boards/session")}`)
+        for (let i = 0; i < 3000; i++) { while (yield* host.step) { /* drain */ } const st = `${yield* stateIn(host, "reader")}/${yield* stateIn(host, "boards/session")}`; if (hist.at(-1)?.split("@")[0] !== st) hist.push(`${st}@${i * 5}`); if (yield* cond) return; yield* tick }
+        throw new Error(`timed out waiting for ${label}; hist=${hist.join(" ")} ends=${ends} dials=${dials}`)
       })
       yield* host.install(reader, as()); yield* host.install(proxy, as())
       yield* until(Effect.map(stateIn(host, "reader"), (s) => s === "active"), "reader active on the first session")
@@ -59,13 +64,13 @@ describe("remote proxy plugin", () => {
     const reader = define({ id: "reader", requires: [board.range("^1.2")] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
     await run((host) => Effect.gen(function* () {
       const until = (cond: Effect.Effect<boolean>, label: string) => Effect.gen(function* () {
-        for (let i = 0; i < 1500; i++) { while (yield* host.step) { /* drain */ } if (yield* cond) return; yield* Effect.sleep(5) }
+        for (let i = 0; i < 3000; i++) { while (yield* host.step) { /* drain */ } if (yield* cond) return; yield* tick }
         throw new Error(`timed out waiting for ${label}`)
       })
       const call = () => Effect.forkChild(host.use(board.range("^1.2") as never, (svc: { post: (s: string) => Effect.Effect<string, unknown> }) => Effect.flip(svc.post("x")).pipe(Effect.catch(() => Effect.succeed("ok")))))
       yield* host.install(reader, as()); yield* host.install(proxy, as())
       yield* until(Effect.map(stateIn(host, "reader"), (s) => s === "active"), "reader active")
-      yield* Effect.sleep(350)                                                       // the first session has been lost (silent guest); the backoff keeps the link down
+      for (let i = 0; i < 70; i++) yield* tick                                                        // the first session has been lost (silent guest); the backoff keeps the link down
       while (yield* host.step) { /* let any withdrawal settle */ }
       expect(yield* stateIn(host, "boards/session")).toBe("active")                  // held
       expect(yield* stateIn(host, "reader")).toBe("active")
