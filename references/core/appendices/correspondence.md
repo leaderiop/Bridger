@@ -41,7 +41,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-SQ | 0 | 20 |
 | INV-AC | 1 | 7 |
 | INV-AG | 0 | 8 |
-| INV-BR | 9 | 52 |
+| INV-BR | 10 | 52 |
 | INV-CM | 0 | 8 |
 | INV-DB | 1 | 11 |
 | INV-EN | 1 | 7 |
@@ -135,8 +135,8 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-AG-037 | Specified | — | — |
 | BEH-AG-038 | Specified | — | — |
 | BEH-AG-041 | Specified | — | — |
-| BEH-BR-001 | Tested | src/plugin.ts:54 | test/evidence.test.ts:16 “lists each test under every requirement it claims, counts the four outcomes, and raises one open deviation per gap” |
-| BEH-BR-002 | Tested | — | test/evidence.test.ts:16 “lists each test under every requirement it claims, counts the four outcomes, and raises one open deviation per gap” |
+| BEH-BR-001 | Tested | src/plugin.ts:54 | test/dx-risk-rows.test.ts:12 |
+| BEH-BR-002 | Tested | — | test/dx-risk-rows.test.ts:13 |
 | BEH-BR-003 | Tested | src/host.ts:1015 | test/evidence.test.ts:16 “lists each test under every requirement it claims, counts the four outcomes, and raises one open deviation per gap” |
 | BEH-BR-004 | Tested | — | test/evidence.test.ts:16 “lists each test under every requirement it claims, counts the four outcomes, and raises one open deviation per gap” |
 | BEH-BR-005 | Tested | — | test/evidence.test.ts:40 “rolls requirement rows up from their behaviours: pass only when all passed, partial when some did, a failure fails, no behaviour is not covered” |
@@ -1113,7 +1113,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | INV-AG-006 | Specified | — | — |
 | INV-AG-007 | Specified | — | — |
 | INV-AG-008 | Specified | — | — |
-| INV-BR-001 | Specified | — | — |
+| INV-BR-001 | Tested | — | test/dx-risk-rows.test.ts:14 |
 | INV-BR-002 | Tested | src/host.ts:1063 | test/dx-invariants.test.ts:29 “treats a tree with no block as not yet authored, and a partly authored one as failing” |
 | INV-BR-003 | Specified | — | — |
 | INV-BR-004 | Specified | — | — |

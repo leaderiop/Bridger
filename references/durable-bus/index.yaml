@@ -15,3 +15,6 @@ entries:
   - file: "traceability.md"
     id: "BRIDGER-DB-TRACE"
     title: "Traceability"
+  - file: "CHANGES.md"
+    id: "BRIDGER-DB-CHG"
+    title: "Change history"

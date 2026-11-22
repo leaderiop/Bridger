@@ -24,3 +24,6 @@ entries:
   - file: "roadmap.md"
     id: "BRIDGER-GX-ROADMAP"
     title: "Roadmap"
+  - file: "CHANGES.md"
+    id: "BRIDGER-GX-CHG"
+    title: "Change history"

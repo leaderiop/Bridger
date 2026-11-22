@@ -14,6 +14,8 @@ run bash "$here/references/gxp/scripts/verify-traceability.sh"
 for s in doc-typecheck verify-errors verify-cli; do run bash "$here/references/kit/scripts/$s.sh"; done
 run node "$here/prototypes/host-core/scripts/gen-correspondence.mjs" --check
 run python3 -I "$here/references/core/scripts/verify-invariants.py"
+run python3 -I "$here/references/core/scripts/split-history.py" --check
+run python3 -I "$here/references/core/scripts/verify-risk-rows.py"
 [ -n "$since" ] && run node "$here/prototypes/host-core/scripts/check-drift.mjs" "$since"
 echo "verify-spec: $fail failing step(s)"
 exit $((fail > 0))

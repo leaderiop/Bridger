@@ -12,3 +12,6 @@ entries:
   - file: "invariants.md"
     id: "BRIDGER-MC-INV"
     title: "Runtime Invariants"
+  - file: "CHANGES.md"
+    id: "BRIDGER-MC-CHG"
+    title: "Change history"
