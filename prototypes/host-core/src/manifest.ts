@@ -1,7 +1,7 @@
 // Manifests, consentDiff and Plugin.lazy (references/core behaviour 27, BEH-BR-241–244). Prototype.
 // The schema check is hand-written (structural, path-naming, value-free) rather than an Effect Schema.
 import { Context, Duration, Effect, Layer, Option } from "effect"
-import { CONTRACT, parseRange, satisfies } from "./contract.js"
+import { CONTRACT, parseRange, refKind, satisfies } from "./contract.js"
 import type { AnyPlugin } from "./plugin.js"
 
 export const BRIDGER_VERSION = "0.3.0"     // `Bridger.version` of this prototype (BEH-BR-242)
@@ -92,6 +92,19 @@ export const decodeProblem = (m: unknown): string | undefined => {
 }
 
 /** Engines (BEH-BR-242): undefined, or the range problem ("invalid") or the unsatisfied range. */
+/**
+ * Plain keys (no contract version) that a decoded manifest does not mark `internal: true`, in `provides`, `requires`, `optional` order
+ * (BEH-BR-241, loader BEH-LD-014, kit BEH-KT-028): `path` as the loader's `reason` names it, for example "requires[2]".
+ */
+export const plainKeyProblems = (m: PluginManifest): ReadonlyArray<{ readonly serviceId: string; readonly path: string }> =>
+  (["provides", "requires", "optional"] as const).flatMap((field) =>
+    (m[field] ?? []).flatMap((r, i) => r.version === undefined && r.internal !== true ? [{ serviceId: r.serviceId, path: `${field}[${i}]` }] : []))
+
+/** The same check for a definition that has no manifest: every plain key it names (kit BEH-KT-028). */
+export const plainKeysOfDefinition = (d: AnyPlugin): ReadonlyArray<string> =>
+  [...d.provides, ...d.requires, ...((d as { optional?: ReadonlyArray<{ key: string }> }).optional ?? [])]
+    .filter((k) => refKind(k) === undefined).map((k) => (k as { key: string }).key)
+
 export const engineProblem = (m: PluginManifest): { readonly kind: "invalid" | "unsatisfied"; readonly range: string } | undefined => {
   const range = m.engines?.["@bridger/core"]
   if (range === undefined) return undefined
