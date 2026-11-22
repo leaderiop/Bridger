@@ -59,3 +59,20 @@ export const collect = (tests: ReadonlyArray<RunnerTest>, known: ReadonlyArray<s
   }
   return { requirements, counts, deviations, statement: STATEMENT }
 }
+
+export interface TraceRow { readonly id: string; readonly behaviours: ReadonlyArray<string> }
+export type RollupOutcome = Outcome | "partial"
+/** Reads the rows of traceability.md that name behaviours: `| REQ-… | text | [BEH-BR-n](…), … | status |`. The status column is not read. */
+export const readTraceRows = (markdown: string): ReadonlyArray<TraceRow> =>
+  markdown.split("\n").flatMap((l) => { const m = l.match(/^\| ((?:REQ|NFR)-BR-\d+) \|/); return m ? [{ id: m[1]!, behaviours: [...new Set(l.match(/\bBEH-BR-\d{1,3}\b/g) ?? [])] }] : [] })
+/**
+ * A requirement row's outcome from its behaviours' outcomes: fail if any failed; pass only if every behaviour passed; partial when some passed and
+ * some did not; skipped if the rest were skipped; not covered if none passed. A row naming no behaviour is not covered. Never upgrades a gap.
+ */
+export const rollup = (ev: OqEvidence, rows: ReadonlyArray<TraceRow>): Readonly<Record<string, { outcome: RollupOutcome; passed: number; of: number }>> =>
+  Object.fromEntries(rows.map((r) => {
+    const outs = r.behaviours.map((b) => ev.requirements[b]?.outcome ?? "not covered")
+    const passed = outs.filter((o) => o === "pass").length
+    const outcome: RollupOutcome = outs.includes("fail") ? "fail" : outs.length > 0 && passed === outs.length ? "pass" : passed > 0 ? "partial" : outs.includes("skipped") ? "skipped" : "not covered"
+    return [r.id, { outcome, passed, of: outs.length }]
+  }))

@@ -1,6 +1,6 @@
 // The outcome rule of BEH-GX-124 and the deviations of BEH-GX-125, exactly, on a known corpus.
 import { describe, expect, it } from "vitest"
-import { collect, outcomeOf, readVitestReport, STATEMENT, tagsOf, type RunnerTest } from "../src/evidence.js"
+import { collect, outcomeOf, readTraceRows, readVitestReport, rollup, STATEMENT, tagsOf, type RunnerTest } from "../src/evidence.js"
 
 const t = (id: string, status: RunnerTest["status"]): RunnerTest => ({ id, file: "f.test.ts", status })
 
@@ -34,5 +34,13 @@ describe("oq evidence (BEH-GX-124, 125)", () => {
   })
   it("finds BEH-BR tags once each and ignores near misses", () => {
     expect(tagsOf("BEH-BR-121, BEH-BR-121 and BEH-BR-5; XBEH-BR-7 BEH-BR-1234")).toEqual(["BEH-BR-121", "BEH-BR-5"])
+  })
+
+  it("rolls requirement rows up from their behaviours: pass only when all passed, partial when some did, a failure fails, no behaviour is not covered", () => {
+    const md = ["| REQ-BR-001 | a | [BEH-BR-001](x), [BEH-BR-002](y) | Not run |", "| NFR-BR-002 | b | [BEH-BR-003](x) | Not run |", "| REQ-BR-003 | c | [BEH-BR-001](x), [BEH-BR-004](x) | Not run |", "| REQ-BR-004 | d | [BEH-BR-005](x), [BEH-BR-001](x) | Not run |", "| REQ-BR-005 | e | none | Not run |", "| not a row |"].join("\n")
+    const ev = collect([t("BEH-BR-001", "passed"), t("BEH-BR-002", "passed"), t("BEH-BR-003", "skipped"), t("BEH-BR-005", "failed")], ["BEH-BR-001", "BEH-BR-002", "BEH-BR-003", "BEH-BR-004", "BEH-BR-005"])
+    const r = rollup(ev, readTraceRows(md))
+    expect(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.outcome]))).toEqual({ "REQ-BR-001": "pass", "NFR-BR-002": "skipped", "REQ-BR-003": "partial", "REQ-BR-004": "fail", "REQ-BR-005": "not covered" })
+    expect(r["REQ-BR-003"]).toMatchObject({ passed: 1, of: 2 })
   })
 })

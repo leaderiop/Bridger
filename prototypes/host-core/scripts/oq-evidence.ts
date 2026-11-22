@@ -2,7 +2,7 @@
 // The result of every requirement is computed from that report; nothing here is entered by hand (ADR-BR-035).
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
-import { collect, readVitestReport } from "../src/evidence.js"
+import { collect, readTraceRows, readVitestReport, rollup } from "../src/evidence.js"
 
 const root = new URL("../", import.meta.url).pathname
 const behaviours = new URL("../../../references/core/behaviors/", import.meta.url).pathname
@@ -13,4 +13,9 @@ try { execFileSync("npx", ["vitest", "run", "--reporter=json", `--outputFile=${r
 const ev = collect(readVitestReport(JSON.parse(readFileSync(reportPath, "utf8"))), known)
 writeFileSync(root + "evidence/oq.json", JSON.stringify({ source: "vitest-report.json", ...ev }, null, 2) + "\n")
 writeFileSync(root + "evidence/deviations.json", JSON.stringify(ev.deviations, null, 2) + "\n")
+const rows = readTraceRows(readFileSync(new URL("../../../references/core/traceability.md", import.meta.url).pathname, "utf8"))
+const reqs = rollup(ev, rows)
+writeFileSync(root + "evidence/requirements.json", JSON.stringify(reqs, null, 2) + "\n")   // derived from oq.json; traceability.md itself is not edited
+const tally: Record<string, number> = {}; for (const r of Object.values(reqs)) tally[r.outcome] = (tally[r.outcome] ?? 0) + 1
+console.log("requirement rows:", JSON.stringify(tally))
 console.log(JSON.stringify({ ...ev.counts, requirements: known.length, deviations: ev.deviations.length }), ev.statement)
