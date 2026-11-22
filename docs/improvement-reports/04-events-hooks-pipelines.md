@@ -96,7 +96,7 @@
 
 ## Resolution status (2026-11-22)
 
-Branch `spec/events-report-04`; prototype suite 664/664 (649 at the start); `verify-traceability.sh --strict` and `verify-events.sh` report 0 failures. The recommendations above are the proposals; this table is what was built. Differences: `around` takes `(event, listener, {role})`, the parallel policy lives in the key, and a decide-role listener is unrecorded (a recorded decision is a hook point).
+Branch `spec/events-report-04`; prototype suite 665/665 (649 at the start); `verify-traceability.sh --strict` and `verify-events.sh` report 0 failures. The recommendations above are the proposals; this table is what was built. Differences: `around` takes `(event, listener, {role})`, the parallel policy lives in the key, and a decide-role listener is unrecorded (a recorded decision is a hook point).
 
 | Finding | Rec. | Status | As built |
 | --- | --- | --- | --- |
@@ -118,8 +118,8 @@ Branch `spec/events-report-04`; prototype suite 664/664 (649 at the start); `ver
 
 - Corrected from the first reading: BEH-BR-146 is about key resolution in realms, not a global-listener answer; the gate behaviours are BEH-BR-217 to 224; the "no event is used with two modes" remark was wrong for the prototype's tests; EV-13 does not hold as stated.
 - Reproduced on the old code (throwaway test, removed): EV-01 listener never called, EV-05 tail ran twice, EV-07 sibling interrupted, EV-12 depth 200 with no stop. Each fix has a test and a mutation check.
-- `hooks.ts` was read at option validation and the registry only; the script checks the defaults table for field names and for the literal defaults of `breaker`, `breakerScope`, `dormant`, `allowNoLink`, `allowSkipOnVeto` and `drainTimeout`.
-- The catalog extractor is regex-based; call sites are checked against keys declared in the file or exported from a relative import. A re-export or namespace import is checked by the compiler only.
+- `hooks.ts` was read in full against spec 31: no contradiction beyond one redundant ternary, removed. Enrich and advise run concurrently, bounded only by registered contributions and the deadline, as BEH-BR-311 specifies. The script checks the defaults table for names, literal defaults and required versus optional.
+- The catalog extractor is regex-based; it follows relative named imports, namespace imports and transitive re-exports. A dynamic import or a key built by a helper is checked by the compiler only.
 - `inspect` lists each listener's cumulative `dropped`.
-- Durable-bus ordering, event-store projection ordering and the `references/mcp` pipeline were not changed or re-read.
+- Durable-bus and `references/mcp` were read for what touches `Bridger.Events`: only `forward` (BEH-DB-050) does, and it now targets an `"emit"`-mode key. Durable-bus ordering guarantees were not re-derived.
 - Loaded-run stability: the touched test files ran 8 times, and the full suite once, under six busy-loop processes with no failure; no longer sweep.

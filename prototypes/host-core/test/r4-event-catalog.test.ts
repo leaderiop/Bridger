@@ -42,4 +42,16 @@ describe("event catalog (improvement report 04, R2)", { timeout: 60_000 }, () =>
       expect(r.stdout).toContain("K is a 'emit' event used with .waterfall()")
     })
   })
+  it("a key reached through a re-export or a namespace import is call-site checked too", () => {
+    withFixture({
+      "keys.ts": `export const K = ${MK}<[], void>()("x/k", { mode: "emit" })\n`,
+      "index.ts": `export { K as Renamed } from "./keys.js"\n`,
+      "use.ts": `import { Renamed } from "./index.js"\nimport * as ns from "./keys.js"\n${WF}(Renamed, [], z)\n${WF}(ns.K, [], z)\n`,
+    }, (dir) => {
+      const r = check(dir)
+      expect(r.status).toBe(1)
+      expect(r.stdout).toContain("Renamed is a 'emit' event used with .waterfall()")
+      expect(r.stdout).toContain("ns.K is a 'emit' event used with .waterfall()")
+    })
+  })
 })

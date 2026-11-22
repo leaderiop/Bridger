@@ -211,7 +211,7 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
         ...(verdict._tag === "Denied" ? { decidedBy: { ...(verdict.by !== undefined ? { id: verdict.by } : {}), ...(decider?.owner ? { owner: decider.owner } : {}), cause: verdict.cause, ...(verdict.code !== undefined ? { code: verdict.code } : {}) } } : {})
       }
       yield* PubSub.publish(decisions, record)
-      return { verdict, enrichments: verdict._tag === "Denied" ? enrichments : enrichments, advice: verdict._tag === "Denied" ? [] : advice, record }
+      return { verdict, enrichments, advice: verdict._tag === "Denied" ? [] : advice, record }
     })
     const link = yield* HostLink.reference
     // A link without a hostId cannot be told from HostLink.none and is treated as it (prototype choice, G-P19).

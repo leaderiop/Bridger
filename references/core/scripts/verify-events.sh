@@ -48,6 +48,21 @@ for ident, mode, f in bus: by_id.setdefault(ident, set()).add(mode)
 for ident, ms in sorted(by_id.items()):
     if len(ms) > 1: fails.append(f"event {ident!r} is declared with more than one mode: {sorted(ms)}")
 
+def exported_events(path, seen=None):
+    """name -> mode of the events a module exports: its own `export const`, `export { x } from` and `export * from` (followed)."""
+    seen = seen or set()
+    if path in seen or not os.path.exists(path): return {}
+    seen.add(path)
+    t, out = read(path), {}
+    for m in re.finditer(r'export\s+const\s+(\w+)\s*=\s*Event\.make<.*?>\(\)\(\s*"[^"]+"\s*,\s*\{[^}]*mode:\s*"(\w+)"', t): out[m.group(1)] = m.group(2)
+    for m in re.finditer(r'export\s*\{([^}]*)\}\s*from\s*"(\.[^"]*?)(?:\.js)?"', t):
+        sub = exported_events(os.path.normpath(os.path.join(os.path.dirname(path), m.group(2) + ".ts")), seen)
+        for part in m.group(1).split(","):
+            names = [x.strip() for x in part.split(" as ")]
+            if names[0] in sub: out[names[-1]] = sub[names[0]]
+    for m in re.finditer(r'export\s*\*\s*from\s*"(\.[^"]*?)(?:\.js)?"', t): out.update(exported_events(os.path.normpath(os.path.join(os.path.dirname(path), m.group(1) + ".ts")), seen))
+    return out
+
 # call sites: a constant of one mode is dispatched / listened to with that mode only (prototype src, tests, spec snippets)
 DISP = {"emit": "emit", "parallel": "parallel", "serial": "serial", "waterfall": "waterfall", "on": ("emit", "parallel", "serial"), "around": ("waterfall",)}
 checked = 0
@@ -57,12 +72,12 @@ for p in sources + list(walk(os.path.join(ROOT, "prototypes/host-core/test"), ".
     for m in re.finditer(r'(?:const|let)\s+(\w+)\s*=\s*Event\.make<.*?>\(\)\(\s*"[^"]+"\s*,\s*\{[^}]*mode:\s*"(\w+)"', t):
         consts[m.group(1)] = m.group(2)
     for im in re.finditer(r'import\s*\{([^}]*)\}\s*from\s*"(\.[^"]*?)(?:\.js)?"', t):
-        other = os.path.normpath(os.path.join(os.path.dirname(p), im.group(2) + ".ts"))
-        if not os.path.exists(other): continue
-        ot = read(other)
-        for nm in (x.strip().split(" as ")[-1].strip() for x in im.group(1).split(",")):
-            m = re.search(r'export\s+const\s+' + re.escape(nm) + r'\s*=\s*Event\.make<.*?>\(\)\(\s*"[^"]+"\s*,\s*\{[^}]*mode:\s*"(\w+)"', ot)
-            if m: consts[nm] = m.group(1)
+        exported = exported_events(os.path.normpath(os.path.join(os.path.dirname(p), im.group(2) + ".ts")))
+        for part in im.group(1).split(","):
+            names = [x.strip() for x in part.split(" as ")]
+            if names[0] in exported: consts[names[-1]] = exported[names[0]]
+    for im in re.finditer(r'import\s*\*\s*as\s+(\w+)\s+from\s*"(\.[^"]*?)(?:\.js)?"', t):
+        for nm, md in exported_events(os.path.normpath(os.path.join(os.path.dirname(p), im.group(2) + ".ts"))).items(): consts[f"{im.group(1)}.{nm}"] = md
     for name, mode in consts.items():
         if mode is None: continue
         for m in re.finditer(r'\.(emit|parallel|serial|waterfall|on|around)\(\s*' + re.escape(name) + r'\b', t):
@@ -124,6 +139,13 @@ for what, spec_text, code in (("breaker", '{ failures: 5, window: "1 minute", co
                               ("allowNoLink", '| `allowNoLink` | `false`', '!o.allowNoLink')):
     if spec_text not in table: fails.append(f"31: the Option defaults table no longer states the default of {what}")
     if code not in proto_hooks: fails.append(f"hooks.ts no longer implements the default of {what} the table states")
+proto_required = set(re.findall(r'^\s{2}readonly (\w+):', proto_iface, re.M))   # no `?`: the prototype demands it
+for m in re.finditer(r'^\| `(\w+)` \| ([^|]*)\|', table, re.M):
+    key, dflt = m.group(1), m.group(2).strip()
+    if dflt.startswith("required") and key not in proto_required: fails.append(f"31: {key} is `required` in the table but optional in hooks.ts")
+    if not dflt.startswith("required") and key in proto_required: fails.append(f"31: {key} has a default in the table but hooks.ts requires it")
+    if dflt.startswith("none") or dflt.startswith("no "):
+        if f"o.{key} ?? " in proto_hooks: fails.append(f"hooks.ts gives {key} a default the table says it lacks")
 if "| `drainTimeout` | 30 seconds" not in table: fails.append("31: drainTimeout default missing")
 if "?? 30_000" not in read(os.path.join(ROOT, "prototypes/host-core/src/registry.ts")): fails.append("registry.ts: the 30 s drainTimeout default the table states is gone")
 
