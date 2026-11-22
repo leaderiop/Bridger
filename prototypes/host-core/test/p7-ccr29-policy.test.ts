@@ -13,7 +13,7 @@ import { drive, idle } from "./fixtures.js"
 import { as, stateIn } from "./p4fixtures.js"
 import { onHost } from "./p7fixtures.js"
 
-const Evt = Event.make<[string], void>()("billing/invoice-posted")
+const Evt = Event.make<[string], void>()("billing/invoice-posted", { mode: "emit" })
 const evManifest = (id: string): PluginManifest => ({ manifestVersion: 1, id, version: "1.0.0", provides: [], requires: [{ serviceId: "@bridger/core/Events" }], activation: [{ _tag: "OnEvent", eventId: Evt.id }] })
 const listener = (id: string, heard: Array<string>, run: (x: string) => Effect.Effect<void> = () => Effect.void) => define({
   id, requires: [Events] as const, provides: [] as const, meta: { version: "1.0.0" },

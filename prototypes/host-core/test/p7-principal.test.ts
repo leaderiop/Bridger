@@ -30,7 +30,7 @@ export const consumer = (id: string, body: (s: Store["Service"], rt: PluginRunti
   id, requires: [Store] as const, provides: [] as const, meta: { version: "1", digest: `${id}-1` },
   build: Layer.effectDiscard(Effect.gen(function* () { yield* body(yield* Store, yield* PluginRuntime) })) as never, ...extra
 }) as unknown as AnyPlugin
-const Posted = Event.make<[number], void>()("billing/posted")
+const Posted = Event.make<[number], void>()("billing/posted", { mode: "emit" })
 
 describe("P7 core 28: principals (checks 67, 68)", () => {
   it("check 67: minted per activation and read by plugin code; forged dies PrincipalForged; retired dies PrincipalRetired; listener under its owner, provider method under its caller, asSelf", async () => {
@@ -218,7 +218,7 @@ describe("P7 core 28: allowChildren, AccessPolicy, RefusalList on mounts (checks
     const tries = define({ id: "tries", requires: [Events] as const, provides: [] as const, build: Layer.effectDiscard(Effect.gen(function* () {
       const bus = yield* Events
       const reg = yield* Registry.make<number>({ name: "routes" })
-      for (const [name, e] of [["listen", bus.on(Event.make<[], void>()("denied/ev"), () => Effect.void)], ["emit", bus.emit(Event.make<[], void>()("denied/ev"))], ["contribute", reg.add("nope", 1)]] as const) {
+      for (const [name, e] of [["listen", bus.on(Event.make<[], void>()("denied/ev", { mode: "emit" }), () => Effect.void)], ["emit", bus.emit(Event.make<[], void>()("denied/ev", { mode: "emit" }))], ["contribute", reg.add("nope", 1)]] as const) {
         const x = yield* Effect.exit(e as Effect.Effect<unknown, unknown, any>)
         out.push(`${name}:${Exit.isFailure(x) ? "denied" : "allowed"}`)
       }

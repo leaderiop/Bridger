@@ -120,7 +120,7 @@ describe("P7 core 14/01/10: children, Plugin.Any, entitlement, unmount (checks 8
 })
 
 // ---------------------------------------------------------------- held event (check 96) and idle return (check 97)
-const Evt = Event.make<[string], void>()("billing/invoice-posted")
+const Evt = Event.make<[string], void>()("billing/invoice-posted", { mode: "emit" })
 const manifest = (id: string, extra: Partial<PluginManifest> = {}): PluginManifest => ({ manifestVersion: 1, id, version: "1.0.0", provides: [], requires: [], activation: [{ _tag: "OnEvent", eventId: Evt.id }], ...extra })
 const lazyListener = (id: string, heard: Array<string>, o: { listen?: boolean; load?: Effect.Effect<void>; journal?: Array<string>; idle?: number; holdTimeout?: number } = {}) => {
   let loads = 0
@@ -128,7 +128,6 @@ const lazyListener = (id: string, heard: Array<string>, o: { listen?: boolean; l
     const bus = yield* Events
     if (o.listen !== false) {
       yield* bus.on(Evt, (x) => Effect.sync(() => { heard.push(`on:${x}`) }))
-      yield* bus.around(Evt, (_a, next) => Effect.sync(() => { heard.push("around") }).pipe(Effect.andThen(next)))
     }
     yield* Effect.addFinalizer(() => Effect.sync(() => { o.journal?.push(`close:${id}`) }))
   })) }) as unknown as AnyPlugin

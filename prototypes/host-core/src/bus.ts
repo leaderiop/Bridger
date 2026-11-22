@@ -9,13 +9,22 @@ import { Annotations, CurrentAnnotations, isBag, type Annotations as Bag } from 
 import { AccessDenied, CurrentPlugin, PolicySeam, PrincipalReference, refOf, type AccessDecision, type AccessRequest, type DeclaredAccess, type PluginPrincipal, type PrincipalRef } from "./policy.js"
 import * as Registry from "./registry.js"
 
-export interface EventKey<Args extends ReadonlyArray<unknown>, Result, E> {
+/** The one dispatch mode an event is declared with (BEH-BR-138): the key fixes it, so a listener cannot be registered for a style the emitter never uses. */
+export type EventMode = "emit" | "parallel" | "serial" | "waterfall"
+export interface EventKey<Args extends ReadonlyArray<unknown>, Result, E, Mode extends EventMode = EventMode> {
   readonly id: string
+  readonly mode: Mode
   readonly _types?: (args: Args) => [Result, E]
 }
-/** `Event.make<Args, Result, E>()(id)` (BEH-BR-138); identifiers follow `domain/action`. */
+/** `Event.make<Args, Result, E>()(id, { mode })` (BEH-BR-138); identifiers follow `domain/action`. */
 export const Event = {
-  make: <Args extends ReadonlyArray<unknown>, Result, E = never>() => (id: string): EventKey<Args, Result, E> => ({ id })
+  make: <Args extends ReadonlyArray<unknown>, Result, E = never>() => <const Mode extends EventMode>(id: string, o: { readonly mode: Mode }): EventKey<Args, Result, E, Mode> => ({ id, mode: o.mode })
+}
+/** The mode of an event is the key's; `on` serves the three `on` modes, `around` serves `waterfall` only (BEH-BR-139). */
+type OnMode = "emit" | "parallel" | "serial"
+/** A dispatch or registration through a key of another mode (reachable only through an untyped caller, BEH-BR-138). */
+export class EventModeMismatch extends Error {
+  constructor(readonly eventId: string, readonly declared: EventMode, readonly used: string) { super(`event ${eventId} is declared "${declared}" and was used as ${used}`) }
 }
 
 interface Listener { readonly kind: "on" | "around"; readonly fn: (...a: Array<any>) => Effect.Effect<any, any>; readonly owner?: PluginPrincipal; readonly ownerKey?: string }
@@ -23,15 +32,15 @@ interface Listener { readonly kind: "on" | "around"; readonly fn: (...a: Array<a
 export interface ListenerOptions { readonly priority?: number; readonly prepend?: boolean }
 export interface EventBus {
   readonly on: <Args extends ReadonlyArray<unknown>, Result, E>(
-    event: EventKey<Args, Result, E>, listener: (...args: Args) => Effect.Effect<Result, E>, options?: ListenerOptions
+    event: EventKey<Args, Result, E, OnMode>, listener: (...args: Args) => Effect.Effect<Result, E>, options?: ListenerOptions
   ) => Effect.Effect<void, never, Scope.Scope>
   readonly around: <Args extends ReadonlyArray<unknown>, Result, E>(
-    event: EventKey<Args, Result, E>, listener: (args: Args, next: Effect.Effect<Result, E>) => Effect.Effect<Result, E>, options?: ListenerOptions
+    event: EventKey<Args, Result, E, "waterfall">, listener: (args: Args, next: Effect.Effect<Result, E>) => Effect.Effect<Result, E>, options?: ListenerOptions
   ) => Effect.Effect<void, never, Scope.Scope>
-  readonly emit: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E>, ...args: Args) => Effect.Effect<void>
-  readonly parallel: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E>, ...args: Args) => Effect.Effect<ReadonlyArray<R>, E>
-  readonly serial: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E>, ...args: Args) => Effect.Effect<Option.Option<R>, E>
-  readonly waterfall: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E>, args: Args, final: Effect.Effect<R, E>) => Effect.Effect<R, E>
+  readonly emit: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E, "emit">, ...args: Args) => Effect.Effect<void>
+  readonly parallel: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E, "parallel">, ...args: Args) => Effect.Effect<ReadonlyArray<R>, E>
+  readonly serial: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E, "serial">, ...args: Args) => Effect.Effect<Option.Option<R>, E>
+  readonly waterfall: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E, "waterfall">, args: Args, final: Effect.Effect<R, E>) => Effect.Effect<R, E>
 }
 
 /** A base service: no plugin can provide or replace it (BEH-BR-137). */
@@ -51,6 +60,15 @@ export const makeBus = (opts: {
   readonly onListenerRun?: (ownerKey: string, delta: 1 | -1) => void
 }) => {
   const registries = new Map<string, Registry.Registry<Listener>>()
+  /** The mode each event id was first used with; a key of another mode under that id is refused (BEH-BR-138). */
+  const modes = new Map<string, EventMode>()
+  const claim = (event: { readonly id: string; readonly mode: EventMode }, used: string, expect: ReadonlyArray<EventMode>) => Effect.suspend(() => {
+    const seen = modes.get(event.id)
+    if (!expect.includes(event.mode)) return Effect.die(new EventModeMismatch(event.id, event.mode, used))
+    if (seen !== undefined && seen !== event.mode) return Effect.die(new EventModeMismatch(event.id, seen, `${used} with a key declared "${event.mode}"`))
+    modes.set(event.id, event.mode)
+    return Effect.void
+  })
   let counter = 0
   const WIDTH = 12
   const pad = (n: number) => String(n).padStart(WIDTH, "0")
@@ -62,7 +80,9 @@ export const makeBus = (opts: {
       Effect.provideService(Scope.Scope, opts.supervisor),
       Effect.tap((made) => Effect.sync(() => { registries.set(eventId, made) })))
   })
-  const register = (eventId: string, kind: Listener["kind"], fn: Listener["fn"], o: ListenerOptions = {}) => Effect.gen(function* () {
+  const register = (event: { readonly id: string; readonly mode: EventMode }, kind: Listener["kind"], fn: Listener["fn"], o: ListenerOptions = {}) => Effect.gen(function* () {
+    const eventId = event.id
+    yield* claim(event, kind === "on" ? "an `on` listener" : "an `around` listener", kind === "on" ? ["emit", "parallel", "serial"] : ["waterfall"])
     const p = yield* CurrentPlugin.get
     const active = yield* ActivePlugin
     const owner = Option.isSome(p) ? p.value : undefined
@@ -102,7 +122,9 @@ export const makeBus = (opts: {
       Effect.catchIf((e): e is ContributionUnavailable | LeaseRevoked => e instanceof ContributionUnavailable || e instanceof LeaseRevoked,
         () => Effect.die(new ListenerRemoved(eventId)))) as Effect.Effect<A, E>
   /** At every dispatch start: the emit access check, the "events" annotations, and the OnEvent trigger hook. */
-  const begin = (eventId: string, mode: "emit" | "parallel" | "serial" | "waterfall", args: ReadonlyArray<unknown>) => Effect.gen(function* () {
+  const begin = (event: { readonly id: string; readonly mode: EventMode }, mode: EventMode, args: ReadonlyArray<unknown>) => Effect.gen(function* () {
+    const eventId = event.id
+    yield* claim(event, `\`${mode}\``, [mode])
     if (opts.access) {
       const p = yield* CurrentPlugin.acting
       const d = opts.access.decide({ kind: "emit", event: eventId, mode, ...(Option.isSome(p) ? { principal: refOf(p.value) } : {}) })
@@ -127,20 +149,20 @@ export const makeBus = (opts: {
   })
 
   const bus: EventBus & { readonly deliverHeld: (eventId: string, ownerKey: string, args: ReadonlyArray<unknown>, ann: Bag) => Effect.Effect<number> } = {
-    on: (event, listener, o) => register(event.id, "on", listener as Listener["fn"], o),
-    around: (event, listener, o) => register(event.id, "around", listener as Listener["fn"], o),
+    on: (event, listener, o) => register(event, "on", listener as Listener["fn"], o),
+    around: (event, listener, o) => register(event, "around", listener as Listener["fn"], o),
     emit: (event, ...args) => Effect.gen(function* () {
-      const ann = yield* begin(event.id, "emit", args)
+      const ann = yield* begin(event, "emit", args)
       const { r, ids } = yield* snapshot(event.id, "on")
       if (r) yield* fireAndForget(event.id, r, ids, args, ann)
     }),
     parallel: (event, ...args) => Effect.gen(function* () {
-      const ann = yield* begin(event.id, "parallel", args)
+      const ann = yield* begin(event, "parallel", args)
       const { r, ids } = yield* snapshot(event.id, "on")
       return yield* Effect.forEach(ids, (cid) => invoke(event.id, r!, cid, (fn) => fn(...args), ann), { concurrency: "unbounded" })
     }),
     serial: (event, ...args) => Effect.gen(function* () {
-      const ann = yield* begin(event.id, "serial", args)
+      const ann = yield* begin(event, "serial", args)
       const { r, ids } = yield* snapshot(event.id, "on")
       for (const cid of ids) {
         const out = yield* invoke(event.id, r!, cid, (fn) => fn(...args), ann)
@@ -149,7 +171,7 @@ export const makeBus = (opts: {
       return Option.none()
     }),
     waterfall: (event, args, final) => Effect.gen(function* () {
-      const ann = yield* begin(event.id, "waterfall", args)
+      const ann = yield* begin(event, "waterfall", args)
       const { r, ids } = yield* snapshot(event.id, "around")
       const at = (i: number): Effect.Effect<any, any> => i === ids.length ? final : invoke(event.id, r!, ids[i]!, (fn) => Effect.suspend(() => fn(args, at(i + 1))), ann)
       return yield* at(0)

@@ -87,7 +87,7 @@ describe("ContributionRegistry (behaviour 19)", () => {
   })))
 
   it("BEH-BR-163, 168: contributions added inside an activation are owned by that plugin in inspect — names and ids only", async () => {
-    const Ping = Event.make<[], void>()("ops/ping")
+    const Ping = Event.make<[], void>()("ops/ping", { mode: "emit" })
     await run((host) => Effect.gen(function* () {
       const contributor: AnyPlugin = {
         id: "pages", requires: [Routes, Events], provides: [],

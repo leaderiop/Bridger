@@ -1,7 +1,7 @@
 // Phase-P4 scenarios for the typed event bus (behaviour 16, BEH-BR-137–144).
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Stream } from "effect"
 import { describe, expect, it } from "vitest"
-import { Event, Events, ListenerRemoved, type EventBus } from "../src/bus.js"
+import { Event, EventModeMismatch, Events, ListenerRemoved, type EventBus } from "../src/bus.js"
 import { CurrentActor } from "../src/gxp.js"
 import { HeldPlugins } from "../src/host.js"
 import type { AnyPlugin } from "../src/plugin.js"
@@ -9,8 +9,11 @@ import { journal, type Journal } from "./fixtures.js"
 import { alice, as, run, stateIn } from "./p4fixtures.js"
 import { drive, idle } from "./fixtures.js"
 
-const Posted = Event.make<[invoiceId: string], string | undefined, string>()("billing/invoice-posted")
-const Price = Event.make<[sku: string], number, never>()("shop/price")
+const Posted = Event.make<[invoiceId: string], string | undefined, string>()("billing/invoice-posted", { mode: "serial" })
+const PostedNote = Event.make<[invoiceId: string], string | undefined, string>()("billing/invoice-noted", { mode: "emit" })
+const Audited = Event.make<[invoiceId: string], string | undefined, string>()("billing/invoice-audited", { mode: "parallel" })
+const Quotes = Event.make<[sku: string], number, never>()("shop/quotes", { mode: "parallel" })
+const Price = Event.make<[sku: string], number, never>()("shop/price", { mode: "waterfall" })
 class Probe extends Context.Service<Probe, {}>()("example/Probe") {}
 
 const failed = (exit: Exit.Exit<unknown, unknown>, tag: string) => Exit.isFailure(exit) && JSON.stringify(exit.cause).includes(tag)
@@ -65,15 +68,15 @@ describe("event bus (behaviour 16)", () => {
     await run((host) => Effect.gen(function* () {
       const seen = yield* Effect.forkChild(host.events.pipe(Stream.filter((e) => e.type === "listener-failed"), Stream.take(1), Stream.runCollect))
       yield* host.install(listenerPlugin("l", (bus) => Effect.gen(function* () {
-        yield* bus.on(Posted, () => Effect.fail("posting failed"))
-        yield* bus.on(Posted, (id) => Effect.sleep(20).pipe(Effect.andThen(j.push(`slow ${id}`)), Effect.as(undefined)))
+        yield* bus.on(PostedNote, () => Effect.fail("posting failed"))
+        yield* bus.on(PostedNote, (id) => Effect.sleep(20).pipe(Effect.andThen(j.push(`slow ${id}`)), Effect.as(undefined)))
       })), as())
       yield* idle(host)
       const bus = yield* busOf(host)
-      yield* bus.emit(Posted, "inv-1")
+      yield* bus.emit(PostedNote, "inv-1")
       expect(j.lines).toEqual([])                                            // not awaited
       const events = [...(yield* Fiber.join(seen))]
-      expect(events[0]).toMatchObject({ type: "listener-failed", event: "billing/invoice-posted", message: "posting failed" })
+      expect(events[0]).toMatchObject({ type: "listener-failed", event: "billing/invoice-noted", message: "posting failed" })
       yield* Effect.sleep(40)
       expect(j.lines).toEqual(["slow inv-1"])
     }))
@@ -83,20 +86,20 @@ describe("event bus (behaviour 16)", () => {
     await run((host) => Effect.gen(function* () {
       const order: Array<string> = []
       yield* host.install(listenerPlugin("l", (bus) => Effect.gen(function* () {
-        yield* bus.on(Price, () => Effect.sleep(30).pipe(Effect.as(1)))
-        yield* bus.on(Price, () => Effect.succeed(2))
+        yield* bus.on(Quotes, () => Effect.sleep(30).pipe(Effect.as(1)))
+        yield* bus.on(Quotes, () => Effect.succeed(2))
         yield* bus.on(Posted, () => Effect.sync(() => { order.push("first") }).pipe(Effect.as(undefined)))
         yield* bus.on(Posted, () => Effect.sync(() => { order.push("second") }).pipe(Effect.as("second wins")))
         yield* bus.on(Posted, () => Effect.sync(() => { order.push("third") }).pipe(Effect.as("never")))
       })), as())
       yield* idle(host)
       const bus = yield* busOf(host)
-      expect(yield* bus.parallel(Price, "sku")).toEqual([1, 2])               // listener order, not completion order
+      expect(yield* bus.parallel(Quotes, "sku")).toEqual([1, 2])               // listener order, not completion order
       expect(yield* bus.serial(Posted, "inv")).toEqual(Option.some("second wins"))
       expect(order).toEqual(["first", "second"])
-      yield* host.install(listenerPlugin("m", (b) => b.on(Posted, () => Effect.fail("refused"))), as())
+      yield* host.install(listenerPlugin("m", (b) => b.on(Audited, () => Effect.fail("refused"))), as())
       yield* idle(host)
-      expect(failed(yield* Effect.exit(bus.parallel(Posted, "inv")), "refused")).toBe(true)
+      expect(failed(yield* Effect.exit(bus.parallel(Audited, "inv")), "refused")).toBe(true)
     }))
   })
 
@@ -141,5 +144,32 @@ describe("event bus (behaviour 16)", () => {
       // What the dispatch returns is unspecified (finding G23); the prototype dies with ListenerRemoved.
       expect(Exit.isFailure(exit) && Cause.squash(exit.cause) instanceof ListenerRemoved).toBe(true)
     }), { options: { drainTimeout: 50 } })
+  })
+
+  it("BEH-BR-138, 139: the mode belongs to the key; a listener or dispatch of another mode is a compile error, and for an untyped caller a defect naming the event", async () => {
+    await run((host) => Effect.gen(function* () {
+      yield* idle(host)
+      const bus = yield* busOf(host)
+      const scoped = <A, E>(e: Effect.Effect<A, E, import("effect").Scope.Scope>) => Effect.scoped(e)
+      // @ts-expect-error a waterfall key cannot be registered with `on`
+      const a = bus.on(Price, () => Effect.succeed(1))
+      // @ts-expect-error an emit key cannot be registered with `around`
+      const b = bus.around(PostedNote, (_a, next) => next)
+      // @ts-expect-error a serial key cannot be dispatched with `waterfall`
+      const c = bus.waterfall(Posted, ["x"], Effect.succeed(undefined))
+      // @ts-expect-error a waterfall key cannot be dispatched with `emit`
+      const d = bus.emit(Price, "sku")
+      // @ts-expect-error a serial key cannot be dispatched with `parallel`
+      const e = bus.parallel(Posted, "x")
+      for (const attempt of [scoped(a), scoped(b), c, d, e]) {
+        const exit = yield* Effect.exit(attempt as Effect.Effect<unknown, unknown>)
+        expect(Exit.isFailure(exit) && Cause.squash(exit.cause) instanceof EventModeMismatch).toBe(true)
+        expect(JSON.stringify(Exit.isFailure(exit) ? (Cause.squash(exit.cause) as Error).message : "")).toMatch(/billing\/invoice-(posted|noted)|shop\/price/)
+      }
+      // two key objects sharing an id with different modes: the second is refused
+      yield* bus.serial(Posted, "x")
+      const other = Event.make<[invoiceId: string], string | undefined, string>()("billing/invoice-posted", { mode: "parallel" })
+      expect(Exit.isFailure(yield* Effect.exit(bus.parallel(other, "x")))).toBe(true)
+    }))
   })
 })

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-16                                               |
-> | Revision       | 0.14                                                         |
+> | Revision       | 0.15                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.14 (2026-11-11): BEH-BR-140 the listener-list registries are made with `report: false` (CL4) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.13 (2026-11-11): BEH-BR-140 the registries holding listener lists report nothing; the bus reports each listener once (CL9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-139 listener ownership is reported through `ActivePlugin.report` (C12) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-144 `serial`, `parallel` and `waterfall` listeners inherit `CurrentTransition` beside `HeldPlugins`; `emit` does not await its listeners, so they carry none (H1) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-140 each listener registry is made with the host's `BridgerOptions.drainTimeout` (C11) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-137 `Bridger.Events` cannot be provided in any resolution scope and no realm may isolate it (`InvalidRealm`) (C-02) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-144: listeners run with the dispatcher's `CurrentCorrelation` (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-141: the event that applies an `OnEvent` trigger is held for the plugin it wakes and delivered once, with `emit` semantics, to that plugin's `on` listeners when it becomes `active` (27, BEH-BR-251); the dispatch reads the emitter's principal for the `lazy-triggered` record (27, BEH-BR-253) (CCR-BR-024)<br>0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.15 (2026-11-22): BEH-BR-138 an event key carries its dispatch mode (`Event.make(id, { mode })`); BEH-BR-139 `on` serves `emit`, `parallel` and `serial` keys and `around` serves `waterfall` keys only; BEH-BR-141 to 143 each dispatcher accepts only its own mode; a mismatch is a compile error, and for an untyped caller a defect naming the event (improvement report 04, R1)<br>0.14 (2026-11-11): BEH-BR-140 the listener-list registries are made with `report: false` (CL4) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.13 (2026-11-11): BEH-BR-140 the registries holding listener lists report nothing; the bus reports each listener once (CL9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-139 listener ownership is reported through `ActivePlugin.report` (C12) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-144 `serial`, `parallel` and `waterfall` listeners inherit `CurrentTransition` beside `HeldPlugins`; `emit` does not await its listeners, so they carry none (H1) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-140 each listener registry is made with the host's `BridgerOptions.drainTimeout` (C11) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-137 `Bridger.Events` cannot be provided in any resolution scope and no realm may isolate it (`InvalidRealm`) (C-02) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-144: listeners run with the dispatcher's `CurrentCorrelation` (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-141: the event that applies an `OnEvent` trigger is held for the plugin it wakes and delivered once, with `emit` semantics, to that plugin's `on` listeners when it becomes `active` (27, BEH-BR-251); the dispatch reads the emitter's principal for the `lazy-triggered` record (27, BEH-BR-253) (CCR-BR-024)<br>0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -88,17 +88,31 @@ realms would no longer share one bus, which INV-BR-020 states they do
 > **Risk:** [RSK-BR-010](../gxp/03-risk-assessment.md#rsk-br-010)
 
 ```ts
-interface EventKey<Args extends readonly unknown[], Result, E> { readonly id: string }
+type EventMode = "emit" | "parallel" | "serial" | "waterfall"
+interface EventKey<Args extends readonly unknown[], Result, E, Mode extends EventMode> { readonly id: string; readonly mode: Mode }
 
-const InvoicePosted = Event.make<[invoiceId: string], void, PostingError>()("billing/invoice-posted")
-//                               ^ args             ^ result ^ error type of listeners and dispatch
+const InvoicePosted = Event.make<[invoiceId: string], void, PostingError>()("billing/invoice-posted", { mode: "emit" })
+//                               ^ args             ^ result ^ error type of listeners and dispatch   ^ the one dispatch mode
 ```
 
 ```
-REQUIREMENT: An event MUST be an `EventKey<Args, Result, E>` made by
+REQUIREMENT: An event MUST be an `EventKey<Args, Result, E, Mode>` made by
              `Event.make`, carrying its argument tuple, result and error
-             types. A listener whose signature does not match MUST be a
-             compile error, and dispatch results and errors MUST be typed.
+             types and exactly one dispatch mode: `"emit"`, `"parallel"`,
+             `"serial"` or `"waterfall"`. A listener whose signature does not
+             match MUST be a compile error, and dispatch results and errors
+             MUST be typed.
+```
+
+```
+REQUIREMENT: The mode MUST be part of the key's type, so that registering a
+             listener for a style of dispatch the event does not use, or
+             dispatching an event with a dispatcher of another mode, is a
+             compile error. For a caller that bypasses the types, the bus MUST
+             fail the registration or dispatch with a defect naming the event
+             identifier, and MUST remember the mode each identifier was first
+             used with, so that a second key object sharing the identifier
+             with a different mode is refused the same way.
 ```
 
 ```
@@ -117,7 +131,12 @@ Unlike service keys, there is no activation at which two key objects could
 be compared, so the bus does not fail on two key objects that share an `id`;
 it cannot detect a changed shape under an unchanged identifier, exactly as
 the core cannot for services ([RSK-BR-010](../gxp/03-risk-assessment.md#rsk-br-010)).
-The versioned-identifier convention is the mitigation.
+The versioned-identifier convention is the mitigation. The one thing it does
+detect is a changed *mode*: the bus records the mode of an identifier at its
+first registration or dispatch and refuses a key that disagrees (improvement
+report 04, EV-01). Cordis gives each event exactly one mode for the same
+reason: a listener cannot then be registered for a style the emitter never
+uses and be silently never called.
 
 ## BEH-BR-139: Listener lifetime is the registering scope
 
@@ -128,6 +147,12 @@ The versioned-identifier convention is the mitigation.
 REQUIREMENT: `on` and `around` MUST register the listener for the lifetime of
              the caller's `Scope` and MUST remove it when that scope closes.
              There MUST be no separate unregistration API.
+```
+
+```
+REQUIREMENT: `on` MUST accept only keys whose mode is `"emit"`, `"parallel"`
+             or `"serial"`, and `around` only keys whose mode is
+             `"waterfall"` (BEH-BR-138).
 ```
 
 ```
@@ -196,6 +221,12 @@ mid-flight would make its results depend on timing.
 > **See:** [ADR-BR-020](../decisions/020-typed-event-bus.md), [ADR-BR-050](../decisions/050-dormant-veto-and-hook-phases.md)
 > **Satisfies:** [URS-BR-013](../urs.md#urs-br-013-exchange-typed-events-between-plugins), [URS-BR-050](../urs.md#urs-br-050-let-a-plugin-started-by-an-event-receive-that-event)
 > **Risk:** [RSK-BR-016](../gxp/03-risk-assessment.md#rsk-br-016), [RSK-BR-058](../gxp/03-risk-assessment.md#rsk-br-058)
+
+```
+REQUIREMENT: `emit` MUST accept only a key whose mode is `"emit"`; `parallel`,
+             `serial` and `waterfall` likewise accept only their own mode
+             (BEH-BR-138).
+```
 
 ```
 REQUIREMENT: `emit` MUST run each `on` listener in its own supervised fiber

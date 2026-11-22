@@ -191,7 +191,7 @@ describe("P7 core 30/22: annotations, correlation, CallerContext (checks 75, 76,
     const requests: Array<OperationRequest> = []
     const gate: OperationGate["Service"] = { authorize: (r) => Effect.sync(() => { requests.push(r) }) }
     const seen: Record<string, unknown> = {}
-    const Ping = Event.make<[], void>()("x/ping")
+    const Ping = Event.make<[], void>()("x/ping", { mode: "emit" })
     await onHost((host) => Effect.gen(function* () {
       yield* host.install(define({ id: "bank", requires: [Events] as const, provides: [Bank] as const, build: Layer.effect(Bank, Effect.gen(function* () {
         seen.build = (yield* Annotation.current).keys
@@ -263,7 +263,7 @@ describe("P7 core 30/22: annotations, correlation, CallerContext (checks 75, 76,
     const { records, sink } = rec()
     const log = memLog()
     const heard: Array<Option.Option<string>> = []
-    const Ping = Event.make<[], void>()("x/ping2")
+    const Ping = Event.make<[], void>()("x/ping2", { mode: "emit" })
     await onHost((host) => Effect.gen(function* () {
       yield* host.install(define({ id: "bank", requires: [Events] as const, provides: [Bank] as const, build: Layer.effect(Bank, Effect.gen(function* () {
         yield* (yield* Events).on(Ping, () => Effect.map(CurrentCorrelation.get, (c) => { heard.push(c) }))
