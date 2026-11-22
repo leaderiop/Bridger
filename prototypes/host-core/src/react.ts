@@ -10,7 +10,12 @@ import { CurrentCorrelation } from "./policy.js"
 import type { AnyPlugin } from "./plugin.js"
 
 const ACTOR = { id: "bridger-react", kind: "service" as const }
-export interface ClientOptions { readonly plugins?: ReadonlyArray<AnyPlugin>; readonly host?: Host.Options }
+export interface ClientOptions {
+  readonly plugins?: ReadonlyArray<AnyPlugin>
+  readonly host?: Host.Options
+  /** A host the application owns: observed and called, never installed into or shut down by this client. */
+  readonly over?: Pick<Host.Host, "changes" | "use"> & Partial<Host.Host>
+}
 export interface BridgerClient {
   readonly host: Host.Host
   readonly snapshot: () => HostSnapshot | undefined
@@ -33,17 +38,16 @@ export const createBridgerClient = async (options: ClientOptions = {}): Promise<
   let disposed = false
   const ctx = { context: { actor: ACTOR, reason: "client start" } }
   const start = Effect.gen(function* () {
-    const host = yield* Host.make({ ...options.host })
+    const host = (options.over ?? (yield* Host.make({ ...options.host }))) as Host.Host
     inner = yield* makeClient(host)
     yield* Effect.forkIn(inner.changes.pipe(Stream.runForEach((s) => Effect.sync(() => { if (Option.isSome(s)) { latest = s.value; for (const l of listeners) l() } }))), scope)
-    for (const p of options.plugins ?? []) yield* host.install(p, ctx)
-    yield* host.awaitIdle
+    if (!options.over) { for (const p of options.plugins ?? []) yield* host.install(p, ctx); yield* host.awaitIdle }
     return host
   })
   let host: Host.Host
   try { host = await Effect.runPromise(start.pipe(Scope.provide(scope))) } catch (e) { await Effect.runPromise(Scope.close(scope, Exit.void)); throw e }
-  const initial = await Effect.runPromise(host.snapshot)
-  const failed = initial.plugins.flatMap((p) => p.state === "failed" ? [{ id: p.id, phase: p.failure.phase, message: p.failure.message }] : [])
+  const initial = options.over && !options.over.snapshot ? undefined : await Effect.runPromise(host.snapshot)
+  const failed = (initial?.plugins ?? []).flatMap((p) => p.state === "failed" ? [{ id: p.id, phase: p.failure.phase, message: p.failure.message }] : [])
   const client: BridgerClient = {
     host,
     snapshot: () => latest,
@@ -55,19 +59,19 @@ export const createBridgerClient = async (options: ClientOptions = {}): Promise<
       if (disposed) throw new Error("client disposed")
       const exit = await Effect.runPromiseExit(inner.use(key, run).pipe(CurrentCorrelation.with(o?.correlationId ?? nextId())))
       if (Exit.isSuccess(exit)) return exit.value
-      const err = (exit.cause as unknown as { failures?: ReadonlyArray<{ error?: unknown }> }).failures?.[0]?.error
-      throw err ?? new Error("the action failed")
+      const c = exit.cause as unknown as { failures?: ReadonlyArray<{ error?: unknown }>; reasons?: ReadonlyArray<{ error?: unknown; defect?: unknown }> }
+      throw c.failures?.[0]?.error ?? c.reasons?.find((r) => r.error !== undefined)?.error ?? c.reasons?.find((r) => r.defect !== undefined)?.defect ?? new Error("the action failed")
     },
     dispose: async () => {
       if (disposed) return
       disposed = true
       await Effect.runPromise(inner.dispose)
-      await Effect.runPromise(host.shutdown({ context: { actor: ACTOR, reason: "client dispose" } }).pipe(Effect.ignore))
+      if (!options.over) await Effect.runPromise(host.shutdown({ context: { actor: ACTOR, reason: "client dispose" } }).pipe(Effect.ignore))
       await Effect.runPromise(Scope.close(scope, Exit.void))
     }
   }
   if (failed.length) { await client.dispose(); throw new ActivationFailed(failed[0]!) }
-  latest = initial
+  if (initial && (latest === undefined || latest.revision <= initial.revision)) latest = initial
   return client
 }
 

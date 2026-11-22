@@ -1,6 +1,6 @@
 // The `bridger` command line of @bridger/kit (references/kit behaviours 04, BEH-KT-025..032): a dispatcher with extension commands, and
-// `create`, `check`, `test`, `sdk generate`, `inspect` and `dev`. Not built: `pack`, `publish`, `countersign` and `verify-chain` (they call the
-// loader companion's digest, statement and signer, which have no code; the kit must not implement a digest, BEH-KT-029); they exit 3.
+// `create`, `check`, `test`, `sdk generate`, `inspect`, `dev`, `pack`, `publish`, `countersign` and `verify-chain`; the last four call the prototype's
+// loader kernel (loader.ts) and audit-chain verifier (audit-chain.ts), so the kit implements no digest (BEH-KT-029).
 import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from "node:fs"
@@ -12,12 +12,12 @@ import { catalogOf, renderCatalog } from "./catalog.js"
 import { CONTRACT, type Contract } from "./contract.js"
 import * as Host from "./host.js"
 import type { AnyPlugin } from "./plugin.js"
+import { countersign, pack, publish, verifyChain } from "./kit-release.js"
 import { generateSdk } from "./sdk.js"
 
 export interface Io { readonly out: (s: string) => void; readonly err: (s: string) => void; readonly cwd: string }
 export interface Extension { readonly name: string; readonly synopsis: string; readonly run: (args: ReadonlyArray<string>, io: Io) => Promise<number> | number }
 const KIT_COMMANDS = ["create", "dev", "test", "check", "pack", "publish", "countersign", "verify-chain", "inspect", "sdk"] as const
-const NOT_BUILT = new Set(["pack", "publish", "countersign", "verify-chain"])
 const SYNOPSIS: Readonly<Record<string, string>> = {
   create: "create <name> [--template plugin|contract|app|partner]", dev: "dev [--entry <module>] [--plan] [--cold]", test: "test [--conformance] [--reporter <name>]",
   check: "check <package-module> <lockfile> [--write-lock]", pack: "pack [--out <dir>]", publish: "publish <package> --target <name> [--signer <adapter>]",
@@ -33,12 +33,15 @@ export const makeCli = (extensions: ReadonlyArray<Extension> = []) => {
     if (!cmd || cmd === "--help" || cmd === "help") return help(io)
     const ext = extensions.find((e) => e.name === cmd)
     if (ext) return ext.run(rest, io)
-    if (NOT_BUILT.has(cmd)) { io.err(`bridger ${cmd}: not built in the prototype (needs the loader companion's digest and signer)`); return 3 }
     switch (cmd) {
       case "create": return create(rest, io)
       case "check": return check(rest, { out: io.out })
       case "test": return test(rest, io)
       case "sdk": return sdk(rest, io)
+      case "verify-chain": return verifyChain(rest, io, load)
+      case "pack": return pack(rest, io)
+      case "publish": return publish(rest, io)
+      case "countersign": return countersign(rest, io)
       case "inspect": return inspect(rest, io)
       case "dev": return dev(rest, io)
       default: io.err(`bridger: unknown command \`${cmd}\``); return 2
@@ -101,8 +104,10 @@ const sdk = async (args: ReadonlyArray<string>, io: Io): Promise<number> => {
   const contract = Object.values(mod).find((v): v is Contract => typeof v === "object" && v !== null && (v as { [CONTRACT]?: unknown })[CONTRACT] === "contract")
   if (!contract) { io.err(`${args[1]} exports no contract`); return 3 }
   const out = resolve(io.cwd, flag(args, "--out") ?? "src/sdk")
+  let text: string
+  try { text = generateSdk(contract) } catch (e) { io.err(String((e as Error).message)); return 3 }
   const file = contract.descriptor.serviceId.split("@")[0]!.split("/").pop()!.toLowerCase() + ".ts"
-  write(out, file, generateSdk(contract))
+  write(out, file, text)
   io.out(`generated ${join(flag(args, "--out") ?? "src/sdk", file)} for ${contract.descriptor.serviceId} version ${contract.version}`)
   return 0
 }
@@ -127,13 +132,17 @@ const REFUSED = ["auditSink", "gate", "operationGate", "configFingerprinter"]
 export const devDigest = (sources: string) => "dev:" + createHash("sha256").update(sources).digest("hex").slice(0, 12)
 
 /** A dev session over a host the session creates; `reload` re-reconciles with fresh development digests. Returns exit code 3 on a refused option. */
-export const devSession = (app: DevApp, options: { readonly cold?: boolean } = {}) => Effect.gen(function* () {
+export const devSession = (app: DevApp, options: { readonly cold?: boolean; readonly plan?: boolean; readonly confirm?: (plan: Host.ReconcilePlan) => Effect.Effect<boolean> } = {}) => Effect.gen(function* () {
   for (const k of REFUSED) if ((app.host as Record<string, unknown> | undefined)?.[k] !== undefined) return yield* Effect.fail(new Error(`dev refuses to start: the entry wires ${k}`))
   const host = yield* Host.make({ ...app.host })
   let reloads = 0
   const apply = (plugins: ReadonlyArray<AnyPlugin>, sources: Readonly<Record<string, string>>, reason: string) => Effect.gen(function* () {
     const desired = plugins.map((p) => { const digest = devDigest(sources[p.id] ?? ""); return { id: p.id, plugin: { ...p, meta: { version: p.meta?.version ?? "0.0.0-dev", ...p.meta, digest } } as AnyPlugin } })
-    const report = yield* host.reconcile(desired, { scope: "bridger:dev", context: { actor: DEV_ACTOR, reason }, ...(options.cold ? { cold: true } : {}) } as never)
+    const ro = { scope: "bridger:dev", ...(options.cold ? { cold: true } : {}) } as Host.ReconcileOptions
+    // --plan: show the read-only plan, and after confirmation apply it with `expect`, so a host that changed meanwhile fails PlanStale and applies nothing (BEH-KT-026)
+    const plan = options.plan ? yield* host.plan(desired, ro) : undefined
+    if (plan && options.confirm && !(yield* options.confirm(plan))) { io0.push("plan declined"); return undefined }
+    const report = yield* host.reconcile(desired, { ...ro, context: { actor: DEV_ACTOR, reason }, ...(plan ? { expect: plan } : {}) } as never)
     for (const r of report.replaced) io0.push(`replaced ${r}`)
     return report
   })
@@ -152,7 +161,7 @@ const dev = async (args: ReadonlyArray<string>, io: Io): Promise<number> => {
   const app = (await load(entry, io)).default as DevApp | undefined
   if (!app?.plugins) { io.err(`${entry} has no default Dev.app`); return 3 }
   const program = Effect.scoped(Effect.gen(function* () {
-    const s = yield* devSession(app, { cold: args.includes("--cold") })
+    const s = yield* devSession(app, { cold: args.includes("--cold"), plan: args.includes("--plan"), confirm: (plan) => Effect.sync(() => { io.out(`plan: ${plan.entries.map((e) => `${e.target.id} ${e.actions.join("+") || "unchanged"}`).join(", ") || "nothing to do"}`); return true }) })   // shortcut: no interactive prompt; the plan is printed and applied
     yield* s.start(app.plugins, sourcesOf(entry, app.plugins, io))
     io.out(`dev host started: ${app.plugins.length} plugin(s) active`)
     if (args.includes("--once")) return

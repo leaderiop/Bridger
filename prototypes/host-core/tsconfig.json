@@ -6,8 +6,21 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"],
-    "paths": { "@bridger/kit/sdk": ["./src/sdk.ts"] }
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@bridger/kit/sdk": [
+        "./src/sdk.ts"
+      ]
+    }
   },
-  "include": ["src", "test", "bin"]
+  "include": [
+    "src",
+    "test",
+    "bin"
+  ],
+  "exclude": [
+    "test/foldkit-runtime.test.ts"
+  ]
 }

@@ -24,9 +24,9 @@ describe("bridger CLI (kit 04)", () => {
     expect((await cli(tmp(), ["doctor"], [ext])).out).toBe("ok")
     await expect(cli(tmp(), ["help"], [{ ...ext, name: "check" }])).rejects.toThrow("shadows a kit command")
   })
-  it("an unknown command is a usage error (2); pack, publish, countersign and verify-chain say they need the loader (3)", async () => {
+  it("an unknown command is a usage error (2); verify-chain without a bundle is a usage error (2)", async () => {
     expect((await cli(tmp(), ["frobnicate"])).code).toBe(2)
-    const r = await cli(tmp(), ["publish"]); expect(r.code).toBe(3); expect(r.err).toContain("loader")
+    expect((await cli(tmp(), ["verify-chain"])).code).toBe(2)
   })
   it("BEH-KT-025: create writes each template's files, with no `as` and no `any` in generated code", async () => {
     const d = tmp()
@@ -62,7 +62,7 @@ describe("bridger dev (BEH-KT-026)", () => {
       const first = yield* s.start([hello("a")], { "example/hello": "v1" })
       const same = yield* s.reload([hello("a")], { "example/hello": "v1" }, ["a.ts"])
       const changed = yield* s.reload([hello("b")], { "example/hello": "v2" }, ["a.ts"])
-      return { first: first.installed, same: same.unchanged, changed: changed.replaced, digest: devDigest("v2") }
+      return { first: first!.installed, same: same!.unchanged, changed: changed!.replaced, digest: devDigest("v2") }
     })))
     expect(r.first).toEqual(["example/hello"]); expect(r.same).toEqual(["example/hello"]); expect(r.changed).toEqual(["example/hello"])
     expect(r.digest).toMatch(/^dev:[0-9a-f]{12}$/)
@@ -82,5 +82,29 @@ export default Dev.app({ plugins: [definePlugin({ id: "example/hello", provides:
     const r = await cli(d, ["dev", "--entry", "app.ts", "--once"])
     expect(r.code).toBe(0); expect(r.out).toContain("dev host started: 1 plugin(s) active")
     const i = await cli(d, ["inspect", "--entry", "app.ts", "--json"]); expect(i.code).toBe(0); expect(i.out).toContain("example/Hello")
+  })
+
+  it("--plan: the plan is read-only, applied with `expect`; a host that changed meanwhile fails PlanStale and applies nothing; a declined plan changes nothing", async () => {
+    await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+      const seen: Array<string> = []
+      const s = yield* devSession({ plugins: [] }, { plan: true, confirm: (p) => Effect.sync(() => { seen.push(p.entries.map((e) => `${e.target.id}:${e.actions.join("+")}`).join(",")); return true }) })
+      yield* s.start([hello("a")], { "example/hello": "v1" })
+      yield* s.reload([hello("b")], { "example/hello": "v2" }, ["a.ts"])
+      expect(seen).toEqual(["example/hello:install", "example/hello:replace"])
+
+      // the host changes between the plan and the apply: the apply fails PlanStale and nothing is applied
+      const state: { race: boolean; session?: { readonly host: import("./../src/host.js").Host } } = { race: false }
+      const racing = yield* devSession({ plugins: [] }, { plan: true, confirm: () => state.race ? state.session!.host.remove("example/hello", { context: { actor: { id: "someone", kind: "user" } } }).pipe(Effect.as(true), Effect.orDie) : Effect.succeed(true) })
+      state.session = racing
+      yield* racing.start([hello("a")], { "example/hello": "v1" })
+      state.race = true
+      const exit = yield* Effect.exit(racing.reload([hello("c")], { "example/hello": "v3" }, ["a.ts"]))
+      expect(JSON.stringify(exit)).toContain("PlanStale")
+
+      const declining = yield* devSession({ plugins: [] }, { plan: true, confirm: () => Effect.succeed(false) })
+      expect(yield* declining.start([hello("a")], {})).toBeUndefined()
+      expect((yield* declining.host.snapshot).plugins).toEqual([])
+      expect(declining.log).toContain("plan declined")
+    })))
   })
 })

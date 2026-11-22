@@ -13,7 +13,7 @@ core = root / "references/core"
 report = (root / "docs/improvement-reports/05-design-api-and-dx.html").read_text()
 grounded = [  # (phrase the report shows, file that must state it)
     ("UndeclaredCallTimeUse", src / "lint.ts"), ("StubNotImplemented", src / "plugin-test.ts"), ("Duration.toMillis", src / "hooks.ts"),
-    ("serveContract", src / "sdk.ts"), ("SuiteVersionMismatch", src / "conformance.ts"), ("createBridgerClient", src / "react.ts"), ("BridgerFoldkit", src / "foldkit.ts"), ("makeCli", src / "cli.ts"),
+    ("serveContract", src / "sdk.ts"), ("SuiteVersionMismatch", src / "conformance.ts"), ("createBridgerClient", src / "react.ts"), ("BridgerFoldkit", src / "foldkit.ts"), ("makeCli", src / "cli.ts"), ("packageDigest", src / "loader.ts"), ("verifyBundle", src / "audit-chain.ts"), ("pack", src / "kit-release.ts"), ("local", src / "contract.ts"),
     ("KitTypeError", src / "kit.ts"), ("useOptional", src / "kit.ts"), ("NoInfer", src / "plugin.ts"),
     ("makeUnchecked", src / "contract.ts"), ("ManifestSchema", src / "manifest.ts"), ("manifestJsonSchema", src / "manifest.ts"),
     ("runUntilIdleWith", src / "testing.ts"), ("satisfies Record<ErrorTag, Entry>", src / "errors.catalog.ts"),

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import { Conformance, ConformanceFailed, SuiteVersionMismatch } from "../src/conformance.js"
 import { Contract } from "../src/contract.js"
 import { definePlugin } from "../src/kit.js"
+import { listen } from "../src/guest-http.js"
 import { serveContract, schemasOf } from "../src/sdk.js"
 
 type NotFoundErr = { readonly _tag: "NotFound"; readonly name: string }
@@ -58,5 +59,42 @@ describe("Conformance (kit 03)", () => {
       expect(r.subject.kind).toBe("http")
       expect(r.cases.every((c) => c.outcome === "passed")).toBe(true)
     } finally { server.close() }
+  })
+})
+
+describe("the SDK guest served over HTTP (kit 05 transport, prototype binding)", () => {
+  it("Conformance.http passes a served guest and fails one that returns the wrong shape; a typed failure crosses as 422", async () => {
+    const s12 = Conformance.suite(v12, { generated: { samples: 5 } })
+    const ok = await listen(serveContract(schemasOf(v12), { async greet(i: { name: string }) { if (i.name === "") throw new (await import("../src/sdk.js")).ContractError({ name: "" }, "NotFound"); return { text: `hi ${i.name}` } } }))
+    const bad = await listen(serveContract(schemasOf(v12), { async greet() { return { text: 1 } } }))
+    try {
+      expect((await run(Conformance.verify(Conformance.http(ok.url, { contract: v12, timeout: "5 seconds" }), [s12]))).cases.every((c) => c.outcome === "passed")).toBe(true)
+      expect(JSON.stringify(await Effect.runPromiseExit(Effect.scoped(Conformance.verify(Conformance.http(bad.url, { contract: v12, timeout: "5 seconds" }), [s12]))))).toContain("ConformanceFailed")
+      const res = await fetch(`${ok.url}/greet`, { method: "POST", body: JSON.stringify({ name: "" }) })
+      expect([res.status, await res.json()]).toEqual([422, { _tag: "NotFound", name: "" }])
+    } finally { await ok.close(); await bad.close() }
+  })
+})
+
+describe("local contracts (BEH-BR-225, kit 03 and 05)", () => {
+  class Ledger extends Context.Service<Ledger, { readonly post: (n: number) => Effect.Effect<void>; readonly cursors: { readonly get: (n: string) => Effect.Effect<number> } }>()("example/Ledger@1") {}
+  const L = Contract.local(Ledger, { version: "1.0.0", members: ["post", "cursors"] })
+  it("Contract.local names members without codecs: descriptor.local true, no timeouts or schemas; make gives false", () => {
+    expect(L.descriptor).toMatchObject({ local: true, methods: ["cursors", "post"], timeouts: [], schemas: [] })
+    expect(v10.descriptor.local).toBe(false)
+    expect(Contract.local(Ledger, { version: "1.0.0", members: ["post", "post", "cursors"] }).invalid).toContain("twice")
+    // @ts-expect-error a member of the shape is omitted
+    Contract.local(Ledger, { version: "1.0.0", members: ["post"] })
+  })
+  it("a local contract is refused at sdk generate, at Conformance.http, and for generated or wire conformance", async () => {
+    const { generateSdk } = await import("../src/sdk.js")
+    expect(() => generateSdk(L)).toThrow("sdk-generate")
+    expect(() => Conformance.http("http://x", { contract: L, timeout: 1000 })).toThrow("conformance-wire")
+    const withGenerated = Conformance.suite(L, { generated: { samples: 1 } })
+    const plugin = definePlugin({ id: "example/ledger", provides: Contract.at(L, "1.0.0", { methods: ["post", "cursors"] }), make: Effect.succeed({ post: () => Effect.void, cursors: { get: () => Effect.succeed(0) } }) })
+    const exit = await Effect.runPromiseExit(Effect.scoped(Conformance.verify(plugin, [withGenerated])))
+    expect(JSON.stringify(exit)).toContain("conformance-generated")
+    const ok = await Effect.runPromise(Effect.scoped(Conformance.verify(plugin, [Conformance.suite(L, { cases: [{ id: "posts", since: "1.0.0", run: () => Effect.void }] })])))
+    expect(ok.cases.map((c) => c.id)).toEqual(["posts"])
   })
 })

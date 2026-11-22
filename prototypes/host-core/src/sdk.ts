@@ -10,6 +10,7 @@ export class ContractError<Tag extends string = string, Fields extends object = 
   readonly fields: Fields
   constructor(fields: Fields, tag?: Tag) { super(tag ?? "ContractError"); this._tag = tag as Tag; this.fields = fields }
 }
+export class LocalContractRefused extends Error { readonly _tag = "LocalContractRefused"; constructor(readonly serviceId: string, readonly site: string) { super(`local contract refused at ${site}: ${serviceId}`) } }
 export class SdkDecodeFailed extends Error { readonly _tag = "SdkDecodeFailed"; constructor(readonly method: string, readonly side: "input" | "output", message: string) { super(message) } }
 export class SdkUndeclaredFailure extends Error { readonly _tag = "SdkUndeclaredFailure"; constructor(readonly method: string) { super("handler failed with an undeclared error") } }
 export class CallbackDenied extends Error { readonly _tag = "CallbackDenied"; constructor(readonly serviceId: string, readonly reason: string) { super(`callback denied: ${reason}`) } }
@@ -19,12 +20,12 @@ export interface CallContext {
   readonly signal: AbortSignal
   readonly deadlineMs: number
   readonly claims: DisclosedClaims
-  client<K extends ClientDef>(client: K): ClientOf<K>
+  client<K extends ClientDef<any>>(client: K): ClientOf<K>
 }
-export interface ClientDef { readonly serviceId: string; readonly methods: ReadonlyArray<string> }
-/** shortcut: a client call takes and returns untyped JSON; the generator could emit per-method types from the requested contract. */
-export type ClientOf<K extends ClientDef> = { readonly [M in K["methods"][number]]: (input: any) => Promise<any> }
-export const clientDef = <const M extends ReadonlyArray<string>>(serviceId: string, methods: M): { readonly serviceId: string; readonly methods: M } => ({ serviceId, methods })
+export interface ClientDef<Api = unknown> { readonly serviceId: string; readonly methods: ReadonlyArray<string>; readonly api?: Api }
+/** The client of a requested capability: typed per method when the generator was given the contract, untyped JSON otherwise. */
+export type ClientOf<K extends ClientDef<any>> = unknown extends K["api"] ? { readonly [M in K["methods"][number]]: (input: any) => Promise<any> } : NonNullable<K["api"]>
+export const clientDef = <const M extends ReadonlyArray<string>, Api = unknown>(serviceId: string, methods: M): { readonly serviceId: string; readonly methods: M; readonly api?: Api } => ({ serviceId, methods })
 
 export type WireResult = { readonly ok: true; readonly value: Json } | { readonly ok: true; readonly stream: AsyncIterable<Json> } | { readonly ok: false; readonly failure: { readonly _tag: string; readonly [k: string]: Json } }
 export interface WireCall {
@@ -122,7 +123,8 @@ const baseName = (serviceId: string) => pascal(serviceId.split("@")[0]!.split("/
 const stableJson = (v: unknown): string => JSON.stringify(v, (_, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) : x, 2)
 
 /** The text of a generated SDK module for one contract version: deterministic (BEH-KT-033); the contract's descriptor is embedded unchanged. */
-export const generateSdk = (contract: Contract, options: { readonly requested?: ReadonlyArray<{ readonly serviceId: string; readonly methods?: ReadonlyArray<string> }> } = {}): string => {
+export const generateSdk = (contract: Contract, options: { readonly requested?: ReadonlyArray<{ readonly serviceId: string; readonly methods?: ReadonlyArray<string>; readonly contract?: Contract }> } = {}): string => {
+  if (contract.descriptor.local) throw new LocalContractRefused(contract.descriptor.serviceId, "sdk-generate")   // before anything is written (BEH-KT-033)
   const served = schemasOf(contract)
   const name = baseName(contract.descriptor.serviceId)
   const methods = Object.keys(served.schemas)
@@ -140,7 +142,12 @@ export const generateSdk = (contract: Contract, options: { readonly requested?: 
     const out = s.success ? tsOf(s.success) : "void"
     return `  ${m}(input: ${input}, ctx: CallContext): ${s.stream ? `AsyncIterable<${out}>` : `Promise<${out}>`}`
   })
-  const clients = (options.requested ?? []).map((r) => `export const ${baseName(r.serviceId)}Client = clientDef(${JSON.stringify(r.serviceId)}, ${JSON.stringify(r.methods ?? [])} as const)`)
+  const clients = (options.requested ?? []).map((r) => {
+    const methodNames = r.methods ?? (r.contract ? Object.keys(r.contract.methods).sort() : [])
+    const typed = r.contract && !r.contract.descriptor.local
+    const api = typed ? `<readonly ${JSON.stringify(methodNames)}, { ${methodNames.map((m) => { const sp = schemasOf(r.contract!).schemas[m]; return `${m}(input: ${sp?.payload && sp.payload.type !== "null" ? tsOf(sp.payload) : "void"}): Promise<${sp?.success ? tsOf(sp.success) : "void"}>` }).join("; ")} }>` : ""
+    return `export const ${baseName(r.serviceId)}Client = clientDef${api}(${JSON.stringify(r.serviceId)}, ${JSON.stringify(methodNames)} as const)`
+  })
   return [
     `// Generated by \`bridger sdk generate\` from ${contract.descriptor.serviceId} version ${contract.version}. Do not edit.`,
     `// This module describes the contract the partner serves. It isolates nothing: where the partner's code runs, and what confines it, is the deployment's choice.`,
@@ -157,7 +164,7 @@ export const generateSdk = (contract: Contract, options: { readonly requested?: 
     `const served = ${stableJson(served)}`,
     ``,
     `export function serve(handlers: ${name}Handlers, options?: { onUnexpected?: (method: string, thrown: unknown) => void }): GuestEntry {`,
-    `  return serveContract(served as never, handlers as never, { ...options, requested: ${JSON.stringify(options.requested ?? [])} })`,
+    `  return serveContract(served as never, handlers as never, { ...options, requested: ${JSON.stringify((options.requested ?? []).map((r) => ({ serviceId: r.serviceId, ...(r.methods ? { methods: r.methods } : {}) })))} })`,
     `}`, ``
   ].join("\n")
 }

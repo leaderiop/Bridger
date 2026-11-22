@@ -8,14 +8,14 @@ import { parseVersion } from "./contract.js"
 import { rng, sample, validate, type Json } from "./jsonschema.js"
 import type { AnyPlugin } from "./plugin.js"
 import { mount, type MountOptions } from "./plugin-test.js"
-import { schemasOf, type GuestEntry, type WireResult } from "./sdk.js"
+import { LocalContractRefused, schemasOf, type GuestEntry, type WireResult } from "./sdk.js"
 
 export class CaseFailed extends Schema.TaggedError<CaseFailed>()("CaseFailed", { id: Schema.String, message: Schema.String }) {}
 export class ConformanceFailed extends Schema.TaggedError<ConformanceFailed>()("ConformanceFailed", { serviceId: Schema.String, version: Schema.String, failed: Schema.Array(Schema.String) }) {}
 export class SuiteVersionMismatch extends Schema.TaggedError<SuiteVersionMismatch>()("SuiteVersionMismatch", { serviceId: Schema.String, provided: Schema.optionalKey(Schema.String), suites: Schema.Array(Schema.String) }) {}
 
 export interface Case { readonly id: string; readonly since: string; readonly method?: string; readonly run: (client: Record<string, (payload: any) => Effect.Effect<any, unknown>>) => Effect.Effect<void, CaseFailed> }
-export interface Suite { readonly contract: ContractDescriptor; readonly contractRef: Contract; readonly samples: number; readonly cases: ReadonlyArray<Case> }
+export interface Suite { readonly contract: ContractDescriptor; readonly contractRef: Contract; readonly samples: number; readonly generatedRequested: boolean; readonly cases: ReadonlyArray<Case> }
 export interface HttpSubject { readonly kind: "http"; readonly url: string; readonly contract: Contract; readonly timeout: number; readonly headers?: Readonly<Record<string, string>> }
 export interface GuestSubject { readonly kind: "guest"; readonly entry: GuestEntry; readonly contract: Contract }
 export interface ConformanceReport {
@@ -26,23 +26,31 @@ export interface ConformanceReport {
   readonly cases: ReadonlyArray<{ readonly suite: string; readonly id: string; readonly method?: string; readonly outcome: "passed" | "failed"; readonly message?: string }>
 }
 
-export const suite = (contract: Contract, spec: { readonly generated?: { readonly samples: number }; readonly cases?: ReadonlyArray<Case> } = {}): Suite => {
+export const suite = (contract: Contract, spec: { readonly generated?: { readonly samples: number } | undefined; readonly cases?: ReadonlyArray<Case> } = {}): Suite => {
   for (const c of spec.cases ?? []) if (compare(c.since, contract.version) > 0) throw new Error(`case ${c.id}: since ${c.since} is above the suite's version ${contract.version}`)
-  return { contract: contract.descriptor, contractRef: contract, samples: spec.generated?.samples ?? 25, cases: spec.cases ?? [] }
+  return { contract: contract.descriptor, contractRef: contract, samples: spec.generated?.samples ?? 25, generatedRequested: spec.generated !== undefined, cases: spec.cases ?? [] }
 }
 const compare = (a: string, b: string) => { const x = parseVersion(a)!, y = parseVersion(b)!; return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] }
 
-export const http = (url: string, options: { readonly contract: Contract; readonly timeout: number | string; readonly headers?: Record<string, string> }): HttpSubject => ({
+export const http = (url: string, options: { readonly contract: Contract; readonly timeout: number | string; readonly headers?: Record<string, string> }): HttpSubject => {
+  if (options.contract.descriptor.local) throw new LocalContractRefused(options.contract.descriptor.serviceId, "conformance-wire")
+  return {
   kind: "http", url, contract: options.contract, timeout: typeof options.timeout === "number" ? options.timeout : Number.parseFloat(options.timeout) * (/second/.test(options.timeout) ? 1000 : 1), ...(options.headers ? { headers: options.headers } : {})
-})
+  }
+}
 export const guest = (entry: GuestEntry, contract: Contract): GuestSubject => ({ kind: "guest", entry, contract })
 
 type Caller = (method: string, encoded: Json) => Effect.Effect<WireResult, unknown>
 const asResult = (e: Effect.Effect<WireResult, unknown>) => e
 
+const isPluginSubject = (s: unknown): boolean => !("kind" in (s as object))
 export const verify = (subject: AnyPlugin | HttpSubject | GuestSubject, suites: ReadonlyArray<Suite>, options: MountOptions & { readonly seed?: number } = {}): Effect.Effect<ConformanceReport, ConformanceFailed | SuiteVersionMismatch | unknown, Scope.Scope> => Effect.gen(function* () {
   const seed = options.seed ?? 1
   const first = suites[0]
+  for (const s of suites) if (s.contract.local) {
+    if (s.generatedRequested) return yield* Effect.fail(new LocalContractRefused(s.contract.serviceId, "conformance-generated"))
+    if (!isPluginSubject(subject)) return yield* Effect.fail(new LocalContractRefused(s.contract.serviceId, "conformance-wire"))
+  }
   const serviceId = first?.contract.serviceId ?? "<none>"
   const isPlugin = (s: unknown): s is AnyPlugin => !("kind" in (s as object))
   const contract = first?.contractRef
@@ -90,8 +98,8 @@ export const verify = (subject: AnyPlugin | HttpSubject | GuestSubject, suites: 
   const report: Array<ConformanceReport["cases"][number]> = []
   const next = rng(seed)
   for (const s of selected) {
-    const schemas = schemasOf(s.contractRef).schemas
-    for (const m of methodsOf(s) ? Object.keys(methodsOf(s)).sort() : []) {
+    const schemas = s.contract.local ? {} : schemasOf(s.contractRef).schemas
+    for (const m of s.contract.local ? [] : Object.keys(methodsOf(s)).sort()) {
       const sc = schemas[m]!
       let message: string | undefined
       for (let i = 0; i < s.samples && !message; i++) {

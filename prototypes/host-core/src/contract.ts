@@ -26,6 +26,8 @@ export interface ContractDescriptor {
   readonly timeouts: ReadonlyArray<{ readonly method: string; readonly millis: number }>
   /** A stable hash per method of its encoded-side schema (payload, success, error, stream flag); a method without one is not compared (BEH-BR-228 clause 3b). */
   readonly schemas: ReadonlyArray<{ readonly method: string; readonly digest: string }>
+  /** True exactly for `Contract.local` (BEH-BR-225): a local contract must not cross a host boundary. */
+  readonly local: boolean
 }
 export interface Contract<Self = any, Shape = any> extends Context.Key<Self, Shape> {
   readonly [CONTRACT]: "contract"
@@ -153,7 +155,14 @@ export const digestOf = (spec: MethodSpec): string | undefined => {
   } catch { return undefined }
 }
 
-export const make = <Self, Shape, const Ms extends Record<string, MethodSpec>>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Ms & MethodsOf<Shape, Ms> }): Contract<Self, Shape> => {
+export const make = <Self, Shape, const Ms extends Record<string, MethodSpec>>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Ms & MethodsOf<Shape, Ms> }): Contract<Self, Shape> => build(key, options, false)
+
+type Exhaustive<Shape, N extends ReadonlyArray<string>> = [Exclude<keyof Shape & string, N[number]>] extends [never] ? unknown : { readonly "~members": { readonly "contract.local: members omit": Exclude<keyof Shape & string, N[number]> } }
+/** A local contract (BEH-BR-225): members that run only in the caller's process, named without codecs. It must not cross a host boundary (BEH-BR-232). */
+export const local = <Self, Shape, const N extends ReadonlyArray<keyof Shape & string>>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly members: N & Exhaustive<Shape, N> }): Contract<Self, Shape> =>
+  build(key, { version: options.version, methods: Object.fromEntries((options.members as ReadonlyArray<string>).map((m) => [m, { local: true } as MethodSpec])) }, true, options.members as ReadonlyArray<string>)
+
+const build = <Self, Shape>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Record<string, MethodSpec> }, isLocal: boolean, listed: ReadonlyArray<string> = []): Contract<Self, Shape> => {
   const serviceId = sidOf(key)
   const at = serviceId.lastIndexOf("@")
   const name = at >= 0 ? serviceId.slice(0, at) : serviceId
@@ -166,6 +175,7 @@ export const make = <Self, Shape, const Ms extends Record<string, MethodSpec>>(k
   else if (!v) invalid = "version breaks the grammar"
   else if (Number(suffix) !== v[0]) invalid = "ServiceId major differs from version's major"
   else if (names.length === 0) invalid = "methods is empty"
+  else if (isLocal && new Set(listed).size !== listed.length) invalid = "a member is listed twice"
   for (const m of names) {
     const t = options.methods[m]!.timeout
     if (t === undefined) continue
@@ -173,8 +183,8 @@ export const make = <Self, Shape, const Ms extends Record<string, MethodSpec>>(k
     if (ms === undefined) { invalid ??= `method ${m}: timeout is not a finite positive duration`; continue }
     timeouts.push({ method: m, millis: ms })
   }
-  const schemas = names.flatMap((m) => { const d = digestOf(options.methods[m]!); return d === undefined ? [] : [{ method: m, digest: d }] })
-  const descriptor: ContractDescriptor = Object.freeze({ serviceId, name, version: options.version, methods: Object.freeze(names), timeouts: Object.freeze(timeouts), schemas: Object.freeze(schemas) })
+  const schemas = isLocal ? [] : names.flatMap((m) => { const d = digestOf(options.methods[m]!); return d === undefined ? [] : [{ method: m, digest: d }] })
+  const descriptor: ContractDescriptor = Object.freeze({ serviceId, name, version: options.version, methods: Object.freeze(names), timeouts: Object.freeze(timeouts), schemas: Object.freeze(schemas), local: isLocal })
   let c: Record<PropertyKey, unknown> = {}
   c = extend(key as object, {
     [CONTRACT]: "contract", key: serviceId, contractKey: key, name, version: options.version, methods: options.methods, descriptor,
@@ -262,4 +272,4 @@ export const incompatibility = (
 /** The same contract without the per-method fit check: for tools and tests that build a contract from data or deliberately drift it from its service (report 05 R7). */
 export const makeUnchecked = <Self, Shape>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Record<string, MethodSpec> }): Contract<Self, Shape> => make(key, options as never)
 
-export const Contract = { make, makeUnchecked, method, at, satisfies, maxSatisfying, parseOptions }
+export const Contract = { make, local, makeUnchecked, method, at, satisfies, maxSatisfying, parseOptions }

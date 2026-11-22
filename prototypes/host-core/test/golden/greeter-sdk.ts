@@ -14,6 +14,7 @@ export const ClockClient = clientDef("example/Clock@1", ["now"] as const)
 
 export const contract = { serviceId: "example/Greeter@1", version: "1.2.0", methods: ["greet"] as const } as const
 export const descriptor = {
+  "local": false,
   "methods": [
     "greet"
   ],

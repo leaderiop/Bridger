@@ -1,6 +1,6 @@
 # Proposed `@bridger/react` API
 
-> **Prototype (2026-11-22).** `createBridgerClient`, `BridgerProvider`, `useBridgerClient`, `usePluginState` and `useServiceAction` exist in `prototypes/host-core/src/react.ts` and are tested (`test/react.test.ts`); the rest of this document remains a proposal (no `StrictMode`-only or SSR behaviour is tested).
+> **Prototype (2026-11-22; also run through the ten scenarios of appendix C by `test/react-conformance.test.ts`, with `createBridgerClient({ over: host })` borrowing a host).** `createBridgerClient`, `BridgerProvider`, `useBridgerClient`, `usePluginState` and `useServiceAction` exist in `prototypes/host-core/src/react.ts` and are tested (`test/react.test.ts`); the rest of this document remains a proposal (no `StrictMode`-only or SSR behaviour is tested).
 >
 > **Conformance.** The client behaviours shared with [FOLDKIT-API.md](./FOLDKIT-API.md) are the ten scenarios of [kit appendix C](../references/kit/appendices/c-ui-adapter-scenarios.md); this adapter runs them in its tests.
 

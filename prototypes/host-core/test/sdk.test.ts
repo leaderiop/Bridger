@@ -75,3 +75,16 @@ describe("SDK generator (BEH-KT-033)", () => {
     expect(readFileSync(path, "utf8")).toBe(text)
   })
 })
+
+describe("typed clients (BEH-KT-035)", () => {
+  class Clock extends Context.Service<Clock, { readonly now: (i: { readonly zone: string }) => Effect.Effect<{ readonly iso: string }> }>()("example/Clock@1") {}
+  const clock = Contract.make(Clock, { version: "1.0.0", methods: { now: Contract.method({ payload: Schema.Struct({ zone: Schema.String }), success: Schema.Struct({ iso: Schema.String }) }) } })
+  it("the generator emits a per-method client type from the requested contract", () => {
+    const text = generateSdk(contract, { requested: [{ serviceId: "example/Clock@1", contract: clock }] })
+    const path = new URL("./golden/typed-sdk.ts", import.meta.url)
+    if (process.env.UPDATE_GOLDEN) writeFileSync(path, text)
+    expect(readFileSync(path, "utf8")).toBe(text)
+    expect(text).toContain('export const ClockClient = clientDef<readonly ["now"], { now(input: { "zone": string }): Promise<{ "iso": string }> }>("example/Clock@1", ["now"] as const)')
+  })
+})
+
