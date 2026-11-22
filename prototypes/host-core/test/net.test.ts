@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process"
 import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { connect as rawConnect } from "node:net"
 import { Context, Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Contract } from "../src/contract.js"
@@ -57,6 +58,30 @@ describe("sockets", () => {
       yield* s.close
       const untrusted = yield* Effect.flip(dialSocket(l.port, {}))              // the default trust store does not know the test certificate
       expect(untrusted.message).toMatch(/self.signed|unable to verify|certificate/i)
+      yield* l.close
+    }))
+  })
+
+  const frame = (str: string) => { const b = Buffer.from(str), h = Buffer.alloc(4); h.writeUInt32BE(b.length, 0); return Buffer.concat([h, b]) }
+  it("reassembles frames: two in one write, and one split across writes, in order", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const got: string[] = []
+      const l = yield* listen((c) => Effect.gen(function* () { for (let i = 0; i < 3; i++) got.push(yield* c.receive) }))
+      const raw = rawConnect({ host: "127.0.0.1", port: l.port })
+      yield* Effect.callback<void>((r) => { raw.once("connect", () => r(Effect.void)) })
+      raw.write(Buffer.concat([frame("one"), frame("two")]))
+      const third = frame("three-split"); raw.write(third.subarray(0, 6)); yield* Effect.sleep(20); raw.write(third.subarray(6))
+      yield* Effect.sleep(80)
+      expect(got).toEqual(["one", "two", "three-split"])
+      raw.destroy(); yield* l.close
+    }))
+  })
+  it("closes a socket that announces a frame above the limit", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const l = yield* listen(() => Effect.void)
+      const raw = rawConnect({ host: "127.0.0.1", port: l.port })
+      const closed = yield* Effect.callback<boolean>((r) => { raw.once("connect", () => { const h = Buffer.alloc(4); h.writeUInt32BE((1 << 20) + 1, 0); raw.write(h) }); raw.once("close", () => r(Effect.succeed(true))) })
+      expect(closed).toBe(true)
       yield* l.close
     }))
   })

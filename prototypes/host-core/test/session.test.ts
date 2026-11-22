@@ -3,7 +3,7 @@
 import { Context, Effect, Exit, Fiber, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Contract } from "../src/contract.js"
-import { duplex, guestServe, type Connection } from "../src/wire.js"
+import { duplex, guestServe, linkHandshake, type Connection } from "../src/wire.js"
 import { openSession, serveGuest, startLink, type CallFailure, type Session } from "../src/session.js"
 
 class Board extends Context.Service<Board, { readonly post: (s: string) => Effect.Effect<string> }>()("example/Board@1") {}
@@ -120,6 +120,27 @@ describe("link", () => {
       expect(Option.isSome(cur) && (yield* cur.value.call("post", "again"))).toBe("posted:again")
       yield* link.stop
       expect((yield* link.status).state).toBe("stopped")
+    }))
+  })
+
+  it("the guest answers a ping of its own epoch only", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b, guest()))
+      yield* linkHandshake(a, { wire: [1], epoch: "e-1", contract })
+      yield* a.send(JSON.stringify({ t: "ping", epoch: "other", n: 1 }))
+      yield* a.send(JSON.stringify({ t: "ping", epoch: "e-1", n: 2 }))
+      const reply = JSON.parse(yield* a.receive) as { t: string; epoch: string; n: number }
+      expect(reply).toEqual({ t: "pong", epoch: "e-1", n: 2 })                    // the first ping got no pong
+    }))
+  })
+
+  it("a refusal from the guest after the handshake ends the session with guest-reset", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(Effect.gen(function* () { yield* guestServe(b, guest()); yield* b.send(JSON.stringify({ t: "refuse", epoch: "e-1", reason: "stale-epoch" })) }))
+      const s = yield* open(a)
+      expect(yield* s.ended).toBe("guest-reset")
     }))
   })
 })
