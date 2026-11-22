@@ -288,5 +288,21 @@ describe("S69 shutdown past the gate and required ports", () => {
     await expect(onHost(() => Effect.void, { options: { require: { gate: true } } })).rejects.toThrow(/PortRequired/)
     await expect(onHost(() => Effect.void, { options: { require: { audit: true } } })).rejects.toThrow(/PortRequired/)
   })
+  const kid = define({ id: "kid", requires: [] as const, provides: [] as const, meta: { version: "1", digest: "kid-1" }, build: Layer.empty as never }) as unknown as AnyPlugin
+  it("S70: a parent with a manifest mounts only the children it names", async () => {
+    const withManifest = (mounts: string[], out: Array<string>) => define({ id: "mounter", requires: [] as const, provides: [] as const, meta: { version: "1", digest: "m-1" }, manifest: { manifestVersion: 1, id: "mounter", version: "1", digest: "m-1", provides: [], requires: [], mounts } as never,
+      build: Layer.effectDiscard(Effect.gen(function* () { const e = yield* Effect.exit((yield* PluginRuntime).install(kid)); out.push(Exit.isFailure(e) ? (JSON.stringify(e.cause).match(/"reason":"([^"]*)"/)?.[1] ?? "failed") : "mounted") })) }) as unknown as AnyPlugin
+    const none: Array<string> = [], named: Array<string> = []
+    await onHost((host) => Effect.gen(function* () { yield* host.install(withManifest([], none), as()); yield* idle(host) }))
+    await onHost((host) => Effect.gen(function* () { yield* host.install(withManifest(["kid"], named), as()); yield* idle(host) }))
+    expect(none).toEqual(["undeclared child"]); expect(named).toEqual(["mounted"])
+  })
+  it("S70: requireDigest refuses a definition without a digest and admits one with it", async () => {
+    const bare = define({ id: "bare", requires: [] as const, provides: [] as const, build: Layer.empty as never }) as unknown as AnyPlugin
+    await onHost((host) => Effect.gen(function* () {
+      expect(JSON.stringify(yield* Effect.exit(host.install(bare, as())))).toContain("digest required")
+      yield* host.install(kid, as()); yield* idle(host); expect(yield* stateIn(host, "kid")).toBe("active")
+    }), { options: { requireDigest: true } })
+  })
 })
 

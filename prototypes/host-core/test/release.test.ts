@@ -301,6 +301,10 @@ describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
     // S65: a signer's validity window is checked against signedAt; a windowed signer with no time to test fails closed
     const win = (w: { validFrom?: number; validUntil?: number }, sig = f.bundle()) => { const p = f.policy(); return L.verifyStatement({ statement: f.statement, signatures: [sig], policy: { ...p, signers: [{ ...p.signers[0]!, ...w }] } }).satisfied }
     expect(win({ validUntil: 1 })).toBe(false); expect(win({ validFrom: 32503680000000 })).toBe(false); expect(win({ validFrom: 1, validUntil: 32503680000000 })).toBe(true)
+    // S70: one signed statement can be revoked by its own digest without revoking the subject
+    const sd = "sha256:" + createHash("sha256").update(L.Statement.signingInput(f.statement)).digest("hex")
+    expect(() => L.verifyStatement({ statement: f.statement, signatures: [f.bundle()], policy: f.policy(), revocations: { statementDigests: [sd] } })).toThrow(/revoked/)
+    expect(L.verifyStatement({ statement: f.statement, signatures: [f.bundle()], policy: f.policy(), revocations: { statementDigests: ["sha256:00"] } }).satisfied).toBe(true)
     // S61: a checkpoint signs no time, so without allowUnsignedTime the proof path is refused while the SET path still verifies
     const strict = f.policy({ ...f.pin, allowUnsignedTime: false })
     expect(count(f.bundle({ path: "checkpoint" }), strict).satisfied).toBe(false); expect(count(f.bundle({ path: "set" }), strict).satisfied).toBe(true)

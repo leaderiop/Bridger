@@ -183,6 +183,8 @@ export interface RealmOptions {
 export interface Options {
   readonly base?: ReadonlyArray<readonly [Context.Key<any, any>, unknown]>
   readonly concurrency?: number
+  /** ADR-BR-053 (S70): refuse every definition that declares no digest, so the RefusalList and the kill switch see all code. Default false. */
+  readonly requireDigest?: boolean
   /** INV-BR-026: opt in to refusing construction when a port is not wired, so a Layer ordering mistake is not a silently unwired host (S69). */
   readonly require?: { readonly gate?: boolean; readonly audit?: boolean }
   readonly buildTimeout?: number     // ms
@@ -990,6 +992,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const identOf = (e: Entry): Ident => ({ key: e.id, id: e.pluginId, realm: e.realm, ...(e.parentKey !== undefined ? { parentKey: e.parentKey } : {}) })
   const validate = (def: AnyPlugin, ident: Ident, excluding?: string, landsDisabled = false): Effect.Effect<void, InstallError> => Effect.suspend((): Effect.Effect<void, InstallError> => {
     if (!realms.has(ident.realm)) return Effect.fail(new UnknownRealm({ id: ident.realm }))
+    if (options.requireDigest && defRef(def)?.digest === undefined) return Effect.fail(new InvalidDefinition({ id: ident.id, reason: "digest required" }))   // a digest-less definition would never reach the RefusalList (S70)
     // Manifest (BEH-BR-241, 242, 244, 252): first within the InvalidDefinition check.
     const lazyDef = (def as { [LAZY]?: LazyPluginDefinition })[LAZY]
     const manifest = lazyDef?.manifest ?? def.manifest
@@ -1416,6 +1419,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         // allowChildren, the AccessPolicy and the RefusalList, before anything is registered (BEH-BR-263, 264, 267).
         const refuseChild = (reason: string) => emit({ type: "child-refused", childId: { id, realm }, reason } as never, e.id).pipe(Effect.andThen(Effect.fail(new ChildNotAllowed({ parentId: { id: e.pluginId, realm: e.realm }, childId: { id, realm }, reason }))))
         if (!e.allowChildren) return yield* refuseChild("allowChildren: false")
+        const parentManifest = declaredFor({ id: e.pluginId, realm: e.realm })                 // a parent with a manifest mounts only the children it names (S70)
+        if (parentManifest && !(parentManifest.mounts ?? []).some((m) => `${e.pluginId}/${m}` === id || m === id)) return yield* refuseChild("undeclared child")
         if (Option.isSome(accessOpt) && e.principal) {
           const own = declaredFor({ id: e.pluginId, realm: e.realm })
           const declared = own ? { ...own, mounts: (own.mounts ?? []).map((m) => `${e.pluginId}/${m}`) } : undefined   // manifests name a child as the parent writes it

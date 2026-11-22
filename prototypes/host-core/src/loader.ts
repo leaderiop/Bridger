@@ -78,7 +78,9 @@ export interface TrustedSigner { readonly id: string; readonly scheme: string; r
 export type Requirement = { readonly threshold: number } | { readonly role: string; readonly threshold: number } | { readonly allOf: ReadonlyArray<Requirement> }
 export interface SignaturePolicy { readonly id: string; readonly signers: ReadonlyArray<TrustedSigner>; readonly require: Requirement }
 export interface VerifiedSigner { readonly signerId: string; readonly identity: string; readonly scheme: string; readonly roles: ReadonlyArray<string>; readonly signedAt?: string }
-export interface Revocations { readonly issuedAt?: string; readonly digests?: ReadonlyArray<string>; readonly identities?: ReadonlyArray<string> }
+export interface Revocations { readonly issuedAt?: string; readonly digests?: ReadonlyArray<string>; readonly identities?: ReadonlyArray<string>
+  /** Digests of the signed statements themselves (sha256 of the signing input), so one signed statement can be revoked without revoking its subject (INV-LD-004, S70). */
+  readonly statementDigests?: ReadonlyArray<string> }
 
 const SPKI = Buffer.from("302a300506032b6570032100", "hex")
 /** The scheme-defined identity of an Ed25519 key: "ed25519:sha256:<hex of the raw public key>" (BEH-LD-019). */
@@ -251,6 +253,8 @@ export const verifyStatement = (request: { readonly statement: Statement; readon
     verified.set(t.id, { signerId: t.id, identity: t.scheme === "ed25519" ? ed25519Identity(t.key as string) : sigstoreIdentity(t.key as SigstorePin), scheme: t.scheme, roles: t.roles, ...(signedAt ? { signedAt } : {}) })   // two signatures by one signer entry count once
   }
   if (request.revocations?.digests?.includes(s.subject.digest)) throw new StatementRevoked(s.subject.digest)
+  const statementDigest = "sha256:" + createHash("sha256").update(input).digest("hex")
+  if (request.revocations?.statementDigests?.includes(statementDigest)) throw new StatementRevoked(statementDigest)
   const live = [...verified.values()].filter((v) => !request.revocations?.identities?.includes(v.identity))
   const ls = leaves(policy.require)
   const n = placed(ls, live)
