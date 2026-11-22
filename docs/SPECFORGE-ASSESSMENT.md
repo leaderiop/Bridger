@@ -221,6 +221,14 @@ the ID mapping. It would cover only behavior, invariant, and edges via
 `invariants`/`refs`. URS, ADR, RSK, REQ, and regulatory rows would be stuffed in
 `refs` strings (untyped) until an extension exists.
 
+### 7a. Decision (2026-11-22, improvement report 07, R7)
+
+The `specforge.json` and `spec/hello.spec` that `specforge init` left in the repository root are **deleted**. The
+starter described no Bridger entity, so `specforge check` passing on it said nothing about the specification and invited
+a reader to think otherwise. The verdict stands: Markdown stays the source of truth and `verify-spec.sh` is the gate.
+Option 3 (a generated, read-only projection) is not built; if it is wanted later it is a generator under `references/core/scripts/`
+whose output is not committed, and a hand-written `.spec` is not added in either case.
+
 ## 8. What would change my verdict
 
 ```
