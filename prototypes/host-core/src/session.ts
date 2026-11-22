@@ -3,6 +3,7 @@
 import { Clock, Deferred, Effect, Fiber, Option, Queue, Ref } from "effect"
 import type { WireSide } from "./handshake.js"
 import { inProcess, type TokenAuthority } from "./tokens.js"
+import { handleCallback, type CallbackContext } from "./callback.js"
 import { guestServe, linkHandshake, type Connection, type LinkOutcome } from "./wire.js"
 
 const parse = (s: string): { readonly t?: string; readonly [k: string]: unknown } | undefined => { try { const v = JSON.parse(s); return typeof v === "object" && v !== null && !Array.isArray(v) ? v : undefined } catch { return undefined } }
@@ -19,6 +20,8 @@ export interface Session {
 }
 export interface SessionOptions { readonly epoch: string; readonly wire: ReadonlyArray<number>; readonly contract: WireSide & { readonly id: string; readonly accepts: string }; readonly heartbeat: { readonly every: number; readonly missed: number }
   /** Mints one token per host-to-guest call (BEH-RM-043); default: an in-process table. `tokenTtl` defaults to 30 s, `callTimeout` bounds `expires`. */
+  /** Serves the guest's callbacks (BEH-RM-046): the grants, decoding and the way the host service is reached. */
+  readonly callbacks?: Pick<CallbackContext, "grants" | "decode" | "run" | "offeredLabels" | "budget" | "admission" | "placement"> & { readonly revoked?: () => boolean }
   readonly tokens?: TokenAuthority; readonly tokenTtl?: number; readonly callTimeout?: number
   /** One entry per call at its end: kind, method, outcome, epoch; never a payload, result, error message or token (BEH-RM-047). */
   readonly log?: (entry: { readonly kind: "crossing"; readonly method: string; readonly outcome: "success" | "failure"; readonly epoch: string; readonly errorTag?: string }) => Effect.Effect<void> }
@@ -33,6 +36,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
   const lastSeen = yield* Ref.make(yield* Clock.currentTimeMillis)
   let n = 0
   const tokens = o.tokens ?? inProcess(() => `tok-${o.epoch}-${++n}`)
+  const callbackSeen = new Set<string>()
   const fibers: Array<Fiber.Fiber<unknown, unknown>> = []
   const finish = (reason: EndReason) => Effect.gen(function* () {
     if (!(yield* Deferred.succeed(endedD, reason))) return
@@ -43,6 +47,17 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
   fibers.push(yield* Effect.forkDetach(Effect.forever(Effect.gen(function* () {
     const f = parse(yield* conn.receive)
     if (!f) return
+    if (f.t === "callback" && typeof f.callId === "string") {                                  // BEH-RM-011: another epoch is refused with StaleEpoch, nothing leased
+      yield* Effect.forkDetach(Effect.gen(function* () {
+        const exit = f.epoch !== o.epoch ? { refused: { reason: "stale-epoch", tag: "StaleEpoch" } }
+          : !o.callbacks ? { refused: { reason: "denied", tag: "CallbackDenied" } }
+          : yield* handleCallback({ ...o.callbacks, epoch: o.epoch, revoked: o.callbacks.revoked?.() ?? false, rev: { pluginIds: new Set(), digests: new Set() }, now: Clock.currentTimeMillis, inFlight: (id) => pending.has(id), seen: callbackSeen, authority: tokens },
+            { epoch: String(f.epoch), callId: String(f.callId), parent: String(f.parent), token: String(f.token), contract: String(f.contract), method: String(f.method), payload: f.payload })
+        if (f.epoch !== o.epoch) yield* Ref.update(refusals, (x) => x + 1)
+        yield* conn.send(JSON.stringify({ t: "callback-result", epoch: f.epoch, callId: f.callId, exit }))
+      }))
+      return
+    }
     if (f.epoch !== o.epoch) { yield* Ref.update(refusals, (x) => x + 1); return }              // a frame of another epoch is dropped and counted
     yield* Ref.set(lastSeen, yield* Clock.currentTimeMillis)                                  // any decoding frame of the epoch is a sign of life
     if (f.t === "refuse" && (f.reason === "incompatible-contract" || f.reason === "stale-epoch")) return yield* finish("guest-reset")
@@ -79,21 +94,31 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
   return session
 })
 
-export type Handlers = Readonly<Record<string, (payload: unknown) => Effect.Effect<unknown>>>
+/** What a served call can do: call back into the host under the call's token. */
+export interface ServeContext { readonly callback: (contract: string, method: string, payload: unknown) => Effect.Effect<{ readonly exit: unknown }> }
+export type Handlers = Readonly<Record<string, (payload: unknown, ctx: ServeContext) => Effect.Effect<unknown>>>
 /** The guest's end: answer the handshake, adopt the epoch, then serve calls of that epoch only and answer pings. Never answers a call of another epoch by executing it. */
 export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArray<number>; readonly served: ReadonlyArray<WireSide>; readonly maxInFlight: number; readonly handlers: Handlers }): Effect.Effect<{ readonly answered: "welcome" | "refuse" }> =>
   Effect.gen(function* () {
     const h = yield* guestServe(conn, guest)
     if (h.answered !== "welcome") return { answered: h.answered }
+    const waiting = new Map<string, Deferred.Deferred<unknown>>()
+    let cb = 0
     yield* Effect.forkDetach(Effect.forever(Effect.gen(function* () {
       const f = parse(yield* conn.receive)
       if (!f) return
       if (f.t === "ping" && f.epoch === h.epoch) return yield* conn.send(JSON.stringify({ t: "pong", epoch: h.epoch, n: f.n }))
+      if (f.t === "callback-result" && typeof f.callId === "string") { const d = waiting.get(f.callId); if (d) { waiting.delete(f.callId); yield* Deferred.succeed(d, f.exit) } return }
       if (f.t !== "call" || typeof f.callId !== "string") return
       if (f.epoch !== h.epoch) return yield* conn.send(JSON.stringify({ t: "result", epoch: f.epoch, callId: f.callId, error: { _tag: "StaleEpoch", epoch: f.epoch }, outcome: "not-executed" }))
       const fn = guest.handlers[String(f.method)]
       if (!fn) return yield* conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, error: { _tag: "MethodNotServed" } }))
-      yield* conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, value: yield* fn(f.payload) }))
+      const ctx: ServeContext = { callback: (contract, method, payload) => Effect.gen(function* () {
+        const id = `cb-${++cb}`; const d = yield* Deferred.make<unknown>(); waiting.set(id, d)
+        yield* conn.send(JSON.stringify({ t: "callback", epoch: h.epoch, callId: id, parent: f.callId, token: f.token, contract, method, payload }))
+        return { exit: yield* Deferred.await(d) }
+      }) }
+      yield* Effect.forkDetach(fn(f.payload, ctx).pipe(Effect.flatMap((value) => conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, value })))))   // a handler may await a callback: it must not block the loop
     })))
     return { answered: "welcome" as const }
   })

@@ -5,6 +5,7 @@ import { ManifestStore } from "../src/federation.js"
 import { decodeManifest, makeFederation, projectManifest, type HostManifest, type LocalPatch } from "../src/fedplugin.js"
 import { define, type AnyPlugin } from "../src/plugin.js"
 import type { Envelope, SyncAnswer } from "../src/sync.js"
+import { rebootstrap, type Marker, type RebootstrapEvent } from "../src/rebootstrap.js"
 import { as, run, stateIn } from "./p4fixtures.js"
 import { drive, idle } from "./fixtures.js"
 
@@ -14,10 +15,10 @@ const manifest = (revision: number, o: Partial<HostManifest> = {}): HostManifest
 const envelope = (m: HostManifest): Envelope => ({ statementType: "host-manifest", id: JSON.stringify([m.authority, m.host]), version: String(m.revision), payload: JSON.stringify(m), signatures: ["ok"] })
 const resolver = (stale = new Set<string>()) => (digest: string) => stale.has(digest) ? Effect.fail({ reason: "revocation-stale" }) : catalog[digest] ? Effect.succeed(catalog[digest]!) : Effect.fail({ reason: "unknown-digest" })
 
-const rig = (host: Parameters<Parameters<typeof run>[0]>[0], over: { patches?: () => LocalPatch[]; resolver?: ReturnType<typeof resolver>; now?: { t: number }; reasons?: string[] } = {}) => Effect.gen(function* () {
+const rig = (host: Parameters<Parameters<typeof run>[0]>[0], over: { patches?: () => LocalPatch[]; resolver?: ReturnType<typeof resolver>; now?: { t: number }; reasons?: string[]; onResync?: Effect.Effect<void> } = {}) => Effect.gen(function* () {
   const answers: SyncAnswer[] = []; const reasons = over.reasons ?? []; const clock = over.now ?? { t: 100 }
   const fed = yield* makeFederation({
-    authority: "auth", host: "h1", source: () => Effect.succeed(answers.shift() ?? { kind: "none" }), policy: { verify: () => Effect.void }, store: new ManifestStore(), syncEvery: 100, syncTimeout: 1000,
+    authority: "auth", host: "h1", source: () => Effect.succeed(answers.shift() ?? { kind: "none" }), policy: { verify: () => Effect.void }, store: new ManifestStore(), syncEvery: 100, syncTimeout: 1000, onResync: over.onResync,
     reconcile: (d, o) => { reasons.push(o.reason ?? ""); return drive(host, host.reconcile(d, { ...as(o.reason), ...(o.scope ? { scope: o.scope } : {}), ...(o.prune !== undefined ? { prune: o.prune } : {}) } as never)) as never },
     resolver: over.resolver ?? resolver(), patches: over.patches, now: Effect.sync(() => clock.t), freshness: { maxOffline: 1000, skewTolerance: 10 }, firstActivation: 0
   })
@@ -108,6 +109,31 @@ describe("federation over a host", () => {
       t.clock.t = 5000
       yield* drive(host, t.fed.checkFreshness); yield* drive(host, t.fed.checkFreshness)
       expect(t.fed.status.stale).toEqual(["offline-capped"]); expect(t.fed.status.events.filter((e) => e._tag === "offline-capped")).toHaveLength(1)
+    }))
+  })
+
+  it("ResyncRequired runs a re-bootstrap against an in-memory outbox, snapshot store and authority, then applies the newest manifest", async () => {
+    await run((host) => Effect.gen(function* () {
+      const events: RebootstrapEvent[] = []; let marker: Marker | undefined; const outbox = { pending: 3 }; const local = { snapshot: "old", links: "up" }
+      const authority = { latest: manifest(9, { plugins: [{ id: "c", digest: "dC" }] }), snapshotRevision: 8, snapshot: "SNAP-8" }
+      let resync: Effect.Effect<void> = Effect.void
+      const t = yield* rig(host, { onResync: Effect.suspend(() => resync) })
+      const ports = (apply: (m: HostManifest) => Effect.Effect<void>) => ({
+        marker: { read: Effect.sync(() => marker), write: (m: Marker) => Effect.sync(() => { marker = m }), clear: Effect.sync(() => { marker = undefined }) },
+        outbox: { settle: Effect.sync(() => { const pushed = outbox.pending; outbox.pending = 0; return { pushed, kept: 0, install: <A, E>(r: Effect.Effect<A, E>) => r }}) }, outboxMode: "required" as const,
+        links: { deliveryOnly: Effect.void, suspend: Effect.sync(() => { local.links = "suspended" }), resume: Effect.sync(() => { local.links = "up" }) },
+        fetch: Effect.succeed(authority.snapshot), install: (snap: string) => Effect.sync(() => { local.snapshot = snap; return { revision: authority.snapshotRevision } }),
+        applyLatest: (_known: number) => apply(authority.latest).pipe(Effect.as(authority.latest.revision)), applyRevocations: Effect.void, emit: (e: RebootstrapEvent) => Effect.sync(() => { events.push(e) })
+      })
+      // the federation's apply path is reused for step 3b: verify, then reconcile the manifest
+      const apply = (m: HostManifest) => drive(host, host.reconcile((m.plugins.map((p) => ({ id: p.id, plugin: catalog[p.digest]! }))) as never, { ...as("rebootstrap"), scope: "federation:auth", prune: true } as never)).pipe(Effect.asVoid, Effect.orDie)
+      resync = rebootstrap(ports(apply)).pipe(Effect.asVoid)
+      t.answers.push({ kind: "resync" })
+      expect(yield* drive(host, t.fed.sync)).toEqual({ _tag: "ResyncRequired" }); yield* idle(host)
+      expect(events.map((e) => e._tag)).toEqual(["rebootstrap-outbox", "rebootstrap-suspended", "rebootstrap-fetched", "rebootstrap-installed", "rebootstrap-revision-mismatch", "rebootstrap-applied", "rebootstrap-resumed"])
+      expect(events[0]).toEqual({ _tag: "rebootstrap-outbox", pushed: 3, kept: 0 })
+      expect(local).toEqual({ snapshot: "SNAP-8", links: "up" }); expect(marker).toBeUndefined()
+      expect(yield* stateIn(host, "c")).toBe("active")
     }))
   })
 })
