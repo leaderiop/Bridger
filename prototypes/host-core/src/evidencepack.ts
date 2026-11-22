@@ -65,7 +65,7 @@ export const writeEvidencePack = (dir: string, p: PackInput): { packDigest: stri
 
 const walk = (dir: string, base = dir): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(join(dir, e.name), base) : [join(dir, e.name).slice(base.length + 1)])
 /** Recomputes every file's digest and the pack digest; reports each difference by path. A pack without differences "matches the manifest" and is not called authentic. */
-export const verifyEvidencePack = (dir: string, expectedDigest?: string): { matches: boolean; differences: ReadonlyArray<{ path: string; kind: "changed" | "missing" | "unlisted" | "manifest" | "signature" | "chain" }>; packDigest: string; statement: string } => {
+export const verifyEvidencePack = (dir: string, expectedDigest?: string, expectedHeads?: PackHeads): { matches: boolean; differences: ReadonlyArray<{ path: string; kind: "changed" | "missing" | "unlisted" | "manifest" | "signature" | "chain" }>; packDigest: string; statement: string } => {
   const text = readFileSync(join(dir, "manifest.json"), "utf8")
   const manifest = JSON.parse(text) as { files: Array<{ path: string; digest: string }> }
   const differences: Array<{ path: string; kind: "changed" | "missing" | "unlisted" | "manifest" | "signature" | "chain" }> = []
@@ -85,12 +85,16 @@ export const verifyEvidencePack = (dir: string, expectedDigest?: string): { matc
   for (const f of ["assessments.json", "signatures.json"]) if (chainBroken(readJson<Array<{ prev?: string }>>(dir, f, []))) differences.push({ path: f, kind: "chain" })   // an entry inserted, removed or edited outside the appenders
   // BEH-GX-135: a signature whose binding no longer matches the pack and its assessments says so.
   for (const sg of readJson<Array<{ bindingDigest: string }>>(dir, "signatures.json", [])) if (sg.bindingDigest !== bindingDigest(dir, packDigest)) differences.push({ path: "signatures.json", kind: "signature" })
+  if (expectedHeads) { const h = packHeads(dir); for (const f of ["assessments", "signatures"] as const) if (expectedHeads[f] !== undefined && h[f] !== expectedHeads[f]) differences.push({ path: `${f}.json`, kind: "chain" }) }   // a removed tail or an edited last entry (S66)
   if (expectedDigest !== undefined && packDigest !== expectedDigest) differences.push({ path: "manifest.json", kind: "manifest" })
   return { matches: differences.length === 0, differences, packDigest, statement: differences.length === 0 ? "every file matches the manifest" : differences.every((d) => d.kind === "signature") ? "signature does not match the current pack" : `${differences.length} difference(s) from the manifest` }
 }
 
 // ---- chained appends (improvement report 06, S27): each entry of assessments.json and signatures.json carries `prev`, the digest of the entry before it
 const entryDigest = (e: unknown) => sha(canonical(e))
+/** The head of each append-only file: the digest of its last entry ("" when empty). The caller records it where the pack's owner keeps evidence (the audit chain) and passes it back to verify, because the files sit outside the manifest. */
+export interface PackHeads { readonly assessments?: string; readonly signatures?: string }
+export const packHeads = (dir: string): Required<PackHeads> => { const head = (f: string) => { const all = readJson<unknown[]>(dir, f, []); return all.length ? entryDigest(all.at(-1)) : "" }; return { assessments: head("assessments.json"), signatures: head("signatures.json") } }
 const chained = (all: ReadonlyArray<unknown>, e: Record<string, unknown>) => [...all, { ...e, prev: all.length ? entryDigest(all.at(-1)) : "" }]
 const chainBroken = (all: ReadonlyArray<{ prev?: string }>) => all.some((e, i) => e.prev !== (i === 0 ? "" : entryDigest(all[i - 1])))
 // ---- assessments (BEH-GX-133)

@@ -21,7 +21,8 @@ export interface KillSwitchOptions {
 
 export const makeKillSwitch = (o: KillSwitchOptions) => {
   let runs = 0
-  const held: Array<{ run: number; ids: Array<string> }> = []
+  const keyOf = (p: { id: string; realm: string; digest: string }) => `${p.id}\0${p.realm}\0${p.digest}`
+  const held: Array<{ run: number; ids: Array<string>; keys: Set<string> }> = []
   let outside: KillSwitchStatus["outsideScope"] = []
   const dropped = Effect.map(o.installed(), (all) => all.filter((p) => o.revoked().has(p.digest)))
   const status: Effect.Effect<KillSwitchStatus> = Effect.sync(() => {
@@ -35,7 +36,7 @@ export const makeKillSwitch = (o: KillSwitchOptions) => {
     outside = all.filter((p) => !scope(p)).map(({ id, realm, digest }) => ({ id, realm, digest }))
     const mine = all.filter(scope)
     const n = ++runs
-    if (mine.length > o.maxDroppedPerRun) { held.push({ run: n, ids: mine.map((p) => p.id) }); return { run: n, removed: [] as string[], pending: [] as string[], held: true } }
+    if (mine.length > o.maxDroppedPerRun) { held.push({ run: n, ids: mine.map((p) => p.id), keys: new Set(mine.map(keyOf)) }); return { run: n, removed: [] as string[], pending: [] as string[], held: true } }
     const removed: string[] = [], pending: string[] = []
     for (const p of mine) {
       const ok = yield* Effect.exit(o.remove(p))
@@ -47,7 +48,7 @@ export const makeKillSwitch = (o: KillSwitchOptions) => {
   const release = (n: number) => Effect.gen(function* () {
     const h = held.find((x) => x.run === n); if (!h) return [] as string[]
     held.splice(held.indexOf(h), 1)
-    const still = (yield* dropped).filter((p) => h.ids.includes(p.id))
+    const still = (yield* dropped).filter((p) => h.keys.has(keyOf(p)))     // id, realm and digest: a same-id plugin elsewhere was never held (S66)
     const removed: string[] = []
     for (const p of still) if ((yield* Effect.exit(o.remove(p)))._tag === "Success") removed.push(p.id)
     return removed

@@ -93,3 +93,15 @@ describe("kill switch loop (BEH-LD-029)", () => {
     await Effect.runPromise(Effect.scoped(program).pipe(Effect.provide(TestClock.layer())))
   })
 })
+
+describe("S66 release matches the held identity", () => {
+  it("release removes only what was held, not a same-id plugin in another realm revoked later", async () => {
+    let revoked = new Set(["d1", "d2"]), installed = [{ id: "p", realm: "r1", digest: "d1" }, { id: "q", realm: "r1", digest: "d2" }]
+    const removed: string[] = []
+    const ks = makeKillSwitch({ revoked: () => revoked, installed: () => Effect.sync(() => installed), resident: () => [], remove: (p) => Effect.sync(() => { removed.push(`${p.id}@${p.realm}`) }), maxDroppedPerRun: 1 })
+    expect((await Effect.runPromise(ks.run)).held).toBe(true)
+    installed = [...installed, { id: "p", realm: "r2", digest: "d3" }]; revoked = new Set(["d1", "d2", "d3"])
+    await Effect.runPromise(ks.release(1))
+    expect(removed.sort()).toEqual(["p@r1", "q@r1"])
+  })
+})

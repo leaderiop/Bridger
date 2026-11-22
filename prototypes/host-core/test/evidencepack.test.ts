@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { collect, readTraceRows } from "../src/evidence.js"
-import { renderHtml, AssessmentRefused, assessDeviation, canonical, coverage, deviationId, diffPacks, EvidenceReadFailed, renderReport, SignatureRefused, signEvidencePack, STATEMENT, verifyEvidencePack, writeEvidencePack, writeReport } from "../src/evidencepack.js"
+import { packHeads, renderHtml, AssessmentRefused, assessDeviation, canonical, coverage, deviationId, diffPacks, EvidenceReadFailed, renderReport, SignatureRefused, signEvidencePack, STATEMENT, verifyEvidencePack, writeEvidencePack, writeReport } from "../src/evidencepack.js"
 
 const ev = collect([{ id: "BEH-BR-001 a", file: "f", status: "passed" }, { id: "BEH-BR-002 b", file: "f", status: "failed" }], ["BEH-BR-001", "BEH-BR-002", "BEH-BR-003"])
 const rows = readTraceRows(["| REQ-BR-001 | a | [BEH-BR-001](x) | Not run |", "| REQ-BR-002 | b | [BEH-BR-001](x), [BEH-BR-002](x) | Not run |"].join("\n"))
@@ -135,4 +135,15 @@ describe("requester and chained appends (improvement report 06, S27)", () => {
     writeFileSync(f, JSON.stringify([...all, { deviationId: all[0].deviationId, actor: { id: "qa-9", kind: "user" }, at: "x", assessment: "forged" }]) + "\n")   // appended outside the appender: no valid `prev`
     expect(verifyEvidencePack(d).differences).toContainEqual({ path: "assessments.json", kind: "chain" })
   })
+  it("pinned heads reveal a removed last signature or an edited last entry (S66)", () => {
+    const d = dir(); writeEvidencePack(d, input())
+    signEvidencePack(d, { meaning: "m" }, () => ({ signer: { id: "qa-1", kind: "user" } }), now)
+    signEvidencePack(d, { meaning: "m2" }, () => ({ signer: { id: "qa-2", kind: "user" } }), now)
+    const heads = packHeads(d); expect(verifyEvidencePack(d, undefined, heads).differences.some((x) => x.kind === "chain")).toBe(false)
+    const f = join(d, "signatures.json"), all = JSON.parse(readFileSync(f, "utf8"))
+    writeFileSync(f, JSON.stringify(all.slice(0, -1)) + "\n"); expect(verifyEvidencePack(d).differences.some((x) => x.kind === "chain")).toBe(false)   // not visible without the pin
+    expect(verifyEvidencePack(d, undefined, heads).differences).toContainEqual({ path: "signatures.json", kind: "chain" })
+    writeFileSync(f, JSON.stringify([...all.slice(0, -1), { ...all.at(-1), meaning: "edited" }]) + "\n"); expect(verifyEvidencePack(d, undefined, heads).differences).toContainEqual({ path: "signatures.json", kind: "chain" })
+  })
 })
+

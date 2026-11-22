@@ -1,6 +1,9 @@
 // Field-encryption codec kernel (keyring BEH-KR-005/006/010..013; improvement report 06 S19-S23). Synchronous and in-memory: the key store, wrapping and the
 // outbox are not modelled. Key material and nonces come from two separate sources, injected so tests are deterministic.
 import { createCipheriv, createDecipheriv } from "node:crypto"
+import { Effect } from "effect"
+import type { Gate } from "./gate.js"
+import { ShredRefused, gatedShred, subjectDigest, type ShredRequest } from "./shred.js"
 
 export class PayloadEncodeFailed extends Error { readonly _tag = "PayloadEncodeFailed"; constructor(readonly reason: string) { super(reason) } }
 export class PayloadDecodeFailed extends Error { readonly _tag = "PayloadDecodeFailed"; constructor(readonly reason: string) { super(reason) } }
@@ -38,7 +41,9 @@ export const makeKeyring = (o: {
   }
   const rotate = (subject: string, actor: string, reason: string) => { add(subject); events.push({ op: "rotate", subject, actor, reason }) }
   const rewrap = (subject: string, actor: string, reason: string) => { events.push({ op: "rewrap", subject, actor, reason }) }
-  const shred = (subject: string) => { tomb.add(subject); keys.delete(subject) }
+  /** The only way to shred: the gate decides first (BEH-KR-017), and the request must name this subject's digest, so an approval for one subject never shreds another (S66). */
+  const shred = (subject: string, gate: Gate<ShredRequest>, request: ShredRequest) =>
+    request.subjectDigest !== subjectDigest(subject) ? Effect.fail(new ShredRefused("subject-mismatch")) : gatedShred(gate, request, Effect.sync(() => { tomb.add(subject); keys.delete(subject) }))
   const aad = (s: FieldSpec, path: string, subject: string, stream: string) => Buffer.from(`bridger-keyring/v1\n${s.type}\n${s.version}\n${path}\n${subject}\n${stream}`, "utf8")
   /** BEH-KR-013: `subject` must not read a listed path; checked by running it on a copy whose listed paths throw when read. */
   const probe = (s: FieldSpec, payload: any) => {

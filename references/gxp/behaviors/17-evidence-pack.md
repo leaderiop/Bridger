@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-17                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-22): S65: attachment names are one plain unique segment (improvement report 06)<br>0.6 (2026-11-22): BEH-GX-129/133/135: the manifest records the `requester`, `signEvidencePack` reads it from there, and `assessments.json` and `signatures.json` entries are chained by `prev` (improvement report 06, S27)<br>0.5 (2026-11-22): BEH-GX-130 `files` also leaves out `report.md` and `report.html`: each report's first line names the pack digest, which is the digest of the manifest, so a manifest that listed the reports would have to contain a digest of text that contains its own digest; the reports are derived from the JSON files and the verifier checks them by re-rendering (found building the prototype generator)<br>0.4 (2026-11-10): BEH-GX-129 the layout lists `assessments.json` and `signatures.json`, written only by `assessDeviation` and `signEvidencePack`, outside the manifest's file list (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7); follow-up: `EvidenceWriteFailed`, `AssessmentRefused`, `EvidenceReadFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.8 (2026-11-22): S66: pack heads can be pinned (improvement report 06)<br>0.7 (2026-11-22): S65: attachment names are one plain unique segment (improvement report 06)<br>0.6 (2026-11-22): BEH-GX-129/133/135: the manifest records the `requester`, `signEvidencePack` reads it from there, and `assessments.json` and `signatures.json` entries are chained by `prev` (improvement report 06, S27)<br>0.5 (2026-11-22): BEH-GX-130 `files` also leaves out `report.md` and `report.html`: each report's first line names the pack digest, which is the digest of the manifest, so a manifest that listed the reports would have to contain a digest of text that contains its own digest; the reports are derived from the JSON files and the verifier checks them by re-rendering (found building the prototype generator)<br>0.4 (2026-11-10): BEH-GX-129 the layout lists `assessments.json` and `signatures.json`, written only by `assessDeviation` and `signEvidencePack`, outside the manifest's file list (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7); follow-up: `EvidenceWriteFailed`, `AssessmentRefused`, `EvidenceReadFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -436,4 +436,11 @@ _Previous: [16 — OQ Evidence](./16-oq-evidence.md)_ · _Next: [18 — Archive 
 REQUIREMENT: An attachment's `as` MUST match one plain name segment (no path
              separator, no leading dot) and be unique in the pack; otherwise the
              writer refuses.
+```
+
+```
+REQUIREMENT: The pack MUST expose the head digest of `assessments.json` and
+             `signatures.json`; `verifyEvidencePack` given pinned heads MUST
+             report a `chain` difference when a head differs, which is how a
+             removed tail or an edited last entry is detected.
 ```

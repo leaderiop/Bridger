@@ -1,11 +1,17 @@
 // Report 06 S19-S23: the field codec fails closed, binds the stream, bounds key use and attributes rotation.
+import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
+import type { Gate } from "../src/gate.js"
+import { ShredRefused, subjectDigest, type ShredRequest } from "../src/shred.js"
+import { alice } from "./p4fixtures.js"
 import { KeyVersionLimit, PayloadDecodeFailed, PayloadEncodeFailed, SubjectFromEncryptedField, makeKeyring, type FieldSpec } from "../src/keyring.js"
 
 let n = 0
 const bytes = (len: number) => () => Uint8Array.from({ length: len }, (_, i) => (++n + i) & 255)
 const kr = (o: Partial<Parameters<typeof makeKeyring>[0]> = {}) => makeKeyring({ keySource: bytes(32), nonceSource: { next: bytes(12) }, maxKeyVersions: 3, maxUsesPerKey: 100, ...o })
 const spec: FieldSpec = { type: "t", version: 1, paths: ["pii.email"], subject: (p) => p.user }
+const allow: Gate<ShredRequest> = { decide: () => Effect.succeed({ _tag: "Allow" } as never) }
+const shredReq = (subject: string): ShredRequest => ({ operation: "shred", subjectDigest: subjectDigest(subject), actor: alice, reason: "erasure", reversibility: "irreversible" })
 const ev = { user: "u1", pii: { email: "a@b.c" } }
 
 describe("keyring codec", () => {
@@ -37,7 +43,7 @@ describe("keyring codec", () => {
     expect(() => k.encode({ ...spec, subject: (p) => p.pii.email }, "s", ev)).toThrow(SubjectFromEncryptedField)
   })
   it("a shredded subject cannot be encoded again and decodes to a marker", () => {
-    const k = kr(), enc = k.encode(spec, "s1", ev); k.shred("u1")
+    const k = kr(), enc = k.encode(spec, "s1", ev); Effect.runSync(k.shred("u1", allow, shredReq("u1")))
     expect(() => k.encode(spec, "s1", ev)).toThrow(PayloadEncodeFailed)
     expect((k.decode(spec, "s1", enc) as any).pii.email).toEqual({ $shredded: 1, subject: "u1", path: "pii.email" })
   })
@@ -56,7 +62,14 @@ describe("keyring codec", () => {
     expect(() => k.rotate("u1", "ops:alice", "third")).toThrow(KeyVersionLimit)
   })
   it("a shredded subject cannot be rotated into a new key (S57)", () => {
-    const k = kr(); k.rotate("u1", "ops", "r"); k.shred("u1")
+    const k = kr(); k.rotate("u1", "ops", "r"); Effect.runSync(k.shred("u1", allow, shredReq("u1")))
     expect(() => k.rotate("u1", "ops", "again")).toThrow(PayloadEncodeFailed); expect(k.versions("u1")).toBe(0)
+  })
+  it("shred needs the gate and the request's subject digest (S66)", () => {
+    const k = kr(); k.rotate("u1", "ops", "r")
+    const refuse: Gate<ShredRequest> = { decide: () => Effect.succeed({ _tag: "Refuse", reason: "no" } as never) }
+    expect(Effect.runSync(Effect.flip(k.shred("u1", refuse, shredReq("u1"))))).toBeInstanceOf(ShredRefused); expect(k.versions("u1")).toBe(1)
+    expect(Effect.runSync(Effect.flip(k.shred("u1", allow, shredReq("u2"))))).toBeInstanceOf(ShredRefused); expect(k.versions("u1")).toBe(1)
+    Effect.runSync(k.shred("u1", allow, shredReq("u1"))); expect(k.versions("u1")).toBe(0)
   })
 })
