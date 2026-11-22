@@ -333,3 +333,11 @@ describe("publish targets (BEH-KT-030)", () => {
     expect(bad.code).toBe(1); expect(bad.err).toContain("PublishFailed: the registry is down")
   })
 })
+
+describe("S67 a signature rule never accepts everything", () => {
+  it("a zero, negative, fractional or NaN threshold and an empty allOf are refused as policy-invalid", () => {
+    const st = L.Statement.make({ statementType: "package", subject: { digest: "sha256:" + "ab".repeat(32) }, id: "x", version: "1" })
+    for (const require of [{ threshold: 0 }, { threshold: -1 }, { threshold: 1.5 }, { threshold: NaN }, { allOf: [] }] as never[])
+      expect(() => L.verifyStatement({ statement: st, signatures: [], policy: { id: "p", signers: [], require } })).toThrow(/threshold|leaf/)
+  })
+})

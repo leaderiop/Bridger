@@ -10,8 +10,8 @@ describe("chain sink", () => {
     const s = makeChainSink("h1")
     expect([s.append(rec(1)), s.append(rec(1)), s.append(rec(2)), s.append(rec(2, { kind: "y" })), s.append(rec(5))]).toEqual(["appended", "retry", "appended", "retry-mismatch", "chain-order"])
     expect(s.size()).toBe(4)
-    const breaks = verifyBundle(bundle(s.entries())).chain.h1!.breaks
-    expect(breaks.filter((b) => b.kind === "sink-marked").map((b) => b.marker).sort()).toEqual(["chain-order", "retry-mismatch"])
+    const breaks = verifyBundle(bundle(s.entries()), { expectedBreaks: s.expectedBreaks() }).chain.h1!.breaks
+    expect(breaks.filter((b) => b.kind === "sink-marked").map((b) => b.marker).sort()).toEqual(["chain-order", "retry-mismatch"])   // and no false "stripped" for the original at a repeated seq
   })
   it("stripping a marker from the stored links is reported when the sink's markers are passed to the verifier", () => {
     const s = makeChainSink("h1"); s.append(rec(1)); s.append(rec(3))

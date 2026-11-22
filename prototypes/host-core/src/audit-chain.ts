@@ -258,6 +258,7 @@ const verifySeries = (d: SeriesDescription, profile: ChainProfile<any>, entries:
   const seen = new Set<number>(); let lastDropped: number | undefined
   let firstBad = Infinity; let prevLink: ChainLink | undefined; let prevSeq: number | undefined
   const hashAt = new Map<number, string>()
+  const markedSeqs = new Set<number>(); for (const e of entries) { try { if (isObj(e.link) && e.link.break) markedSeqs.add(profile.position(e.record).seq) } catch { /* reported below */ } }
   const bad = (seq: number, kind: BreakKind, marker?: string) => { breaks.push({ seq, kind, ...(marker ? { marker } : {}) }); firstBad = Math.min(firstBad, seq) }
   entries.forEach((e) => {
     let seq = NaN
@@ -268,7 +269,7 @@ const verifySeries = (d: SeriesDescription, profile: ChainProfile<any>, entries:
       if (!isObj(l)) { bad(seq, "missing-link"); prevLink = undefined; prevSeq = seq; return }
       hashAt.set(seq, l.hash)
       if (l.break) bad(seq, "sink-marked", l.break.reason)
-      else if (opts.expectedBreaks?.has(`${d.seriesId}/${seq}`)) bad(seq, "sink-marked", "stripped")   // the hash does not cover `break`, so the verifier cross-checks it
+      else if (opts.expectedBreaks?.has(`${d.seriesId}/${seq}`) && !markedSeqs.has(seq)) bad(seq, "sink-marked", "stripped")   // the hash does not cover `break`, so the verifier cross-checks it; a seq with several entries needs one marker
       if (l.schema === "unsupported") bad(seq, "unsupported-version")
       if (l.canonical === "jcs-escaped") notices.push({ seq, kind: "non-canonical-encoding" })
       if ((l.v === 2) !== generic) { bad(seq, "unsupported-version"); prevLink = l; prevSeq = seq; return }

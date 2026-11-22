@@ -98,7 +98,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
     const disclosed = order.filter((k) => (o.disclose ?? []).includes(k) && identity[k] !== undefined)         // a claim the link does not list, or the call lacks, is omitted, never empty
     const claims = { pluginId: o.contract.id, contractVersion: h.session.version, ...Object.fromEntries(disclosed.map((k) => [k, identity[k]])) }   // never the TokenRef or its id
     yield* conn.send(JSON.stringify({ t: "call", epoch: o.epoch, callId, method, payload, version: h.session.version, token, claims }))
-    const r = yield* Deferred.await(d).pipe(Effect.ensuring(tokens.end(token)))     // the token dies with the call: result, failure, cancellation or session loss
+    const r = yield* Deferred.await(d).pipe(Effect.ensuring(Effect.andThen(tokens.end(token), Effect.sync(() => { for (const k of callbackSeen) if (k.startsWith(`${callId}/`)) callbackSeen.delete(k) }))))     // the token dies with the call: result, failure, cancellation or session loss
     if (o.log) yield* o.log({ kind: "crossing", direction: "outbound", method, outcome: r.error ? "failure" : "success", epoch: o.epoch, ...(r.error?._tag ? { errorTag: r.error._tag } : {}) })
     if (r.error) {
       const tag = r.error._tag

@@ -208,6 +208,8 @@ export const checkPolicy = (policy: SignaturePolicy): void => {
     if (ids.has(s.id) || keys.has(keyOf(s))) throw new SignatureRejected("", policy.id, "", "policy-invalid", [], 0, `signer ${s.id}: an id or a key appears twice`)
     ids.add(s.id); keys.add(keyOf(s))
   }
+  const ls = leaves(policy.require)                                                                   // no rule accepts everything: at least one leaf, each a positive integer threshold (INV-LD-006, S67)
+  if (ls.length === 0 || ls.some((l) => !Number.isInteger(l.threshold) || l.threshold < 1)) throw new SignatureRejected("", policy.id, "", "policy-invalid", [], 0, "every threshold must be a positive integer and the rule needs a leaf")
 }
 
 const leaves = (r: Requirement): ReadonlyArray<{ readonly role?: string; readonly threshold: number }> => "allOf" in r ? r.allOf.flatMap(leaves) : [r]
