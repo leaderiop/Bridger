@@ -109,6 +109,11 @@ reading configuration does not require `yield* Plugin.Config`; the value is
 the one core decoded before build ([BEH-BR-097](../../core/behaviors/11-configuration.md)),
 so the facade adds no configuration path.
 
+**Found by compiling the guides.** TypeScript does not push the service shape
+into a nested call: in `make: Effect.succeed({ log: (message) => ... })` the
+parameter `message` is not contextually typed, so a method's parameters are
+annotated in `make` (the guides do). The forms cannot change this.
+
 **Open.** Whether Form 2 should also accept a tuple of keys with a tuple of
 implementations; v0.1 keeps the record, whose names make errors readable.
 

@@ -1,7 +1,12 @@
 # Plugin author guide
 
-Status: **prospective API — nothing here is implemented.** Every snippet is
-`type-checked: not yet (implementation absent)`. Normative text:
+Status: **partly executable.** The facade (`definePlugin`), typed configuration,
+contracts and `ctx.use` exist in the prototype (`prototypes/host-core/src/kit.ts`);
+every snippet marked `type-checked: yes` is compiled against it by
+[`doc-typecheck.sh`](../../references/kit/scripts/doc-typecheck.sh). The others
+name pieces with no code yet (the testing kit, the host facade, the promise SDK,
+manifest loading) or the specified duration strings the prototype takes as
+numbers. Normative text:
 [kit behaviours 01–02](../../references/kit/behaviors/01-plugin-facade.md) and
 core behaviours [01](../../references/core/behaviors/01-plugin-definition.md)–[34](../../references/core/behaviors/34-state-handoff.md).
 
@@ -11,8 +16,22 @@ process. Partner code does not belong here; see the
 
 ## The four shapes of a plugin
 
+<!-- prelude
+import { Context } from "effect"
+import { Event } from "@bridger/core"
+class Clock extends Context.Service<Clock, { readonly now: Effect.Effect<number> }>()("example/Clock") {}
+class Database extends Context.Service<Database, { readonly url: string }>()("example/Database") {}
+class Reader extends Context.Service<Reader, { readonly read: () => Effect.Effect<string> }>()("example/Reader") {}
+class Writer extends Context.Service<Writer, { readonly write: (s: string) => Effect.Effect<void> }>()("example/Writer") {}
+class Logger extends Context.Service<Logger, { readonly log: (m: string) => Effect.Effect<void> }>()("example/Logger") {}
+class Legacy extends Context.Service<Legacy, { readonly old: true }>()("example/Legacy") {}
+const makeReader = (db: Database["Service"]) => ({ read: () => Effect.succeed(db.url) })
+const makeWriter = (_db: Database["Service"]) => ({ write: (_s: string) => Effect.void })
+const makeLegacy = Effect.succeed({ old: true as const })
+const OrderPlaced = Event.make<[order: { readonly id: string }], void>()("example/order-placed", { mode: "emit" })
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
 import { Effect, Layer } from "effect"
 import { Bridger } from "@bridger/core"
 import { definePlugin } from "@bridger/kit"
@@ -71,8 +90,14 @@ Rules worth remembering:
 
 ## Configuration
 
+<!-- prelude
+import { Context, Effect, Schema } from "effect"
+class Mailer extends Context.Service<Mailer, { readonly send: (to: string) => Effect.Effect<void> }>()("example/Mailer") {}
+const connect = (c: { readonly host: string }) => Effect.succeed({ send: (_to: string) => Effect.void, host: c.host })
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
+import { definePlugin } from "@bridger/kit"
 const mailer = definePlugin({
   id: "example/mailer",
   provides: Mailer,
@@ -93,8 +118,18 @@ When a service is meant to be implemented by more than one party, or across
 versions, declare it as a versioned contract
 ([core 26](../../references/core/behaviors/26-versioned-contracts.md)):
 
+<!-- prelude
+import { Context, Effect, Schema } from "effect"
+import { Contract } from "@bridger/core"
+const GreetRequest = Schema.String
+const GreetResult = Schema.String
+const NotFound = Schema.Never
+class GreeterKey extends Context.Service<GreeterKey, { readonly greet: (name: string) => Effect.Effect<string, never> }>()("example/Greeter@1") {}
+const wireUi = Effect.void
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
+import { definePlugin } from "@bridger/kit"
 const GreeterV1 = Contract.make(GreeterKey, {
   version: "1.2.0",
   methods: { greet: Contract.method({ payload: GreetRequest, success: GreetResult, error: NotFound }) }

@@ -1,11 +1,13 @@
 # Bridger guides
 
-Status: **prospective — nothing described here is implemented.** These guides
+Status: **partly executable.** These guides
 describe the API specified in [references/core/](../../references/core/README.md)
 and the developer-experience companion [references/kit/](../../references/kit/README.md).
-Every snippet is marked `type-checked: not yet (implementation absent)`: it
-follows the specified names, and no compiler has seen it. When code exists,
-`bridger check` will compile every snippet marked `type-checked: yes`
+Every snippet is marked `type-checked: yes` (compiled in CI by
+`bash references/kit/scripts/doc-typecheck.sh` against the prototype) or
+`type-checked: not yet (...)` (it follows the specified names, and no compiler
+has seen it; the count of `not yet` blocks is the guides' open work). Once the
+CLI exists, `bridger check` compiles the same snippets
 ([BEH-KT-028](../../references/kit/behaviors/04-cli.md#beh-kt-028-check-finds-a-second-copy-of-effect-and-breaking-contract-changes)).
 
 The `docs/ERP-*` files are one example application built on Bridger, not
