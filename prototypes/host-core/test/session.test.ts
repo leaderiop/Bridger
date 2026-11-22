@@ -111,7 +111,7 @@ describe("tokens and call log in the session", () => {
       const callFrame = JSON.parse(frames.find((f) => f.includes('"t":"call"'))!)
       expect(callFrame.token).toBe(`T-${minted[0]}`)
       expect(ended).toEqual([`T-${minted[0]}`])
-      expect(entries).toEqual([{ kind: "crossing", method: "post", outcome: "success", epoch: "e-1" }])
+      expect(entries).toEqual([{ kind: "crossing", direction: "outbound", method: "post", outcome: "success", epoch: "e-1" }])
       expect(JSON.stringify(entries)).not.toMatch(/secret-payload|T-c/)
       yield* s.close
     }))
@@ -123,7 +123,7 @@ describe("tokens and call log in the session", () => {
       const entries: unknown[] = []
       const s = (yield* openSession(a, { ...opts(), log: (e) => Effect.sync(() => { entries.push(e) }) })) as Session
       yield* fails(s.call("nope", 1)); yield* s.close
-      expect(entries).toEqual([{ kind: "crossing", method: "nope", outcome: "failure", epoch: "e-1", errorTag: "MethodNotServed" }])
+      expect(entries).toEqual([{ kind: "crossing", direction: "outbound", method: "nope", outcome: "failure", epoch: "e-1", errorTag: "MethodNotServed" }])
     }))
   })
   it("ends the token when the session is lost mid-call", async () => {

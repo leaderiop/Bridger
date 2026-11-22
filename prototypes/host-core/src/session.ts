@@ -18,13 +18,14 @@ export interface Session {
   readonly refusals: Effect.Effect<number>
   readonly close: Effect.Effect<void>
 }
+export interface LogEntry { readonly kind: "crossing" | "refusal"; readonly direction: "outbound" | "inbound"; readonly method: string; readonly outcome: "success" | "failure" | "refused"; readonly epoch: string; readonly errorTag?: string; readonly reason?: string }
 export interface SessionOptions { readonly epoch: string; readonly wire: ReadonlyArray<number>; readonly contract: WireSide & { readonly id: string; readonly accepts: string }; readonly heartbeat: { readonly every: number; readonly missed: number }
   /** Mints one token per host-to-guest call (BEH-RM-043); default: an in-process table. `tokenTtl` defaults to 30 s, `callTimeout` bounds `expires`. */
   /** Serves the guest's callbacks (BEH-RM-046): the grants, decoding and the way the host service is reached. */
   readonly callbacks?: Pick<CallbackContext, "grants" | "decode" | "run" | "offeredLabels" | "budget" | "admission" | "placement"> & { readonly revoked?: () => boolean }
   readonly tokens?: TokenAuthority; readonly tokenTtl?: number; readonly callTimeout?: number
   /** One entry per call at its end: kind, method, outcome, epoch; never a payload, result, error message or token (BEH-RM-047). */
-  readonly log?: (entry: { readonly kind: "crossing"; readonly method: string; readonly outcome: "success" | "failure"; readonly epoch: string; readonly errorTag?: string }) => Effect.Effect<void> }
+  readonly log?: (entry: LogEntry) => Effect.Effect<void> }
 
 /** The link's end of one session: handshake, then calls and heartbeat until it ends. Resolves to the refusal when the handshake fails. */
 export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<Session | Exclude<LinkOutcome, { session: unknown }>> => Effect.gen(function* () {
@@ -54,6 +55,11 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
           : yield* handleCallback({ ...o.callbacks, epoch: o.epoch, revoked: o.callbacks.revoked?.() ?? false, rev: { pluginIds: new Set(), digests: new Set() }, now: Clock.currentTimeMillis, inFlight: (id) => pending.has(id), seen: callbackSeen, authority: tokens },
             { epoch: String(f.epoch), callId: String(f.callId), parent: String(f.parent), token: String(f.token), contract: String(f.contract), method: String(f.method), payload: f.payload })
         if (f.epoch !== o.epoch) yield* Ref.update(refusals, (x) => x + 1)
+        if (o.log) {                                                                 // one entry per callback at its end; every refusal is a "refusal" entry; no payload, token or message
+          const refused = "refused" in exit ? exit.refused : undefined
+          yield* o.log(refused ? { kind: "refusal", direction: "inbound", method: String(f.method), outcome: "refused", epoch: String(f.epoch), errorTag: refused.tag, reason: refused.reason }
+            : { kind: "crossing", direction: "inbound", method: String(f.method), outcome: "ok" in exit ? "success" : "failure", epoch: String(f.epoch), ...("failed" in exit ? { errorTag: (exit.failed as { _tag: string })._tag } : {}) })
+        }
         yield* conn.send(JSON.stringify({ t: "callback-result", epoch: f.epoch, callId: f.callId, exit }))
       }))
       return
@@ -83,7 +89,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
     const token = yield* tokens.mint({ pluginId: o.contract.id, realm: "", epoch: o.epoch, callId, contractVersion: h.session.version, issuedAt, expires: issuedAt + Math.min(o.tokenTtl ?? 30_000, o.callTimeout ?? Infinity) })
     yield* conn.send(JSON.stringify({ t: "call", epoch: o.epoch, callId, method, payload, version: h.session.version, token }))
     const r = yield* Deferred.await(d).pipe(Effect.ensuring(tokens.end(token)))     // the token dies with the call: result, failure, cancellation or session loss
-    if (o.log) yield* o.log({ kind: "crossing", method, outcome: r.error ? "failure" : "success", epoch: o.epoch, ...(r.error?._tag ? { errorTag: r.error._tag } : {}) })
+    if (o.log) yield* o.log({ kind: "crossing", direction: "outbound", method, outcome: r.error ? "failure" : "success", epoch: o.epoch, ...(r.error?._tag ? { errorTag: r.error._tag } : {}) })
     if (r.error) {
       const tag = r.error._tag
       return yield* Effect.fail({ _tag: tag === "StaleEpoch" || tag === "SessionLost" || tag === "MethodNotServed" ? tag : "RemoteError", outcome: tag === "SessionLost" ? "unknown" : "not-executed", detail: r.error } satisfies CallFailure)
@@ -199,3 +205,10 @@ export const openPerCallSession = (invoke: Invoke, o: Omit<SessionOptions, "hear
   })
   return { epoch: o.epoch, version: h.session.version, call, ended: Deferred.await(endedD), refusals: Ref.get(refusals), close: finish("closed") } satisfies Session
 })
+
+/** Offers each session entry to the core CallLog through `Host.offerCallEntry` (BEH-RM-047); a log that is not wired drops it. */
+export const callLogTo = (host: { readonly offerCallEntry: (e: never, o?: never) => Effect.Effect<void, unknown> }, link: string, contractId: string) =>
+  (e: LogEntry): Effect.Effect<void> => (host.offerCallEntry as (e: unknown) => Effect.Effect<void, unknown>)(
+    e.kind === "refusal"
+      ? { kind: "refusal", companion: "@bridger/remote", serviceId: contractId, member: e.method, outcome: "refused", ...(e.errorTag ? { errorTag: e.errorTag } : {}), refusal: { stage: "boundary", reason: e.reason ?? "refused" } }
+      : { kind: "crossing", companion: "@bridger/remote", serviceId: contractId, member: e.method, outcome: e.outcome, ...(e.errorTag ? { errorTag: e.errorTag } : {}), crossing: { direction: e.direction, link, epoch: e.epoch } }).pipe(Effect.ignore)
