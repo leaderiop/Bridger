@@ -364,6 +364,66 @@ describe("groups (BEH-BR-127, 128)", () => {
       const rep = yield* drive(host, host.shutdown(as())); yield* settleWriter
       expect(rep.failed).toEqual([{ id: "app/kid", cause: "cleanup", message: "sink close failed" }])
       expect(records.some((r) => r.operation === "leak-acknowledged")).toBe(false)   // shutdown does not acknowledge the leak
+      expect((yield* host.snapshot).plugins.find((p) => p.id === "app/kid")).toMatchObject({ state: "failed" })   // and the child stays registered
     }), { sink })
+  })
+
+  const subParent = (j: Journal, out: { sub?: Scope.Closeable; rt?: PluginRuntime["Service"] }, closeWithParent: boolean) => define({ id: "app", requires: [] as const, provides: [] as const,
+    build: Layer.effectDiscard(Effect.gen(function* () {
+      const rt = yield* PluginRuntime; out.rt = rt
+      const sub = yield* Scope.make(); out.sub = sub
+      if (closeWithParent) yield* Effect.addFinalizer(() => Scope.close(sub, Exit.void))
+      yield* rt.install(childDef(j, { provides: true })).pipe(Scope.provide(sub))
+    })) as never }) as unknown as AnyPlugin
+  const stepAll = (host: Parameters<typeof drive>[0], fibers: ReadonlyArray<Fiber.Fiber<unknown, unknown>>) => Effect.gen(function* () {
+    while (fibers.some((f) => f.pollUnsafe() === undefined)) if (!(yield* host.step)) yield* Effect.yieldNow
+  })
+
+  it("BEH-BR-121: a sub-scope that closes after the parent's stop has begun starts no second removal of the child", async () => {
+    const j = journal(); const { records, sink } = memorySink()
+    const out: { sub?: Scope.Closeable } = {}
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(subParent(j, out, true), as()); yield* idle(host)
+      yield* drive(host, host.remove("app", as())); yield* settleWriter
+      expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
+      expect(records.filter((r) => r.operation === "system-stop" && r.target?.id === "app/child")).toHaveLength(1)
+      expect(j.lines.filter((l) => l === "child:close")).toHaveLength(1)
+    }), { sink })
+  })
+
+  it("BEH-BR-121: a sub-scope closed by a fiber that holds a lease in the child's removal set does not wait, and the child is removed once the lease ends", async () => {
+    const j = journal()
+    const out: { sub?: Scope.Closeable } = {}
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(subParent(j, out, false), as()); yield* idle(host)
+      const closed = yield* Deferred.make<void>()
+      const user = yield* Effect.forkChild(host.use(Feature, () => Scope.close(out.sub!, Exit.void).pipe(Effect.andThen(Deferred.succeed(closed, undefined)))))
+      yield* stepAll(host, [user])
+      expect(Exit.isSuccess(yield* Fiber.await(user))).toBe(true)                 // the close returned: it did not wait on its own lease
+      yield* idle(host)
+      expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
+    }))
+  })
+
+  it("BEH-BR-121: a sub-scope close takes over a draining stop of the child begun outside the parent: one stop, no rebuild", async () => {
+    const j = journal()
+    const out: { sub?: Scope.Closeable } = {}
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(subParent(j, out, false), as()); yield* idle(host)
+      const entered = yield* Deferred.make<void>(); const release = yield* Deferred.make<void>()
+      const holder = yield* Effect.forkChild(host.use(Feature, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
+      yield* Deferred.await(entered)
+      const restart = yield* Effect.forkChild(host.restart("app/child", { ...as(), drain: 5000 }))     // draining: the lease is held
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      expect(yield* stateIn(host, "app/child")).toBe("stopping")
+      const close = yield* Effect.forkChild(Scope.close(out.sub!, Exit.void))
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      expect(close.pollUnsafe()).toBeUndefined()                                  // waiting for the stop step it took over
+      yield* Deferred.succeed(release, undefined)
+      yield* stepAll(host, [holder, restart, close])
+      expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
+      expect(j.lines.filter((l) => l === "child:build")).toHaveLength(1)           // the restart's rebuild never ran
+      expect(j.lines.filter((l) => l === "child:close")).toHaveLength(1)
+    }))
   })
 })

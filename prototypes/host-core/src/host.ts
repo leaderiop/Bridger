@@ -1232,7 +1232,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       // A removal already begun — by the parent's stop, shutdown, the sub-scope close or an earlier unmount — is joined, never repeated, with no record of its own.
       const joined = c.removing || closing || e.state === "stopping" || e.failing || !!e.unmounting
       if (joined) {
-        yield* SubscriptionRef.changes(feed).pipe(Stream.filter(() => entries.get(c.id) !== c), Stream.take(1), Stream.runDrain)
+        yield* SubscriptionRef.changes(feed).pipe(Stream.filter(() => childSettled(c)), Stream.take(1), Stream.runDrain)
         return
       }
       const rid = yield* systemRecord("unmount-requested", c, e.cause, undefined, { requestedBy: o.context.actor } as never)
@@ -1311,7 +1311,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
           const heldInSet = [...held].some((h) => set.has(h))
           const parentBegun = e.state === "stopping" || e.failing || !!e.unmounting || e.epoch !== epoch || closing || closed || entries.get(e.id) !== e
           const remove = Effect.exit(stopDependent(c, e.id, { mode: "no-caller", resumedBy: "sub-scope" }, e.id)).pipe(Effect.provideService(CurrentCause, rid), Effect.asVoid)
-          const settled = SubscriptionRef.changes(feed).pipe(Stream.filter(() => entries.get(c.id) !== c), Stream.take(1), Stream.runDrain)
+          const settled = SubscriptionRef.changes(feed).pipe(Stream.filter(() => childSettled(c)), Stream.take(1), Stream.runDrain)
           const doNotWait = Effect.logWarning(`sub-scope of ${e.pluginId} closed with child ${c.pluginId} (realm ${c.realm}) still registered: its removal is not awaited`)
           if (!parentBegun && !c.removing) {                       // the finalizer begins the removal, or takes over a stop begun outside the parent's
             if (heldInSet) { yield* doNotWait; yield* Effect.forkIn(remove, hostScope); return }
@@ -1578,6 +1578,11 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         }))
       return yield* Effect.failCause(r.cause)
     }
+    if (isChild && d.state === "failed" && d.cleanupFailed) {
+      // Met already failed (cleanup): no stop of its own. Shutdown leaves it registered; otherwise the system acknowledges it (BEH-BR-047, 121).
+      if (!closing && !closed) yield* acknowledgeLeak(d, { _tag: "CleanupError", message: d.failure?.message ?? "" }, yield* CurrentCause)
+      return
+    }
     if (isChild) { yield* unregister(d); opts.hooks?.stopped?.(d.id); return }
     if (!r.value) return
     yield* locked(Effect.gen(function* () {
@@ -1602,6 +1607,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (writer) yield* writer.enqueue({ actor: Actor.system, correlationId: causationId ?? (yield* ids.next), operation: "leak-acknowledged", phase: "system",
       target: { id: d.pluginId, realm: d.realm }, before, error, ...(causationId ? { causationId } : {}) } as Draft)
   }))
+  /** A removal has settled when the child is gone, or left `failed` (cleanup) by a shutdown that does not acknowledge it (BEH-BR-121). */
+  const childSettled = (c: Entry) => entries.get(c.id) !== c || (c.state === "failed" && !!c.cleanupFailed)
   /** Unregisters a removed child: its `system-stop` record is caused by the cascade root (BEH-BR-126, 190). */
   const unregister = (d: Entry, error?: { readonly _tag: string; readonly message: string }) => locked(Effect.gen(function* () {
     if (entries.get(d.id) !== d) return                       // removed directly meanwhile: nothing to do (BEH-BR-125)
