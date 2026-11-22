@@ -183,6 +183,8 @@ export interface RealmOptions {
 export interface Options {
   readonly base?: ReadonlyArray<readonly [Context.Key<any, any>, unknown]>
   readonly concurrency?: number
+  /** INV-BR-026: opt in to refusing construction when a port is not wired, so a Layer ordering mistake is not a silently unwired host (S69). */
+  readonly require?: { readonly gate?: boolean; readonly audit?: boolean }
   readonly buildTimeout?: number     // ms
   readonly staleFailureLimit?: number // consecutive discarded stale build failures that mark a build as flapping (default 3, BEH-BR-039)
   readonly drainTimeout?: number     // ms
@@ -436,6 +438,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   // GxP ports, resolved once at construction (BEH-BR-015).
   const sinkOpt = yield* Effect.serviceOption(AuditSink)
   const gateOpt = yield* Effect.serviceOption(OperationGate)
+  if ((options.require?.gate && Option.isNone(gateOpt)) || (options.require?.audit && Option.isNone(sinkOpt))) return yield* Effect.die(new Error(`PortRequired: ${options.require?.gate && Option.isNone(gateOpt) ? "OperationGate" : "AuditSink"} is not wired`))
   const idOpt = yield* Effect.serviceOption(IdGenerator)
   const ids = Option.getOrElse(idOpt, () => defaultIdGenerator)
   const fpOpt = yield* Effect.serviceOption(ConfigFingerprinter)
@@ -2263,7 +2266,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       // so an approval is never consumed without a record (BEH-BR-188, R1).
       internal.reached?.()                                    // counted in the reconcile parent's `children` (BEH-BR-201)
       const req = yield* Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
-        if (Option.isSome(gateOpt) && op !== "shutdown") {
+        if (Option.isSome(gateOpt) && (op !== "shutdown" || (!spec.system && onBehalfOf !== undefined))) {          // a plugin cannot shut the host down past the gate (S69); the scope close stays exempt
           const verdict = yield* restore(gateOpt.value.authorize({ operation: op, actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.definition ? { definition: spec.definition } : {}), ...(configChange ? { configChange } : {}), ...(internal.undo ? { undo: true as const } : {}),
             ...(onBehalfOf ? { onBehalfOf } : {}), annotations: Ann.filter(annotations, "gate"), ...policyOf(tkey, spec.options), ...reversibilityOf(op, tkey) }).pipe(
             Effect.timeoutOrElse({ duration: Option.isSome(deadline) ? Math.max(0, Math.min(gateTimeout, deadline.value.at - (yield* Clock.currentTimeMillis))) : gateTimeout, orElse: () => Effect.fail(new OperationRejected({ operation: op, reason: "gate-timeout" })) }),

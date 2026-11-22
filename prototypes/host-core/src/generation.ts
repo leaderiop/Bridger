@@ -35,6 +35,11 @@ export const make = <A>(initial: A, options: GenerationOptions = {}): Effect.Eff
   const name = options.name ?? "generation"
   const defaultTimeout = options.drainTimeout ?? 30_000
   const owner = yield* ActivePlugin                                        // read at make (BEH-BR-174)
+  /** ADR-BR-024: one coordinator owns the switch. A call made inside another plugin's activation dies; application code outside any activation is the coordinator's own (S69). */
+  const owned = Effect.gen(function* () {
+    const a = yield* ActivePlugin
+    if (Option.isSome(a) && (Option.isNone(owner) || a.value.pluginId !== owner.value.pluginId || a.value.realm !== owner.value.realm)) return yield* Effect.die(new Error(`GenerationNotOwner: ${name}`))
+  })
   const slot = (value: A, revision: number): Effect.Effect<Slot<A>> =>
     Effect.map(Deferred.make<void>(), (drained) => ({ value, revision, holders: new Set(), drained, retired: false }))
   let current = yield* slot(initial, 0)
@@ -97,6 +102,7 @@ export const make = <A>(initial: A, options: GenerationOptions = {}): Effect.Eff
     }),
     // Linearized: one synchronous step replaces the value; publish never changes admission (BEH-BR-170).
     publish: (next) => Effect.gen(function* () {
+      yield* owned
       const fresh = yield* slot(next, current.revision + 1)
       const old = current
       current = fresh
@@ -106,8 +112,8 @@ export const make = <A>(initial: A, options: GenerationOptions = {}): Effect.Eff
       else retired.add(old)
       return r
     }),
-    closeAdmission: Effect.sync(() => { open = false }),
-    reopenAdmission: Effect.sync(() => { open = true }),
+    closeAdmission: Effect.andThen(owned, Effect.sync(() => { open = false })),
+    reopenAdmission: Effect.andThen(owned, Effect.sync(() => { open = true })),
     awaitDrained: (o) => Effect.suspend(() => drain(current, o)),
     use: (run) => Effect.gen(function* () {
       const gate = yield* Deferred.make<A>()

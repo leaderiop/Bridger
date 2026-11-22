@@ -272,3 +272,21 @@ describe("P7 core 28: allowChildren, AccessPolicy, RefusalList on mounts (checks
 })
 void Fiber; void alice; void memorySink
 export type { Consumer }
+
+describe("S69 shutdown past the gate and required ports", () => {
+  it("a plugin acting as itself cannot shut the host down when the gate refuses; the application's own shutdown is not gated", async () => {
+    const box: { rt?: PluginRuntime["Service"] } = {}
+    const asked: string[] = []
+    const gate = { authorize: (r: OperationRequest) => { asked.push(r.operation); return r.operation === "shutdown" ? Effect.fail({ _tag: "OperationRejected", operation: "shutdown", reason: "no" } as never) : Effect.void } } as never
+    await onHost((host) => Effect.gen(function* () {
+      yield* host.install(storePlugin(box), as()); yield* idle(host)
+      const exit = yield* Effect.exit(box.rt!.asSelf(host.shutdown()))
+      expect(Exit.isFailure(exit)).toBe(true); expect(asked).toContain("shutdown")
+    }), { gate })
+  })
+  it("with require.gate a host built without the gate does not start (S69)", async () => {
+    await expect(onHost(() => Effect.void, { options: { require: { gate: true } } })).rejects.toThrow(/PortRequired/)
+    await expect(onHost(() => Effect.void, { options: { require: { audit: true } } })).rejects.toThrow(/PortRequired/)
+  })
+})
+

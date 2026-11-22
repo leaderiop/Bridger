@@ -1,5 +1,6 @@
 // Phase-P5 scenarios for Generation (behaviour 20, BEH-BR-169–176).
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Scope, Stream } from "effect"
+import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from "effect"
+import { ActivePlugin } from "../src/active.js"
 import { describe, expect, it } from "vitest"
 import * as Generation from "../src/generation.js"
 import { PluginRuntime } from "../src/runtime.js"
@@ -22,6 +23,15 @@ const holdAcquired = <A>(g: Generation.Generation<A>) => Effect.gen(function* ()
 })
 
 describe("Generation (behaviour 20)", () => {
+  it("S69: a call inside another plugin's activation cannot publish or close admission; the owner's and application code's can", () => scoped(Effect.gen(function* () {
+    const ref = (pluginId: string) => Option.some({ pluginId, realm: "default", report: () => Effect.void, revoked: () => {} } as never)
+    const g = yield* Generation.make("a", { name: "model" }).pipe(Effect.provideService(ActivePlugin, ref("owner")))
+    const other = (e: Effect.Effect<unknown, unknown>) => Effect.exit(e.pipe(Effect.provideService(ActivePlugin, ref("intruder"))))
+    for (const e of [g.publish("b"), g.closeAdmission, g.reopenAdmission]) expect((yield* other(e))._tag).toBe("Failure")
+    expect((yield* g.current).revision).toBe(0)
+    yield* g.publish("c").pipe(Effect.provideService(ActivePlugin, ref("owner"))); yield* g.publish("d")
+    expect((yield* g.current).revision).toBe(2)
+  })))
   it("BEH-BR-170: publish replaces the value in one step; earlier leases keep the old value; revisions count publishes", () => scoped(Effect.gen(function* () {
     const g = yield* Generation.make({ validators: "v1", storage: "s1" }, { name: "model" })
     expect(yield* g.current).toEqual({ revision: 0, open: true })
