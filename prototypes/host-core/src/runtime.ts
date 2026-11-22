@@ -12,6 +12,12 @@ export class PluginRuntime extends Context.Service<PluginRuntime, {
     effect: Effect.Effect<A, E, R>,
     options?: { readonly onFailure?: FailurePolicy; readonly restart?: Schedule.Schedule<unknown, unknown> }
   ) => Effect.Effect<void, never, R | Scope.Scope>
+  /**
+   * `Effect.acquireRelease` that names the resource (report 03 R3, BEH-BR-119): listed in `inspect` while held or when its release failed,
+   * the failure names the label, and `irreversible` marks an effect the application cannot take back (R4). Optional: a plugin that
+   * acquires through Layers or plain `acquireRelease` is simply not listed.
+   */
+  readonly acquire: <A, E, R>(label: string, acquire: Effect.Effect<A, E, R>, release: (a: A) => Effect.Effect<unknown, unknown>, options?: { readonly irreversible?: boolean }) => Effect.Effect<A, E, R | Scope.Scope>
   /** An unrecoverable condition detected by the plugin itself (BEH-BR-091). */
   readonly reportFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>
   /** Mounts a child for the lifetime of this activation (BEH-BR-121). */

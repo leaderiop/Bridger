@@ -114,6 +114,8 @@ export interface PluginInspection {
   readonly optional: ReadonlyArray<string>
   readonly whenAvailable: ReadonlyArray<{ readonly name: string; readonly keys: ReadonlyArray<string>; readonly running: boolean }>
   readonly contributions: ReadonlyArray<{ readonly registry: string; readonly id: string }>
+  /** Report 03 R3, R4: resources acquired through `Runtime.acquire` that are held, or whose release failed or was not confirmed. Partial by design. */
+  readonly resources: ReadonlyArray<{ readonly label: string; readonly irreversible?: true; readonly state: "held" | "release-failed" }>
   readonly requires: ReadonlyArray<string>
   readonly provides: ReadonlyArray<string>
   readonly background: ReadonlyArray<{ readonly name: string; readonly policy: FailurePolicy; readonly restarts: number; readonly running: boolean }>
@@ -266,6 +268,10 @@ interface Entry {
   reactive: Set<Fiber.Fiber<unknown, unknown>> // whenAvailable runs holding a lease on this plugin (BEH-BR-133)
   whenAvailable?: Array<{ name: string; keys: ReadonlyArray<string>; running: boolean }>
   contributions: Array<{ registry: string; id: string }>   // reported through ActivePlugin (BEH-BR-168)
+  /** Resources acquired through `Runtime.acquire`: those not confirmed released stay listed (report 03 R3, R4). */
+  resources: Array<{ label: string; irreversible: boolean; state: "held" | "release-failed" }>
+  /** The releases that failed, kept so `retryCleanup` can run them again (report 03 R8). */
+  releasers: Map<string, () => Effect.Effect<unknown, unknown>>
   def: AnyPlugin
   state: PluginState
   cleanupFailed: boolean
@@ -317,9 +323,12 @@ const msg = (u: unknown): string => {
   return (m || (typeof tag === "string" ? tag : "")).split("\n")[0]!.slice(0, 200)
 }
 
+/** A release that failed, carrying the resource's label so the cause names it (report 03 R2, R3). */
+class LabelledRelease { constructor(readonly label: string, readonly cause: Cause.Cause<unknown>) {} }
 /** Every failure and defect of a closed scope's cause, in the order Effect ran the finalizers (last acquired first). */
 const causesOf = (cause: Cause.Cause<unknown>): ReadonlyArray<CleanupCause> => {
-  const out = cause.reasons.flatMap((r) => r._tag === "Fail" ? [{ message: msg(r.error) }] : r._tag === "Die" ? [{ message: msg(r.defect) }] : [])
+  const out = cause.reasons.flatMap((r): ReadonlyArray<CleanupCause> => r._tag === "Fail" ? [{ message: msg(r.error) }]
+    : r._tag === "Die" ? [r.defect instanceof LabelledRelease ? { message: msg(Cause.squash(r.defect.cause)), label: r.defect.label } : { message: msg(r.defect) }] : [])
   return out.length > 0 ? out : [{ message: msg(Cause.squash(cause)) }]
 }
 
@@ -1282,6 +1291,17 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       yield* Effect.forkIn(supervised, scope)
     }),
     reportFailure: (cause) => failRuntime(e, epoch, msg(Cause.squash(cause))),
+    // Report 03 R3: a thin wrapper over acquireRelease that names the resource; optional, so absence from the list is not "nothing held".
+    acquire: (label, acquire, release, o) => Effect.acquireRelease(
+      Effect.tap(acquire, () => Effect.sync(() => { e.resources.push({ label, irreversible: o?.irreversible === true, state: "held" }) })),
+      (a) => Effect.suspend(() => release(a)).pipe(Effect.matchCauseEffect({
+        onSuccess: () => Effect.sync(() => { const i = e.resources.findIndex((r) => r.label === label); if (i >= 0) e.resources.splice(i, 1); e.releasers.delete(label) }),
+        onFailure: (cause) => Effect.sync(() => {
+          const r = e.resources.find((x) => x.label === label); if (r) r.state = "release-failed"
+          e.releasers.set(label, () => release(a))
+        }).pipe(Effect.andThen(Effect.die(new LabelledRelease(label, cause))))
+      }))
+    ),
 
     // ---- children (BEH-BR-121–126)
     install: (child, o = {}) => Effect.gen(function* () {
@@ -1627,11 +1647,12 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (entries.get(d.id) !== d) return
     const before = { state: "failed", revision, ...defRef(d.def) }
     entries.delete(d.id); flights.delete(d.id)
+    const unreleased = d.resources.map((r) => ({ label: r.label, ...(r.irreversible ? { irreversible: true as const } : {}), state: r.state }))
     yield* Effect.logWarning(`leak recorded for ${d.pluginId} (realm ${d.realm}) acknowledged by the system: ${error.message}`)
     yield* emit({ type: "plugin-removed" }, d.id)
     yield* commit
     if (writer) yield* writer.enqueue({ actor: Actor.system, correlationId: causationId ?? (yield* ids.next), operation: "leak-acknowledged", phase: "system",
-      target: { id: d.pluginId, realm: d.realm }, before, error, ...(causationId ? { causationId } : {}) } as Draft)
+      target: { id: d.pluginId, realm: d.realm }, before, error: { ...error, ...(unreleased.length ? { resources: unreleased } : {}) }, ...(causationId ? { causationId } : {}) } as Draft)
   }))
   /** A removal has settled when the child is gone, or left `failed` (cleanup) by a shutdown that does not acknowledge it (BEH-BR-121). */
   const childSettled = (c: Entry) => entries.get(c.id) !== c || (c.state === "failed" && !!c.cleanupFailed)
@@ -2199,7 +2220,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }
   const newEntry = (def: AnyPlugin, ident: Ident, o: { readonly disabled?: boolean; readonly config?: unknown; readonly intercept?: Entry["intercept"]; readonly owner?: string; readonly mandatoryChain?: ReadonlyArray<MandatoryInterception>; readonly allowChildren?: boolean }): Entry => ({
     id: ident.key, pluginId: ident.id, realm: ident.realm, ...(ident.parentKey !== undefined ? { parentKey: ident.parentKey } : {}),
-    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], ...(o.owner !== undefined ? { owner: o.owner } : {}),
+    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], resources: [], releasers: new Map(), ...(o.owner !== undefined ? { owner: o.owner } : {}),
     def, state: o.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), capturedActs: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++,
     stepRunning: false, parkedSystem: false, buildSeq: 0, ...(o.config !== undefined ? { override: { raw: o.config } } : {}),
     mandatoryChain: o.mandatoryChain ?? [], allowChildren: o.allowChildren ?? true, captures: []
@@ -3035,7 +3056,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     return {
       id: e.pluginId, realm: e.realm, state: e.state, requires: e.def.requires.map(sid), provides: e.def.provides.map(sid),
       optional: (e.def.optional ?? []).map(sid), whenAvailable: (e.whenAvailable ?? []).map((w) => ({ ...w })),   // BEH-BR-135
-      contributions: e.contributions.map((c) => ({ ...c })),                                                       // BEH-BR-168
+      contributions: e.contributions.map((c) => ({ ...c })),
+      resources: e.resources.map((r) => ({ label: r.label, ...(r.irreversible ? { irreversible: true as const } : {}), state: r.state })),                                                       // BEH-BR-168
       background: (e.background ?? []).map((b) => ({ ...b })), leases: e.leases,
       interceptions: interceptionsOf(e),
       ...(e.lastBuildMs !== undefined ? { lastBuildMs: e.lastBuildMs } : {}),

@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.14 (2026-11-22): BEH-BR-118 `PluginInspection.interceptions`, the interceptions a capture passes through in composition order, ids only (report 02 R4, D-09)<br>0.17 (2026-11-22): `build-flapping` event (improvement report 01, R1)<br>0.16 (2026-11-22): `causeSeq` of a dependency-loss stop names the causing provider's own `stopping` event (report 01, R7)<br>0.15 (2026-11-21): `stop-aborted` event (improvement report 01, R5)<br>0.14 (2026-11-21): `HostEventCommon.revision`, `activation`, `causeSeq`; `state-changed.trigger` (improvement report 01, R7)<br>0.13 (2026-11-11): BEH-BR-118 `PluginInspection.pending.cold`, the `cold` of the operation in flight (CL1); `stop-resumed` `by` "sub-scope" or "unmount" only before the parent's stop has begun (C1) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.12 (2026-11-11): BEH-BR-114 `child-refused.childId` is a `{ id, realm }` record (C5); `stop-parked` names `pluginId` and `realm`, and its `target` differs from that plugin, not from a string (CL5); BEH-BR-118 `PluginInspection.children` lists `{ id, realm }` records (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.11 (2026-11-11): BEH-BR-114 `stop-resumed` `by` "sub-scope" or "unmount" only for a child stop parked outside its parent's stop (H1); BEH-BR-119 each registration is reported once, an event listener as `listener` only (CL9) (SPEC-AUDIT-05); `audit-degraded` lists the lost reconcile parent record, and none is emitted after the final snapshot (CL11, C3) (SPEC-AUDIT-05); `drain-timeout` and `stop-parked` name `target` by `{ id, realm }`, as `DrainTimeout.target` does (residual of C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.10 (2026-11-10): BEH-BR-119 `ActivePlugin` is typed `Option<ActivePlugin>` with `pluginId`, `realm` and a scoped `report` operation, the only way a registry built before the host reaches it; `report` publishes no event and does nothing after the activation ends (C12) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-114 `stop-resumed.by` gains "sub-scope" and "unmount" for a child stop resumed by its sub-scope close or `Plugin.Runtime.unmount` (C13) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-114 `Generation` joins the helpers that publish on their own streams, never on `Host.events` (C7) (CCR-BR-034)<br>0.7 (2026-11-08): `plugin-idled` and `held-event-dropped` events (27, BEH-BR-251, BEH-BR-252) (CCR-BR-024); `reconcile-partial` event (32, BEH-BR-324) (CCR-BR-025)<br>0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.15 (2026-11-22): BEH-BR-119 `report` kind `resource`, `Plugin.Runtime.acquire`, `PluginInspection.resources`, `error.resources` of the leak record (improvement report 03, R3, R4)<br>0.14 (2026-11-22): BEH-BR-118 `PluginInspection.interceptions`, the interceptions a capture passes through in composition order, ids only (report 02 R4, D-09)<br>0.17 (2026-11-22): `build-flapping` event (improvement report 01, R1)<br>0.16 (2026-11-22): `causeSeq` of a dependency-loss stop names the causing provider's own `stopping` event (report 01, R7)<br>0.15 (2026-11-21): `stop-aborted` event (improvement report 01, R5)<br>0.14 (2026-11-21): `HostEventCommon.revision`, `activation`, `causeSeq`; `state-changed.trigger` (improvement report 01, R7)<br>0.13 (2026-11-11): BEH-BR-118 `PluginInspection.pending.cold`, the `cold` of the operation in flight (CL1); `stop-resumed` `by` "sub-scope" or "unmount" only before the parent's stop has begun (C1) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.12 (2026-11-11): BEH-BR-114 `child-refused.childId` is a `{ id, realm }` record (C5); `stop-parked` names `pluginId` and `realm`, and its `target` differs from that plugin, not from a string (CL5); BEH-BR-118 `PluginInspection.children` lists `{ id, realm }` records (C5) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.11 (2026-11-11): BEH-BR-114 `stop-resumed` `by` "sub-scope" or "unmount" only for a child stop parked outside its parent's stop (H1); BEH-BR-119 each registration is reported once, an event listener as `listener` only (CL9) (SPEC-AUDIT-05); `audit-degraded` lists the lost reconcile parent record, and none is emitted after the final snapshot (CL11, C3) (SPEC-AUDIT-05); `drain-timeout` and `stop-parked` name `target` by `{ id, realm }`, as `DrainTimeout.target` does (residual of C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.10 (2026-11-10): BEH-BR-119 `ActivePlugin` is typed `Option<ActivePlugin>` with `pluginId`, `realm` and a scoped `report` operation, the only way a registry built before the host reaches it; `report` publishes no event and does nothing after the activation ends (C12) (CCR-BR-036)<br>0.9 (2026-11-10): BEH-BR-114 `stop-resumed.by` gains "sub-scope" and "unmount" for a child stop resumed by its sub-scope close or `Plugin.Runtime.unmount` (C13) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-114 `Generation` joins the helpers that publish on their own streams, never on `Host.events` (C7) (CCR-BR-034)<br>0.7 (2026-11-08): `plugin-idled` and `held-event-dropped` events (27, BEH-BR-251, BEH-BR-252) (CCR-BR-024); `reconcile-partial` event (32, BEH-BR-324) (CCR-BR-025)<br>0.6 (2026-11-08): `hook-breaker` and `family-eviction` leave `HostEvent`; helpers outside the `Host` publish on their own streams (CCR-BR-022)<br>0.5 (2026-11-08): `plugin-triggered` event, `contracts` and `manifest` in `PluginInspection` (CCR-BR-017); `child-refused` and `resolution-refused` events, BEH-BR-119 `ActivePlugin` is not the principal (CCR-BR-018); `hook-breaker`, `family-eviction`, `handoff-imported` and `handoff-lost` events (CCR-BR-019)<br>0.4 (2026-10-02): `parked`/`pending` (with `requestedRecordId?`) in inspection; `stop-parked` (one per parked stop, `target` from the one failing call), `stop-resumed`; `drain-timeout` `pluginId`/`target`; ended intents shown by the `intent-ended` record (CCR-BR-008)<br>0.3 (2026-10-02): Sliding PubSub lag confirmed per subscriber (CCR-BR-003)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -365,6 +365,7 @@ interface PluginInspection {
   readonly leases: number
   readonly interceptions: readonly { readonly key: ServiceId; readonly source: "realm" | "install" | "inherited" | "mandatory"; readonly id?: string }[]   // 17, BEH-BR-151, 28, BEH-BR-261
   readonly contributions: readonly { readonly registry: string; readonly id: string }[]
+  readonly resources: readonly { readonly label: string; readonly irreversible?: true; readonly state: "held" | "release-failed" }[]   // BEH-BR-119; partial by design
   readonly lastBuildMs?: number
   readonly parked: boolean                                                            // the plugin's stop is parked (BEH-BR-074)
   readonly pending?: {                                                               // the operator operation in flight, if any
@@ -450,6 +451,7 @@ interface ActivePlugin {
   readonly report: (registration:
     | { readonly kind: "contribution"; readonly registry: string; readonly id: string }
     | { readonly kind: "listener"; readonly event: string; readonly priority: number }
+    | { readonly kind: "resource"; readonly label: string; readonly irreversible?: boolean }
   ) => Effect.Effect<void, never, Scope.Scope>
 }
 ```
@@ -482,6 +484,32 @@ REQUIREMENT: Each registration MUST be reported once. An event listener
              `inspect` lists it under `listeners` and not also under
              `contributions` (CCR-BR-037).
 ```
+
+```
+REQUIREMENT: `Plugin.Runtime.acquire(label, acquire, release, { irreversible? })`
+             MUST behave as `Effect.acquireRelease` in the activation scope
+             and, in addition, report the resource as
+             `{ kind: "resource", label, irreversible }`. `inspect` MUST list
+             under `resources` each resource acquired this way that is held,
+             and each whose release failed or has not been confirmed
+             (`state` "release-failed" for the first of these, "held"
+             otherwise) after the scope has closed. A released resource MUST
+             NOT be listed. A release that fails MUST make its cause carry
+             `label` (06 — Removal, BEH-BR-046). A report names the resource
+             and never carries its value (19, BEH-BR-168).
+```
+
+```
+REQUIREMENT: The `leak-acknowledged` record of a plugin that still has
+             resources listed MUST carry them in `error.resources`, each with
+             its `label`, `irreversible` flag and `state` (23 — Audit Sink and
+             Record, BEH-BR-199), so that the operator can tell a closed
+             handle that leaked from an effect that cannot be taken back.
+```
+
+`acquire` is optional. A plugin that acquires through a `Layer` or a plain
+`acquireRelease` is not listed, so an empty `resources` never means that
+nothing is held; it means that nothing acquired through `acquire` is.
 
 The reference is ambient so that a registry, which is a base service with no
 knowledge of plugins

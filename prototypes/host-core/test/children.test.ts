@@ -305,6 +305,28 @@ describe("groups (BEH-BR-127, 128)", () => {
     }), { sink })
   })
 
+  it("report 03 R3, R4 (BEH-BR-119): Runtime.acquire lists a resource while held, names a failed release in causes, and carries irreversible into the leak record", async () => {
+    const { records, sink } = memorySink()
+    const kid = define({ id: "kid", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () {
+        const rt = yield* PluginRuntime
+        yield* rt.acquire("pool", Effect.succeed(1), () => Effect.void)
+        yield* rt.acquire("payment", Effect.succeed(2), () => Effect.die(new Error("refund failed")), { irreversible: true })
+      })) as never }) as unknown as AnyPlugin
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { yield* (yield* PluginRuntime).install(kid) })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(parent, as()); yield* idle(host)
+      const held = yield* host.inspect("app/kid")
+      expect(held.resources).toEqual([{ label: "pool", state: "held" }, { label: "payment", irreversible: true, state: "held" }])
+      yield* drive(host, host.remove("app", as())); yield* idle(host); yield* settleWriter
+      const stop = records.find((r) => r.operation === "system-stop" && r.target?.id === "app/kid" && r.error?._tag === "CleanupError")
+      expect((stop!.error as { causes?: unknown }).causes).toEqual([{ message: "refund failed", label: "payment" }])
+      const ack = records.find((r) => r.operation === "leak-acknowledged")
+      expect((ack!.error as { resources?: unknown }).resources).toEqual([{ label: "payment", irreversible: true, state: "release-failed" }])   // the pool was released and is not listed
+    }), { sink })
+  })
+
   it("BEH-BR-126: unmount fails UnknownPlugin for a non-child and for a repeat, CleanupError with a leak-acknowledged record, and HostClosed once the host has closed", async () => {
     const { records, sink } = memorySink()
     let rt: PluginRuntime["Service"] | undefined

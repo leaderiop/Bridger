@@ -115,5 +115,5 @@ companion phases (B4).
 
 - A sandbox for untrusted plugin code in the core — nor in `@bridger/remote`, which moves code out of process but provides no isolation of its own ([ADR-RM-006](../remote/decisions/006-isolation-comes-from-the-host.md)); untrusted code runs out of process behind a proxy plugin, isolated, if at all, by the host mechanism and the consumer's deployment.
 - Automatic retry of failed plugins.
-- Compensation of external effects on removal.
+- Compensation of external effects on removal. Core marks an effect `irreversible` and never claims to undo it (BEH-BR-119, BEH-BR-161); a `Plugin.compensate` hook is added only when a second consumer needs one.
 - Any claim of validation, qualification or regulatory compliance for the library itself.
