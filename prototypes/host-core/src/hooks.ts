@@ -6,7 +6,10 @@
 //  - The deadline annotation of core 30 is not read; the effective deadline is min(point, call option).
 import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Stream } from "effect"
 import { ActivePlugin } from "./active.js"
+import { CurrentAnnotations, empty as emptyAnnotations } from "./annotations.js"
 import { closedContext } from "./closed.js"
+import { Actor, CurrentActor } from "./gxp.js"
+import { CurrentPlugin, PrincipalReference, type PluginPrincipal } from "./policy.js"
 import { HostLink, type DeclaredContribution } from "./host.js"
 import * as Registry from "./registry.js"
 
@@ -86,6 +89,8 @@ export class HookRegistrationRefused extends Schema.TaggedError<HookRegistration
 interface Contribution<In, En, Ad, Code extends string, Target, Sel> {
   readonly id: string; readonly hook: Hook<In, En, Ad, Code, Target>; readonly role: HookRole; readonly owner?: HookOwner
   readonly labels: Labels; readonly onError: "deny" | "skip"; readonly selector?: Sel; readonly token: object
+  /** The registering plugin's principal: its hook runs as it, never as the dispatcher (S72). */
+  readonly principal?: PluginPrincipal
 }
 interface Breaker { state: "closed" | "open" | "half-open"; errors: Array<number>; openedAt: number; probing: boolean; readonly members: Set<object> }
 
@@ -178,6 +183,7 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
         if (Option.isNone(decoded)) return yield* Effect.fail(refused)
         selector = decoded.value
       }
+      const principalOpt = yield* CurrentPlugin.get
       const active = yield* ActivePlugin
       const owner: HookOwner | undefined = Option.isSome(active) ? { pluginId: active.value.pluginId, realm: active.value.realm } : undefined
       const onError = ro.role === "veto" ? ro.onError ?? defaultOnError : "skip"
@@ -188,7 +194,7 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
         } catch { return { labels: {}, ok: false } }
       })()
       if (!admitted.ok) return yield* Effect.fail(refused)
-      const c: Contribution<In, En, Ad, Code, Target, Sel> = { id: cid, hook, role: ro.role, ...(owner ? { owner } : {}), labels: admitted.labels, onError, ...(selector !== undefined ? { selector } : {}), token: {} }
+      const c: Contribution<In, En, Ad, Code, Target, Sel> = { id: cid, hook, role: ro.role, ...(owner ? { owner } : {}), ...(Option.isSome(principalOpt) ? { principal: principalOpt.value } : {}), labels: admitted.labels, onError, ...(selector !== undefined ? { selector } : {}), token: {} }
       yield* registry.add(cid, c, { ...(ro.priority !== undefined ? { priority: ro.priority } : {}) })
       // The breaker is discarded with its contribution (plugin scope: with the owner's last contribution).
       yield* Effect.addFinalizer(() => Effect.sync(() => {
@@ -358,11 +364,11 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
         const ctx: HookContext<En, Target> = { hookPoint: id, dispatchId, phase, enrichments: phase === "enrich" ? [] : Object.freeze([...enrichments]), missing: phase === "enrich" ? [] : Object.freeze([...missing]), ...(o.targets ? { target: target as Target } : {}) }
         // The call runs in a fiber supervised by the hook point; the dispatcher never waits for its finalizers.
         const settled = yield* Deferred.make<Exit.Exit<HookResult<En, Ad, Code>, unknown>>()
-        const fiber = yield* Effect.forkIn(Effect.suspend(() => c.hook(input, ctx)).pipe(Effect.updateContext(closedContext), Effect.exit, Effect.flatMap((x) => Deferred.succeed(settled, x))), scope)
+        const fiber = yield* Effect.forkIn(Effect.suspend(() => c.hook(input, ctx)).pipe(Effect.provideService(CurrentActor, Actor.unattributed), Effect.provideService(PrincipalReference, c.principal ? Option.some(c.principal) : Option.none()), Effect.provideService(CurrentAnnotations, emptyAnnotations), Effect.updateContext(closedContext), Effect.exit, Effect.flatMap((x) => Deferred.succeed(settled, x))), scope)
         const timedOut = Symbol("t"), deadlined = Symbol("d")
         const waited = yield* Deferred.await(settled).pipe(
           Effect.timeoutOrElse({ duration: Math.min(o.timeout, left), orElse: () => Effect.succeed(o.timeout <= left ? timedOut : deadlined) }),
-          Effect.onInterrupt(() => Effect.forkIn(Fiber.interrupt(fiber), scope).pipe(Effect.andThen(settleCall(c, "interrupted")))))
+          Effect.onInterrupt(() => Effect.forkIn(Fiber.interrupt(fiber), scope).pipe(Effect.andThen(Effect.sync(() => { if (br.probe) breakerOf(c).probing = false })), Effect.andThen(settleCall(c, "interrupted")))))   // an interrupted half-open probe must not wedge the breaker (S72)
         let result: CallResult
         let settleOutcome: SettleOutcome
         if (waited === timedOut) { yield* Effect.forkIn(Fiber.interrupt(fiber), scope); result = { kind: "error", outcome: "timeout" }; settleOutcome = "timeout" }
@@ -379,7 +385,7 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
             const badVeto = r._tag === "Veto" && (!o.codes.includes(r.code) || Object.values(r.params ?? {}).some((v) => !(typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v)))))
             const badValue = (r._tag === "Enrich" && (!o.enrichment || !Schema.is(o.enrichment)(r.value))) || (r._tag === "Advise" && (!o.advice || !Schema.is(o.advice)(r.value)))
             if (wrongRole || badVeto || badValue) { result = { kind: "error", outcome: "failed", errorTag: "InvalidResult" }; settleOutcome = "failed" }
-            else { result = { kind: "ok", result: r }; settleOutcome = r._tag === "Veto" ? "vetoed" : r._tag === "Enrich" ? "enriched" : r._tag === "Advise" ? "advised" : "passed" }
+            else { const frozen: any = { ...r }; if ("value" in frozen) frozen.value = freezeDeep(structuredClone(frozen.value)); if ("params" in frozen && frozen.params) frozen.params = freezeDeep(structuredClone(frozen.params)); result = { kind: "ok", result: frozen }; settleOutcome = r._tag === "Veto" ? "vetoed" : r._tag === "Enrich" ? "enriched" : r._tag === "Advise" ? "advised" : "passed" }
           }
         }
         // The deadline is not an error of the contribution (BEH-BR-304).

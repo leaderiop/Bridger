@@ -201,7 +201,7 @@ export interface Options {
   readonly gateTimeout?: number      // ms (default 60 s)
   readonly fingerprintTimeout?: number   // ms (default 5 s; never "forever", CCR-BR-014)
   readonly auditCapacity?: number    // writer queue bound (default 1024)
-  readonly config?: (id: string) => Effect.Effect<unknown, unknown>   // the configuration source (BEH-BR-098)
+  readonly config?: (id: string, realm?: string) => Effect.Effect<unknown, unknown>   // the configuration source (BEH-BR-098)
   readonly shutdownTimeout?: number  // ms (default 60 s)
   readonly eventBuffer?: number      // default 1024
   readonly onClose?: (report: CloseReport) => Effect.Effect<void>
@@ -346,6 +346,10 @@ interface Entry {
 /** Marks the manifest-derived definition of a lazy registration (BEH-BR-242). */
 const LAZY = Symbol.for("bridger/prototype/lazy")
 const sid = (k: Context.Key<any, any>): string => (k as unknown as { key: string }).key
+/** A fiber may hold several leases on one entry; it stays a holder until its last lease ends, so a force revoke still interrupts it (S72). */
+const refs = new WeakMap<object, Map<unknown, number>>()
+export const holdRef = <T>(set: Set<T>, f: T) => { const m = refs.get(set) ?? new Map(); refs.set(set, m); m.set(f, (m.get(f) ?? 0) + 1); set.add(f) }
+export const unholdRef = <T>(set: Set<T>, f: T) => { const m = refs.get(set), n = (m?.get(f) ?? 1) - 1; if (n <= 0) { m?.delete(f); set.delete(f) } else m!.set(f, n) }
 const keyOf = (id: string, realm: string) => realm === "default" ? id : `${id}@${realm}`
 const refKey = (ref: PluginRef) => typeof ref === "string" ? ref : keyOf(ref.id, ref.realm)
 const msg = (u: unknown): string => {
@@ -674,7 +678,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }
   const deliver = (a: { consumer: Consumer; entry?: Entry; realm: string; key: Context.Key<any, any>; providerId: string; service: unknown; route: Route; hostRoute: boolean }): Effect.Effect<unknown, ResolutionRefused> => Effect.gen(function* () {
     const k = a.key, serviceId = sid(k)
-    const pe = a.providerId === "base" ? undefined : [...entries.values()].find((x) => x.pluginId === a.providerId && x.def.provides.some((p) => sid(p) === serviceId))
+    const pe = a.providerId === "base" ? undefined : ((x) => x && x.def.provides.some((p) => sid(p) === serviceId) ? x : undefined)(entries.get(a.providerId))   // providerId is the internal key (id@realm outside default), never a bare plugin id (S72)
     // BEH-BR-282: innermost, so the provider's own code runs with its principal named `via` (the caller's principal is unchanged, BEH-BR-258).
     let svc = pe ? viaProvider(a.service, { id: pe.pluginId, realm: pe.realm, ...defRef(pe.def) }) : a.service
     if (a.entry && !a.hostRoute) svc = wrapFor(a.entry, k, svc)
@@ -712,9 +716,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         const policy = sel === true ? logOpt.value.onFailure ?? "drop" : sel
         const target = svc as object, h = holder
         const record = (member: string, run: () => unknown): unknown => {
-          const once = Effect.gen(function* () {
+          const once = Effect.suspend(() => { const st = { reserved: false, queued: false }; return Effect.gen(function* () {   // an interrupted call gives its slot back unless it was queued (S72)
             // "refuse": the slot is reserved before the member runs, and only there is capacity judged (G-P18).
             const reserved = policy === "refuse" ? reserveSlot() : false
+            st.reserved = reserved
             if (policy === "refuse" && !reserved) { logState.refused++; return yield* Effect.die(new CallLogUnavailable({ serviceId, member, why: "queue-full" })) }
             const callId = yield* ids.next
             const consumer: CallEntry["consumer"] = a.consumer.kind === "plugin" ? { kind: "plugin", principal: a.consumer.principal } : { kind: "application", realm: a.consumer.realm }
@@ -732,15 +737,16 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
             // A denied call keeps its outcome; its entry follows "drop" (BEH-BR-279).
             if (reserved && outcome !== "denied") {
               const done = yield* Deferred.make<LogOutcome>()
+              st.queued = true
               yield* queueReserved(entry, done)
               const got = yield* Deferred.await(done)                // an interruption ends only this wait; the entry stays queued
               if (got !== "ok") { logState.refused++; return yield* Effect.die(new CallLogUnavailable({ serviceId, member, why: got })) }
               return yield* exit
             }
-            if (reserved) yield* queueReserved(entry)
+            if (reserved) { st.queued = true; yield* queueReserved(entry) }
             else if (!(yield* offerEntry(entry))) logState.dropped++
             return yield* exit
-          })
+          }).pipe(Effect.onInterrupt(() => Effect.sync(() => { if (st.reserved && !st.queued) logState.slots-- }))) })
           return once
         }
         svc = new Proxy(target, { get: (t, prop, r) => {
@@ -1174,7 +1180,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     // Configuration is read and decoded afresh before build (BEH-BR-097, 099); a failure publishes nothing.
     let cfg: unknown = undefined
     if (e.def.config) {
-      const raw = e.override ? Effect.succeed(e.override.raw) : options.config ? options.config(e.pluginId) : Effect.succeed(undefined)
+      const raw = e.override ? Effect.succeed(e.override.raw) : options.config ? options.config(e.pluginId, e.realm) : Effect.succeed(undefined)
       const decoded = yield* Effect.exit(raw.pipe(Effect.flatMap((r) => Schema.decodeUnknownEffect(e.def.config!)(r))))
       if (Exit.isFailure(decoded)) {
         // The message names the plugin only: decode issues can quote the offending value (BEH-BR-103).
@@ -1419,6 +1425,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         // allowChildren, the AccessPolicy and the RefusalList, before anything is registered (BEH-BR-263, 264, 267).
         const refuseChild = (reason: string) => emit({ type: "child-refused", childId: { id, realm }, reason } as never, e.id).pipe(Effect.andThen(Effect.fail(new ChildNotAllowed({ parentId: { id: e.pluginId, realm: e.realm }, childId: { id, realm }, reason }))))
         if (!e.allowChildren) return yield* refuseChild("allowChildren: false")
+        if (o.realm !== undefined && o.realm !== e.realm && !options.mountPolicy) return yield* refuseChild("realm")   // a child enters another realm only when a mount policy names it (S72)
         const parentManifest = declaredFor({ id: e.pluginId, realm: e.realm })                 // a parent with a manifest mounts only the children it names (S70)
         if (parentManifest && !(parentManifest.mounts ?? []).some((m) => `${e.pluginId}/${m}` === id || m === id)) return yield* refuseChild("undeclared child")
         if (Option.isSome(accessOpt) && e.principal) {
@@ -1586,12 +1593,12 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       yield* Effect.sleep(h.every)
       if (e.epoch !== epoch || e.state !== "active" || e.failing) return
       const self = yield* Effect.fiber
-      yield* locked(Effect.sync(() => { e.leases++; e.holders.add(self as Fiber.Fiber<unknown, unknown>) }))
+      yield* locked(Effect.sync(() => { e.leases++; holdRef(e.holders, self as Fiber.Fiber<unknown, unknown>) }))
       const r = yield* Effect.exit(h.check.pipe(
         Effect.provideContext(ctx),
         Effect.timeoutOrElse({ duration: h.timeout, orElse: () => Effect.fail("health check timed out") }),
         Effect.ensuring(locked(Effect.gen(function* () {
-          e.leases--; e.holders.delete(self as Fiber.Fiber<unknown, unknown>)
+          e.leases--; unholdRef(e.holders, self as Fiber.Fiber<unknown, unknown>)
           if (e.leases === 0 && e.drained) yield* Deferred.succeed(e.drained, undefined)
         })))))
       if (Exit.isFailure(r) && Cause.hasInterruptsOnly(r.cause)) return
@@ -2706,7 +2713,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         if (!p || closed) return yield* Effect.fail(new ServiceUnavailable({ serviceId: sid(k) }))   // all or nothing
         found.push({ ...p, key: k })
       }
-      for (const f of found) { const e = entries.get(f.id); if (e) { e.leases++; e.holders.add(holder); if (reactive) e.reactive.add(holder) } }
+      for (const f of found) { const e = entries.get(f.id); if (e) { e.leases++; holdRef(e.holders, holder); if (reactive) holdRef(e.reactive, holder) } }
       return found
     }))
     let ended = false
@@ -2714,7 +2721,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       ended = true
       for (const f of claimed) {
         const e = entries.get(f.id); if (!e) continue
-        e.leases--; e.holders.delete(holder); e.reactive.delete(holder)
+        e.leases--; unholdRef(e.holders, holder); if (e.reactive.has(holder)) unholdRef(e.reactive, holder)
         if (e.leases === 0 && e.drained) yield* Deferred.succeed(e.drained, undefined)
       }
     })))
