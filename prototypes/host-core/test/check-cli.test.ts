@@ -52,6 +52,13 @@ describe("bridger check: duplicate copies (BEH-KT-028)", () => {
     symlinkSync(effect, join(root, "node_modules", "other", "node_modules", "effect"))
     expect(await findDuplicateCopies(root)).toEqual([])
   })
+  it("terminates on a symlink cycle between packages", async () => {
+    const root = mkdtempSync(join(tmpdir(), "bridger-dup-"))
+    pkgAt(root, "node_modules", "effect", "4.0.0")
+    const a = join(root, "node_modules", "a"); mkdirSync(join(a, "node_modules"), { recursive: true }); writeFileSync(join(a, "package.json"), "{}")
+    symlinkSync(a, join(a, "node_modules", "a"))                                  // a/node_modules/a -> a
+    expect(await findDuplicateCopies(root)).toEqual([])
+  }, 3000)
   it("fails DuplicateDependencyCopy with both paths and versions when a nested package carries its own copy", async () => {
     const root = mkdtempSync(join(tmpdir(), "bridger-dup-"))
     pkgAt(root, "node_modules", "effect", "4.0.0")
