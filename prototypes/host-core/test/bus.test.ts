@@ -116,6 +116,16 @@ describe("event bus (behaviour 16)", () => {
     }))
   })
 
+  it("S74: the waterfall final step runs in the dispatcher's context, not the last listener's (unattributed actor)", async () => {
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(listenerPlugin("l", (bus) => bus.around(Price, (_a, next) => next, { role: "observe" })), as())
+      yield* idle(host)
+      const bus = yield* busOf(host)
+      const seen = yield* bus.waterfall(Price, ["book"], Effect.gen(function* () { return (yield* CurrentActor) === alice ? 1 : 0 })).pipe(Effect.provideService(CurrentActor, alice))
+      expect(seen).toBe(1)
+    }))
+  })
+
   it("BEH-BR-144: listeners keep the dispatcher's HeldPlugins but run with CurrentActor reset to unattributed", async () => {
     await run((host) => Effect.gen(function* () {
       const seen: Array<{ actor: string; held: Array<string> }> = []
