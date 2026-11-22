@@ -13,7 +13,7 @@ import { errorOf, failedWith, onHost } from "./p7fixtures.js"
 class Board extends Context.Service<Board, { readonly post: (s: string) => Effect.Effect<string>; readonly size: () => Effect.Effect<number> }>()("example/Board@1") {}
 type Shape = Board["Service"]
 const spec = (s: Schema.Top) => Contract.method({ payload: s, success: Schema.String })
-const BoardV1 = Contract.make(Board, { version: "1.0.0", methods: { post: spec(Schema.String), size: spec(Schema.Void) } })
+const BoardV1 = Contract.makeUnchecked(Board, { version: "1.0.0", methods: { post: spec(Schema.String), size: spec(Schema.Void) } })
 const impl = (tag: string, gate?: Deferred.Deferred<void>): Shape => ({ post: (s) => (gate ? Deferred.await(gate) : Effect.void).pipe(Effect.as(`${tag}:${s}`)), size: () => Effect.succeed(tag.length) })
 const boardPlugin = (facade: Shape) => define({ id: "board", requires: [] as const, provides: [Board] as const, build: Layer.succeed(Board, facade) }) as unknown as AnyPlugin
 const consumer = (seen: Array<string>) => define({ id: "reader", requires: [Board] as const, provides: [] as const,

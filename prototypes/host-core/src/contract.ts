@@ -9,10 +9,10 @@ import { Duration, Option, Schema, type Context } from "effect"
 
 export const CONTRACT = Symbol.for("@bridger/core/Contract")
 
-export interface MethodSpec {
-  readonly payload?: unknown
-  readonly success?: unknown
-  readonly error?: unknown
+export interface MethodSpec<P = unknown, S = unknown, E = unknown> {
+  readonly payload?: P
+  readonly success?: S
+  readonly error?: E
   readonly stream?: boolean
   readonly timeout?: Duration.Input
   /** Overrides the computed schema digest, for a codec that has no canonical JSON Schema (BEH-BR-228 clause 3b). */
@@ -123,7 +123,19 @@ const extend = (proto: object, props: Record<PropertyKey, unknown>): Record<Prop
 const sidOf = (k: Context.Key<any, any>) => (k as unknown as { key: string }).key
 const codeUnit = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0
 
-export const method = (spec: MethodSpec): MethodSpec => spec
+export const method = <const M extends MethodSpec>(spec: M): M => spec
+
+type TypeOf<S> = S extends { readonly Type: infer T } ? T : never
+type Arg<F> = F extends (...a: infer A) => any ? (A extends readonly [] ? void : A[0]) : never
+type Ok<F> = F extends (...a: any) => infer R ? (R extends import("effect").Effect.Effect<infer A, any, any> ? A : R extends import("effect").Stream.Stream<infer A, any, any> ? A : never) : never
+type Err<F> = F extends (...a: any) => import("effect").Effect.Effect<any, infer X, any> ? X : never
+/** A spec fits a method of the shape when its schemas decode to what the method takes, gives and fails with (report 05 R7, DX-09). */
+type Fits<F, M> =
+  & (M extends { readonly payload: infer P } ? [unknown] extends [TypeOf<P>] ? unknown : [TypeOf<P>] extends [Arg<F>] ? unknown : { readonly "~payload": "does not match the method's argument" } : unknown)
+  & (M extends { readonly success: infer S } ? [unknown] extends [TypeOf<S>] ? unknown : [TypeOf<S>] extends [Ok<F>] ? unknown : { readonly "~success": "does not match the method's result" } : unknown)
+  & (M extends { readonly error: infer X } ? [unknown] extends [TypeOf<X>] ? unknown : [TypeOf<X>] extends [Err<F>] ? unknown : { readonly "~error": "does not match the method's failure" } : unknown)
+/** Method names are the function-valued keys of the shape; each spec is checked against its method. */
+export type MethodsOf<Shape, Ms> = { readonly [K in keyof Ms]: K extends keyof Shape ? Ms[K] & Fits<Shape[K], Ms[K]> : { readonly "~method": `no method ${K & string} in the service` } }
 
 /** Sorted-key JSON, so that equal schemas hash equally whatever their construction order. */
 const canonical = (v: unknown): string => JSON.stringify(v, (_, x) => x && typeof x === "object" && !Array.isArray(x)
@@ -141,7 +153,7 @@ export const digestOf = (spec: MethodSpec): string | undefined => {
   } catch { return undefined }
 }
 
-export const make = <Self, Shape>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Record<string, MethodSpec> }): Contract<Self, Shape> => {
+export const make = <Self, Shape, const Ms extends Record<string, MethodSpec>>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Ms & MethodsOf<Shape, Ms> }): Contract<Self, Shape> => {
   const serviceId = sidOf(key)
   const at = serviceId.lastIndexOf("@")
   const name = at >= 0 ? serviceId.slice(0, at) : serviceId
@@ -247,4 +259,7 @@ export const incompatibility = (
   return undefined
 }
 
-export const Contract = { make, method, at, satisfies, maxSatisfying, parseOptions }
+/** The same contract without the per-method fit check: for tools and tests that build a contract from data or deliberately drift it from its service (report 05 R7). */
+export const makeUnchecked = <Self, Shape>(key: Context.Key<Self, Shape>, options: { readonly version: string; readonly methods: Record<string, MethodSpec> }): Contract<Self, Shape> => make(key, options as never)
+
+export const Contract = { make, makeUnchecked, method, at, satisfies, maxSatisfying, parseOptions }

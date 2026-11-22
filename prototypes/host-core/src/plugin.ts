@@ -14,7 +14,7 @@ export type Keys = ReadonlyArray<Context.Key<any, any>>
 export type IdentifiersOf<K extends Keys> = K[number] extends infer X ? (X extends Context.Key<infer I, any> ? I : never) : never
 export type ServicesOf<K extends Keys> = { readonly [I in keyof K]: K[I] extends Context.Key<any, infer S> ? S : never }
 
-export interface PluginDefinition<R extends Keys = Keys, P extends Keys = Keys, E = unknown> {
+export interface PluginDefinition<R extends Keys = Keys, P extends Keys = Keys, E = unknown, C = any> {
   readonly id: string
   readonly requires: R
   readonly provides: P
@@ -24,8 +24,8 @@ export interface PluginDefinition<R extends Keys = Keys, P extends Keys = Keys, 
   readonly build: Layer.Layer<IdentifiersOf<P>, E, IdentifiersOf<R> | PluginRuntime | PluginConfig>
   readonly meta?: { readonly version?: string; readonly digest?: string; readonly description?: string }
   /** Decoded before build (BEH-BR-097); top-level fields named in `volatile` may change in place (BEH-BR-102). */
-  readonly config?: Schema.Codec<any, any>
-  readonly volatile?: ReadonlyArray<string>
+  readonly config?: Schema.Codec<C, any>
+  readonly volatile?: ReadonlyArray<keyof NoInfer<C> & string>
   /** Per-plugin bound on closing this plugin's activation scope, overriding `Options.closeTimeout` (BEH-BR-046, report 03 R1); ms, or "forever" when stated. */
   readonly closeTimeout?: number | "forever"
   /** Health checks while active (BEH-BR-092); durations in ms in this prototype. */
@@ -56,9 +56,9 @@ declare const PluginBrand: unique symbol
 // The build is erased here. G-P15 was not adopted (CCR-BR-029): effect 4.0.0 declares `Layer<in ROut, out E, out RIn>`,
 // and the spec's `build: Layer<never, unknown, any>` accepts every defined build; the erased type also conforms.
 export type PluginAny = Omit<PluginDefinition<Keys, Keys, unknown>, "build"> & { readonly build: unknown; readonly [PluginBrand]: true }
-export const define = <const R extends Keys, const P extends Keys, E>(
-  definition: PluginDefinition<R, P, E>
-): PluginDefinition<R, P, E> & { readonly [PluginBrand]: true } => definition as PluginDefinition<R, P, E> & { readonly [PluginBrand]: true }
+export const define = <const R extends Keys, const P extends Keys, E, C = unknown>(
+  definition: PluginDefinition<R, P, E, C>
+): PluginDefinition<R, P, E, C> & { readonly [PluginBrand]: true } => definition as PluginDefinition<R, P, E, C> & { readonly [PluginBrand]: true }
 
 export type AnyPlugin = PluginDefinition<Keys, Keys, unknown>
 

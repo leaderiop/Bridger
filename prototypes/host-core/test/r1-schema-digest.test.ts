@@ -9,7 +9,7 @@ import { errorOf, failedWith } from "./p7fixtures.js"
 
 class Board extends Context.Service<Board, { readonly post: (s: string) => Effect.Effect<string>; readonly list: Effect.Effect<number> }>()("example/Board@1") {}
 const post = (payload: Schema.Top, extra: { stream?: boolean; digest?: string } = {}) => Contract.method({ payload, success: Schema.String, ...extra })
-const make = (version: string, methods: Record<string, ReturnType<typeof Contract.method>>) => Contract.make(Board, { version, methods })
+const make = (version: string, methods: Record<string, ReturnType<typeof Contract.method>>) => Contract.makeUnchecked(Board, { version, methods })
 const impl: Board["Service"] = { post: (s) => Effect.succeed(s), list: Effect.succeed(1) }
 const prov = (ref: any) => define({ id: "board", requires: [] as const, provides: [ref] as const, build: Layer.succeed(Board, impl) as any }) as unknown as AnyPlugin
 const dep = (ref: any) => define({ id: "reader", requires: [ref] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as any }) as unknown as AnyPlugin
@@ -48,8 +48,8 @@ describe("report 02 R1: schema digests", () => {
     const base = make("1.0.0", { post: post(Text), list: Contract.method({}) })
     expect(make("1.0.0", { post: post(Text, { stream: true }), list: Contract.method({}) }).descriptor.schemas.find((x) => x.method === "post")!.digest).not.toBe(base.descriptor.schemas.find((x) => x.method === "post")!.digest)
     class Board2 extends Context.Service<Board2, Board["Service"]>()("example/Board@1") {}
-    const addOnly = Contract.make(Board2, { version: "1.1.0", methods: { post: post(Text), list: Contract.method({}), purge: Contract.method({}) } })
-    const editing = Contract.make(Board2, { version: "1.1.0", methods: { post: post(Rich), list: Contract.method({}), purge: Contract.method({}) } })
+    const addOnly = Contract.makeUnchecked(Board2, { version: "1.1.0", methods: { post: post(Text), list: Contract.method({}), purge: Contract.method({}) } })
+    const editing = Contract.makeUnchecked(Board2, { version: "1.1.0", methods: { post: post(Rich), list: Contract.method({}), purge: Contract.method({}) } })
     await run((host) => Effect.gen(function* () {
       yield* host.install(prov(addOnly), as())
       expect(failedWith(yield* Effect.exit(host.install(dep(base.range("^1.0")), as())), "IncompatibleContract")).toBe(false)

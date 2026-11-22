@@ -35,12 +35,12 @@ describe("kit check: contract releases (BEH-BR-230)", () => {
     expect(checkRelease(released, rel("1.3.0", Schema.Struct({ text: Schema.Number })))).toMatchObject({ ok: false, _tag: "ContractBreakingChange" })
     const two = rel("1.2.0", Text, { list: Contract.method({}) })
     expect(checkRelease(two, rel("1.3.0", Text))).toMatchObject({ ok: false, _tag: "ContractBreakingChange", changes: [{ method: "list", detail: "method removed" }] })
-    const stream = snapshotOf(Contract.make(Board, { version: "1.3.0", methods: { post: Contract.method({ payload: Text, success: Schema.String, stream: true }) } }))
+    const stream = snapshotOf(Contract.makeUnchecked(Board, { version: "1.3.0", methods: { post: Contract.method({ payload: Text, success: Schema.String, stream: true }) } }))
     expect(checkRelease(released, stream)).toMatchObject({ ok: false, _tag: "ContractBreakingChange", changes: [{ detail: "stream flag changed" }] })
   })
   it("treats a removed payload field and a narrowed success as breaking, and a new major as nothing to compare", () => {
     expect(checkRelease(rel("1.2.0", Schema.Struct({ text: Schema.String, mood: Schema.optional(Schema.String) })), rel("1.3.0", Text))).toMatchObject({ ok: false, _tag: "ContractBreakingChange" })
-    const next2 = snapshotOf(Contract.make(class extends Context.Service<any, any>()("example/Board@2") {} as never, { version: "2.0.0", methods: { post: Contract.method({ payload: Schema.Number, success: Schema.String }) } }))
+    const next2 = snapshotOf(Contract.makeUnchecked(class extends Context.Service<any, any>()("example/Board@2") {} as never, { version: "2.0.0", methods: { post: Contract.method({ payload: Schema.Number, success: Schema.String }) } }))
     expect(checkRelease(released, { ...next2 })).toEqual({ ok: true })
   })
   it("the same payload change in two separately built copies of one version passes", () => {

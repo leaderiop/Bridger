@@ -35,7 +35,7 @@ describe("P7 core 26: contracts", () => {
       Contract.make(Two, { version: "3.0.0", methods: { append: m } }),         // suffix ≠ major
       Contract.make(Two, { version: "2.0", methods: { append: m } }),           // grammar
       Contract.make(Two, { version: "2.0.0", methods: {} }),                    // empty methods
-      Contract.make(Two, { version: "2.0.0", methods: { a: Contract.method({ timeout: -5 }) } })   // check 102: invalid timeout
+      Contract.makeUnchecked(Two, { version: "2.0.0", methods: { a: Contract.method({ timeout: -5 }) } })   // check 102: invalid timeout
     ]
     for (const c of bad) expect(c.invalid).toBeDefined()
     await run((host) => Effect.gen(function* () {
