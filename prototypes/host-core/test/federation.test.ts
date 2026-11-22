@@ -150,3 +150,43 @@ describe("freshness, offline cap and clock (BEH-FD-012, 013, 016)", () => {
     expect(needsRebootstrap(false, 4, 9, false)).toBe(false)
   })
 })
+
+import { checkImportResidency, exportOffered, RevocationRelay } from "../src/federation.js"
+
+describe("revocation relay (BEH-FD-043)", () => {
+  it("relays an accepted list once per link and revision, never back to its source, and never a stale one", () => {
+    const r = new RevocationRelay()
+    expect(r.accepted(5, "L5", "a", ["a", "b", "c"])).toEqual(["b", "c"])
+    expect(r.accepted(5, "L5", "b", ["a", "b", "c"])).toEqual([])            // the same revision again: nothing
+    expect(r.accepted(4, "L4", undefined, ["a", "b"])).toEqual([])           // stale
+    expect(r.accepted(6, "L6", undefined, ["a", "b"])).toEqual(["a", "b"])
+  })
+  it("a new link gets the newest list first, once; a link already sent it gets nothing", () => {
+    const r = new RevocationRelay()
+    expect(r.onLinkUp("a")).toBeUndefined()                                  // nothing accepted yet
+    r.accepted(5, "L5", "src", ["b"])
+    expect(r.onLinkUp("a")).toEqual({ revision: 5, list: "L5" })
+    expect(r.onLinkUp("a")).toBeUndefined()
+    expect(r.onLinkUp("b")).toBeUndefined()                                  // b already received it by the relay
+  })
+})
+
+describe("residency on a route (BEH-FD-045)", () => {
+  it("drops an import with a residency whose peer declares none", () => {
+    expect(checkImportResidency(["eu"], {})).toEqual({ keep: false, reason: "peer-residency-missing" })
+    expect(checkImportResidency(["eu"], undefined)).toEqual({ keep: false, reason: "peer-residency-missing" })
+  })
+  it("refuses a route that does not offer every required label, and offers the peer's labels otherwise", () => {
+    expect(checkImportResidency(["eu", "gdpr"], { residency: ["eu"] })).toEqual({ keep: false, reason: "placement-refused" })
+    expect(checkImportResidency(["eu"], { residency: ["eu", "gdpr"] })).toEqual({ keep: true, offered: ["eu", "gdpr"] })
+  })
+  it("an import without a residency is kept and offers the peer's labels or none", () => {
+    expect(checkImportResidency(undefined, { residency: ["eu"] })).toEqual({ keep: true, offered: ["eu"] })
+    expect(checkImportResidency([], undefined)).toEqual({ keep: true, offered: [] })
+  })
+  it("an export offers the peer's labels, else the profile's, else none", () => {
+    expect(exportOffered({ residency: ["a"] }, { residency: ["b"] })).toEqual(["a"])
+    expect(exportOffered({}, { residency: ["b"] })).toEqual(["b"])
+    expect(exportOffered(undefined, undefined)).toEqual([])
+  })
+})

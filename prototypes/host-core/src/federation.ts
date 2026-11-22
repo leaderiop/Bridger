@@ -125,3 +125,39 @@ export const applyFreshness = <T extends FreshnessEntry>(desired: ReadonlyArray<
 /** Contact after the cap was exceeded needs a re-bootstrap before any newer manifest, unless the source says the host is current. */
 export const needsRebootstrap = (capWasExceeded: boolean, known: number, latest: number, resyncRequired: boolean): boolean =>
   capWasExceeded && (known !== latest || resyncRequired)
+
+// ---------------------------------------------------------------- BEH-FD-043: revocation lists are relayed on links
+/** Each list crosses each link at most once per revision; only an accepted list is relayed, never to the link it came from. */
+export class RevocationRelay {
+  private newest = 0
+  private newestList: unknown
+  private readonly sent = new Set<string>()
+  /** A list was accepted (offer answered Accepted, or changes yielded it): the links to send it on. */
+  accepted(revision: number, list: unknown, from: string | undefined, linksUp: ReadonlyArray<string>): ReadonlyArray<string> {
+    if (revision <= this.newest) return []                                   // a stale or repeated list is not relayed
+    this.newest = revision; this.newestList = list
+    const to = linksUp.filter((l) => l !== from && !this.sent.has(`${l}\0${revision}`))
+    for (const l of to) this.sent.add(`${l}\0${revision}`)
+    return to
+  }
+  /** A new link: the newest accepted list is its first control frame, before the offer. */
+  onLinkUp(link: string): { readonly revision: number; readonly list: unknown } | undefined {
+    if (this.newest === 0 || this.sent.has(`${link}\0${this.newest}`)) return undefined
+    this.sent.add(`${link}\0${this.newest}`); return { revision: this.newest, list: this.newestList }
+  }
+}
+
+// ---------------------------------------------------------------- BEH-FD-045: residency on a route
+export type Placement = (required: ReadonlyArray<string>, offered: ReadonlyArray<string>) => boolean
+/** PlacementPolicy.exact: every required label must be offered by the route. */
+export const exactPlacement: Placement = (required, offered) => required.every((l) => offered.includes(l))
+export interface ManifestPeerResidency { readonly residency?: ReadonlyArray<string> }
+export type ImportVerdict = { readonly keep: true; readonly offered: ReadonlyArray<string> } | { readonly keep: false; readonly reason: "peer-residency-missing" | "placement-refused" }
+/** An import with a `residency` needs its peer to declare one; the route's offered labels are the peer's (never the dialler's profile). */
+export const checkImportResidency = (required: ReadonlyArray<string> | undefined, peer: ManifestPeerResidency | undefined, policy: Placement = exactPlacement): ImportVerdict => {
+  if (!required || required.length === 0) return { keep: true, offered: peer?.residency ?? [] }
+  if (!peer?.residency) return { keep: false, reason: "peer-residency-missing" }
+  return policy(required, peer.residency) ? { keep: true, offered: peer.residency } : { keep: false, reason: "placement-refused" }
+}
+/** An export's offered labels: the peer's residency, else the profile's the dialler or listener yielded, else none. */
+export const exportOffered = (peer: ManifestPeerResidency | undefined, profile: ManifestPeerResidency | undefined): ReadonlyArray<string> => peer?.residency ?? profile?.residency ?? []
