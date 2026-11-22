@@ -22,7 +22,7 @@ export interface Registry<A> {
   readonly useAll: <B, E, R>(run: (view: RegistryView<A>) => Effect.Effect<B, E, R>, options?: { readonly timeout?: number }) =>
     Effect.Effect<B, E | LeaseRevoked | LeaseTimeout, R>
   /** Contract registries only (BEH-BR-233): a reader treating out-of-range entries as absent. */
-  readonly within: (range: string) => Omit<Registry<A>, "add" | "within">
+  readonly within: (range: string) => Effect.Effect<Omit<Registry<A>, "add" | "within">>
 }
 export interface RegistryOptions { readonly drainTimeout?: number | "forever"; readonly name?: string; readonly contract?: Contract; readonly range?: string }
 
@@ -161,10 +161,13 @@ export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A
   return {
     ...all, add,
     changes: SubscriptionRef.changes(feed),
-    within: (r: string) => {
-      if (!contract) throw new Error(`registry ${name}: within on a registry without a contract`)
-      checkRange(r, "within")
-      return reader((s) => s.version !== undefined && satisfies(s.version, r))
-    }
+    // Misuse is a defect in the Effect channel, as in `make` (BEH-BR-233), never a synchronous throw.
+    within: (r: string) => Effect.suspend(() => {
+      try {
+        if (!contract) throw new Error(`registry ${name}: within on a registry without a contract`)
+        checkRange(r, "within")
+      } catch (e) { return Effect.die(e) }
+      return Effect.succeed(reader((s) => s.version !== undefined && satisfies(s.version, r)))
+    })
   }
 })

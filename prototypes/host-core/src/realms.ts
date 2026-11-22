@@ -1,10 +1,10 @@
 // Realm families and ephemeral realms (references/core behaviour 33, BEH-BR-329–336): helpers outside the Host,
 // built only from its public calls (defineRealm, reconcile, retireRealm, useAll, snapshot). Prototype.
-import { Clock, Deferred, Effect, Exit, PubSub, Schema, Scope, Stream } from "effect"
+import { Clock, Deferred, Effect, Exit, Option, PubSub, Schema, Scope, Stream } from "effect"
 import { narrow } from "./actor.js"
 import type { DesiredPlugin } from "./desired.js"
 import type { OperationContext } from "./gxp.js"
-import type { Host, RealmOptions } from "./host.js"
+import type { Host, HostSnapshot, RealmOptions } from "./host.js"
 import type { Keys, ServicesOf } from "./plugin.js"
 
 export class FamilyMemberUnavailable extends Schema.TaggedError<FamilyMemberUnavailable>()("FamilyMemberUnavailable", {
@@ -20,18 +20,21 @@ const sameOptions = (a: RealmOptions, b: RealmOptions) => {
     && eq(a.interceptors, b.interceptors, Object.is) && eq(a.mandatory, b.mandatory, Object.is)
 }
 
-/** Waits until every plugin of `realm` is active, or fails (BEH-BR-331). */
-const awaitActive = (host: Host, realm: string, timeout: number) => Effect.gen(function* () {
-  const deadline = (yield* Clock.currentTimeMillis) + timeout
-  while (true) {
-    const ps = (yield* host.snapshot).plugins.filter((p) => p.realm === realm)
+/** Waits until every plugin of `realm` is settled, or fails (BEH-BR-331): woken by host changes, never polling. */
+const awaitActive = (host: Host, realm: string, timeout: number) => {
+  const verdict = (snapshot: HostSnapshot) => {
+    const ps = snapshot.plugins.filter((p) => p.realm === realm)
     if (ps.some((p) => p.state === "failed")) return "failed" as const
     if (ps.some((p) => p.state === "disabled" && p.reason === "refused-digest")) return "rejected" as const   // BEH-BR-331
     if (ps.every((p) => p.state === "active" || p.state === "dormant" || p.state === "disabled")) return "ready" as const   // BEH-BR-331
-    if ((yield* Clock.currentTimeMillis) >= deadline) return "activation-timeout" as const
-    yield* Effect.sleep(1)
+    return undefined
   }
-})
+  return host.changes.pipe(
+    Stream.map(verdict), Stream.filter((v) => v !== undefined), Stream.take(1), Stream.runHead,
+    Effect.map((o) => Option.getOrUndefined(o) ?? ("activation-timeout" as const)),   // the feed ended: the host closed
+    Effect.timeoutOption(timeout), Effect.map((o) => Option.getOrElse(o, () => "activation-timeout" as const))
+  )
+}
 
 export const family = <K extends string>(host: Host, o: {
   readonly id: string
