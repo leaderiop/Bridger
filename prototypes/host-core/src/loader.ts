@@ -2,6 +2,7 @@
 // verifier, the N-of-M policy and the publisher binding. Prototype: no fetch, no load pipeline, no LoadLog; this is what the kit's `pack`, `publish`
 // and `countersign` call so that the kit implements no digest of its own (BEH-KT-029).
 import { createHash, createPublicKey, verify as edVerify, X509Certificate } from "node:crypto"
+import { builtinModules } from "node:module"
 import { Effect } from "effect"
 
 export type Bytes = Uint8Array
@@ -318,3 +319,44 @@ export const restartGate = (
       ? { _tag: "Refuse", reason: "resident-revoked" } as const
       : { _tag: "Allow" } as const)
 })
+
+// ---------------------------------------------------------------- import resolution (BEH-LD-011)
+export class EvaluationFailed extends Error { readonly _tag = "EvaluationFailed"; constructor(readonly digest: string, readonly reason: "unresolved-import" | "threw" | "timeout" | "no-entry", message: string) { super(message) } }
+export type Resolved = { readonly kind: "file"; readonly path: string } | { readonly kind: "external"; readonly name: string }
+
+const posixJoin = (from: string, specifier: string): string | undefined => {
+  const out = from.split("/").slice(0, -1)
+  for (const part of specifier.split("/")) {
+    if (part === "" || part === ".") continue
+    if (part === "..") { if (out.length === 0) return undefined; out.pop() } else out.push(part)
+  }
+  return out.join("/")
+}
+/**
+ * BEH-LD-011: the one place a specifier becomes code. A relative specifier resolves to a file of the verified package (and may not climb
+ * out of its root); a bare one resolves only through the application's `externals`; anything else, a URL and a `node:` specifier the
+ * application did not put in `externals` included, fails with `EvaluationFailed("unresolved-import")`. Nothing is read from disk.
+ */
+export const resolveSpecifier = (digest: string, files: ReadonlyMap<string, Bytes>, from: string, specifier: string, externals: ReadonlyMap<string, unknown>): Resolved => {
+  const fail = (why: string) => new EvaluationFailed(digest, "unresolved-import", `${from}: import of "${specifier}" ${why}`)
+  if (specifier.startsWith("./") || specifier.startsWith("../")) {
+    const base = posixJoin(from, specifier)
+    if (base === undefined) throw fail("leaves the package")
+    for (const candidate of [base, `${base}.js`, `${base}.mjs`, `${base}/index.js`]) if (files.has(candidate)) return { kind: "file", path: candidate }
+    throw fail("names no file of the package")
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:(?!\/\/)/.test(specifier) || specifier.includes("://") || specifier.startsWith("/")) {
+    if (externals.has(specifier)) return { kind: "external", name: specifier }
+    throw fail("is a URL, a path or a protocol specifier outside `externals`")
+  }
+  if (externals.has(specifier)) return { kind: "external", name: specifier }
+  throw fail("is not in `externals`")
+}
+
+/** The keys of `externals` naming a Node built-in that the application has not allowed explicitly (BEH-LD-011): admitting one hands every package filesystem or network access. */
+export const unallowedBuiltins = (externals: ReadonlyMap<string, unknown>, allow: ReadonlyArray<string> = []): ReadonlyArray<string> =>
+  [...externals.keys()].filter((k) => (k.startsWith("node:") || builtinModules.includes(k)) && !allow.includes(k)).sort()
+export const checkExternals = (externals: ReadonlyMap<string, unknown>, allow: ReadonlyArray<string> = []): void => {
+  const bad = unallowedBuiltins(externals, allow)
+  if (bad.length) { const e = new Error(`externals name Node built-ins that are not allowed: ${bad.join(", ")}`); e.name = "ExternalsAdmitBuiltin"; throw e }
+}

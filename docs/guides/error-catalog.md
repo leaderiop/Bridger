@@ -922,9 +922,9 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 
 *error* · origin: loader/02 · raised by: evaluation after verification
 
-- **Cause.** The verified module failed to evaluate.
-- **Example.** A top-level exception in the plugin module.
-- **Fix.** Fix the module.
+- **Cause.** The verified module failed to evaluate, or one of its imports names no file of the package and nothing in `externals` (`reason`).
+- **Example.** A top-level exception in the plugin module, or `import "left-pad"` in a package that does not bundle it.
+- **Fix.** Fix the module; bundle every dependency into the package or have the application supply it through `externals`.
 
 ### AnchorFailed
 
