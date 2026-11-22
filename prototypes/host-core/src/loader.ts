@@ -28,6 +28,7 @@ export interface Package { readonly manifest: Bytes; readonly sbom: { readonly f
 export const checkPaths = (paths: Iterable<string>): void => {
   const seen = new Set<string>()
   for (const p of paths) {
+    if (/[\u0000-\u001f\u007f]/.test(p)) throw new PackageMalformed("path", `${JSON.stringify(p)} holds a control character`)   // a NUL or LF would make filesDigest ambiguous
     if (p === "" || p.startsWith("/") || p.includes("\\") || p.split("/").some((s) => s === "" || s === "." || s === "..")) throw new PackageMalformed("path", `${JSON.stringify(p)} is not a relative, normalised path`)
     const n = p.normalize("NFC"); if (seen.has(n)) throw new PackageMalformed("path", `${JSON.stringify(p)} collides with another path after normalisation`); seen.add(n)
   }

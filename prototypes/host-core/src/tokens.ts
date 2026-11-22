@@ -28,7 +28,7 @@ export const inProcess = (nextId: () => string): TokenAuthority => {
 }
 
 export interface Revocations { readonly pluginIds: ReadonlySet<string>; readonly digests: ReadonlySet<string> }
-export type Refusal = { readonly reason: "stale-epoch" | "denied"; readonly tag: "StaleEpoch" | "RemoteRevoked" | "TokenInvalid" | "TokenExpired" }
+export type Refusal = { readonly reason: "stale-epoch" | "denied"; readonly tag: "StaleEpoch" | "RemoteRevoked" | "TokenInvalid" | "TokenExpired" | "CallbackLimit" }
 
 /** A token checks only when the authority returns its claims, the host clock reads before `expires`, the epoch is the open session's, the call is in flight and nothing revokes it. A failing or dying authority refuses. */
 export const checkToken = (authority: TokenAuthority, ref: TokenRef, now: Effect.Effect<number>, session: { readonly maxLifetime?: number; readonly epoch: string; readonly inFlight: (callId: string) => boolean; readonly revoked: Revocations }) =>
@@ -45,7 +45,7 @@ export const checkToken = (authority: TokenAuthority, ref: TokenRef, now: Effect
 
 export interface CallbackFrame { readonly epoch: string; readonly callId: string; readonly parent: string; readonly token: TokenRef }
 /** Steps 1 to 4 of BEH-RM-044/046, stopping at the first refusal; nothing is leased and no host code runs. */
-export const admitCallback = (authority: TokenAuthority, f: CallbackFrame, st: { readonly maxLifetime?: number; readonly epoch: string; readonly revoked: boolean; readonly now: Effect.Effect<number>; readonly inFlight: (id: string) => boolean; readonly seen: Set<string>; readonly rev: Revocations }): Effect.Effect<{ readonly admitted: TokenClaims } | { readonly refused: Refusal } | { readonly duplicate: true }> => Effect.gen(function* () {
+export const admitCallback = (authority: TokenAuthority, f: CallbackFrame, st: { readonly maxCallbacks?: number; readonly maxLifetime?: number; readonly epoch: string; readonly revoked: boolean; readonly now: Effect.Effect<number>; readonly inFlight: (id: string) => boolean; readonly seen: Set<string>; readonly rev: Revocations }): Effect.Effect<{ readonly admitted: TokenClaims } | { readonly refused: Refusal } | { readonly duplicate: true }> => Effect.gen(function* () {
   if (f.epoch !== st.epoch) return { refused: { reason: "stale-epoch", tag: "StaleEpoch" } as const }
   if (st.revoked) return { refused: { reason: "denied", tag: "RemoteRevoked" } as const }
   const checked = yield* checkToken(authority, f.token, st.now, { ...(st.maxLifetime !== undefined ? { maxLifetime: st.maxLifetime } : {}), epoch: st.epoch, inFlight: st.inFlight, revoked: st.rev }).pipe(
@@ -54,6 +54,7 @@ export const admitCallback = (authority: TokenAuthority, f: CallbackFrame, st: {
   if (checked.claims.callId !== f.parent) return { refused: { reason: "denied", tag: "TokenInvalid" } as const }
   const key = `${f.parent}/${f.callId}`
   if (st.seen.has(key)) return { duplicate: true as const }
+  if (st.maxCallbacks !== undefined && [...st.seen].filter((k) => k.startsWith(`${f.parent}/`)).length >= st.maxCallbacks) return { refused: { reason: "denied", tag: "CallbackLimit" } as const }   // BEH-RM-044: bounded per parent call
   st.seen.add(key)
   return { admitted: checked.claims }
 })

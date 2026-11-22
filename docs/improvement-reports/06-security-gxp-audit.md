@@ -54,6 +54,24 @@ A second read of files the first pass skipped (federation 03, 04 and 06, keyring
 | S35 | Resolved | Core's `scriptedGate` and `memoryAuditSink` carry no marker, so an approve-everything gate passed IQ. IQ-U3 is now an executed probe of a ticketless request; `gatePosture` implements it (tested). |
 | S36 | Resolved | See S33: the canary and import-graph additions to checks 31 and 41, exercised in `test/sec-gxp-testing.test.ts`. |
 | S37 | Resolved | `testKeyProvider` put its seed into every key id. The id now carries a digest of the seed and the seed is documented as not a secret (`testKeyProvider`, tested). |
+| S38 | Open | Shred does not reach aggregate snapshots, which hold plaintext (event-store 03:152-184). Fix: encode snapshot `state` through the `PayloadCodec`, or delete snapshots on `onShred`, and bind a snapshot to its event's id and hash. |
+| S39 | Open | `retireDestination`, `acceptGap`, `resetVersions` are attributed but not gated (durable-bus 02:231, 03:211, 04:274). Fix: route them through `OperationGate.authorize` as irreversible, with a loss record. |
+| S40 | Open | A fact id chosen by a peer drops a different fact (event-store 02:246). Fix: store a `factDigest`; on a different digest append a `FactConflict`. |
+| S41 | Open | No per-stream authorization on event-store append and read, and `DurableBus.read` skips the access policy. Fix: `AccessPolicy.ask` on both, reserve the `rx:` prefix. |
+| S42 | Open | No size bound on a received envelope; a peer can halt a stream (durable-bus 03:40). Fix: `maxEnvelopeBytes` and stream-length limits with an `EnvelopeRefused` stop. |
+| S43 | Open | The v2 chain link hash does not cover `origin` or `break` (audit-chain 04:205). Fix: include them in the hash input (changes the vectors). |
+| S44 | Resolved | A generic-series `recordId` with a line feed could move bytes between it and the payload. BEH-AC (04) now forbids control characters; `genericTail` refuses them (`test/sec-chain-recordid.test.ts`). |
+| S45 | Open | Untrusted error text, approved-resume outcomes and long-command results reach the model outside the envelope and taint (agent 01/02/03, mcp 03/01). Fix: envelope and taint every `Failed` outcome, recompute on resume. |
+| S46 | Resolved | Callbacks per parent call were unbounded. BEH-RM-044 now requires `maxCallbacks` and `CallbackLimit`; `admitCallback` enforces it (`test/sec-remote-bounds.test.ts`). |
+| S47 | Resolved | Package paths could contain NUL or LF, making `filesDigest` ambiguous. Loader 01 now forbids control characters and `checkPaths` rejects them (`test/sec-remote-bounds.test.ts`). |
+| S48 | Open | The taint floor accepts a caller-presented `ApprovalRef` (command 02:850). Fix: the gate returns a typed approval witness. |
+| S49 | Open | `reconcile-apply` approves an opaque, guessable `planId` (mcp 04:217-281). Fix: bind a `planDigest` into the input digest. |
+| S50 | Open | Plugin error text is served unredacted through host tools (mcp 04, core 04:330). Fix: apply `auditMessage` to snapshot messages. |
+| S51 | Open | The sequence authority records foreign-origin events (sequence 02:221-303). Fix: refuse and quarantine an origin mismatch. |
+| S52 | Open | Agent tasks, replay transcripts and series events keep personal data without bounds (agent 02, 05; sequence 01). Fix: retention and redaction options. |
+| S53 | Open | A remote peer is unauthenticated and the served actor is spoofable (remote 02:35, 05:279). Fix: a digest-bound handshake. |
+| S54 | Open | Token refs may be guessable and the callback parent is guest-chosen (remote 06:111-165). Fix: 128-bit CSPRNG refs bound to session, epoch, call and guest. |
+| S55 | Open | `reverify.acceptedAt` and rollback state come from an unauthenticated store; guest-link grants are not bound to `requested` (loader 07/08/09). Fix: MAC the accepted record; require grants to be a subset of `requested`. |
 
 ## Executive summary
 

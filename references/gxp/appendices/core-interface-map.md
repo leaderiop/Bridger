@@ -207,7 +207,7 @@ current Document Control.
 | `audit-chain/behaviors/01-hash-chain-sink.md` | BRIDGER-AC-BEH-01 | 0.8 |
 | `audit-chain/behaviors/02-anchoring.md` | BRIDGER-AC-BEH-02 | 0.6 |
 | `audit-chain/behaviors/03-verification.md` | BRIDGER-AC-BEH-03 | 0.9 |
-| `audit-chain/behaviors/04-generic-chain.md` | BRIDGER-AC-BEH-04 | 0.5 |
+| `audit-chain/behaviors/04-generic-chain.md` | BRIDGER-AC-BEH-04 | 0.6 |
 | `audit-chain/behaviors/05-verification-bundle.md` | BRIDGER-AC-BEH-05 | 0.7 |
 | `audit-chain/decisions/004-separate-from-gxp-companion.md` | BRIDGER-AC-ADR-004 | 0.3 |
 

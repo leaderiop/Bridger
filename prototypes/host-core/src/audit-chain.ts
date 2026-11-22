@@ -73,7 +73,7 @@ const D = (alg: Alg, v: 1 | 2) => `bridger-audit-chain/v${v}/${alg}\n`
 export const genesis = (alg: Alg, id: string, v: 1 | 2 = 1): string => H(alg, D(alg, v), "genesis\n", id)
 const mac = (alg: Alg, v: 1 | 2, prevHash: string, tail: Uint8Array): Uint8Array => Buffer.concat([utf8(D(alg, v)), utf8("record\n"), Buffer.from(prevHash, "hex"), tail])
 const auditTail = (r: unknown) => utf8(jcs(r))
-const genericTail = (p: ChainProfile<any>, r: unknown) => { const pos = p.position(r); return Buffer.concat([utf8(`${p.canon}\n${pos.seq}\n${pos.recordId}\n`), p.encode(r)]) }
+export const genericTail = (p: ChainProfile<any>, r: unknown) => { const pos = p.position(r); if (/[\u0000-\u001f\u007f]/.test(pos.recordId)) throw new Error("recordId holds a control character"); return Buffer.concat([utf8(`${p.canon}\n${pos.seq}\n${pos.recordId}\n`), p.encode(r)]) }
 const hashOf = (alg: Alg, input: Uint8Array, keyed?: (input: Uint8Array) => Uint8Array | undefined) => { const k = keyed?.(input); return k ? Buffer.from(k).toString("hex") : H(alg, input) }
 
 export const auditProfile: ChainProfile<any> = {

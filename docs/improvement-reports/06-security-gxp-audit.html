@@ -167,6 +167,24 @@ footer li{margin:.3rem 0}
 <tr><td>S35</td><td>Resolved</td><td>Core's <code>scriptedGate</code> and <code>memoryAuditSink</code> carry no marker, so an approve-everything gate passed IQ. IQ-U3 is now an executed probe of a ticketless request; <code>gatePosture</code> implements it (tested).</td></tr>
 <tr><td>S36</td><td>Resolved</td><td>See S33: the canary and import-graph additions to checks 31 and 41.</td></tr>
 <tr><td>S37</td><td>Resolved</td><td><code>testKeyProvider</code> put its seed into every key id. The id now carries a digest of the seed and the seed is documented as not a secret (<code>testKeyProvider</code>, tested).</td></tr>
+<tr><td>S38</td><td>Open</td><td>Shred does not reach aggregate snapshots, which hold plaintext (event-store 03:152-184). Fix: encode snapshot <code>state</code> through the <code>PayloadCodec</code>, or delete snapshots on <code>onShred</code>, and bind a snapshot to its event's id and hash.</td></tr>
+<tr><td>S39</td><td>Open</td><td><code>retireDestination</code>, <code>acceptGap</code>, <code>resetVersions</code> are attributed but not gated (durable-bus 02:231, 03:211, 04:274). Fix: route them through <code>OperationGate.authorize</code> as irreversible, with a loss record.</td></tr>
+<tr><td>S40</td><td>Open</td><td>A fact id chosen by a peer drops a different fact (event-store 02:246). Fix: store a <code>factDigest</code>; on a different digest append a <code>FactConflict</code>.</td></tr>
+<tr><td>S41</td><td>Open</td><td>No per-stream authorization on event-store append and read, and <code>DurableBus.read</code> skips the access policy. Fix: <code>AccessPolicy.ask</code> on both, reserve the <code>rx:</code> prefix.</td></tr>
+<tr><td>S42</td><td>Open</td><td>No size bound on a received envelope; a peer can halt a stream (durable-bus 03:40). Fix: <code>maxEnvelopeBytes</code> and stream-length limits with an <code>EnvelopeRefused</code> stop.</td></tr>
+<tr><td>S43</td><td>Open</td><td>The v2 chain link hash does not cover <code>origin</code> or <code>break</code> (audit-chain 04:205). Fix: include them in the hash input (changes the vectors).</td></tr>
+<tr><td>S44</td><td>Resolved</td><td>A generic-series <code>recordId</code> with a line feed could move bytes between it and the payload. BEH-AC (04) now forbids control characters; <code>genericTail</code> refuses them (<code>test/sec-chain-recordid.test.ts</code>).</td></tr>
+<tr><td>S45</td><td>Open</td><td>Untrusted error text, approved-resume outcomes and long-command results reach the model outside the envelope and taint (agent 01/02/03, mcp 03/01). Fix: envelope and taint every <code>Failed</code> outcome, recompute on resume.</td></tr>
+<tr><td>S46</td><td>Resolved</td><td>Callbacks per parent call were unbounded. BEH-RM-044 now requires <code>maxCallbacks</code> and <code>CallbackLimit</code>; <code>admitCallback</code> enforces it (<code>test/sec-remote-bounds.test.ts</code>).</td></tr>
+<tr><td>S47</td><td>Resolved</td><td>Package paths could contain NUL or LF, making <code>filesDigest</code> ambiguous. Loader 01 now forbids control characters and <code>checkPaths</code> rejects them (<code>test/sec-remote-bounds.test.ts</code>).</td></tr>
+<tr><td>S48</td><td>Open</td><td>The taint floor accepts a caller-presented <code>ApprovalRef</code> (command 02:850). Fix: the gate returns a typed approval witness.</td></tr>
+<tr><td>S49</td><td>Open</td><td><code>reconcile-apply</code> approves an opaque, guessable <code>planId</code> (mcp 04:217-281). Fix: bind a <code>planDigest</code> into the input digest.</td></tr>
+<tr><td>S50</td><td>Open</td><td>Plugin error text is served unredacted through host tools (mcp 04, core 04:330). Fix: apply <code>auditMessage</code> to snapshot messages.</td></tr>
+<tr><td>S51</td><td>Open</td><td>The sequence authority records foreign-origin events (sequence 02:221-303). Fix: refuse and quarantine an origin mismatch.</td></tr>
+<tr><td>S52</td><td>Open</td><td>Agent tasks, replay transcripts and series events keep personal data without bounds (agent 02, 05; sequence 01). Fix: retention and redaction options.</td></tr>
+<tr><td>S53</td><td>Open</td><td>A remote peer is unauthenticated and the served actor is spoofable (remote 02:35, 05:279). Fix: a digest-bound handshake.</td></tr>
+<tr><td>S54</td><td>Open</td><td>Token refs may be guessable and the callback parent is guest-chosen (remote 06:111-165). Fix: 128-bit CSPRNG refs bound to session, epoch, call and guest.</td></tr>
+<tr><td>S55</td><td>Open</td><td><code>reverify.acceptedAt</code> and rollback state come from an unauthenticated store; guest-link grants are not bound to <code>requested</code> (loader 07/08/09). Fix: MAC the accepted record; require grants to be a subset of <code>requested</code>.</td></tr>
 </tbody></table></div></section>
 
 <h2 id="anims">How the mechanisms work</h2>
