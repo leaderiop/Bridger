@@ -1,5 +1,5 @@
 // Durable federation state: restart re-verification, store-invalid, kills without a manifest, the running loop, the marker.
-import { appendFileSync, mkdtempSync, readFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Effect, Fiber, Layer } from "effect"
@@ -152,5 +152,27 @@ describe("log-structured file state", () => {
     expect(disk(path).firstActivation).toBe(7)
     upd(st, (s) => ({ ...s, revoked: ["x"] }))
     expect(disk(path)).toMatchObject({ firstActivation: 7 })
+  })
+
+  it("takes a lock for the duration of an update and releases it", () => {
+    const path = tmp(); upd(fileState(path), (s) => ({ ...s, firstActivation: 1 }))
+    expect(existsSync(`${path}.lock`)).toBe(false)
+  })
+  it("refuses an update while another live process holds the lock, and leaves the state untouched", () => {
+    const path = tmp(); const st = fileState(path); upd(st, (s) => ({ ...s, firstActivation: 1 }))
+    writeFileSync(`${path}.lock`, String(process.ppid))                               // the parent process: alive, not us
+    expect(() => upd(st, (s) => ({ ...s, firstActivation: 2 }))).toThrow(expect.objectContaining({ _tag: "StateLocked", pid: process.ppid }))
+    expect(disk(path).firstActivation).toBe(1)
+  })
+  it("steals a lock whose owner is gone", () => {
+    const path = tmp(); const st = fileState(path)
+    writeFileSync(`${path}.lock`, "2147483646")                                      // no such process
+    upd(st, (s) => ({ ...s, firstActivation: 3 }))
+    expect(disk(path).firstActivation).toBe(3); expect(existsSync(`${path}.lock`)).toBe(false)
+  })
+  it("releases the lock when the update function throws", () => {
+    const path = tmp(); const st = fileState(path)
+    expect(() => upd(st, () => { throw new Error("boom") })).toThrow("boom")
+    expect(existsSync(`${path}.lock`)).toBe(false)
   })
 })

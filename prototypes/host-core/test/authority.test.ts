@@ -1,13 +1,16 @@
 // A manifest authority over real sockets, TCP and TLS, with HMAC signatures verified by a real SignaturePolicy.
 import { execFileSync } from "node:child_process"
 import { createHmac, timingSafeEqual } from "node:crypto"
-import { mkdtempSync, readFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, readdirSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
-import { remoteSnapshot, remoteSource, serveAuthority } from "../src/authority.js"
+import { fileAuthorityData, remoteSnapshot, remoteSource, serveAuthority, tokenAuthorizer } from "../src/authority.js"
 import { ManifestStore } from "../src/federation.js"
+import { dialAddress } from "../src/links.js"
+import { listen } from "../src/net.js"
+import { duplex } from "../src/wire.js"
 import { makeFederation, type HostManifest } from "../src/fedplugin.js"
 import { define, type AnyPlugin } from "../src/plugin.js"
 import { rebootstrap } from "../src/rebootstrap.js"
@@ -100,4 +103,47 @@ describe("authority over sockets", () => {
       yield* srv.close
     }))
   })
+
+  it("authorizes per host: a token opens only its own host, a wrong or missing token is unauthorized", async () => {
+    await run((host) => Effect.gen(function* () {
+      void host
+      const data = { latest: (h: string) => ({ revision: 1, envelope: envelope({ ...manifest(1, ["a"]), host: h }) }), snapshot: () => ({ revision: 1, snapshot: "S" }) }
+      const srv = yield* serveAuthority(data, undefined, tokenAuthorizer({ h1: "t1", h2: "t2" }))
+      const addr = `127.0.0.1:${srv.port}`
+      expect((yield* remoteSource(addr, undefined, "t1")({ host: "h1", known: 0 })).kind).toBe("manifest")
+      expect(yield* Effect.flip(remoteSource(addr, undefined, "t1")({ host: "h2", known: 0 }))).toBe("unauthorized")   // tenant isolation
+      expect(yield* Effect.flip(remoteSource(addr, undefined, "bad")({ host: "h1", known: 0 }))).toBe("unauthorized")
+      expect(yield* Effect.flip(remoteSource(addr)({ host: "h1", known: 0 }))).toBe("unauthorized")
+      expect(yield* Effect.flip(remoteSource(addr, undefined, "t1")({ host: "unknown", known: 0 }))).toBe("unauthorized")
+      expect(yield* Effect.flip(remoteSnapshot(addr, undefined, "t2")({ host: "h1", since: "0" }))).toEqual({ reason: "unauthorized" })
+      expect((yield* remoteSnapshot(addr, undefined, "t2")({ host: "h2", since: "0" })).snapshot).toBe("S")
+      yield* srv.close
+    }))
+  })
+  it("keeps published data on disk across an authority restart, isolates hosts, and refuses a reused or lower revision", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bridger-authdata-"))
+    const d1 = fileAuthorityData(dir)
+    d1.publish("h1", envelope(manifest(2, ["a"]))); d1.putSnapshot("h1", 2, "SNAP"); d1.setResyncBelow("h1", 1)
+    d1.publish("../escape", envelope({ ...manifest(1, ["z"]), host: "../escape" }))
+    const d2 = fileAuthorityData(dir)                                               // a new process
+    expect(d2.latest("h1")?.revision).toBe(2); expect(d2.snapshot("h1", "0")).toEqual({ revision: 2, snapshot: "SNAP" }); expect(d2.resyncBelow!("h1")).toBe(1)
+    expect(d2.latest("h2")).toBeUndefined()
+    expect(() => d2.publish("h1", envelope(manifest(2, ["b"])))).toThrow(/not above/)
+    expect(() => d2.publish("h1", envelope(manifest(1, ["b"])))).toThrow(/not above/)
+    d2.publish("h1", envelope(manifest(3, ["b"]))); expect(d2.latest("h1")?.revision).toBe(3)
+    expect(readdirSync(dir).every((n) => /^[0-9a-f]{32}$/.test(n))).toBe(true)      // the host id never becomes a path
+  })
+
+  it("a federation link address dialled over TLS carries frames for a trusting client and fails for an untrusting one", async () => {
+    const { key, cert: c } = cert()
+    await run(() => Effect.gen(function* () {
+      void duplex
+      const l = yield* listen((conn) => Effect.gen(function* () { yield* conn.send(`echo:${yield* conn.receive}`) }), { key, cert: c })
+      const ok = yield* dialAddress(`127.0.0.1:${l.port}`, { ca: c }); yield* ok.send("hi")
+      expect(yield* ok.receive).toBe("echo:hi")
+      const bad = yield* Effect.exit(dialAddress(`127.0.0.1:${l.port}`, {}).pipe(Effect.flatMap((x) => x.send("x").pipe(Effect.andThen(x.receive)))))
+      expect(bad._tag).toBe("Failure")
+      yield* l.close
+    }))
+  }, 30000)
 })
