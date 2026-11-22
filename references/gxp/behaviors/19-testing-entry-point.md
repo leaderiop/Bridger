@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-19                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-10): BEH-GX-151 `GxpTestHost.make` takes `gatePieces` and passes them to `GxpLayer.make`, which requires them since CCR-GX-006; check 44 covers them (PL4) (CCR-GX-007)<br>0.2 (2026-11-09): `memoryTrailStore` keeps collisions beside the primary; `brokenTrailStore` variants "overwrite-on-collision" and "drop-on-collision"; `GxpTestHost.make` takes `trailGate` (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.4 (2026-11-22): `faultyTrailStore` OR-s `fixture` into the inner manifest; `scriptedSignatureCapture` fails at runtime without `decide`; `testKeyProvider` key ids carry a digest of the seed, which is not a secret (improvement report 06, S32, S34, S37)<br>0.3 (2026-11-10): BEH-GX-151 `GxpTestHost.make` takes `gatePieces` and passes them to `GxpLayer.make`, which requires them since CCR-GX-006; check 44 covers them (PL4) (CCR-GX-007)<br>0.2 (2026-11-09): `memoryTrailStore` keeps collisions beside the primary; `brokenTrailStore` variants "overwrite-on-collision" and "drop-on-collision"; `GxpTestHost.make` takes `trailGate` (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -229,7 +229,9 @@ declare function scriptedSignatureCapture(
 ```
 REQUIREMENT: `decide` MUST be required. There MUST be no overload, default,
              constant or helper that signs every request, signs as a
-             configured identity, or signs without `decide` naming the signer.
+             configured identity, or signs without `decide` naming the signer,
+             and a call whose `decide` is not a function MUST fail with a
+             defect at runtime, whatever the types allow.
 ```
 
 ```
@@ -268,7 +270,7 @@ declare function testKeyProvider(seed: string): Effect.Effect<FingerprintKeyProv
   readonly destroy: (keyId: string) => Effect.Effect<void>   // byId then answers None, for BEH-GX-108 tests
   readonly behave: (outcome: "pass" | "fail" | "die" | "hang") => Effect.Effect<void>
 }>
-// key n (n = 1, 2, …): bytes SHA-256(UTF-8("bridger-gx/test-key/" + seed + "/" + n)); id "test:" + seed + ":" + n
+// key n (n = 1, 2, …): bytes SHA-256(UTF-8("bridger-gx/test-key/" + seed + "/" + n)); id "test:" + first 8 hex of SHA-256(UTF-8(seed)) + ":" + n
 ```
 
 ```
@@ -276,6 +278,8 @@ REQUIREMENT: `testKeyProvider` MUST derive key n from the seed exactly as
              shown, so that the same seed gives the same keys and the same
              fingerprints on every platform, and MUST issue only key ids
              beginning "test:". `seed` MUST match `^[A-Za-z0-9._-]{1,32}$`.
+             The seed is not a secret, the key bytes being derivable from it,
+             and it MUST NOT appear in a key id, a fingerprint or any output.
 ```
 
 ```
@@ -387,3 +391,9 @@ fixture without saying so.
 ---
 
 _Previous: [18 — Archive and Export](./18-archive-and-export.md)_ · _Next: [20 — Required Acceptance Checks](./20-required-acceptance-checks.md)_
+
+```
+REQUIREMENT: `faultyTrailStore(inner, plan)` MUST return the manifest of
+             `inner` with `fixture` set to true, never a manifest of its own
+             without the flag, so wrapping cannot clear a fixture mark.
+```

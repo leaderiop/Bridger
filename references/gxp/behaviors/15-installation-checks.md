@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-15                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-11): BEH-GX-120 `IqReport.controls` holds `HostControlsData` in its JSON encoding, durations as milliseconds and "forever" as the string (core CL3) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.6 (2026-11-11): BEH-GX-120 `IqReport.controls` is `HostControlsData`, the data of `HostControls` without the `closed` effect, so `iq.json` stays canonical JSON (G1, SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-10): BEH-GX-117 IQ-01, IQ-03 and IQ-24 compute the installed-files digest as IQ-08 does, the four record each package's resolved location, and BEH-GX-120 `IqReport.installed` carries the identity OQ runs are matched against (G3) (CCR-GX-007)<br>0.4 (2026-11-10): `expected.sections.gatePieces`, checked by IQ-10, and IQ-23 records each of the consumer's gate pieces (M5); IQ-24 added: with sealing on, the installed `@bridger/audit-chain` identity matches the lockfile and its version lies in the compatibility row's audit-chain range (BEH-GX-117); deviation range IQ-01 to IQ-24 (M3) (CCR-GX-006)<br>0.3 (2026-11-10): IQ-23 added: the gate pieces "trail" and "chain" used as `expected.sections` declares, with their options recorded (BEH-GX-179); IQ-19 counts the timeouts of the pieces composed before the approval gate; deviation range IQ-01 to IQ-23 (H7, P18) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.8 (2026-11-22): IQ-11 recognises a fixture by name prefix, in-memory commit, custodian and method as well as `fixture: true`; IQ-U3 is an executed gate probe (improvement report 06, S32, S35)<br>0.7 (2026-11-11): BEH-GX-120 `IqReport.controls` holds `HostControlsData` in its JSON encoding, durations as milliseconds and "forever" as the string (core CL3) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.6 (2026-11-11): BEH-GX-120 `IqReport.controls` is `HostControlsData`, the data of `HostControls` without the `closed` effect, so `iq.json` stays canonical JSON (G1, SPEC-AUDIT-06) (CCR-GX-009)<br>0.5 (2026-11-10): BEH-GX-117 IQ-01, IQ-03 and IQ-24 compute the installed-files digest as IQ-08 does, the four record each package's resolved location, and BEH-GX-120 `IqReport.installed` carries the identity OQ runs are matched against (G3) (CCR-GX-007)<br>0.4 (2026-11-10): `expected.sections.gatePieces`, checked by IQ-10, and IQ-23 records each of the consumer's gate pieces (M5); IQ-24 added: with sealing on, the installed `@bridger/audit-chain` identity matches the lockfile and its version lies in the compatibility row's audit-chain range (BEH-GX-117); deviation range IQ-01 to IQ-24 (M3) (CCR-GX-006)<br>0.3 (2026-11-10): IQ-23 added: the gate pieces "trail" and "chain" used as `expected.sections` declares, with their options recorded (BEH-GX-179); IQ-19 counts the timeouts of the pieces composed before the approval gate; deviation range IQ-01 to IQ-23 (H7, P18) (CCR-GX-005)<br>0.2 (2026-11-09): Core's installation check 8 (identifier uniqueness of a provided `IdGenerator`, core CCR-BR-033) packaged: IQ-22, a probe drawing from the consumer's per-host generator instances given in the new option `idDraw`, and IQ-U10, the generator's design review listed as not executed; BEH-GX-116 retitled to core's eight checks; deviation range IQ-01 to IQ-22; `idDraw.generators` are `IdGenerator` service values; IQ-22's "not-applicable" reason names the default's random bound (CCR-GX-004)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -400,7 +400,10 @@ REQUIREMENT: IQ-10 MUST fail when a section of `GxpLayer.make`, `gatePieces`
 REQUIREMENT: IQ-11 MUST fail when the manifest of any wired companion port —
              trail store, anchor store, ticket store, signature capture, key
              provider — has `fixture: true`, or when the signature capture
-             manifest lists the method "test-fixture". There MUST be no
+             manifest lists the method "test-fixture"; it MUST also fail on a
+             manifest `name` beginning "@bridger/gxp/testing/", a trail
+             store `commit` of "in-memory", a `custodian` of "test fixture",
+             whatever the manifest says of `fixture`. There MUST be no
              option that accepts a fixture.
 ```
 
@@ -522,3 +525,12 @@ approves the installation.
 ---
 
 _Previous: [14 — Fingerprint Keys](./14-fingerprint-keys.md)_ · _Next: [16 — OQ Evidence](./16-oq-evidence.md)_
+
+```
+REQUIREMENT: IQ-U3 MUST be executed, not reported as not executed: the check
+             MUST send the wired gate a synthetic gated request that carries
+             no ticket and fail unless the gate refuses or defers it, and
+             MUST do the same for the wired `AuditSink` with a record it must
+             store. Core's own fixtures carry no marker, so this probe, not a
+             manifest, is what finds an approve-everything gate.
+```
