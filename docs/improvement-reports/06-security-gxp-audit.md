@@ -2,6 +2,26 @@
 
 Lens: Cordis / DeepSeek Harness (capability-style proxy access, interception metadata, UNDECLARED/INACTIVE_ACCESS, "language-level checks are not a sandbox", output-commit problem).
 
+**State (2026-11-22):** the original review is kept as written below. All 11 findings were checked against the specification and the prototype; 10 were partly wrong in their premise or already specified, and all are resolved (see Resolution status). Not built: a production worker adapter, a production evaluator and a kill-switch loop; those are reference kernels.
+
+## Resolution status (2026-11-22)
+
+Corrected citations: BEH-BR-32 is BEH-BR-313..326, BEH-RM-06x is BEH-RM-041..044, BEH-LD-002 is BEH-LD-011, and the BEH-RM-070s are taken (new: BEH-RM-073).
+
+| Finding | Rec. | Verdict | As built |
+|---|---|---|---|
+| S1 | R1 | Partly wrong, resolved | The leak was the install caller's environment, not host ports (those are closure values). `closed.ts` `closedContext` replaces the build, finalizer, background, listener and hook contexts; an undeclared service fails the activation as `UndeclaredAccess` (BEH-BR-036, ADR-BR-002 amendment, INV-BR-014, check 115). `test/sec-closed-context.test.ts`. |
+| S2 | R1 | Partly wrong, resolved | `Runtime.optional` already hands out no service (BEH-BR-130). The real escape was a service kept past its activation: `leaseBound` throws `InactiveAccess` once the provider's activation has ended (check 116). |
+| S3 | R2 | Partly wrong, resolved | `consentDiff` was already specified (BEH-BR-243, BEH-BR-318). Now wired into plan entries; manifest `emits`, `mounts`, `hostOps`; `declaredOnly` decides emit and child; BEH-GX-092 binds the diff through the request digest. `test/sec-declared-access.test.ts`. |
+| S4 | R3 | Partly wrong, resolved | The guest trust class already exists (BEH-LD-066..068), so no `partner` value. BEH-RM-073 and ADR-RM-011: a six-case negative isolation suite, manifest first, `unsupported` fails; BEH-RM-052 obligation 7. `src/isolation-conformance.ts` with a `worker_threads` adapter that fails all six (`test/sec-isolation.test.ts`). No production worker adapter exists. |
+| S5 | R5 | Partly wrong, resolved | `residentRevoked` is the loader's, not `Host.controls`; BEH-GX-091 stays at eleven reasons. BEH-LD-031 adds `restartRequired` and the opt-in `restartGate` (refusal `restart: resident-revoked`); federation kill frames feed the same revocation source. `test/sec-restart-required.test.ts`. |
+| S6 | R4 | Partly wrong, resolved | Plan entries carry `reversibility` (BEH-BR-327, BEH-BR-328): core sets only `irreversible` from a resource acquired with `irreversible: true` (BEH-BR-119); an atomic apply defers irreversible removals past changes unless a dependency forces order (BEH-BR-156). The binding carries it only when present (BEH-GX-066 vectors unchanged). Shred and remote outcomes stay owner-declared. `test/sec-reversibility.test.ts`. |
+| S7 | R4 | Partly wrong, resolved | `ChainGate` already did anchor freshness (BEH-AC-013); the option `anchorBeforeIrreversible` refuses `anchor-behind` at the gate and never waits on the write path (INV-AC-005). `test/sec-chain-gate.test.ts`. |
+| S8 | R6 | Confirmed, resolved | BEH-BR-282: core's own delivery layer sets `bridger:via` while a provider's method runs, independent of `CallLog`; the principal is unchanged (BEH-BR-258); check 117. `test/sec-via.test.ts`. |
+| S9 | R7 | Partly wrong, resolved | Closure was already BEH-LD-011 (`EvaluationFailed` "unresolved-import"), not BEH-LD-002. Added root-escape, protocol-specifier and `allowBuiltins` rules; `resolveSpecifier` and `checkExternals`. `test/sec-digest-closure.test.ts`. No production evaluator exists. |
+| S10 | - | Partly wrong, resolved | The 900 s is awthaq's JWT (SPK-09-12), now documented in RSK-RM-009, the entitlement traceability and ERP-IDENTITY. The per-call cap `tokenTtl` existed; the checker now enforces it against custom authorities. `test/sec-token-cap.test.ts`. |
+| S11 | - | Partly wrong, resolved | `CapabilityPolicy.resolve` (not `AccessPolicy`) already receives the provider's identity; documented as the allow-list hook in BEH-BR-273. `test/sec-provider-allowlist.test.ts`. |
+
 ## Executive summary
 
 1. Bridger is already stricter than Cordis on trust: signed statements, no default policy, a separate "first-party" statement for in-process code (BEH-LD-065), and explicit "attribution, not isolation" non-claims.
@@ -24,7 +44,7 @@ Lens: Cordis / DeepSeek Harness (capability-style proxy access, interception met
 
 | ID | Sev | Evidence | Issue | Proposed change |
 |----|-----|----------|-------|-----------------|
-| S1 | H | ADR-BR-002 ("a requirement reached only inside a returned method is invisible"); host.ts:1016-1067 (`Context.empty()` plus `Effect.provideContext`); RSK-BR-001 residual | Closed build context is not specified or tested. `provideContext` adds to the inherited fiber context; host services and `Reference` defaults may be reachable by `Effect.service` or a cast. No UNDECLARED_ACCESS equivalent. | New behaviour: build, finalizers and background fibers run with a replaced context; acceptance check that an undeclared host service lookup fails with a typed defect. |
+| S1 | H | ADR-BR-002 ("a requirement reached only inside a returned method is invisible"); the build pipeline of host.ts (`closedContext`; it was `provideContext`) (`Context.empty()` plus `Effect.provideContext`); RSK-BR-001 residual | Closed build context is not specified or tested. `provideContext` adds to the inherited fiber context; host services and `Reference` defaults may be reachable by `Effect.service` or a cast. No UNDECLARED_ACCESS equivalent. | New behaviour: build, finalizers and background fibers run with a replaced context; acceptance check that an undeclared host service lookup fails with a typed defect. |
 | S2 | M | BEH-BR-130 `Runtime.optional`; RSK-BR-001 residual "reference captured and kept" | A captured service used after its lease ends is accepted as "contradicts contract" with no runtime signal (no INACTIVE_ACCESS). | Lease-bound wrapper that throws `InactiveAccess` after release, built on the BEH-BR-260 interception machinery. |
 | S3 | M | BEH-BR-268 settled (3): emits and child mounts not compared | Load-time review covers listens and contributions only. Emits, child mounts, host mutations and external egress are undeclared. | Extend manifest and `DeclaredAccess` with `emits`, `mounts`; add a consent-diff on upgrade. |
 | S4 | H | INV-LD-009; ADR-RM-006; RSK-BR-028 | Partner/third-party plugins have no Bridger-defined tier: not in-process, remote isolation is "the host's". No shipped negative conformance for an adapter. | Isolation conformance suite per adapter (egress, fs, env, timing) recorded as evidence, never an enum. |
@@ -33,14 +53,14 @@ Lens: Cordis / DeepSeek Harness (capability-style proxy access, interception met
 | S7 | M | INV-AC-005 (anchoring never delays a write); SPK-06-07; FINDINGS #9 | Records after the last anchor rest on the chain alone, and nothing couples anchor freshness to a high-risk operation. | Gate option "anchored head at least n" before an irreversible op (the gate, not the write path, waits). |
 | S8 | M | BEH-BR-258/259; RSK-BR-028 | A provider mutating the host while serving consumer A is recorded `onBehalfOf` A with no trace of the provider's code. Attribution of module origin is lost. | Built-in mandatory interception adds a `via` annotation (provider principal) on every intercepted call result path. |
 | S9 | M | BEH-LD-001/ADR-LD-002 | SBOM is opaque to the loader (BEH-LD-001 non-claims). Transitive imports at evaluation time are not tied to the digest. | Require file-set closure: loader evaluates only files in the digest, no dynamic import outside it. |
-| S10 | L | SPK-09-12; BEH-BR-281 | Offline/stateless tokens stay valid until expiry (900 s); entitlement lapse narrows live captures but token lifetime is awthaq's. | Document the bound in the entitlement and remote risk tables; per-call token (BEH-RM-06) TTL max. |
+| S10 | L | SPK-09-12; BEH-BR-281 | Offline/stateless tokens stay valid until expiry (900 s); entitlement lapse narrows live captures but token lifetime is awthaq's. | Document the bound in the entitlement and remote risk tables; per-call token (BEH-RM-041..044) TTL max. |
 | S11 | L | Cordis paper: version drift, key collision | Nominal key identity (ADR-BR-011) allows a lookalike provider to satisfy a `requires`. | Already mitigated by contract versions (BEH-BR-229); add provider-principal allow-list in AccessPolicy docs. |
 
 ## Recommendations
 
 ### R1 (S1, S2). A closed plugin context and typed access errors
 
-**Rationale.** Cordis's value is that `ctx[key]` is proxy-mediated: undeclared throws UNDECLARED_ACCESS, declared but unavailable throws INACTIVE_ACCESS, and the capability set is knowable before running. Bridger gets the first half from the `Layer` type and from the resolver supplying only declared services (host.ts:1033-1038 builds `ctx` from `requires` alone), which is good. But the spec never states that the build fiber's context is exactly that set. `Effect.provideContext(ctx)` merges onto the caller's context; if the host's fiber carries `AuditSink`, `OperationGate` or similar, plugin code can read them at run time (type erasure, `as any`). `Reference` services (`CurrentActor`, `PrincipalReference`, `ActivePlugin`) are always readable by design. RSK-BR-028 says "trusted code"; but a partner plugin or an agent-generated plugin is exactly where capability discipline pays.
+**Rationale.** Cordis's value is that `ctx[key]` is proxy-mediated: undeclared throws UNDECLARED_ACCESS, declared but unavailable throws INACTIVE_ACCESS, and the capability set is knowable before running. Bridger gets the first half from the `Layer` type and from the resolver supplying only declared services (the build pipeline of host.ts builds `ctx` from `requires` alone), which is good. But the spec never states that the build fiber's context is exactly that set. `Effect.provideContext(ctx)` merges onto the caller's context; if the host's fiber carries `AuditSink`, `OperationGate` or similar, plugin code can read them at run time (type erasure, `as any`). `Reference` services (`CurrentActor`, `PrincipalReference`, `ActivePlugin`) are always readable by design. RSK-BR-028 says "trusted code"; but a partner plugin or an agent-generated plugin is exactly where capability discipline pays.
 
 **Concrete spec change.** (a) New BEH in core 05 Activation: "The build, finalizers, background fibers, listeners and hooks of a plugin MUST run in a context whose services are exactly: its declared and optional requirements (after interceptions), `Plugin.Runtime`, `Plugin.Config`, and Effect's own References. Host-internal ports (`AuditSink`, `OperationGate`, `AccessPolicy`, `CallLog`, `RefusalList`) MUST NOT be present." (b) Define `UndeclaredAccess` and `InactiveAccess` defects with the plugin id and key; `Runtime.optional` captures and lease-released services are wrapped to throw `InactiveAccess`. (c) Add acceptance checks: undeclared lookup in build fails; a captured optional used after drain fails typed. (d) Record the reachable References list in `Host.controls` (BEH-BR-265).
 
@@ -62,7 +82,7 @@ Lens: Cordis / DeepSeek Harness (capability-style proxy access, interception met
 
 **Rationale.** ADR-RM-006 correctly rejects an isolation-level enum; yet GxP integrators then have nothing to cite for partner code. The Cordis paper's conclusion (external sandbox needed) is accepted by Bridger but not operationalised.
 
-**Concrete spec change.** In remote BEH-RM-070s: a normative negative conformance suite each adapter publishes (egress denied, fs/env unreadable, CPU/memory cap, no shared module cache), result recorded in the GxP OQ evidence pack (BEH-GX-127 already records package self). Add a loader trust-class value `partner` meaning "remote link only; first-party statement refused" so `Loader.lazy` cannot admit it by accident (BEH-LD-067 already refuses non-first-party; make the class explicit in the catalog).
+**Concrete spec change.** In remote BEH-RM-073: a normative negative conformance suite each adapter publishes (egress denied, fs/env unreadable, CPU/memory cap, no shared module cache), result recorded in the GxP OQ evidence pack (BEH-GX-127 already records package self). Add a loader trust-class value `partner` meaning "remote link only; first-party statement refused" so `Loader.lazy` cannot admit it by accident (BEH-LD-067 already refuses non-first-party; make the class explicit in the catalog).
 
 **Cost/risk.** Medium: suite content per adapter. Avoids false claims.
 
@@ -72,7 +92,7 @@ Lens: Cordis / DeepSeek Harness (capability-style proxy access, interception met
 
 **Rationale.** The paper's own stated limit: effects crossing the system boundary need withholding or compensation. Bridger says "does not compensate external effects" and handles each case separately, but a GxP approver reading an atomic-apply plan cannot see which entries cannot be undone.
 
-**Concrete spec change.** (a) Add an annotation `Reversibility = reversible | compensable | irreversible` on plan entries (BEH-BR-32 generic plan); defaults: install/replace/remove reversible by the undo of ADR-BR-051; keyring shred, remote calls with unknown outcome, ticket consumption and external-egress contributions declared irreversible by their owners. (b) Atomic apply MUST order irreversible entries after all reversible ones and MUST fail the plan, not the run, if an irreversible entry precedes a reversible one it depends on. (c) The approval binding (BEH-GX-092) covers the class so approvers see it. (d) With S7, the gate may require `anchoredHead >= headAtPlanTime` before executing an irreversible entry; this respects INV-AC-005 because the wait is at the gate, not the write.
+**Concrete spec change.** (a) Add an annotation `Reversibility = reversible | compensable | irreversible` on plan entries (BEH-BR-313..326 generic plan); defaults: install/replace/remove reversible by the undo of ADR-BR-051; keyring shred, remote calls with unknown outcome, ticket consumption and external-egress contributions declared irreversible by their owners. (b) Atomic apply MUST order irreversible entries after all reversible ones and MUST fail the plan, not the run, if an irreversible entry precedes a reversible one it depends on. (c) The approval binding (BEH-GX-092) covers the class so approvers see it. (d) With S7, the gate may require `anchoredHead >= headAtPlanTime` before executing an irreversible entry; this respects INV-AC-005 because the wait is at the gate, not the write.
 
 **Cost/risk.** Medium; one new annotation, one ordering rule. Risk: plugin authors under-declare, so also require companions (keyring, remote) to set it.
 
@@ -102,7 +122,7 @@ Lens: Cordis / DeepSeek Harness (capability-style proxy access, interception met
 
 **Rationale.** The digest commits to a file set (ADR-LD-002) but evaluation can still import outside it.
 
-**Concrete spec change.** Add to BEH-LD-002: the evaluator MUST resolve imports only inside the digested file map; a bare or dynamic specifier outside it fails with `OutsideDigest`. Keep SBOM interpretation out of scope.
+**Concrete spec change.** Add to BEH-LD-011: the evaluator MUST resolve imports only inside the digested file map; a bare or dynamic specifier outside it fails with `OutsideDigest`. Keep SBOM interpretation out of scope.
 
 **Cost/risk.** Packaging constraint for bundling; matches Cordis HMR's import-graph analysis in spirit.
 
@@ -110,8 +130,7 @@ Lens: Cordis / DeepSeek Harness (capability-style proxy access, interception met
 
 ## Not checked / uncertainties
 
-- Whether the host's fiber context actually contains host ports at plugin build time (S1 is inferred from `Effect.provideContext` semantics and the spec's silence, not from a run).
-- Exact ordering semantics of BEH-BR-32 plan entries and whether a ticket consumed by a rolled-back forward action is re-issued for the undo (BEH-GX-090/093 suggest the plan covers undos; not confirmed per case).
-- Files not opened in full: references/federation behaviours 04/06, keyring risks, entitlement behaviours, docs/ERP-ACCESS.md, ERP-IDENTITY.md, GXP-COMPANION.html, spikes 06/08 test bodies (only the RESULT/FINDINGS tables were read). ERP-layer authorization (role/permission registry, spike 08) is not assessed here.
-- Prototype `actor.ts`, `config.ts` and the rest of `gxp.ts` were only skimmed; `policy.ts` principal code read in part.
-- Everything is Draft/Planned: findings are about specified behaviour, not shipped code.
+- S1 was run, not inferred: `test/sec-closed-context.test.ts` shows the leak before the fix and its removal after.
+- Whether a ticket consumed by a rolled-back forward action is re-issued for its undo is still per case (BEH-GX-090, BEH-GX-093).
+- No production worker adapter, evaluator or kill-switch loop exists; the isolation suite, `resolveSpecifier` and `restartGate` are reference kernels. Six probes are not the whole attack surface (BEH-RM-073).
+- ERP-layer authorization (spike 08) is not assessed. Everything is Draft/Planned.
