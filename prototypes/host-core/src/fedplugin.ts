@@ -1,6 +1,6 @@
 // The federation plugin over core `reconcile` (federation 01, 02): project a verified manifest to a desired list, overlay the
 // permitted local patches, remove kills, disable `requiresFresh` entries while stale, and apply it as one attributed reconcile.
-import { Effect } from "effect"
+import { Clock, Effect } from "effect"
 import { Desired, type DesiredPlugin } from "./desired.js"
 import type { AnyPlugin } from "./plugin.js"
 import { applyFreshness, applyKills, freshness, type FreshnessInput, type KillEntry, type StaleReason } from "./federation.js"
@@ -79,6 +79,8 @@ export interface FederationOptions extends Omit<SyncOptions, "apply" | "authorit
   readonly outside?: () => ReadonlyArray<Listed>
   /** Disable a plugin the federation owns (kills that act without a manifest, BEH-FD-048). */
   readonly disable?: (ref: { readonly id: string; readonly realm: string }, reason: string) => Effect.Effect<void, unknown>
+  /** BEH-FD-042: a kill pending longer than this (ms, from `Clock`) is reported `kill-overdue` with its age; default none. */
+  readonly killPendingMaxAge?: number
 }
 /** Ties the sync attempt, projection, kills and freshness to one attributed reconcile in the federation's scope. */
 export const makeFederation = (o: FederationOptions) => Effect.gen(function* () {
@@ -126,6 +128,7 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
     if (f.fresh !== lastFresh) { yield* applyWith(last, f.fresh, f.fresh ? "freshness restored" : "freshness lost").pipe(Effect.orDie); return f.fresh ? "fresh" as const : "stale" as const }
     return "unchanged" as const
   })
+  const pendingSince = new Map<string, number>()          // (realm/id) -> first time a kill of it was refused
   /** Disable what a pending kill matches without any manifest (BEH-FD-048): by id and realm, or by the digest the stored manifest lists. */
   const killsActWithout = (s: import("./durable.js").DurableState) => Effect.gen(function* () {
     if (!o.disable) return
@@ -133,7 +136,17 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
     for (const p of s.lastApplied?.plugins ?? []) digests.set(p.digest, [...(digests.get(p.digest) ?? []), { id: p.id, realm: p.realm }])   // stored with the manifest: no parsing of bytes
     for (const k of [...s.pendingKills.map((k) => ({ ...k, why: `pending kill of revision ${k.revision}` })), ...(s.revoked ?? []).map((digest) => ({ digest, id: undefined, realm: undefined, why: "revoked digest" }))]) {
       const targets = [...(k.id ? [{ id: k.id, realm: k.realm ?? "default" }] : []), ...(k.digest ? digests.get(k.digest) ?? [] : [])]
-      for (const t of targets) yield* o.disable(t, k.why).pipe(Effect.catch(() => Effect.sync(() => { status.events.push({ _tag: "kill-pending" }) })))
+      for (const t of targets) {
+        const key = `${t.realm}/${t.id}`
+        yield* o.disable(t, k.why).pipe(
+          Effect.tap(() => Effect.sync(() => { pendingSince.delete(key) })),
+          Effect.catch(() => Effect.gen(function* () {
+            const now = yield* Clock.currentTimeMillis
+            const since = pendingSince.get(key) ?? now; pendingSince.set(key, since)
+            status.events.push({ _tag: "kill-pending" })
+            if (o.killPendingMaxAge !== undefined && now - since > o.killPendingMaxAge) status.events.push({ _tag: "kill-overdue", id: t.id, realm: t.realm, ageMs: now - since } as { _tag: string })
+          })))
+      }
     }
   })
   const readState = () => (o.state?.read ?? Effect.succeed({ pendingKills: [] } as import("./durable.js").DurableState))

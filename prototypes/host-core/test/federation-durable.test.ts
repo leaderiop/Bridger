@@ -11,7 +11,8 @@ import { define, type AnyPlugin } from "../src/plugin.js"
 import { rebootstrap } from "../src/rebootstrap.js"
 import type { Envelope, SyncAnswer } from "../src/sync.js"
 import { as, run, stateIn } from "./p4fixtures.js"
-import { drive, idle } from "./fixtures.js"
+import { drive, idle, withHost } from "./fixtures.js"
+import * as Testing from "../src/testing.js"
 
 const plug = (id: string) => define({ id, requires: [] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
 const catalog: Record<string, AnyPlugin> = { dA: plug("a"), dB: plug("b") }
@@ -20,7 +21,7 @@ const envelope = (m: HostManifest): Envelope => ({ statementType: "host-manifest
 const disk = (path: string) => Effect.runSync(fileState(path).read) as any
 const tmp = () => join(mkdtempSync(join(tmpdir(), "bridger-fed-")), "state.json")
 
-const build = (host: Parameters<Parameters<typeof run>[0]>[0], state: ReturnType<typeof fileState>, o: { answers?: SyncAnswer[]; verify?: (r: { reverify?: unknown }) => Effect.Effect<void, unknown>; disabled?: string[]; outside?: { id: string }[]; reasons?: string[]; syncEvery?: number } = {}) => {
+const build = (host: Parameters<Parameters<typeof run>[0]>[0], state: ReturnType<typeof fileState>, o: { answers?: SyncAnswer[]; verify?: (r: { reverify?: unknown }) => Effect.Effect<void, unknown>; disabled?: string[]; outside?: { id: string }[]; reasons?: string[]; syncEvery?: number; refuseDisable?: () => boolean; killPendingMaxAge?: number } = {}) => {
   const answers = o.answers ?? []; const seen: unknown[] = []
   return makeFederation({
     authority: "auth", host: "h1", source: () => Effect.succeed(answers.shift() ?? { kind: "none" }), store: new ManifestStore(),
@@ -28,7 +29,8 @@ const build = (host: Parameters<Parameters<typeof run>[0]>[0], state: ReturnType
     reconcile: (d, op) => { o.reasons?.push(op.reason ?? ""); return drive(host, host.reconcile(d, { ...as(op.reason), ...(op.scope ? { scope: op.scope } : {}), ...(op.prune !== undefined ? { prune: op.prune } : {}) } as never)) as never },
     resolver: (digest) => catalog[digest] ? Effect.succeed(catalog[digest]!) : Effect.fail({ reason: "unknown" }), now: Effect.succeed(100),
     freshness: { maxOffline: 1e9, skewTolerance: 10 }, firstActivation: 50, state, outside: () => o.outside ?? [],
-    disable: (ref, reason) => Effect.sync(() => { o.disabled?.push(`${ref.id}/${ref.realm}:${reason}`) })
+    ...(o.killPendingMaxAge !== undefined ? { killPendingMaxAge: o.killPendingMaxAge } : {}),
+    disable: (ref, reason) => o.refuseDisable?.() ? Effect.fail("gate refused") : Effect.sync(() => { o.disabled?.push(`${ref.id}/${ref.realm}:${reason}`) })
   }).pipe(Effect.map((fed) => ({ fed, seen })))
 }
 
@@ -186,5 +188,29 @@ describe("log-structured file state", () => {
       upd(st, (s) => ({ ...s, firstActivation: 2 }))
     } finally { process.kill = real }
     expect(disk(path).firstActivation).toBe(2)
+  })
+  it("a kill the gate refuses stays kill-pending, is reported kill-overdue with its age once older than killPendingMaxAge, and clears when the gate allows (BEH-FD-042)", async () => {
+    const { TestClock } = await import("effect/testing")
+    const path = tmp(); const disabled: string[] = []
+    const m1 = manifest(1, { plugins: [{ id: "a", digest: "dA" }] })
+    await run((host) => Effect.gen(function* () {
+      const { fed } = yield* build(host, fileState(path), { answers: [{ kind: "manifest", envelope: envelope(m1) }] })
+      yield* drive(host, fed.sync)
+    }))
+    const st = fileState(path)
+    await Effect.runPromise(st.update((s) => ({ ...s, pendingKills: [{ id: "a", revision: 2 }] })))
+    let refuse = true
+    await withHost((host) => Effect.gen(function* () {
+      const { fed } = yield* build(host, st, { verify: () => Effect.fail("revoked signer"), disabled, refuseDisable: () => refuse, killPendingMaxAge: 1000 })
+      yield* drive(host, fed.boot)
+      expect(fed.status.events.map((e) => e._tag)).toContain("kill-pending")
+      expect(fed.status.events.map((e) => e._tag)).not.toContain("kill-overdue")
+      yield* TestClock.adjust(5000)
+      yield* drive(host, fed.boot)
+      expect(fed.status.events.find((e) => e._tag === "kill-overdue")).toMatchObject({ id: "a", realm: "default", ageMs: 5000 })
+      refuse = false
+      yield* drive(host, fed.boot)
+      expect(disabled).toEqual(["a/default:pending kill of revision 2"])
+    }), { gateTimeout: 50 }, Layer.mergeAll(Testing.counterIdGenerator("id-"), TestClock.layer()))
   })
 })

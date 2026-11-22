@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-03                                            |
-> | Revision       | 0.9                                                          |
+> | Revision       | 0.10                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — check 12: `guard` names the plugin by `pluginId` and `realm`, and counts refusals under the canonical key (PL15) (CCR-EN-008)<br>0.8 (2026-11-10): BEH-EN-023: a hook point using `Budget.contributionPolicy` is made by application code (E4); BEH-EN-024: check 12 covers `guard` on the passed runtime, the layer's essential list and `checkTimeout`, and "unknown" under "last-known" (E1-E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.7 (2026-11-10): BEH-EN-024: check 12 covers `guard` reading the mode from `Plugin.Runtime.entitled` without the `Entitlement` service (M25); checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.6 (2026-11-10): Acceptance checks 1, 4 and 8 cover `Entitlement.layer` and its option checks, `fallbackMode` and `EntitlementGate.check` (P13) (CCR-EN-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.10 (2026-11-22): BEH-EN-017 `onUnmatched` (required, no default); BEH-EN-018 `essential` counts only labels of the application's list; `Budget.forPlugin` (improvement report 06, S16)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — check 12: `guard` names the plugin by `pluginId` and `realm`, and counts refusals under the canonical key (PL15) (CCR-EN-008)<br>0.8 (2026-11-10): BEH-EN-023: a hook point using `Budget.contributionPolicy` is made by application code (E4); BEH-EN-024: check 12 covers `guard` on the passed runtime, the layer's essential list and `checkTimeout`, and "unknown" under "last-known" (E1-E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.7 (2026-11-10): BEH-EN-024: check 12 covers `guard` reading the mode from `Plugin.Runtime.entitled` without the `Entitlement` service (M25); checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.6 (2026-11-10): Acceptance checks 1, 4 and 8 cover `Entitlement.layer` and its option checks, `fallbackMode` and `EntitlementGate.check` (P13) (CCR-EN-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -77,10 +77,25 @@ REQUIREMENT: The package MUST treat label keys, label values and units as
 ```
 
 ```
-REQUIREMENT: `Budget.layer(limits)` MUST take its limits from the
-             application. The package MUST NOT ship default limits, and a
-             key to which no limit applies MUST be reserved without limit
-             and counted as "unlimited" in `remaining`.
+REQUIREMENT: `Budget.layer(limits, options)` MUST take its limits from the
+             application. The package MUST NOT ship default limits.
+             `options.onUnmatched` MUST be given, with no default: a key to
+             which no limit applies is then reserved without limit and
+             counted as "unlimited" in `remaining` ("unlimited"), or fails
+             with `BudgetExhausted` naming an empty `match` and `remaining`
+             0 ("refuse"). An application that meters a plugin's use states
+             "refuse", so that a label the plugin omits cannot take its
+             reservation out of every limit.
+```
+
+```
+REQUIREMENT: `Budget.forPlugin(runtime, labels)` MUST return a `Budget` whose
+             `reserve`, `tryReserve` and `remaining` add the labels the
+             application derived for that activation (`labels`, resolved
+             from `runtime.principal` and `EntitlementOptions.labels`, 01,
+             BEH-EN-025) over the labels of the key the plugin passes: the
+             host's value wins for a label both name, so a plugin may add
+             labels and MUST NOT remove or replace one.
 ```
 
 Matching by label subset is what makes one reservation count against
@@ -97,7 +112,7 @@ organisation and which a task.
 ```ts
 // illustrative — not type-checked
 interface ReserveOptions {
-  readonly essential?: readonly string[]     // essential labels of this use (01, BEH-EN-007)
+  readonly essential?: readonly string[]     // labels of this use that name entries of the application's essential list (01, BEH-EN-007); others are ignored
   readonly ttl?: Duration.Input              // default 5 minutes
 }
 ```
@@ -197,8 +212,10 @@ REQUIREMENT: `BudgetExhausted` MUST name the first applicable limit, in the
 ```
 
 ```
-REQUIREMENT: A reservation whose `essential` labels contain an essential
-             label MUST succeed whatever remains. The part of it no limit
+REQUIREMENT: A reservation whose `essential` labels contain a label of the
+             application's essential list (`Entitlement.layer`, 01,
+             BEH-EN-001; a label the call site invents is ignored) MUST
+             succeed whatever remains. The part of it no limit
              can cover MUST be counted as an essential overdraft per limit
              and label, visible in `remaining` and `Entitlement.inspect`,
              and MUST NOT be debited below zero.

@@ -48,6 +48,8 @@ export type OfferVerdict =
   | { readonly outcome: "accepted"; readonly close: ReadonlyArray<string> }                 // endpoints whose agreed fence is now lower: close them, drop their frames
   | { readonly outcome: "StaleExport"; readonly key: string; readonly fence: number; readonly highest: number }
   | { readonly outcome: "ExportConflict"; readonly key: string; readonly owners: ReadonlyArray<string> }
+  | { readonly outcome: "PeerMismatch"; readonly key: string; readonly offered: string; readonly authenticated: string }   // the offer names a host the transport did not authenticate
+  | { readonly outcome: "advisory"; readonly key: string; readonly reason: "unauthenticated" | "out-of-window" }          // checked for staleness, never stored, never closes a link
 
 /** Per importer: the highest token seen per (key, scope), never lowered; the authority is the only source of a token. */
 export class FenceTable {
@@ -71,6 +73,20 @@ export class FenceTable {
     }
     if (endpoint !== undefined) this.agreed.set(endpoint, { key, scope: f.scope, token: f.token })
     return { outcome: "accepted", close }
+  }
+  /**
+   * An offer on a link (BEH-FD-029, improvement report 06 S12). The transport is the only authenticator (BEH-FD-023): when it names the peer, the offer must
+   * come from that host; a higher token is stored (and may close other links) only from an authenticated host and only within `maxJump` of the highest known,
+   * so an unauthenticated or hostile offer cannot raise the stored highest. Anything else is advisory: it is refused when stale and otherwise changes nothing.
+   */
+  offer(key: string, f: Fence, endpoint: string, link: { readonly host: string; readonly authenticatedPeer?: string; readonly maxJump: number }): OfferVerdict {
+    if (link.authenticatedPeer !== undefined && link.authenticatedPeer !== link.host) return { outcome: "PeerMismatch", key, offered: link.host, authenticated: link.authenticatedPeer }
+    const cur = this.highest.get(this.k(key, f.scope))
+    const stale = cur && f.token < cur.token
+    if (stale) return this.see(key, f, endpoint)                                       // a stale offer is refused whoever sends it
+    if (link.authenticatedPeer === undefined) return { outcome: "advisory", key, reason: "unauthenticated" }
+    if (cur && f.token > cur.token + link.maxJump) return { outcome: "advisory", key, reason: "out-of-window" }
+    return this.see(key, f, endpoint)
   }
   conflictOf(key: string, scope: string): ReadonlyArray<string> | undefined { const c = this.conflicts.get(this.k(key, scope)); return c && [...c].sort() }
   /** A frame on an endpoint is delivered only while its agreed fence is still the highest. */

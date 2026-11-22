@@ -1784,6 +1784,14 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A subject id containing a name with spaces.
 - **Fix.** Use an opaque id; the subject id stays readable after a shred. Give every shred a reason that carries no personal data.
 
+### ShredRefused
+
+*error* · origin: keyring/03 (BEH-KR-017, BEH-KR-020) · raised by: `Keyring.shred`, `shredIn`; the keyring's handler of a received shred notice
+
+- **Cause.** The mandatory `shredGate` refused, deferred, timed out or failed (`reason`); nothing was written. A received notice the gate does not allow stays unapplied and unacknowledged.
+- **Example.** An approval gate with no ticket for the shred request.
+- **Fix.** Obtain the approval the gate requires, or have the application's gate allow the request.
+
 ### ShredUnattributed
 
 *error* · origin: keyring/03 (BEH-KR-017, BEH-KR-020) · raised by: `Keyring.shred`, `shredIn`; the keyring's handler of a received shred notice

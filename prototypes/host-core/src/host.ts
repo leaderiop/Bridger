@@ -202,6 +202,7 @@ export interface Options {
   readonly eventBuffer?: number      // default 1024
   readonly onClose?: (report: CloseReport) => Effect.Effect<void>
   readonly handoffTimeout?: number   // ms (default 5 s; BEH-BR-347)
+  readonly auditMessage?: (message: string) => string                 // BEH-BR-197: scrubs plugin-authored error text in records; default none
   readonly mandatory?: ReadonlyArray<MandatoryInterception>           // BEH-BR-260
   readonly mandatoryCatalog?: ReadonlyArray<RegisteredInterception>   // BEH-BR-153
   readonly resolutionTimeout?: number                                 // BEH-BR-274 (ms, default 5 s)
@@ -610,7 +611,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   if (!base.has(sid(Events))) base.set(sid(Events), { key: Events, service: bus })
   const closedSignal = yield* Deferred.make<void>()
   const writer = Option.isSome(sinkOpt)
-    ? yield* makeWriter({ sink: sinkOpt.value, hostId, ids, auditTimeout, capacity: options.auditCapacity ?? 1024, onDegraded: (w) => degradedHook(w) })
+    ? yield* makeWriter({ sink: sinkOpt.value, hostId, ids, auditTimeout, capacity: options.auditCapacity ?? 1024, onDegraded: (w) => degradedHook(w), ...(options.auditMessage ? { auditMessage: options.auditMessage } : {}) })
     : undefined
   const feed = yield* SubscriptionRef.make<HostSnapshot>({ revision: 0, plugins: [], availableServiceIds: [...base.keys()].sort(), realms: [{ id: "default", isolatedServiceIds: [], availableServiceIds: [...base.keys()].sort() }], audit: writer ? "wired" : "unwired", auditDegraded: false, auditDropped: 0 })
   const locked = <A, E, R>(e: Effect.Effect<A, E, R>) => Semaphore.withPermit(lock, e)

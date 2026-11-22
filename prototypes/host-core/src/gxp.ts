@@ -23,7 +23,7 @@ export interface AttributionOptions { readonly require?: boolean; readonly requi
 export class Unattributed extends Schema.TaggedError<Unattributed>()("Unattributed", { operation: Schema.String }) {}
 export class ReasonRequired extends Schema.TaggedError<ReasonRequired>()("ReasonRequired", { operation: Schema.String }) {}
 export class AuditUnavailable extends Schema.TaggedError<AuditUnavailable>()("AuditUnavailable", { operation: Schema.String, message: Schema.String }) {}
-export class AuditWriteFailed extends Schema.TaggedError<AuditWriteFailed>()("AuditWriteFailed", { message: Schema.String }) {}
+export class AuditWriteFailed extends Schema.TaggedError<AuditWriteFailed>()("AuditWriteFailed", { message: Schema.String, permanent: Schema.optional(Schema.Boolean) }) {}
 /** A fingerprinter that failed, died, timed out or answered malformed: the call changes nothing (CCR-BR-014). */
 export class ConfigFingerprintUnavailable extends Schema.TaggedError<ConfigFingerprintUnavailable>()("ConfigFingerprintUnavailable", { operation: Schema.String, message: Schema.String }) {}
 export class ConfigFingerprintFailed extends Schema.TaggedError<ConfigFingerprintFailed>()("ConfigFingerprintFailed", { message: Schema.String }) {}
@@ -143,9 +143,16 @@ export const sanitizeDeep = <T>(x: T): T => {
   if (x !== null && typeof x === "object" && Object.getPrototypeOf(x) === Object.prototype) return Object.fromEntries(Object.entries(x).map(([k, v]) => [k, sanitizeDeep(v)])) as T
   return x
 }
-const sanitizeDraft = (d: Draft): Draft => {
-  const { value } = sanitizeContext(d)
-  const deep = sanitizeDeep(value)
+/** The deployment's scrub of plugin-authored error text (BEH-BR-197): the tag stays, the message and each cause message pass through `scrub`. */
+const scrubError = (d: Draft, scrub: ((m: string) => string) | undefined): Draft => {
+  const e = (d as { error?: { message?: unknown; causes?: unknown } }).error
+  if (!scrub || !e || typeof e.message !== "string") return d
+  const causes = Array.isArray(e.causes) ? e.causes.map((c: unknown) => c && typeof (c as { message?: unknown }).message === "string" ? { ...(c as object), message: scrub((c as { message: string }).message) } : c) : e.causes
+  return { ...d, error: { ...e, message: scrub(e.message), ...(causes !== undefined ? { causes } : {}) } } as Draft
+}
+const sanitizeDraft = (d0: Draft, scrub?: (m: string) => string): Draft => {
+  const d = scrubError(d0, scrub)                         // the scrub is not a sanitisation: only lone-surrogate replacement sets `sanitized`
+  const deep = sanitizeDeep(sanitizeContext(d).value)
   return JSON.stringify(deep) !== JSON.stringify(d) ? { ...deep, sanitized: true } : d
 }
 export interface RefusalSubject { readonly id: string; readonly realm: string; readonly version?: string; readonly digest: string }
@@ -170,6 +177,8 @@ export const makeWriter = (opts: {
   readonly auditTimeout: number
   readonly capacity: number
   readonly onDegraded: (why: string) => Effect.Effect<void>
+  /** BEH-BR-197: applied to `error.message` and each cause message of a record before it is written; the default keeps the plugin's text. */
+  readonly auditMessage?: (message: string) => string
 }) => Effect.gen(function* () {
   const queue: Array<Pending> = []
   const wake = { signal: yield* Deferred.make<void>() }
@@ -188,19 +197,31 @@ export const makeWriter = (opts: {
     writing = true
     // The number is assigned at the serialization point, immediately before the first attempt,
     // and kept by every retry, so a failed write never consumes a number (BEH-BR-213).
-    const record: AuditRecord = {
+    let record: AuditRecord = {
       schemaVersion: 1, recordId: p.recordId, hostId: opts.hostId, auditSeq: ++seq,
-      timestamp: new Date(yield* Clock.currentTimeMillis).toISOString(), ...sanitizeDraft(p.draft),
+      timestamp: new Date(yield* Clock.currentTimeMillis).toISOString(), ...sanitizeDraft(p.draft, opts.auditMessage),
       auditDropped: state.dropped                                    // the overflow count when numbered (BEH-BR-195)
     }
     const started = yield* Clock.currentTimeMillis
     let delay = 100
     let signalled = false
+    let swapped = false
     while (true) {
       const ok = yield* opts.sink.record(record).pipe(
         Effect.timeoutOrElse({ duration: opts.auditTimeout, orElse: () => Effect.fail(new AuditWriteFailed({ message: "timeout" })) }),
-        Effect.as(true), Effect.catchCause(() => Effect.succeed(false)))
+        Effect.as(true), Effect.catchCause((cause) => {
+          // A sink that says it will never accept this record (`permanent`) gets, once, a core-authored stub with the same recordId and auditSeq, so the
+          // sequence has no gap and the writer moves on (BEH-BR-202); a stub refused the same way is retried like any record.
+          const fail = cause.reasons.find((r) => r._tag === "Fail")
+          if (fail && (fail as { error: unknown }).error instanceof AuditWriteFailed && ((fail as { error: AuditWriteFailed }).error).permanent === true && (record as { error?: { _tag?: string } }).error?._tag !== "UnrepresentableRecord") {
+            const { reason: _r, error: _e, annotations: _a, annotationsOmitted: _o, configChange: _c, trigger: _t, ...keep } = record as AuditRecord & Record<string, unknown>
+            swapped = true
+            record = { ...keep, error: { _tag: "UnrepresentableRecord", message: "the sink refused this record as unrepresentable" }, sanitized: true } as unknown as AuditRecord
+          }
+          return Effect.succeed(false)
+        }))
       if (ok) { written.push(record); state.lastWritten = Math.max(state.lastWritten, record.auditSeq); if (!signalled) yield* Deferred.succeed(p.done, true); return }
+      if (swapped) { swapped = false; continue }                       // the stub is tried at once, in place
       const elapsed = (yield* Clock.currentTimeMillis) - started
       if (!signalled && elapsed >= opts.auditTimeout) {
         signalled = true

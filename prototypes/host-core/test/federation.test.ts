@@ -190,3 +190,23 @@ describe("residency on a route (BEH-FD-045)", () => {
     expect(exportOffered(undefined, undefined)).toEqual([])
   })
 })
+
+describe("offers and the fence table (BEH-FD-029, improvement report 06 S12)", () => {
+  const f = (token: number, owner = "b") => ({ scope: "s", token, owner })
+  const link = (o: { authenticatedPeer?: string; host?: string } = {}) => ({ host: o.host ?? "b", maxJump: 8, ...(o.authenticatedPeer !== undefined ? { authenticatedPeer: o.authenticatedPeer } : {}) })
+  it("an unauthenticated offer cannot raise the stored highest; an authenticated one within the window can; a huge token is advisory; a stale one is refused either way", async () => {
+    const { FenceTable } = await import("../src/federation.js")
+    const t = new FenceTable()
+    t.see("k", f(3, "b"))                                            // a manifest entry: persists
+    expect(t.offer("k", f(2 ** 53 - 1, "evil"), "e1", link({ host: "evil" }))).toEqual({ outcome: "advisory", key: "k", reason: "unauthenticated" })
+    expect(t.offer("k", f(2 ** 53 - 1, "b"), "e2", link({ authenticatedPeer: "b" }))).toEqual({ outcome: "advisory", key: "k", reason: "out-of-window" })
+    expect(t.offer("k", f(2, "b"), "e3", link({ authenticatedPeer: "b" }))).toMatchObject({ outcome: "StaleExport", highest: 3 })
+    expect(t.offer("k", f(2, "x"), "e4", link({ host: "x" }))).toMatchObject({ outcome: "StaleExport", highest: 3 })
+    expect(t.offer("k", f(4, "b"), "e5", link({ authenticatedPeer: "b" }))).toMatchObject({ outcome: "accepted" })
+    expect(t.see("k", f(3, "b"))).toMatchObject({ outcome: "StaleExport", highest: 4 })   // the real owner still works at 4, not locked out at 2**53
+  })
+  it("an offer naming a host other than the one the transport authenticated is refused as PeerMismatch", async () => {
+    const { FenceTable } = await import("../src/federation.js")
+    expect(new FenceTable().offer("k", f(1, "b"), "e", link({ authenticatedPeer: "c", host: "b" }))).toEqual({ outcome: "PeerMismatch", key: "k", offered: "b", authenticated: "c" })
+  })
+})

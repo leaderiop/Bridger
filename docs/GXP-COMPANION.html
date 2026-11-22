@@ -750,7 +750,7 @@ const host = yield* Bridger.make(options).pipe(
       <tr><th>Rule</th><th>What it asks for</th><th><span class="pill p-core">Core</span></th><th><span class="pill p-comp">Companion</span></th><th><span class="pill p-you">You</span></th></tr>
       <tr><td class="mono">Part 11 §11.10(e)</td><td>A time-stamped audit trail of changes</td><td>Creates numbered records</td><td>Adapter contract</td><td>Store and keep them</td></tr>
       <tr><td class="mono">Part 11 §11.10(c)</td><td>Records protected for their whole life</td><td>Keeps no copy</td><td>Adapter contract</td><td>Storage, protection</td></tr>
-      <tr><td class="mono">Part 11 §11.10(g)</td><td>Only authorised people make changes</td><td>The gate, which cannot be bypassed</td><td>Approval gate</td><td>Who is authorised</td></tr>
+      <tr><td class="mono">Part 11 §11.10(g)</td><td>Only authorised people make changes</td><td>The gate, which every host operation passes; a keyring shred and a received shred notice pass the keyring's mandatory <code>shredGate</code> (keyring BEH-KR-017)</td><td>Approval gate</td><td>Who is authorised</td></tr>
       <tr><td class="mono">Part 11 §11.50</td><td>Signatures show name, time and meaning</td><td>The linking identifier</td><td>Captures through the gate</td><td>Signature capture</td></tr>
       <tr><td class="mono">Part 11 §11.70</td><td>Signatures cannot be copied to another record</td><td>Identifier and digest</td><td>A link that is hard to copy</td><td>Controls</td></tr>
       <tr><td class="mono">Annex 11 §7</td><td>Data storage and backup</td><td>None</td><td>Adapter contract</td><td>Backup, restore, retention</td></tr>

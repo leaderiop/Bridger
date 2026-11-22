@@ -12,9 +12,10 @@ import type * as plugin_test_ from "./plugin-test.js"
 import type * as policy_ from "./policy.js"
 import type * as realms_ from "./realms.js"
 import type * as sdk_ from "./sdk.js"
+import type * as shred_ from "./shred.js"
 
 type TagOf<M> = { readonly [K in keyof M]: M[K] extends abstract new (...a: any) => { readonly _tag: infer T } ? (string extends T ? never : T) : never }[keyof M]
-export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof audit_chain_> | TagOf<typeof conformance_> | TagOf<typeof errors_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof loader_> | TagOf<typeof plugin_test_> | TagOf<typeof policy_> | TagOf<typeof realms_> | TagOf<typeof sdk_>
+export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof audit_chain_> | TagOf<typeof conformance_> | TagOf<typeof errors_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof loader_> | TagOf<typeof plugin_test_> | TagOf<typeof policy_> | TagOf<typeof realms_> | TagOf<typeof sdk_> | TagOf<typeof shred_>
 export interface Entry { readonly kind: string; readonly raisedBy: string; readonly cause: string; readonly fix: string }
 export const entries = {
   AccessDenied: { kind: "defect", raisedBy: "bus listen or emit, registry contribute, child mount", cause: "A wired `AccessPolicy` denied the request (`kind`, `subject`, `principal`, `reason`); nothing was registered", fix: "Ask the integrator to allow the access, or do not attempt it" },
@@ -78,6 +79,7 @@ export const entries = {
   SdkUndeclaredFailure: { kind: "error", raisedBy: "Promise SDK runtime", cause: "A handler threw something other than a generated `ContractError`", fix: "Throw a declared error, or handle the exception; see `onUnexpected`" },
   ServiceUnavailable: { kind: "error", raisedBy: "`use`, `useAll`, `lease`", cause: "No active provider for the key", fix: "Check `bridger inspect <plugin>`; in tests add a provision" },
   SettleTimeout: { kind: "error", raisedBy: "`awaitSettled` (BEH-BR-040)", cause: "The named plugins were not settled within the timeout; the error lists their `ids`", fix: "Inspect the plugins in `ids`, provide what they wait for, or raise the timeout" },
+  ShredRefused: { kind: "error", raisedBy: "`Keyring.shred`, `shredIn`; the keyring's handler of a received shred notice", cause: "The mandatory `shredGate` refused, deferred, timed out or failed (`reason`); nothing was written, and a received notice stays unapplied and unacknowledged", fix: "Obtain the approval the gate requires, or have the application's gate allow the request" },
   SignatureRejected: { kind: "error", raisedBy: "`SignaturePolicy.verify` (loads, catalog, data packs, other statements)", cause: "The signatures do not satisfy the statement type's rule, the verifier timed out, or the type has no rule (\"no-rule\"; always for \"revocation-list\", which only the revocation source verifies)", fix: "Obtain the missing signatures (`bridger countersign`), or configure a rule for the type; hand revocation lists to `RevocationSource.offer`" },
   SigningFailed: { kind: "port-error", raisedBy: "`StatementSigner.sign`; `bridger publish`, `bridger countersign`", cause: "The signing adapter (KMS, hardware token, keyless flow) failed (`scheme`, `message`); no signature was added", fix: "Fix the signer adapter or its access; the package and its digest are unchanged" },
   StatementRevoked: { kind: "error", raisedBy: "`SignaturePolicy.verify` (statement types other than \"package\"), among them a load's \"first-party\" statement at step 4 (loader/09, BEH-LD-065), `Revocation.check`, `DataPacks`", cause: "The statement's subject digest, statement digest or a signer it depended on is revoked (`by`, `revision`); for a load, nothing is evaluated, and the package may still run as a guest", fix: "Obtain a statement that is not revoked (a new issuance or release); a package's \"package\" statement reports `Revoked` instead" },

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-FD-BEH-04                                            |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-026: the proxy's synthesized digest is published under "@bridger/federation:" + the plugin id and admitted by `LoaderGate` for its `install` and `replace` (01, BEH-FD-007) (H2, PL7); follow-up: BEH-FD-026: the source is "@bridger/federation:" + `JSON.stringify([realm, id])` of the plugin (SPEC-AUDIT-07 residual) (CCR-FD-010)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-026: `open` succeeds on a `delivery-only` link for an import named in `deliveryImports` (H4); the proxy transport's `profile.residency` is the peer's `ManifestPeer.residency`, known before dialling (H5); BEH-FD-025: an export is unavailable when its provision does not satisfy `"^" + V` (F4) (CCR-FD-008)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-025: an export endpoint is opened with the route's offered labels through `MultiplexedGuest.endpoint(name, { residency })` (F1) (CCR-FD-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-026: the no-identity statement narrowed to proxy calls; what event envelopes routed to a peer disclose (CCR-FD-005)<br>0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
+> | Change History | 0.9 (2026-11-22): BEH-FD-029: a token from an offer is stored only from an authenticated peer and within `maxFenceJump` of the highest known (improvement report 06, S12)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-FD-026: the proxy's synthesized digest is published under "@bridger/federation:" + the plugin id and admitted by `LoaderGate` for its `install` and `replace` (01, BEH-FD-007) (H2, PL7); follow-up: BEH-FD-026: the source is "@bridger/federation:" + `JSON.stringify([realm, id])` of the plugin (SPEC-AUDIT-07 residual) (CCR-FD-010)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — BEH-FD-026: `open` succeeds on a `delivery-only` link for an import named in `deliveryImports` (H4); the proxy transport's `profile.residency` is the peer's `ManifestPeer.residency`, known before dialling (H5); BEH-FD-025: an export is unavailable when its provision does not satisfy `"^" + V` (F4) (CCR-FD-008)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-FD-025: an export endpoint is opened with the route's offered labels through `MultiplexedGuest.endpoint(name, { residency })` (F1) (CCR-FD-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-09, round 2 — BEH-FD-026: the no-identity statement narrowed to proxy calls; what event envelopes routed to a peer disclose (CCR-FD-005)<br>0.4 (2026-11-09): BEH-FD-026 passes `disclose` as `RemoteOptions.disclose`, in the import digest with `residency`; unknown claim drops the import (CCR-FD-004)<br>0.3 (2026-11-08): resolutions of the agent review of 2026-11-08 — exports served with the remote companion's `Remote.serve` (one core lease per call, `method-not-served` and `unavailable` refusals), no `Grant.of`; one import proxy per (peer, contract, major) over a federation endpoint transport opened only for accepted imports; fences bound to the link and checked before delivery by closing superseded endpoints; a fence does not stop a deposed owner (R3-01, R3-02, R3-03, R3-26) (CCR-FD-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-FD-001)<br>0.1 (2026-11-08): Initial draft (CCR-FD-001)                 |
 
 ---
 
@@ -301,7 +301,16 @@ REQUIREMENT: Two offers for one (key, scope) with the same token and
 ```
 REQUIREMENT: A higher token seen in an offer before this host's manifest
              names it MUST be honoured (the old owner is refused) even though
-             the new owner is not yet imported.
+             the new owner is not yet imported, but only when the offer came
+             on a link whose transport authenticated the offering host
+             (BEH-FD-023) and the token is at most
+             `FederationOptions.maxFenceJump` (default 8) above the highest
+             known for (key, scope). An offer outside that is advisory: a
+             stale one is refused, any other changes nothing and is reported
+             in `Federation.Status` as `advisory` with its reason
+             (\"unauthenticated\" or \"out-of-window\"). Tokens from the
+             manifest, which the authority signs, are stored whatever their
+             size.
 ```
 
 **Settled here.** (1) A reply under a stale fence is not delivered: the
