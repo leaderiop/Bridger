@@ -14,6 +14,13 @@ describe("kit check: contract releases (BEH-BR-230)", () => {
   it("passes an unchanged contract and a documentation-only change", () => {
     expect(checkRelease(released, rel("1.2.1", Text.annotate({ description: "a post" })))).toEqual({ ok: true })
   })
+  it("a field-level documentation annotation is not a change", () => {
+    expect(checkRelease(released, rel("1.2.1", Schema.Struct({ text: Schema.String.annotate({ description: "the post body", title: "Text" }) })))).toEqual({ ok: true })
+  })
+  it("an optional payload field made required is breaking", () => {
+    const opt = rel("1.2.0", Schema.Struct({ text: Schema.String, mood: Schema.optional(Schema.String) }))
+    expect(checkRelease(opt, rel("1.3.0", Schema.Struct({ text: Schema.String, mood: Schema.String })))).toMatchObject({ ok: false, _tag: "ContractBreakingChange", changes: expect.arrayContaining([expect.objectContaining({ detail: expect.stringContaining("became required") })]) })
+  })
   it("passes an additive change with a minor bump: optional payload field, success field, new method", () => {
     const next = rel("1.3.0", Schema.Struct({ text: Schema.String, mood: Schema.optional(Schema.String) }), { list: Contract.method({}) })
     expect(checkRelease(released, next)).toEqual({ ok: true })

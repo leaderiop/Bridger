@@ -42,3 +42,31 @@ export const importCheck = (
     { version: e.version, ...(e.schemas ? { methods: e.schemas.map((x) => x.method), schemas: e.schemas } : {}) })
   return bad ? { accepted: false, reason: "incompatible-contract", cause: bad } : { accepted: true, version: e.version }
 }
+
+export type Negotiation =
+  | { readonly t: "welcome"; readonly version: string; readonly schemas?: ContractDescriptor["schemas"] }
+  | { readonly t: "refuse"; readonly reason: "incompatible-contract"; readonly cause: Mismatch }
+
+/**
+ * `Guest.serve`'s answer to a `hello` (remote BEH-RM-033): the highest served version inside the host's accepted range whose
+ * method digests agree with the hello's; refuse with "incompatible-contract" when none does. In-process: no frames, no transport.
+ */
+export const guestAnswer = (hello: WireSide & { readonly accepts: string }, served: ReadonlyArray<WireSide>): Negotiation => {
+  const byVersion = [...served].sort((a, b) => cmpVersion(b.version, a.version))
+  let last: Mismatch = { missingMethods: [], mismatchedMethods: [] }
+  for (const s of byVersion) {
+    const bad = welcomeCheck(hello, s)
+    if (!bad) return { t: "welcome", version: s.version, ...(s.schemas ? { schemas: s.schemas } : {}) }
+    last = bad
+  }
+  return { t: "refuse", reason: "incompatible-contract", cause: last }
+}
+const cmpVersion = (a: string, b: string): number => {
+  const x = parseVersion(a), y = parseVersion(b)
+  if (!x || !y) return 0
+  return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]
+}
+
+/** The loader's refusal of a manifest that crosses a boundary with a plain key (loader BEH-LD-014): `reason` names the first path. */
+export const loadRefusal = (problems: ReadonlyArray<{ readonly path: string }>): { readonly _tag: "PackageRefused"; readonly predicate: "plain-cross-boundary-key"; readonly reason: string } | undefined =>
+  problems.length ? { _tag: "PackageRefused", predicate: "plain-cross-boundary-key", reason: problems[0]!.path } : undefined
