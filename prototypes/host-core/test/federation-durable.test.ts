@@ -175,4 +175,16 @@ describe("log-structured file state", () => {
     expect(() => upd(st, () => { throw new Error("boom") })).toThrow("boom")
     expect(existsSync(`${path}.lock`)).toBe(false)
   })
+
+  it("treats a process that exists but is not ours to signal (EPERM) as alive, and one that does not exist (ESRCH) as gone", () => {
+    const path = tmp(); const st = fileState(path); writeFileSync(`${path}.lock`, "4242")
+    const real = process.kill
+    try {
+      process.kill = ((_pid: number) => { throw Object.assign(new Error("perm"), { code: "EPERM" }) }) as never
+      expect(() => upd(st, (s) => ({ ...s, firstActivation: 1 }))).toThrow(expect.objectContaining({ _tag: "StateLocked", pid: 4242 }))
+      process.kill = ((_pid: number) => { throw Object.assign(new Error("gone"), { code: "ESRCH" }) }) as never
+      upd(st, (s) => ({ ...s, firstActivation: 2 }))
+    } finally { process.kill = real }
+    expect(disk(path).firstActivation).toBe(2)
+  })
 })

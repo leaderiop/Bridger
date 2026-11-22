@@ -67,7 +67,7 @@ describe("P7 core 31: registration and order (checks 77, 93, 95)", () => {
 describe("P7 core 31: phases, failure policy, breaker, settle (checks 78, 79, 80, 94)", () => {
   it("check 78/80/94: first veto decides; later vetoes not run; enrich before veto, namespaced, schema-checked; denied returns enrichments, no advice", () => scoped(Effect.gen(function* () {
     const order: Array<string> = []
-    const p = yield* HookPoint.make<Price, number, string, "below-cost" | "frozen">("p", base())
+    const p = yield* HookPoint.make<Price, number, string, "below-cost" | "frozen">("p", base({ timeout: 5000, deadline: 10_000 }))   // no step here is slow: a load spike must not turn one into a timeout
     yield* p.register("e2", () => Effect.sync(() => { order.push("e2"); return { _tag: "Enrich" as const, value: 2 } }), { role: "enrich" })
     yield* p.register("e1", () => Effect.sync(() => { order.push("e1"); return { _tag: "Enrich" as const, value: "not a number" as never } }), { role: "enrich" })
     yield* p.register("v1", (_i, ctx) => Effect.sync(() => { order.push(`v1:${ctx.enrichments.map((e) => e.id)}:${ctx.missing}`); return { _tag: "Veto" as const, code: "below-cost" as const, params: { margin: -2 } } }), { role: "veto" })

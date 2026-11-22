@@ -18,11 +18,32 @@ export interface AuthorityData {
 }
 const parse = (s: string): Record<string, unknown> | undefined => { try { const v = JSON.parse(s); return typeof v === "object" && v ? v : undefined } catch { return undefined } }
 
-/** Per-host bearer tokens: a token opens exactly one host's manifests and snapshots (tenant isolation); comparison is constant-time. */
-export const tokenAuthorizer = (tokens: Readonly<Record<string, string>>) => (host: string, token: string | undefined): boolean => {
-  const want = tokens[host]; if (want === undefined || token === undefined) return false
-  const a = createHash("sha256").update(want).digest(), b = createHash("sha256").update(token).digest()
-  return timingSafeEqual(a, b)
+/**
+ * Per-host bearer tokens, several valid at once so a token can be rotated without a gap: `add` the new one, move the host over, then
+ * `revoke` the old one. A token opens exactly one host's manifests and snapshots (tenant isolation); the comparison is constant-time and
+ * visits every token of the host, so the time does not tell which one matched.
+ */
+export interface TokenAuthorizer {
+  (host: string, token: string | undefined): boolean
+  readonly add: (host: string, token: string) => void
+  readonly revoke: (host: string, token: string) => boolean
+  /** Revokes every token of a host. */
+  readonly revokeHost: (host: string) => void
+}
+export const tokenAuthorizer = (initial: Readonly<Record<string, string | readonly string[]>>): TokenAuthorizer => {
+  const sets = new Map<string, Set<string>>(Object.entries(initial).map(([h, t]) => [h, new Set(typeof t === "string" ? [t] : t)]))
+  const digest = (t: string) => createHash("sha256").update(t).digest()
+  const check = (host: string, token: string | undefined): boolean => {
+    const set = sets.get(host); if (!set || token === undefined) return false
+    const got = digest(token); let ok = false
+    for (const t of set) if (timingSafeEqual(digest(t), got)) ok = true
+    return ok
+  }
+  return Object.assign(check, {
+    add: (host: string, token: string) => { (sets.get(host) ?? sets.set(host, new Set()).get(host)!).add(token) },
+    revoke: (host: string, token: string) => sets.get(host)?.delete(token) ?? false,
+    revokeHost: (host: string) => { sets.delete(host) }
+  })
 }
 export const serveAuthority = (data: AuthorityData, tls?: Parameters<typeof listen>[1], authorize?: (host: string, token: string | undefined) => boolean): Effect.Effect<Listener> =>
   listen((c: Connection) => Effect.gen(function* () {

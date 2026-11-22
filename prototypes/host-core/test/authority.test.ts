@@ -146,4 +146,19 @@ describe("authority over sockets", () => {
       yield* l.close
     }))
   }, 30000)
+
+  it("rotates a token without a gap and revokes one, or a whole host, at once; a revoked token fails the very next request", async () => {
+    await run(() => Effect.gen(function* () {
+      const data = { latest: () => ({ revision: 1, envelope: envelope(manifest(1, ["a"])) }), snapshot: () => undefined }
+      const auth = tokenAuthorizer({ h1: "old" })
+      const srv = yield* serveAuthority(data, undefined, auth); const addr = `127.0.0.1:${srv.port}`
+      const get = (t: string) => Effect.exit(remoteSource(addr, undefined, t)({ host: "h1", known: 0 }))
+      auth.add("h1", "new")
+      expect((yield* get("old"))._tag).toBe("Success"); expect((yield* get("new"))._tag).toBe("Success")     // both valid during the rotation
+      expect(auth.revoke("h1", "old")).toBe(true); expect(auth.revoke("h1", "old")).toBe(false)
+      expect((yield* get("old"))._tag).toBe("Failure"); expect((yield* get("new"))._tag).toBe("Success")
+      auth.revokeHost("h1"); expect((yield* get("new"))._tag).toBe("Failure")
+      yield* srv.close
+    }))
+  })
 })
