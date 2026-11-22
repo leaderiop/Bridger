@@ -1,7 +1,7 @@
 // Phase-P4 scenarios for the typed event bus (behaviour 16, BEH-BR-137–144).
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Stream } from "effect"
 import { describe, expect, it } from "vitest"
-import { Event, EventModeMismatch, Events, ListenerRemoved, type EventBus } from "../src/bus.js"
+import { Event, EventModeMismatch, Events, ListenerRemoved, NextCalledTwice, type EventBus } from "../src/bus.js"
 import { CurrentActor } from "../src/gxp.js"
 import { HeldPlugins } from "../src/host.js"
 import type { AnyPlugin } from "../src/plugin.js"
@@ -106,8 +106,8 @@ describe("event bus (behaviour 16)", () => {
   it("BEH-BR-143: waterfall composes around-listeners over the final effect; a listener that skips next short-circuits", async () => {
     await run((host) => Effect.gen(function* () {
       yield* host.install(listenerPlugin("l", (bus) => Effect.gen(function* () {
-        yield* bus.around(Price, (_args, next) => next.pipe(Effect.map((p) => p * 2)))
-        yield* bus.around(Price, ([sku], next) => sku === "free" ? Effect.succeed(0) : next.pipe(Effect.map((p) => p + 1)))
+        yield* bus.around(Price, (_args, next) => next.pipe(Effect.map((p) => p * 2)), { role: "observe" })
+        yield* bus.around(Price, ([sku], next) => sku === "free" ? Effect.succeed(0) : next.pipe(Effect.map((p) => p + 1)), { role: "decide" })
       })), as())
       yield* idle(host)
       const bus = yield* busOf(host)
@@ -154,7 +154,7 @@ describe("event bus (behaviour 16)", () => {
       // @ts-expect-error a waterfall key cannot be registered with `on`
       const a = bus.on(Price, () => Effect.succeed(1))
       // @ts-expect-error an emit key cannot be registered with `around`
-      const b = bus.around(PostedNote, (_a, next) => next)
+      const b = bus.around(PostedNote, (_a, next) => next, { role: "observe" })
       // @ts-expect-error a serial key cannot be dispatched with `waterfall`
       const c = bus.waterfall(Posted, ["x"], Effect.succeed(undefined))
       // @ts-expect-error a waterfall key cannot be dispatched with `emit`
@@ -170,6 +170,41 @@ describe("event bus (behaviour 16)", () => {
       yield* bus.serial(Posted, "x")
       const other = Event.make<[invoiceId: string], string | undefined, string>()("billing/invoice-posted", { mode: "parallel" })
       expect(Exit.isFailure(yield* Effect.exit(bus.parallel(other, "x")))).toBe(true)
+    }))
+  })
+
+  it("BEH-BR-143: an observer that skips next does not veto (the bus runs the tail and reports it); next is once-only; a decider may answer without it", async () => {
+    const tail: Array<string> = []
+    const final = Effect.sync(() => { tail.push("final"); return 10 })
+    await run((host) => Effect.gen(function* () {
+      const seen = yield* Effect.forkChild(host.events.pipe(Stream.filter((e) => e.type === "listener-failed"), Stream.take(1), Stream.runCollect))
+      yield* host.install(listenerPlugin("l", (bus) => Effect.gen(function* () {
+        yield* bus.around(Price, ([sku]) => Effect.succeed(-1), { role: "observe", priority: 0 })
+        yield* bus.around(Price, ([sku], next) => sku === "free" ? Effect.succeed(0) : next, { role: "decide", priority: 5 })
+      })), as())
+      yield* idle(host)
+      const bus = yield* busOf(host)
+      // observer (priority 0) skips next: the tail (the decider, then final) still runs, its result is the dispatch result
+      expect(yield* bus.waterfall(Price, ["obs"], final)).toBe(10)
+      expect(tail).toEqual(["final"])
+      const events = [...(yield* Fiber.join(seen))]
+      expect(events[0]).toMatchObject({ type: "listener-failed", event: "shop/price", message: "observer skipped next" })
+      // the decider in the tail answers without next: final never runs
+      tail.length = 0
+      expect(yield* bus.waterfall(Price, ["free"], final)).toBe(0)
+      expect(tail).toEqual([])
+    }))
+  })
+
+  it("BEH-BR-143: calling next twice is a defect naming the event, and the tail ran once", async () => {
+    const tail: Array<string> = []
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(listenerPlugin("l", (bus) => bus.around(Price, (_a, next) => next.pipe(Effect.andThen(next)), { role: "decide" })), as())
+      yield* idle(host)
+      const bus = yield* busOf(host)
+      const exit = yield* Effect.exit(bus.waterfall(Price, ["x"], Effect.sync(() => { tail.push("final"); return 1 })))
+      expect(Exit.isFailure(exit) && Cause.squash(exit.cause) instanceof NextCalledTwice).toBe(true)
+      expect(tail).toEqual(["final"])
     }))
   })
 })

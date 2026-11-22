@@ -27,15 +27,20 @@ export class EventModeMismatch extends Error {
   constructor(readonly eventId: string, readonly declared: EventMode, readonly used: string) { super(`event ${eventId} is declared "${declared}" and was used as ${used}`) }
 }
 
-interface Listener { readonly kind: "on" | "around"; readonly fn: (...a: Array<any>) => Effect.Effect<any, any>; readonly owner?: PluginPrincipal; readonly ownerKey?: string }
+/** An `around` listener declares its role (BEH-BR-143): `observe` must run `next` and cannot veto, `decide` may answer without it. */
+export type WaterfallRole = "observe" | "decide"
+/** `next` run a second time in one listener invocation (BEH-BR-143): the tail runs once, the second call is a defect. */
+export class NextCalledTwice extends Error { constructor(readonly eventId: string) { super(`next called twice by a listener of ${eventId}`) } }
+interface Listener { readonly kind: "on" | "around"; readonly role?: WaterfallRole; readonly fn: (...a: Array<any>) => Effect.Effect<any, any>; readonly owner?: PluginPrincipal; readonly ownerKey?: string }
 
 export interface ListenerOptions { readonly priority?: number; readonly prepend?: boolean }
+export interface AroundOptions extends ListenerOptions { readonly role: WaterfallRole }
 export interface EventBus {
   readonly on: <Args extends ReadonlyArray<unknown>, Result, E>(
     event: EventKey<Args, Result, E, OnMode>, listener: (...args: Args) => Effect.Effect<Result, E>, options?: ListenerOptions
   ) => Effect.Effect<void, never, Scope.Scope>
   readonly around: <Args extends ReadonlyArray<unknown>, Result, E>(
-    event: EventKey<Args, Result, E, "waterfall">, listener: (args: Args, next: Effect.Effect<Result, E>) => Effect.Effect<Result, E>, options?: ListenerOptions
+    event: EventKey<Args, Result, E, "waterfall">, listener: (args: Args, next: Effect.Effect<Result, E>) => Effect.Effect<Result, E>, options: AroundOptions
   ) => Effect.Effect<void, never, Scope.Scope>
   readonly emit: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E, "emit">, ...args: Args) => Effect.Effect<void>
   readonly parallel: <Args extends ReadonlyArray<unknown>, R, E>(event: EventKey<Args, R, E, "parallel">, ...args: Args) => Effect.Effect<ReadonlyArray<R>, E>
@@ -80,7 +85,7 @@ export const makeBus = (opts: {
       Effect.provideService(Scope.Scope, opts.supervisor),
       Effect.tap((made) => Effect.sync(() => { registries.set(eventId, made) })))
   })
-  const register = (event: { readonly id: string; readonly mode: EventMode }, kind: Listener["kind"], fn: Listener["fn"], o: ListenerOptions = {}) => Effect.gen(function* () {
+  const register = (event: { readonly id: string; readonly mode: EventMode }, kind: Listener["kind"], fn: Listener["fn"], o: Partial<AroundOptions> = {}) => Effect.gen(function* () {
     const eventId = event.id
     yield* claim(event, kind === "on" ? "an `on` listener" : "an `around` listener", kind === "on" ? ["emit", "parallel", "serial"] : ["waterfall"])
     const p = yield* CurrentPlugin.get
@@ -94,7 +99,7 @@ export const makeBus = (opts: {
     const n = ++counter
     // Descending IDs for `prepend` sort before every ascending one of equal priority (BEH-BR-140).
     const cid = o.prepend ? `0${pad(10 ** WIDTH - 1 - n)}` : `1${pad(n)}`
-    yield* (yield* registryOf(eventId)).add(cid, { kind, fn, ...(owner ? { owner } : {}), ...(Option.isSome(active) ? { ownerKey: active.value.realm === "default" ? active.value.pluginId : `${active.value.pluginId}@${active.value.realm}` } : {}) }, { priority: o.priority ?? 0 })
+    yield* (yield* registryOf(eventId)).add(cid, { kind, ...(o.role ? { role: o.role } : {}), fn, ...(owner ? { owner } : {}), ...(Option.isSome(active) ? { ownerKey: active.value.realm === "default" ? active.value.pluginId : `${active.value.pluginId}@${active.value.realm}` } : {}) }, { priority: o.priority ?? 0 })
       .pipe(Effect.provideService(PrincipalReference, Option.none()), Effect.provideService(PolicySeam, Option.none()), Effect.orDie)   // ids are unique; the bus's own registry is not policed twice
     // A listener is reported as `listener` only, never also as a contribution (BEH-BR-119).
     if (Option.isSome(active)) yield* active.value.report({ kind: "listener", event: eventId, priority: o.priority ?? 0 })
@@ -111,10 +116,10 @@ export const makeBus = (opts: {
    * One invocation holding its contribution, as a `use` does (BEH-BR-141). A listener whose plugin was removed
    * during the dispatch — revoked, or withdrawn before its turn — fails the dispatch with a defect (BEH-BR-142, G23).
    */
-  const invoke = <A, E>(eventId: string, r: Registry.Registry<Listener>, cid: string, body: (fn: Listener["fn"]) => Effect.Effect<A, E>, ann: Bag): Effect.Effect<A, E> =>
+  const invoke = <A, E>(eventId: string, r: Registry.Registry<Listener>, cid: string, body: (fn: Listener["fn"], l: Listener) => Effect.Effect<A, E>, ann: Bag): Effect.Effect<A, E> =>
     r.use(cid, (l) => Effect.acquireUseRelease(
       Effect.sync(() => { if (l.ownerKey) opts.onListenerRun?.(l.ownerKey, 1) }),
-      () => body(l.fn),
+      () => body(l.fn, l),
       () => Effect.sync(() => { if (l.ownerKey) opts.onListenerRun?.(l.ownerKey, -1) })).pipe(Effect.provideService(CurrentActor, Actor.unattributed),
       // A listener runs under its owner's principal, with the dispatcher's "events" annotations only (BEH-BR-144, 292).
       Effect.provideService(PrincipalReference, l.owner ? Option.some(l.owner) : Option.none()),
@@ -173,7 +178,14 @@ export const makeBus = (opts: {
     waterfall: (event, args, final) => Effect.gen(function* () {
       const ann = yield* begin(event, "waterfall", args)
       const { r, ids } = yield* snapshot(event.id, "around")
-      const at = (i: number): Effect.Effect<any, any> => i === ids.length ? final : invoke(event.id, r!, ids[i]!, (fn) => Effect.suspend(() => fn(args, at(i + 1))), ann)
+      const at = (i: number): Effect.Effect<any, any> => i === ids.length ? final : invoke(event.id, r!, ids[i]!, (fn, l) => Effect.suspend(() => {
+        let calls = 0
+        const next = Effect.suspend(() => ++calls > 1 ? Effect.die(new NextCalledTwice(event.id)) : at(i + 1))
+        // An observer that returned without `next` has not vetoed: the bus runs the tail and reports the skip (BEH-BR-143).
+        return fn(args, next).pipe(Effect.flatMap((out) => l.role === "observe" && calls === 0
+          ? opts.onListenerFailed(event.id, "observer skipped next").pipe(Effect.andThen(next))
+          : Effect.succeed(out)))
+      }), ann)
       return yield* at(0)
     }),
     /** The held event of BEH-BR-251: once, emit semantics, to the woken plugin's `on` listeners only. */
