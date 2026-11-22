@@ -182,9 +182,9 @@ A plugin is settled when it has no transition running or ready and no operation 
 - No measurement of cost of R4/R5; whether Effect v4 scopes allow `stopping -> active` after partial drain depends on handoff export semantics (BEH-BR-347) I did not read.
 - Cordis details come from the supplied brief, not the source.
 
-## Resolution status (2026-11-21)
+## Resolution status (2026-11-22)
 
-Branch `spec/lifecycle-report-01`; prototype suite 368/368, `verify-traceability.sh` 0 failures.
+Branch `spec/lifecycle-report-01`; prototype suite 382/382, `verify-traceability.sh` 0 failures.
 
 | Finding | Rec. | Status | Notes |
 | --- | --- | --- | --- |
