@@ -2,6 +2,7 @@
 // refused at both ends (BEH-RM-011), heartbeat (BEH-RM-025) and a link that opens a fresh session after one ends (BEH-RM-010, 029).
 import { Clock, Deferred, Effect, Fiber, Option, Queue, Ref } from "effect"
 import type { WireSide } from "./handshake.js"
+import { inProcess, type TokenAuthority } from "./tokens.js"
 import { guestServe, linkHandshake, type Connection, type LinkOutcome } from "./wire.js"
 
 const parse = (s: string): { readonly t?: string; readonly [k: string]: unknown } | undefined => { try { const v = JSON.parse(s); return typeof v === "object" && v !== null && !Array.isArray(v) ? v : undefined } catch { return undefined } }
@@ -16,7 +17,11 @@ export interface Session {
   readonly refusals: Effect.Effect<number>
   readonly close: Effect.Effect<void>
 }
-export interface SessionOptions { readonly epoch: string; readonly wire: ReadonlyArray<number>; readonly contract: WireSide & { readonly id: string; readonly accepts: string }; readonly heartbeat: { readonly every: number; readonly missed: number } }
+export interface SessionOptions { readonly epoch: string; readonly wire: ReadonlyArray<number>; readonly contract: WireSide & { readonly id: string; readonly accepts: string }; readonly heartbeat: { readonly every: number; readonly missed: number }
+  /** Mints one token per host-to-guest call (BEH-RM-043); default: an in-process table. `tokenTtl` defaults to 30 s, `callTimeout` bounds `expires`. */
+  readonly tokens?: TokenAuthority; readonly tokenTtl?: number; readonly callTimeout?: number
+  /** One entry per call at its end: kind, method, outcome, epoch; never a payload, result, error message or token (BEH-RM-047). */
+  readonly log?: (entry: { readonly kind: "crossing"; readonly method: string; readonly outcome: "success" | "failure"; readonly epoch: string; readonly errorTag?: string }) => Effect.Effect<void> }
 
 /** The link's end of one session: handshake, then calls and heartbeat until it ends. Resolves to the refusal when the handshake fails. */
 export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<Session | Exclude<LinkOutcome, { session: unknown }>> => Effect.gen(function* () {
@@ -27,6 +32,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
   const refusals = yield* Ref.make(0)
   const lastSeen = yield* Ref.make(yield* Clock.currentTimeMillis)
   let n = 0
+  const tokens = o.tokens ?? inProcess(() => `tok-${o.epoch}-${++n}`)
   const fibers: Array<Fiber.Fiber<unknown, unknown>> = []
   const finish = (reason: EndReason) => Effect.gen(function* () {
     if (!(yield* Deferred.succeed(endedD, reason))) return
@@ -58,8 +64,11 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
     const callId = `c-${++n}`
     const d = yield* Deferred.make<{ value?: unknown; error?: { _tag?: string } }>()
     pending.set(callId, d)
-    yield* conn.send(JSON.stringify({ t: "call", epoch: o.epoch, callId, method, payload, version: h.session.version }))
-    const r = yield* Deferred.await(d)
+    const issuedAt = yield* Clock.currentTimeMillis
+    const token = yield* tokens.mint({ pluginId: o.contract.id, realm: "", epoch: o.epoch, callId, contractVersion: h.session.version, issuedAt, expires: issuedAt + Math.min(o.tokenTtl ?? 30_000, o.callTimeout ?? Infinity) })
+    yield* conn.send(JSON.stringify({ t: "call", epoch: o.epoch, callId, method, payload, version: h.session.version, token }))
+    const r = yield* Deferred.await(d).pipe(Effect.ensuring(tokens.end(token)))     // the token dies with the call: result, failure, cancellation or session loss
+    if (o.log) yield* o.log({ kind: "crossing", method, outcome: r.error ? "failure" : "success", epoch: o.epoch, ...(r.error?._tag ? { errorTag: r.error._tag } : {}) })
     if (r.error) {
       const tag = r.error._tag
       return yield* Effect.fail({ _tag: tag === "StaleEpoch" || tag === "SessionLost" || tag === "MethodNotServed" ? tag : "RemoteError", outcome: tag === "SessionLost" ? "unknown" : "not-executed", detail: r.error } satisfies CallFailure)

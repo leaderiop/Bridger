@@ -98,6 +98,63 @@ describe("session", () => {
   })
 })
 
+describe("tokens and call log in the session", () => {
+  it("mints a token per call, sends its reference, ends it with the call, and logs one payload-free entry", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      const frames: string[] = []
+      yield* Effect.forkChild(serveGuest({ send: b.send, receive: Effect.tap(b.receive, (f) => Effect.sync(() => { frames.push(f) })) }, guest()))
+      const minted: string[] = [], ended: string[] = [], entries: unknown[] = []
+      const tokens = { mint: (c: { callId: string }) => Effect.sync(() => { minted.push(c.callId); return `T-${c.callId}` }), check: () => Effect.die("unused"), end: (r: string) => Effect.sync(() => { ended.push(r) }) }
+      const s = (yield* openSession(a, { ...opts(), tokens: tokens as never, log: (e) => Effect.sync(() => { entries.push(e) }) })) as Session
+      expect(yield* s.call("post", "secret-payload")).toBe("posted:secret-payload")
+      const callFrame = JSON.parse(frames.find((f) => f.includes('"t":"call"'))!)
+      expect(callFrame.token).toBe(`T-${minted[0]}`)
+      expect(ended).toEqual([`T-${minted[0]}`])
+      expect(entries).toEqual([{ kind: "crossing", method: "post", outcome: "success", epoch: "e-1" }])
+      expect(JSON.stringify(entries)).not.toMatch(/secret-payload|T-c/)
+      yield* s.close
+    }))
+  })
+  it("logs a failed call as a failure entry with the error tag", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b, guest()))
+      const entries: unknown[] = []
+      const s = (yield* openSession(a, { ...opts(), log: (e) => Effect.sync(() => { entries.push(e) }) })) as Session
+      yield* fails(s.call("nope", 1)); yield* s.close
+      expect(entries).toEqual([{ kind: "crossing", method: "nope", outcome: "failure", epoch: "e-1", errorTag: "MethodNotServed" }])
+    }))
+  })
+  it("ends the token when the session is lost mid-call", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(guestServe(b, guest()))
+      const ended: string[] = []
+      const tokens = { mint: () => Effect.succeed("T1"), check: () => Effect.die("unused"), end: (r: string) => Effect.sync(() => { ended.push(r) }) }
+      const s = (yield* openSession(a, { ...opts(), tokens: tokens as never })) as Session
+      yield* fails(s.call("post", "x"))
+      expect(ended).toEqual(["T1"])
+    }))
+  })
+  it("never lets a token outlive tokenTtl or the call timeout", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b, guest()))
+      const seen: { issuedAt: number; expires: number }[] = []
+      const tokens = { mint: (c: { issuedAt: number; expires: number }) => Effect.sync(() => { seen.push(c); return "T" }), check: () => Effect.die("unused"), end: () => Effect.void }
+      const s = (yield* openSession(a, { ...opts(), tokens: tokens as never, tokenTtl: 5000, callTimeout: 800 })) as Session
+      yield* s.call("post", "1"); yield* s.close
+      expect(seen[0]!.expires - seen[0]!.issuedAt).toBe(800)
+      const [a2, b2] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b2, guest()))
+      const s2 = (yield* openSession(a2, { ...opts("e-2"), tokens: tokens as never, tokenTtl: 300, callTimeout: 9000 })) as Session
+      yield* s2.call("post", "2"); yield* s2.close
+      expect(seen[1]!.expires - seen[1]!.issuedAt).toBe(300)
+    }))
+  })
+})
+
 describe("link", () => {
   it("opens a new session with a new epoch after a partition, never reusing one, and shows the partition in its status", async () => {
     await Effect.runPromise(Effect.gen(function* () {
