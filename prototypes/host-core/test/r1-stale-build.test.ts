@@ -97,3 +97,55 @@ describe("BEH-BR-105: a build that fails after shutdown began is discarded, not 
     }))
   })
 })
+
+// Report 03 R5, R6 (BEH-BR-037, BEH-BR-039): afterPublish and the cooperative superseded signal.
+import { PluginRuntime } from "../src/runtime.js"
+describe("report 03 R5, R6: afterPublish and superseded", () => {
+  const withRuntime = (body: (rt: PluginRuntime["Service"]) => Effect.Effect<void, unknown>) => define({
+    id: "repro/dependent", requires: [Logger] as const, provides: [] as const,
+    build: Layer.effectDiscard(Effect.gen(function* () { yield* body(yield* PluginRuntime) })) as never
+  }) as unknown as AnyPlugin
+
+  it("afterPublish effects run in order after publication; a stale build's never run; superseded flips for the stale build", async () => {
+    const ran: Array<string> = []
+    const sawSuperseded: Array<boolean> = []
+    await withHost((host) => Effect.gen(function* () {
+      yield* host.install(loggerPlugin(journal()))
+      yield* host.install(withRuntime((rt) => Effect.gen(function* () {
+        yield* rt.afterPublish(Effect.sync(() => { ran.push("first") }))
+        yield* rt.afterPublish(Effect.sync(() => { ran.push("second") }))
+        ran.push("build")
+        expect(yield* rt.superseded).toBe(false)
+        yield* rt.whenSuperseded                                                    // wakes when the provider's loss makes this build stale
+        sawSuperseded.push(yield* rt.superseded)
+      })))
+      yield* host.stepPlugin("example/logger")
+      yield* host.stepPlugin("repro/dependent")
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && !ran.includes("build");) yield* Effect.sleep(2)
+      expect(ran).toEqual(["build"])                                               // nothing withheld work ran during the build
+      const removal = yield* Effect.forkChild(host.remove("example/logger", { drain: 5000 }))   // the stop waits for the running build, which is now stale
+      while ((yield* stateOf(host, "repro/dependent")) === "starting") if (!(yield* host.step)) yield* Effect.yieldNow
+      yield* drive(host, Fiber.join(removal))
+      yield* idle(host)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && sawSuperseded.length === 0;) yield* Effect.sleep(2)
+      expect(sawSuperseded).toEqual([true])
+      expect(ran).toEqual(["build"])                                               // the stale build's queue was dropped
+    }))
+    const ok: Array<string> = []
+    await withHost((host) => Effect.gen(function* () {
+      yield* host.install(loggerPlugin(journal()))
+      yield* host.install(withRuntime((rt) => Effect.gen(function* () {
+        yield* rt.afterPublish(Effect.sync(() => { ok.push("first") }))
+        yield* rt.afterPublish(Effect.fail("boom"))                                 // a failing one is logged, the next still runs
+        yield* rt.afterPublish(Effect.sync(() => { ok.push("third") }))
+        ok.push("build")
+        expect(yield* rt.superseded).toBe(false)
+      })))
+      yield* host.stepPlugin("example/logger")
+      yield* host.stepPlugin("repro/dependent")
+      yield* idle(host)
+      expect(yield* stateOf(host, "repro/dependent")).toBe("active")
+      expect(ok).toEqual(["build", "first", "third"])
+    }))
+  })
+})

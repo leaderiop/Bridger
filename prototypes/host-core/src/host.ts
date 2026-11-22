@@ -272,6 +272,10 @@ interface Entry {
   resources: Array<{ label: string; irreversible: boolean; state: "held" | "release-failed" }>
   /** The releases that failed, kept so `retryCleanup` can run them again (report 03 R8). */
   releasers: Map<string, () => Effect.Effect<unknown, unknown>>
+  /** Effects queued by `Runtime.afterPublish` during the build; run once the activation is published, dropped otherwise (report 03 R5). */
+  afterPublish: Array<Effect.Effect<unknown, unknown>>
+  /** Completed when the build running for this entry can no longer publish (epoch bump); replaced at each build start (report 03 R6). */
+  stale: Deferred.Deferred<void>
   def: AnyPlugin
   state: PluginState
   cleanupFailed: boolean
@@ -1047,7 +1051,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (yield* refusedStart(e)) { changed = true; continue }
       e.providers = new Map(e.def.requires.map((k) => [sid(k), Option.getOrThrow(activeProvider(sid(k), e.realm)).id]))
       e.capturedActs = new Map([...new Set(e.providers.values())].flatMap((id) => { const a = entries.get(id)?.activation; return a === undefined ? [] : [[id, a] as [string, number]] }))
-      e.state = "starting"; e.heldFailure = undefined; e.childRemoved = false; e.epoch++; e.activation = ++activationSeq; e.buildBegun = false; changed = true
+      e.state = "starting"; e.heldFailure = undefined; e.childRemoved = false; e.epoch++; Deferred.doneUnsafe(e.stale, Exit.void); e.activation = ++activationSeq; e.buildBegun = false; changed = true
       e.cause = e.wakeCause ?? (yield* CurrentCause); e.wakeCause = undefined
       retire(e.principal)
       e.principal = mint({ id: e.pluginId, realm: e.realm, ...defRef(e.def), revision: revision + 1 })   // BEH-BR-257
@@ -1136,6 +1140,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const memo = yield* Layer.makeMemoMap                       // fresh per activation (BEH-BR-036)
     yield* emit({ type: "build-started" }, e.id)
     const startedAt = yield* Clock.currentTimeMillis
+    e.afterPublish = []; e.stale = yield* Deferred.make<void>()
     // The build slot covers the build only: discarding an activation (below) may wait for its children's builds.
     const exit = yield* Layer.buildWithMemoMap(e.def.build, memo, scope).pipe(
       Effect.provideContext(ctx),
@@ -1193,6 +1198,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const durationMs = (yield* Clock.currentTimeMillis) - startedAt
     e.lastBuildMs = durationMs
     let discard = false
+    let published = false
     yield* locked(Effect.gen(function* () {
       const outcome = Exit.isSuccess(exit) ? "success" as const : Cause.hasInterruptsOnly(exit.cause) ? "interrupted" as const : "failure" as const
       const stale = e.epoch !== epoch || e.state !== "starting"
@@ -1235,8 +1241,16 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (e.heldEvent) yield* deliverHeld(e)
       if (e.lazy?.def.idle !== undefined) yield* Effect.forkIn(idleLoop(e, epoch), scope)
       if (e.def.health) { e.restartHealth = Effect.suspend(() => Effect.forkIn(healthLoop(e, epoch, ctx), scope).pipe(Effect.tap((f) => Effect.sync(() => { e.healthFiber = f })), Effect.asVoid)); e.healthFiber = yield* Effect.forkIn(healthLoop(e, epoch, ctx), scope) }
+      published = true
       yield* settle
     }))
+    // Report 03 R5: queued emissions run after the revision that published, in order, outside the lock; a failure is logged, never undoes the publication.
+    const queued = e.afterPublish; e.afterPublish = []
+    if (published) for (const q of queued) {
+      if (e.epoch !== epoch || e.state !== "active") break
+      const r = yield* Effect.exit(q.pipe(Effect.timeoutOrElse({ duration: buildTimeout, orElse: () => Effect.fail(new Error("afterPublish timeout")) })))
+      if (Exit.isFailure(r)) yield* Effect.logWarning(`afterPublish of ${e.id} failed: ${msg(Cause.squash(r.cause))}`)
+    }
     if (discard) {
       // Children mounted by a discarded activation are removed before its scope closes (BEH-BR-121, 128).
       yield* unmountChildren(e)
@@ -1291,6 +1305,11 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       yield* Effect.forkIn(supervised, scope)
     }),
     reportFailure: (cause) => failRuntime(e, epoch, msg(Cause.squash(cause))),
+    // Report 03 R6 (BEH-BR-039): true once this activation's build can no longer publish; cooperative, the host interrupts nothing.
+    superseded: Effect.sync(() => e.epoch !== epoch || e.state !== "starting"),
+    whenSuperseded: Effect.suspend(() => e.epoch !== epoch ? Effect.void : Deferred.await(e.stale)),
+    // Report 03 R5 (BEH-BR-037): queued during the build, run after publication, dropped for a failed or stale build; once published, runs at once.
+    afterPublish: (effect) => Effect.suspend(() => e.state === "active" && e.epoch === epoch ? effect.pipe(Effect.exit, Effect.asVoid) : Effect.sync(() => { if (e.state === "starting" && e.epoch === epoch) e.afterPublish.push(effect) })),
     // Report 03 R3: a thin wrapper over acquireRelease that names the resource; optional, so absence from the list is not "nothing held".
     acquire: (label, acquire, release, o) => Effect.acquireRelease(
       Effect.tap(acquire, () => Effect.sync(() => { e.resources.push({ label, irreversible: o?.irreversible === true, state: "held" }) })),
@@ -1694,7 +1713,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (e.state === "starting") {
       const b = e.build
       // Parked in "stopping" (not "waiting") so that no other settle starts a second build meanwhile.
-      const begun = yield* locked(Effect.sync(() => { e.epoch++; e.state = "stopping"; e.stopReason = reason; e.stepRunning = true; return !!e.buildBegun }))
+      const begun = yield* locked(Effect.sync(() => { e.epoch++; e.state = "stopping"; e.stopReason = reason; e.stepRunning = true; Deferred.doneUnsafe(e.stale, Exit.void); return !!e.buildBegun }))
       // A begun build settles uninterrupted (BEH-BR-039); one still waiting for a slot is cancelled (BEH-BR-034).
       if (begun && e.heldEvent) e.heldUntilSettled = true
       // A cascade waits for the dependent's running build under its own drain limit: an operator call without `force`
@@ -2220,7 +2239,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }
   const newEntry = (def: AnyPlugin, ident: Ident, o: { readonly disabled?: boolean; readonly config?: unknown; readonly intercept?: Entry["intercept"]; readonly owner?: string; readonly mandatoryChain?: ReadonlyArray<MandatoryInterception>; readonly allowChildren?: boolean }): Entry => ({
     id: ident.key, pluginId: ident.id, realm: ident.realm, ...(ident.parentKey !== undefined ? { parentKey: ident.parentKey } : {}),
-    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], resources: [], releasers: new Map(), ...(o.owner !== undefined ? { owner: o.owner } : {}),
+    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], resources: [], releasers: new Map(), afterPublish: [], stale: Effect.runSync(Deferred.make<void>()), ...(o.owner !== undefined ? { owner: o.owner } : {}),
     def, state: o.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), capturedActs: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++,
     stepRunning: false, parkedSystem: false, buildSeq: 0, ...(o.config !== undefined ? { override: { raw: o.config } } : {}),
     mandatoryChain: o.mandatoryChain ?? [], allowChildren: o.allowChildren ?? true, captures: []

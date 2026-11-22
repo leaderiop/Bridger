@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.16 (2026-11-22): BEH-BR-039 `build-flapping` and snapshot `flapping` at `staleFailureLimit` (improvement report 01, R1)<br>0.15 (2026-11-21): BEH-BR-034 a build awaiting a child does not occupy its slot (improvement report 01, R9)<br>0.14 (2026-11-21): BEH-BR-040 `awaitSettled` (improvement report 01, R6)<br>0.13 (2026-11-21): BEH-BR-039 a stale build's outcome is always discarded and reported as `build-finished` with `stale: true` and `discardedFailures`; provider-loss no longer records `failed` (improvement report 01, L1/L8)<br>0.12 (2026-11-11): BEH-BR-037 children a failed build mounted are removed before the activation scope closes, as the parent's stop, with no caller (C6) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.11 (2026-11-10): BEH-BR-040 the carried references name plugins by canonical key (09, BEH-BR-088) (C1) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-040 `awaitIdle` fails `WouldDeadlock` from a fiber carrying a plugin in `HeldPlugins` or `CurrentTransition`, `load` included (H1) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-037 phase "activation" also covers a runtime failure signalled while `starting` (`reportFailure`, a background fiber; BEH-BR-091) (audit round 2, Low) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-039 a build that imports handed-off state is decided stale before the import and is committed once the import begins (34, BEH-BR-349) (U-02); BEH-BR-034 a build queued when shutdown begins is cancelled and its plugin unregistered without a stop step (BEH-BR-105) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-033 a `waiting` plugin does not start once shutdown has begun; BEH-BR-034 no build begins and queued builds are cancelled under shutdown; BEH-BR-039 shutdown is a target change whose stale build is discarded (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-033 a wired `RefusalList` is consulted before a plugin enters `starting`, and a refused start lands in `disabled` (CCR-BR-026)<br>0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.17 (2026-11-22): BEH-BR-037 emissions during build are not withheld, `Plugin.Runtime.afterPublish`; BEH-BR-039 `superseded` and `whenSuperseded` (improvement report 03, R5, R6)<br>0.16 (2026-11-22): BEH-BR-039 `build-flapping` and snapshot `flapping` at `staleFailureLimit` (improvement report 01, R1)<br>0.15 (2026-11-21): BEH-BR-034 a build awaiting a child does not occupy its slot (improvement report 01, R9)<br>0.14 (2026-11-21): BEH-BR-040 `awaitSettled` (improvement report 01, R6)<br>0.13 (2026-11-21): BEH-BR-039 a stale build's outcome is always discarded and reported as `build-finished` with `stale: true` and `discardedFailures`; provider-loss no longer records `failed` (improvement report 01, L1/L8)<br>0.12 (2026-11-11): BEH-BR-037 children a failed build mounted are removed before the activation scope closes, as the parent's stop, with no caller (C6) (SPEC-AUDIT-09) (CCR-BR-041)<br>0.11 (2026-11-10): BEH-BR-040 the carried references name plugins by canonical key (09, BEH-BR-088) (C1) (CCR-BR-036)<br>0.10 (2026-11-10): BEH-BR-040 `awaitIdle` fails `WouldDeadlock` from a fiber carrying a plugin in `HeldPlugins` or `CurrentTransition`, `load` included (H1) (CCR-BR-035)<br>0.9 (2026-11-10): BEH-BR-037 phase "activation" also covers a runtime failure signalled while `starting` (`reportFailure`, a background fiber; BEH-BR-091) (audit round 2, Low) (CCR-BR-034)<br>0.8 (2026-11-09): BEH-BR-039 a build that imports handed-off state is decided stale before the import and is committed once the import begins (34, BEH-BR-349) (U-02); BEH-BR-034 a build queued when shutdown begins is cancelled and its plugin unregistered without a stop step (BEH-BR-105) (CCR-BR-033)<br>0.7 (2026-11-09): BEH-BR-033 a `waiting` plugin does not start once shutdown has begun; BEH-BR-034 no build begins and queued builds are cancelled under shutdown; BEH-BR-039 shutdown is a target change whose stale build is discarded (U-01) (CCR-BR-032)<br>0.6 (2026-11-08): BEH-BR-033 a wired `RefusalList` is consulted before a plugin enters `starting`, and a refused start lands in `disabled` (CCR-BR-026)<br>0.5 (2026-11-08): BEH-BR-034 the build step of an unloaded lazy registration begins with `load`; BEH-BR-038 contract references compared by version instead of object (CCR-BR-017)<br>0.4 (2026-10-03): A transition step requested and not yet begun counts against idleness (prototype finding G33) (CCR-BR-012)<br>0.3 (2026-10-02): A build begins when it holds a slot; a `starting` plugin whose requirement is gone when its build would begin returns to `waiting`, not `failed`; a stop cancels a build that has not begun (prototype finding G25) (CCR-BR-010)<br>0.2 (2026-10-02): Stale build with both causes; parked stops never count for `awaitIdle` and do not prevent idleness; `WouldDeadlock` from builds and finalizers; `concurrency` bounds builds only, stops take no slot (CCR-BR-008)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -323,6 +323,23 @@ REQUIREMENT: A failed plugin MUST then wait for an explicit operation. The
              host MUST NOT retry it (04 — States and Snapshots).
 ```
 
+```
+REQUIREMENT: Publication is atomic; emission is not. An event emitted or an
+             external call made during `build` MUST NOT be withheld, and
+             nothing in the host MUST claim it was discarded with a stale or
+             failed build. A build that needs its emissions to follow
+             publication MUST use `Plugin.Runtime.afterPublish(effect)`: the
+             effect is queued during the build and the host MUST run the queue
+             in order, once, after the revision that published the activation
+             and outside the host's lock, bounded each by `buildTimeout`. A
+             queued effect MUST NOT run for an activation that fails, goes
+             stale (BEH-BR-039) or has ended; one that fails is logged at
+             warning level and neither undoes the publication nor stops the
+             rest. Called once the activation is published, it runs at once.
+             The cross-process analogue is the transactional outbox of the
+             event-store companion.
+```
+
 All-or-nothing publication is what lets a dependent rely on its whole set of
 requirements: no dependent can start against half of a provider, and no
 consumer can lease one service of a plugin whose other service failed to
@@ -422,6 +439,16 @@ REQUIREMENT: When both happened while the build ran — an operator operation
 
 A build captured its providers at its start (BEH-BR-035); if one of them is
 leaving, a successful result is built on a service that is about to close.
+```
+REQUIREMENT: `Plugin.Runtime` MUST give a build a cooperative signal of its
+             own staleness: `superseded`, an effect that is `true` once the
+             build can no longer publish (the epoch changed or the plugin left
+             `starting`), and `whenSuperseded`, an effect that completes then.
+             The host MUST NOT interrupt the build because of it; a build
+             MAY poll or await the signal and fail fast, and any failure of a
+             stale build is discarded under the rule above.
+```
+
 Publishing it would let consumers lease a plugin whose dependency is gone —
 the stale-publication hazard RSK-BR-002 names. Letting the step settle rather
 than interrupting it keeps the scope's finalizers in a known state; the build

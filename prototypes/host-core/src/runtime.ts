@@ -18,6 +18,11 @@ export class PluginRuntime extends Context.Service<PluginRuntime, {
    * acquires through Layers or plain `acquireRelease` is simply not listed.
    */
   readonly acquire: <A, E, R>(label: string, acquire: Effect.Effect<A, E, R>, release: (a: A) => Effect.Effect<unknown, unknown>, options?: { readonly irreversible?: boolean }) => Effect.Effect<A, E, R | Scope.Scope>
+  /** Report 03 R6 (BEH-BR-039): true once this activation's build can no longer publish. Cooperative: poll it, or await `whenSuperseded`, and fail fast; the host never interrupts a build. */
+  readonly superseded: Effect.Effect<boolean>
+  readonly whenSuperseded: Effect.Effect<void>
+  /** Report 03 R5 (BEH-BR-037): `effect` runs only once this activation is published, in queue order; for a build that fails or goes stale it never runs. Emissions during `build` itself are not withheld. */
+  readonly afterPublish: (effect: Effect.Effect<unknown, unknown>) => Effect.Effect<void>
   /** An unrecoverable condition detected by the plugin itself (BEH-BR-091). */
   readonly reportFailure: (cause: Cause.Cause<unknown>) => Effect.Effect<void>
   /** Mounts a child for the lifetime of this activation (BEH-BR-121). */
