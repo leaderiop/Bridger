@@ -35,6 +35,14 @@ A second read of files the first pass skipped (federation 03, 04 and 06, keyring
 | S16 | Resolved | `Budget` took labels and the essential flag from the call site and left an unmatched key unlimited. BEH-EN-017/018/016 now require `onUnmatched` (no default), `Budget.forPlugin` host-derived labels that a plugin cannot shed, and an essential list that only the application defines. `src/budget.ts` is the reference kernel (`test/sec-budget.test.ts`); periods and the `BudgetLedger` are not built. |
 | S17 | Resolved | A federation kill under `revocationActor` could be refused by a remove-only gate and a refused kill had no age bound. BEH-FD-042 requires the gate to allow `disable` and `remove` from that actor and `kill-overdue` past `killPendingMaxAge`; `fedplugin.ts` now reports `kill-overdue` with its age and clears it when the gate allows (`test/federation-durable.test.ts`). |
 | S18 | Resolved (documentation) | ERP-ACCESS stated qadi properties that the spike 08 results show are not there (the `:` check is types-only, the decision sink is fail-open and embeds the resource, a built subject is a snapshot). They are now stated as requirements on `@bridger/qadi` in §7 and §10. |
+| S19 | Specified | Decode accepted plaintext at a selected path, and a `Shredded` marker or `Encrypted.subject` was trusted as written. BEH-KR-010/012 now require an exact marker form, `PayloadDecodeFailed` for plaintext or a subject mismatch, and a recording host to check the same. |
+| S20 | Specified | The authenticated data omitted the stream, so a ciphertext copied into another event of the same subject decrypted. BEH-KR-011 adds the stream id. |
+| S21 | Specified | Encode's fail-closed set missed a throwing `subject`, `SubjectInvalid`, an uncanonicalisable value and wildcard paths, and `SubjectFromEncryptedField` could not be enforced. BEH-KR-012/013 now fail closed on all of them and define a runtime probe. |
+| S22 | Specified | Nothing bounded GCM nonce use per key and key material shared the `NonceSource`. BEH-KR-005/006 add `maxUsesPerKey`, a separate key source and a refusal of a fixed `NonceSource` outside a test host. |
+| S23 | Specified | `rotate` and `rewrap` were unbounded and unattributed. They now carry an actor and reason into a key-event record, with `maxKeyVersions` and `KeyVersionLimit`. |
+| S24 | Specified | A child plugin's mount bypassed the entitlement gate (core 25 never submits it). BEH-EN-009 now has `Entitlement.layer` provide core's mount-time policy, with `childSubject`. |
+| S25 | Specified | Budget periods re-anchored at each restart and the ledger could not see the period. BEH-EN-021/022 require `anchor`, a `period` index, and replay of unreconciled local reservations. |
+| S26 | Resolved (documentation) | GXP-COMPANION scenario A reused the ticket id as the correlation id and showed no single-use or approver separation. A callout now says the specification governs. |
 
 ## Executive summary
 

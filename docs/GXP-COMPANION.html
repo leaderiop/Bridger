@@ -829,6 +829,7 @@ const host = yield* Bridger.make(options).pipe(
     <div class="scenario-tag"><span class="letter">A</span><span class="pill p-ok">installed and fully recorded</span></div>
     <h3>An approved plugin is installed</h3>
     <div class="read">
+      <p><em>Simplified for reading.</em> In the specification (BEH-GX-089..093, ADR-GX-013, ADR-GX-015) a ticket is single-use, so a second install citing APR-0419 is refused; the request's correlation id is its own, never the ticket id; and the approver is a different person from the requester.</p>
       <p>Change request <strong>CR-2026-118</strong> introduces <code>lab/balance-reader</code> version 2.3.1. The QA lead, Dr. Amal Haddad, approves it in the morning. The operator, Karim Benali, installs it during the afternoon shift.</p>
     </div>
     <figure>

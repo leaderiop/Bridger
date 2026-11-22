@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KR-BEH-02                                            |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.12                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-KR-012: event-store reads gated page by page and fenced inside a store transaction; a read a durable-bus participant step makes itself skips the gate, a stated limit (H4, H6); second pass (cleanest design): the limit withdrawn — a store-swap step decodes only through the `SwapStep` durable-bus hands it, never in `run` or the keyring's own "codec" `apply`, and a "data" `apply` only after the keyring's `apply` has committed; event-store reads inside a store transaction take `readIn` and the read fence; BEH-KR-009: `encode` is passed the transaction it is written in and creates a missing key in it on a `KeyStore` that offers `transaction`, deciding by that capability, never by the environment (CCR-KR-011)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-KR-012: no decode reaches a held subject during a whole-store install or durable-bus's holds, every subscription, `follow` and event-store read waiting and an application awaiting `DurableBus.whenReadable` (H3) (CCR-KR-010)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07 residual) — BEH-KR-009: a key the codec creates on encode is written under the durable-bus fence (03, BEH-KR-017), and an `OutboxFrozen` there fails `encode` with `PayloadEncodeFailed` (CCR-KR-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-KR-012: the refusal of every decode from a whole-store `OriginChange` until the store-swap re-apply commits, and the state the codec shared with the plugin, are removed: the re-apply now commits inside the install before the `OriginChange` (03, BEH-KR-020), so the codec reads the tombstones from the `KeyStore` (H4, K2) (CCR-KR-009)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-012: the codec fails every decode of an `Encrypted` field with `PayloadDecodeFailed` naming `KeyStoreUnavailable` from a whole-store `OriginChange` until the keyring's store-swap re-apply has committed, a state shared with the plugin through the same `KeyringPorts` value (K1) (CCR-KR-008)<br>0.6 (2026-11-10): BEH-KR-009: `Keyring.fields` takes the `KeyringPorts` given to `Keyring.plugin` (PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.5 (2026-11-10): BEH-KR-012: a decode that meets `KeyStoreUnavailable` fails with `PayloadDecodeFailed`, never `PayloadUnreadable` or a marker, so that the reader keeps the envelope and retries (CCR-KR-004)<br>0.4 (2026-11-08): BEH-KR-009 `Field` is `Codec<A | Shredded, I | Shredded>` and upcasters pass markers through; BEH-KR-010 defines the `Shredded` form, decoded and stored; BEH-KR-012 stores an existing marker without a key, leaves park or halt to the reader, and states the key precondition as a limit (CCR-KR-002)<br>0.3 (2026-11-08): BEH-KR-009 and 012 cite URS-BR-058 and URS-BR-059 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.2 (2026-11-08): BEH-KR-009 and BEH-KR-012 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape cited, codec id "bridger-keyring/v1", `PayloadEncodeFailed`, `PayloadDecodeFailed` and `PayloadUnreadable` mapping); Open (2) closed (CCR-KR-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
+> | Change History | 0.12 (2026-11-22): BEH-KR-010 marker form; BEH-KR-011 stream id in the authenticated data; BEH-KR-012 plaintext at a selected path, subject mismatch and every encode failure fail closed; BEH-KR-013 `SubjectFromEncryptedField` is a runtime probe (improvement report 06, S19-S21)<br>0.11 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-KR-012: event-store reads gated page by page and fenced inside a store transaction; a read a durable-bus participant step makes itself skips the gate, a stated limit (H4, H6); second pass (cleanest design): the limit withdrawn — a store-swap step decodes only through the `SwapStep` durable-bus hands it, never in `run` or the keyring's own "codec" `apply`, and a "data" `apply` only after the keyring's `apply` has committed; event-store reads inside a store transaction take `readIn` and the read fence; BEH-KR-009: `encode` is passed the transaction it is written in and creates a missing key in it on a `KeyStore` that offers `transaction`, deciding by that capability, never by the environment (CCR-KR-011)<br>0.10 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-08) — BEH-KR-012: no decode reaches a held subject during a whole-store install or durable-bus's holds, every subscription, `follow` and event-store read waiting and an application awaiting `DurableBus.whenReadable` (H3) (CCR-KR-010)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07 residual) — BEH-KR-009: a key the codec creates on encode is written under the durable-bus fence (03, BEH-KR-017), and an `OutboxFrozen` there fails `encode` with `PayloadEncodeFailed` (CCR-KR-009)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-07) — BEH-KR-012: the refusal of every decode from a whole-store `OriginChange` until the store-swap re-apply commits, and the state the codec shared with the plugin, are removed: the re-apply now commits inside the install before the `OriginChange` (03, BEH-KR-020), so the codec reads the tombstones from the `KeyStore` (H4, K2) (CCR-KR-009)<br>0.7 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — BEH-KR-012: the codec fails every decode of an `Encrypted` field with `PayloadDecodeFailed` naming `KeyStoreUnavailable` from a whole-store `OriginChange` until the keyring's store-swap re-apply has committed, a state shared with the plugin through the same `KeyringPorts` value (K1) (CCR-KR-008)<br>0.6 (2026-11-10): BEH-KR-009: `Keyring.fields` takes the `KeyringPorts` given to `Keyring.plugin` (PL2) (SPEC-AUDIT-04) (CCR-KR-006)<br>0.5 (2026-11-10): BEH-KR-012: a decode that meets `KeyStoreUnavailable` fails with `PayloadDecodeFailed`, never `PayloadUnreadable` or a marker, so that the reader keeps the envelope and retries (CCR-KR-004)<br>0.4 (2026-11-08): BEH-KR-009 `Field` is `Codec<A | Shredded, I | Shredded>` and upcasters pass markers through; BEH-KR-010 defines the `Shredded` form, decoded and stored; BEH-KR-012 stores an existing marker without a key, leaves park or halt to the reader, and states the key precondition as a limit (CCR-KR-002)<br>0.3 (2026-11-08): BEH-KR-009 and 012 cite URS-BR-058 and URS-BR-059 (registered by core CCR-BR-027) (CCR-KR-001)<br>0.2 (2026-11-08): BEH-KR-009 and BEH-KR-012 aligned with durable-bus BEH-DB-008 (`PayloadCodec` shape cited, codec id "bridger-keyring/v1", `PayloadEncodeFailed`, `PayloadDecodeFailed` and `PayloadUnreadable` mapping); Open (2) closed (CCR-KR-001, revision bump)<br>0.1 (2026-11-08): Initial draft (CCR-KR-001)                 |
 
 ---
 
@@ -74,7 +74,12 @@ REQUIREMENT: The codec MUST implement the durable-bus `PayloadCodec` of
              `KeyStoreUnavailable` on encode, or an `OutboxFrozen` refusing
              the key it creates in a `tx` not yet fenced (03, BEH-KR-017),
              MUST fail `encode` with
-             durable-bus `PayloadEncodeFailed`, so that nothing is written. The same codec instance MUST serve the bus
+             durable-bus `PayloadEncodeFailed`, so that nothing is written;
+             so MUST every other failure inside `encode`, defects included:
+             a `subject` function that throws or returns nothing, a
+             `SubjectInvalid`, a value RFC 8785 cannot canonicalise, and a
+             listed path that is not a single concrete JSON path (no
+             wildcard, no array path). The same codec instance MUST serve the bus
              and the event store, which stores the envelope's payload of a
              published event unchanged (event-store BEH-ES-032).
 ```
@@ -107,13 +112,24 @@ REQUIREMENT: The encrypted form MUST be exactly the `Encrypted` object
              (BEH-KR-012) decodes to the marker it was.
 ```
 
+```
+REQUIREMENT: A value is a `Shredded` marker only if it is exactly
+             `{ $shredded: 1, subject, path }` with `path` equal to the
+             field's path and `subject` equal to `spec.subject(payload)`.
+             Anything else at a selected path that is not a well-formed
+             `Encrypted` MUST be treated as an ordinary value and encrypted,
+             so that an extra key or a foreign subject cannot carry plaintext
+             or blank a live subject's field past `encode`.
+```
+
 ## BEH-KR-011: Authenticated data binds the field to its place
 
 ```
 REQUIREMENT: The authenticated data of a field MUST be the UTF-8 bytes of
              "bridger-keyring/v1\n" + event type + "\n" + version + "\n" +
-             path + "\n" + subject, so that ciphertext moved to another
-             field, event type or subject fails to decrypt.
+             path + "\n" + subject + "\n" + stream id, so that ciphertext moved to another
+             field, event type, subject or stream fails to decrypt. The
+             stream id is the one `encode` and `decode` receive.
 ```
 
 ## BEH-KR-012: After a shred, a field decodes as Shredded
@@ -162,7 +178,12 @@ REQUIREMENT: `decode` MUST fail with durable-bus `PayloadUnreadable` only
              when no field of the payload can be restored or marked — an
              `Encrypted` form whose key is absent from the key store without
              a tombstone — and with `PayloadDecodeFailed` for a malformed
-             `Encrypted` form or a `DecryptFailed`. What the reader does then
+             `Encrypted` form, a `DecryptFailed`, a value at a selected path
+             that is neither a well-formed `Encrypted` nor a well-formed
+             `Shredded` (plaintext is never accepted as stored), or an
+             `Encrypted` or `Shredded` whose `subject` differs from
+             `spec.subject(payload)`. A host that records facts applies the
+             same check when it receives one (event-store BEH-ES-030). What the reader does then
              is the reader's rule, not the codec's: a durable-bus subscription
              parks or halts as its options say (BEH-DB-008), and one that
              records facts halts and never parks (event-store BEH-ES-030); an
@@ -207,7 +228,12 @@ REQUIREMENT: Documentation MUST state the key precondition as a limit, not
 ```
 REQUIREMENT: The package MUST NOT infer which fields are personal data. It
              MUST refuse a `FieldSpec` whose subject function reads a listed
-             path (`SubjectFromEncryptedField`), and documentation MUST state
+             path (`SubjectFromEncryptedField`), and the refusal MUST be checked at
+             runtime, since a function cannot be inspected: `encode` calls
+             `subject` on a copy of the payload with every listed path
+             replaced by a sentinel that throws on read, and refuses when it
+             throws or when its result equals a listed plaintext value.
+             Documentation MUST state
              that unlisted fields are stored and published in plaintext.
 ```
 
