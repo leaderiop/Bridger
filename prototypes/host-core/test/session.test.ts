@@ -1,0 +1,125 @@
+// Remote sessions over the in-memory wire: epochs, stale-epoch refusal, heartbeat, partition and a fresh epoch per session
+// (remote BEH-RM-010, 011, 025, 029). Real timers with small intervals.
+import { Context, Effect, Exit, Fiber, Option, Schema } from "effect"
+import { describe, expect, it } from "vitest"
+import { Contract } from "../src/contract.js"
+import { duplex, guestServe, type Connection } from "../src/wire.js"
+import { openSession, serveGuest, startLink, type CallFailure, type Session } from "../src/session.js"
+
+class Board extends Context.Service<Board, { readonly post: (s: string) => Effect.Effect<string> }>()("example/Board@1") {}
+const d = Contract.make(Board, { version: "1.2.0", methods: { post: Contract.method({ payload: Schema.String, success: Schema.String }) } }).descriptor
+const side = { version: d.version, methods: d.methods, schemas: d.schemas }
+const contract = { id: "example/Board@1", accepts: "^1.2", ...side }
+const hb = { every: 20, missed: 3 }
+const opts = (epoch = "e-1") => ({ epoch, wire: [1], contract, heartbeat: hb })
+const guest = (handlers = { post: (p: unknown) => Effect.succeed(`posted:${String(p)}`) }) => ({ wire: [1], served: [side], maxInFlight: 4, handlers })
+const open = (c: Connection, e = "e-1") => openSession(c, opts(e)).pipe(Effect.map((s) => s as Session))
+const fails = <A>(e: Effect.Effect<A, CallFailure>) => Effect.flip(e)
+
+describe("session", () => {
+  it("carries calls and results under the session's epoch, and reports an unknown method", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b, guest()))
+      const s = yield* open(a)
+      expect(s.epoch).toBe("e-1"); expect(s.version).toBe("1.2.0")
+      expect(yield* s.call("post", "hi")).toBe("posted:hi")
+      expect(yield* fails(s.call("nope", 1))).toMatchObject({ _tag: "MethodNotServed", outcome: "not-executed" })
+      yield* s.close
+    }))
+  })
+
+  it("the guest never executes a call of another epoch: it answers StaleEpoch, not-executed", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      let ran = 0
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b, guest({ post: () => Effect.sync(() => { ran++; return "x" }) })))
+      const s = yield* open(a)
+      yield* a.send(JSON.stringify({ t: "call", epoch: "old-epoch", callId: "z", method: "post", payload: "p" }))
+      yield* Effect.sleep(30)                                                                // the guest's StaleEpoch answer reaches the link's loop: another epoch, dropped and counted
+      expect(yield* s.refusals).toBe(1)
+      expect(ran).toBe(0)
+      yield* s.close
+    }))
+  })
+
+  it("the link drops a result of another epoch, counts it, and completes no call with it", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      const answer = yield* Effect.forkChild(guestServe(b, guest()))
+      const s = yield* open(a)
+      yield* Effect.forkChild(Effect.gen(function* () { yield* b.receive; yield* b.send(JSON.stringify({ t: "result", epoch: "old", callId: "c-1", value: "forged" })) }))
+      const call = yield* Effect.forkChild(s.call("post", "q"))
+      yield* Effect.sleep(30)
+      expect(yield* s.refusals).toBe(1)
+      yield* s.close
+      const exit = yield* Fiber.await(call)
+      expect(Exit.isFailure(exit)).toBe(true)                                                // ended by close, never completed by the forged result
+      void answer
+    }))
+  })
+
+  it("a silent guest ends the session with heartbeat-missed and the call in flight fails with outcome unknown", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(guestServe(b, guest()))                      // answers the handshake, then says nothing
+      const s = yield* open(a)
+      const t0 = Date.now()
+      const failure = yield* fails(s.call("post", "x"))
+      expect(failure).toMatchObject({ _tag: "SessionLost", outcome: "unknown" })
+      expect(yield* s.ended).toBe("heartbeat-missed")
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(55)                   // every × missed = 60 ms
+      expect(yield* fails(s.call("post", "y"))).toMatchObject({ _tag: "SessionLost", outcome: "not-executed" })
+    }))
+  })
+
+  it("an answering guest keeps the session alive past every × missed", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b, guest()))
+      const s = yield* open(a)
+      yield* Effect.sleep(150)
+      expect(yield* s.call("post", "still")).toBe("posted:still")
+      yield* s.close
+    }))
+  })
+
+  it("a guest that answers StaleEpoch ends the session with guest-reset at once", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(Effect.gen(function* () {
+        yield* guestServe(b, guest())
+        while (true) { const f = JSON.parse(yield* b.receive) as { callId?: string; epoch: string }; if (f.callId) yield* b.send(JSON.stringify({ t: "result", epoch: f.epoch, callId: f.callId, error: { _tag: "StaleEpoch", epoch: f.epoch } })) }
+      }))
+      const s = yield* open(a)
+      expect(yield* fails(s.call("post", "x"))).toMatchObject({ _tag: "StaleEpoch", outcome: "not-executed" })
+      expect(yield* s.ended).toBe("guest-reset")
+    }))
+  })
+})
+
+describe("link", () => {
+  it("opens a new session with a new epoch after a partition, never reusing one, and shows the partition in its status", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      let dials = 0
+      const dial = Effect.gen(function* () {
+        const [a, b] = yield* duplex
+        dials++
+        yield* Effect.forkChild(dials === 1 ? guestServe(b, guest()) : serveGuest(b, guest()))        // the first guest goes silent after its handshake
+        return a
+      })
+      const link = yield* startLink(dial, { wire: [1], contract, heartbeat: hb, backoff: 10 })
+      yield* Effect.sleep(40)
+      expect((yield* link.status).state).toBe("active")
+      yield* Effect.sleep(120)
+      const st = yield* link.status
+      expect(st.sessions.map((x) => x.epoch)).toEqual(["epoch-1", "epoch-2"])
+      expect(st.sessions[0]!.ended).toBe("heartbeat-missed")
+      expect(st.state).toBe("active")
+      const cur = yield* link.current
+      expect(Option.isSome(cur) && (yield* cur.value.call("post", "again"))).toBe("posted:again")
+      yield* link.stop
+      expect((yield* link.status).state).toBe("stopped")
+    }))
+  })
+})

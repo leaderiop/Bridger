@@ -36,7 +36,7 @@ export const linkHandshake = (conn: Connection, hello: { readonly wire: Readonly
   })
 
 /** The guest's end (`Guest.serve`): answer a `hello` with the highest common wire version and served contract version, or refuse. */
-export const guestServe = (conn: Connection, guest: { readonly wire: ReadonlyArray<number>; readonly served: ReadonlyArray<WireSide>; readonly maxInFlight: number }): Effect.Effect<{ readonly answered: "welcome" | "refuse" }> =>
+export const guestServe = (conn: Connection, guest: { readonly wire: ReadonlyArray<number>; readonly served: ReadonlyArray<WireSide>; readonly maxInFlight: number }): Effect.Effect<{ readonly answered: "welcome" | "refuse"; readonly epoch?: string; readonly version?: string }> =>
   Effect.gen(function* () {
     const h = parse(yield* conn.receive)
     const epoch = typeof h?.epoch === "string" ? h.epoch : undefined
@@ -51,7 +51,7 @@ export const guestServe = (conn: Connection, guest: { readonly wire: ReadonlyArr
     const a = guestAnswer({ version: c.version, accepts: c.accepts, ...(methods ? { methods } : {}), ...(schemas ? { schemas } : {}) }, guest.served)
     if (a.t === "refuse") { yield* conn.send(JSON.stringify({ t: "refuse", epoch, reason: a.reason })); return { answered: "refuse" as const } }
     yield* conn.send(JSON.stringify({ t: "welcome", wire: Math.max(...wires), epoch, version: a.version, ...(a.schemas ? { schemas: a.schemas } : {}), maxInFlight: guest.maxInFlight }))
-    return { answered: "welcome" as const }
+    return { answered: "welcome" as const, epoch, version: a.version }
   })
 
 // ---------------------------------------------------------------- federation (BEH-FD-018, 019, 020)

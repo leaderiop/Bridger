@@ -21,7 +21,7 @@ describe("remote handshake over frames", () => {
   it("opens a session at the highest compatible version with the agreed wire version and epoch", async () => {
     const r = await link([side(make("1.2.0", Text)), side(make("1.4.0", Text))])
     expect(r.outcome).toEqual({ session: { version: "1.4.0", wire: 1, epoch: "e-1" } })
-    expect(r.answered).toEqual({ answered: "welcome" })
+    expect(r.answered).toEqual({ answered: "welcome", epoch: "e-1", version: "1.4.0" })
   })
   it("refuses a guest whose only compatible-looking version changed a method's schema", async () => {
     const r = await link([side(make("1.5.0", Rich))])
