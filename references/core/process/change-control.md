@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-03                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see §5)                      |
 > | Approved by    | — (pending; single maintainer, see §5)                       |
 > | Classification | Process Specification                                        |
-> | Change History | 0.3 (2026-11-22): §1 a new event, hook point or host event needs its row in the event catalog in the same change (improvement report 04, R2)<br>0.2 (2026-10-03): CCRs before CCR-BR-006 carry no impact record (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.4 (2026-11-22): §1 the shared-primitive rules (callers table, outcome matrix, one scenario per High, audit freeze) and the prototype-drift rule (improvement report 07, R3, R5)<br>0.3 (2026-11-22): §1 a new event, hook point or host event needs its row in the event catalog in the same change (improvement report 04, R2)<br>0.2 (2026-10-03): CCRs before CCR-BR-006 carry no impact record (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 _Previous: [Definitions of Done](./definitions-of-done.md)_
 
@@ -42,6 +42,38 @@ REQUIREMENT: A change that adds, renames or re-moded an event (`Event.make`),
 ```
 
 ```
+REQUIREMENT: A CCR that adds or changes a MUST on a shared primitive (a store
+             read, a stop step, a slot, a gate, `cold`, a lease) MUST attach
+             (i) a callers table, generated with
+             `bash references/core/scripts/callers.sh "<name>" --md`, whose
+             every row states how the new rule applies to that caller or why
+             it does not, and (ii) an outcome matrix, rows the operations
+             (remove, restart, replace, reconfigure, shutdown, reconcile,
+             system stop) and columns the plugin states (building, active,
+             draining, parked, failed with cleanup), every cell citing the
+             behaviour that decides it or reading "n/a because …". A rule
+             that does not walk every caller is the class of finding rounds
+             7 to 9 of the audit kept reopening.
+```
+
+```
+REQUIREMENT: Each High finding of an audit round MUST be given one executable
+             scenario id in the acceptance list of BEH-BR-183 before its
+             CCR closes, or be listed in the CCR as open without a scenario.
+             A spec edit MUST NOT land in the round that audits it unless
+             the matrix above is attached.
+```
+
+```
+REQUIREMENT: A change to a behaviour or invariant that the prototype names
+             (the [correspondence table](../appendices/correspondence.md)
+             lists it as Prototyped or Tested) MUST change `prototypes/
+             host-core/{src,test}` in the same range, or a commit message
+             MUST carry a `prototype-exempt: <reason>` line. Gate D6 with
+             `--since` checks it.
+```
+
+```
 REQUIREMENT: Once code exists, any change to `packages/core` that alters a
              BEH, INV or public type MUST be made under a CCR that names the
              affected identifiers.
@@ -55,7 +87,7 @@ REQUIREMENT: Once code exists, any change to `packages/core` that alters a
 | 2 | Impact assessment (§3) | In the CCR description and in each affected document's Change History |
 | 3 | Review and approval (§5) | Reviewed by / Approved by rows of each affected document |
 | 4 | Implementation: edit documents (and later code and tests) | Revision increments |
-| 5 | Verification: `scripts/verify-traceability.sh --strict` passes; later, the full merge gate | Gate output kept with the CCR |
+| 5 | Verification: `scripts/verify-spec.sh --since <rev>` passes (gate D6 of the [definitions of done](./definitions-of-done.md)); later, the full merge gate | Gate output kept with the CCR |
 | 6 | Close: the CCR row states what changed | README document history |
 
 ## 3. Impact assessment

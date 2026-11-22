@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-02                                              |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Process Specification                                        |
-> | Change History | 0.8 (2026-11-22): documentation gate D5, `verify-cli.sh` (improvement report 05, R10)<br>0.7 (2026-11-22): documentation gate D4, `verify-errors.sh` (improvement report 05, R3)<br>0.6 (2026-11-22): documentation gate D3, `doc-typecheck.sh` (improvement report 05, R2)<br>0.5 (2026-11-22): documentation gate D2, `verify-events.sh` (improvement report 04, R2)<br>0.4 (2026-11-10): Merge gate: the pack-and-install row moves to row 8, before the acceptance scenarios (now row 9) that import the packed package, rows 9–12 renumbered (Low); row 13 runs the acceptance scenarios against packed mutants (C16) (CCR-BR-035)<br>0.3 (2026-11-10): Merge gate row 8 runs the acceptance scenarios against the packed package (C25) (CCR-BR-034)<br>0.2 (2026-10-03): What `implementation: partial` changes, as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.9 (2026-11-22): documentation gate D6, `verify-spec.sh`, and the per-change checklist items 6 and 7 (improvement report 07, R2, R3, R5)<br>0.8 (2026-11-22): documentation gate D5, `verify-cli.sh` (improvement report 05, R10)<br>0.7 (2026-11-22): documentation gate D4, `verify-errors.sh` (improvement report 05, R3)<br>0.6 (2026-11-22): documentation gate D3, `doc-typecheck.sh` (improvement report 05, R2)<br>0.5 (2026-11-22): documentation gate D2, `verify-events.sh` (improvement report 04, R2)<br>0.4 (2026-11-10): Merge gate: the pack-and-install row moves to row 8, before the acceptance scenarios (now row 9) that import the packed package, rows 9–12 renumbered (Low); row 13 runs the acceptance scenarios against packed mutants (C16) (CCR-BR-035)<br>0.3 (2026-11-10): Merge gate row 8 runs the acceptance scenarios against the packed package (C25) (CCR-BR-034)<br>0.2 (2026-10-03): What `implementation: partial` changes, as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 _Previous: [Requirement Identifier Scheme](./requirement-id-scheme.md)_
 
@@ -32,6 +32,8 @@ passing documentation gate for evidence about the library.
 | D3 | `bash references/kit/scripts/doc-typecheck.sh` | Every guide snippet marked `type-checked: yes` compiles against the prototype, and every snippet carries a marker ([BEH-KT-028](../../kit/behaviors/04-cli.md)) |
 | D4 | `bash references/kit/scripts/verify-errors.sh` | Every declared error tag has a catalog row, every row a guide entry and the reverse, and `errors.catalog.ts` equals what the table generates ([BEH-KT-051](../../kit/behaviors/07-error-catalog.md)) |
 | D5 | `bash references/kit/scripts/verify-cli.sh` | Every `bridger` command a document names is a kit command or a declared extension, and no extension shadows a kit command ([BEH-KT-025](../../kit/behaviors/04-cli.md)) |
+
+| D6 | `bash references/core/scripts/verify-spec.sh [--since <rev>]` | One entry point: D1 to D5, the companion and GxP verifiers, and the [correspondence table](../appendices/correspondence.md) (no dangling id, no fall in how many behaviours and invariants the prototype names). With `--since`, a changed behaviour the prototype names needs a prototype change or a `prototype-exempt: <reason>` line in a commit message. This is the target a CI job runs; none is configured yet |
 
 A pass means the documents agree with each other. It says nothing about
 whether the library — which does not exist yet — would behave as written.
@@ -75,6 +77,9 @@ A change to this specification is done when:
 4. New identifiers follow the [identifier scheme](./requirement-id-scheme.md)
    and appear in `traceability.md`.
 5. Gate D1 passes with `--strict`.
+6. Gate D6 passes with `--since` the revision before the change.
+7. A CCR that adds a MUST on a shared primitive attaches the callers table and the outcome matrix of
+   [change control](./change-control.md) §1.
 
 ---
 
