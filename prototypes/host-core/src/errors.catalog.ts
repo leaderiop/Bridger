@@ -5,6 +5,7 @@ import type * as annotations_ from "./annotations.js"
 import type * as audit_chain_ from "./audit-chain.js"
 import type * as conformance_ from "./conformance.js"
 import type * as errors_ from "./errors.js"
+import type * as eventstore_ from "./eventstore.js"
 import type * as gxp_ from "./gxp.js"
 import type * as hooks_ from "./hooks.js"
 import type * as keyring_ from "./keyring.js"
@@ -16,13 +17,14 @@ import type * as sdk_ from "./sdk.js"
 import type * as shred_ from "./shred.js"
 
 type TagOf<M> = { readonly [K in keyof M]: M[K] extends abstract new (...a: any) => { readonly _tag: infer T } ? (string extends T ? never : T) : never }[keyof M]
-export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof audit_chain_> | TagOf<typeof conformance_> | TagOf<typeof errors_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof keyring_> | TagOf<typeof loader_> | TagOf<typeof plugin_test_> | TagOf<typeof policy_> | TagOf<typeof realms_> | TagOf<typeof sdk_> | TagOf<typeof shred_>
+export type ErrorTag = TagOf<typeof annotations_> | TagOf<typeof audit_chain_> | TagOf<typeof conformance_> | TagOf<typeof errors_> | TagOf<typeof eventstore_> | TagOf<typeof gxp_> | TagOf<typeof hooks_> | TagOf<typeof keyring_> | TagOf<typeof loader_> | TagOf<typeof plugin_test_> | TagOf<typeof policy_> | TagOf<typeof realms_> | TagOf<typeof sdk_> | TagOf<typeof shred_>
 export interface Entry { readonly kind: string; readonly raisedBy: string; readonly cause: string; readonly fix: string }
 export const entries = {
   AccessDenied: { kind: "defect", raisedBy: "bus listen or emit, registry contribute, child mount", cause: "A wired `AccessPolicy` denied the request (`kind`, `subject`, `principal`, `reason`); nothing was registered", fix: "Ask the integrator to allow the access, or do not attempt it" },
   AccessRefused: { kind: "error", raisedBy: "`AccessPolicy.ask` (companion buses)", cause: "The wired `AccessPolicy` refused a subscription, delivery or publication (`kind`, `subject`, `reason`, e.g. \"principal-retired\")", fix: "Declare the event in the manifest's `listens`, or change the application's access policy" },
   ActivationFailed: { kind: "error", raisedBy: "`PluginHandle.awaitActive`", cause: "The plugin ended `failed` (`phase`, `message`)", fix: "Read `message`; fix and `retry`" },
   AdmissionClosed: { kind: "error", raisedBy: "`Generation.acquire`, `Generation.use`", cause: "The generation's owner closed admission", fix: "Acquire before closing, or from the new generation" },
+  AppendRefused: { kind: "error", raisedBy: "`EventStore.append`, `read`", cause: "The access policy refused the stream, or `append` named a stream beginning \"rx:\" (`stream`); nothing was written", fix: "Use the receive path for received facts, or have the policy allow the stream" },
   ApplyRolledBack: { kind: "error", raisedBy: "`reconcile(desired, { atomic: true })`", cause: "An entry failed (`failed`) and every applied entry was undone (`undone`); also when the apply stopped \u2014 for any cause, the latch, an unwritten `requested` record or shutdown included \u2014 before any action completed, with `undone` empty (BEH-BR-324)", fix: "Fix the failed entry's cause and run again; nothing stayed applied" },
   AuditUnavailable: { kind: "error", raisedBy: "every mutating operation except `shutdown`", cause: "The `requested` record could not be written, or the audit latch is set", fix: "Restore the sink; an operator acknowledges with `acknowledgeAuditDegraded`" },
   AuditWriteFailed: { kind: "port-error", raisedBy: "`AuditSink.record`", cause: "The sink failed one write; never reaches an operation caller", fix: "Fix the sink; the host maps it to `AuditUnavailable` or the latch" },
@@ -95,5 +97,6 @@ export const entries = {
   UnknownPlugin: { kind: "error", raisedBy: "every operation on a ref; `bridger.host.inspect` (mcp/04)", cause: "No plugin with this id in this realm", fix: "Check the id and realm (`\"id\"` means the default realm)" },
   UnknownRealm: { kind: "error", raisedBy: "`install`, `replace`, `use`, `useAll`, `lease`, `wake`", cause: "The realm was never defined", fix: "Call `defineRealm` first" },
   UnsupportedDigestAlgorithm: { kind: "error", raisedBy: "digest check", cause: "The digest names an algorithm the loader does not accept; only SHA-256 is accepted", fix: "Repack with a SHA-256 digest" },
+  VersionConflict: { kind: "error", raisedBy: "`EventStore.append`", cause: "The stream's version is not the `expected` one (`expected`, `actual`); nothing was written", fix: "Reload the stream, decide again and retry with the current version" },
   WouldDeadlock: { kind: "error", raisedBy: "stopping operations, `retry`, `enable`, `awaitIdle`, `awaitSettled`; `shutdown` from a build, `load` or finalizer fiber (BEH-BR-105); `Plugin.Runtime.unmount` (BEH-BR-126)", cause: "The call would wait for something its own lease or transition blocks (ADR-BR-016); the error names the plugin by `id` and `realm`. A `shutdown` called from a fiber running a plugin's `build` or `load`, or a finalizer of its activation scope (or a fiber such a fiber awaits), fails at once naming that plugin, begins nothing and writes no record (BEH-BR-105). `Plugin.Runtime.unmount` fails at the call, before any wait and writing no record, whenever the calling fiber holds a lease \u2014 its own or inherited from the fiber that forked it \u2014 on the child or on a plugin the child's removal stops first (its dependents, transitively), or runs a build, `load` or finalizer step of such a plugin (`CurrentTransition`), whatever removal is under way; the child's removal is left to whatever began it (BEH-BR-126). A sub-scope finalizer never raises it: with such a lease it does not wait and logs a warning (BEH-BR-121)", fix: "Do not stop your own provider from inside a call to it; a fiber forked from the call carries its lease too (BEH-BR-088). Run the operation from a fiber that holds no lease on that plugin \u2014 the application's, or `Plugin.Runtime.background` of another plugin. Call `shutdown` from the application, never from a plugin's build, `load` or finalizer" },
 } as const satisfies Record<ErrorTag, Entry>

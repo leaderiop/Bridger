@@ -1792,6 +1792,22 @@ Origin `event-delivery` is the companion package `@bridger/durable-bus` (its nam
 - **Example.** A plugin granted `rotate` calling it in a loop.
 - **Fix.** Shred the subject where the law allows, or raise `maxKeyVersions` deliberately.
 
+### AppendRefused
+
+*error* · origin: event-store/01, 05 (BEH-ES-001, BEH-ES-029) · raised by: `EventStore.append`, `read`
+
+- **Cause.** The access policy refused the stream, or `append` named a stream beginning "rx:" (`stream`); nothing was written.
+- **Example.** A plugin appending to `rx:origin:orders`, which only the receive path writes.
+- **Fix.** Use the receive path for received facts, or have the policy allow the stream.
+
+### VersionConflict
+
+*error* · origin: event-store/01 (BEH-ES-001) · raised by: `EventStore.append`
+
+- **Cause.** The stream's version is not the `expected` one (`expected`, `actual`); nothing was written.
+- **Example.** Two writers deciding from the same version.
+- **Fix.** Reload the stream, decide again and retry with the current version.
+
 ### ShredRefused
 
 *error* · origin: keyring/03 (BEH-KR-017, BEH-KR-020) · raised by: `Keyring.shred`, `shredIn`; the keyring's handler of a received shred notice
