@@ -88,4 +88,16 @@ describe("authority over sockets", () => {
       yield* srv.close
     }))
   }, 30000)
+
+  it("answers none when the host already knows the latest revision, and fails a snapshot the authority does not have", async () => {
+    await run((host) => Effect.gen(function* () {
+      void host
+      const srv = yield* serveAuthority({ latest: () => ({ revision: 4, envelope: envelope(manifest(4, ["a"])) }), snapshot: () => undefined })
+      const addr = `127.0.0.1:${srv.port}`
+      expect(yield* remoteSource(addr)({ host: "h1", known: 4 })).toEqual({ kind: "none" })
+      expect((yield* remoteSource(addr)({ host: "h1", known: 3 })).kind).toBe("manifest")
+      expect(yield* Effect.flip(remoteSnapshot(addr)({ host: "h1", since: "1" }))).toEqual({ reason: "snapshot-unavailable" })
+      yield* srv.close
+    }))
+  })
 })
