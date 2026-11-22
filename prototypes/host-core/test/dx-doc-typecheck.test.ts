@@ -35,4 +35,12 @@ describe("doc-typecheck (improvement report 05, R2)", { timeout: 120_000 }, () =
     withDoc(fence("const a = 1") , (dir) => { const r = check(dir); expect(r.status).toBe(1); expect(r.stdout).toContain("no `// type-checked:` marker") })
     withDoc(fence("// type-checked: not yet (absent)\nconst a: number = 'x'"), (dir) => { expect(check(dir).status).toBe(0) })
   })
+  it("a recipe whose body differs from its test's region fails; a missing test file fails", () => {
+    withDoc(fence("// type-checked: test test/cookbook/01-service.test.ts\nconst different = 1"), (dir) => {
+      const r = check(dir)
+      expect(r.status).toBe(1)
+      expect(r.stdout).toContain("differs from the region")
+    })
+    withDoc(fence("// type-checked: test test/cookbook/nope.test.ts\nx"), (dir) => { expect(check(dir).stdout).toContain("is missing or has no `// #region recipe`") })
+  })
 })

@@ -144,7 +144,7 @@ Preview of the diagnostics page (`/erp/diagnostics`) is on by default in dev.
 
 1. Concepts: tenant, company, module, model, contract vs server binding, generation.
 2. Tutorial: Todo in 15 minutes (the walkthrough), then the Planning extension.
-3. Cookbook: custom command, query, event/subscriber, job, approval, report, attachment field, import, connector.
+3. Cookbook: custom command, query, event/subscriber, job, approval, report, attachment field, import, connector. The core recipes (service, hook point, contract adapter, registry page, volatile config, handoff, failing activation) exist, each backed by a running test, in [guides/cookbook](./guides/cookbook/README.md); the ERP recipes extend that set.
 4. Access guide: permissions, roles, owner rule, field policy, why a request was denied.
 5. Migrations guide: frozen snapshots, expansion rules, backfills, what the planner refuses.
 6. Testing guide: memory vs conformance suites, faults, races, and how to certify a new storage adapter.

@@ -20,6 +20,7 @@ library documentation.
 | [Bridger in 5 minutes](./bridger-in-5-minutes.md) | everyone | 5 minutes |
 | [Plugin author guide](./plugin-author-guide.md) | people writing in-process plugins with Effect | 30 minutes |
 | [Partner SDK guide](./partner-sdk-guide.md) | partners implementing a contract, without Effect | 15 minutes |
+| [Cookbook](./cookbook/README.md) | seven tasks, each a snippet from a test that runs | 5 minutes each |
 | [Error catalog](./error-catalog.md) | anyone holding an error tag | lookup |
 | [Partner publishing guide](../../references/kit/appendices/b-partner-publishing.md) | partners and publishers: pack, publish, countersign and what a host checks | 15 minutes |
 
