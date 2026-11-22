@@ -2,7 +2,9 @@
 
 ## Executive summary
 
-- Bridger has three separate decision/observation mechanisms: the `Bridger.Events` bus (BEH-BR-137-144), hook points (BEH-BR-297-312) and the operation gate (BEH-BR-313-321, `gate.ts`). Their veto and observe roles are cleanly separated; Bridger is ahead of Cordis on this.
+> **State (2026-11-22):** the text below is the original review, kept as written. All findings are resolved as built on `spec/events-report-04` (11 commits after report 03; suite 666/666; traceability, event-catalog, companion and report checks 0 failures); see "Resolution status" and "Not checked". The operation gate is BEH-BR-217 to 224, not 313 to 321.
+
+- Bridger has three separate decision/observation mechanisms: the `Bridger.Events` bus (BEH-BR-137-144), hook points (BEH-BR-297-312) and the operation gate (BEH-BR-217-224, `gate.ts`; first read as 313-321). Their veto and observe roles are cleanly separated; Bridger is ahead of Cordis on this.
 - The bus itself is thinner than Cordis' catalog discipline: an `EventKey` carries no dispatch mode, so "one mode per event" is not enforced; a mismatch (an `on` listener on a waterfall-dispatched event) is silent.
 - No generated event/hook catalog and no verifier checks call sites against declarations. `references/core/scripts/` only has traceability and claims checks.
 - `emit` has no back-pressure and no ordering statement: one unbounded supervised fiber per listener per emit (`bus.ts` `fireAndForget`), results unordered.
