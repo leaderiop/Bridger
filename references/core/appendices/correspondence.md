@@ -41,7 +41,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-SQ | 0 | 20 |
 | INV-AC | 1 | 7 |
 | INV-AG | 0 | 8 |
-| INV-BR | 3 | 52 |
+| INV-BR | 6 | 52 |
 | INV-CM | 0 | 8 |
 | INV-DB | 1 | 11 |
 | INV-EN | 1 | 7 |
@@ -291,7 +291,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-156 | Tested | src/errors.catalog.ts:44 | test/reconcile.test.ts:91 “BEH-BR-153, 156: invalid and duplicate entries are rejected, their plugin untouched and unpruned; prunes run dependents first” |
 | BEH-BR-157 | Tested | src/errors.catalog.ts:54 | test/reconcile.test.ts:97 “BEH-BR-157, 158, 201: the gate is consulted per entry action; a refusal rejects that entry only and is counted in children” |
 | BEH-BR-158 | Tested | src/host.ts:246 | test/reconcile.test.ts:113 “BEH-BR-158: requireReason applies to the operations a provisional diff would issue — a prune needs a reason, refused with no record” |
-| BEH-BR-159 | Tested | — | test/reconcile.test.ts:209 “BEH-BR-159: two edit histories that end in one list converge on the same owned set” |
+| BEH-BR-159 | Tested | — | test/pbt/properties.pbt.test.ts:5 |
 | BEH-BR-160 | Tested | — | test/confluence-faults.test.ts:1 |
 | BEH-BR-161 | Tested | src/registry.ts:1 | test/registry.test.ts:1 |
 | BEH-BR-162 | Prototyped | src/hooks.ts:57 | — |
@@ -1129,13 +1129,13 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | INV-BR-014 | Specified | — | — |
 | INV-BR-015 | Specified | — | — |
 | INV-BR-016 | Specified | — | — |
-| INV-BR-017 | Specified | — | — |
+| INV-BR-017 | Tested | — | test/pbt/properties.pbt.test.ts:3 |
 | INV-BR-018 | Specified | — | — |
 | INV-BR-019 | Specified | — | — |
 | INV-BR-020 | Specified | — | — |
 | INV-BR-021 | Specified | — | — |
-| INV-BR-022 | Specified | — | — |
-| INV-BR-023 | Specified | — | — |
+| INV-BR-022 | Tested | — | test/pbt/properties.pbt.test.ts:4 |
+| INV-BR-023 | Tested | — | test/pbt/properties.pbt.test.ts:105 “a removal blocked by a lease fails with DrainTimeout when the limit passes, not before” |
 | INV-BR-024 | Specified | — | — |
 | INV-BR-025 | Specified | — | — |
 | INV-BR-026 | Prototyped | src/host.ts:188 | — |
