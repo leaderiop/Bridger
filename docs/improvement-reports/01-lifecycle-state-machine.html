@@ -401,7 +401,7 @@ anim({title:'C. Replacement with an activation ordinal (R3)',
 var C=[
 ['Transition model',['neu','Inertial: finish the in-flight transition, then chain to the latest target. No operator-visible outcome.'],['good','Total 8x8 table, linearized per plugin, parked stops, intent survives caller interruption.'],['good','Add abort edge for parked stops (R5, 9x9).']],
 ['Activation identity',['neu','uid never reused; targets keyed by provider uid.'],['bad','(id, realm) only; epoch internal.'],['good','Monotonic activation ordinal (R3).']],
-['Unload order',['neu','Dependents drain first, awaited without a bound.'],['good','Hide-first, bounded drain, force with revocation.'],['warn','Unchanged, plus a way out of a parked stop (R5).']],
+['Unload order',['neu','Dependents drain first, awaited without a bound.'],['good','Hide-first, bounded drain, force with revocation.'],['good','Hide-first, bounded drain unchanged, plus `abort` of a parked stop (R5, built and tested).']],
 ['Quiescence',['neu','Function of final config only.'],['warn','Function of installed set modulo failure, lazy, refusal, handoff; failure untested.'],['good','Failure oracle and tests (R2); one stale-build rule (R1).']],
 ['Rollback on build failure',['neu','HMR transactional reload restores the cache.'],['warn','Definitions roll back; activations do not. Atomic reconcile has audited undo.'],['good','Opt-in activation rollback (R4).']],
 ['Cycles',['neu','Permanently inactive.'],['good','Rejected at install.'],['neu','No change.']],
