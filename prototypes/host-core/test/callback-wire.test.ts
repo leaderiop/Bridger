@@ -85,13 +85,13 @@ describe("call log entries through Host.offerCallEntry (BEH-RM-047)", () => {
       yield* Effect.forkChild(serveGuest(b, guest({ post: (p, ctx) => Effect.gen(function* () { yield* ctx.callback("stock/Query", "count", p); yield* ctx.callback("stock/Query", "drop", p); return "done" }) })))
       const s = (yield* openSession(a, { ...base("e-9"), callbacks: hostSide(ran), log: callLogTo(host as never, "link-1", "example/Board@1") })) as Session
       yield* s.call("post", "secret-payload")
-      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && entries.length < 3;) yield* Effect.sleep(5)
+      for (const t0 = Date.now(); Date.now() - t0 < 30_000 && entries.length < 3;) yield* tick
       yield* s.close
       const kinds = entries.map((e) => `${e.kind}:${e.crossing?.direction ?? e.refusal?.stage}:${e.member}:${e.outcome}`).sort()
       expect(kinds).toEqual(["crossing:inbound:count:success", "crossing:outbound:post:success", "refusal:boundary:drop:refused"])
       expect(entries.every((e) => e.origin !== "core" && (e.origin as { companion: string }).companion === "@bridger/remote")).toBe(true)
       expect(entries.find((e) => e.kind === "crossing" && e.crossing?.direction === "outbound")!.crossing).toEqual({ direction: "outbound", link: "link-1", epoch: "e-9" })
       expect(JSON.stringify(entries)).not.toMatch(/secret-payload|tok-/)
-    }), { layers: [layer] })
+    }), { layers: [layer, TestClock.layer()] })
   })
 })
