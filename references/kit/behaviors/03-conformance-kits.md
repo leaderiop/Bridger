@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-03                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-22): compatibility includes per-method schema digests (core BEH-BR-228 clause 3b; improvement report 02, R1)<br>0.4 (2026-11-11): BEH-KT-018: `ConformanceReport` carries `kitVersion`, which BEH-KT-022 requires (PL20) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-09): BEH-KT-017 a suite of a local contract (core `Contract.local`) holds author cases only; BEH-KT-020 a local contract is never verified through a wire subject (`LocalContractRefused`) (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.6 (2026-11-22): BEH-KT-017..020: the conformance kit is prototyped (`conformance.ts`) (improvement report 05 follow-up)<br>0.5 (2026-11-22): compatibility includes per-method schema digests (core BEH-BR-228 clause 3b; improvement report 02, R1)<br>0.4 (2026-11-11): BEH-KT-018: `ConformanceReport` carries `kitVersion`, which BEH-KT-022 requires (PL20) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-09): BEH-KT-017 a suite of a local contract (core `Contract.local`) holds author cases only; BEH-KT-020 a local contract is never verified through a wire subject (`LocalContractRefused`) (core CCR-BR-033) (CCR-KT-004)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -23,7 +23,9 @@ registered (BEH-BR-228 clause 3b) and deliberately compares no schema
 structure beyond those opaque digests (BEH-BR-230). Whether a provider actually honours the
 contract — decodes what it must accept, returns what decodes, fails only with
 declared errors, keeps the behaviour the contract's authors wrote down — is
-what a conformance kit tests. This file owns BEH-KT-017–024 and uses
+what a conformance kit tests. Prototype: `prototypes/host-core/src/conformance.ts` (`suite`, `verify` over a plugin, a guest entry and an HTTP endpoint, seeded sampling from the encoded schemas, `test/conformance.test.ts`). Not built: `Contract.local` and the `LocalContractRefused` sites, the remote companion's HTTP binding (the prototype posts JSON to `<url>/<method>`), published suites at `<package>/conformance/<version>`.
+
+This file owns BEH-KT-017–024 and uses
 BEH-KT-017–022; 023 and 024 are reserved.
 
 The gap report names this `Contract.verify`. Core owns the `Contract`

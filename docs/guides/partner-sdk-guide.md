@@ -1,7 +1,9 @@
 # Partner SDK guide
 
-Status: **prospective API — nothing here is implemented.** Every snippet is
-`type-checked: not yet (implementation absent)`. Normative text:
+Status: **prototyped.** The SDK runtime and generator (`prototypes/host-core/src/sdk.ts`)
+and the conformance kit (`conformance.ts`) exist; every snippet is
+`type-checked: yes`, compiled by `doc-typecheck.sh`; the transport (remote companion) and the
+`bridger` commands are not. Normative text:
 [kit 05 — Promise SDK](../../references/kit/behaviors/05-promise-sdk.md) and
 [kit 03 — Conformance kits](../../references/kit/behaviors/03-conformance-kits.md).
 
@@ -38,21 +40,29 @@ generated src/sdk/greeter.ts for example/Greeter@1 version 1.2.0
 
 The generated module contains only plain TypeScript types:
 
+<!-- prelude
+import { ContractError, type CallContext, type GuestEntry } from "@bridger/kit/sdk"
+-->
 ```ts
-// type-checked: not yet (implementation absent) — generated
+// type-checked: yes — the shape of the generated module (the whole file is prototypes/host-core/test/golden/greeter-sdk.ts)
 export interface GreeterHandlers {
   greet(input: { name: string; locale?: string }, ctx: CallContext): Promise<{ text: string }>
 }
 export class GreeterNotFound extends ContractError<"NotFound", { name: string }> {}
-export function serve(handlers: GreeterHandlers, options?: { onUnexpected?: (method: string, thrown: unknown) => void }): GuestEntry
+export declare function serve(handlers: GreeterHandlers, options?: { onUnexpected?: (method: string, thrown: unknown) => void }): GuestEntry
 ```
 
 Values are in their wire form: dates are strings, decimals are strings.
 
 ## 2. Write the handlers
 
+<!-- prelude
+const translate = async (text: string, _locale: string | undefined, _o: { signal: AbortSignal }) => text
+//# file sdk/greeter.ts
+export * from "../../../test/golden/greeter-sdk.js"
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
 import { serve, GreeterNotFound } from "./sdk/greeter.js"
 
 export default serve({
@@ -92,8 +102,13 @@ If your manifest asks to call another contract back (for example a clock or a
 rate table), list it in `requested.capabilities`; a client is generated for
 each entry, with the methods you listed:
 
+<!-- prelude
+import { clientDef, type CallContext } from "@bridger/kit/sdk"
+const ClockClient = clientDef("example/Clock@1", ["now"] as const)
+declare const ctx: CallContext
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
 const { now } = await ctx.client(ClockClient).now({})
 ```
 
@@ -125,8 +140,18 @@ are run against every suite of the major you implement, up to your version,
 through an in-process test transport (tests only). The same suites can be run
 against your deployed service in a test environment:
 
+<!-- prelude
+import { Context, Schema } from "effect"
+import { Contract } from "@bridger/core"
+class Greeter extends Context.Service<Greeter, { readonly greet: (i: { readonly name: string }) => Effect.Effect<{ readonly text: string }> }>()("example/Greeter@1") {}
+const GreeterV1 = Contract.make(Greeter, { version: "1.0.0", methods: { greet: Contract.method({ payload: Schema.Struct({ name: Schema.String }), success: Schema.Struct({ text: Schema.String }) }) } })
+const suites = [Conformance.suite(GreeterV1)]
+-->
 ```ts
-// type-checked: not yet (implementation absent)
+// type-checked: yes
+import { Effect } from "effect"
+import { Conformance } from "@bridger/kit/testing"
+
 Conformance.verify(Conformance.http("https://staging.acme.test/greeter", { contract: GreeterV1, timeout: "5 seconds" }), suites)
 ```
 

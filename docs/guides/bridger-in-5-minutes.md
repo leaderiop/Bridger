@@ -3,7 +3,7 @@
 Status: **partly executable.** The names follow
 the [core specification](../../references/core/overview.md) and the
 [kit specification](../../references/kit/overview.md). Snippets 1 to 4 are
-compiled in CI (`type-checked: yes`); the `bridger` commands of 5 need the CLI, which has no code yet.
+compiled in CI (`type-checked: yes`); the `bridger` commands of 5 are the prototype CLI's (`prototypes/host-core/src/cli.ts`), except `pack`, `publish` and `countersign`.
 
 Bridger composes an application from **plugins**. A plugin declares the
 services it **requires** and **provides**; a **host** starts each plugin when

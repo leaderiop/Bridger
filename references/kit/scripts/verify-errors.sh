@@ -61,7 +61,7 @@ def generate():
            "// (improvement report 05 R3, BEH-KT-049): one entry per tag, taken from its row in references/kit/behaviors/07-error-catalog.md.",
            "// A tag added to the prototype without an entry is a compile error here; an entry that differs from the table fails the script."]
     out += [f'import type * as {ns(m)} from "./{m}.js"' for m in mods]
-    out += ["", "type TagOf<M> = { readonly [K in keyof M]: M[K] extends abstract new (...a: any) => { readonly _tag: infer T } ? T : never }[keyof M]",
+    out += ["", "type TagOf<M> = { readonly [K in keyof M]: M[K] extends abstract new (...a: any) => { readonly _tag: infer T } ? (string extends T ? never : T) : never }[keyof M]",
             "export type ErrorTag = " + " | ".join(f"TagOf<typeof {ns(m)}>" for m in mods),
             "export interface Entry { readonly kind: string; readonly raisedBy: string; readonly cause: string; readonly fix: string }",
             "export const entries = {"]

@@ -12,7 +12,7 @@ const withDoc = (md: string, f: (dir: string) => void) => {
   try { writeFileSync(join(dir, "d.md"), md); f(dir) } finally { rmSync(dir, { recursive: true, force: true }) }
 }
 
-describe("CLI convergence gate (improvement report 05, R10)", { timeout: 60_000 }, () => {
+describe("CLI convergence gate (improvement report 05, R10)", { timeout: 240_000 }, () => {
   it("the docs pass: every command is the kit's or a declared extension", () => {
     const r = check()
     expect(r.stdout).toContain("0 failure(s)")

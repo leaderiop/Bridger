@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-APP-C                                             |
-> | Revision       | 0.1                                                          |
+> | Revision       | 0.2                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Informative appendix (companion)                             |
-> | Change History | 0.1 (2026-11-22): Initial draft — the ten framework-neutral scenarios of the two UI adapters (improvement report 05 R9, DX-08) |
+> | Change History | 0.2 (2026-11-22): the FoldKit adapter seam runs the scenarios; the React adapter is tested with its hooks on a DOM<br>0.1 (2026-11-22): Initial draft — the ten framework-neutral scenarios of the two UI adapters (improvement report 05 R9, DX-08) |
 
 ---
 
@@ -27,7 +27,7 @@ The list is executable: `prototypes/host-core/test/adapter-conformance.ts`
 exports `scenarios`, and an adapter's test supplies `make`, a function from a
 host to its client (the interface of `prototypes/host-core/src/adapter.ts`:
 `snapshot`, `changes`, `pluginState`, `isAvailable`, `use`, `dispose`). The
-prototype's framework-neutral client passes all ten
+prototype's framework-neutral client and the FoldKit adapter's seam (`src/foldkit.ts`, assembled from its exports in `test/foldkit.test.ts`) pass all ten
 (`test/adapter-conformance.test.ts`); removing its disposal check, or its
 subscription to the host, fails scenarios A9, A2, A3, A6, A7 and A8.
 

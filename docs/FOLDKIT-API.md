@@ -1,5 +1,7 @@
 # Proposed `@bridger/foldkit` API
 
+> **Prototype (2026-11-22).** `layer`, `use`, `changes`, `Snapshot`, `pluginState` and `isAvailable` exist in `prototypes/host-core/src/foldkit.ts` and are tested (`test/foldkit.test.ts`); the rest of this document remains a proposal (FoldKit's own runtime is not imported: the seam is Effect only).
+>
 > **Conformance.** The client behaviours shared with [REACT-API.md](./REACT-API.md) are the ten scenarios of [kit appendix C](../references/kit/appendices/c-ui-adapter-scenarios.md); this adapter runs them in its tests.
 
 Status: API design for review, checked against the public FoldKit documentation on 2026-10-02. Bridger APIs below are proposed, unimplemented, and not type-checked. Examples reuse `Audit`, `audit`, and `logger` from the core's [worked example](../references/core/overview.md#worked-example), exported from an application-owned `./plugins` module.

@@ -6,7 +6,8 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": { "@bridger/kit/sdk": ["./src/sdk.ts"] }
   },
   "include": ["src", "test", "bin"]
 }

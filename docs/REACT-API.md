@@ -1,5 +1,7 @@
 # Proposed `@bridger/react` API
 
+> **Prototype (2026-11-22).** `createBridgerClient`, `BridgerProvider`, `useBridgerClient`, `usePluginState` and `useServiceAction` exist in `prototypes/host-core/src/react.ts` and are tested (`test/react.test.ts`); the rest of this document remains a proposal (no `StrictMode`-only or SSR behaviour is tested).
+>
 > **Conformance.** The client behaviours shared with [FOLDKIT-API.md](./FOLDKIT-API.md) are the ten scenarios of [kit appendix C](../references/kit/appendices/c-ui-adapter-scenarios.md); this adapter runs them in its tests.
 
 Status: design examples for review (proposed; revised 2026-11-08, round 2). These APIs do not exist yet and have not been implemented or type-checked. The examples target a client-rendered React application and reuse the `Audit`, `audit`, and `logger` definitions from `SPEC.md`.

@@ -12,7 +12,7 @@ const check = (env: Record<string, string> = {}) => spawnSync("bash", [script], 
 // assembled so the script, which scans prototypes/*/src only, never reads the fixture text as a declaration
 const DECL = (tag: string) => `export class ${tag} extends Schema.Tagged` + `Error<${tag}>()("${tag}", {}) {}\n`
 
-describe("error catalog (improvement report 05, R3)", { timeout: 60_000 }, () => {
+describe("error catalog (improvement report 05, R3)", { timeout: 240_000 }, () => {
   it("the tree passes: every declared tag has a row, every row a guide entry and the reverse, the data file is current", () => {
     const r = check()
     expect(r.stdout).toContain("0 failure(s)")

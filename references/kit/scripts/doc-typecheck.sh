@@ -68,8 +68,10 @@ if blocks:
         src = "\n".join(pre_imports + imports) + "\n" + "\n".join(pre_rest) + "\n" + "\n".join(rest) + "\nexport {}\n"
         os.makedirs(os.path.join(scratch, f"s{i}"))
         open(os.path.join(scratch, f"s{i}", "main.ts"), "w", encoding="utf-8").write(src)
-        for name, content in fixtures: open(os.path.join(scratch, f"s{i}", name), "w", encoding="utf-8").write(content)
-    json.dump({"extends": "../tsconfig.json", "compilerOptions": {"resolveJsonModule": True, "baseUrl": "..", "paths": {"@bridger/kit": ["src/kit.ts"], "@bridger/core": ["src/index.ts"], "@bridger/kit/testing": ["src/kit-testing.ts"], "@bridger/core/testing": ["src/core-testing.ts"]}}, "include": ["./*/*.ts"]},
+        for name, content in fixtures:
+            os.makedirs(os.path.dirname(os.path.join(scratch, f"s{i}", name)), exist_ok=True)
+            open(os.path.join(scratch, f"s{i}", name), "w", encoding="utf-8").write(content)
+    json.dump({"extends": "../tsconfig.json", "compilerOptions": {"resolveJsonModule": True, "baseUrl": "..", "paths": {"@bridger/kit": ["src/kit.ts"], "@bridger/core": ["src/index.ts"], "@bridger/kit/testing": ["src/kit-testing.ts"], "@bridger/kit/sdk": ["src/sdk.ts"], "@bridger/core/testing": ["src/core-testing.ts"]}}, "include": ["./*/*.ts"]},
               open(os.path.join(scratch, "tsconfig.json"), "w"))
     r = subprocess.run(["npx", "tsc", "-p", os.path.join(scratch, "tsconfig.json"), "--pretty", "false"], cwd=PROTO, capture_output=True, text=True)
     for l in (r.stdout + r.stderr).splitlines():

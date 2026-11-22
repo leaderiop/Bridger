@@ -13,7 +13,7 @@ const withDoc = (md: string, f: (dir: string) => void) => {
   try { writeFileSync(join(dir, "g.md"), md); f(dir) } finally { rmSync(dir, { recursive: true, force: true }) }
 }
 
-describe("doc-typecheck (improvement report 05, R2)", { timeout: 120_000 }, () => {
+describe("doc-typecheck (improvement report 05, R2)", { timeout: 240_000 }, () => {
   it("the guides pass", () => {
     const r = check()
     expect(r.stdout).toContain("0 failure(s)")

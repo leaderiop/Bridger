@@ -4,3 +4,4 @@ import { PluginTest, plugin } from "./plugin-test.js"
 
 export { PluginTest }
 export const it: typeof vitestIt & { readonly plugin: typeof plugin } = Object.assign(((...a: Parameters<typeof vitestIt>) => vitestIt(...a)) as unknown as typeof vitestIt, vitestIt, { plugin })
+export { Conformance } from "./conformance.js"

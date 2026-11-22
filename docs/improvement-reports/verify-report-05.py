@@ -13,6 +13,7 @@ core = root / "references/core"
 report = (root / "docs/improvement-reports/05-design-api-and-dx.html").read_text()
 grounded = [  # (phrase the report shows, file that must state it)
     ("UndeclaredCallTimeUse", src / "lint.ts"), ("StubNotImplemented", src / "plugin-test.ts"), ("Duration.toMillis", src / "hooks.ts"),
+    ("serveContract", src / "sdk.ts"), ("SuiteVersionMismatch", src / "conformance.ts"), ("createBridgerClient", src / "react.ts"), ("BridgerFoldkit", src / "foldkit.ts"), ("makeCli", src / "cli.ts"),
     ("KitTypeError", src / "kit.ts"), ("useOptional", src / "kit.ts"), ("NoInfer", src / "plugin.ts"),
     ("makeUnchecked", src / "contract.ts"), ("ManifestSchema", src / "manifest.ts"), ("manifestJsonSchema", src / "manifest.ts"),
     ("runUntilIdleWith", src / "testing.ts"), ("satisfies Record<ErrorTag, Entry>", src / "errors.catalog.ts"),
@@ -22,7 +23,7 @@ grounded = [  # (phrase the report shows, file that must state it)
     ("BRIDGER-KT-APP-C", kit / "appendices/index.yaml"), ("scenarios", test / "adapter-conformance.ts"),
     ("recipe", test / "cookbook/01-service.test.ts") if (test / "cookbook/01-service.test.ts").exists() else ("recipe", next((test / "cookbook").glob("01-*.test.ts"))),
 ]
-stale = ["it.plugin</code> has no code", "10 stay <code>not yet</code>", "The prototypes and their tests were not run", "Not verified whether a <code>host.use</code>"]
+stale = ["4 stay <code>not yet</code>", "and any CLI code", "it.plugin</code> has no code", "10 stay <code>not yet</code>", "The prototypes and their tests were not run", "Not verified whether a <code>host.use</code>"]
 bad = []
 for phrase, f in grounded:
     if phrase not in f.read_text(): bad.append(f"{f.name} does not state '{phrase}'")
