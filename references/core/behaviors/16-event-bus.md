@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-16                                               |
-> | Revision       | 0.19                                                         |
+> | Revision       | 0.20                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.19 (2026-11-22): BEH-BR-138 every event declared in the repository is listed in the generated event catalog, which the documentation gate checks (improvement report 04, R2)<br>0.18 (2026-11-22): BEH-BR-141 `listener-failed` and `listener-overflow` carry the listener's identifier and its owning plugin (improvement report 04, R6)<br>0.17 (2026-11-22): BEH-BR-141 each listener has an in-flight bound (`listenerConcurrency`, `maxInFlight`): overflow drops the invocation and reports `listener-overflow`; completion order is unspecified and cross-emit order holds only for `serialised` listeners; BEH-BR-142 `parallel` runs at a bounded concurrency and settles by default, `fail-fast` is an option of the key; BEH-BR-144 a listener-dispatch depth cap `emitDepthCap` fails with a defect naming the chain (improvement report 04, R4)<br>0.16 (2026-11-22): BEH-BR-143 an `around` listener declares a role, `observe` or `decide`; an observer that returns without running `next` does not veto: the bus runs the tail and reports `listener-failed` ("observer skipped next"); `next` is once-only, a second call is a defect; BEH-BR-142 states why `serial` is the decision pattern and that it is first-answer-wins, not audited (improvement report 04, R3)<br>0.15 (2026-11-22): BEH-BR-138 an event key carries its dispatch mode (`Event.make(id, { mode })`); BEH-BR-139 `on` serves `emit`, `parallel` and `serial` keys and `around` serves `waterfall` keys only; BEH-BR-141 to 143 each dispatcher accepts only its own mode; a mismatch is a compile error, and for an untyped caller a defect naming the event (improvement report 04, R1)<br>0.14 (2026-11-11): BEH-BR-140 the listener-list registries are made with `report: false` (CL4) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.13 (2026-11-11): BEH-BR-140 the registries holding listener lists report nothing; the bus reports each listener once (CL9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-139 listener ownership is reported through `ActivePlugin.report` (C12) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-144 `serial`, `parallel` and `waterfall` listeners inherit `CurrentTransition` beside `HeldPlugins`; `emit` does not await its listeners, so they carry none (H1) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-140 each listener registry is made with the host's `BridgerOptions.drainTimeout` (C11) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-137 `Bridger.Events` cannot be provided in any resolution scope and no realm may isolate it (`InvalidRealm`) (C-02) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-144: listeners run with the dispatcher's `CurrentCorrelation` (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-141: the event that applies an `OnEvent` trigger is held for the plugin it wakes and delivered once, with `emit` semantics, to that plugin's `on` listeners when it becomes `active` (27, BEH-BR-251); the dispatch reads the emitter's principal for the `lazy-triggered` record (27, BEH-BR-253) (CCR-BR-024)<br>0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
+> | Change History | 0.20 (2026-11-22): a decision table for choosing between `emit`, `serial`, `waterfall`, a hook point and the `OperationGate`; the failure policy of a listener stated in one place; BEH-BR-140 priority and `prepend` precedence and why there is no global option, the bus being shared by all realms (improvement report 04, R5, EV-11)<br>0.19 (2026-11-22): BEH-BR-138 every event declared in the repository is listed in the generated event catalog, which the documentation gate checks (improvement report 04, R2)<br>0.18 (2026-11-22): BEH-BR-141 `listener-failed` and `listener-overflow` carry the listener's identifier and its owning plugin (improvement report 04, R6)<br>0.17 (2026-11-22): BEH-BR-141 each listener has an in-flight bound (`listenerConcurrency`, `maxInFlight`): overflow drops the invocation and reports `listener-overflow`; completion order is unspecified and cross-emit order holds only for `serialised` listeners; BEH-BR-142 `parallel` runs at a bounded concurrency and settles by default, `fail-fast` is an option of the key; BEH-BR-144 a listener-dispatch depth cap `emitDepthCap` fails with a defect naming the chain (improvement report 04, R4)<br>0.16 (2026-11-22): BEH-BR-143 an `around` listener declares a role, `observe` or `decide`; an observer that returns without running `next` does not veto: the bus runs the tail and reports `listener-failed` ("observer skipped next"); `next` is once-only, a second call is a defect; BEH-BR-142 states why `serial` is the decision pattern and that it is first-answer-wins, not audited (improvement report 04, R3)<br>0.15 (2026-11-22): BEH-BR-138 an event key carries its dispatch mode (`Event.make(id, { mode })`); BEH-BR-139 `on` serves `emit`, `parallel` and `serial` keys and `around` serves `waterfall` keys only; BEH-BR-141 to 143 each dispatcher accepts only its own mode; a mismatch is a compile error, and for an untyped caller a defect naming the event (improvement report 04, R1)<br>0.14 (2026-11-11): BEH-BR-140 the listener-list registries are made with `report: false` (CL4) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.13 (2026-11-11): BEH-BR-140 the registries holding listener lists report nothing; the bus reports each listener once (CL9) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.12 (2026-11-10): BEH-BR-139 listener ownership is reported through `ActivePlugin.report` (C12) (CCR-BR-036)<br>0.11 (2026-11-10): BEH-BR-144 `serial`, `parallel` and `waterfall` listeners inherit `CurrentTransition` beside `HeldPlugins`; `emit` does not await its listeners, so they carry none (H1) (CCR-BR-035)<br>0.10 (2026-11-10): BEH-BR-140 each listener registry is made with the host's `BridgerOptions.drainTimeout` (C11) (CCR-BR-034)<br>0.9 (2026-11-09): BEH-BR-137 `Bridger.Events` cannot be provided in any resolution scope and no realm may isolate it (`InvalidRealm`) (C-02) (CCR-BR-032)<br>0.8 (2026-11-08): BEH-BR-144: listeners run with the dispatcher's `CurrentCorrelation` (CCR-BR-026)<br>0.7 (2026-11-08): BEH-BR-141: the event that applies an `OnEvent` trigger is held for the plugin it wakes and delivered once, with `emit` semantics, to that plugin's `on` listeners when it becomes `active` (27, BEH-BR-251); the dispatch reads the emitter's principal for the `lazy-triggered` record (27, BEH-BR-253) (CCR-BR-024)<br>0.6 (2026-11-08): BEH-BR-141: `OnEvent` triggers apply only after the emit access decision allows the dispatch (CCR-BR-022)<br>0.5 (2026-11-08): BEH-BR-141 dispatch applies `OnEvent` triggers without redelivery (CCR-BR-017); BEH-BR-139/141 consult a wired `AccessPolicy`, BEH-BR-144 listener principal and "events" annotations (CCR-BR-018); BEH-BR-143 points to hook points (CCR-BR-019)<br>0.4 (2026-10-02): A listener withdrawn after a dispatch began, before its turn, fails the dispatch like one interrupted (prototype finding G32) (CCR-BR-011)<br>0.3 (2026-10-02): A listener interrupted by its plugin's removal fails a `parallel`, `serial` or `waterfall` dispatch with a defect and is not reported by `emit` (prototype finding G23) (CCR-BR-010)<br>0.2 (2026-10-02): Consistency fixes from independent review (CCR-BR-002)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001) |
 
 ---
 
@@ -25,6 +25,28 @@ operations. This file owns BEH-BR-137–144 and uses all eight.
 
 Lifecycle observation is not on this bus; it is `Host.events`
 ([13 — Observability and Diagnostics](./13-observability-and-diagnostics.md)).
+
+**Which mechanism.** Four mechanisms let code take part in something another
+part of the system does. They differ in what the participant may change, who
+is told when it fails, and what is recorded, and an author chooses by the
+first row that fits:
+
+| The author needs | Use | A failing participant | Recorded |
+| --- | --- | --- | --- |
+| to tell others something happened, and not care who hears | `emit` | reported as `listener-failed`; the emitter never sees it (BEH-BR-141) | host event only |
+| the first answer of several, or all answers | `serial`; `parallel` | fails the dispatch (BEH-BR-142) | nothing |
+| to wrap an operation: observe it, adapt its result | `waterfall` with `observe` | fails the dispatch; a skipped `next` is repaired and reported (BEH-BR-143) | host event on a skip |
+| to answer for an operation without running it | `waterfall` with `decide` | fails the dispatch | nothing |
+| a decision with registration rules, a deadline, a failure policy and a record of who decided | a hook point ([31](./31-hook-points.md)) | by the point's `onError` (BEH-BR-302, BEH-BR-310) | the decision record (BEH-BR-305) |
+| to permit or refuse a host lifecycle operation | the `OperationGate` port ([25](./25-operation-gate.md)) | fails closed: a defect, a timeout or a malformed answer refuses (BEH-BR-221) | the operation's audit record |
+
+Three failure vocabularies meet here and must not be confused: the **listener
+failure policy** of this file (isolated, reported, never retried; it has no
+options); `onError` of a hook point (`"deny"` or `"skip"`, per point and per
+contribution, [31](./31-hook-points.md)); and `onFailure` of a forked runtime
+fiber (`"fail-plugin"`, `"restart"` or `"ignore"`,
+[10](./10-runtime-failure-and-health.md)). The
+[glossary](../glossary.md) names each.
 
 ## BEH-BR-137: Bridger.Events is a base service
 
@@ -225,6 +247,16 @@ REQUIREMENT: A dispatch MUST use the listener list as of its start. A
              already have completed or be interrupted under the registry's
              `drainTimeout`.
 ```
+
+**Settled here.** (1) `priority` orders first, and `prepend` only orders
+among listeners of equal priority: a listener that must run before every
+other takes a lower priority, not `prepend`. (2) There is no global option:
+the bus is one service shared by every realm (BEH-BR-137), so a listener
+registered by any plugin hears every dispatch whatever realm the emitter is
+in, and realms do not partition listeners (INV-BR-020 concerns resolution of
+keys, which BEH-BR-146 defines, not the bus). An application that wants a
+listener to hear only some emitters filters on the arguments, or on
+`CurrentPlugin` (BEH-BR-144).
 
 Reusing the registry means the bus inherits its snapshot and removal rules
 ([19 — Contribution Registry](./19-contribution-registry.md)) instead of

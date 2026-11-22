@@ -1,5 +1,5 @@
 // P7 (round 2): hook points (behaviour 31; checks 77–80, 92–95, and the recheck's lazy veto) — prototype.
-import { Context, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from "effect"
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Option, Schema, Scope, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { HostLink } from "../src/host.js"
 import { HookPoint, type HookBreakerRecord, type HookPointOptions } from "../src/hooks.js"
@@ -14,7 +14,7 @@ const pass = Effect.succeed({ _tag: "Pass" as const })
 const veto = (code: "below-cost" | "frozen") => Effect.succeed({ _tag: "Veto" as const, code })
 const anyone = () => true
 const base = (extra: Partial<HookPointOptions<Price, number, string, "below-cost" | "frozen", never, never>> = {}): HookPointOptions<Price, number, string, "below-cost" | "frozen", never, never> =>
-  ({ codes: ["below-cost", "frozen"], who: anyone, timeout: 50, deadline: 400, onError: "deny", enrichment: Schema.Number, advice: Schema.String, allowNoLink: true, ...extra })
+  ({ codes: ["below-cost", "frozen"], who: anyone, timeout: 50, deadline: 400, onError: "deny", enrichment: Schema.Number, advice: Schema.String, allowNoLink: true, allowSkipOnVeto: true, ...extra })
 const scoped = <A, E>(e: Effect.Effect<A, E, Scope.Scope>) => Effect.runPromise(Effect.scoped(e))
 const withNone = <A, E, R>(e: Effect.Effect<A, E, R>) => e.pipe(Effect.provideService(HostLink.reference, Option.some(HostLink.none)))
 const input: Price = { sku: "a", price: 5, cost: 7 }
@@ -185,7 +185,7 @@ describe("P7 core 31 + 27: a lazy veto plugin (check 92; recheck)", () => {
   it("recheck: a failing wake denies (wake-failed under onError deny; recorded and skipped under skip)", async () => {
     for (const onError of ["deny", "skip"] as const) {
       await run((host) => Effect.gen(function* () {
-        const point = yield* HookPoint.make<Price, never, never, "below-cost">("example/price-change", { codes: ["below-cost"], who: anyone, timeout: 300, deadline: 2000, onError })
+        const point = yield* HookPoint.make<Price, never, never, "below-cost">("example/price-change", { codes: ["below-cost"], who: anyone, timeout: 300, deadline: 2000, onError, allowSkipOnVeto: true })
         yield* host.install(lazy({ manifest: guardManifest, load: Effect.fail("cannot fetch package") }), as())
         const out = yield* drive(host, point.dispatch(input).pipe(Effect.provideService(HostLink.reference, Option.some(host.link))))
         if (onError === "deny") expect(out.verdict).toEqual({ _tag: "Denied", by: "pricing/guard", cause: "wake-failed" })
@@ -283,3 +283,34 @@ describe("P7 core 31: policy deny, descriptor failure, plugin-scoped breaker, de
   })
 })
 void Fiber
+
+describe("report 04 R5 (EV-10): a veto that may fail open is declared", () => {
+  it("BEH-BR-297: a point with codes whose onError allows skip is refused without allowSkipOnVeto; one without codes or with deny is not", async () => {
+    await scoped(Effect.gen(function* () {
+      const open = { codes: ["below-cost"], who: anyone, timeout: 10, deadline: 20 } as const
+      const refused = (onError: HookPointOptions<Price, never, never, "below-cost", never, never>["onError"], extra = {}) =>
+        Effect.exit(HookPoint.make<Price, never, never, "below-cost">("p", { ...open, onError, ...extra })).pipe(Effect.map(Exit.isFailure))
+      expect(yield* refused("skip")).toBe(true)
+      expect(yield* refused({ default: "deny", allow: ["deny", "skip"] })).toBe(true)
+      expect(yield* refused("skip", { allowSkipOnVeto: true })).toBe(false)
+      expect(yield* refused("deny")).toBe(false)
+      expect(yield* refused({ default: "deny", allow: ["deny"] })).toBe(false)
+      expect(Exit.isSuccess(yield* Effect.exit(HookPoint.make<Price>("e", { codes: [], who: anyone, timeout: 10, deadline: 20, onError: "skip" })))).toBe(true)
+    }))
+  })
+
+  it("BEH-BR-297: drainTimeout is passed to the point's registry, so removing a running hook waits no longer than it", async () => {
+    await scoped(Effect.gen(function* () {
+      const p = yield* HookPoint.make<Price, never, never, "below-cost">("d", { codes: ["below-cost"], who: anyone, timeout: 5000, deadline: 6000, onError: "deny", allowNoLink: true, drainTimeout: 20 })
+      const reg = yield* Scope.make()
+      const started = yield* Deferred.make<void>()
+      yield* p.register("hang", () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)), { role: "veto" }).pipe(Effect.provideService(Scope.Scope, reg))
+      const dispatching = yield* Effect.forkChild(withNone(p.dispatch({ sku: "a", price: 1, cost: 1 })))
+      yield* Deferred.await(started)
+      const t0 = Date.now()
+      yield* Scope.close(reg, Exit.void)
+      expect(Date.now() - t0).toBeLessThan(2000)               // the default is 30 s
+      yield* Fiber.interrupt(dispatching)
+    }))
+  })
+})

@@ -48,6 +48,10 @@ export interface HookPointOptions<In, En, Ad, Code extends string, Target, Sel> 
   readonly policy?: (step: { readonly id: string; readonly role: HookRole; readonly owner?: HookOwner; readonly labels: Labels; readonly declared: boolean; readonly selector?: Sel }, input: In, target: Target | undefined) => Effect.Effect<PolicyDecision>
   /** BEH-BR-309 (CCR-BR-029): default false — `HostLink.none` counts as no link on a point with codes. */
   readonly allowNoLink?: boolean
+  /** BEH-BR-297 (report 04 R5): a point with codes whose `onError` lets a veto fail open ("skip") must say so; default false. */
+  readonly allowSkipOnVeto?: boolean
+  /** BEH-BR-297: passed to the point's registry (BEH-BR-162); default 30 s, "forever" only when declared. */
+  readonly drainTimeout?: number | "forever"
   readonly settle?: (step: { readonly id: string; readonly role: HookRole; readonly owner?: HookOwner; readonly labels: Labels; readonly outcome: SettleOutcome }, input: In, target: Target | undefined) => Effect.Effect<void>
 }
 export type StepOutcome = "pass" | "veto" | "enrich" | "advise" | "failed" | "timeout" | "deadline" | "breaker-open" | "skipped-policy" | "skipped-deadline" | "not-run"
@@ -93,12 +97,14 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
   if (new Set(o.codes).size !== o.codes.length) return yield* defect("a code repeats")
   if (!(o.timeout > 0 && Number.isFinite(o.timeout)) || !(o.deadline > 0 && Number.isFinite(o.deadline)) || o.timeout > o.deadline) return yield* defect("timeout/deadline")
   if (typeof o.onError === "object" && (o.onError.allow.length === 0 || !o.onError.allow.includes(o.onError.default))) return yield* defect("onError")
+  // BEH-BR-297 (report 04 R5, EV-10): a veto that may fail open is a decision of the point's owner, never a side effect of one word.
+  if (o.codes.length > 0 && o.allowSkipOnVeto !== true && (typeof o.onError === "string" ? o.onError === "skip" : o.onError.allow.includes("skip"))) return yield* defect("onError lets a veto fail open (\"skip\") without allowSkipOnVeto")
   if (typeof o.dormant === "string" && o.codes.length === 0) return yield* defect("dormant string with empty codes")
   const vetoDormant = typeof o.dormant === "string" ? o.dormant : o.dormant?.veto ?? "wake"
   // BEH-BR-297 (CCR-BR-028, G-P3): an empty wake window is refused when a veto may be woken.
   if (o.codes.length > 0 && vetoDormant === "wake" && o.timeout === o.deadline) return yield* defect("timeout equals deadline while a veto may be woken")
   const scope = yield* Effect.scope
-  const registry = yield* Registry.make<Contribution<In, En, Ad, Code, Target, Sel>>({ name: id })
+  const registry = yield* Registry.make<Contribution<In, En, Ad, Code, Target, Sel>>({ name: id, ...(o.drainTimeout !== undefined ? { drainTimeout: o.drainTimeout } : {}) })
   const decisions = yield* PubSub.sliding<HookDecisionRecord | HookBreakerRecord>(1024)
   let open = true
   yield* Effect.addFinalizer(() => Effect.sync(() => { open = false }))

@@ -33,7 +33,7 @@ const guard = (point: Point, o: { journal?: Array<string>; stopDelay?: number } 
 const stepper = (host: Testing.TestHost) => Effect.forkScoped(Effect.forever(Effect.gen(function* () { if (!(yield* host.step)) yield* Effect.sleep(1) })))
 const linked = (host: Testing.TestHost) => <A>(e: Effect.Effect<A>) => e.pipe(Effect.provideService(HostLink.reference, Option.some(host.link)))
 const mk = (o: Partial<Parameters<typeof HookPoint.make<Price, number, never, "below-cost">>[1]> = {}) =>
-  HookPoint.make<Price, number, never, "below-cost">(REG, { codes: ["below-cost"], who: anyone, timeout: 100, deadline: 1500, onError: "deny", ...o })
+  HookPoint.make<Price, number, never, "below-cost">(REG, { codes: ["below-cost"], who: anyone, timeout: 100, deadline: 1500, onError: "deny", allowSkipOnVeto: true, ...o })
 
 describe("P7 third pass: HostLink and the record's link (R1-06, R1-09)", () => {
   it("R1-06: HostLink.none denies a veto point without allowNoLink; with it, the dispatch runs and records link 'none'; the host link records its hostId", async () => {

@@ -92,6 +92,24 @@ for d in ("behaviors",):
         for tag in host_events:
             if f"`{tag}`" in t: mentions.setdefault(tag, []).append(os.path.basename(p).split("-")[0])
 
+# hook-point option defaults: every HookPointOptions field of 31 has a row in the "Option defaults" table, and every row names a field
+spec31 = read(os.path.join(SPEC, "behaviors/31-hook-points.md"))
+iface = spec31[spec31.index("interface HookPointOptions"):]
+iface = iface[:iface.index("\n}\n")]
+option_keys = re.findall(r'^\s{2}readonly (\w+)\??:', iface, re.M)
+table = spec31[spec31.index("**Option defaults.**"):]
+table = table[:table.index("\n\n", table.index("| Option |"))]
+rows = re.findall(r'^\| `(\w+)` \|', table, re.M)
+for k in option_keys:
+    if k not in rows: fails.append(f"31: HookPointOptions.{k} has no row in the Option defaults table")
+for k in rows:
+    if k not in option_keys: fails.append(f"31: the Option defaults table names {k!r}, which HookPointOptions does not have")
+proto_hooks = read(os.path.join(ROOT, "prototypes/host-core/src/hooks.ts"))
+proto_iface = proto_hooks[proto_hooks.index("export interface HookPointOptions"):]
+proto_iface = proto_iface[:proto_iface.index("\n}\n")]
+for k in set(re.findall(r'^\s{2}readonly (\w+)\??:', proto_iface, re.M)) ^ set(option_keys):
+    fails.append(f"HookPointOptions.{k} is in one of spec 31 and hooks.ts and not the other")
+
 # the catalog
 L = []
 L.append("# Appendix — Event catalog\n")
@@ -123,7 +141,7 @@ if ARG == "--write":
 else:
     cur = read(CATALOG) if os.path.exists(CATALOG) else ""
     if cur != out and not EXTRA: fails.append("appendices/event-catalog.md is stale; run `bash references/core/scripts/verify-events.sh --write` and commit it")
-print(f"verify-events: {len(by_id)} bus events, {len({h for h,_ in hooks})} hook points, {len(host_events)} host events, {checked} call sites checked")
+print(f"verify-events: {len(option_keys)} hook options, {len(by_id)} bus events, {len({h for h,_ in hooks})} hook points, {len(host_events)} host events, {checked} call sites checked")
 for f in fails: print("[FAIL   ]", f)
 print(f"{len(fails)} failure(s)")
 sys.exit(1 if fails else 0)
