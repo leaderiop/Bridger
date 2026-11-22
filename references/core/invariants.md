@@ -71,10 +71,10 @@ was disabled.
 
 ```yaml
 predicate: none
-scope: every published snapshot, per realm and service key
+scope: the planned check is every published snapshot, per realm and service key, and no evidence is cited so none runs yet
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: the whole claim is unasserted; no test checks that two providers of one key never coexist in a realm, nor install races that could produce them
 ```
 
 ---
@@ -166,10 +166,10 @@ lease observes a mixture of two published values.
 
 ```yaml
 predicate: none
-scope: snapshots across a build, with the provided keys of each plugin
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is snapshots across a build seen from a concurrent reader
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test checks that a reader never sees a partial build, nor interleavings with a failing or interrupted build
 ```
 
 ---
@@ -211,10 +211,10 @@ of builds and operations.
 
 ```yaml
 predicate: none
-scope: builds held open across each operation that supersedes them
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is builds held open across each superseding operation
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test checks that a superseded build is discarded rather than published, nor the timing of supersession against build completion
 ```
 
 ---
@@ -253,11 +253,11 @@ finalizer calls its captured provider during `remove`, runtime failure and
 
 ```yaml
 predicate: none
-scope: finalizer order of dependents against their providers
+scope: a property over random dependency graphs (40 runs, pinned seed) removes one provider and asserts every transitive dependent closes exactly once and before its providers
 evidence:
   - prototypes/host-core/test/pbt/properties.pbt.test.ts
 status: Tested
-unchecked: none stated
+unchecked: sampled over small generated graphs, not proved; failing or slow finalizers, concurrent operations and the shutdown path are not exercised
 ```
 
 ---
@@ -299,10 +299,10 @@ generation values.
 
 ```yaml
 predicate: none
-scope: lease counts against the start of a provider scope's finalizers
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is lease counts against the start of a provider scope's finalizers
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that finalizers wait while a lease is held, and the drain limit path is covered only for INV-BR-017
 ```
 
 ---
@@ -348,10 +348,10 @@ re-run only by `remove` or the system acknowledgement.
 
 ```yaml
 predicate: none
-scope: plugin state across provider loss and return
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is plugin state across provider loss and return
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a failed plugin stays failed when its providers disappear and come back, nor the operator step that clears failure
 ```
 
 ---
@@ -387,10 +387,10 @@ revisions per subscriber, equality of snapshots with equal revisions, and
 
 ```yaml
 predicate: none
-scope: revisions seen by each snapshot subscriber
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is revisions seen by each snapshot subscriber
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts monotonic revisions for subscribers, including late subscribers and subscribers across a store swap
 ```
 
 ---
@@ -453,10 +453,10 @@ arriving on a parked system stop.
 
 ```yaml
 predicate: none
-scope: transition steps and operator operations in flight per plugin
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is transition steps and operator operations in flight per plugin
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts mutual exclusion of transitions under concurrent calls, a timing and concurrency property
 ```
 
 ---
@@ -505,10 +505,10 @@ record is still being retried and asserts that no `failed`
 
 ```yaml
 predicate: none
-scope: the outcome of a call interrupted at each step of the call order
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is the outcome of a call interrupted at each step of the call order
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test interrupts a caller at each step to check the intent still completes or is recorded
 ```
 
 ---
@@ -543,11 +543,11 @@ issued through `Host`, `PluginHandle` and `reconcile` has the same outcome.
 
 ```yaml
 predicate: legal
-scope: the state x operation and in-flight tables, and every route to an operation
+scope: model legal and flight agree with the generated state and in-flight tables for every row and operation, with a few prototype legality calls
 evidence:
   - prototypes/host-core/test/model.test.ts
 status: Tested
-unchecked: none stated
+unchecked: the tables are checked against the model and themselves; that every host route consults them and the observable outcome of each cell are not asserted here
 ```
 
 ---
@@ -588,10 +588,10 @@ leaving the old plugin `active`.
 
 ```yaml
 predicate: none
-scope: snapshot, revision, events and records before and after a refused definition
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is snapshot, revision, events and records before and after a refused definition
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test compares host state before and after a refused definition, so the rule is not asserted
 ```
 
 ---
@@ -636,10 +636,10 @@ configuration value.
 
 ```yaml
 predicate: none
-scope: every observable output scanned for sentinel configuration strings
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is every observable output scanned for sentinel configuration strings
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test scans outputs for configuration values, so absence from logs, events, errors and snapshots is not asserted
 ```
 
 ---
@@ -674,10 +674,10 @@ closing one activation runs exactly that activation's finalizers.
 
 ```yaml
 predicate: none
-scope: scope and memo map per activation
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is a fresh scope and memo map for each activation
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that two activations never share scope or memoized services, including restart and replace
 ```
 
 ---
@@ -716,10 +716,10 @@ whenever every required key is the very object its provider declared.
 
 ```yaml
 predicate: none
-scope: key identity by identifier and by object
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is a key matched by identifier and by object
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that two keys with one identifier but distinct objects are told apart, nor the reverse
 ```
 
 ---
@@ -978,10 +978,10 @@ snapshot are exactly those listed with cause "cleanup".
 
 ```yaml
 predicate: none
-scope: shutdown report against injected stop failures
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is the shutdown report against injected stop failures
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test injects stop failures and checks each appears in the report, nor timeouts during shutdown
 ```
 
 ---
@@ -1017,10 +1017,10 @@ key that is both required and optional.
 
 ```yaml
 predicate: none
-scope: state sequence of a plugin with an optional provider present, absent or flapping
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is state sequence of a plugin with an optional provider present, absent or flapping
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts the optional provider never gates activation, including flapping timing
 ```
 
 ---
@@ -1058,10 +1058,10 @@ security boundary.
 
 ```yaml
 predicate: none
-scope: resolution inside and outside a realm, and events and base services across realms
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is resolution inside and outside a realm, and events and base services across realms
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a realm changes resolution only and leaves events and base services shared
 ```
 
 ---
@@ -1097,11 +1097,11 @@ pair, the terminal record carrying `noop: true` and `children: 0`.
 
 ```yaml
 predicate: none
-scope: report and owned set of repeated reconcile runs
+scope: a property over random list pairs (40 runs, pinned seed) reconciles the second list twice and asserts the repeat reports nothing changed
 evidence:
   - prototypes/host-core/test/pbt/properties.pbt.test.ts
 status: Tested
-unchecked: none stated
+unchecked: sampled with four trivial plugins, not proved; replacement, reconfiguration, failing plugins and the owned set after repeat runs are not asserted
 ```
 
 ---
@@ -1236,12 +1236,12 @@ alteration it must not detect.
 
 ```yaml
 predicate: inv023
-scope: auditSeq values handed to the sink, across retries
+scope: a property over random histories of up to 14 operations (30 runs) checks the sequence from the in-memory sink with inv023 and the host verifier
 evidence:
   - prototypes/host-core/test/model.test.ts
   - prototypes/host-core/test/pbt/properties.pbt.test.ts
 status: Tested
-unchecked: none stated
+unchecked: sampled, not proved; the sink always stores, so retries after sink failure, the degraded latch and multi-host sequences are not exercised
 ```
 
 ---
@@ -1355,10 +1355,10 @@ action.
 
 ```yaml
 predicate: none
-scope: calls under generated contexts, operations and policies
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is calls under generated contexts, operations and policies
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a mutation without required attribution is refused for every operation and context shape
 ```
 
 ---
@@ -1408,11 +1408,11 @@ that `Bridger.layer`'s requirements exclude `AuditSink`, `OperationGate` and
 
 ```yaml
 predicate: none
-scope: a host with no ports against a host with the in-memory sink and gate
+scope: only src host.ts is cited; it reads the sink and gate as optional services, but no test asserts that a host without them behaves as one with them
 evidence:
   - prototypes/host-core/src/host.ts
 status: Prototyped
-unchecked: none stated
+unchecked: the rule is implemented but not asserted; equivalence of outcomes with and without the in-memory sink and gate is unchecked
 ```
 
 ---
@@ -1457,10 +1457,10 @@ interrupted while the gate is deciding.
 
 ```yaml
 predicate: none
-scope: snapshot and records after a refusal injected at each step of the call order
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is snapshot and records after a refusal injected at each step of the call order
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test injects refusals at each step to check nothing changed, including audit write failure
 ```
 
 ---
@@ -1512,10 +1512,10 @@ have no field typed to hold a configuration value.
 
 ```yaml
 predicate: none
-scope: records and requests scanned for sentinel configuration strings
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is records and requests scanned for sentinel configuration strings
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test scans audit records and requests for configuration values, so their absence is not asserted
 ```
 
 ---
@@ -1573,10 +1573,10 @@ latch never clears without a successful acknowledgement.
 
 ```yaml
 predicate: none
-scope: operator mutations after the latch closes, and shutdown
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is operator mutations after the latch closes, and shutdown
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that the latch blocks operator mutations while shutdown still proceeds, nor how the latch is reset
 ```
 ## INV-BR-030: Host transitions never wait on each other in a cycle
 
@@ -1683,10 +1683,10 @@ incompatible optional provider treated as absent.
 
 ```yaml
 predicate: none
-scope: every published snapshot, contract providers against dependents
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is contract providers against dependents in every published snapshot
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a registered contract requirement resolves to its registered provider in each snapshot
 ```
 
 ---
@@ -1723,10 +1723,10 @@ the plugin.
 
 ```yaml
 predicate: none
-scope: calls to `load` across every operation on a dormant plugin
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is calls to load across every operation on a dormant plugin
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test counts load calls to show a dormant plugin runs none of its code under any operation
 ```
 
 ---
@@ -1761,10 +1761,10 @@ published; mutation testing of the comparison.
 
 ```yaml
 predicate: none
-scope: a loaded definition against its manifest, one field at a time
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is a loaded definition against its manifest, one field at a time
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that each manifest mismatch blocks publication, field by field
 ```
 
 ---
@@ -1796,10 +1796,10 @@ property in exactly one list; scenarios asserting zero `load` calls during
 
 ```yaml
 predicate: none
-scope: consentDiff and manifest checks, with `load` call counts
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is consentDiff and manifest checks, with load call counts
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that comparing or checking manifests never calls load
 ```
 
 ---
@@ -1833,10 +1833,10 @@ and checking listener, provider-method and `asSelf` principals (check 67).
 
 ```yaml
 predicate: none
-scope: principals offered through forged references, after activation, and on listener and provider paths
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is principals offered through forged references, after activation, and on listener and provider paths
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a forged principal is never accepted on any path
 ```
 
 ---
@@ -1869,10 +1869,10 @@ route equals the specified order (check 69).
 
 ```yaml
 predicate: none
-scope: the wrapper chain on every route, per plugin tree and realm
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is the wrapper chain on every route, per plugin tree and realm
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a mandatory interception wraps every capture on every route
 ```
 
 ---
@@ -1903,10 +1903,10 @@ wired; a type-level check of `Bridger.layer`'s requirements (checks 70, 73,
 
 ```yaml
 predicate: none
-scope: the suites run on a host with no policy port
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is the suites run on a host with no policy port
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test reruns the suites without a policy port to show outcomes are unchanged
 ```
 
 ---
@@ -1935,10 +1935,10 @@ and grants (check 72); fault scenarios for the policy (check 71).
 
 ```yaml
 predicate: none
-scope: service shapes delivered under generated grants
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is service shapes delivered under generated grants
 evidence: none
 status: Planned
-unchecked: what a granted member returns is outside the narrowing (shallow narrowing, documented)
+unchecked: no test citing this id asserts that a grant only narrows the delivered shape, whatever the grant generated
 ```
 
 ---
@@ -1967,10 +1967,10 @@ a differential test with no annotations set (checks 74–76).
 
 ```yaml
 predicate: none
-scope: records and events per annotation flow and dispatch mode
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is records and events per annotation flow and dispatch mode
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that annotations reach records only through declared flows in each dispatch mode
 ```
 
 ---
@@ -2005,10 +2005,10 @@ always names an admitted veto contribution; check 77, 78, 92 and 95.
 
 ```yaml
 predicate: none
-scope: `decidedBy` of hook dispatches over generated registrations
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is decidedBy of hook dispatches over generated registrations
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that only an admitted veto contribution decides a dispatch
 ```
 
 ---
@@ -2039,10 +2039,10 @@ long finalizers or ignore interruption at their own level, or with a
 
 ```yaml
 predicate: none
-scope: return time of hook dispatches under a TestClock
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is return time of hook dispatches under a TestClock
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts the deadline for hook dispatches, a timing property, and real-clock behavior is not exercised
 ```
 
 ---
@@ -2072,10 +2072,10 @@ timing-out and breaker-open hooks; check 79.
 
 ```yaml
 predicate: none
-scope: snapshots, host events and records across failing, timing-out and open-breaker hooks
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is snapshots, host events and records across failing, timing-out and open-breaker hooks
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that hook-level failure leaves plugin state unchanged in each failure mode
 ```
 
 ---
@@ -2119,10 +2119,10 @@ replacing a digest-less definition with another object of the same
 
 ```yaml
 predicate: none
-scope: a plan against the actions reconcile then takes, over random host states
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is a plan against the actions reconcile then takes, over random host states
 evidence: none
 status: Planned
-unchecked: for a definition that declares no `meta.digest` the invariant binds nothing to code
+unchecked: no test citing this id asserts that planning changes nothing or that a stale plan applies nothing
 ```
 
 ---
@@ -2152,10 +2152,10 @@ use/evict histories; check 85.
 
 ```yaml
 predicate: none
-scope: leases during eviction, concurrent installs during retirement
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is leases during eviction, concurrent installs during retirement
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a realm is retired only when empty and that eviction never forces, a concurrency property
 ```
 
 ---
@@ -2194,10 +2194,10 @@ for a sentinel value placed in the state; checks 87, 88 and 103.
 
 ```yaml
 predicate: none
-scope: records, events, logs and snapshots scanned for handed-off values
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is records, events, logs and snapshots scanned for handed-off values
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test scans outputs for handed-off values or checks that loss is recorded
 ```
 
 ---
@@ -2238,10 +2238,10 @@ declaration is neither run nor recorded "wake-failed", "wake-timeout",
 
 ```yaml
 predicate: none
-scope: dispatches against declared veto contributions of unloaded plugins
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is dispatches against declared veto contributions of unloaded plugins
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a declared veto of an unloaded plugin is never passed over unrecorded
 ```
 
 ---
@@ -2272,10 +2272,10 @@ and snapshots for a sentinel argument value; check 96.
 
 ```yaml
 predicate: none
-scope: held triggering events by drop reason
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is held triggering events by drop reason
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts at-most-once delivery of a held event or delivery only to the plugin it woke
 ```
 
 ---
@@ -2308,10 +2308,10 @@ registered set after `ApplyRolledBack` with the set before the call; checks
 
 ```yaml
 predicate: none
-scope: the registered set after a failure injected at each position of a list
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is the registered set after a failure injected at each position of a list
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test injects a failure at each position to check the prior set or the report
 ```
 
 ---
@@ -2375,10 +2375,10 @@ check 104.
 
 ```yaml
 predicate: none
-scope: each start route against a scripted refusal list
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is each start route against a scripted refusal list
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that a refused digest never enters starting by any start route
 ```
 
 ---
@@ -2405,10 +2405,10 @@ chains; check 106.
 
 ```yaml
 predicate: none
-scope: correlation ids along command, hook and nested call chains
+scope: no evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises it yet; planned check is correlation ids along command, hook and nested call chains
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: no test citing this id asserts that correlation ids follow the work along each chain
 ```
 
 ---

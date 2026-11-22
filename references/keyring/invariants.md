@@ -40,11 +40,11 @@ before the payload leaves encode; encode fails rather than passing plaintext.
 
 ```yaml
 predicate: none
-scope: Plaintext of a selected field never leaves the codec unencrypted
+scope: The prototype event store source rejects a received envelope whose selected path holds anything but an exact Encrypted or Shredded form, checked without a key, so peer plaintext is not stored.
 evidence:
   - prototypes/host-core/src/eventstore.ts
 status: Prototyped
-unchecked: none stated
+unchecked: The rule is implemented in the source but no cited test asserts it, and the outbox, chain, call log and log line paths named in the claim have no prototype.
 ```
 
 ---
@@ -105,10 +105,10 @@ whole-store install over a snapshot without the tombstone (check 12).
 
 ```yaml
 predicate: none
-scope: After a shred begins, the keyring neither encrypts nor decrypts for the subject
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: **Residual (store-swap install window;
+unchecked: Nothing in the prototype checks the tombstone check on every key use, or the store-swap install window, whose accepted residual is that a process stopping between the store replacement and the participant apply restarts without the tombstones.
 ```
 
 ---
@@ -130,11 +130,11 @@ shred scenarios.
 
 ```yaml
 predicate: none
-scope: A shredded subject never gets a new key
+scope: The prototype keyring source refuses to add a key for a subject whose tombstone exists.
 evidence:
   - prototypes/host-core/src/keyring.ts
 status: Prototyped
-unchecked: none stated
+unchecked: The rule is implemented in the source but no cited test asserts it, and the atomic refusal against a concurrent KeyStore.create and shred is not exercised, since the prototype keystore is in memory.
 ```
 
 ---
@@ -157,10 +157,10 @@ after a shred.
 
 ```yaml
 predicate: none
-scope: A shred changes no stored byte
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that a shred leaves every stored event, outbox entry and chain link byte-identical.
 ```
 
 ---
@@ -184,8 +184,8 @@ _Previous: [03 — Shred and acceptance](./behaviors/03-shred-and-acceptance.md)
 
 ```yaml
 predicate: none
-scope: A shred is reported complete only after every callback acknowledged
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that completion is reported only after every callback acknowledged, including a callback that fails or never answers.
 ```

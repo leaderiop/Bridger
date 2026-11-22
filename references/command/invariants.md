@@ -50,10 +50,10 @@ gate call.
 
 ```yaml
 predicate: none
-scope: The catalog runs a handler only through dispatch
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises whether a handler runs only at step 7 of dispatch.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including the task and batch routes and the before-hook veto.
 ```
 ## INV-CM-002: A toolset's order depends only on its contents
 
@@ -77,10 +77,10 @@ activation and priority orders on `TestHost` (acceptance check 11).
 
 ```yaml
 predicate: none
-scope: A toolset's order depends only on its contents
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises toolset ordering by command id.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including equal fingerprints for equal contents and ordering across principals and selectors.
 ```
 ## INV-CM-003: A pinned tool never runs a different definition
 
@@ -108,10 +108,10 @@ race with held `TestHost` steps (acceptance checks 9 and 10).
 
 ```yaml
 predicate: none
-scope: A pinned tool never runs a different definition
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises digest pinning of a dispatched definition.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including expectDigest, a changed definition after a gate decision and the receipt digest comparison (definition-differs).
 ```
 ## INV-CM-004: Projection and digest are deterministic
 
@@ -134,10 +134,10 @@ two processes and compares bytes (acceptance check 12); golden files.
 
 ```yaml
 predicate: none
-scope: Projection and digest are deterministic
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises deterministic projection or descriptor digests.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including byte equality across processes, which a single run could not show anyway.
 ```
 ## INV-CM-005: Toolset membership grants nothing
 
@@ -160,10 +160,10 @@ membership after step 1.
 
 ```yaml
 predicate: none
-scope: Toolset membership grants nothing
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises whether toolset membership changes the dispatch path.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including gate parity between listed and unlisted commands.
 ```
 ## INV-CM-006: A tainted dispatch not declared read-only never runs on an automatic allow
 
@@ -199,10 +199,10 @@ approval and draft source (acceptance check 13); a nested-dispatch scenario
 
 ```yaml
 predicate: none
-scope: A tainted dispatch not declared read-only never runs on an automatic allow
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the taint floor on dispatch.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including the readOnly declaration (taken on trust, not enforced), the floor option and the ApprovalRef digest binding.
 ```
 ## INV-CM-007: A completed receipt never runs its handler again
 
@@ -233,10 +233,10 @@ missing port (acceptance check 14).
 
 ```yaml
 predicate: none
-scope: A completed receipt never runs its handler again
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises receipt replay for idempotency keys.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including the actor, input, dispatch and mode matching, IdempotencyConflict, no port wired and voided receipts after a batch undo.
 ```
 ## INV-CM-008: No handler of a batch runs before every item is admitted
 
@@ -263,8 +263,8 @@ step, with a handler spy (acceptance check 16).
 
 ```yaml
 predicate: none
-scope: No handler of a batch runs before every item is admitted
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises batch admission before any handler runs.
 evidence: none
 status: Planned
-unchecked: that residual is reported (CommandBatchPartial), never hidden.
+unchecked: No prototype file citing this id checks it, so every path of the claim is unchecked, including rejection or deferral of one item and release of receipt claims and probe slots; the residual after a partial batch is reported as CommandBatchPartial, which is also unchecked.
 ```

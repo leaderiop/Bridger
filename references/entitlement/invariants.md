@@ -49,10 +49,10 @@ operation to the gated list must fail it.
 
 ```yaml
 predicate: none
-scope: Taking a plugin away is never refused for entitlement
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that remove, disable, enable, retry, restart, reconfigure and the like are never refused or delayed, or that replace is consulted only under onReplace consult.
 ```
 
 ---
@@ -88,10 +88,10 @@ the host's mutating API.
 
 ```yaml
 predicate: none
-scope: A lapse never changes plugin state by itself
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that a change of entitlement state, including to none or unavailable, causes no host operation, reportFailure or interruption.
 ```
 
 ---
@@ -120,10 +120,10 @@ asserting conservation of each limit.
 
 ```yaml
 predicate: none
-scope: An uncommitted reservation is released when its scope closes
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that a reservation left uncommitted is returned in full when its scope closes or its ttl expires.
 ```
 
 ---
@@ -151,11 +151,11 @@ overdraft counters.
 
 ```yaml
 predicate: none
-scope: Reserved plus committed never exceeds a limit
+scope: The prototype budget source checks the remaining amount and debits it in one synchronous step, and counts an essential overdraft separately from the limit.
 evidence:
   - prototypes/host-core/src/budget.ts
 status: Prototyped
-unchecked: none stated
+unchecked: The rule is implemented in the source but no cited test asserts it, and concurrent reservations and ledger-wired accounting across instances are not exercised against it.
 ```
 
 ---
@@ -187,10 +187,10 @@ predicate from any component must fail.
 
 ```yaml
 predicate: none
-scope: Essential uses are never refused by entitlement or budget helpers
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that an essential-labelled use is never refused, degraded or narrowed by any piece, or that each such pass is counted.
 ```
 
 ---
@@ -220,10 +220,10 @@ fails and hangs asserting no refusal and a live stream.
 
 ```yaml
 predicate: none
-scope: Grant narrowing never refuses a capture and never widens a grant
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that capabilityPolicy returns the inner refusal or a subset grant and never a refusal or defect of its own, or that its re-resolution stream stays open while the scope is open.
 ```
 
 ---
@@ -252,8 +252,8 @@ each limit across generated dispatches.
 
 ```yaml
 predicate: none
-scope: A hook call's reservation is settled once, by its outcome
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that a hook call's reservation is committed or released by its outcome against refundOn, or released and counted as expired at ttl.
 ```

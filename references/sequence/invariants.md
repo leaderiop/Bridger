@@ -40,10 +40,10 @@ concurrent `next()`.
 
 ```yaml
 predicate: none
-scope: Committed numbers are 1 to n, each once
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that committed numbers are exactly 1 to n each once, including under concurrent issue.
 ```
 
 ---
@@ -65,10 +65,10 @@ streams across closure and incarnation changes.
 
 ```yaml
 predicate: none
-scope: A committed number is never changed or reassigned
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that no package operation changes or reassigns a committed number; this is an API-surface and byte-comparison property.
 ```
 
 ---
@@ -90,10 +90,10 @@ append's expected version excludes a concurrent closure *(Planned)*.
 
 ```yaml
 predicate: none
-scope: No number after closure
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that no NumberIssued commits after SeriesClosed, including a race between closure and an issue.
 ```
 
 ---
@@ -119,10 +119,10 @@ across a re-bootstrap; `verifySeries` foreign writer report.
 
 ```yaml
 predicate: none
-scope: Only the owning origin writes a series
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that only the owning origin writes a series, or that supersession after a restore is written in the new incarnation stream.
 ```
 
 ---
@@ -148,8 +148,8 @@ _Previous: [03 — Formats, testing and acceptance](./behaviors/03-formats-testi
 
 ```yaml
 predicate: none
-scope: Verification reports only what it checked
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that receivedThrough never exceeds the contiguous received prefix or that the report carries no overall verdict.
 ```

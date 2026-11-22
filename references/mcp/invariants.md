@@ -45,10 +45,10 @@ activation orders comparing listed bytes; stale-cursor scenarios.
 
 ```yaml
 predicate: none
-scope: tools/list order is the toolset order
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises tools/list ordering.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Toolset order across pages and byte-identical output per revision are unchecked.
 ```
 ## INV-MC-002: A list-changed notification follows the publication it announces
 
@@ -74,10 +74,10 @@ publication and delivery; property test over bursts of contributions.
 
 ```yaml
 predicate: none
-scope: A list-changed notification follows the publication it announces
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises list-changed notification ordering.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Notification after publication, strictly increasing revisions per session and announcement of the latest changed fingerprint to every open session are unchecked, and they are timing and concurrency properties.
 ```
 ## INV-MC-003: Every imported command is marked external
 
@@ -105,10 +105,10 @@ session.
 
 ```yaml
 predicate: none
-scope: Every imported command is marked external
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the external tag on imported commands.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. The tag, the session child owner and the absence of an option removing the tag are unchecked.
 ```
 ## INV-MC-004: Host tools never return configuration values
 
@@ -132,10 +132,10 @@ by way of the host tools.
 
 ```yaml
 predicate: none
-scope: Host tools never return configuration values
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises host tool outputs and inputs.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Absence of configuration values from snapshot, inspect, reconcile-plan and reconcile-apply, and rejection of such inputs, are unchecked.
 ```
 ## INV-MC-005: Every tools/call is a command dispatch
 
@@ -162,10 +162,10 @@ call log.
 
 ```yaml
 predicate: none
-scope: Every tools/call is a command dispatch
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises dispatch routing of tools/call.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Exactly one dispatch per admitted call with a pinned toolset, and the command gate and OperationGate on host lifecycle changes, are unchecked.
 ```
 ## INV-MC-006: An inbound session is tainted unless the application trusts it
 
@@ -193,10 +193,10 @@ including attempts to set it from client fields (acceptance checks 2 and 14).
 
 ```yaml
 predicate: none
-scope: An inbound session is tainted unless the application trusts it
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises taint on inbound sessions.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. The mcp-inbound label on every dispatch, and its removal only on a trusted answer from McpSessionPrincipal.resolve, are unchecked.
 ```
 ## INV-MC-007: A tools/call runs the definition the session listed
 
@@ -223,8 +223,8 @@ receipt was made for the same digest (command BEH-CM-041,
 
 ```yaml
 predicate: none
-scope: A tools/call runs the definition the session listed
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the digest check on tools/call.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Refusal on a changed descriptor digest and on a name the session never listed, without a dispatch, is unchecked.
 ```

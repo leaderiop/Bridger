@@ -40,10 +40,10 @@ An envelope is readable by the relay, or by anything else, if and only if the ca
 
 ```yaml
 predicate: none
-scope: An envelope is in the outbox exactly when its transaction committed
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises outbox visibility tied to the publisher transaction commit.
 evidence: none
 status: Planned
-unchecked: **Related**: [BEH-DB-009](behaviors/02-transactional-outbox.md#beh-db-009-publish-runs-inside-the-callers-transaction), [BEH-DB-010](behaviors/02-transactional-outbox.md#beh-db-010-the-envelope-exists-exactly-when-the-tr
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Visibility exactly on commit, and invisibility after rollback, are unchecked.
 ```
 ## INV-DB-002: Sequence is contiguous per origin and stream
 
@@ -61,10 +61,10 @@ Committed envelopes of one store incarnation and (origin, stream) carry sequence
 
 ```yaml
 predicate: none
-scope: Sequence is contiguous per origin and stream
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises sequence allocation per origin and stream.
 evidence: none
 status: Planned
-unchecked: That an origin is never reused across store incarnations is an operator obligation, not a property of the package: a store restored from a backup restores its recorded incarnation too, and only the operator, by raising t
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Contiguity without gap or repeat is unchecked, and never reusing an origin across store incarnations is an operator obligation the package cannot prove.
 ```
 ## INV-DB-003: An envelope is acknowledged only after the receiver committed it
 
@@ -82,11 +82,11 @@ A sender stops treating an envelope as pending for a destination only when that 
 
 ```yaml
 predicate: none
-scope: An envelope is acknowledged only after the receiver committed it
+scope: The cited source implements the receive side of an inbox keyed by origin and stream, with a head that tells a duplicate from an EnvelopeConflict, and no test is cited.
 evidence:
   - prototypes/host-core/src/durablebus.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by a cited test. Acknowledgement only after the receiver committed, the watermark and the sender side are not modelled, and delivery retries are absent.
 ```
 ## INV-DB-004: An inbox records each envelope processed at most once per subscription
 
@@ -104,10 +104,10 @@ For each subscription, the cursor passes each stored envelope once, in the same 
 
 ```yaml
 predicate: none
-scope: An inbox records each envelope processed at most once per subscription
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises inbox cursor handling.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Single processing per subscription in the same transaction as the handler writes is unchecked.
 ```
 ## INV-DB-005: Handlers see each stream in sequence without skipping
 
@@ -125,10 +125,10 @@ A subscription processes the envelopes of one (origin, stream) in increasing seq
 
 ```yaml
 predicate: none
-scope: Handlers see each stream in sequence without skipping
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises in-sequence handling per stream.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Increasing order, park-and-continue and the unpark exception are unchecked.
 ```
 ## INV-DB-006: No envelope is dropped silently
 
@@ -146,10 +146,10 @@ An envelope that cannot be processed halts its stream, is parked with a reason, 
 
 ```yaml
 predicate: none
-scope: No envelope is dropped silently
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the no-silent-drop rule.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Halted, parked and stopped streams, Withheld markers, watermark regression and the attributed passing of unstored sequences are unchecked.
 ```
 ## INV-DB-007: HLC timestamps issued under one origin strictly increase
 
@@ -169,10 +169,10 @@ Every HLC a node writes into a committed envelope, or saves as its clock after a
 
 ```yaml
 predicate: none
-scope: HLC timestamps issued under one origin strictly increase
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises HLC monotonicity under one origin.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Strict increase across restarts on the same store is unchecked, and the restored-store case is outside the claim.
 ```
 ## INV-DB-008: In-flight delivery is bounded by the receiver's credit
 
@@ -190,10 +190,10 @@ A relay never has more unacknowledged batches, or larger batches, to a destinati
 
 ```yaml
 predicate: none
-scope: In-flight delivery is bounded by the receiver's credit
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises credit-bounded delivery.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Bounds on unacknowledged batches, batch size and one history read in flight per source are unchecked, and they are timing and concurrency properties.
 ```
 ## INV-DB-009: No snapshot restore removes an unacknowledged outbox envelope
 
@@ -211,10 +211,10 @@ The pending set of every destination and the highest outbox sequence of every (o
 
 ```yaml
 predicate: none
-scope: No snapshot restore removes an unacknowledged outbox envelope
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises snapshot restore against pending outbox envelopes.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. Equality of the pending set and highest sequence across restore or re-bootstrap, and rollback of a changing restore, are unchecked.
 ```
 ## INV-DB-010: A payload reaches storage and the wire only through the payload codec
 
@@ -232,10 +232,10 @@ Every committed envelope's `payload` is the output of the wired `PayloadCodec` (
 
 ```yaml
 predicate: none
-scope: A payload reaches storage and the wire only through the payload codec
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the payload codec path.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. That every committed payload is codec output and no other envelope field changes is unchecked.
 ```
 ## INV-DB-011: No envelope is delivered to a subscriber the access policy denied
 
@@ -253,8 +253,8 @@ With a wired core `AccessPolicy`, a subscription handler runs for an envelope on
 
 ```yaml
 predicate: none
-scope: No envelope is delivered to a subscriber the access policy denied
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises access policy on delivery.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the durable bus is only a minimal slice. The AccessPolicy ask before every local, received and pulled delivery and the HistoryAccess check for out-of-host readers are unchecked.
 ```

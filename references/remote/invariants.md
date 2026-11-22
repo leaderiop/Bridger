@@ -65,10 +65,10 @@ a type-level test that `Remote.define` returns `PluginDefinition`.
 
 ```yaml
 predicate: none
-scope: A remote plugin adds no state, operation or transition
+scope: Planned only, so no prototype code or test checks it that a remote plugin adds no state, operation or transition beyond the core's.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, neither the core acceptance checks re-run through a remote proxy nor the type-level test that Remote.define returns PluginDefinition.
 ```
 
 ---
@@ -101,10 +101,10 @@ build must fail this check.
 
 ```yaml
 predicate: none
-scope: No lifecycle step waits on a peer
+scope: Planned only, so no prototype code or test checks it that no lifecycle step of a link or session child waits on the peer.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, a partition before install, during build, during stop and during shutdown is never run, nor is the mutation test against awaiting the handshake in build.
 ```
 
 ---
@@ -134,11 +134,11 @@ clock; type-level test that `"forever"` is rejected.
 
 ```yaml
 predicate: none
-scope: Every remote call is bounded by a timeout
+scope: The cited session.ts bounds each outbound call with callTimeout and ends a timed-out call with RemoteTimeout and unknown outcome.
 evidence:
   - prototypes/host-core/src/session.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by any test in the cited evidence, so there is no property test under random drops and delays, no type-level rejection of forever, and the guest-to-host direction and the scheduling-delay bound are unchecked, and the timeout is optional in this code.
 ```
 
 ---
@@ -172,10 +172,10 @@ random reorderings.
 
 ```yaml
 predicate: none
-scope: A stale epoch is refused at the boundary
+scope: Planned only, so no prototype code or test checks it that frames of another epoch are never acted on or delivered.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no check cited as evidence, so delayed or duplicated frames across a partition and heal, and the reordering property test, are not covered.
 ```
 
 ---
@@ -212,10 +212,10 @@ dependent, the absence of `failed`, and the return to `active` after heal.
 
 ```yaml
 predicate: none
-scope: A partition withdraws the provider and fails no dependent
+scope: Planned only, so no prototype code or test checks it that a partition withdraws the provider, sends dependents to waiting and fails nothing.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, including the missingServiceIds report, healing without operator action and the finalizer departure for calls in flight.
 ```
 
 ---
@@ -246,10 +246,10 @@ through a proxy ([BEH-RM-060](behaviors/08-test-transport-and-acceptance.md)).
 
 ```yaml
 predicate: none
-scope: Remote adds no second admission path
+scope: Planned only, so no prototype code or test checks it that remote adds no admission path beyond core leases and dependency rules.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, core acceptance checks 2, 12 and 18 are not re-run through a proxy, so drain, force, revocation and WouldDeadlock behaviour via a proxy is unverified.
 ```
 
 ---
@@ -287,10 +287,10 @@ previous epoch, and a forged token, each refused with its tag and logged.
 
 ```yaml
 predicate: none
-scope: A guest reaches only granted contracts, under a live token
+scope: Planned only, so no prototype code or test checks it that a guest reaches only granted contracts under a live token.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check of the six refusal scenarios, ungranted contract or method, expired, ended-call, previous-epoch and forged token, nor of the capability policy admission.
 ```
 
 ---
@@ -318,10 +318,10 @@ that no `callId` is sent twice; outcome assertions for each frame state.
 
 ```yaml
 predicate: none
-scope: An unknown outcome is reported as unknown and never retried
+scope: Planned only, so no prototype code or test checks it that an unknown outcome is reported as unknown and never retried.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, including the frame-log assertion that no callId is ever sent twice and the outcome for each frame state.
 ```
 
 ---
@@ -364,11 +364,11 @@ the handler's execution count; a property test over random duplication.
 
 ```yaml
 predicate: none
-scope: Within one session a call executes at most once on a conforming guest
+scope: The cited session.ts guest keeps a per-callId table that replays the stored result for a duplicate call instead of running the handler again.
 evidence:
   - prototypes/host-core/src/session.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by any test in the cited evidence, and the cross-invocation DedupeStore case for per-call transports, retention expiry, the idempotent-handlers mode and the host-served Remote.serve end are not covered.
 ```
 
 ---
@@ -395,10 +395,10 @@ entry (check 28 of BEH-RM-061).
 
 ```yaml
 predicate: none
-scope: Within one parent call, a callback executes at most once
+scope: Planned only, so no prototype code or test checks it that a callback runs at most once per parent call.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, TestTransport duplicate delivery on callback frames and the single CallLog entry (check 28 of BEH-RM-061) are not run.
 ```
 
 ---
@@ -432,10 +432,10 @@ it says nothing about where the far end really runs
 
 ```yaml
 predicate: none
-scope: No call crosses a transport that does not offer its residency label
+scope: Planned only, so no prototype code or test checks it that no call crosses a transport that does not offer its residency label.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, covering neither the link, fiber and annotation labels nor the CallLog refusal, and by design it compares strings and not real placement.
 ```
 
 ---
@@ -472,10 +472,10 @@ _Previous: [Decisions](./decisions/001-remote-plugin-is-a-local-proxy.md)_ · _N
 
 ```yaml
 predicate: none
-scope: A call carries no identity claim its link did not disclose
+scope: The cited guest-session.test.ts runs a host call over a link with no disclose option and with a partial disclose list, and asserts the handler sees no claims versus exactly the listed and present ones, while session.ts builds the frame claims.
 evidence:
   - prototypes/host-core/src/session.ts
   - prototypes/host-core/test/guest-session.test.ts
 status: Tested
-unchecked: none stated
+unchecked: Only actor, onBehalfOf-absent and correlationId are exercised through one SDK guest handler, not the raw frame log, the LinkStatus.disclosed and session-log visibility, the org claim being disclosed, or host-side controls working without disclosure.
 ```

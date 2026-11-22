@@ -47,10 +47,10 @@ recording evaluator, each step failing in turn; a type-level test that
 
 ```yaml
 predicate: none
-scope: No code is evaluated before its digest and signatures are accepted
+scope: Planned only, so no prototype code or test checks it that no code is evaluated before digest, signature, revocation and predicate checks pass.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, neither the recording evaluator with each step failing in turn nor the type-level test that evaluate accepts only VerifiedPackage.
 ```
 
 ---
@@ -77,10 +77,10 @@ fetcher's store after verification; URL and unlisted bare imports).
 
 ```yaml
 predicate: none
-scope: The evaluated bytes are the verified bytes
+scope: Planned only, so no prototype code or test checks it that the evaluated bytes are the verified bytes and imports resolve only inside the package or to externals.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no check cited as evidence, so mutating the fetcher store after verification and URL or unlisted bare imports are not covered.
 ```
 
 ---
@@ -110,10 +110,10 @@ implementation of the construction.
 
 ```yaml
 predicate: none
-scope: A stamped digest is the verified package digest
+scope: Planned only, so no prototype code or test checks it that every stamped meta.digest and meta.version equal the verified package digest and manifest version.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no check cited as evidence, so loaded, lazy and stampRemote definitions and the independent-implementation property test are not covered.
 ```
 
 ---
@@ -146,11 +146,11 @@ BEH-LD-048.
 
 ```yaml
 predicate: none
-scope: A revoked digest is never newly loaded
+scope: The cited loader.ts rejects a statement whose subject digest or statement digest is in the revocation set and drops revoked signer identities before counting the threshold, and verifies signed revocation lists.
 evidence:
   - prototypes/host-core/src/loader.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by any test in the cited evidence, so the load, fetchVerified, catalog and lazy-trigger entry points, guest re-verification per session and the stale-set case are not shown to apply it.
 ```
 
 ---
@@ -187,10 +187,10 @@ is never credited with a change it did not cause.
 
 ```yaml
 predicate: none
-scope: The kill switch acts only through Host.reconcile and Host.remove
+scope: Planned only, so no prototype code or test checks it that the kill switch acts only through Host.reconcile and Host.remove.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no check cited as evidence, including removal-only revocation, the revocation actor and reason, owned-scope selection and the catalog-withdrawal rule.
 ```
 
 ---
@@ -218,11 +218,11 @@ inventory test over `@bridger/loader` and `@bridger/loader/testing`.
 
 ```yaml
 predicate: none
-scope: No load without an explicit acceptance rule
+scope: The cited loader.ts checkPolicy refuses a policy with no leaf or any threshold that is not a positive integer.
 evidence:
   - prototypes/host-core/src/loader.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by any test in the cited evidence, and the pinned-digest alternative, the Loader constructor requirement and the export inventory test for loader and its testing entry are not covered.
 ```
 
 ---
@@ -250,10 +250,10 @@ passed to the evaluator.
 
 ```yaml
 predicate: none
-scope: A data pack is never evaluated
+scope: Planned only, so no prototype code or test checks it that a data pack never reaches an evaluator or enters Loader.resident or AcceptedDigests.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no check cited as evidence, neither the recording evaluator run nor the type-level test against passing a VerifiedDataPack to the evaluator.
 ```
 
 ---
@@ -281,10 +281,10 @@ types.
 
 ```yaml
 predicate: none
-scope: A signature counts only for the statement type it was made for
+scope: Planned only, so no prototype code or test checks it that a signature counts only for the statement type it was made over.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no check cited as evidence, so cross-type replay with data, fleet and licence keys is not exercised.
 ```
 
 ---
@@ -318,8 +318,8 @@ evaluated ([BEH-LD-041](behaviors/06-limits-and-acceptance.md)).
 
 ```yaml
 predicate: none
-scope: No package is evaluated in the host process without an accepted first-party statement
+scope: Planned only, so no prototype code or test checks it that in-process evaluation requires both a package and a first-party statement accepted under current rules and revocations.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no check cited as evidence, covering load and lazy load, absent, unsatisfied and revoked first-party statements, and the fetchVerified guest-only path.
 ```

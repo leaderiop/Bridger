@@ -47,12 +47,12 @@ snapshots, audit records and inspections step by step.
 
 ```yaml
 predicate: none
-scope: A facade plugin behaves as its core equivalent
+scope: The test installs plugins from each definePlugin form, checks the result carries no field beyond the core ones (id, requires, provides, build) and that they activate on a host.
 evidence:
   - prototypes/host-core/src/kit.ts
   - prototypes/host-core/test/dx-kit.test.ts
 status: Tested
-unchecked: none stated
+unchecked: Equivalence to Plugin.define is only sampled on key names and activation, and field-by-field equality with a hand-written core definition is not asserted for every option such as health, manifest or handoff.
 ```
 ## INV-KT-002: Test helpers run only through TestHost
 
@@ -74,11 +74,11 @@ testing entry point imports scheduling only from `@bridger/core/testing`.
 
 ```yaml
 predicate: none
-scope: Test helpers run only through TestHost
+scope: The cited source builds the mount and stub helpers on the core TestHost, but no test is cited for it.
 evidence:
   - prototypes/host-core/src/plugin-test.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by a cited test. That no helper schedules, injects faults or resolves services by its own path is shown only by reading the source, and it was not checked for it.plugin or the conformance subjects.
 ```
 ## INV-KT-003: Tooling output carries names and counts, never values
 
@@ -99,10 +99,10 @@ containing a sentinel value that must not appear in any output.
 
 ```yaml
 predicate: none
-scope: Tooling output carries names and counts, never values
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the redaction of kit output.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Absence of configuration values, service objects and raw causes from the inspector, why, timeline, CLI messages and test failure prints is unchecked.
 ```
 ## INV-KT-004: Tooling changes a host only through host operations
 
@@ -124,10 +124,10 @@ code check that the kit imports no host-internal module.
 
 ```yaml
 predicate: none
-scope: Tooling changes a host only through host operations
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises how tooling changes a host.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Routing of dev reloads and PluginTest.mount through core operations with an OperationContext, with the gating and audit that implies, is unchecked.
 ```
 ## INV-KT-005: A conformance pass comes only from executed cases
 
@@ -148,11 +148,11 @@ case and must turn the run into a failure.
 
 ```yaml
 predicate: none
-scope: A conformance pass comes only from executed cases
+scope: The cited source builds a conformance report whose cases are recorded as passed or failed only after running, with no skipped outcome, and no test is cited.
 evidence:
   - prototypes/host-core/src/conformance.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by a cited test. Sampled generated cases are not a proof, and local contracts and the remote HTTP binding are not modelled in the prototype.
 ```
 ## INV-KT-006: A partner handler sees only plain data
 
@@ -176,10 +176,10 @@ partner code, or partner exception text reaches host logs.
 
 ```yaml
 predicate: none
-scope: A partner handler sees only plain data
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the data a partner handler sees.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. Plain JSON payloads, the CallContext identity disclosure and the fixed text of undeclared failures are unchecked.
 ```
 ## INV-KT-007: Publish never handles signing key material
 
@@ -204,8 +204,8 @@ _Previous: [08 — Required acceptance checks](./behaviors/08-required-acceptanc
 
 ```yaml
 predicate: none
-scope: Publish never handles signing key material
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises signing in publish.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it. That publish and countersign pass only the signing input to a StatementSigner and never touch a private key is unchecked, and handling by the signer adapter is outside the package.
 ```

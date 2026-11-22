@@ -92,10 +92,10 @@ boundary.
 
 ```yaml
 predicate: none
-scope: No decision port has a default outside the testing entry point
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant and no export-graph or type-level check exists
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that the main entry point exports no port implementation or default, that the make options are all required, or that the merge-gate rows reject a default outside testing.
 ```
 
 ---
@@ -141,11 +141,11 @@ testing of the compare-and-set; acceptance checks of
 
 ```yaml
 predicate: none
-scope: A binding is consumed at most once
+scope: One test models a single-use ticket gate around reconcile and shows a rolled-back forward action's binding is consumed once and is not reused for its undo, which needs its own binding.
 evidence:
   - prototypes/host-core/test/sec-undo-binding.test.ts
 status: Tested
-unchecked: none stated
+unchecked: The test uses a stand-in gate, not the real TicketStore compare-and-set, so the version conflict, concurrent citations of one ticket, replay after success and the three-attempt retry are not exercised.
 ```
 
 ---
@@ -194,10 +194,10 @@ mutation testing of each gate step; acceptance checks of
 
 ```yaml
 predicate: none
-scope: An allowed call holds a valid binding with an equal digest
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks the allow conditions (policy digest, signer count and meanings, validity window, revocation, recomputed binding digest equal to an unconsumed binding).
 ```
 
 ---
@@ -237,10 +237,10 @@ checks of [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 ```yaml
 predicate: none
-scope: The approver is never the requester
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that a signature by the requester, a duplicate signer or a bridger-prefixed signer identifier is refused or uncounted.
 ```
 
 ---
@@ -288,10 +288,10 @@ the error mapping.
 
 ```yaml
 predicate: none
-scope: No configuration value or key material appears in any companion output
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that no configuration value, key material or port error text reaches any companion output, log, metric or span.
 ```
 
 ---
@@ -333,10 +333,10 @@ retry sequences; acceptance checks of
 
 ```yaml
 predicate: none
-scope: One primary entry per record and per host sequence number, and no stored record is displaced
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks the one-primary-entry rule, the collision entries or that stored entries stay readable, and the store conformance suite is not run.
 ```
 
 ---
@@ -379,10 +379,10 @@ mode is specified to produce; a mutation test that acknowledging before
 
 ```yaml
 predicate: none
-scope: The sink acknowledges only what the store reports stored
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that the sink acknowledges only on stored, stored-collision or an equal already-stored outcome, or that failures, defects, interruptions and timeouts reach core as failed writes.
 ```
 
 ---
@@ -423,10 +423,10 @@ scenario asserting the stored entry, its marks and its chain link are unchanged;
 
 ```yaml
 predicate: none
-scope: No companion API rewrites a stored entry
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that the companion offers no update or delete and that copies keep the original canonical bytes; this is also an API-surface property no test inspects.
 ```
 
 ---
@@ -498,10 +498,10 @@ mutation testing of each finding's emission; acceptance checks of
 
 ```yaml
 predicate: none
-scope: A finding is never suppressed or upgraded
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: There are exactly two named exceptions, both stated where seal findings are mapped (BEH-GX-171): (1) the chain report's items that rest on entries or statements the check does not hold, or holds but could not confirm, ar
+unchecked: Nothing in the prototype checks that every finding is reported under its own kind with none dropped or weakened, nor the two named exceptions of archive reads that report unchecked items.
 ```
 
 ---
@@ -545,10 +545,10 @@ mutation testing at least 80% on the generator; acceptance checks of
 
 ```yaml
 predicate: none
-scope: Evidence results come only from runner output and gaps stay gaps
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that OQ results derive only from runner output by the fail-beats-pass rules, or that unclaimed requirements appear as not covered.
 ```
 
 ---
@@ -595,10 +595,10 @@ and [BEH-GX-154](behaviors/20-required-acceptance-checks.md).
 
 ```yaml
 predicate: none
-scope: Every port failure on a decision path refuses
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that a failing, dying, timing-out, malformed or interrupted port on a decision path yields a refusal or failed write and never an allow, acknowledgement or fingerprint.
 ```
 
 ---
@@ -645,10 +645,10 @@ negative zero, integers at ±(2^53 − 1) and non-integer numbers; acceptance ch
 
 ```yaml
 predicate: none
-scope: The canonical form is deterministic across platforms
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks JCS canonical text or the sha256 digest form, and byte-identical output across runtimes, platforms and locales cannot be shown by one runtime.
 ```
 
 ---
@@ -676,10 +676,10 @@ adopted mechanism ([BEH-GX-153](behaviors/20-required-acceptance-checks.md)).
 
 ```yaml
 predicate: none
-scope: A host's seal chain is linear over exactly the stored sequence (withdrawn)
+scope: This invariant is withdrawn, so no evidence is cited and nothing is exercised.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing to check here; the seal chain property is audit-chain INV-AC-001 and its verification, and the identifier stays reserved.
 ```
 
 ---
@@ -718,10 +718,10 @@ implementation carries the marker; acceptance checks of
 
 ```yaml
 predicate: none
-scope: Test fixtures are detectable
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that every testing-entry-point port, key and datum carries the fixture marker, or that installation checks report a wired fixture as a failure.
 ```
 
 ---
@@ -764,10 +764,10 @@ rendering under `TestClock`; acceptance checks of
 
 ```yaml
 predicate: none
-scope: Every signed binding carries a manifestation
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that every signature event holds the signer, printed name, Clock time, meaning and digest, or that every rendering shows name, time and meaning.
 ```
 
 ---
@@ -809,8 +809,8 @@ test that a refusing branch is caught; acceptance checks of
 
 ```yaml
 predicate: none
-scope: The sink never refuses a record for a condition of its own
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that unknown-schema, non-I-JSON and colliding records are stored, marked and counted rather than refused, or that only trailGate refuses operator changes.
 ```

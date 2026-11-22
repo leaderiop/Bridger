@@ -64,10 +64,10 @@ and command acceptance check 13).
 
 ```yaml
 predicate: none
-scope: A tainted session is never auto-allowed a change
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the taint floor on agent dispatch or the refusal of the reserved spawn tool in a tainted session.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. Every path is unchecked, including nested dispatch, draft-store failure and the readOnly declaration that is not enforced.
 ```
 ## INV-AG-002: A turn sees one toolset
 
@@ -92,10 +92,10 @@ mid-turn on `TestHost` (acceptance check 3).
 
 ```yaml
 predicate: none
-scope: A turn sees one toolset
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the toolset pinned at the start of a turn.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. Mid-turn publication of a new toolset, the re-plan as a new turn and the spawn tool appended to every request are all unchecked.
 ```
 ## INV-AG-003: A subagent is never wider than its parent
 
@@ -119,10 +119,10 @@ budget or attribution.
 
 ```yaml
 predicate: none
-scope: A subagent is never wider than its parent
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises subagent narrowing of toolset, budget or actor.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. The toolset intersection, the budget carve-out, the actor narrowing and the static reachability check are all unchecked.
 ```
 ## INV-AG-004: Task terminal states are sticky and revisions never regress
 
@@ -151,10 +151,10 @@ check 18).
 
 ```yaml
 predicate: none
-scope: Task terminal states are sticky and revisions never regress
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises task terminal states or revision increments.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. The transition table, sticky terminal states, revision steps and LoopStopped failure of unfinished tasks are all unchecked.
 ```
 ## INV-AG-005: Taint is monotone per session
 
@@ -177,10 +177,10 @@ before a write later in the session.
 
 ```yaml
 predicate: none
-scope: Taint is monotone per session
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises taint monotonicity across a session and its subagents.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. Union-only growth of taint, its flow into subagents and back, and generated session histories are all unchecked.
 ```
 ## INV-AG-006: A replayed run is identical to its recording
 
@@ -206,10 +206,10 @@ model, and a gate or tool change shows as a divergence at the call it affects.
 
 ```yaml
 predicate: none
-scope: A replayed run is identical to its recording
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises record and replay of an agent run.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. Identical task snapshots and dispatch requests, ReplayDiverged, spawn calls answered from the transcript and subagent replay are all unchecked.
 ```
 ## INV-AG-007: Untrusted tool output reaches the model only inside an envelope
 
@@ -235,10 +235,10 @@ paths, an imported command and an oversized output (acceptance check 14).
 
 ```yaml
 predicate: none
-scope: Untrusted tool output reaches the model only inside an envelope
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises the ModelEnvelope wrapping of tool results.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. The byte bound, the numbered untrusted entries, tainting on an untrusted value and an oversized or imported output are unchecked, and the envelope never detects injected instructions.
 ```
 ## INV-AG-008: A task never ends with its pending draft unreported
 
@@ -284,8 +284,8 @@ and that stop a loop with a task awaiting approval (acceptance check 18).
 
 ```yaml
 predicate: none
-scope: A task never ends with its pending draft unreported
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises withdrawal of a pending draft when a task ends.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the agent package itself is only a minimal slice. Cancel and failure in each state, a withdrawal that answers, fails or times out, the handed-to-parent case and the log-only parent withdrawal are all unchecked.
 ```

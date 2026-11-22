@@ -42,10 +42,10 @@ property test over generated append and rollback sequences.
 
 ```yaml
 predicate: none
-scope: Stream versions are contiguous from 1, one event per version
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises stream version assignment.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the event store is only a minimal slice. Contiguity from 1 and one event per version, including under concurrent appends, are unchecked.
 ```
 
 ---
@@ -72,10 +72,10 @@ transaction, asserting all-or-nothing across the four tables.
 
 ```yaml
 predicate: none
-scope: An append and its outbox entries commit together or not at all
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises atomic commit of an append with its outbox entries and projection writes.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the event store is only a minimal slice. Atomicity and rollback on failure are unchecked, and a conforming adapter would also owe it by its own transaction semantics.
 ```
 
 ---
@@ -102,10 +102,10 @@ codec changes.
 
 ```yaml
 predicate: none
-scope: Stored events are never rewritten or deleted by the package
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises immutability of stored events.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the event store is only a minimal slice. Absence of any update or delete path in the package and in a conforming adapter is unchecked, and an adapter outside the package is an operator obligation.
 ```
 
 ---
@@ -130,10 +130,10 @@ running follower; fault injection in `apply`.
 
 ```yaml
 predicate: none
-scope: A projection never skips a committed event
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises projection checkpoints.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the event store is only a minimal slice. Every committed matching event being applied in the transaction that commits its checkpoint, including after a crash, is unchecked.
 ```
 
 ---
@@ -159,10 +159,10 @@ without snapshots.
 
 ```yaml
 predicate: none
-scope: A snapshot is a cache
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises snapshots as a cache.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the event store is only a minimal slice. Equality of the snapshot-assisted state with the full fold of evolve from initial is unchecked, as are stale or corrupt snapshots.
 ```
 
 ---
@@ -197,8 +197,8 @@ _Previous: [05 — Storage port and acceptance](./behaviors/05-storage-port-and-
 
 ```yaml
 predicate: none
-scope: Recording a fact cannot fail for a rule
+scope: No evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises recording a fact without a rule or version failure.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: No prototype file citing this id checks it, and the event store is only a minimal slice. The error surface of record, retry of a commit-time conflict in recordFact and receive, and a halted subscription are unchecked.
 ```

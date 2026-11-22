@@ -117,7 +117,7 @@ Audit classes, ordered by count: (a) fix propagation (stale rows, glossary, cata
 ## Not checked / uncertainties
 
 - Properties are checked on sampled histories (60 to 300 per run with shrinking), not proved. The model covers the settled behaviour of the dependency graph, drain bounds, wait-for cycles and the audit predicates; leases beyond the drain bound, handoff, hooks, lazy registrations, federation and the companion trees are checked only by the scenario suites.
-- R8 blocks for the 14 companion trees are formulaic (scope is the invariant's title, predicate `none`), so they pass the linter without being a considered assessment; only the core blocks were authored by reading each invariant.
+- R8 blocks for the 14 companion trees were rewritten by reading each invariant and its cited evidence (`scope` names what the evidence exercises, `unchecked` what it does not); `predicate` is still `none` because the reference model covers core only. Evidence is found by id, so a block saying no prototype file names an invariant does not rule out an uncited test that covers it. The assessments are model-written and have had one spot-check, not an independent review.
 - The correspondence table counts a mention of an id in `src` or `test`, so a citation says where to look, not that the rule holds; tests may cover a behaviour without naming it.
 - The CI workflow is written but has not run on a remote. The audit counts (round 8: 4/24/36, round 9: 6/23/27) are from the report summaries, and whether Highs fall in future rounds is not yet known.
 - Cost estimates in the original review were rough.

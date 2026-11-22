@@ -47,10 +47,10 @@ one distinct link per `recordId` in the store.
 
 ```yaml
 predicate: none
-scope: One link per record, identical across retries
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that a record gets one link and that every retry of its append carries an identical link.
 ```
 
 ---
@@ -82,10 +82,10 @@ exactly once per successful append.
 
 ```yaml
 predicate: none
-scope: The head advances only on a successful append, and an unexpected record is marked
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that the head moves only after a successful inner append, or that a record that is not the expected successor is appended with a break marker.
 ```
 
 ---
@@ -116,10 +116,10 @@ with their markers.
 
 ```yaml
 predicate: none
-scope: The stored record is the record core handed over
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: **Related**: [BEH-AC-002](behaviors/01-hash-chain-sink.md#beh-ac-002-the-record-reaches-the-store-unchanged), [BEH-AC-006](behaviors/01-hash-chain-sink.md#beh-ac-006-the-chainstore-obligations-and-chainstoresplit), [ADR-
+unchecked: Nothing in the prototype checks that the entry handed to the store carries the record core passed, field for field.
 ```
 
 ---
@@ -149,10 +149,10 @@ that no edited record lies at or below `verifiedThrough`.
 
 ```yaml
 predicate: none
-scope: Verification never reports more than it checked
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks the ordering of verifiedThrough, linksCheckedThrough and the first sequence problem, or that verifiedThrough ends a confirmed and matched window.
 ```
 
 ---
@@ -184,11 +184,11 @@ bound, memory bounded, and with `ChainGate` wired, operator calls refused
 
 ```yaml
 predicate: none
-scope: Anchoring never delays or fails a write
+scope: The prototype audit-chain source builds ChainGate to read only the chain status and the clock, never to defer, and never to touch the write path.
 evidence:
   - prototypes/host-core/src/audit-chain.ts
 status: Prototyped
-unchecked: none stated
+unchecked: The rule is implemented in the source but no cited test asserts it, and nothing checks that the sink record call never waits on publish or ReceiptStore.put or fails on an overdue anchor.
 ```
 
 ---
@@ -217,10 +217,10 @@ network, clock and file system unavailable.
 
 ```yaml
 predicate: none
-scope: A bundle is verified from the bundle alone
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that verifyBundle uses no network, clock, file system or environment, or that a receipt needing an online check is never reported as confirmed.
 ```
 
 ---
@@ -251,8 +251,8 @@ _Previous: [03 — Verification](./behaviors/03-verification.md)_ · _Next: [Tra
 
 ```yaml
 predicate: none
-scope: One series, one canonicaliser and one algorithm
+scope: No prototype evidence is cited, so no prototype file names it, which does not rule out an uncited test that exercises this invariant.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: Nothing in the prototype checks that every link names the same series id, canonicaliser and algorithm, or that a link computed otherwise is reported as a break.
 ```

@@ -43,11 +43,11 @@ over generated sequences of issue, deliver, crash and boot.
 
 ```yaml
 predicate: none
-scope: Applied manifest revisions never decrease
+scope: The cited federation.ts keeps the highest verified revision per (authority, host), reports a lower revision as stale and a reused revision with different content as equivocation, and seeds the floor after a restart.
 evidence:
   - prototypes/host-core/src/federation.ts
 status: Prototyped
-unchecked: none stated
+unchecked: Implemented but not asserted by any test in the cited evidence, there is no property test over issue, deliver, crash and boot sequences, and the write-before-apply ordering and the boot apply of the stored highest are not shown.
 ```
 ## INV-FD-002: No unverified manifest is applied
 
@@ -77,10 +77,10 @@ that `Manifest.toDesired` accepts only the verified type.
 
 ```yaml
 predicate: none
-scope: No unverified manifest is applied
+scope: Planned only, so no prototype code or test checks it that every applied manifest was verified as received bytes and names this host and authority.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim, including reverify of stored copies, the stale and re-bootstrap cases and the no-new-acceptance restart case, has no prototype check.
 ```
 ## INV-FD-003: A killed plugin is never in a desired list
 
@@ -108,10 +108,10 @@ property test over generated manifests and patches.
 
 ```yaml
 predicate: none
-scope: A killed plugin is never in a desired list
+scope: Planned only, so no prototype code or test checks it that no desired list contains a killed or revoked entry.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, across full, kill-only, freshness, retry and boot applies, local patches and pending kills, and kill-pending reporting for a refused removal.
 ```
 ## INV-FD-004: A host always has a defined desired state
 
@@ -133,10 +133,10 @@ leave the host running a known state.
 
 ```yaml
 predicate: none
-scope: A host always has a defined desired state
+scope: Planned only, so no prototype code or test checks it that the desired state is always the highest verified manifest, else the boot bundle, else empty.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, including behaviour during authority, store or snapshot-service outages and never exposing a partially decoded document.
 ```
 ## INV-FD-005: A peer's imports resolve only in the realm named for them
 
@@ -159,10 +159,10 @@ provider slot. This is resolution only, not isolation
 
 ```yaml
 predicate: none
-scope: A peer's imports resolve only in the realm named for them
+scope: Planned only, so no prototype code or test checks it that peer imports resolve only in their named realm.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, neither the default peer realm naming nor two peers exporting one contract without contending for a provider slot.
 ```
 ## INV-FD-006: A link uses only versions both ends support
 
@@ -192,10 +192,10 @@ property test of agreement symmetry over generated offers and windows.
 
 ```yaml
 predicate: none
-scope: A link uses only versions both ends support
+scope: Planned only, so no prototype code or test checks it that a link starts only on an agreed version inside both windows and that import proxies match major, version and schema digests.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, including agreement symmetry, the Contract.satisfies rule and the typed IncompatiblePeer and IncompatibleContract failures.
 ```
 ## INV-FD-007: Stale epochs and stale fences are refused at the boundary
 
@@ -222,10 +222,10 @@ single-writer effects check the fence where they land (application).
 
 ```yaml
 predicate: none
-scope: Stale epochs and stale fences are refused at the boundary
+scope: Planned only, so no prototype code or test checks it that stale epochs and stale fence tokens are refused at the boundary.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check for epochs or fences, and by design it does not stop a deposed owner acting for importers that do not yet know of the deposition.
 ```
 ## INV-FD-008: No host transition waits on the network
 
@@ -249,10 +249,10 @@ every peer partitioned.
 
 ```yaml
 predicate: none
-scope: No host transition waits on the network
+scope: Planned only, so no prototype code or test checks it that no host transition waits on the authority, a peer or a link.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, a partitioned authority and peers are never run against build, finalizer and transition timing, so this timing property is unverified.
 ```
 ## INV-FD-009: Staleness and the offline cap are never silent
 
@@ -273,10 +273,10 @@ one that is current.
 
 ```yaml
 predicate: none
-scope: Staleness and the offline cap are never silent
+scope: Planned only, so no prototype code or test checks it that staleness, the offline cap, clock skew and refused or equivocating manifests are visible in Federation.Status and its events.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check of Status or event visibility for stale, offline-capped and clock-skew transitions.
 ```
 ## INV-FD-010: A kill never waits on a manifest apply, the offline cap or a re-bootstrap
 
@@ -309,10 +309,10 @@ no links. A gate refusal or drain timeout still delays it, reported as
 
 ```yaml
 predicate: none
-scope: A kill never waits on a manifest apply, the offline cap or a re-bootstrap
+scope: Planned only, so no prototype code or test checks it that a verified revocation disables owned plugins without waiting for a sync, a manifest, the offline cap or a re-bootstrap.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, including the blast-radius kill-held case, kill-only apply during a pending re-bootstrap and the re-verification failure path.
 ```
 ## INV-FD-011: A re-bootstrap never replaces state while local facts are neither pushed nor kept
 
@@ -339,10 +339,10 @@ cannot push or keep them stays on its last state, reported
 
 ```yaml
 predicate: none
-scope: A re-bootstrap never replaces state while local facts are neither pushed nor kept
+scope: Planned only, so no prototype code or test checks it that a re-bootstrap never replaces state until local facts are settled by the outbox or explicitly waived.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, including the settle-then-install ordering, resume from the persisted marker with links suspended and the rebootstrap-blocked report.
 ```
 ## INV-FD-012: No import or export runs over a route that does not offer its residency label
 
@@ -364,8 +364,8 @@ evidence of where a peer runs ([RSK-RM-014](../remote/risks.md#rsk-rm-014)).
 
 ```yaml
 predicate: none
-scope: No import or export runs over a route that does not offer its residency label
+scope: Planned only, so no prototype code or test checks it that imports and exports run only over routes offering their residency label.
 evidence: none
 status: Planned
-unchecked: none stated
+unchecked: The whole claim has no prototype check, and by design it compares labels as strings and says nothing about where a peer actually runs.
 ```
