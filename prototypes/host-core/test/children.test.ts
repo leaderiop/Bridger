@@ -533,4 +533,27 @@ describe("groups (BEH-BR-127, 128)", () => {
       expect(yield* stateIn(host, "a")).toBe("uninstalled")
     }))
   })
+
+  it("ADR-BR-038 item 4: a no-caller removal waiting for a dependent's running build keeps waiting past drainTimeout, never parks, and completes when the build ends", async () => {
+    const j = journal()
+    const out: { rt?: PluginRuntime["Service"]; kid?: { id: string; realm: string } } = {}
+    const gate = Effect.runSync(Deferred.make<void>())
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { out.rt = yield* PluginRuntime; out.kid = yield* out.rt.install(childDef(j, { provides: true })) })) as never }) as unknown as AnyPlugin
+    const dep = define({ id: "dep", requires: [Feature] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { yield* Feature; yield* Deferred.await(gate) })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(parent, as()); yield* idle(host)
+      const building = yield* Effect.forkChild(host.install(dep, as()))
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      expect(yield* stateIn(host, "dep")).toBe("starting")
+      const unmount = yield* Effect.forkChild(out.rt!.unmount(out.kid as never, { context: as().context }))
+      for (let i = 0; i < 60; i++) { if (!(yield* host.step)) yield* Effect.sleep(5) }     // well past drainTimeout (50 ms)
+      expect(unmount.pollUnsafe()).toBeUndefined()                                          // still waiting: no DrainTimeout, no parking
+      yield* Deferred.succeed(gate, undefined)
+      yield* stepAll(host, [building, unmount])
+      expect(Exit.isSuccess(yield* Fiber.await(unmount))).toBe(true)
+      expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
+    }), { options: { drainTimeout: 50 } })
+  })
 })
