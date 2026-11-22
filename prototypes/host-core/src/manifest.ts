@@ -10,8 +10,8 @@ export type LazyTrigger =
   | { readonly _tag: "OnService"; readonly serviceId: string }
   | { readonly _tag: "OnContribution"; readonly registry: string; readonly id: string }
   | { readonly _tag: "OnEvent"; readonly eventId: string }
-export interface ProvidedRef { readonly serviceId: string; readonly version?: string; readonly methods?: ReadonlyArray<string> }
-export interface RequiredRef { readonly serviceId: string; readonly range?: string; readonly version?: string; readonly methods?: ReadonlyArray<string> }
+export interface ProvidedRef { readonly serviceId: string; readonly internal?: boolean; readonly version?: string; readonly methods?: ReadonlyArray<string> }
+export interface RequiredRef { readonly serviceId: string; readonly internal?: boolean; readonly range?: string; readonly version?: string; readonly methods?: ReadonlyArray<string> }
 export interface PluginManifest {
   readonly manifestVersion: 1
   readonly id: string
@@ -59,6 +59,8 @@ export const decodeProblem = (m: unknown): string | undefined => {
       if (r.version !== undefined && !isStr(r.version)) return `manifest: ${field}[${i}].version`
       if (r.methods !== undefined && !strArr(r.methods)) return `manifest: ${field}[${i}].methods`
       if (field !== "provides" && r.range !== undefined && !isStr(r.range)) return `manifest: ${field}[${i}].range`
+      if (r.internal !== undefined && typeof r.internal !== "boolean") return `manifest: ${field}[${i}].internal`
+      if (r.internal !== undefined && r.version !== undefined) return `manifest: ${field}[${i}].internal (on a contract key)`
       if (r.version !== undefined && r.methods === undefined) return `manifest: ${field}[${i}].methods (version without methods)`
       if (r.version === undefined && r.methods !== undefined) return `manifest: ${field}[${i}].methods (methods on a plain key)`
     }

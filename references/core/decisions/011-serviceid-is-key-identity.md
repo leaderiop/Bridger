@@ -47,7 +47,7 @@ Shapes cannot be compared at runtime: types are erased and a `Context.Service` c
 **Negative**:
 
 - Applications must deduplicate packages that define shared keys (for example as peer dependencies); a duplicated copy is a `KeyMismatch`, even when the two copies are identical.
-- A shape change under an unchanged identifier still passes undetected; the convention and the distribution layer are the only defences.
+- A shape change under an unchanged identifier still passes undetected for a plain key; contract keys now also compare per-method schema digests (26, BEH-BR-228 clause 3b), and the loader and `bridger check` refuse a plain key that crosses a package boundary unless the manifest marks it `internal` (27, BEH-BR-241; loader BEH-LD-014; kit BEH-KT-028), so the weak path is explicit (report 02).
 
 **Trade-off accepted**: a strict failure for duplicated key packages, in exchange for never binding two key objects the host cannot prove are the same.
 
