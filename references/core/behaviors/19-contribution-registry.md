@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-22): BEH-BR-168 `Broker.make`, a stable facade that leases each call on a contribution of a contract registry, so a provider swap restarts no dependent (report 02 R3, D-03, D-12)<br>0.8 (2026-11-11): BEH-BR-162 `Options.report` (default true); BEH-BR-163 a registry made with `report: false` reports nothing (CL4); BEH-BR-168 excepts such registries (C4); BEH-BR-163 `ActivePlugin` also gives an `IncompatibleContract` its `providerRealm` (CL7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.10 (2026-11-22): BEH-BR-167 `Options.revokeTimeout` bounds the wait for revoked holders' finalizers, `HoldRevoked.stuck` (improvement report 03, T2)<br>0.9 (2026-11-22): BEH-BR-168 `Broker.make`, a stable facade that leases each call on a contribution of a contract registry, so a provider swap restarts no dependent (report 02 R3, D-03, D-12)<br>0.8 (2026-11-11): BEH-BR-162 `Options.report` (default true); BEH-BR-163 a registry made with `report: false` reports nothing (CL4); BEH-BR-168 excepts such registries (C4); BEH-BR-163 `ActivePlugin` also gives an `IncompatibleContract` its `providerRealm` (CL7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -86,6 +86,7 @@ namespace ContributionRegistry {
     readonly id: string                             // the contribution whose removal revoked its holders
     readonly owner?: EntryOwner                     // as on the view entry
     readonly holders: number                        // use / useAll callbacks interrupted with LeaseRevoked
+    readonly stuck: number                          // of those, holders whose finalizers still ran at `revokeTimeout` (0 when all returned)
     readonly at: string                             // Clock, ISO-8601 UTC with ms
     readonly seq: number                            // per registry, from 1, gap-free (BEH-BR-167)
   }
@@ -107,6 +108,7 @@ namespace ContributionRegistry {
   }
   interface Options {
     readonly drainTimeout?: Duration.Input | "forever"   // default 30 seconds
+    readonly revokeTimeout?: Duration.Input | "forever"  // wait for revoked holders' finalizers; default 30 seconds (BEH-BR-167)
     readonly name?: string                               // shown by inspect; default "registry"
     readonly report?: boolean                            // default true; false: entries are not reported to inspect
                                                          // (the event bus's listener lists, 16, BEH-BR-140)
@@ -364,8 +366,12 @@ REQUIREMENT: When a contribution's scope closes, the registry MUST first hide
 REQUIREMENT: The wait MUST be bounded by `Options.drainTimeout` (default
              30 seconds). When it expires, the callbacks still holding the
              contribution MUST be interrupted and MUST fail with
-             `LeaseRevoked`; the registry MUST wait for their finalizers and
-             then complete the removal.
+             `LeaseRevoked`; the registry MUST wait for their finalizers,
+             bounded by `Options.revokeTimeout` (default 30 seconds), and
+             then complete the removal. When `revokeTimeout` expires with a
+             holder's finalizer still running, the registry MUST stop
+             waiting, MUST NOT interrupt it, MUST complete the removal, and
+             MUST count that holder in `HoldRevoked.stuck`.
 ```
 
 ```
@@ -387,8 +393,8 @@ REQUIREMENT: When a removal revokes at least one holder, the registry MUST
 ```
 
 ```
-REQUIREMENT: `drainTimeout: "forever"` MUST be accepted only when stated
-             explicitly; it is never a default.
+REQUIREMENT: `drainTimeout: "forever"` and `revokeTimeout: "forever"` MUST be
+             accepted only when stated explicitly; neither is ever a default.
 ```
 
 The removal runs inside a scope finalizer, and a finalizer cannot fail. Without

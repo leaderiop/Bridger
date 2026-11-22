@@ -177,6 +177,8 @@ export interface Options {
   readonly buildTimeout?: number     // ms
   readonly staleFailureLimit?: number // consecutive discarded stale build failures that mark a build as flapping (default 3, BEH-BR-039)
   readonly drainTimeout?: number     // ms
+  /** BEH-BR-046 (report 03 R1): bound on closing one activation scope; default 30 s, "forever" only when declared. */
+  readonly closeTimeout?: number | "forever"
   readonly attribution?: AttributionOptions
   readonly auditTimeout?: number     // ms (default 10 s)
   readonly gateTimeout?: number      // ms (default 60 s)
@@ -346,6 +348,18 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const staleFailureLimit = options.staleFailureLimit ?? 3
   const handoffTimeout = options.handoffTimeout ?? 5_000
   const defaultDrain = options.drainTimeout ?? 30_000
+  const closeTimeout = options.closeTimeout ?? 30_000
+  /**
+   * Closes an activation scope under `closeTimeout` (BEH-BR-046). Effect finalizers cannot be interrupted, so the close runs
+   * detached and only the wait is bounded: on expiry the exit is a failure that claims no release (BEH-BR-107).
+   */
+  const closeScope = (scope: Scope.Closeable): Effect.Effect<Exit.Exit<void, never>> => closeTimeout === "forever"
+    ? Effect.exit(Scope.close(scope, Exit.void))
+    : Effect.gen(function* () {
+      const fiber = yield* Effect.forkDetach(Scope.close(scope, Exit.void), { startImmediately: true })
+      const done = yield* Fiber.await(fiber).pipe(Effect.timeoutOrElse({ duration: closeTimeout, orElse: () => Effect.succeed(undefined) }))
+      return done ?? Exit.die(new Error(`close timed out after ${closeTimeout} ms; a finalizer is still running and no release is claimed`))
+    })
 
   const entries = new Map<string, Entry>()
   const flights = new Map<string, Flight>()      // operator operations in flight, per plugin (BEH-BR-072)
@@ -1211,7 +1225,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (discard) {
       // Children mounted by a discarded activation are removed before its scope closes (BEH-BR-121, 128).
       yield* unmountChildren(e)
-      yield* Scope.close(scope, Exit.void)
+      yield* closeScope(scope)
       retire(e.principal); e.captures = []
     }
   })
@@ -1734,7 +1748,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     }
     // Close the scope; a finalizer that fails leaves failed(cleanup) (BEH-BR-046).
     const scope = e.scope
-    const closeExit = scope ? yield* Effect.exit(Scope.close(scope, Exit.void)) : Exit.void
+    const closeExit = scope ? yield* closeScope(scope) : Exit.void
     retire(e.principal)                                        // retirement follows the finalizers (BEH-BR-257)
     e.captures = []
     yield* locked(Effect.gen(function* () {

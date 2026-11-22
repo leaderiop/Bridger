@@ -18,12 +18,13 @@ export const counterIdGenerator = (prefix = "test-"): Layer.Layer<IdGenerator> =
 
 // ---------------------------------------------------------------- faults (BEH-BR-180)
 type Ref = string | { readonly id: string; readonly realm: string }
-export type FaultKind = "buildFails" | "stopFails" | "holdLease" | "runtimeFailure"
+export type FaultKind = "buildFails" | "stopFails" | "closeHangs" | "holdLease" | "runtimeFailure"
 export interface Fault { readonly kind: FaultKind; readonly id: string; readonly realm: string }
 const faultOf = (kind: FaultKind) => (ref: Ref): Fault => typeof ref === "string" ? { kind, id: ref, realm: "default" } : { kind, ...ref }
 export const Fault = {
   buildFails: faultOf("buildFails"),
   stopFails: faultOf("stopFails"),
+  closeHangs: faultOf("closeHangs"),
   holdLease: faultOf("holdLease"),
   runtimeFailure: faultOf("runtimeFailure")
 }
@@ -146,7 +147,7 @@ export const make = (options: Host.Options = {}): Effect.Effect<TestHost, never,
       if (active("buildFails", key)) return yield* Effect.fail(new InjectedFault("buildFails"))
       runtimes.set(key, yield* PluginRuntime)
       // Registered first, so it runs last: the close of the activation fails after the plugin's own finalizers.
-      yield* Effect.addFinalizer(() => active("stopFails", key) ? Effect.die(new InjectedFault("stopFails")) : Effect.void)
+      yield* Effect.addFinalizer(() => active("stopFails", key) ? Effect.die(new InjectedFault("stopFails")) : active("closeHangs", key) ? Effect.never : Effect.void)
       return yield* Layer.build(def.build)
     })) as unknown as AnyPlugin["build"]
     const out: AnyPlugin = { ...def, build }

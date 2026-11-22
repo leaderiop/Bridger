@@ -158,6 +158,22 @@ describe("TestHost: faults (BEH-BR-180)", () => {
     expect(p.state === "failed" && p.failure.phase).toBe("cleanup")
   })))
 
+  it("closeHangs (BEH-BR-046, report 03 R1): a hung finalizer fails the stop at closeTimeout with phase cleanup and no release claimed", () => runT((t) => Effect.gen(function* () {
+    yield* t.inject(Testing.Fault.closeHangs("example/logger"))
+    yield* t.install(loggerPlugin(journal()), as())
+    yield* t.runUntilIdle
+    const call = yield* Effect.forkChild(t.restart("example/logger", as()))
+    yield* t.runUntilIdle
+    yield* TestClock.adjust(999)
+    yield* Effect.yieldNow
+    expect(call.pollUnsafe()).toBeUndefined()                                  // still inside the bound
+    yield* TestClock.adjust(1)
+    const exit = yield* Fiber.await(call)
+    expect(failed(exit, "CleanupError") && failed(exit, "close timed out after 1000 ms")).toBe(true)
+    const p = (yield* t.snapshot).plugins[0]!
+    expect(p.state === "failed" && p.failure.phase).toBe("cleanup")
+  }), { options: { closeTimeout: 1000 } }))
+
   it("holdLease: a held lease makes a removal time out under the clock; force revokes it", () => runT((t) => Effect.gen(function* () {
     yield* t.inject(Testing.Fault.holdLease("example/logger"))
     yield* t.install(loggerPlugin(journal()), as())

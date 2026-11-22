@@ -1,5 +1,5 @@
 // ContributionRegistry (references/core behaviour 19, BEH-BR-161–168). Phase-P5 prototype — not product code.
-import { Cause, Deferred, Effect, Exit, Fiber, Option, Stream, SubscriptionRef, type Scope } from "effect"
+import { Cause, Clock, Deferred, Effect, Exit, Fiber, Option, PubSub, Stream, SubscriptionRef, type Scope } from "effect"
 import { ActivePlugin } from "./active.js"
 import { ContributionUnavailable, DuplicateContribution, IncompatibleContract, LeaseRevoked, LeaseTimeout } from "./errors.js"
 import { AccessDenied, CurrentPlugin, PolicySeam, refOf } from "./policy.js"
@@ -11,6 +11,16 @@ export interface RegistryView<A> {
 }
 /** A version, a version with its method names (and optionally their schema digests), or a `Contract.at` provision, whose contract copy is compared method by method (BEH-BR-228 clause 3b). */
 export type Implements = string | { readonly version: string; readonly methods: ReadonlyArray<string>; readonly schemas?: ContractDescriptor["schemas"] } | ContractProvision
+/** BEH-BR-167: one notice per removal that revoked at least one holder; `seq` is per registry, from 1, gap-free. */
+export interface HoldRevoked {
+  readonly registry: string
+  readonly id: string
+  readonly owner?: { readonly pluginId: string; readonly realm: string }
+  readonly holders: number                            // callbacks interrupted with LeaseRevoked
+  readonly stuck: number                              // of those, holders whose finalizers had not finished when `revokeTimeout` passed (report 03 T2)
+  readonly at: string
+  readonly seq: number
+}
 export interface AddOptions { readonly priority?: number; readonly implements?: Implements }
 export interface Registry<A> {
   readonly name: string
@@ -23,9 +33,12 @@ export interface Registry<A> {
   readonly useAll: <B, E, R>(run: (view: RegistryView<A>) => Effect.Effect<B, E, R>, options?: { readonly timeout?: number }) =>
     Effect.Effect<B, E | LeaseRevoked | LeaseTimeout, R>
   /** Contract registries only (BEH-BR-233): a reader treating out-of-range entries as absent. */
-  readonly within: (range: string) => Effect.Effect<Omit<Registry<A>, "add" | "within">>
+  readonly within: (range: string) => Effect.Effect<Omit<Registry<A>, "add" | "within" | "revocations">>
+  /** BEH-BR-167: a notification feed, not a log; a subscriber sees only notices published after it subscribed. */
+  readonly revocations: Stream.Stream<HoldRevoked>
 }
-export interface RegistryOptions { readonly drainTimeout?: number | "forever"; readonly name?: string; readonly contract?: Contract; readonly range?: string }
+/** `revokeTimeout` (default 30 s) bounds the wait for revoked holders' finalizers (BEH-BR-167, report 03 T2); "forever" only when declared. */
+export interface RegistryOptions { readonly drainTimeout?: number | "forever"; readonly revokeTimeout?: number | "forever"; readonly name?: string; readonly contract?: Contract; readonly range?: string }
 
 interface Slot<A> {
   readonly id: string
@@ -35,6 +48,7 @@ interface Slot<A> {
   readonly methods?: ReadonlyArray<string>
   hidden: boolean                                   // removal has begun: out of the view, id still reserved (BEH-BR-164)
   readonly holders: Set<Fiber.Fiber<unknown, unknown>>
+  readonly owner?: { readonly pluginId: string; readonly realm: string }
   idle?: Deferred.Deferred<void>
 }
 
@@ -45,6 +59,9 @@ const order = (a: { priority: number; id: string }, b: { priority: number; id: s
 export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A>, never, Scope.Scope> => Effect.gen(function* () {
   const name = options.name ?? "registry"
   const drainTimeout = options.drainTimeout ?? 30_000
+  const revokeTimeout = options.revokeTimeout ?? 30_000
+  const notices = yield* PubSub.sliding<HoldRevoked>(256)
+  let noticeSeq = 0
   const slots = new Map<string, Slot<A>>()
   let revision = 0
   // BEH-BR-233: a contract registry; an invalid contract or range, or a range without a contract, is a defect.
@@ -75,7 +92,18 @@ export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A
       const drained = drainTimeout === "forever"
         ? yield* Deferred.await(s.idle).pipe(Effect.as(true))
         : yield* Deferred.await(s.idle).pipe(Effect.as(true), Effect.timeoutOrElse({ duration: drainTimeout, orElse: () => Effect.succeed(false) }))
-      if (!drained) yield* Fiber.interruptAll([...s.holders])
+      if (!drained) {
+        const revoked = [...s.holders]
+        // Finalizers cannot be interrupted, so the revoke runs detached and only the wait is bounded (BEH-BR-167).
+        const revoking = yield* Effect.forkDetach(Fiber.interruptAll(revoked))
+        if (revokeTimeout === "forever") yield* Fiber.await(revoking)
+        else yield* Fiber.await(revoking).pipe(Effect.timeoutOrElse({ duration: revokeTimeout, orElse: () => Effect.succeed(undefined) }))
+        const stuck = revoked.filter((f) => f.pollUnsafe() === undefined).length
+        const at = new Date(yield* Clock.currentTimeMillis).toISOString()
+        const notice: HoldRevoked = { registry: name, id: s.id, ...(s.owner ? { owner: s.owner } : {}), holders: revoked.length, stuck, at, seq: ++noticeSeq }
+        yield* Effect.logWarning(`registry ${name}: removing ${s.id} revoked ${revoked.length} holder(s)${stuck > 0 ? `, ${stuck} still running their finalizers` : ""}`)
+        yield* PubSub.publish(notices, notice)
+      }
     }
     slots.delete(s.id)                                // only now may the id be added again (BEH-BR-164)
   })
@@ -108,7 +136,8 @@ export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A
     }
     // Check and register in one synchronous segment: two concurrent adds of one id yield one registration (BEH-BR-163).
     if (slots.has(id)) return yield* Effect.fail(new DuplicateContribution({ id }))
-    const s: Slot<A> = { id, priority, value, hidden: false, holders: new Set(), ...(declared ? { version: declared.version, methods: declared.methods } : {}) }
+    const ownerRef = yield* ActivePlugin
+    const s: Slot<A> = { id, priority, value, hidden: false, holders: new Set(), ...(Option.isSome(ownerRef) ? { owner: { pluginId: ownerRef.value.pluginId, realm: ownerRef.value.realm } } : {}), ...(declared ? { version: declared.version, methods: declared.methods } : {}) }
     slots.set(id, s)
     yield* bump
     const owner = yield* ActivePlugin
@@ -161,6 +190,7 @@ export const make = <A>(options: RegistryOptions = {}): Effect.Effect<Registry<A
   const all = reader(() => true)
   return {
     ...all, add,
+    revocations: Stream.fromPubSub(notices),
     changes: SubscriptionRef.changes(feed),
     // Misuse is a defect in the Effect channel, as in `make` (BEH-BR-233), never a synchronous throw.
     within: (r: string) => Effect.suspend(() => {

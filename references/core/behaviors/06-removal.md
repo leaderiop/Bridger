@@ -12,7 +12,7 @@
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.9 (2026-11-21): BEH-BR-045 a parked stop is republished only by `abort` (improvement report 01, R5)<br>0.8 (2026-11-11): BEH-BR-043 a child whose cleanup fails in a removal not under shutdown is unregistered at once, the leak acknowledged by the system, and a child whose removal or take-over its sub-scope close or `unmount` began is waited for by the cascade, not removed again (R1, C1, C4); BEH-BR-047 a system removal unregisters a `failed(cleanup)` child, logging the leak as acknowledged by the system; under shutdown it stays (R1, C4, C5); second pass (cleanest design): BEH-BR-047 defines once the system acknowledgement — its triggers (a child's removal by the system, a prune `remove` with `pruneAcknowledgeLeaks` as families and ephemeral realms issue it), its effect (unregister in the removal's turn, no cleanup re-run), its warning log and its `leak-acknowledged` record by `Actor.system`; BEH-BR-043 cites it (SPEC-AUDIT-09) (CCR-BR-041)<br>0.7 (2026-11-11): BEH-BR-043 a child of the leaving provider whose cleanup fails stays registered `failed` (cleanup) (C3) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.6 (2026-11-11): BEH-BR-045 `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`; BEH-BR-046 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.10 (2026-11-22): BEH-BR-046 closing an activation scope is bounded by `closeTimeout`; the close continues detached and claims no release (improvement report 03, R1, T1)<br>0.9 (2026-11-21): BEH-BR-045 a parked stop is republished only by `abort` (improvement report 01, R5)<br>0.8 (2026-11-11): BEH-BR-043 a child whose cleanup fails in a removal not under shutdown is unregistered at once, the leak acknowledged by the system, and a child whose removal or take-over its sub-scope close or `unmount` began is waited for by the cascade, not removed again (R1, C1, C4); BEH-BR-047 a system removal unregisters a `failed(cleanup)` child, logging the leak as acknowledged by the system; under shutdown it stays (R1, C4, C5); second pass (cleanest design): BEH-BR-047 defines once the system acknowledgement — its triggers (a child's removal by the system, a prune `remove` with `pruneAcknowledgeLeaks` as families and ephemeral realms issue it), its effect (unregister in the removal's turn, no cleanup re-run), its warning log and its `leak-acknowledged` record by `Actor.system`; BEH-BR-043 cites it (SPEC-AUDIT-09) (CCR-BR-041)<br>0.7 (2026-11-11): BEH-BR-043 a child of the leaving provider whose cleanup fails stays registered `failed` (cleanup) (C3) (SPEC-AUDIT-08) (CCR-BR-040)<br>0.6 (2026-11-11): BEH-BR-045 `DrainTimeout` carries `realm` beside `id` (absent for a `Generation`) and `target` as `{ id, realm }`; BEH-BR-046 `CleanupError` carries `realm` (C2) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.5 (2026-11-10): BEH-BR-045 `WouldDeadlock` carries `id` and `realm` (C1) (CCR-BR-036)<br>0.4 (2026-11-09): BEH-BR-041 and BEH-BR-043 a dependent ends `waiting` (or `starting`) except where its own stop ends otherwise (BEH-BR-039, BEH-BR-046, BEH-BR-033), `dormant` and `stopping` dependents named (C-17); a dependency-loss stop under shutdown ends "gone" (U-01) (CCR-BR-032)<br>0.3 (2026-10-02): `DrainTimeout { id, leases, target? }` for every stopping operation; cascade drain limit runs while waiting, for a build step too; one parking rule; children removed before the parent's scope closes; stops take no `concurrency` slot (CCR-BR-008)<br>0.2 (2026-10-02): DrainTimeout names the plugin whose leases did not drain; cascade ordering cross-referenced (CCR-BR-006)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -312,10 +312,9 @@ on that dependent is specified in
 A cascading call's total wait is therefore bounded by its own drain limit for
 the plugin it named and for each plugin on the dependency path below it, plus
 `buildTimeout` for each build step it waits for; it is not the sum of another
-call's limits, since its own limit runs while it waits. Finalizer running time
-is not bounded by the core ([12 — Shutdown and
-Hosting](./12-shutdown-and-hosting.md), BEH-BR-107), so the bound assumes
-finalizers that return.
+call's limits, since its own limit runs while it waits. Each stop on the path
+adds at most `closeTimeout` for closing its scope (BEH-BR-046; "forever" only
+when declared, and then the bound assumes finalizers that return).
 What happens to the pending removal after a `DrainTimeout`, and how a
 repeated call resumes it, is specified in
 [08 — Operation Legality](./08-operation-legality.md); how `force` revokes
@@ -345,6 +344,19 @@ REQUIREMENT: When closing a plugin's activation scope fails, the host MUST
              still treat the scope as closed and the plugin's services as
              unpublished, MUST record the plugin `failed` with phase
              "cleanup" and a message, and MUST keep it registered.
+```
+
+```
+REQUIREMENT: Closing one activation scope MUST be bounded by
+             `BridgerOptions.closeTimeout` (default 30 seconds; "forever" only
+             when stated explicitly, 02). When it expires with a finalizer
+             still running, the host MUST stop waiting, MUST treat the close
+             as failed as above with a message that names the limit
+             ("close timed out after N ms"), MUST NOT claim any resource of
+             that scope released, and MUST leave the plugin registered with its
+             slot reserved. The host MUST NOT interrupt the finalizer: the
+             close continues detached from the host's steps, and its late
+             completion changes nothing recorded.
 ```
 
 ```
