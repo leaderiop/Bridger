@@ -580,7 +580,9 @@ The specification passes `scripts/verify-traceability.sh --strict`.
 ### NFR-BR-007: Bounded memory
 
 Every buffer the host owns is bounded or released: the event buffer, retired
-generations, drained registries and removed plugins' state.
+generations, drained registries and removed plugins' state. The listener
+fibers of `emit` are bounded per listener, and the nest of listener
+re-dispatches is capped (16, BEH-BR-141, 144).
 
 ### NFR-BR-008: Mutation testing
 
@@ -670,7 +672,7 @@ it satisfies in its `**Satisfies:**` line.
 | NFR-BR-004 | [Definitions of Done](./process/definitions-of-done.md) | — |
 | NFR-BR-005 | [Definitions of Done](./process/definitions-of-done.md) | — |
 | NFR-BR-006 | [ADR-BR-001](./decisions/001-effect-v4-as-effect-system.md) | — |
-| NFR-BR-007 | [13](./behaviors/13-observability-and-diagnostics.md), [20](./behaviors/20-generation.md) | INV-BR-017 |
+| NFR-BR-007 | [13](./behaviors/13-observability-and-diagnostics.md), [16](./behaviors/16-event-bus.md), [20](./behaviors/20-generation.md) | INV-BR-017 |
 | NFR-BR-008 | [Definitions of Done](./process/definitions-of-done.md) | — |
 
 ## 7. Known gaps and open items

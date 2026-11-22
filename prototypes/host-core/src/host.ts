@@ -181,6 +181,10 @@ export interface Options {
   readonly buildTimeout?: number     // ms
   readonly staleFailureLimit?: number // consecutive discarded stale build failures that mark a build as flapping (default 3, BEH-BR-039)
   readonly drainTimeout?: number     // ms
+  /** BEH-BR-141, 142 (report 04 R4): default bound on one listener's invocations in flight, and on `parallel` fan-out; default 64. */
+  readonly listenerConcurrency?: number
+  /** BEH-BR-144 (report 04 R4): the deepest nest of listener re-dispatches before a defect; default 16. */
+  readonly emitDepthCap?: number
   /** BEH-BR-046 (report 03 R1): bound on closing one activation scope; default 30 s, "forever" only when declared. */
   readonly closeTimeout?: number | "forever"
   readonly attribution?: AttributionOptions
@@ -589,6 +593,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   // The bus is made before the ports are read; access and the OnEvent hook are bound late (round 2).
   const bus = makeBus({ drainTimeout: options.drainTimeout ?? 30_000, supervisor: hostScope,
     onListenerFailed: (event, message) => emit({ type: "listener-failed", event, message }),
+    onListenerOverflow: ({ pluginId, ...o }) => emit({ type: "listener-overflow", ...o }, pluginId),
+    ...(options.listenerConcurrency !== undefined ? { listenerConcurrency: options.listenerConcurrency } : {}), ...(options.emitDepthCap !== undefined ? { emitDepthCap: options.emitDepthCap } : {}),
     onListenerRun: (k: string, d: 1 | -1) => { const n = (listenerRuns.get(k) ?? 0) + d; if (n > 0) listenerRuns.set(k, n); else listenerRuns.delete(k) },
     get access() { return busHooks.access }, onDispatch: (id, args, ann) => busHooks.onDispatch ? busHooks.onDispatch(id, args, ann) : Effect.void } as Parameters<typeof makeBus>[0])
   if (!base.has(sid(Events))) base.set(sid(Events), { key: Events, service: bus })

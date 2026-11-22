@@ -28,6 +28,7 @@ export type HostEventBody =
   | { readonly type: "audit-degraded"; readonly message: string }
   | { readonly type: "audit-acknowledged" }
   | { readonly type: "listener-failed"; readonly event: string; readonly message: string }
+  | { readonly type: "listener-overflow"; readonly event: string; readonly listenerId: string; readonly bound: number; readonly dropped: number; readonly ended?: true }
 
 export type HostEvent = { readonly hostId: string; readonly seq: number; readonly timestamp: string; readonly pluginId?: string } & EventExtra & HostEventBody
 
