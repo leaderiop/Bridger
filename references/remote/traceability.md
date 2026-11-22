@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-TRACE                                             |
-> | Revision       | 0.10                                                          |
+> | Revision       | 0.11                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Traceability Matrix                                          |
-> | Change History | 0.10 (2026-11-22): REQ-RM-004 includes the schema-digest mismatch (improvement report 02, R1)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — REQ-RM-041 and REQ-RM-014 restated with checks 41 and 14 (F3, F4, PL4) (CCR-RM-012)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — REQ-RM-041 restated with the failed-unmount case (PL8) (CCR-RM-009)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — REQ-RM-036 restated: a placement refusal holds no claim (PL15) (CCR-RM-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — REQ-RM-050; REQ-RM-038, 042 and 044 restated; RSK-RM-017 row; INV-RM-010 and INV-RM-011 rows extended (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: file 09 to BEH-RM-072; INV-RM-012; REQ-RM-045–048; RSK-RM-016; REQ-RM-034 summary; BEH-RM-007 in file 01; REQ-RM-048 widened and REQ-RM-049 added; RSK-RM-016 row (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-RM-043, 044; REQ-RM-036, 038, 039 restated; INV-RM-011 row extended (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — BEH-RM-065–071, INV-RM-011, ADR-RM-010, REQ-RM-034–042, RSK-RM-014 and 015 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
+> | Change History | 0.11 (2026-11-22): BEH-RM-073, ADR-RM-011 and REQ-RM-051 (improvement report 06, R3)<br>0.10 (2026-11-22): REQ-RM-004 includes the schema-digest mismatch (improvement report 02, R1)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — REQ-RM-041 and REQ-RM-014 restated with checks 41 and 14 (F3, F4, PL4) (CCR-RM-012)<br>0.8 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-06) — REQ-RM-041 restated with the failed-unmount case (PL8) (CCR-RM-009)<br>0.7 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — REQ-RM-036 restated: a placement refusal holds no claim (PL15) (CCR-RM-007)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — REQ-RM-050; REQ-RM-038, 042 and 044 restated; RSK-RM-017 row; INV-RM-010 and INV-RM-011 rows extended (CCR-RM-006)<br>0.5 (2026-11-09): Specification audit of 2026-11-09: file 09 to BEH-RM-072; INV-RM-012; REQ-RM-045–048; RSK-RM-016; REQ-RM-034 summary; BEH-RM-007 in file 01; REQ-RM-048 widened and REQ-RM-049 added; RSK-RM-016 row (core CCR-BR-033) (CCR-RM-004)<br>0.4 (2026-11-08): Round-2 agent review — REQ-RM-043, 044; REQ-RM-036, 038, 039 restated; INV-RM-011 row extended (CCR-RM-003)<br>0.3 (2026-11-08): round 2: recheck items 20, 23 and 25 — BEH-RM-065–071, INV-RM-011, ADR-RM-010, REQ-RM-034–042, RSK-RM-014 and 015 (CCR-RM-003)<br>0.2 (2026-11-08): resolutions of the agent review of 2026-11-08 — BEH-RM-024, 039, 048, 056; INV-RM-010; REQ-RM-027–033; RSK-RM-012, 013 (CCR-RM-002)<br>0.1 (2026-11-08): Initial draft (CCR-RM-001)                 |
 
 ---
 
@@ -31,7 +31,7 @@ Every source and test path is *(Planned)*; no scenario has run.
 | [06](behaviors/06-capability-tokens-and-call-log.md) | BEH-RM-041–048 | INV-RM-003, 004, 007, 010 | ADR-RM-003, 004, 005 | `packages/remote/src/Token.ts`, `Callback.ts` *(Planned)* |
 | [07](behaviors/07-transports-and-adapters.md) | BEH-RM-049–056 | INV-RM-002, 004, 009 | ADR-RM-003, 006, 007, 009 | `packages/remote/src/Transport.ts`; `packages/worker/`, `packages/worker-loader/`, `packages/workerd/` *(Planned)* |
 | [08](behaviors/08-test-transport-and-acceptance.md) | BEH-RM-057–061 | INV-RM-001, 006 | ADR-RM-001, 009 | `packages/remote/src/testing/TestTransport.ts` *(Planned)* |
-| [09](behaviors/09-placement-budgets-and-adapters.md) | BEH-RM-065–072 | INV-RM-007, 009, 011, 012 | ADR-RM-001, 005, 006, 007, 010 | `packages/remote/src/Placement.ts`, `Budget.ts`, `Dedupe.ts`, `PostMessage.ts`, `Transport.ts`; `packages/workers-for-platforms/` *(Planned)* |
+| [09](behaviors/09-placement-budgets-and-adapters.md) | BEH-RM-065–073 | INV-RM-007, 009, 011, 012 | ADR-RM-001, 005, 006, 007, 010, 011 | `packages/remote/src/Placement.ts`, `Budget.ts`, `Dedupe.ts`, `PostMessage.ts`, `Transport.ts`; `packages/workers-for-platforms/` *(Planned)* |
 
 ## §2 Invariants
 
@@ -64,6 +64,7 @@ Every source and test path is *(Planned)*; no scenario has run.
 | [ADR-RM-008](decisions/008-unknown-outcomes-are-surfaced-never-retried.md) — Unknown outcomes are surfaced, never retried | Proposed |
 | [ADR-RM-009](decisions/009-deterministic-test-transport.md) — A deterministic test transport, and the core suites re-run through proxies | Proposed |
 | [ADR-RM-010](decisions/010-placement-labels-compared-at-the-boundary.md) — Placement labels are compared at the process boundary, as strings | Proposed |
+| [ADR-RM-011](decisions/011-isolation-claims-are-conformance-evidence.md) — An adapter's isolation claims are conformance evidence, not an enum | Proposed |
 
 ## §4 Acceptance scenarios
 
@@ -123,6 +124,7 @@ order. Planned location `packages/remote/test/` *(Planned)*. None has run.
 | REQ-RM-048 | 48. The loader's `RevokedDigests` view refuses at the boundary at once; the link manifest is carried and checked by core; crossing entries name the disclosed claims | [BEH-RM-014](behaviors/02-sessions-and-epochs.md), [BEH-RM-001](behaviors/01-remote-proxy-plugin.md), [BEH-RM-024](behaviors/03-remote-calls.md), [BEH-RM-046](behaviors/06-capability-tokens-and-call-log.md) | Not run |
 | REQ-RM-049 | 49. A local contract is refused at link build, at serve and guest start, and for grants and callbacks | [BEH-RM-007](behaviors/01-remote-proxy-plugin.md), [BEH-RM-043](behaviors/06-capability-tokens-and-call-log.md) | Not run |
 | REQ-RM-050 | 50. Callback placement and budget checked after the duplicate check; a duplicate of an admitted callback is never refused or charged again | [BEH-RM-043](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-048](behaviors/06-capability-tokens-and-call-log.md), [BEH-RM-066](behaviors/09-placement-budgets-and-adapters.md), [BEH-RM-069](behaviors/09-placement-budgets-and-adapters.md) | Not run |
+| REQ-RM-051 | 51. The isolation conformance suite registers six numbered cases, manifest first and result-free; `reached` and `unsupported` fail | [BEH-RM-073](behaviors/09-placement-budgets-and-adapters.md) | Not run |
 
 ## §5 Risks
 

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-RM-BEH-09                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-RM-067: the guest calls `DedupeStore.claim` only after the placement check of BEH-RM-069, and a copy refused there holds no claim (PL15) (CCR-RM-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-RM-066 and BEH-RM-069: callback budget and placement checks at steps 4b and 4a of BEH-RM-043 (M14); BEH-RM-069: only `Remote.serve` decodes through `Remote.layer` and offers to the `CallLog`, `Guest.serve` decodes with its own key list, takes `options.placement` and logs refusals locally (M13); BEH-RM-067 and BEH-RM-070 read the `GuestTransport` profile (H8) (CCR-RM-006)<br>0.4 (2026-11-10): round 2 follow-up: `DedupeUnavailable` declared (BEH-RM-067) (CCR-RM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
+> | Change History | 0.7 (2026-11-22): BEH-RM-073 the isolation conformance suite (improvement report 06, R3)<br>0.6 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-04) — BEH-RM-067: the guest calls `DedupeStore.claim` only after the placement check of BEH-RM-069, and a copy refused there holds no claim (PL15) (CCR-RM-007)<br>0.5 (2026-11-10): Specification audit of 2026-11-10 (SPEC-AUDIT-03) — BEH-RM-066 and BEH-RM-069: callback budget and placement checks at steps 4b and 4a of BEH-RM-043 (M14); BEH-RM-069: only `Remote.serve` decodes through `Remote.layer` and offers to the `CallLog`, `Guest.serve` decodes with its own key list, takes `options.placement` and logs refusals locally (M13); BEH-RM-067 and BEH-RM-070 read the `GuestTransport` profile (H8) (CCR-RM-006)<br>0.4 (2026-11-10): round 2 follow-up: `DedupeUnavailable` declared (BEH-RM-067) (CCR-RM-005)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (F-07, F-06): BEH-RM-065 `WireClaims.org` sent only when the link discloses "org"; new BEH-RM-072 `Transport.fromBundle` and `BundleRuntime`, starting a guest from the bytes the loader verified at each session attempt (CCR-RM-004)<br>0.2 (2026-11-08): Round-2 agent review (R4 F14, F17, F18, F19, F20; R5-09) — the link checks the calling fiber's own residency label before sending; `Transport.postMessage` gains the "opaque" mode for frames sandboxed without allow-same-origin (ready message checked by `event.source` and a one-time nonce, port posted once with "*" to that window); trust-boundary sentence narrowed to other windows and frames; `DedupeStore` claim after the refusal checks, "running" answered `InProgress`, retention option and residual stated (CCR-RM-003)<br>0.1 (2026-11-08): Initial draft — round 2: recheck items 20 and 23 (organisation claim, per-principal budgets, `DedupeStore`, residency placement, `Transport.postMessage`, Workers for Platforms adapter) (CCR-RM-003) |
 
 ---
 
@@ -659,6 +659,61 @@ and revocation set. (2) A fetch or a verification refusal is a failed
 failure of the link: the link keeps trying on its schedule, and a revoked
 digest is refused before `open` is called by the boundary check of
 BEH-RM-014.
+
+## BEH-RM-073: An adapter's isolation claims are evidence from a negative conformance suite
+
+> **See:** [ADR-RM-011](../decisions/011-isolation-claims-are-conformance-evidence.md), [ADR-RM-006](../decisions/006-isolation-comes-from-the-host.md)
+> **Satisfies:** [URS-BR-026](../../core/urs.md#urs-br-026-know-which-compliance-obligations-remain-mine)
+> **Risk:** [RSK-RM-005](../risks.md#rsk-rm-005), [RSK-BR-013](../../core/gxp/03-risk-assessment.md#rsk-br-013)
+
+```ts
+// illustrative — not type-checked
+declare const runIsolationConformance: (adapter: IsolationProbe, options: { readonly register: Register }) => IsolationManifest
+interface IsolationProbe {                      // each case asks the guest to attempt one thing and report what happened
+  readonly attempt: (probe: "egress" | "filesystem" | "environment" | "cpu" | "memory" | "module-cache") => Effect.Effect<"reached" | "refused" | "unsupported">
+}
+interface IsolationManifest {                   // result-free: written before any case runs, as the gxp suite's manifest is
+  readonly adapter: string; readonly cases: readonly { readonly id: string; readonly probe: string }[]
+  readonly results: readonly { readonly id: string; readonly outcome: "withheld" | "reached" | "unsupported" }[]
+}
+```
+
+```
+REQUIREMENT: The remote package MUST provide `runIsolationConformance`, which
+             registers one numbered case per probe, in the order egress (1),
+             filesystem (2), environment (3), cpu (4), memory (5), shared
+             module cache (6), with the caller's test registrar, the manifest
+             of cases first and with no result in it. Case numbers MUST
+             NOT be reused. A case passes only when the adapter reports the
+             attempt `refused`; `reached` fails, and `unsupported` fails as
+             well, never skipped.
+```
+
+```
+REQUIREMENT: An adapter that does not withhold what a case probes MUST keep
+             that case failing and say so in its documentation (BEH-RM-052
+             obligation 6): a failing case is the truthful statement that
+             the host mechanism does not provide that isolation, and is
+             never turned off. A deployment that treats an adapter as a
+             boundary for third-party code MUST attach the manifest and
+             results of a run against the real runtime to its operational
+             qualification evidence (gxp, BEH-GX-130); a pack without them
+             cannot claim the isolation.
+```
+
+```
+REQUIREMENT: The suite MUST NOT assert isolation on its own: its output
+             states that it covers six probes of the adapter in the run's
+             environment and says nothing of other routes (BEH-RM-053).
+```
+
+The architecture's rule stays: Bridger provides no isolation. What changes is
+that an adapter's statement of what it does not prevent (obligation 6) becomes
+something a reviewer can run against it, so a deployment that puts third-party
+code behind an adapter has a number of failing cases to read, not a paragraph
+of documentation. The first adapter, `@bridger/worker`, fails egress, filesystem
+and environment, and the suite shows exactly that.
+
 
 ---
 

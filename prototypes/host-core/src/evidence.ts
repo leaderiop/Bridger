@@ -18,7 +18,7 @@ export interface OqEvidence {
 export const outcomeOf = (statuses: ReadonlyArray<TestStatus>): Outcome =>
   statuses.includes("failed") ? "fail" : statuses.includes("passed") ? "pass" : statuses.includes("skipped") ? "skipped" : "not covered"
 
-export const tagsOf = (name: string): ReadonlyArray<string> => [...new Set(name.match(/\bBEH-BR-\d{1,3}\b/g) ?? [])]
+export const tagsOf = (name: string): ReadonlyArray<string> => [...new Set(name.match(/\b(?:BEH-BR|BEH-RM|BEH-GX)-\d{1,3}\b/g) ?? [])]
 
 /** Reads vitest's JSON report completely or not at all: a missing or unknown field is an error, never a guess (BEH-GX-122). */
 export const readVitestReport = (report: unknown): ReadonlyArray<RunnerTest> => {

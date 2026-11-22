@@ -42,3 +42,7 @@ entries:
     file: "010-placement-labels-compared-at-the-boundary.md"
     title: "Placement labels are compared at the process boundary, as strings"
     status: "Proposed"
+  - id: "ADR-RM-011"
+    file: "011-isolation-claims-are-conformance-evidence.md"
+    title: "An adapter's isolation claims are conformance evidence, not an enum"
+    status: "Proposed"
