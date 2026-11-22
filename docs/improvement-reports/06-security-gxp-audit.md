@@ -73,7 +73,7 @@ A second read of files the first pass skipped (federation 03, 04 and 06, keyring
 | S54 | Resolved | Token refs may be guessable and the callback parent is guest-chosen (remote 06:111-165). Fix: 128-bit CSPRNG refs bound to session, epoch, call and guest. |
 | S55 | Resolved | `reverify.acceptedAt` and rollback state come from an unauthenticated store; guest-link grants are not bound to `requested` (loader 07/08/09). Fix: MAC the accepted record; require grants to be a subset of `requested`. |
 
-S38, S39, S40, S41, S42, S43, S45, S48, S49, S50, S51, S52, S53, S54 and S55 are enforced by reference kernels in `src/hardening.ts` (the event-store rules S38, S40 and S41 also run end to end in the minimal store `src/eventstore.ts`, `test/sec-eventstore.test.ts`) with `test/sec-hardening.test.ts`; the spec requirement for each is in the package file the row names. The event-store, durable-bus, command, agent, mcp, sequence, remote and loader packages themselves are not in the prototype, so the kernels are the checked form of each rule, not the packages.
+S38, S39, S40, S41, S42, S43, S45, S48, S49, S50, S51, S52, S53, S54 and S55 are enforced by reference kernels in `src/hardening.ts` (the event-store rules S38, S40 and S41 also run end to end in the minimal store `src/eventstore.ts`, `test/sec-eventstore.test.ts`; S39 and S42 in the minimal bus `src/durablebus.ts`, `test/sec-durablebus.test.ts`) with `test/sec-hardening.test.ts`; the spec requirement for each is in the package file the row names. The event-store, durable-bus, command, agent, mcp, sequence, remote and loader packages themselves are not in the prototype, so the kernels are the checked form of each rule, not the packages.
 
 ## Executive summary
 
