@@ -31,6 +31,7 @@ export const makeKeyring = (o: {
   if (o.maxUsesPerKey > 2 ** 31) throw new Error("maxUsesPerKey above 2^31")
   const keys = new Map<string, Uint8Array[]>(), uses = new Map<string, number>(), tomb = new Set<string>(), events: KeyEvent[] = []
   const add = (subject: string) => {
+    if (tomb.has(subject)) throw new PayloadEncodeFailed("KeyShredded")                      // a closed subject never gets a new key (INV-KR-003)
     const vs = keys.get(subject) ?? []
     if (vs.length >= o.maxKeyVersions) throw new KeyVersionLimit(subject)
     vs.push(o.keySource()); keys.set(subject, vs); uses.set(subject, 0)

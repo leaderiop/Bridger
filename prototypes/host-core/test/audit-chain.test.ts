@@ -33,6 +33,13 @@ describe("audit-chain offline verification", () => {
     const r = verifyBundle(mk(t))
     expect(r.chain.h1!.breaks.map((x) => [x.seq, x.kind])).toContainEqual([2, "hash-mismatch"]); expect(r.chain.h1!.linksCheckedThrough).toBe(1); expect(r.inconsistent).toBe(true)
   })
+  it("a break marker the sink recorded cannot be stripped from a link unnoticed (S60)", () => {
+    const e = entries(), marked = [e[0]!, { ...e[1]!, link: { ...e[1]!.link!, break: { reason: "retry-mismatch" as const } } }, e[2]!, e[3]!]
+    expect(verifyBundle(mk(marked)).chain.h1!.breaks).toContainEqual(expect.objectContaining({ seq: 2, kind: "sink-marked" }))
+    const expectedBreaks = new Map([["h1/2", "retry-mismatch"]])
+    expect(verifyBundle(mk(e), { expectedBreaks }).chain.h1!.breaks).toContainEqual({ seq: 2, kind: "sink-marked", marker: "stripped" })   // the same entries with the marker removed
+    expect(verifyBundle(mk(e)).chain.h1!.breaks).toEqual([])
+  })
   it("a broken link names the seq", () => {
     const e = entries(); const t = [e[0]!, e[1]!, { ...e[2]!, link: { ...e[2]!.link!, prevHash: "00".repeat(32) } }, e[3]!]
     expect(verifyBundle(mk(t)).chain.h1!.breaks).toContainEqual(expect.objectContaining({ seq: 3, kind: "prev-mismatch" }))

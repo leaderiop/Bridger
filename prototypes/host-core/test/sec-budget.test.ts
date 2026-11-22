@@ -47,15 +47,25 @@ describe("budget (BEH-EN-017, BEH-EN-018, BEH-EN-020)", () => {
     const ledger = { reserve: (r: { id: string; period: number }) => up ? Effect.sync(() => { seen.push({ id: r.id, period: r.period }) }) : Effect.fail(new Error("down")) }
     await Effect.runPromise(Effect.gen(function* () {
       yield* TestClock.adjust(1500)
-      const b = makeBudget(lim, { onUnmatched: "refuse", anchor: 0, ledger: ledger as never, onLedgerUnavailable: "local" })
+      const b = makeBudget(lim, { onUnmatched: "refuse", anchor: 0, ledger: ledger as never, onLedgerUnavailable: "local", instanceId: "i1" })
       expect((yield* Effect.exit(b.reserve(key({ org: "o1" }), 1)))._tag).toBe("Success"); expect(b.usage().unreconciled).toBe(1)
       up = true
       yield* b.reserve(key({ org: "o1" }), 1)
-      expect(b.usage().unreconciled).toBe(0); expect(seen.map((s) => s.id)).toEqual(["r-1", "r-2"]); expect(seen.every((s) => s.period === 1)).toBe(true)
+      expect(b.usage().unreconciled).toBe(0); expect(seen.map((s) => s.id)).toEqual(["i1-1", "i1-2"]); expect(seen.every((s) => s.period === 1)).toBe(true)
       up = false
-      const strict = makeBudget(lim, { onUnmatched: "refuse", anchor: 0, ledger: ledger as never, onLedgerUnavailable: "refuse" })
+      const strict = makeBudget(lim, { onUnmatched: "refuse", anchor: 0, ledger: ledger as never, onLedgerUnavailable: "refuse", instanceId: "i1" })
       expect((yield* Effect.exit(strict.reserve(key({ org: "o1" }), 1)))._tag).toBe("Failure")
     }).pipe(Effect.provide(TestClock.layer())))
-    expect(() => makeBudget(lim, { onUnmatched: "refuse", anchor: 0, ledger: ledger as never })).toThrow(/onLedgerUnavailable/)
+    expect(() => makeBudget(lim, { onUnmatched: "refuse", anchor: 0, ledger: ledger as never, instanceId: "i1" })).toThrow(/onLedgerUnavailable/)
+  })
+  it("concurrent reservations cannot both pass the check, and a ledger refusal gives the debit back (S56)", async () => {
+    const lim: BudgetLimit[] = [{ match: { org: "o1" }, unit: "tokens", amount: 10 }]
+    const b = makeBudget(lim, { onUnmatched: "refuse" })
+    const exits = await Effect.runPromise(Effect.all(Array.from({ length: 5 }, () => Effect.exit(b.reserve(key({ org: "o1" }), 4))), { concurrency: "unbounded" }))
+    expect(exits.filter((e) => e._tag === "Success")).toHaveLength(2); expect(b.remaining(key({ org: "o1" }))[0]!.remaining).toBe(2)
+    const refusing = { reserve: () => Effect.fail(new Error("down")) }
+    const c = makeBudget(lim, { onUnmatched: "refuse", ledger: refusing as never, onLedgerUnavailable: "refuse", instanceId: "i2" })
+    expect((await Effect.runPromise(Effect.exit(c.reserve(key({ org: "o1" }), 4))))._tag).toBe("Failure"); expect(c.remaining(key({ org: "o1" }))[0]!.remaining).toBe(10)
+    expect(() => makeBudget(lim, { onUnmatched: "refuse", ledger: refusing as never, onLedgerUnavailable: "refuse" })).toThrow(/instanceId/)
   })
 })

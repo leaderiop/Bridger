@@ -20,6 +20,7 @@ export const subjectDigest = (subject: string): string => createHash("sha256").u
 
 /** Nothing is written before this allows. A refusal, a deferral and a gate defect all refuse: a shred is never pending approval inside the keyring. */
 export const authorizeShred = (gate: Gate<ShredRequest>, request: ShredRequest): Effect.Effect<void, ShredRefused> =>
+  request.actor.id.trim() === "" || request.actor.id.startsWith("bridger:") || request.reason.trim() === "" ? Effect.fail(new ShredRefused("unattributed")) :
   Effect.flatMap(Effect.exit(gate.decide(request, { annotations: Annotations.empty })), (exit) =>
     exit._tag === "Failure" ? Effect.fail(new ShredRefused("gate-defect"))
     : exit.value._tag === "Allow" ? Effect.void
@@ -33,8 +34,8 @@ export const receiveNotice = (o: { readonly gate: Gate<ShredRequest>; readonly s
     const request: ShredRequest = { operation: "apply-shred-notice", subjectDigest: subjectDigest(n.subject), actor: { id: `keyring-notice:${n.origin}`, kind: "service" } as Actor, reason: n.reason, ...(n.correlationId ? { correlationId: n.correlationId } : {}), origin: n.origin, reversibility: "irreversible" }
     const ok = yield* Effect.exit(authorizeShred(o.gate, request))
     if (ok._tag === "Failure") return "pending" as const
-    o.seen.add(n.shredId)
     yield* o.apply(n)
+    o.seen.add(n.shredId)                                                      // marked only once applied: a failed apply is retried, never lost
     return "applied" as const
   })
 

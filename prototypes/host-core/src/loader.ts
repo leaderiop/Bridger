@@ -87,7 +87,9 @@ const ed25519Verifies = (input: Bytes, sig: Signature, t: TrustedSigner): boolea
 
 // ---------------------------------------------------------------------------------------------- the Sigstore adapter (BEH-LD-018), offline
 /** `roots` pins the Fulcio chain: its intermediates and self-signed root; `logKey` pins the Rekor log's public key (PEM). */
-export interface SigstorePin { readonly issuer: string; readonly subject: string; readonly roots: ReadonlyArray<string>; readonly logKey: string }
+export interface SigstorePin { readonly issuer: string; readonly subject: string; readonly roots: ReadonlyArray<string>; readonly logKey: string
+  /** The inclusion-proof path signs no time (a checkpoint carries a size and a root only), so its `integratedTime` is the bundle's word; accepted only when the pin says so (S61). */
+  readonly allowUnsignedTime?: boolean }
 /** The fields of a Sigstore bundle (protobuf JSON, `application/vnd.dev.sigstore.bundle`) this adapter reads: a leaf certificate, a message signature and a Rekor entry
  *  with a signed entry timestamp (SET), or an inclusion proof whose checkpoint the log key signed. */
 export interface SigstoreBundle {
@@ -175,15 +177,15 @@ const sigstoreVerifies = (input: Bytes, sig: Signature, t: TrustedSigner): { rea
     if (!entryBinds(JSON.parse(body.toString("utf8")), sigB64, input, env?.payload)) return undefined          // the entry is about this signature of this input
     const integrated = Number(entry.integratedTime)
     const set = entry.inclusionPromise?.signedEntryTimestamp
-    let proven = false
-    if (set) proven = edVerify(hashAlg(logKey), utf8(jcs({ body: entry.canonicalizedBody, integratedTime: integrated, logID: logHex, logIndex: Number(entry.logIndex) })), logKey, Buffer.from(set, "base64"))
+    let proven = false, timeSigned = false
+    if (set) proven = timeSigned = edVerify(hashAlg(logKey), utf8(jcs({ body: entry.canonicalizedBody, integratedTime: integrated, logID: logHex, logIndex: Number(entry.logIndex) })), logKey, Buffer.from(set, "base64"))
     const ip = entry.inclusionProof
     if (!proven && ip) {                                                                                       // an inclusion proof counts only with a verified checkpoint
       const cp = checkpointOf(ip.checkpoint.envelope, logKey)
       proven = cp !== undefined && cp.size === Number(ip.treeSize) && Buffer.compare(cp.root, Buffer.from(ip.rootHash, "base64")) === 0
         && verifyInclusion(sha(Uint8Array.of(0), body), Number(ip.logIndex), Number(ip.treeSize), ip.hashes.map((h) => Buffer.from(h, "base64")), cp.root)
     }
-    if (!proven) return undefined
+    if (!proven || (!timeSigned && pin.allowUnsignedTime !== true)) return undefined
     const atMs = integrated * 1000
     const anchored = (c: X509Certificate, depth: number): boolean => {                                         // up through pinned certificates to a pinned self-signed root
       if (depth > 4 || atMs < Date.parse(c.validFrom) || atMs > Date.parse(c.validTo)) return false

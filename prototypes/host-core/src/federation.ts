@@ -49,7 +49,7 @@ export type OfferVerdict =
   | { readonly outcome: "StaleExport"; readonly key: string; readonly fence: number; readonly highest: number }
   | { readonly outcome: "ExportConflict"; readonly key: string; readonly owners: ReadonlyArray<string> }
   | { readonly outcome: "PeerMismatch"; readonly key: string; readonly offered: string; readonly authenticated: string }   // the offer names a host the transport did not authenticate
-  | { readonly outcome: "advisory"; readonly key: string; readonly reason: "unauthenticated" | "out-of-window" }          // checked for staleness, never stored, never closes a link
+  | { readonly outcome: "advisory"; readonly key: string; readonly reason: "unauthenticated" | "out-of-window" | "not-owner" }          // checked for staleness, never stored, never closes a link
 
 /** Per importer: the highest token seen per (key, scope), never lowered; the authority is the only source of a token. */
 export class FenceTable {
@@ -85,6 +85,7 @@ export class FenceTable {
     const stale = cur && f.token < cur.token
     if (stale) return this.see(key, f, endpoint)                                       // a stale offer is refused whoever sends it
     if (link.authenticatedPeer === undefined) return { outcome: "advisory", key, reason: "unauthenticated" }
+    if (f.owner !== link.authenticatedPeer || (cur && f.owner !== cur.owner)) return { outcome: "advisory", key, reason: "not-owner" }   // a peer raises the fence only for itself, and an owner change comes from the signed manifest, never an offer
     if (cur && f.token > cur.token + link.maxJump) return { outcome: "advisory", key, reason: "out-of-window" }
     return this.see(key, f, endpoint)
   }

@@ -55,4 +55,8 @@ describe("keyring codec", () => {
     expect(k.events).toEqual([{ op: "rotate", subject: "u1", actor: "ops:alice", reason: "scheduled" }, { op: "rotate", subject: "u1", actor: "ops:alice", reason: "again" }, { op: "rewrap", subject: "u1", actor: "ops:bob", reason: "kek change" }])
     expect(() => k.rotate("u1", "ops:alice", "third")).toThrow(KeyVersionLimit)
   })
+  it("a shredded subject cannot be rotated into a new key (S57)", () => {
+    const k = kr(); k.rotate("u1", "ops", "r"); k.shred("u1")
+    expect(() => k.rotate("u1", "ops", "again")).toThrow(PayloadEncodeFailed); expect(k.versions("u1")).toBe(0)
+  })
 })

@@ -226,7 +226,7 @@ describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
     const rd = (f: string) => readFileSync(join(d, f), "utf8")
     const leaf = new X509Certificate(rd("leaf.pem")), logPub = createPublicKey(rd("log.pub"))
     const logHex = createHash("sha256").update(logPub.export({ format: "der", type: "spki" })).digest("hex")
-    const pin = { issuer: "https://accounts.example", subject: "dev@acme.example", roots: [rd("root.pem")], logKey: rd("log.pub") }
+    const pin = { issuer: "https://accounts.example", subject: "dev@acme.example", roots: [rd("root.pem")], logKey: rd("log.pub"), allowUnsignedTime: true }
     const statement = L.Statement.make({ statementType: "package", subject: { digest: "sha256:" + "ab".repeat(32) }, id: "x", version: "1" })
     const input = Buffer.from(L.Statement.signingInput(statement))
     const jcs = (o: Record<string, unknown>) => "{" + Object.keys(o).sort().map((k) => JSON.stringify(k) + ":" + JSON.stringify(o[k])).join(",") + "}"
@@ -298,6 +298,9 @@ describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
     expect(count(f.bundle(), f.policy({ ...f.pin, issuer: "https://evil.example" })).satisfied).toBe(false)
     expect(count(f.bundle(), f.policy({ ...f.pin, roots: other.pin.roots })).satisfied).toBe(false)
     expect(count(f.bundle({ logKeyFile: "root.key" })).satisfied).toBe(false)                                   // the SET is not by the pinned log key
+    // S61: a checkpoint signs no time, so without allowUnsignedTime the proof path is refused while the SET path still verifies
+    const strict = f.policy({ ...f.pin, allowUnsignedTime: false })
+    expect(count(f.bundle({ path: "checkpoint" }), strict).satisfied).toBe(false); expect(count(f.bundle({ path: "set" }), strict).satisfied).toBe(true)
     expect(count(f.bundle({ path: "checkpoint", logKeyFile: "root.key" })).satisfied).toBe(false)               // nor the checkpoint
     expect(count(f.bundle({ tamperBody: true })).satisfied).toBe(false)                                         // the Rekor entry does not name this signature
     expect(count(f.bundle({ path: "checkpoint", badProof: true })).satisfied).toBe(false)                       // an inclusion proof that does not reach the signed root

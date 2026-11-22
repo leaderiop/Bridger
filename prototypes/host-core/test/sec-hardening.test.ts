@@ -81,3 +81,11 @@ describe("S43", () => {
     expect(H.linkMetaOk({ origin: "a" }, { origin: "a", break: true })).toBe(false); expect(H.linkMetaOk({ origin: "b", break: false }, { origin: "a", break: false })).toBe(false)
   })
 })
+
+describe("S62 received stream names", () => {
+  it("origin and stream cannot trade a colon, and the hash form cannot collide with an origin named h", () => {
+    expect(H.receivedStream("a:b", "c")).not.toBe(H.receivedStream("a", "b:c"))
+    expect(H.receivedStream("h", "x")).not.toBe(H.receivedStream("x".repeat(300), "y").replace(/^rx:%h:/, "rx:h:"))
+    expect(H.receivedStream("x".repeat(300), "y")).toMatch(/^rx:%h:/)
+  })
+})

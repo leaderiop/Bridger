@@ -39,4 +39,15 @@ describe("gated shred", () => {
     expect(applied).toEqual(["s1"])
     expect(allow.seen[0]).toMatchObject({ operation: "apply-shred-notice", actor: { id: "keyring-notice:node-b" }, origin: "node-b" })
   })
+  it("a blank or reserved actor or a blank reason is refused before the gate; a notice whose apply fails is not marked seen and is retried (S57, S58)", async () => {
+    const { gate, seen: asked } = gateOf(() => "allow")
+    for (const bad of [{ ...req(), actor: { id: " ", kind: "user" as const } }, { ...req(), actor: { id: "bridger:system", kind: "service" as const } }, { ...req(), reason: " " }])
+      expect(await Effect.runPromise(Effect.flip(gatedShred(gate, bad, Effect.void)))).toBeInstanceOf(ShredRefused)
+    expect(asked).toHaveLength(0)
+    const seen = new Set<string>(); let fail = true
+    const n = { subject: "patient-7", shredId: "s9", reason: "erasure", origin: "node-b", actor: alice }
+    const recv = receiveNotice({ gate: gate, seen, apply: () => fail ? Effect.die("apply failed") : Effect.void })
+    await Effect.runPromise(Effect.exit(recv(n))); expect(seen.has("s9")).toBe(false)
+    fail = false; expect(await Effect.runPromise(recv(n))).toBe("applied"); expect(seen.has("s9")).toBe(true)
+  })
 })

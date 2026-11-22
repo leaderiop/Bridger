@@ -45,7 +45,8 @@ export const appendAllowed = (a: { stream: string; viaReceive: boolean; ask: (r:
 // ---- S42 durable-bus: per-envelope limits, and a received stream name that stays within the stream limit
 export const checkEnvelope = (e: { bytes: number; stream: string; annotations: number }, l: { maxEnvelopeBytes: number; maxStreamBytes: number; maxAnnotations: number }): "ok" | "EnvelopeRefused" =>
   e.bytes > l.maxEnvelopeBytes || Buffer.byteLength(e.stream) > l.maxStreamBytes || e.annotations > l.maxAnnotations ? "EnvelopeRefused" : "ok"
-export const receivedStream = (origin: string, stream: string, max = 256): string => { const n = `rx:${origin}:${stream}`; return Buffer.byteLength(n) <= max ? n : `rx:h:${sha(n).slice(0, 32)}` }
+/** Origin and stream are percent-encoded, so ":" cannot move between them; the hash form starts "rx:%", which no encoded origin can. */
+export const receivedStream = (origin: string, stream: string, max = 256): string => { const n = `rx:${encodeURIComponent(origin)}:${encodeURIComponent(stream)}`; return Buffer.byteLength(n) <= max ? n : `rx:%h:${sha(n).slice(0, 32)}` }
 
 // ---- S45 agent: a failed outcome from an external command reaches the model as one capped untrusted value, and is tainted
 export const envelopeFailure = (tag: string, message: string, o: { external: boolean; cap?: number }): { text: string; tainted: boolean } => {

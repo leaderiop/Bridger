@@ -209,4 +209,12 @@ describe("offers and the fence table (BEH-FD-029, improvement report 06 S12)", (
     const { FenceTable } = await import("../src/federation.js")
     expect(new FenceTable().offer("k", f(1, "b"), "e", link({ authenticatedPeer: "c", host: "b" }))).toEqual({ outcome: "PeerMismatch", key: "k", offered: "b", authenticated: "c" })
   })
+  it("an authenticated peer cannot raise the fence for an owner other than itself (S59)", async () => {
+    const { FenceTable } = await import("../src/federation.js")
+    const t = new FenceTable(); t.see("k", { scope: "s", token: 3, owner: "a" })
+    const mallory = { host: "m", authenticatedPeer: "m", maxJump: 8 }
+    expect(t.offer("k", { scope: "s", token: 4, owner: "m" }, "e1", mallory)).toEqual({ outcome: "advisory", key: "k", reason: "not-owner" })   // the manifest names a, not m
+    expect(t.offer("k", { scope: "s", token: 4, owner: "a" }, "e0", { host: "a", authenticatedPeer: "a", maxJump: 8 })).toMatchObject({ outcome: "accepted" })
+    expect(t.offer("k", { scope: "s", token: 5, owner: "a" }, "e2", mallory)).toEqual({ outcome: "advisory", key: "k", reason: "not-owner" })
+  })
 })

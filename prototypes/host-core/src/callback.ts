@@ -15,6 +15,8 @@ export interface CallbackContext {
   readonly epoch: string; readonly revoked: boolean; readonly rev: Revocations; readonly now: Effect.Effect<number>
   /** The link's `tokenTtl`: a token whose lifetime exceeds it is refused whatever the authority minted (BEH-RM-043). */
   readonly tokenTtl?: number
+  /** BEH-RM-044: the most callbacks admitted per parent call; refused `CallbackLimit` beyond it. */
+  readonly maxCallbacks?: number
   readonly inFlight: (callId: string) => boolean; readonly seen: Set<string>; readonly authority: TokenAuthority
   readonly offeredLabels: ReadonlyArray<string>; readonly placement?: Placement
   readonly budget?: (claims: TokenClaims) => Effect.Effect<boolean>
@@ -27,7 +29,7 @@ export interface CallbackContext {
 const denied = (tag: string) => ({ refused: { reason: "denied", tag } }) as const
 
 export const handleCallback = (c: CallbackContext, f: CallbackRequest): Effect.Effect<CallbackExit> => Effect.gen(function* () {
-  const a = yield* admitCallback(c.authority, f, { ...(c.tokenTtl !== undefined ? { maxLifetime: c.tokenTtl } : {}), epoch: c.epoch, revoked: c.revoked, now: c.now, inFlight: c.inFlight, seen: c.seen, rev: c.rev })   // steps 1 to 4
+  const a = yield* admitCallback(c.authority, f, { ...(c.tokenTtl !== undefined ? { maxLifetime: c.tokenTtl } : {}), ...(c.maxCallbacks !== undefined ? { maxCallbacks: c.maxCallbacks } : {}), epoch: c.epoch, revoked: c.revoked, now: c.now, inFlight: c.inFlight, seen: c.seen, rev: c.rev })   // steps 1 to 4
   if ("refused" in a) return a
   if ("duplicate" in a) return a
   const claims = a.admitted

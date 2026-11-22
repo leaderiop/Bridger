@@ -243,6 +243,8 @@ export interface VerifyOptions {
   readonly receiptVerifiers?: readonly OfflineReceiptVerifier[]
   readonly keyed?: (keyId: string, input: Uint8Array) => Uint8Array | undefined
   readonly expectKeyed?: boolean | ReadonlySet<string>
+  /** `seriesId/seq` -> reason the sink recorded a break for (its own status or retry log). A link that lacks a marker the sink recorded was stripped (improvement report 06 S60). */
+  readonly expectedBreaks?: ReadonlyMap<string, string>
 }
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x)
@@ -266,6 +268,7 @@ const verifySeries = (d: SeriesDescription, profile: ChainProfile<any>, entries:
       if (!isObj(l)) { bad(seq, "missing-link"); prevLink = undefined; prevSeq = seq; return }
       hashAt.set(seq, l.hash)
       if (l.break) bad(seq, "sink-marked", l.break.reason)
+      else if (opts.expectedBreaks?.has(`${d.seriesId}/${seq}`)) bad(seq, "sink-marked", "stripped")   // the hash does not cover `break`, so the verifier cross-checks it
       if (l.schema === "unsupported") bad(seq, "unsupported-version")
       if (l.canonical === "jcs-escaped") notices.push({ seq, kind: "non-canonical-encoding" })
       if ((l.v === 2) !== generic) { bad(seq, "unsupported-version"); prevLink = l; prevSeq = seq; return }

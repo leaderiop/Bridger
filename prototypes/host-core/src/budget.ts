@@ -21,12 +21,15 @@ export interface BudgetOptions {
     readonly reserve: (r: { id: string; key: BudgetKey; amount: number; essential: boolean; period: number }) => Effect.Effect<void, BudgetExhausted | Error>
   }
   readonly onLedgerUnavailable?: "refuse" | "local"
+  /** Prefix of every ledger reservation id, unique per process incarnation, so a restart never reuses an id the ledger has already seen. */
+  readonly instanceId?: string
 }
 const applies = (l: BudgetLimit, k: BudgetKey) => l.unit === k.unit && Object.entries(l.match).every(([a, b]) => k.labels[a] === b)
 
 export const makeBudget = (limits: ReadonlyArray<BudgetLimit>, o: BudgetOptions) => {
   if (limits.some((l) => l.period !== undefined) && o.anchor === undefined) throw new Error("BudgetOptions.anchor is required when a limit has a period")
   if (o.ledger && o.onLedgerUnavailable === undefined) throw new Error("onLedgerUnavailable must be stated when a ledger is wired")
+  if (o.ledger && !o.instanceId) throw new Error("instanceId is required when a ledger is wired")
   const used = limits.map(() => 0), periodOf = limits.map(() => 0), overdraft = new Map<number, number>()
   const unreconciled: Array<{ id: string; key: BudgetKey; amount: number; essential: boolean; period: number }> = []
   let seq = 0
@@ -43,27 +46,25 @@ export const makeBudget = (limits: ReadonlyArray<BudgetLimit>, o: BudgetOptions)
     const essential = (options.essential ?? []).some((e) => (o.essentialLabels ?? []).includes(e))      // the application's list decides, never the call site
     const bad = hit.find((i) => limits[i]!.amount - used[i]! < amount)
     if (bad !== undefined && !essential) return yield* Effect.fail(new BudgetExhausted(limits[bad]!.match, key.unit, amount, limits[bad]!.amount - used[bad]!))
+    // Check and debit in one synchronous step, before any suspension, so concurrent reservations cannot both pass the check (INV-EN-004).
+    const taken = hit.map((i) => { const room = Math.max(0, limits[i]!.amount - used[i]!), take = Math.min(room, amount); used[i]! += take; if (take < amount) overdraft.set(i, (overdraft.get(i) ?? 0) + amount - take); return { i, take, over: amount - take } })
+    const undo = () => { for (const t of taken) { used[t.i]! -= t.take; if (t.over > 0) overdraft.set(t.i, (overdraft.get(t.i) ?? 0) - t.over) } }
     if (o.ledger) {
       const period = Math.max(...hit.map((i) => periodOf[i]!))
       for (const r of [...unreconciled]) {                                                          // replay local reservations by id before a new one (the ledger is idempotent by id)
         const ok = yield* Effect.exit(o.ledger.reserve(r))
         if (ok._tag === "Success") unreconciled.splice(unreconciled.indexOf(r), 1)
       }
-      const r = { id: `r-${++seq}`, key, amount, essential, period }
+      const r = { id: `${o.instanceId!}-${++seq}`, key, amount, essential, period }
       const out = yield* Effect.exit(o.ledger.reserve(r))
       if (out._tag === "Failure") {
         const err = out.cause.reasons.find((x) => x._tag === "Fail") as { error: unknown } | undefined
-        if (err?.error instanceof BudgetExhausted && !essential) return yield* Effect.fail(err.error)
+        if (err?.error instanceof BudgetExhausted && !essential) { undo(); return yield* Effect.fail(err.error) }
         if (!(err?.error instanceof BudgetExhausted)) {
-          if (o.onLedgerUnavailable === "refuse" && !essential) return yield* Effect.fail(new BudgetExhausted(limits[hit[0]!]!.match, key.unit, amount, 0))
+          if (o.onLedgerUnavailable === "refuse" && !essential) { undo(); return yield* Effect.fail(new BudgetExhausted(limits[hit[0]!]!.match, key.unit, amount, 0)) }
           unreconciled.push(r)                                                                    // "local": account here, reconcile later
         }
       }
-    }
-    for (const i of hit) {
-      const room = Math.max(0, limits[i]!.amount - used[i]!), take = Math.min(room, amount)
-      used[i]! += take
-      if (take < amount) overdraft.set(i, (overdraft.get(i) ?? 0) + amount - take)                      // an essential overdraft, counted, never debited below zero
     }
     return { amount }
   })

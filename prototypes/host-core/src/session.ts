@@ -3,6 +3,8 @@
 import { Clock, Deferred, Effect, Fiber, Option, Queue, Ref } from "effect"
 import type { WireSide } from "./handshake.js"
 import { inProcess, type TokenAuthority } from "./tokens.js"
+import { randomBytes } from "node:crypto"
+import { mintRef } from "./hardening.js"
 import { handleCallback, type CallbackContext } from "./callback.js"
 import { guestServe, linkHandshake, type Connection, type LinkOutcome } from "./wire.js"
 
@@ -25,7 +27,7 @@ export interface LogEntry { readonly kind: "crossing" | "refusal"; readonly dire
 export interface SessionOptions { readonly epoch: string; readonly wire: ReadonlyArray<number>; readonly contract: WireSide & { readonly id: string; readonly accepts: string }; readonly heartbeat: { readonly every: number; readonly missed: number }
   /** Mints one token per host-to-guest call (BEH-RM-043); default: an in-process table. `tokenTtl` defaults to 30 s, `callTimeout` bounds `expires`. */
   /** Serves the guest's callbacks (BEH-RM-046): the grants, decoding and the way the host service is reached. */
-  readonly callbacks?: Pick<CallbackContext, "grants" | "decode" | "run" | "offeredLabels" | "budget" | "admission" | "placement"> & { readonly revoked?: () => boolean }
+  readonly callbacks?: Pick<CallbackContext, "grants" | "decode" | "run" | "offeredLabels" | "budget" | "admission" | "placement" | "maxCallbacks"> & { readonly revoked?: () => boolean; readonly rev?: CallbackContext["rev"] }
   readonly tokens?: TokenAuthority; readonly tokenTtl?: number; readonly callTimeout?: number
   /** The identity claims this link may send; the default is none (INV-RM-012). */
   readonly disclose?: ReadonlyArray<IdentityClaim>
@@ -41,7 +43,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
   const refusals = yield* Ref.make(0)
   const lastSeen = yield* Ref.make(yield* Clock.currentTimeMillis)
   let n = 0
-  const tokens = o.tokens ?? inProcess(() => `tok-${o.epoch}-${++n}`)
+  const tokens = o.tokens ?? inProcess(() => mintRef(() => randomBytes(16)))                // 128-bit refs, not a counter a guest could guess (BEH-RM-043)
   const callbackSeen = new Set<string>()
   const fibers: Array<Fiber.Fiber<unknown, unknown>> = []
   const finish = (reason: EndReason) => Effect.gen(function* () {
@@ -57,7 +59,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
       yield* Effect.forkDetach(Effect.gen(function* () {
         const exit = f.epoch !== o.epoch ? { refused: { reason: "stale-epoch", tag: "StaleEpoch" } }
           : !o.callbacks ? { refused: { reason: "denied", tag: "CallbackDenied" } }
-          : yield* handleCallback({ ...o.callbacks, epoch: o.epoch, revoked: o.callbacks.revoked?.() ?? false, rev: { pluginIds: new Set(), digests: new Set() }, now: Clock.currentTimeMillis, inFlight: (id) => pending.has(id), seen: callbackSeen, authority: tokens, tokenTtl: o.tokenTtl ?? 30_000 },
+          : yield* handleCallback({ ...o.callbacks, epoch: o.epoch, revoked: o.callbacks.revoked?.() ?? false, rev: o.callbacks.rev ?? { pluginIds: new Set(), digests: new Set() }, now: Clock.currentTimeMillis, inFlight: (id) => pending.has(id), seen: callbackSeen, authority: tokens, tokenTtl: o.tokenTtl ?? 30_000 },
             { epoch: String(f.epoch), callId: String(f.callId), parent: String(f.parent), token: String(f.token), contract: String(f.contract), method: String(f.method), payload: f.payload })
         if (f.epoch !== o.epoch) yield* Ref.update(refusals, (x) => x + 1)
         if (o.log) {                                                                 // one entry per callback at its end; every refusal is a "refusal" entry; no payload, token or message
