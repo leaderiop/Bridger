@@ -20,7 +20,7 @@ describe("import resolution (BEH-LD-011)", () => {
     expect(reason(() => resolve("index.js", "left-pad"))).toContain("unresolved-import")
   })
   it("a sibling path outside the package, a missing file, a URL, a path and an unlisted node: specifier all fail unresolved-import", () => {
-    for (const [from, spec] of [["index.js", "../x"], ["lib/a.js", "../../x"], ["index.js", "./nope"], ["index.js", "https://cdn.example/x.js"], ["index.js", "file:///etc/passwd"], ["index.js", "/etc/passwd"], ["index.js", "node:fs"], ["index.js", "data:text/javascript,1"]] as const)
+    for (const [from, spec] of [["index.js", "../x"], ["index.js", "../index.js"], ["lib/a.js", "../../index.js"], ["lib/a.js", "../../x"], ["index.js", "./nope"], ["index.js", "https://cdn.example/x.js"], ["index.js", "file:///etc/passwd"], ["index.js", "/etc/passwd"], ["index.js", "node:fs"], ["index.js", "data:text/javascript,1"]] as const)
       expect(reason(() => resolve(from, spec)), `${from} ${spec}`).toContain("unresolved-import")
   })
   it("node: specifiers resolve only when the application put them in externals, and putting a built-in there needs an explicit allow", () => {

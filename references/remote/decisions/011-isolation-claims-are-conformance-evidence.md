@@ -35,7 +35,7 @@ adapter's word.
 
 ## Consequences
 
-- `@bridger/worker` fails three cases and its documentation says so: honest by
+- `@bridger/worker` fails two cases (egress and filesystem) and its documentation says so: honest by
   construction.
 - A real sandbox adapter earns its claim by passing cases, not by its name.
 - Six probes are not the whole attack surface: the output says so (BEH-RM-073).

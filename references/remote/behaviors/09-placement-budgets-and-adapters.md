@@ -711,8 +711,8 @@ The architecture's rule stays: Bridger provides no isolation. What changes is
 that an adapter's statement of what it does not prevent (obligation 6) becomes
 something a reviewer can run against it, so a deployment that puts third-party
 code behind an adapter has a number of failing cases to read, not a paragraph
-of documentation. The first adapter, `@bridger/worker`, fails egress, filesystem
-and environment, and the suite shows exactly that.
+of documentation. The first adapter, `@bridger/worker`, fails egress and filesystem
+(it withholds the environment, CPU by termination, memory by limits and the module cache), and the suite shows exactly that.
 
 
 ---

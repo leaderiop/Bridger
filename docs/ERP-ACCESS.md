@@ -101,6 +101,8 @@ Authentication is awthaq's: its `Authentication` middleware yields `CurrentPrinc
 
 Qadi's `filter` runs over fetched data and is not used for paginated lists.
 
+**Who provides the services that decide.** `Records`, `Identity` and the `@bridger/qadi` wrapper are Bridger services that any plugin providing the same key at a compatible version satisfies (core BEH-BR-229 checks compatibility, not identity). A deployment that runs plugins it did not write allow-lists the providers of these keys in `CapabilityPolicy.resolve` by digest (core BEH-BR-273, settled 2), so a lookalike `Records` cannot receive every query. Custom predicates and obligation handlers are plugin code and run in process with the trust of any plugin (core URS assumption A1); only the policy ADT, the tenant and company scope, and the permission tokens are data.
+
 Open points that need tests before the design is accepted:
 
 1. **Column mapping.** `toPredicate` emits `column: "createdBy"`. The wrapper must map resource attribute paths to physical columns, and extension fields such as `planning.task.priority` to an expression over the extension table's left join, `COALESCE(column, absent)`, so a record with no extension row is judged on the field's absent value and never on NULL. It rejects unknown paths.
