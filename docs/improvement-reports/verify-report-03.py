@@ -15,7 +15,7 @@ grounded = [  # (phrase the report shows, spec file that must state it)
     ("failed(cleanup)", "06-removal.md"), ("irreversible", "13-observability-and-diagnostics.md"), ("causes", "06-removal.md"),
 ]
 stale = ["interrupt the closing fiber", "The closing fiber is interrupted, not awaited", "per-plugin manifest override", "Defer unless operators ask",
-         "Cordis would simply re-run", "Would re-run"]
+         "Cordis would simply re-run", "bare finalizers stay acknowledgement-only", "labelled via acquire", "cannot be re-run", "Would re-run"]
 bad = []
 for phrase, f in grounded:
     if phrase not in report: bad.append(f"report no longer shows '{phrase}'")

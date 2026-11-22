@@ -3,14 +3,15 @@ import { Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import { define, type AnyPlugin } from "../src/plugin.js"
 import { PluginRuntime } from "../src/runtime.js"
+import * as Testing from "../src/testing.js"
 import { drive, idle } from "./fixtures.js"
 import { as, memorySink, run, settleWriter, stateIn } from "./p4fixtures.js"
 import { errorOf } from "./p7fixtures.js"
 
-const plugin = (fails: { pool: number; bare?: boolean }) => define({ id: "svc", requires: [] as const, provides: [] as const,
+const plugin = (fails: { pool: number; bare?: number }) => define({ id: "svc", requires: [] as const, provides: [] as const,
   build: Layer.effectDiscard(Effect.gen(function* () {
     const rt = yield* PluginRuntime
-    if (fails.bare) yield* Effect.addFinalizer(() => Effect.die(new Error("bare finalizer failed")))
+    if (fails.bare !== undefined) yield* Effect.addFinalizer(() => fails.bare!-- > 0 ? Effect.die(new Error("bare finalizer failed")) : Effect.void)
     yield* rt.acquire("pool", Effect.succeed(1), () => fails.pool-- > 0 ? Effect.die(new Error("pool busy")) : Effect.void)
   })) as never }) as unknown as AnyPlugin
 
@@ -33,19 +34,31 @@ describe("report 03 R8: retryCleanup", () => {
     }), { sink })
   })
 
-  it("a release that fails again, or a failure that was not kept, leaves the plugin failed(cleanup) with the remaining causes", async () => {
+  it("a bare finalizer is retried too; what fails again stays, and the plugin leaves failed(cleanup) only when nothing is left", async () => {
     await run((host) => Effect.gen(function* () {
-      yield* host.install(plugin({ pool: 2, bare: true }), as()); yield* idle(host)
+      yield* host.install(plugin({ pool: 2, bare: 3 }), as()); yield* idle(host)
       yield* Effect.exit(drive(host, host.restart("svc", as())))
       const first = errorOf(yield* Effect.exit(drive(host, host.retryCleanup("svc", as()))))
-      expect(first._tag).toBe("CleanupError")
-      expect(first.causes).toEqual([{ label: "pool", message: "pool busy" }, { message: "bare finalizer failed" }])   // last acquired first
+      expect(first.causes).toEqual([{ label: "pool", message: "pool busy" }, { message: "bare finalizer failed" }])   // both failed again, last acquired first
       const second = errorOf(yield* Effect.exit(drive(host, host.retryCleanup("svc", as()))))
-      expect(second.causes).toEqual([{ message: "bare finalizer failed" }])       // the pool is released now; the bare finalizer is not retryable
+      expect(second.causes).toEqual([{ message: "bare finalizer failed" }])       // the pool released on its third run; the bare finalizer fails once more
       expect(yield* stateIn(host, "svc")).toBe("failed")
-      yield* drive(host, host.remove("svc", as()))                                 // the acknowledgement is still the way out
-      expect((yield* host.snapshot).plugins).toEqual([])
+      yield* drive(host, host.retryCleanup("svc", as()))
+      expect(yield* stateIn(host, "svc")).toBe("disabled")
     }))
+  })
+
+  it("a close that timed out is not retryable: its finalizer is still running; remove acknowledges it", async () => {
+    await run((host) => Effect.gen(function* () {
+      yield* host.inject(Testing.Fault.closeHangs("svc"))
+      yield* host.install(plugin({ pool: 0 }), as()); yield* idle(host)
+      yield* Effect.exit(drive(host, host.restart("svc", as())))
+      const r = errorOf(yield* Effect.exit(drive(host, host.retryCleanup("svc", as()))))
+      expect(r.causes[0].message).toContain("close timed out")
+      expect(yield* stateIn(host, "svc")).toBe("failed")
+      yield* drive(host, host.remove("svc", as()))
+      expect((yield* host.snapshot).plugins).toEqual([])
+    }), { options: { closeTimeout: 50 } })
   })
 
   it("is refused on a plugin that is not failed(cleanup), changing nothing", async () => {

@@ -32,6 +32,7 @@ import {
 import type { AnyPlugin, InstallOptions, Interception, Keys, PluginAny, PluginHandle, ServicesOf } from "./plugin.js"
 import { Events, makeBus } from "./bus.js"
 import { ActivePlugin } from "./active.js"
+import { trackedMemo, type Retained as TrackedRetained, type TrackedMemo } from "./tracked-memo.js"
 import {
   AccessPolicy, CallLog, CallLogUnavailable, CapabilityDenied, CapabilityPolicy, ChildNotAllowed, PolicyMismatch, CurrentCall, CurrentCorrelation, CurrentPlugin,
   EntitlementView, InvalidCallEntry, PolicySeam, PrincipalReference, ResolutionRefused, consumerLabel, decideSafely, mint, refOf, retire,
@@ -227,6 +228,7 @@ const CurrentBuildSlot = Context.Reference<{ readonly release: Effect.Effect<unk
 const CurrentOwner = Context.Reference<{ readonly owner: string; readonly correlationId?: string } | undefined>("bridger/prototype/CurrentOwner", { defaultValue: () => undefined })
 
 /** Internal options of a reconcile entry action (BEH-BR-158, 201). */
+type Retained = TrackedRetained<CleanupCause>
 interface EntryAction {
   readonly causedBy?: string; readonly reached?: () => void
   readonly undoes?: string; readonly undo?: true                    // an atomic apply's undo action (BEH-BR-325)
@@ -273,7 +275,9 @@ interface Entry {
   /** Resources acquired through `Runtime.acquire`: those not confirmed released stay listed (report 03 R3, R4). */
   resources: Array<{ label: string; irreversible: boolean; state: "held" | "release-failed" }>
   /** The releases that failed, kept so `retryCleanup` can run them again (report 03 R8). */
-  releasers: Map<string, () => Effect.Effect<unknown, unknown>>
+  /** The finalizers of the last close that failed, kept so `retryCleanup` can run them again (report 03 R8); none when the close timed out. */
+  retained: Array<Retained>
+  tracked?: TrackedMemo
   /** Effects queued by `Runtime.afterPublish` during the build; run once the activation is published, dropped otherwise (report 03 R5). */
   afterPublish: Array<Effect.Effect<unknown, unknown>>
   /** Completed when the build running for this entry can no longer publish (epoch bump); replaced at each build start (report 03 R6). */
@@ -381,8 +385,16 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       return yield* Fiber.await(fiber).pipe(Effect.timeoutOrElse({ duration: limit, orElse: () => Effect.succeed(undefined) }))
     })
   /** The plugin's own `closeTimeout` wins over the host's (BEH-BR-046). */
-  const closeScope = (scope: Scope.Closeable, limit: number | "forever" = closeTimeout): Effect.Effect<Exit.Exit<void, never>> => boundedDetached(Scope.close(scope, Exit.void), limit).pipe(
-    Effect.map((done) => done ?? Exit.die(new Error(`close timed out after ${limit} ms; a finalizer is still running and no release is claimed`))))
+  /** With `keep`, a finalizer that fails is kept for `retryCleanup`; none are when the close timed out, since a finalizer is still running. */
+  const closeScope = (scope: Scope.Closeable, limit: number | "forever" = closeTimeout, keep?: { sink: Array<Retained>; tracked: TrackedMemo | undefined }): Effect.Effect<Exit.Exit<void, never>> => {
+    const live = { open: true }
+    keep?.tracked?.capture(keep.sink, live, (cause) => causesOf(cause)[0]!)
+    return boundedDetached(Scope.close(scope, Exit.void), limit).pipe(
+      Effect.map((done) => {
+        if (done === undefined) { live.open = false; keep?.sink.splice(0) }
+        return done ?? Exit.die(new Error(`close timed out after ${limit} ms; a finalizer is still running and no release is claimed`))
+      }))
+  }
 
   const entries = new Map<string, Entry>()
   const flights = new Map<string, Flight>()      // operator operations in flight, per plugin (BEH-BR-072)
@@ -1143,7 +1155,9 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     let ended = false
     yield* Scope.addFinalizer(scope, Effect.sync(() => { ended = true }))   // registered first, so it runs last
     ctx = Context.add(ctx, PluginRuntime, runtimeFor(e, epoch, scope))
-    const memo = yield* Layer.makeMemoMap                       // fresh per activation (BEH-BR-036)
+    const tracked = trackedMemo()                              // fresh per activation (BEH-BR-036); records the layers' scopes for retryCleanup
+    const memo = tracked.memo
+    e.tracked = tracked
     yield* emit({ type: "build-started" }, e.id)
     const startedAt = yield* Clock.currentTimeMillis
     e.afterPublish = []; e.stale = yield* Deferred.make<void>()
@@ -1337,10 +1351,9 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         if (Option.isSome(active)) yield* active.value.report({ kind: "resource", label, irreversible: o?.irreversible === true })
       })),
       (a) => Effect.suspend(() => release(a)).pipe(Effect.matchCauseEffect({
-        onSuccess: () => Effect.sync(() => { const i = e.resources.findIndex((r) => r.label === label); if (i >= 0) e.resources.splice(i, 1); e.releasers.delete(label) }),
+        onSuccess: () => Effect.sync(() => { const i = e.resources.findIndex((r) => r.label === label); if (i >= 0) e.resources.splice(i, 1) }),
         onFailure: (cause) => Effect.sync(() => {
           const r = e.resources.find((x) => x.label === label); if (r) r.state = "release-failed"
-          e.releasers.set(label, () => release(a))
         }).pipe(Effect.andThen(Effect.die(new LabelledRelease(label, cause))))
       }))
     ),
@@ -1817,11 +1830,14 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     }
     // Close the scope; a finalizer that fails leaves failed(cleanup) (BEH-BR-046).
     const scope = e.scope
-    const closeExit = scope ? yield* closeScope(scope, e.def.closeTimeout) : Exit.void
+    const kept: Array<Retained> = []
+    const closeExit = scope ? yield* closeScope(scope, e.def.closeTimeout, { sink: kept, tracked: e.tracked }) : Exit.void
+    e.tracked = undefined
     retire(e.principal)                                        // retirement follows the finalizers (BEH-BR-257)
     e.captures = []
     yield* locked(Effect.gen(function* () {
       e.scope = undefined; e.services = undefined; e.providers = new Map(); e.health = undefined
+      e.retained = Exit.isFailure(closeExit) ? kept : []
       if (Exit.isFailure(closeExit)) {
         e.state = "failed"; e.cleanupFailed = true
         // A runtime failure whose close fails ends in phase cleanup; the message records the stop (BEH-BR-094).
@@ -2262,7 +2278,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }
   const newEntry = (def: AnyPlugin, ident: Ident, o: { readonly disabled?: boolean; readonly config?: unknown; readonly intercept?: Entry["intercept"]; readonly owner?: string; readonly mandatoryChain?: ReadonlyArray<MandatoryInterception>; readonly allowChildren?: boolean }): Entry => ({
     id: ident.key, pluginId: ident.id, realm: ident.realm, ...(ident.parentKey !== undefined ? { parentKey: ident.parentKey } : {}),
-    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], listeners: [], resources: [], releasers: new Map(), afterPublish: [], stale: Effect.runSync(Deferred.make<void>()), ...(o.owner !== undefined ? { owner: o.owner } : {}),
+    intercept: o.intercept ?? { inherited: [], own: [] }, reactive: new Set(), contributions: [], listeners: [], resources: [], retained: [], afterPublish: [], stale: Effect.runSync(Deferred.make<void>()), ...(o.owner !== undefined ? { owner: o.owner } : {}),
     def, state: o.disabled ? "disabled" : "waiting", cleanupFailed: false, providers: new Map(), capturedActs: new Map(), leases: 0, holders: new Set(), epoch: 0, order: order++,
     stepRunning: false, parkedSystem: false, buildSeq: 0, ...(o.config !== undefined ? { override: { raw: o.config } } : {}),
     mandatoryChain: o.mandatoryChain ?? [], allowChildren: o.allowChildren ?? true, captures: []
@@ -2489,13 +2505,15 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         yield* legal(id, "retryCleanup")
         const e = entries.get(id)!
         const causes = e.failure?.causes ?? [{ message: e.failure?.message ?? "" }]
-        const stillFailing = new Map<string, string>()
-        for (const [label, run] of [...e.releasers]) {
-          const done = yield* boundedDetached(run())
-          if (done !== undefined && Exit.isSuccess(done)) { e.releasers.delete(label); const i = e.resources.findIndex((r) => r.label === label); if (i >= 0) e.resources.splice(i, 1) }
-          else stillFailing.set(label, done === undefined ? `release still running after ${closeTimeout} ms` : causesOf(done.cause)[0]!.message)
+        // Each kept finalizer runs again, bounded. A failure with none kept (a close that timed out) stays acknowledgement-only.
+        const again: Array<Retained> = []
+        for (const k of e.retained) {
+          const done = yield* boundedDetached(k.run)
+          if (done !== undefined && Exit.isSuccess(done)) { if (k.cause.label !== undefined) { const i = e.resources.findIndex((r) => r.label === k.cause.label); if (i >= 0) e.resources.splice(i, 1) } }
+          else again.push({ run: k.run, cause: done === undefined ? { ...k.cause, message: `finalizer still running after ${closeTimeout} ms` } : causesOf(done.cause)[0]! })
         }
-        const remaining = causes.flatMap((c): ReadonlyArray<CleanupCause> => c.label === undefined ? [c] : stillFailing.has(c.label) ? [{ label: c.label, message: stillFailing.get(c.label)! }] : [])
+        const remaining: ReadonlyArray<CleanupCause> = e.retained.length === 0 ? causes : again.map((x) => x.cause)
+        e.retained = again
         if (remaining.length === 0) {
           yield* locked(Effect.gen(function* () { e.cleanupFailed = false; e.failure = undefined; e.disabledReason = undefined; e.state = "disabled"; yield* commit }))
           return { value: undefined }
