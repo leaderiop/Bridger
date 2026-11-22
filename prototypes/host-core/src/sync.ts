@@ -36,10 +36,11 @@ export interface SyncOptions {
   readonly policy: SignaturePolicy; readonly store: ManifestStore
   readonly syncEvery: number; readonly syncTimeout: number
   readonly apply: (m: ManifestBody) => Effect.Effect<void>
-  readonly onResync?: Effect.Effect<void>; readonly rebootstrapPending?: () => boolean
+  readonly now?: Effect.Effect<number>; readonly onResync?: Effect.Effect<void>; readonly rebootstrapPending?: () => boolean
 }
 /** The sync attempt. Two concurrent `sync` calls share one attempt; the interval backs off on consecutive failures and resets on success. */
 export const makeSync = (o: SyncOptions) => Effect.gen(function* () {
+  const now = o.now ?? Clock.currentTimeMillis                          // the host's Clock; a test supplies its own
   let lastContact: number | undefined
   let inFlight: Deferred.Deferred<SyncOutcome> | undefined
   let failures = 0
@@ -47,7 +48,7 @@ export const makeSync = (o: SyncOptions) => Effect.gen(function* () {
     const known = o.store.current(o.authority, o.host)?.revision ?? 0
     const answer = yield* o.source({ host: o.host, known }).pipe(Effect.timeout(o.syncTimeout), Effect.map((a) => ({ a })), Effect.catch(() => Effect.succeed({ a: undefined })))
     if (!answer.a) { failures++; return { _tag: "ManifestUnavailable" } as const }       // lastContact is not updated
-    failures = 0; lastContact = yield* Clock.currentTimeMillis                          // any successful answer is contact
+    failures = 0; lastContact = yield* now                          // any successful answer is contact
     const a = answer.a
     if (a.kind === "none") return { unchanged: true } as const
     if (a.kind === "resync") { if (!o.rebootstrapPending?.() && o.onResync) yield* o.onResync; return { _tag: "ResyncRequired" } as const }
@@ -55,7 +56,7 @@ export const makeSync = (o: SyncOptions) => Effect.gen(function* () {
     if (verified._tag === "Failure") return { _tag: "ManifestRejected", reason: "signature" } as const
     const m = verified.value
     if (m.authority !== o.authority || m.host !== o.host) return { _tag: "ManifestRejected", reason: "wrong-host" } as const
-    const acc: Acceptance = o.store.accept({ authority: m.authority, host: m.host, revision: m.revision, digest: a.envelope.payload, acceptedAt: yield* Clock.currentTimeMillis })
+    const acc: Acceptance = o.store.accept({ authority: m.authority, host: m.host, revision: m.revision, digest: a.envelope.payload, acceptedAt: yield* now })
     if (acc.outcome === "stale") return { _tag: "ManifestRejected", reason: "stale-revision" } as const
     if (acc.outcome === "revision-reused") return { _tag: "ManifestRejected", reason: "revision-reused" } as const
     if (acc.outcome === "unchanged") return { unchanged: true } as const
