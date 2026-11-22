@@ -318,5 +318,15 @@ describe("S69 shutdown past the gate and required ports", () => {
     await onHost((host) => Effect.gen(function* () { yield* host.install(p, as()); yield* idle(host) }), { layers: [Layer.succeed(AccessPolicy, policy)] })
     expect(out).toEqual(["denied:allowed"])
   })
+  it("S74: internal reconcile fields in public options are ignored, so a caller cannot mark its call an undo or forge causation", async () => {
+    const asked: OperationRequest[] = []
+    const gate = { authorize: (r: OperationRequest) => { asked.push(r); return Effect.void } } as never
+    await onHost((host) => Effect.gen(function* () {
+      yield* host.install(storePlugin(), as()); yield* idle(host)
+      yield* drive(host, host.remove("store", { ...as(), undo: true, causedBy: "forged", undoes: "forged" } as never)); yield* idle(host)
+      const r = asked.find((x) => x.operation === "remove")!
+      expect((r as { undo?: unknown }).undo).toBeUndefined()
+    }), { gate })
+  })
 })
 

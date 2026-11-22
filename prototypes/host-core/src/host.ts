@@ -245,6 +245,8 @@ const CurrentOwner = Context.Reference<{ readonly owner: string; readonly correl
 
 /** Internal options of a reconcile entry action (BEH-BR-158, 201). */
 type Retained = TrackedRetained<CleanupCause>
+/** The reconcile-only channel: a module-private symbol, so a caller's public options can never carry `undo`, `causedBy` or `undoes` (S74). */
+const ENTRY = Symbol("bridger.entryAction")
 interface EntryAction {
   readonly causedBy?: string; readonly reached?: () => void
   readonly undoes?: string; readonly undo?: true                    // an atomic apply's undo action (BEH-BR-325)
@@ -606,6 +608,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const gateTimeout = options.gateTimeout ?? 60_000
   const attribution = options.attribution ?? {}
   let activationSeq = 0
+  /** Wait for the next published snapshot instead of spinning; the revision read before the check makes a change in between wake it at once (S74). */
+  const nextChange = (since: number) => SubscriptionRef.changes(feed).pipe(Stream.filter((x) => x.revision !== since), Stream.take(1), Stream.runDrain)
   const stoppingSeq = new Map<string, number>()   // plugin id → seq of its latest `stopping` state-changed event (R7)
   let degradedHook: (why: string) => Effect.Effect<void> = () => Effect.void
   const events = yield* makeEvents(hostId, options.eventBuffer ?? 1024)
@@ -1764,7 +1768,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const acknowledgeLeak = (d: Entry, error: { readonly _tag: string; readonly message: string }, causationId: string | undefined) => locked(Effect.gen(function* () {
     if (entries.get(d.id) !== d) return
     const before = { state: "failed", revision, ...defRef(d.def) }
-    entries.delete(d.id); flights.delete(d.id)
+    entries.delete(d.id); flights.delete(d.id); stoppingSeq.delete(d.id)
     const unreleased = d.resources.map((r) => ({ label: r.label, ...(r.irreversible ? { irreversible: true as const } : {}), state: r.state }))
     yield* Effect.logWarning(`leak recorded for ${d.pluginId} (realm ${d.realm}) acknowledged by the system: ${error.message}`)
     yield* emit({ type: "plugin-removed" }, d.id)
@@ -1777,7 +1781,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   /** Unregisters a removed child: its `system-stop` record is caused by the cascade root (BEH-BR-126, 190). */
   const unregister = (d: Entry, error?: { readonly _tag: string; readonly message: string }) => locked(Effect.gen(function* () {
     if (entries.get(d.id) !== d) return                       // removed directly meanwhile: nothing to do (BEH-BR-125)
-    entries.delete(d.id); flights.delete(d.id)
+    entries.delete(d.id); flights.delete(d.id); stoppingSeq.delete(d.id)
     yield* emit({ type: "plugin-removed" }, d.id)
     yield* commit
     yield* systemRecord("system-stop", d, yield* CurrentCause, error, { after: { state: "uninstalled", revision, ...defRef(d.def) } })
@@ -2007,7 +2011,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (!e) return
     yield* dropHeld(e, "ended")                                 // removed, replaced or disabled before it became active
     switch (t.kind) {
-      case "gone": entries.delete(id); yield* emit({ type: "plugin-removed" }, id); break   // a cleanup-failed plugin: the leak is acknowledged, not re-run (BEH-BR-047)
+      case "gone": entries.delete(id); stoppingSeq.delete(id); yield* emit({ type: "plugin-removed" }, id); break   // a cleanup-failed plugin: the leak is acknowledged, not re-run (BEH-BR-047)
       case "swap": e.def = t.def; e.lazy = undefined; e.failure = undefined; e.cleanupFailed = false; e.override = undefined; e.state = t.disabled ? "disabled" : "waiting"; break
       case "rebuild": e.state = restState(e); e.failure = undefined; break
       case "disabled": e.state = "disabled"; e.failure = undefined; break
@@ -2223,7 +2227,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     // and still ends with a terminal record: `failed`, error `Interrupted` (BEH-BR-067, 188).
     const pending: { owed?: Call["terminal"]; intent: { value: boolean } } = { intent: { value: false } }
     // A reconcile entry action: its records are caused by the parent `requested` record (BEH-BR-201).
-    const internal = (spec.options ?? {}) as EntryAction
+    const internal = ((spec.options as { [ENTRY]?: EntryAction } | undefined)?.[ENTRY] ?? {}) as EntryAction
     return yield* Effect.onInterrupt(Effect.gen(function* () {
     const call = yield* Semaphore.withPermit(semOf(admissions, key), Effect.gen(function* () {
       // 1. host closed (a shutdown joins the one in progress, BEH-BR-109)
@@ -2355,6 +2359,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const first = entries.get(key)
     const waitActive = Effect.gen(function* () {
         while (true) {
+          const since = (yield* SubscriptionRef.get(feed)).revision
           const e = entries.get(key)
           if (!e) return yield* Effect.fail(new PluginRemoved({ id: key }))
           if (e.state === "failed") return yield* Effect.fail(new ActivationFailed({ id: e.pluginId, phase: e.failure?.phase ?? "build", message: e.failure?.message ?? "" }))
@@ -2366,7 +2371,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
             if (failed) return yield* Effect.fail(new ActivationFailed({ id: failed.pluginId, phase: failed.failure?.phase ?? "build", message: failed.failure?.message ?? "" }))
             if (members.every((m) => m.state === "active")) return
           }
-          yield* Effect.yieldNow
+          yield* nextChange(since)
         }
     })
     return {
@@ -2441,11 +2446,12 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   /** The first outcome of an activation after a swap: what `replace` with `onFailure` waits for. */
   const firstOutcome = (key: string) => Effect.gen(function* () {
     while (true) {
+      const since = (yield* SubscriptionRef.get(feed)).revision
       const e = entries.get(key)
       if (!e) return { kind: "removed" as const }
       if (e.state === "failed") return { kind: "failed" as const, phase: e.failure?.phase ?? "build", message: e.failure?.message ?? "" }
       if (e.state === "active" || e.state === "disabled" || e.state === "dormant" || (e.state === "waiting" && missing(e).length > 0)) return { kind: "settled" as const }
-      yield* Effect.yieldNow
+      yield* nextChange(since)
     }
   })
 
@@ -2457,11 +2463,11 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const realm = opts.realm ?? "default"
     return Effect.gen(function* () {
       let forwardId: string | undefined
-      yield* replaceBase(def, { ...rest, onRequested: (id: string) => { forwardId = id } } as never)
+      yield* replaceBase(def, { ...rest, [ENTRY]: { ...(rest as { [ENTRY]?: EntryAction })[ENTRY], onRequested: (id: string) => { forwardId = id } } } as never)
       const first = yield* firstOutcome(keyOf(def.id, realm))
       if (first.kind !== "failed") return
       // The rollback is attributed to the same call and recorded as undoing the forward replace (BEH-BR-325).
-      const back = yield* Effect.exit(replaceBase(rollback, { ...rest, ...(forwardId ? { undoes: forwardId } : {}), undo: true } as never).pipe(Effect.andThen(firstOutcome(keyOf(def.id, realm)))))
+      const back = yield* Effect.exit(replaceBase(rollback, { ...rest, [ENTRY]: { ...(rest as { [ENTRY]?: EntryAction })[ENTRY], ...(forwardId ? { undoes: forwardId } : {}), undo: true } } as never).pipe(Effect.andThen(firstOutcome(keyOf(def.id, realm)))))
       const restored = Exit.isSuccess(back) && back.value.kind !== "failed"
       return yield* Effect.fail(new ReplaceRolledBack({ id: def.id, phase: first.phase, message: first.message, rollback: restored ? "restored" : "failed",
         ...(restored ? {} : { rollbackMessage: Exit.isSuccess(back) && back.value.kind === "failed" ? back.value.message : errorOf((back as Exit.Failure<unknown, unknown>).cause)._tag }) }))
@@ -2579,7 +2585,11 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
           if (done !== undefined && Exit.isSuccess(done)) { if (k.cause.label !== undefined) { const i = e.resources.findIndex((r) => r.label === k.cause.label); if (i >= 0) e.resources.splice(i, 1) } }
           else again.push({ run: k.run, cause: done === undefined ? { ...k.cause, message: `finalizer still running after ${closeTimeout} ms` } : causesOf(done.cause)[0]! })
         }
-        const remaining: ReadonlyArray<CleanupCause> = e.retained.length === 0 ? causes : again.map((x) => x.cause)
+        // Causes no finalizer was kept for (a bare finalizer failure, a close timeout) stay until a person acknowledges them; only retained ones can retry away (S74).
+        const keptKey = (c: CleanupCause) => `${c.label ?? ""}\0${c.message}`
+        const keptKeys = new Set(e.retained.map((k) => keptKey(k.cause)))
+        const unretained = e.retained.length === 0 ? causes : causes.filter((c) => !keptKeys.has(keptKey(c)))
+        const remaining: ReadonlyArray<CleanupCause> = e.retained.length === 0 ? causes : [...unretained, ...again.map((x) => x.cause)]
         e.retained = again
         if (remaining.length === 0) {
           yield* locked(Effect.gen(function* () { e.cleanupFailed = false; e.failure = undefined; e.disabledReason = undefined; e.state = "disabled"; yield* commit }))
@@ -3064,7 +3074,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         const r = { installed: [] as Array<string>, replaced: [] as Array<string>, reconfigured: [] as Array<string>, enabled: [] as Array<string>, disabled: [] as Array<string>, removed: [] as Array<string>, unchanged: [] as Array<string>, rejected: [] as Array<{ id: string; reason: { _tag: string } }> }
         for (const x of [...plan.invalid, ...plan.owned]) r.rejected.push({ id: x.id, reason: x.reason })
         let children = 0
-        const entryOpts = (extra: Partial<EntryAction> = {}): OperationOptions & EntryAction => ({ context: { actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}) }, ...(req ? { causedBy: req.recordId } : {}), reached: () => { children++ }, ...extra })
+        const entryOpts = (extra: Partial<EntryAction> = {}): OperationOptions & { [ENTRY]: EntryAction } => ({ context: { actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}) }, [ENTRY]: { ...(req ? { causedBy: req.recordId } : {}), reached: () => { children++ }, ...extra } })
         const listOf: Record<ActionKind, Array<string>> = { install: r.installed, replace: r.replaced, reconfigure: r.reconfigured, enable: r.enabled, disable: r.disabled, remove: r.removed }
         // What an undo needs, in memory only, dropped at the end of the call (BEH-BR-323).
         type Prev = { readonly def: AnyPlugin; readonly override?: unknown; readonly disabled: boolean; readonly owner?: string; readonly catalogIds?: ReadonlyArray<string>; readonly allowChildren: boolean }
@@ -3223,8 +3233,9 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const chosen = (): Entry[] => "scope" in target ? [...entries.values()].filter((e) => e.owner === target.scope) : target.flatMap((r) => { const e = entries.get(refKey(r)); return e ? [e] : [] })
     const settle = Effect.gen(function* () {
       while (true) {
+        const since = (yield* SubscriptionRef.get(feed)).revision
         if (!chosen().some(unsettled)) return chosen().map((e) => ({ ref: { id: e.pluginId, realm: e.realm }, state: e.state, ...(e.state === "starting" || e.state === "active" ? { activation: e.activation! } : {}) }))
-        yield* Effect.yieldNow
+        yield* nextChange(since)
       }
     })
     return yield* opts.timeout === undefined ? settle : settle.pipe(Effect.timeoutOrElse({ duration: opts.timeout, orElse: () => Effect.fail(new SettleTimeout({ ids: chosen().filter(unsettled).map((e) => e.id) })) }))

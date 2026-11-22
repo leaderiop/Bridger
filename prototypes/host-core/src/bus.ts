@@ -244,8 +244,9 @@ export const makeBus = (opts: {
     }),
     waterfall: (event, args, final) => Effect.gen(function* () {
       const ann = yield* begin(event, "waterfall", args)
+      const callerCtx = yield* Effect.context<never>()           // the final step runs as the dispatcher, never as the last listener (S74)
       const { r, ids } = yield* snapshot(event.id, "around")
-      const at = (i: number): Effect.Effect<any, any> => i === ids.length ? final : invoke(event.id, r!, ids[i]!, (fn, l, cid) => Effect.suspend(() => {
+      const at = (i: number): Effect.Effect<any, any> => i === ids.length ? Effect.provideContext(final, callerCtx as never) : invoke(event.id, r!, ids[i]!, (fn, l, cid) => Effect.suspend(() => {
         let calls = 0
         const next = Effect.suspend(() => ++calls > 1 ? Effect.die(new NextCalledTwice(event.id)) : at(i + 1))
         // An observer that returned without `next` has not vetoed: the bus runs the tail and reports the skip (BEH-BR-143).
