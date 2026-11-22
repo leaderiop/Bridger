@@ -963,7 +963,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       return undefined
     }
     const cycle = visit(ident.key)
-    if (cycle) return Effect.fail(new DependencyCycle({ path: cycle }))
+    if (cycle) return Effect.fail(new DependencyCycle({ path: cycle.map((k) => { const n = nodes.find((x) => x.ident.key === k)!.ident; return { id: n.id, realm: n.realm } }) }))
     // A registration that lands disabled forms no registered pair (BEH-BR-228).
     const incompatible = landsDisabled ? undefined : contractCheck(def, ident, others)
     return incompatible ? Effect.fail(incompatible) : Effect.void

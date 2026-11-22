@@ -3,7 +3,8 @@ import { Schema } from "effect"
 
 export class DuplicatePlugin extends Schema.TaggedError<DuplicatePlugin>()("DuplicatePlugin", { id: Schema.String }) {}
 export class DuplicateProvider extends Schema.TaggedError<DuplicateProvider>()("DuplicateProvider", { serviceId: Schema.String, providerId: Schema.String }) {}
-export class DependencyCycle extends Schema.TaggedError<DependencyCycle>()("DependencyCycle", { path: Schema.Array(Schema.String) }) {}
+// BEH-BR-020: `path` lists `{ id, realm }` records, beginning with the plugin being installed.
+export class DependencyCycle extends Schema.TaggedError<DependencyCycle>()("DependencyCycle", { path: Schema.Array(Schema.Struct({ id: Schema.String, realm: Schema.String })) }) {}
 export class InvalidDefinition extends Schema.TaggedError<InvalidDefinition>()("InvalidDefinition", { id: Schema.String, reason: Schema.String }) {}
 export class UnknownRealm extends Schema.TaggedError<UnknownRealm>()("UnknownRealm", { id: Schema.String }) {}
 export class DuplicateRealm extends Schema.TaggedError<DuplicateRealm>()("DuplicateRealm", { id: Schema.String }) {}

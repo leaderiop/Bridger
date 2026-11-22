@@ -117,8 +117,8 @@ The minor proposals X1 (D-07), X2 (D-10) and X3 (D-11) are in the rows above. As
 
 ## Not checked / uncertainties
 
-- I did not read federation, remote, loader or kit behaviour files line by line; claims about them (BEH-FD-026 proxies as registry-compatible contributors, kit conformance hooks) are inferred from headings and a partial read of federation 04. R2 and R3 integration points need confirming.
-- BEH-BR-020 cycle-path wording and the whole of ADR-BR-038 (stop ordering) and BEH-BR-121..128 (children) were sampled, not fully audited; the claim that child mount edges share the graph is from 08.
+- Federation, remote, loader and kit files were checked for the changes made here (2026-11-22): federation imports (BEH-FD-026) and remote proxies are contract-based (`Contract.at`), so the plain-key rule does not touch them, and a proxy whose contract copy has no digest is simply not compared. Not done: carrying digests in the remote handshake descriptor, so cross-host drift is not detected yet.
+- BEH-BR-020 was read against the prototype: `DependencyCycle.path` was a list of key strings against the spec's `{ id, realm }` records; the prototype now follows the spec and a test pins it. ADR-BR-038 and BEH-BR-121..128 (children) are still only sampled.
 - D-07: the host exposes `Host.changes`; it is now used.
 - The suite was run for every change (396 tests). The loader and kit rules of R2 have no prototype to run against.
 - Cordis comparisons rely on the supplied brief, not the primary paper.

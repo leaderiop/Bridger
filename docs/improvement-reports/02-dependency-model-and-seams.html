@@ -392,8 +392,8 @@ footer ul{padding-left:1.1rem}
 <footer id="notchecked">
 <h3>Not checked / uncertainties</h3>
 <ul>
-<li>Federation, remote, loader and kit behaviour files were not read line by line. Claims about them (<code>BEH-FD-026</code> proxies as registry-compatible contributors, kit conformance hooks) are inferred from headings and a partial read of federation 04. R2 and R3 integration points need confirming.</li>
-<li><code>BEH-BR-020</code> cycle-path wording, all of <code>ADR-BR-038</code> (stop ordering) and <code>BEH-BR-121..128</code> (children) were sampled, not fully audited; the claim that child mount edges share the graph is from 08.</li>
+<li>Federation, remote, loader and kit files were checked for the changes made here (2026-11-22): federation imports (BEH-FD-026) and remote proxies are contract-based (<code>Contract.at</code>), so the plain-key rule does not touch them, and a proxy whose contract copy has no digest is simply not compared. Not done: carrying digests in the remote handshake descriptor, so cross-host drift is not detected yet.</li>
+<li>BEH-BR-020 was read against the prototype: <code>DependencyCycle.path</code> was a list of key strings against the spec's <code>{ id, realm }</code> records; the prototype now follows the spec and a test pins it. ADR-BR-038 and BEH-BR-121..128 (children) are still only sampled.</li>
 <li>D-07: the host exposes a snapshot change stream (<code>Host.changes</code>); it is now used.</li>
 <li>The suite was run for every change (396 tests). The loader and kit rules of R2 have no prototype to run against.</li>
 <li>Cordis comparisons rely on the supplied brief, not the primary paper.</li>

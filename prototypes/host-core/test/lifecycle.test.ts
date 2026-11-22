@@ -36,6 +36,7 @@ describe("installation and activation", () => {
       expect(Exit.isFailure(dupId) && JSON.stringify(dupId.cause)).toContain("DuplicatePlugin")
       expect(Exit.isFailure(dupProvider) && JSON.stringify(dupProvider.cause)).toContain("DuplicateProvider")
       expect(Exit.isFailure(cycle) && JSON.stringify(cycle.cause)).toContain("DependencyCycle")
+      expect(JSON.stringify(Exit.isFailure(cycle) && cycle.cause)).toContain('"path":[{"id":"cyc/b","realm":"default"},{"id":"cyc/a","realm":"default"},{"id":"cyc/b","realm":"default"}]')   // BEH-BR-020: records, the installed plugin first
       expect(afterA).toBeGreaterThan(before)
       expect((yield* host.snapshot).revision).toBe(afterA)                      // nothing registered, no new revision
       expect((yield* host.snapshot).plugins.map((p) => p.id)).toEqual(["example/logger", "cyc/a"])
