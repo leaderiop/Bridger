@@ -1,11 +1,36 @@
 # 07 - Specification quality, traceability, formal guarantees and verification
 
+**State (2026-11-22):** the original review is kept as written below. All 13 findings and 8 recommendations were checked against the specification and the prototype; 5 findings or recommendations were partly wrong in their premise or already built by reports 01, 04 and 05 (the transition ledger, the generated catalogs, the effect pin), and all are resolved in `references/*`, `prototypes/host-core` and the verifier scripts except F13, which is resolved in part (see Resolution status). Not built: a CI runner, the per-invariant Check blocks for the 14 companion trees, a second implementation for differential testing.
+
+## Resolution status (2026-11-22)
+
+Corrected facts: the prototype names 40 of 187 invariants and 395 of 1,054 behaviours (not 2 and 223); host-core is on effect 4.1.5; the full test run is 994 tests in 143 files.
+
+| Finding | Rec. | Verdict | As built |
+|---|---|---|---|
+| F1 | R1, R8 | True, resolved | Every one of the 52 core invariants now carries a `Check` block (`predicate`, `scope`, `evidence`, `status`, `unchecked`) after its prose. `predicate` names a function of `references/core/formal/model.ts` (`legal`, `inv017`, `inv022`, `inv023`, `inv030`) where one exists and reads `none` otherwise (INV-BR-009, INV-BR-016 have no predicate). `verify-invariants.py` lints the blocks. Other 14 trees: 100 invariants, not yet authored (reported per tree, not a failure). |
+| F2 | R3 | True, resolved | `process/change-control.md` §1 now requires, for a MUST on a shared primitive, a callers table (`callers.sh "<name>" --md`) and an outcome matrix (operation x state, each cell cited or "n/a because"), one scenario id per High and no spec edit landing in the round it is audited without the matrix. |
+| F3 | R2, R8 | Partly wrong, resolved | The counts were stale: the prototype names 40 of 187 invariants and 395 of 1,054 behaviours across the trees (core: 10 of 52 INV, 244 of 327 BEH). `appendices/correspondence.md` is generated (`gen-correspondence.mjs`), `--check` fails on a dangling id or a fall in coverage, and traceability §2 gains a generated Prototype evidence column. |
+| F4 | R5 | Partly wrong, resolved | host-core was already on effect 4.1.5 (spikes 4.1.4); `RESULTS.md` still said 4.0.0 and "behaviours 01-09" and is corrected. Coverage is the generated table, not prose. `check-drift.mjs` (`verify-spec.sh --since <rev>`) fails when a behaviour the prototype names changes with no prototype change and no `prototype-exempt:` line. |
+| F5 | R4 | True, resolved | `test/pbt/` (fast-check 4.11, seed pinned, `BRIDGER_PBT_SEED` to explore): confluence over install/remove/enable/disable/restart with shrinking, LIFO revert, drain bound under TestClock, audit chain, reconcile idempotence. The hand LCG `confluence.test.ts` is removed. Each property was shown to fail, with a shrunk counterexample, under a seeded host bug. |
+| F6 | R1 | True, resolved | BEH-BR-160 listed exclusions but never defined the settled state. It now defines it: `quiescent` (disabled by flag, active as the least fixed point of "every required service has an active provider in its realm's scope", waiting otherwise with the missing services; a child exists while its parent is active). The model states it and the host is compared with it over 300 random histories. |
+| F7 | R6 | True, resolved | `split-history.py` keeps a Document Control cell to 2,000 characters: 116 cells over the limit, 957 lines moved whole to `<tree>/CHANGES.md` (15 trees), each cell ending with a link to its section; `--check` enforces it. `gxp/traceability.md` is exempt (its cell is written by `gen-traceability.py`). |
+| F8 | R6 | Partly wrong, resolved | Error catalog, event modes and guide code fences were already generated or verified by reports 04 and 05 (`verify-events.sh`, `verify-errors.sh`, `doc-typecheck.sh`). New: `verify-risk-rows.py` regenerates the Controls cell of every risk row in traceability §7 from the risk entry and the behaviours' own `Risk:` fields (60 rows changed; 7 controls no source names were dropped: BEH-BR-337 on RSK-BR-013, BEH-BR-248 on RSK-BR-017, BEH-BR-323 to 326 on RSK-BR-033, INV-BR-031 on RSK-BR-010). The glossary has no id tags, so there is nothing to check there. |
+| F9 | R3 | True, resolved | `callers.sh <name> [--md]` lists every behaviour and invariant in the 15 trees whose text names a primitive (54 sections name `WouldDeadlock`); it is the callers table a CCR attaches. |
+| F10 | R7 | True, resolved | `specforge.json` and `spec/hello.spec` deleted; the decision is recorded in `docs/SPECFORGE-ASSESSMENT.md` §7a. Option 3 (a generated projection) is not built. |
+| F11 | R2 | Partly wrong, resolved | Scripts already existed for core, companions, events, gxp and kit; what was missing was one entry point. `verify-spec.sh [--since <rev>]` runs all of them plus the correspondence, invariant, history and risk-row checks (gate D6 in the definitions of done). No CI system exists in the repository; the script is the contract. |
+| F12 | R4 | True, resolved | `fast-check` added to host-core devDependencies. |
+| F13 | R3 | True, partly resolved | The rule exists now (change control §1). Round-9 H1 has its scenario, check 89 of BEH-BR-183, and the reference model's wait-for scenario. H2 to H6 are recorded under CCR-FD-012, CCR-AG-012, CCR-ES-011 and CCR-KR-011; this work did not verify a numbered scenario for each in the companion acceptance lists, so they are open until it does. |
+| R1 | - | Partly wrong, resolved | `transitions.yaml` already was the single source of both legality tables (report 01, R10), so the model imports it and does not copy it. Built: `references/core/formal/model.ts` (pure): `legal`, `flight`, `quiescent`, `waitCycle`/`inv030`, `takeOverWaits` (the round-8 take-over rule closes a cycle through the slot, the fixed rule does not), `inv017`, `inv022`, `inv023`; `appendices/formal-model.md`. Progress is not modelled (stated). |
+| R2, R5 | - | Resolved | See F3, F4, F11. |
+| R3, R4, R6, R7, R8 | - | Resolved | See F1 to F13. |
+
 ## Executive summary
 
-- Bridger's spec is far more traceable than Cordis's paper (BEH/INV/REQ/RSK/ADR/CCR ids, 14 mechanical checks, an in-spec test-host contract). It is far less *executable*: 52 invariants are prose with free-text "Verification" paragraphs, and the prototype cites only 2 distinct INV ids (grep over `prototypes/host-core/{src,test}`) against 223 BEH ids.
+- Bridger's spec is far more traceable than Cordis's paper (BEH/INV/REQ/RSK/ADR/CCR ids, 14 mechanical checks, an in-spec test-host contract). It is far less *executable*: 52 invariants are prose with free-text "Verification" paragraphs, and the prototype cited only 2 distinct INV ids against 223 BEH ids when written (it now names 40 of 187 invariants and 395 of 1,054 behaviours, see Resolution status).
 - Nine audit rounds keep finding the same four classes, always in the previous round's fix (round 8: 4 H / 24 M / 36 L; round 9: 6 H / 23 M / 27 L). The mechanical verifiers pass every time ("0 failures"), so they police form, not meaning.
 - Cordis states one calculus with theorems; Bridger has confluence (BEH-BR-160, INV-BR-026-style claims) but no formal transition system, so cross-feature rules (take-over, whenReadable, cold, handoff) accrete as prose and collide.
-- The prototype is pinned to effect 4.0.0, covers behaviours 01-25 plus a P7 slice, is declared non-evidence (CCR-BR-004), and has seeded-LCG "random" histories (5 seeds x 40 ops), not property-based tests with shrinking.
+- The prototype was pinned to effect 4.0.0 (now 4.1.5), is declared non-evidence (CCR-BR-004), and had seeded-LCG "random" histories (5 seeds x 40 ops), now replaced by fast-check suites with shrinking.
 - Highest-value changes: (1) one executable reference model (state x operation x in-flight) that the spec tables are generated from; (2) a spec-to-code correspondence table like Cordis Table 2; (3) a "gate-walk" and "fix-propagation" checklist enforced in CCR process; (4) fast-check model-based suites for confluence, LIFO revert, drain bounds.
 
 ## Where Bridger is already ahead
@@ -91,8 +116,8 @@ Audit classes, ordered by count: (a) fix propagation (stale rows, glossary, cata
 
 ## Not checked / uncertainties
 
-- I did not read every INV or all of `verify-traceability.sh` (14 checks listed from its header); did not run the verifier scripts or the spike suite. The prototype suite was run: 32 files, 340 tests pass (4.1 s).
-- Audit counts (round 8: 4/24/36, round 9: 6/23/27) are from the report summaries; the "about a third are propagation" figure is my reading of the pattern lists, not a count. Rounds 03-07 and fix plans were not read in depth, so recurrence across all rounds is inferred from 7-9 and CCR history.
-- The 2-INV / 223-BEH citation counts are a grep of id strings in prototype src+test; tests may cover invariants without citing ids.
-- Sibling trees (agent, loader, federation, keyring, sequence, etc.) were only sampled via audit text, not read.
-- Cost estimates are rough.
+- Properties are checked on sampled histories (60 to 300 per run with shrinking), not proved. The model covers the settled behaviour of the dependency graph, drain bounds, wait-for cycles and the audit predicates; leases beyond the drain bound, handoff, hooks, lazy registrations, federation and the companion trees are checked only by the scenario suites.
+- R8 is authored for the 52 core invariants. The other 14 trees (about 135 invariants) are reported "not yet authored" by `verify-invariants.py` and have no blocks. The `unchecked` text is taken from the invariant's own prose or reads "none stated"; it is not an independent assessment.
+- The correspondence table counts a mention of an id in `src` or `test`, so a citation says where to look, not that the rule holds; tests may cover a behaviour without naming it.
+- No CI runner is configured; `verify-spec.sh` is the target to wire into one. The audit counts (round 8: 4/24/36, round 9: 6/23/27) are from the report summaries, and whether Highs fall in future rounds is not yet known.
+- Round-9 Highs H2 to H6 have no verified numbered scenario (F13). Cost estimates in the original review were rough.

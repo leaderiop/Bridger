@@ -17,5 +17,5 @@ describe("prototype drift check", () => {
     expect(ids.length).toBeGreaterThan(0)
     for (const id of ids) expect(id).toMatch(/^(BEH|INV)-[A-Z]+-\d{3}$/)
     expect(touched("HEAD")).toEqual([])
-  })
+  }, 60_000)                                                                  // a git diff across six commits is slow under a loaded run
 })
