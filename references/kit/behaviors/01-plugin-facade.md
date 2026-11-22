@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-01                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-11): BEH-KT-004: `Plugin.Any` is core's type (core 01, BEH-BR-001; CCR-BR-020), no longer a requested amendment (PL18) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-10): BEH-KT-001: every form takes `manifest` and `handoff` and passes them through unchanged; BEH-KT-004: the `PluginAny` copy carries both, as core 01 does (L3) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.5 (2026-11-22): prototype `prototypes/host-core/src/kit.ts` implements the four forms of BEH-KT-001 over `define`; BEH-KT-002, BEH-KT-003 (undeclared use, key both required and provided, volatile name, non-literal id, `provides` not returned) are evidenced by compile-time assertions in `test/dx-kit.test.ts`; the guide's "never write `as const`" rule is deleted, the inference making it redundant (improvement report 05 R1, DX-01, DX-12)<br>0.4 (2026-11-11): BEH-KT-004: `Plugin.Any` is core's type (core 01, BEH-BR-001; CCR-BR-020), no longer a requested amendment (PL18) (SPEC-AUDIT-05) (CCR-KT-008)<br>0.3 (2026-11-10): BEH-KT-001: every form takes `manifest` and `handoff` and passes them through unchanged; BEH-KT-004: the `PluginAny` copy carries both, as core 01 does (L3) (SPEC-AUDIT-04) (CCR-KT-007)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-KT-001)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -26,7 +26,7 @@ and the offending key. Its types are chosen from the evidence of
 `define`. This file owns BEH-KT-001–008 and uses BEH-KT-001–006; 007 and 008
 are reserved.
 
-Planned source: `packages/kit/src/definePlugin.ts`, `packages/kit/src/TypeErrors.ts` *(Planned)*.
+Planned source: `packages/kit/src/definePlugin.ts`, `packages/kit/src/TypeErrors.ts` *(Planned)*. Prototype: `prototypes/host-core/src/kit.ts` (forms 1 to 4 and `KitTypeError`; throwaway, not product code).
 
 ## BEH-KT-001: definePlugin returns a core definition and nothing more
 

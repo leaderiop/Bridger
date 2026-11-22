@@ -57,8 +57,6 @@ const legacy = definePlugin({
 
 Rules worth remembering:
 
-- **Never write `as const`** on `requires` or `provides`; they are inferred as
-  tuples.
 - **Never cast a definition.** Every `definePlugin` value fits wherever a host
   or a list accepts a plugin (`Plugin.Any`). If you feel a cast is needed,
   read the [error catalog](./error-catalog.md) or the compiler's
