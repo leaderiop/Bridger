@@ -1,20 +1,19 @@
 // The FoldKit adapter inside a real FoldKit program (docs/FOLDKIT-API.md): `layer` as the app's `resources`, `changes` as its Subscription,
-// `use` as a Command. Needs `foldkit` and `@effect/platform-browser` (peers of effect 4.1); the suite skips when they are not installed.
-// shortcut: the prototype pins effect 4.0.0, so this runs only where effect ~4.1 is installed; upgrade the prototype's pin to run it everywhere.
+// `use` as a Command. `foldkit` and `@effect/platform-browser` are pinned devDependencies (peers of effect 4.1, which the prototype pins).
 import { Context, Effect, Layer, Option, Schema, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { JSDOM } from "jsdom"
 import { BridgerFoldkit, BridgerHost, Snapshot } from "../src/foldkit.js"
 import { definePlugin } from "../src/kit.js"
 
-const foldkit = await import("foldkit").catch(() => undefined)
+import * as foldkit from "foldkit"
 class Greeter extends Context.Service<Greeter, { readonly greet: (n: string) => Effect.Effect<string> }>()("example/Greeter") {}
 const greeter = definePlugin({ id: "example/greeter", provides: Greeter, make: Effect.succeed({ greet: (n: string) => Effect.succeed(`hello ${n}`) }) })
 const until = async (f: () => boolean) => { for (let i = 0; i < 400 && !f(); i++) await new Promise((r) => setTimeout(r, 5)); expect(f()).toBe(true) }
 
-describe.skipIf(!foldkit)("@bridger/foldkit inside a FoldKit program", () => {
+describe("@bridger/foldkit inside a FoldKit program", () => {
   it("the Model follows the host through the Subscription, and a Command reaches a plugin through `use`", async () => {
-    const { Runtime, Subscription } = foldkit!
+    const { Runtime, Subscription } = foldkit
     const { defineMessageUnion } = await import("foldkit/message")
     const dom = new JSDOM("<!doctype html><div id=root></div>", { pretendToBeVisual: true })
     for (const k of Object.getOwnPropertyNames(dom.window)) if (!(k in globalThis) || k === "document") Object.defineProperty(globalThis, k, { configurable: true, get: () => (dom.window as never)[k] })

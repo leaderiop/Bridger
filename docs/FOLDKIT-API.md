@@ -1,6 +1,6 @@
 # Proposed `@bridger/foldkit` API
 
-> **Prototype (2026-11-22).** `layer`, `use`, `changes`, `Snapshot`, `pluginState` and `isAvailable` exist in `prototypes/host-core/src/foldkit.ts` and are tested (`test/foldkit.test.ts`); the rest of this document remains a proposal `test/foldkit-runtime.test.ts` runs the adapter inside a real FoldKit program (`Runtime.makeElement`, `layer` as `resources`, `changes` as a Subscription, `use` as a Command) on jsdom; it needs `foldkit` and effect ~4.1, which the prototype does not pin, so it skips elsewhere and was run against effect 4.1.5 and foldkit 0.171.0.
+> **Prototype (2026-11-22).** `layer`, `use`, `changes`, `Snapshot`, `pluginState` and `isAvailable` exist in `prototypes/host-core/src/foldkit.ts` and are tested (`test/foldkit.test.ts`); the rest of this document remains a proposal `test/foldkit-runtime.test.ts` runs the adapter inside a real FoldKit program (`Runtime.makeElement`, `layer` as `resources`, `changes` as a Subscription, `use` as a Command) on jsdom; the prototype pins effect 4.1.5, `foldkit` 0.171.0 and `@effect/platform-browser` 4.1.5, and the test runs in the full suite.
 >
 > **Conformance.** The client behaviours shared with [REACT-API.md](./REACT-API.md) are the ten scenarios of [kit appendix C](../references/kit/appendices/c-ui-adapter-scenarios.md); this adapter runs them in its tests.
 

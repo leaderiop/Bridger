@@ -19,8 +19,5 @@
     "src",
     "test",
     "bin"
-  ],
-  "exclude": [
-    "test/foldkit-runtime.test.ts"
   ]
 }
