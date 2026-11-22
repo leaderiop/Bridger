@@ -1,6 +1,6 @@
 // Remote sessions over the in-memory wire: epochs, stale-epoch refusal, heartbeat, partition and a fresh epoch per session
 // (remote BEH-RM-010, 011, 025, 029). Real timers with small intervals.
-import { Context, Effect, Exit, Fiber, Option, Schema } from "effect"
+import { Context, Effect, Exit, Fiber, Logger, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Contract } from "../src/contract.js"
 import { duplex, guestServe, linkHandshake, type Connection } from "../src/wire.js"
@@ -142,5 +142,44 @@ describe("link", () => {
       const s = yield* open(a)
       expect(yield* s.ended).toBe("guest-reset")
     }))
+  })
+
+  const silentThenLive = () => { let n = 0; return Effect.gen(function* () { const [a, b] = yield* duplex; n++; yield* Effect.forkChild(n === 1 ? guestServe(b, guest()) : serveGuest(b, guest())); return a }) }
+
+  it("mounts no child for a session that ends before stableFor, and counts withdrawals only for mounted ones (BEH-RM-029)", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const mounted: string[] = [], ended: string[] = []
+      const link = yield* startLink(silentThenLive(), { wire: [1], contract, heartbeat: hb, backoff: 20, stableFor: 400,
+        onSession: (x) => Effect.sync(() => { mounted.push(x.epoch) }), onEnd: (x) => Effect.sync(() => { ended.push(x.epoch) }) })
+      yield* Effect.sleep(330)                                   // session 1 dies at ~200 ms, before stableFor
+      expect(mounted).toEqual([]); expect(ended).toEqual([]); expect((yield* link.status).withdrawals).toBe(0)
+      yield* Effect.sleep(700)                                   // session 2 is live and stable
+      expect(mounted).toEqual(["epoch-2"])
+      yield* link.stop
+    }))
+  })
+
+  it("counts withdrawals and warns past flapWarning within flapWindow", async () => {
+    const lines: string[] = []
+    await Effect.runPromise(Effect.gen(function* () {
+      const dial = Effect.gen(function* () { const [a, b] = yield* duplex; yield* Effect.forkChild(guestServe(b, guest())); return a })   // always silent
+      const link = yield* startLink(dial, { wire: [1], contract, heartbeat: { every: 10, missed: 2 }, backoff: 5, flapWarning: 1, flapWindow: 60_000 })
+      yield* Effect.sleep(400)
+      expect((yield* link.status).withdrawals).toBeGreaterThanOrEqual(2)
+      yield* link.stop
+      expect(lines.some((l) => /flapping/.test(l))).toBe(true)
+    }).pipe(Effect.provide(Logger.layer([Logger.make<unknown, void>(({ message }) => { lines.push(String(message)) })]))))
+  })
+
+  it("does not warn when the withdrawals are spread wider than flapWindow", async () => {
+    const lines: string[] = []
+    await Effect.runPromise(Effect.gen(function* () {
+      const dial = Effect.gen(function* () { const [a, b] = yield* duplex; yield* Effect.forkChild(guestServe(b, guest())); return a })
+      const link = yield* startLink(dial, { wire: [1], contract, heartbeat: { every: 10, missed: 2 }, backoff: 5, flapWarning: 1, flapWindow: 1 })
+      yield* Effect.sleep(400)
+      expect((yield* link.status).withdrawals).toBeGreaterThanOrEqual(2)
+      yield* link.stop
+      expect(lines.some((l) => /flapping/.test(l))).toBe(false)
+    }).pipe(Effect.provide(Logger.layer([Logger.make<unknown, void>(({ message }) => { lines.push(String(message)) })]))))
   })
 })

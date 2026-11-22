@@ -45,4 +45,31 @@ describe("remote proxy plugin", () => {
       expect(JSON.stringify(callFiber.pollUnsafe())).toContain("remote:hi")                // served by the guest of the new session
     }), { options: { drainTimeout: 200 } })
   }, 15000)
+
+  it("hold mode keeps one session child across the partition; calls fail fast with RemoteUnavailable, then work again", async () => {
+    let dials = 0
+    const dial = Effect.gen(function* () {
+      const [a, b] = yield* duplex; dials++
+      yield* Effect.forkChild(dials === 1 ? guestServe(b, { wire: [1], served: [served], maxInFlight: 4 }) : serveGuest(b, { wire: [1], served: [served], maxInFlight: 4, handlers: { post: (p: unknown) => Effect.succeed(`remote:${String(p)}`) } }))
+      return a
+    })
+    const proxy = remoteProxy({ id: "boards", contract: board, accepts: "^1.2", dial, heartbeat: { every: 50, missed: 4 }, backoff: 600, mode: "hold" })
+    const reader = define({ id: "reader", requires: [board.range("^1.2")] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      const until = (cond: Effect.Effect<boolean>, label: string) => Effect.gen(function* () {
+        for (let i = 0; i < 1500; i++) { while (yield* host.step) { /* drain */ } if (yield* cond) return; yield* Effect.sleep(5) }
+        throw new Error(`timed out waiting for ${label}`)
+      })
+      const call = () => Effect.forkChild(host.use(board.range("^1.2") as never, (svc: { post: (s: string) => Effect.Effect<string, unknown> }) => Effect.flip(svc.post("x")).pipe(Effect.catch(() => Effect.succeed("ok")))))
+      yield* host.install(reader, as()); yield* host.install(proxy, as())
+      yield* until(Effect.map(stateIn(host, "reader"), (s) => s === "active"), "reader active")
+      yield* Effect.sleep(350)                                                       // the first session has been lost (silent guest); the backoff keeps the link down
+      while (yield* host.step) { /* let any withdrawal settle */ }
+      expect(yield* stateIn(host, "boards/session")).toBe("active")                  // held
+      expect(yield* stateIn(host, "reader")).toBe("active")
+      const f = yield* call()
+      yield* until(Effect.sync(() => f.pollUnsafe() !== undefined), "fail-fast call")
+      expect(JSON.stringify(f.pollUnsafe())).toContain("RemoteUnavailable")
+    }), { options: { drainTimeout: 200 } })
+  }, 30000)
 })

@@ -8,7 +8,7 @@ const parse = (s: string): { readonly t?: string; readonly [k: string]: unknown 
 
 export type EndReason = "heartbeat-missed" | "guest-reset" | "closed"
 /** A call that did not complete normally: `outcome` says whether the guest may have run it (ADR-RM-008). */
-export interface CallFailure { readonly _tag: "StaleEpoch" | "SessionLost" | "MethodNotServed" | "RemoteError"; readonly outcome: "not-executed" | "unknown"; readonly detail?: unknown }
+export interface CallFailure { readonly _tag: "StaleEpoch" | "SessionLost" | "MethodNotServed" | "RemoteError" | "RemoteUnavailable"; readonly outcome: "not-executed" | "unknown"; readonly detail?: unknown }
 export interface Session {
   readonly epoch: string; readonly version: string
   readonly call: (method: string, payload: unknown) => Effect.Effect<unknown, CallFailure>
@@ -89,13 +89,14 @@ export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArr
     return { answered: "welcome" as const }
   })
 
-export interface LinkStatus { readonly state: "active" | "partitioned" | "stopped"; readonly sessions: ReadonlyArray<{ readonly epoch: string; readonly ended?: EndReason }> }
+export interface LinkStatus { readonly state: "active" | "partitioned" | "stopped"; readonly sessions: ReadonlyArray<{ readonly epoch: string; readonly ended?: EndReason }>; readonly withdrawals: number }
 /**
  * A link that keeps one session open: after a session ends it dials again and handshakes with a new epoch, never reusing one
  * (BEH-RM-010, 029). `dial` yields a connection to a guest that has already been started on its end.
  */
-export const startLink = (dial: Effect.Effect<Connection>, o: Omit<SessionOptions, "epoch"> & { readonly backoff: number; readonly onSession?: (s: Session) => Effect.Effect<void>; readonly onEnd?: (s: Session, why: EndReason) => Effect.Effect<void> }) => Effect.gen(function* () {
-  const status = yield* Ref.make<LinkStatus>({ state: "partitioned", sessions: [] })
+export const startLink = (dial: Effect.Effect<Connection>, o: Omit<SessionOptions, "epoch"> & { readonly backoff: number; readonly stableFor?: number; readonly flapWarning?: number; readonly flapWindow?: number; readonly onSession?: (s: Session) => Effect.Effect<void>; readonly onEnd?: (s: Session, why: EndReason) => Effect.Effect<void> }) => Effect.gen(function* () {
+  const status = yield* Ref.make<LinkStatus>({ state: "partitioned", sessions: [], withdrawals: 0 })
+  const withdrawn: Array<number> = []
   const current = yield* Ref.make<Option.Option<Session>>(Option.none())
   let seq = 0
   const loop = Effect.gen(function* () {
@@ -103,13 +104,23 @@ export const startLink = (dial: Effect.Effect<Connection>, o: Omit<SessionOption
       const epoch = `epoch-${++seq}`
       const out = yield* openSession(yield* dial, { ...o, epoch })
       if ("call" in out) {
-        yield* Ref.update(status, (s) => ({ state: "active" as const, sessions: [...s.sessions, { epoch }] }))
+        yield* Ref.update(status, (s) => ({ ...s, state: "active" as const, sessions: [...s.sessions, { epoch }] }))
         yield* Ref.set(current, Option.some(out))
-        if (o.onSession) yield* o.onSession(out)
+        // BEH-RM-029: a child is mounted only once the session has stayed open for `stableFor`; one that ends sooner mounts none.
+        const stable = (o.stableFor ?? 0) <= 0 ? true : (yield* Effect.raceFirst(Effect.sleep(o.stableFor!).pipe(Effect.as(true)), out.ended.pipe(Effect.as(false))))
+        if (stable && o.onSession) yield* o.onSession(out)
         const reason = yield* out.ended
         yield* Ref.set(current, Option.none())
-        if (o.onEnd) yield* o.onEnd(out, reason)
-        yield* Ref.update(status, (s) => ({ state: "partitioned" as const, sessions: s.sessions.map((x) => x.epoch === epoch ? { ...x, ended: reason } : x) }))
+        if (stable) {
+          if (o.onEnd) yield* o.onEnd(out, reason)
+          const now = yield* Clock.currentTimeMillis
+          withdrawn.push(now)
+          const window = o.flapWindow ?? 600_000
+          while (withdrawn.length && now - withdrawn[0]! > window) withdrawn.shift()
+          yield* Ref.update(status, (s) => ({ ...s, withdrawals: s.withdrawals + 1 }))
+          if (withdrawn.length > (o.flapWarning ?? 5)) yield* Effect.logWarning(`remote link flapping: ${withdrawn.length} withdrawals within ${window} ms`)
+        }
+        yield* Ref.update(status, (s) => ({ ...s, state: "partitioned" as const, sessions: s.sessions.map((x) => x.epoch === epoch ? { ...x, ended: reason } : x) }))
       }
       yield* Effect.sleep(o.backoff)
     }
