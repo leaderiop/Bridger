@@ -211,3 +211,21 @@ describe("report 02 R6: provideNonIsolated (BEH-BR-146)", () => {
     }))
   })
 })
+
+describe("report 02 R4: inspect lists the interceptions (BEH-BR-232, 261)", () => {
+  it("realm, inherited, install, then mandatory, in composition order, ids only; the plugin without any lists none", async () => {
+    const j = journal()
+    await run((host) => Effect.gen(function* () {
+      const named = (id: string): Interception<Logger["Service"]> => ({ ...tag(id), id })
+      yield* host.defineRealm("r", { isolate: [], interceptors: [named("R")], mandatory: [{ id: "M", key: Logger, wrap: (s: Logger["Service"]) => s }] }, as())
+      yield* host.install(loggerPlugin(j), as())
+      yield* host.install(writer(j, "parent", { children: [{ def: writer(j, "kid") }, { def: writer(j, "own-kid"), intercept: [named("O")] }] }), { ...as(), realm: "r", intercept: [named("P")] })
+      yield* idle(host)
+      const list = (id: string) => host.inspect({ id, realm: "r" }).pipe(Effect.map((i) => i.interceptions.map((x) => `${x.source}:${x.id}`)))
+      expect(yield* list("parent")).toEqual(["realm:R", "install:P", "mandatory:M"])
+      expect(yield* list("parent/kid")).toEqual(["realm:R", "inherited:P", "mandatory:M"])
+      expect(yield* list("parent/own-kid")).toEqual(["realm:R", "install:O", "mandatory:M"])
+      expect((yield* host.inspect("example/logger")).interceptions).toEqual([])
+    }))
+  })
+})

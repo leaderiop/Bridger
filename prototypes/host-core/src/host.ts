@@ -118,6 +118,8 @@ export interface PluginInspection {
   readonly provides: ReadonlyArray<string>
   readonly background: ReadonlyArray<{ readonly name: string; readonly policy: FailurePolicy; readonly restarts: number; readonly running: boolean }>
   readonly leases: number
+  /** BEH-BR-232, 261: the interceptions a capture of this plugin passes through, in composition order; ids only. */
+  readonly interceptions: ReadonlyArray<{ readonly key: string; readonly source: "realm" | "install" | "inherited" | "mandatory"; readonly id?: string }>
   readonly lastBuildMs?: number
   readonly parked: boolean
   readonly pending?: { readonly operation: string; readonly correlationId: string; readonly requestedRecordId?: string }
@@ -2924,6 +2926,14 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   })
 
   /** BEH-BR-118: names and counts only. */
+  /** BEH-BR-261 order: realm, inherited, own (ordinary), then the mandatory layers as `deliver` applies them. */
+  const interceptionsOf = (e: Entry): PluginInspection["interceptions"] => {
+    const one = (source: PluginInspection["interceptions"][number]["source"]) => (i: { readonly key: Context.Key<any, any>; readonly id?: string }) => ({ key: sid(i.key), source, ...(i.id !== undefined ? { id: i.id } : {}) })
+    return [
+      ...(realms.get(e.realm)?.interceptors ?? []).map(one("realm")), ...e.intercept.inherited.map(one("inherited")), ...e.intercept.own.map(one("install")),
+      ...[...e.mandatoryChain, ...(realms.get(e.realm)?.mandatory ?? []), ...(options.mandatory ?? [])].map(one("mandatory"))
+    ]
+  }
   const inspect = (ref: PluginRef): Effect.Effect<PluginInspection, UnknownPlugin | HostClosed> => Effect.gen(function* () {
     const id = refKey(ref)
     if (closing || closed) return yield* Effect.fail(new HostClosed())
@@ -2935,6 +2945,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       optional: (e.def.optional ?? []).map(sid), whenAvailable: (e.whenAvailable ?? []).map((w) => ({ ...w })),   // BEH-BR-135
       contributions: e.contributions.map((c) => ({ ...c })),                                                       // BEH-BR-168
       background: (e.background ?? []).map((b) => ({ ...b })), leases: e.leases,
+      interceptions: interceptionsOf(e),
       ...(e.lastBuildMs !== undefined ? { lastBuildMs: e.lastBuildMs } : {}),
       parked: e.state === "stopping" && (e.parkedSystem || !!f?.parked),
       ...(f ? { pending: { operation: f.op, correlationId: f.correlationId, ...(writer && f.causeId ? { requestedRecordId: f.causeId } : {}) } } : {})

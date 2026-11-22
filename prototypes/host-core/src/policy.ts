@@ -48,7 +48,7 @@ export const PrincipalRefCodec = {
 
 // ---------------------------------------------------------------- consumers and mandatory interceptions (BEH-BR-260–263)
 export type Consumer = { readonly kind: "plugin"; readonly pluginId: string; readonly realm: string; readonly principal: PrincipalRef } | { readonly kind: "application"; readonly realm: string }
-export interface MandatoryInterception<S = any> { readonly key: Context.Key<any, S>; readonly wrap: (service: S, consumer: Consumer) => S; readonly appliesTo?: "plugins" | "all" }
+export interface MandatoryInterception<S = any> { readonly id?: string; readonly key: Context.Key<any, S>; readonly wrap: (service: S, consumer: Consumer) => S; readonly appliesTo?: "plugins" | "all" }
 export interface RegisteredInterception<S = any> extends MandatoryInterception<S> { readonly id: string }
 export class ChildNotAllowed extends Schema.TaggedError<ChildNotAllowed>()("ChildNotAllowed", { parentId: Schema.String, childId: Schema.String, reason: Schema.String }) {}
 export class PolicyMismatch extends Schema.TaggedError<PolicyMismatch>()("PolicyMismatch", { id: Schema.String, realm: Schema.String, fields: Schema.Array(Schema.String) }) {}

@@ -62,6 +62,7 @@ export type AnyPlugin = PluginDefinition<Keys, Keys, unknown>
 
 /** A consumer-side decoration of one key (BEH-BR-151). */
 export interface Interception<S = any> {
+  readonly id?: string   // names the interception in `inspect` (BEH-BR-232); an id only, never a value (ADR-BR-033)
   readonly key: Context.Key<any, S>
   readonly wrap: (service: S, consumer: { readonly pluginId: string; readonly realm: string }) => S
 }
