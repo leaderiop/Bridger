@@ -172,7 +172,7 @@ A plugin is settled when it has no transition running or ready and no operation 
 - **Companions and docs.** Searched references/kit, the loader, remote, federation and ERP specs and the docs folder. Fixed `docs/SPEC.md`, ERP-RUNTIME, FOLDKIT-API, REACT-UI-PLUGINS, ERP-BROWSER, the error catalogues and the devtools `why` rule. Loader, remote and federation had no conflicts.
 - **BEH-BR-347 and cost.** Read: the export runs after the drain and before the scope closes, so an abort causes no export; BEH-BR-347 is unaffected. Measured in the prototype test host (200 iterations, one machine): `replace` 3.9 ms, `replace` with rollback on the success path 4.7 ms, `restart` 3.6 ms, park and abort about 4 ms beyond the forced 5 ms drain.
 - **As built differs from proposed.** R2 uses a restart oracle plus a mutation-checked stale-discard property instead of the proposed failed-set equality. R1 names its signal `build-flapping` (`plugin-stalled` already exists). R9 releases the slot (no fail-fast). R6 is `awaitSettled(refs | {scope})`; R4 is `onFailure` and reconcile `settle`.
-- **Diagrams.** Still simplified sketches, not spec extracts; the R1 figure now names `build-flapping`, other figures keep the proposed shapes listed above.
+- **Diagrams.** Simplified sketches, not spec extracts. The AFTER figures of R1, R2, R5 and R9 now show the as-built behaviour (`build-flapping`, restart oracle, `abort` refusals, slot release); the card text above each still describes the proposal, and the differences are listed in the previous item.
 
 ## Original uncertainties (as first written)
 

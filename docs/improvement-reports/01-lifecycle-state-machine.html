@@ -156,7 +156,7 @@ footer ul{max-width:80ch}footer li{margin:6px 0}
 <li><b>Companions and docs.</b> Searched references/kit, the loader, remote, federation and ERP specs and the docs folder. Fixed docs/SPEC.md, ERP-RUNTIME, FOLDKIT-API, REACT-UI-PLUGINS, ERP-BROWSER, the error catalogues and the devtools why rule. Loader, remote and federation had no conflicts.</li>
 <li><b>BEH-BR-347 and cost.</b> Read: the export runs after the drain and before the scope closes, so an abort causes no export; BEH-BR-347 is unaffected. Measured in the prototype test host (200 iterations, one machine): replace 3.9 ms, replace with rollback on the success path 4.7 ms, restart 3.6 ms, park and abort about 4 ms beyond the forced 5 ms drain.</li>
 <li><b>As built differs from proposed.</b> R2 uses a restart oracle plus a mutation-checked stale-discard property instead of the proposed failed-set equality. R1 names its signal build-flapping (plugin-stalled already exists). R9 releases the slot (no fail-fast). R6 is awaitSettled(refs | {scope}); R4 is onFailure and reconcile settle.</li>
-<li><b>Diagrams.</b> Still simplified sketches, not spec extracts; the R1 figure now names `build-flapping`, other figures keep the proposed shapes listed above.</li>
+<li><b>Diagrams.</b> Simplified sketches, not spec extracts. The AFTER figures of R1, R2, R5 and R9 now show the as-built behaviour (`build-flapping`, restart oracle, `abort` refusals, slot release); the card text above each still describes the proposal, and the differences are listed in the previous item.</li>
 </ul>
 <h2 id="notes">Original uncertainties (as first written)</h2>
 <ul>
@@ -240,8 +240,8 @@ code:'REQUIREMENT: For histories with injected build failures, the set of plugin
 cost:'Test-only plus one requirement; needs <code>Fault</code> seeds in <code>confluence-p4/p5</code>.',
 ver:'Extend <code>confluence-p5.test.ts</code> with random <code>buildFails</code> per plugin and the oracle above; keep mutation checks (G25 revert must still fail).',
 b:[['b',10,10,130,36,'random histories\nsuccess only','neu'],['b',160,10,130,36,'carve-outs: failure,\nlazy, refusal, handoff','warn'],['a',140,28,160,28,'','neu'],['b',55,78,190,36,'"failed" may depend\non scheduling','bad'],['a',225,46,200,78,'','bad'],['t',150,146,'property tests never inject failure','bad']],
-a:[['b',10,10,130,36,'history with\nbuildFails','neu'],['b',160,10,130,36,'same history, failed\nplugins disabled','neu'],['a',75,46,75,78,'','good'],['a',225,46,225,78,'','good'],['b',10,78,130,34,'non-failed set','good'],['b',160,78,130,34,'non-failed set','good'],['t',150,95,'=','good'],['b',30,128,240,28,'failed set subset of begun-and-failed builds','good']],
-bc:'Failure is outside the tested theorem.',ac:'Failure history becomes an oracle.'},
+a:[['b',10,10,130,36,'random history\nwith buildFails','neu'],['b',160,10,130,36,'direct install\nof the target','neu'],['a',75,46,75,78,'restart faulted','good'],['a',225,46,225,78,'restart faulted','good'],['b',10,78,130,34,'settled snapshot','good'],['b',160,78,130,34,'settled snapshot','good'],['t',150,95,'=','good'],['b',30,128,240,28,'stale failure never sticky (mutation-checked)','good']],
+bc:'Failure is outside the tested theorem.',ac:'Failure histories equal a direct install after a restart; stale failures are never sticky.'},
 {id:'R3',t:'Introduce an activation ordinal',f:'L3',s:'M',
 rat:'Cordis keys targets by provider uid. Bridger keys by <code>{id, realm}</code> (BEH-BR-027 <code>providerIds</code>) and keeps <code>epoch</code> as an internal prototype counter. A reader of the audit trail or snapshot cannot tell whether two <code>active</code> observations are the same activation.',
 chg:'Add <code>readonly activation: number</code> to <code>PluginCommon</code> (host-scoped, monotonic, never reused, incremented at each <code>starting</code> entry that will build; absent for dormant/waiting/disabled). Extend <code>providerIds</code> to <code>{ id, realm, activation }</code>; add <code>activation</code> to <code>HostEventCommon</code> and lifecycle audit records.',
@@ -265,7 +265,7 @@ chg:'Add operation <code>resume</code>/<code>abort</code> legal only on a parked
 cost:'New edge in BEH-BR-026 and a row/column in the BEH-BR-071/072 tables (9x9). Must refuse if any part of the scope closed (exports for a handoff, BEH-BR-347). Could be deferred.',
 ver:'Extend the <code>inflight.test.ts</code> live-cell grid and the confluence generator with <code>abort</code>.',
 b:[['b',10,10,90,34,'restart busy\nservice','neu'],['a',100,27,120,27,'','neu'],['b',120,10,85,34,'DrainTimeout\nparked','warn'],['a',162,44,162,74,'','bad'],['b',110,74,100,34,'hidden, scope\nstill open','bad'],['b',222,74,70,34,'dependents\ndown','bad'],['t',150,134,'exits: remove, replace, restart, disable','bad']],
-a:[['b',10,10,90,34,'restart busy\nservice','neu'],['a',100,27,120,27,'','neu'],['b',120,10,85,34,'DrainTimeout\nparked','warn'],['a',162,44,162,74,'abort','good'],['b',100,74,125,34,'stopping -> active\nrepublished','good'],['a',225,91,238,91,'','good'],['b',238,74,56,34,'deps\nrestart','good'],['t',150,134,'refused once any scope part closed','warn']],
+a:[['b',10,10,90,34,'restart busy\nservice','neu'],['a',100,27,120,27,'','neu'],['b',120,10,85,34,'DrainTimeout\nparked','warn'],['a',162,44,162,74,'abort','good'],['b',100,74,125,34,'stopping -> active\nrepublished','good'],['a',225,91,238,91,'','good'],['b',238,74,56,34,'deps\nrestart','good'],['t',150,134,'refused: child removed, provider stopping, scope closed','good']],
 bc:'Parked stop only moves forward.',ac:'New safe edge back to active.'},
 {id:'R6',t:'Scoped settle',f:'L6',s:'M',
 rat:'<code>awaitIdle</code> is host-wide (BEH-BR-040) and excludes <code>waiting</code>/<code>failed</code>. After a <code>reconcile</code> an operator wants "these entries reached active or a stated terminal state". Under churn or a restart-policy loop, host-wide idle may never arrive.',
@@ -298,8 +298,8 @@ chg:'Either exclude a build\'s await-for-child time from slot occupancy (release
 cost:'Slot accounting changes the FIFO rule.',
 ver:'<code>concurrency: 1</code> parent-with-child scenario.',
 b:[['b',10,10,120,38,'parent build\nholds slot 1/1','warn'],['b',170,10,120,38,'child build\nwaits for slot','warn'],['a',130,24,170,24,'awaitActive','neu'],['a',170,40,130,40,'needs slot','bad'],['b',60,92,180,34,'buildTimeout fires','bad'],['t',150,148,'always, not occasionally','bad']],
-a:[['b',10,10,120,38,'parent build\nreleases slot','good'],['b',170,10,120,38,'child build\ngets slot','good'],['a',130,24,170,24,'awaitActive','good'],['a',170,40,130,40,'active','good'],['b',60,92,180,34,'parent re-acquires, continues','good'],['t',150,148,'or fail fast: SlotStarvation','warn']],
-bc:'Self-deadlock until timeout.',ac:'Slot released while waiting, or fail fast.'},
+a:[['b',10,10,120,38,'parent build\nreleases slot','good'],['b',170,10,120,38,'child build\ngets slot','good'],['a',130,24,170,24,'awaitActive','good'],['a',170,40,130,40,'active','good'],['b',60,92,180,34,'parent re-acquires, continues','good'],['t',150,148,'built: slot released while awaiting a child','good']],
+bc:'Self-deadlock until timeout.',ac:'Slot released while the build awaits its child.'},
 {id:'R10',t:'A generated transition ledger',f:'L11',s:'L',
 rat:'Legal edges are spread over BEH-BR-026 (mermaid), 071, 072, 073, 074, 079, 080 and the child rules. Every audit round (7 to 9) edited the same cells. One machine-readable table would let <code>legality.ts</code>, the snapshot union, the audit schema and the docs be generated and diffed, as Cordis does with its event catalogue check.',
 chg:'Add <code>references/core/transitions.yaml</code> as source of truth for BEH-BR-026/071/072 and the <code>StopReason</code>/<code>next</code> pairs, plus a doc check that the mermaid diagram and tables match it.',
