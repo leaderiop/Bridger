@@ -84,10 +84,21 @@ const ed25519Verifies = (input: Bytes, sig: Signature, t: TrustedSigner): boolea
 }
 
 // ---------------------------------------------------------------------------------------------- the Sigstore adapter (BEH-LD-018), offline
+/** `roots` pins the Fulcio chain: its intermediates and self-signed root; `logKey` pins the Rekor log's public key (PEM). */
 export interface SigstorePin { readonly issuer: string; readonly subject: string; readonly roots: ReadonlyArray<string>; readonly logKey: string }
-/** shortcut: the bundle is the prototype's own encoding `{ certChain, signature, log: { integratedTime, logId, set } }`, where the SET is a log-key signature over the canonical
- *  `{ entryDigest, integratedTime, logId }`; Rekor's protobuf bundle and its checkpoint or inclusion-proof forms are read when the loader ships them. */
-export interface SigstoreBundle { readonly certChain: ReadonlyArray<string>; readonly signature: string; readonly log: { readonly integratedTime: number; readonly logId: string; readonly set: string } }
+/** The fields of a Sigstore bundle (protobuf JSON, `application/vnd.dev.sigstore.bundle`) this adapter reads: a leaf certificate, a message signature and a Rekor entry
+ *  with a signed entry timestamp (SET), or an inclusion proof whose checkpoint the log key signed. */
+export interface SigstoreBundle {
+  readonly verificationMaterial: {
+    readonly certificate?: { readonly rawBytes: string }; readonly x509CertificateChain?: { readonly certificates: ReadonlyArray<{ readonly rawBytes: string }> }
+    readonly tlogEntries: ReadonlyArray<{
+      readonly logIndex: string | number; readonly logId: { readonly keyId: string }; readonly integratedTime: string | number; readonly canonicalizedBody: string
+      readonly inclusionPromise?: { readonly signedEntryTimestamp: string }
+      readonly inclusionProof?: { readonly logIndex: string | number; readonly rootHash: string; readonly treeSize: string | number; readonly hashes: ReadonlyArray<string>; readonly checkpoint: { readonly envelope: string } }
+    }>
+  }
+  readonly messageSignature: { readonly signature: string }
+}
 const FULCIO_ISSUER_OID = Buffer.from("2b0601040183bf300101", "hex")   // 1.3.6.1.4.1.57264.1.1
 const oidcIssuerOf = (c: X509Certificate): string | undefined => {
   const i = c.raw.indexOf(FULCIO_ISSUER_OID); if (i < 0) return undefined
@@ -96,22 +107,60 @@ const oidcIssuerOf = (c: X509Certificate): string | undefined => {
   return at < 0 || at > 6 ? undefined : rest.subarray(at + 2, at + 2 + rest[at + 1]!).toString("utf8")
 }
 export const sigstoreIdentity = (p: SigstorePin): string => `sigstore:${p.issuer}|${p.subject}`
-/** The chain to a pinned root, the identity against the pin, the SET against the pinned log key, and the certificate window against the log's integrated time (never Clock). */
+const hashAlg = (k: ReturnType<typeof createPublicKey>) => k.asymmetricKeyType === "ed25519" ? null : "sha256"
+const sha = (...p: ReadonlyArray<Bytes>) => createHash("sha256").update(Buffer.concat(p)).digest()
+/** RFC 9162 section 2.1.3.2: does `hashes` prove the leaf at `index` is in the tree of `size` leaves with `root`? */
+export const verifyInclusion = (leafHash: Bytes, index: number, size: number, hashes: ReadonlyArray<Bytes>, root: Bytes): boolean => {
+  if (index >= size) return false
+  let fn = index, sn = size - 1, r: Bytes = leafHash
+  for (const p of hashes) {
+    if (sn === 0) return false
+    if ((fn & 1) === 1 || fn === sn) { r = sha(Uint8Array.of(1), p, r); if ((fn & 1) === 0) while ((fn & 1) === 0 && fn !== 0) { fn >>= 1; sn >>= 1 } } else r = sha(Uint8Array.of(1), r, p)
+    fn >>= 1; sn >>= 1
+  }
+  return sn === 0 && Buffer.compare(Buffer.from(r), Buffer.from(root)) === 0
+}
+/** A signed checkpoint (a signed note): the text the log key signed, and a signature line `— <name> <base64(4-byte key hint || signature)>`. Returns its tree size and root. */
+const checkpointOf = (envelope: string, logKey: ReturnType<typeof createPublicKey>): { size: number; root: Buffer } | undefined => {
+  const cut = envelope.indexOf("\n\n"); if (cut < 0) return undefined
+  const text = envelope.slice(0, cut + 1), [, size, root] = text.split("\n")
+  const sig = envelope.slice(cut + 2).split("\n").find((l) => l.startsWith("\u2014 "))?.split(" ")[2]
+  if (!sig || !size || !root) return undefined
+  return edVerify(hashAlg(logKey), Buffer.from(text), logKey, Buffer.from(sig, "base64").subarray(4)) ? { size: Number(size), root: Buffer.from(root, "base64") } : undefined
+}
+/** The chain to a pinned self-signed root, the identity against the pin, the Rekor entry binding this signature to this input, the log evidence (a SET, or an inclusion proof whose
+ *  checkpoint is signed) against the pinned log key, and the certificate window against the log's integrated time, never Clock. A certificate chain or intermediates inside the bundle are not trusted. */
 const sigstoreVerifies = (input: Bytes, sig: Signature, t: TrustedSigner): { readonly signedAt: string } | undefined => {
   try {
     const pin = t.key as SigstorePin, b = JSON.parse(Buffer.from(sig.bytes).toString("utf8")) as SigstoreBundle
-    const chain = b.certChain.map((c) => new X509Certificate(c)), roots = pin.roots.map((r) => new X509Certificate(r)), leaf = chain[0]!
-    const signed = Buffer.from(b.signature, "base64")
-    const certKeyAlg = leaf.publicKey.asymmetricKeyType === "ed25519" ? null : "sha256"
-    if (!edVerify(certKeyAlg, input, leaf.publicKey, signed)) return undefined
-    const atMs = b.log.integratedTime * 1000
-    const logKey = createPublicKey(pin.logKey)
-    const set = utf8(jcs({ entryDigest: H(signed), integratedTime: b.log.integratedTime, logId: b.log.logId }))
-    if (!edVerify(logKey.asymmetricKeyType === "ed25519" ? null : "sha256", set, logKey, Buffer.from(b.log.set, "base64"))) return undefined
-    const links = [...chain, ...[roots.find((r) => chain.at(-1)!.checkIssued(r) && chain.at(-1)!.verify(r.publicKey))].filter((r): r is X509Certificate => r !== undefined)]
-    if (links.length !== chain.length + 1) return undefined
-    for (let i = 0; i < chain.length; i++) if (!chain[i]!.checkIssued(links[i + 1]!) || !chain[i]!.verify(links[i + 1]!.publicKey)) return undefined
-    for (const c of chain) if (atMs < Date.parse(c.validFrom) || atMs > Date.parse(c.validTo)) return undefined
+    const vm = b.verificationMaterial, leaf = new X509Certificate(Buffer.from((vm.certificate ?? vm.x509CertificateChain!.certificates[0]!).rawBytes, "base64"))
+    const pinned = pin.roots.map((r) => new X509Certificate(r))
+    const signed = Buffer.from(b.messageSignature.signature, "base64")
+    if (!edVerify(hashAlg(leaf.publicKey), input, leaf.publicKey, signed)) return undefined
+    const entry = vm.tlogEntries[0]; if (!entry) return undefined
+    const logKey = createPublicKey(pin.logKey), body = Buffer.from(entry.canonicalizedBody, "base64")
+    const logHex = createHash("sha256").update(logKey.export({ format: "der", type: "spki" })).digest("hex")
+    if (Buffer.from(entry.logId.keyId, "base64").toString("hex") !== logHex) return undefined                  // the entry is from the pinned log
+    const rekor = JSON.parse(body.toString("utf8")) as { spec?: { signature?: { content?: string }; data?: { hash?: { value?: string } } } }
+    if (rekor.spec?.signature?.content !== b.messageSignature.signature || rekor.spec?.data?.hash?.value !== createHash("sha256").update(input).digest("hex")) return undefined   // the entry is about this signature of this input
+    const integrated = Number(entry.integratedTime)
+    const set = entry.inclusionPromise?.signedEntryTimestamp
+    let proven = false
+    if (set) proven = edVerify(hashAlg(logKey), utf8(jcs({ body: entry.canonicalizedBody, integratedTime: integrated, logID: logHex, logIndex: Number(entry.logIndex) })), logKey, Buffer.from(set, "base64"))
+    const ip = entry.inclusionProof
+    if (!proven && ip) {                                                                                       // an inclusion proof counts only with a verified checkpoint
+      const cp = checkpointOf(ip.checkpoint.envelope, logKey)
+      proven = cp !== undefined && cp.size === Number(ip.treeSize) && Buffer.compare(cp.root, Buffer.from(ip.rootHash, "base64")) === 0
+        && verifyInclusion(sha(Uint8Array.of(0), body), Number(ip.logIndex), Number(ip.treeSize), ip.hashes.map((h) => Buffer.from(h, "base64")), cp.root)
+    }
+    if (!proven) return undefined
+    const atMs = integrated * 1000
+    const anchored = (c: X509Certificate, depth: number): boolean => {                                         // up through pinned certificates to a pinned self-signed root
+      if (depth > 4 || atMs < Date.parse(c.validFrom) || atMs > Date.parse(c.validTo)) return false
+      const up = pinned.find((r) => c.checkIssued(r) && c.verify(r.publicKey)); if (!up) return false
+      return (up.checkIssued(up) && up.verify(up.publicKey)) ? atMs >= Date.parse(up.validFrom) && atMs <= Date.parse(up.validTo) : anchored(up, depth + 1)
+    }
+    if (!anchored(leaf, 0)) return undefined
     const sans = (leaf.subjectAltName ?? "").split(/,\s*/).map((x) => x.replace(/^(email|URI):/, ""))
     if (!sans.includes(pin.subject) || oidcIssuerOf(leaf) !== pin.issuer) return undefined
     return { signedAt: new Date(atMs).toISOString() }

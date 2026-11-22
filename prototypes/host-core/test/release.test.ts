@@ -1,6 +1,6 @@
 // Kit 04 BEH-KT-029, 030, 032 over the loader kernel (loader BEH-LD-001..003, 017, 020, 049, 053, 054): pack, publish and countersign.
 import { execSync } from "node:child_process"
-import { X509Certificate, createHash, createPrivateKey, generateKeyPairSync, sign as edSign, type KeyObject } from "node:crypto"
+import { X509Certificate, createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign as edSign, type KeyObject } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -212,41 +212,73 @@ describe("data packs (loader 08, BEH-KT-032)", () => {
 
 describe("the Sigstore adapter (loader BEH-LD-018), offline", () => {
   const sh = (cwd: string, cmd: string) => execSync(cmd, { cwd, stdio: "pipe" })
+  const H = (...p: Array<Buffer | Uint8Array>) => createHash("sha256").update(Buffer.concat(p)).digest()
+  /** RFC 6962 Merkle tree hash and audit path, to build an inclusion proof independently of the adapter. */
+  const mth = (l: Array<Buffer>): Buffer => l.length === 1 ? l[0]! : (() => { const k = 2 ** Math.floor(Math.log2(l.length - 1)); return H(Buffer.of(1), mth(l.slice(0, k)), mth(l.slice(k))) })()
+  const path = (m: number, l: Array<Buffer>): Array<Buffer> => { if (l.length === 1) return []; const k = 2 ** Math.floor(Math.log2(l.length - 1)); return m < k ? [...path(m, l.slice(0, k)), mth(l.slice(k))] : [...path(m - k, l.slice(k)), mth(l.slice(0, k))] }
   const fixture = () => {
     const d = tmp()
     sh(d, "openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout root.key -out root.pem -subj /CN=root -days 2")
     sh(d, "openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -keyout leaf.key -out leaf.csr -subj /CN=leaf")
     writeFileSync(join(d, "ext.cnf"), "subjectAltName=email:dev@acme.example\n1.3.6.1.4.1.57264.1.1=ASN1:UTF8String:https://accounts.example\n")
     sh(d, "openssl x509 -req -in leaf.csr -CA root.pem -CAkey root.key -CAcreateserial -days 1 -out leaf.pem -extfile ext.cnf")
-    sh(d, "openssl genpkey -algorithm ed25519 -out log.key"); sh(d, "openssl pkey -in log.key -pubout -out log.pub")
+    sh(d, "openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out log.key"); sh(d, "openssl pkey -in log.key -pubout -out log.pub")
     const rd = (f: string) => readFileSync(join(d, f), "utf8")
-    const leaf = new X509Certificate(rd("leaf.pem"))
+    const leaf = new X509Certificate(rd("leaf.pem")), logPub = createPublicKey(rd("log.pub"))
+    const logHex = createHash("sha256").update(logPub.export({ format: "der", type: "spki" })).digest("hex")
     const pin = { issuer: "https://accounts.example", subject: "dev@acme.example", roots: [rd("root.pem")], logKey: rd("log.pub") }
     const statement = L.Statement.make({ statementType: "package", subject: { digest: "sha256:" + "ab".repeat(32) }, id: "x", version: "1" })
-    const bundle = (o: { at?: number; logKeyFile?: string } = {}) => {
-      const signature = edSign("sha256", L.Statement.signingInput(statement), createPrivateKey(rd("leaf.key")))
+    const input = Buffer.from(L.Statement.signingInput(statement))
+    const jcs = (o: Record<string, unknown>) => "{" + Object.keys(o).sort().map((k) => JSON.stringify(k) + ":" + JSON.stringify(o[k])).join(",") + "}"
+    /** A Sigstore bundle as Rekor and Fulcio shape it: the SET path, or the inclusion-proof-with-signed-checkpoint path. */
+    const bundle = (o: { path?: "set" | "checkpoint"; at?: number; logKeyFile?: string; tamperBody?: boolean; badProof?: boolean; signInput?: Buffer } = {}) => {
+      const signature = edSign("sha256", o.signInput ?? input, createPrivateKey(rd("leaf.key"))).toString("base64")
       const integratedTime = o.at ?? Math.floor(Date.parse(leaf.validFrom) / 1000) + 60
-      const set = edSign(null, Buffer.from(JSON.stringify({ entryDigest: "sha256:" + createHash("sha256").update(signature).digest("hex"), integratedTime, logId: "log-1" })), createPrivateKey(rd(o.logKeyFile ?? "log.key")))
-      return { scheme: "sigstore", bytes: new TextEncoder().encode(JSON.stringify({ certChain: [rd("leaf.pem")], signature: signature.toString("base64"), log: { integratedTime, logId: "log-1", set: set.toString("base64") } })) }
+      const body = Buffer.from(JSON.stringify({ apiVersion: "0.0.1", kind: "hashedrekord", spec: { data: { hash: { algorithm: "sha256", value: H(input).toString("hex") } }, signature: { content: signature } } }))
+      const logKey = createPrivateKey(rd(o.logKeyFile ?? "log.key"))
+      const entry: Record<string, unknown> = { logIndex: "7", logId: { keyId: Buffer.from(logHex, "hex").toString("base64") }, integratedTime: String(integratedTime), canonicalizedBody: (o.tamperBody ? Buffer.from("{}") : body).toString("base64") }
+      if ((o.path ?? "set") === "set") entry.inclusionPromise = { signedEntryTimestamp: edSign("sha256", Buffer.from(jcs({ body: body.toString("base64"), integratedTime, logID: logHex, logIndex: 7 })), logKey).toString("base64") }
+      else {
+        const leaves = [0, 1, 2, 3, 4].map((i) => i === 2 ? H(Buffer.of(0), body) : H(Buffer.of(0), Buffer.from(`other-${i}`))), root = mth(leaves)
+        const text = `rekor.example - 1\n5\n${root.toString("base64")}\n`
+        const cpSig = Buffer.concat([Buffer.from("01020304", "hex"), edSign("sha256", Buffer.from(text), logKey)]).toString("base64")
+        const hashes = path(2, leaves).map((h) => (o.badProof ? Buffer.alloc(32) : h).toString("base64"))
+        entry.inclusionProof = { logIndex: "2", rootHash: root.toString("base64"), treeSize: "5", hashes, checkpoint: { envelope: `${text}\n\u2014 rekor.example ${cpSig}\n` } }
+      }
+      const json = { mediaType: "application/vnd.dev.sigstore.bundle.v0.3+json", verificationMaterial: { certificate: { rawBytes: leaf.raw.toString("base64") }, tlogEntries: [entry] }, messageSignature: { signature } }
+      return { scheme: "sigstore", bytes: new TextEncoder().encode(JSON.stringify(json)) }
     }
     const policy = (p: object = pin): L.SignaturePolicy => ({ id: "sig-v1", signers: [{ id: "ci", scheme: "sigstore", key: p as L.SigstorePin, roles: ["publisher"] }], require: { threshold: 1 } })
     return { d, pin, statement, bundle, policy, leaf }
   }
-  it("verifies the chain to the pinned root, the identity and the log's SET, and reports the integrated time as signedAt", () => {
+  it("a SET and an inclusion proof with a signed checkpoint each verify the chain, identity and log evidence, and report the integrated time as signedAt", () => {
     const f = fixture()
-    const v = L.verifyStatement({ statement: f.statement, signatures: [f.bundle()], policy: f.policy() })
-    expect(v.satisfied).toBe(true); expect(v.verified[0]!.identity).toBe("sigstore:https://accounts.example|dev@acme.example")
-    expect(v.verified[0]!.signedAt).toBe(new Date((Math.floor(Date.parse(f.leaf.validFrom) / 1000) + 60) * 1000).toISOString())
+    for (const path of ["set", "checkpoint"] as const) {
+      const v = L.verifyStatement({ statement: f.statement, signatures: [f.bundle({ path })], policy: f.policy() })
+      expect(v.satisfied).toBe(true); expect(v.verified[0]!.identity).toBe("sigstore:https://accounts.example|dev@acme.example")
+      expect(v.verified[0]!.signedAt).toBe(new Date((Math.floor(Date.parse(f.leaf.validFrom) / 1000) + 60) * 1000).toISOString())
+    }
   })
-  it("counts for nothing: another subject or issuer, an unpinned root, a SET by another log key, a time outside the certificate window, an unknown scheme", () => {
+  it("counts for nothing: another subject or issuer, an unpinned root, evidence by another log key, an entry about other bytes, a bad proof, a time outside the window, an unknown scheme", () => {
     const f = fixture(), other = fixture()
     const count = (sig: { scheme: string; bytes: Uint8Array }, policy = f.policy()) => L.verifyStatement({ statement: f.statement, signatures: [sig], policy })
     expect(count(f.bundle(), f.policy({ ...f.pin, subject: "evil@acme.example" })).satisfied).toBe(false)
     expect(count(f.bundle(), f.policy({ ...f.pin, issuer: "https://evil.example" })).satisfied).toBe(false)
     expect(count(f.bundle(), f.policy({ ...f.pin, roots: other.pin.roots })).satisfied).toBe(false)
-    const wrongLog = f.bundle(); expect(count(f.bundle({ logKeyFile: "root.key" })).satisfied).toBe(false); void wrongLog
+    expect(count(f.bundle({ logKeyFile: "root.key" })).satisfied).toBe(false)                                   // the SET is not by the pinned log key
+    expect(count(f.bundle({ path: "checkpoint", logKeyFile: "root.key" })).satisfied).toBe(false)               // nor the checkpoint
+    expect(count(f.bundle({ tamperBody: true })).satisfied).toBe(false)                                         // the Rekor entry does not name this signature
+    expect(count(f.bundle({ path: "checkpoint", badProof: true })).satisfied).toBe(false)                       // an inclusion proof that does not reach the signed root
+    expect(count(f.bundle({ signInput: Buffer.from("other statement") })).satisfied).toBe(false)               // a signature over different bytes
     expect(count(f.bundle({ at: Math.floor(Date.parse(f.leaf.validTo) / 1000) + 3600 })).satisfied).toBe(false)
     const r = count({ scheme: "x509-unknown", bytes: new Uint8Array() }); expect([r.satisfied, r.ignored]).toEqual([false, 1])
+  })
+  it("RFC 9162 inclusion: every leaf of trees of 1 to 9 leaves verifies, and a wrong index does not", () => {
+    for (let n = 1; n <= 9; n++) {
+      const leaves = Array.from({ length: n }, (_, i) => H(Buffer.of(0), Buffer.from(`l${i}`))), root = mth(leaves)
+      for (let i = 0; i < n; i++) expect(L.verifyInclusion(leaves[i]!, i, n, path(i, leaves), root)).toBe(true)
+      if (n > 1) expect(L.verifyInclusion(leaves[0]!, 1, n, path(0, leaves), root)).toBe(false)
+    }
   })
 })
 

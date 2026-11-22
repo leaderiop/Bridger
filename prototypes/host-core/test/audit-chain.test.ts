@@ -118,7 +118,7 @@ describe("audit-chain offline verification", () => {
     const b = exportBundle({ createdAt: "t", series: [{ seriesId: "h1", entries: e }], anchors, trustRoots: [root], range: new Map([["h1", { fromSeq: 3, toSeq: 4 }]]) })
     expect(b.segments[0]).toMatchObject({ fromSeq: 3, toSeq: 4 }); expect(b.anchors).toHaveLength(2)
     const r = verifyBundle(b, { receiptVerifiers: [yes] }); expect(r.chain.h1).toMatchObject({ linksCheckedThrough: 4, verifiedThrough: 4 }); expect(r.chain.h1!.sequence.problems).toEqual([]); expect(r.chain.h1!.breaks).toEqual([]); expect(r.inconsistent).toBe(false)
-    expect(b.series[0]!.continuesFrom).toEqual({ seriesId: "h1", seq: 2, hash: e[1]!.link!.hash })
+    expect(b.segments[0]!.predecessor).toEqual({ seq: 2, hash: e[1]!.link!.hash }); expect(b.series[0]!.continuesFrom).toBeUndefined()
     const req = { createdAt: "t", series: [{ seriesId: "h1", entries: e }], trustRoots: [root] }
     expect(() => exportBundle({ ...req, range: new Map([["h1", { fromSeq: 3, toSeq: 9 }]]) })).toThrow(BundleExportFailed)
     expect(() => exportBundle({ ...req, range: new Map([["nope", { fromSeq: 1, toSeq: 2 }]]) })).toThrow(BundleExportFailed)
@@ -141,11 +141,11 @@ describe("range export prev-checks its first entry", () => {
   const e = entries(); const s1 = stmt(e, 1, 2); const s2 = stmt(e, 3, 4, statementHash(s1))
   const anchors = [s1, s2].map((st) => ({ statement: st, receipt: { anchor: "log", statementHash: statementHash(st) } }))
   const exp = (ents = e, anch = anchors) => exportBundle({ createdAt: "t", series: [{ seriesId: "h1", entries: ents }], anchors: anch, trustRoots: [root], range: new Map([["h1", { fromSeq: 3, toSeq: 4 }]]) })
-  it("valid: untouched range passes, a tampered first entry or wrong continuesFrom hash is a break", () => {
+  it("valid: untouched range passes, a tampered first entry or wrong predecessor hash is a break", () => {
     expect(verifyBundle(exp(), { receiptVerifiers: [yes] }).inconsistent).toBe(false)
     const t = [e[0]!, e[1]!, { ...e[2]!, link: { ...e[2]!.link!, prevHash: "00".repeat(32) } }, e[3]!]
     expect(verifyBundle(exp(t), { receiptVerifiers: [yes] }).chain.h1!.breaks).toContainEqual(expect.objectContaining({ seq: 3, kind: "prev-mismatch" }))
-    const b = JSON.parse(JSON.stringify(exp())); b.series[0].continuesFrom.hash = "ab".repeat(32)
+    const b = JSON.parse(JSON.stringify(exp())); b.segments[0].predecessor.hash = "ab".repeat(32)
     expect(verifyBundle(b).chain.h1!.breaks).toContainEqual(expect.objectContaining({ seq: 3, kind: "prev-mismatch" }))
   })
   it("a missing predecessor fails the export; the first window's previous is checked against the carried predecessor statement", () => {
