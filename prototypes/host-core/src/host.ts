@@ -1860,6 +1860,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       } else {
         flights.delete(id)
         if (closing) { result = Exit.fail(new HostClosed()); yield* locked(commit) }   // shutdown took over (BEH-BR-075)
+        else if (f.op !== "remove" && (!entries.get(id) || entries.get(id)!.removing)) {
+          // A child's removal took the stop over: the owning operation is decided against it (BEH-BR-073, 121; ADR-BR-038 item 5).
+          result = Exit.fail(new UnknownPlugin({ id })); yield* locked(commit)
+        }
         else { f.deferredOverride?.(); yield* locked(apply(id, f.target)) }
       }
       const callers = f.callers

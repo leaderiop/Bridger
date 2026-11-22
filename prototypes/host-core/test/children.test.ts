@@ -421,9 +421,34 @@ describe("groups (BEH-BR-127, 128)", () => {
       expect(close.pollUnsafe()).toBeUndefined()                                  // waiting for the stop step it took over
       yield* Deferred.succeed(release, undefined)
       yield* stepAll(host, [holder, restart, close])
+      expect(failed(yield* Fiber.await(restart), "UnknownPlugin")).toBe(true)      // the owning operation is decided against the removal (BEH-BR-073)
       expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
       expect(j.lines.filter((l) => l === "child:build")).toHaveLength(1)           // the restart's rebuild never ran
       expect(j.lines.filter((l) => l === "child:close")).toHaveLength(1)
     }))
+  })
+
+  it("BEH-BR-121, 126: unmounting a child still queued for a build slot abandons the build and removes it at once", async () => {
+    const j = journal()
+    const out: { rt?: PluginRuntime["Service"] } = {}
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { out.rt = yield* PluginRuntime })) as never }) as unknown as AnyPlugin
+    const gate = Effect.runSync(Deferred.make<void>())
+    const slow = define({ id: "slow", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Deferred.await(gate)) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(parent, as()); yield* idle(host)
+      const sub = yield* Scope.make()
+      const slowInstall = yield* Effect.forkChild(host.install(slow, as()))                 // takes the only build slot
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      const mount = yield* Effect.forkChild(out.rt!.install(childDef(j)).pipe(Scope.provide(sub)))
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      expect(yield* stateIn(host, "app/child")).toBe("starting")                          // queued, no build begun
+      yield* drive(host, out.rt!.unmount({ id: "app/child", realm: "default" } as never, { context: as().context }))
+      expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
+      yield* Deferred.succeed(gate, undefined)
+      yield* stepAll(host, [slowInstall, mount])
+      expect(j.lines.filter((l) => l === "child:build")).toHaveLength(0)                  // the queued build never ran
+    }), { options: { concurrency: 1 } })
   })
 })
