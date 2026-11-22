@@ -1746,7 +1746,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       } else opts.land?.(e)
       yield* commit
     }))
-    if (Exit.isFailure(closeExit)) return yield* Effect.fail(new CleanupError({ id, message: msg(Cause.squash(closeExit.cause)) }))
+    if (Exit.isFailure(closeExit)) return yield* Effect.fail(new CleanupError({ id: e.pluginId, realm: e.realm, message: msg(Cause.squash(closeExit.cause)) }))
     if (cascadeFrom === undefined) opts.hooks?.stopped?.(id)
     return true
     }).pipe(Effect.ensuring(Effect.sync(() => { e.stepRunning = false })))

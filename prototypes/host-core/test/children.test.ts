@@ -513,4 +513,24 @@ describe("groups (BEH-BR-127, 128)", () => {
       expect(["waiting", "failed"]).toContain(yield* stateIn(host, "mid"))                 // the discarded build never activates
     }))
   })
+
+  it("ADR-BR-038 item 1: an operation on an unrelated plugin is not delayed by another plugin's drain", async () => {
+    const a = define({ id: "a", requires: [] as const, provides: [Feature] as const, build: Layer.succeed(Feature, { on: true }) as never }) as unknown as AnyPlugin
+    const b = define({ id: "b", requires: [] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(a, as()); yield* host.install(b, as()); yield* idle(host)
+      const entered = yield* Deferred.make<void>(); const release = yield* Deferred.make<void>()
+      const holder = yield* Effect.forkChild(host.use(Feature, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))))
+      yield* Deferred.await(entered)
+      const slow = yield* Effect.forkChild(host.remove("a", { ...as(), drain: 5000 }))     // draining for as long as the lease is held
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      expect(slow.pollUnsafe()).toBeUndefined()
+      yield* drive(host, host.restart("b", as()))                                           // not queued behind a's drain
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }     // its rebuild too
+      expect(yield* stateIn(host, "b")).toBe("active")
+      yield* Deferred.succeed(release, undefined)
+      yield* stepAll(host, [holder, slow])
+      expect(yield* stateIn(host, "a")).toBe("uninstalled")
+    }))
+  })
 })
