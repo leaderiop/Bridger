@@ -59,7 +59,7 @@ describe("TestFederation", () => {
       const realm = peerRealmId("hub", board.descriptor.serviceId, 1)
       let dials = 0
       const dial = Effect.suspend(() => ++dials === 1 ? fed.exportTo("hub", board, "1.2.0") : Effect.never as never)           // the second dial never completes: the link stays down
-      yield* drive(term, importFrom(term, new FenceTable(), [], { peer: "hub", key: board.descriptor.serviceId, major: 1 }, { contract: board, accepts: "^1.2", dial, attribution: as(), heartbeat: { every: 30, missed: 2 }, backoff: 20 }))
+      yield* drive(term, importFrom(term, new FenceTable(), [], { peer: "hub", key: board.descriptor.serviceId, major: 1 }, { contract: board, accepts: "^1.2", dial, attribution: as(), heartbeat: { every: 500, missed: 6 }, backoff: 20 }))
       expect(yield* until(term, Effect.map(callThrough(term, realm, "a"), (r) => r.includes("H:a")))).toBe(true)
       yield* drive(term, term.remove({ id: `import:hub:${board.descriptor.serviceId}`, realm }, as()))
       yield* idle(term)

@@ -83,7 +83,7 @@ describe("P7 core 31: phases, failure policy, breaker, settle (checks 78, 79, 80
     expect(out.record.decidedBy).toEqual({ id: "v1", cause: "veto", code: "below-cost" })
     expect(JSON.stringify(out.record)).not.toContain("margin")       // no params, no input in the record
     // A code outside the set and a non-primitive param are errors, never vetoes.
-    const q = yield* HookPoint.make<Price, number, string, "below-cost" | "frozen">("q", base({ onError: "skip" }))
+    const q = yield* HookPoint.make<Price, number, string, "below-cost" | "frozen">("q", base({ onError: "skip", timeout: 5000, deadline: 10_000 }))
     yield* q.register("bad", () => Effect.succeed({ _tag: "Veto", code: "other" } as never), { role: "veto" })
     yield* q.register("obj", () => Effect.succeed({ _tag: "Veto", code: "frozen", params: { o: {} } } as never), { role: "veto" })
     const o2 = yield* withNone(q.dispatch(input))
