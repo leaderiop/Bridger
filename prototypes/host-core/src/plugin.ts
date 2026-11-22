@@ -26,6 +26,8 @@ export interface PluginDefinition<R extends Keys = Keys, P extends Keys = Keys, 
   /** Decoded before build (BEH-BR-097); top-level fields named in `volatile` may change in place (BEH-BR-102). */
   readonly config?: Schema.Codec<any, any>
   readonly volatile?: ReadonlyArray<string>
+  /** Per-plugin bound on closing this plugin's activation scope, overriding `Options.closeTimeout` (BEH-BR-046, report 03 R1); ms, or "forever" when stated. */
+  readonly closeTimeout?: number | "forever"
   /** Health checks while active (BEH-BR-092); durations in ms in this prototype. */
   readonly health?: {
     readonly check: Effect.Effect<void, unknown, IdentifiersOf<R>>

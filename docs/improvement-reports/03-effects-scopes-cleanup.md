@@ -113,11 +113,11 @@ Verification: fault injects a one-shot failure; retry succeeds and the plugin le
 
 ## Resolution status (2026-11-22)
 
-Branch `spec/cleanup-report-03`; prototype suite 644/644 (622 when the work started), `verify-traceability.sh` 0 failures. Every finding is resolved; the cards above are the proposals, and this table is what was built.
+Branch `spec/cleanup-report-03`; prototype suite 645/645 (622 when the work started), `verify-traceability.sh` 0 failures. Every finding is resolved; the cards above are the proposals, and this table is what was built.
 
 | Finding | Rec. | Status | As built |
 |---|---|---|---|
-| T1 | R1 | Resolved | `closeTimeout` (default 30 s). Effect cannot interrupt a finalizer (probed), so the close runs detached and only the wait is bounded; expiry ends the stop `failed(cleanup)` and claims no release. BEH-BR-107 amended: the overall shutdown limit still never interrupts, the per-scope limit records a failure. No manifest override: no per-plugin option exists, the host option is the one bound. |
+| T1 | R1 | Resolved | `closeTimeout` (default 30 s). Effect cannot interrupt a finalizer (probed), so the close runs detached and only the wait is bounded; expiry ends the stop `failed(cleanup)` and claims no release. BEH-BR-107 amended: the overall shutdown limit still never interrupts, the per-scope limit records a failure. A plugin definition may override the bound (`closeTimeout`); the manifest override was replaced by it, since a manifest is data. |
 | T2 | R1 | Resolved | `Registry.revokeTimeout` (default 30 s) and `HoldRevoked.stuck`. The prototype had no `revocations` feed at all; BEH-BR-167's feed (`seq`, no notice without a revoked holder) is now implemented with it. |
 | T3 | R2 | Resolved | `causes` (LIFO, `label?`) on `CleanupError`, the failed snapshot entry and the `leak-acknowledged` error; `message` is the first. The `unmount` hook still carries one message. |
 | T4 | R3 | Resolved | `Runtime.acquire` and `PluginInspection.resources` (held, or release failed or unconfirmed). Opt-in: an empty list does not mean nothing is held. Prototype wires it in the runtime, not through `ActivePlugin.report`; the spec states the report kind. |
@@ -134,5 +134,5 @@ Branch `spec/cleanup-report-03`; prototype suite 644/644 (622 when the work star
 - Checked: shutdown (12) bounded the whole shutdown only, never a single plugin's close; T1 stood as written. BEH-BR-107 was amended.
 - Checked: no rule withheld build-time emissions (05, 16); T6 stood.
 - The prototype was run: every change has a test and a mutation check (breaking the code failed the test).
-- Not done: `retryCleanup` cannot retry a finalizer not acquired through `acquire`; `Plugin.compensate` stays unplanned; the manifest-level `closeTimeout` override was dropped because no per-plugin timeout option exists.
+- Not done: `retryCleanup` cannot retry a finalizer not acquired through `acquire`; `Plugin.compensate` stays unplanned; the per-plugin `closeTimeout` lives on the plugin definition, not the manifest.
 - Cordis comparisons still rely on the supplied brief, and the diagrams are still simplified.

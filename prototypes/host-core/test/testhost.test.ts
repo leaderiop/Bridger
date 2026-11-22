@@ -174,6 +174,17 @@ describe("TestHost: faults (BEH-BR-180)", () => {
     expect(p.state === "failed" && p.failure.phase).toBe("cleanup")
   }), { options: { closeTimeout: 1000 } }))
 
+  it("closeHangs: a plugin's own closeTimeout overrides the host's (BEH-BR-046)", () => runT((t) => Effect.gen(function* () {
+    yield* t.inject(Testing.Fault.closeHangs("example/logger"))
+    yield* t.install({ ...loggerPlugin(journal()), closeTimeout: 100 } as AnyPlugin, as())
+    yield* t.runUntilIdle
+    const call = yield* Effect.forkChild(t.restart("example/logger", as()))
+    yield* t.runUntilIdle
+    yield* TestClock.adjust(100)
+    const exit = yield* Fiber.await(call)
+    expect(failed(exit, "close timed out after 100 ms")).toBe(true)              // the host's 1000 ms did not apply
+  }), { options: { closeTimeout: 1000 } }))
+
   it("holdLease: a held lease makes a removal time out under the clock; force revokes it", () => runT((t) => Effect.gen(function* () {
     yield* t.inject(Testing.Fault.holdLease("example/logger"))
     yield* t.install(loggerPlugin(journal()), as())
