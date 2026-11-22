@@ -99,7 +99,7 @@
 
 ## Resolution status (2026-11-22)
 
-Branch `spec/dependency-report-02`; prototype suite 396/396, `verify-traceability.sh` 0 failures. Every finding is resolved; the cards below describe what was built.
+Branch `spec/dependency-report-02`; prototype suite 622/622 (396 when this report was first written), `verify-traceability.sh` 0 failures. Every finding is resolved; the cards below describe what was built.
 
 | Finding | Rec. | Status | Notes |
 |---|---|---|---|
@@ -117,7 +117,7 @@ The minor proposals X1 (D-07), X2 (D-10) and X3 (D-11) are in the rows above. As
 
 ## Not checked / uncertainties
 
-- Federation, remote, loader and kit files were checked for the changes made here (2026-11-22): federation imports (BEH-FD-026) and remote proxies are contract-based (`Contract.at`), so the plain-key rule does not touch them, and a proxy whose contract copy has no digest is simply not compared. Not done: carrying digests in the remote handshake descriptor, so cross-host drift is not detected yet.
+- Federation, remote, loader and kit files were checked for the changes made here (2026-11-22): federation imports (BEH-FD-026) and remote proxies are contract-based (`Contract.at`), so the plain-key rule does not touch them, and a proxy whose contract copy has no digest is simply not compared. Cross-host drift is now detected: the remote handshake descriptor and the federation offer carry the per-method digests, and a mismatch refuses that import alone with `incompatible-contract` naming `mismatchedMethods` while the link stays up (`test/wire.test.ts`, `test/session.test.ts`; added after this report was first written).
 - BEH-BR-020 was read against the prototype: `DependencyCycle.path` was a list of key strings against the spec's `{ id, realm }` records; the prototype now follows the spec and a test pins it. ADR-BR-038 and BEH-BR-121..128 (children) are still only sampled.
 - D-07: the host exposes `Host.changes`; it is now used.
 - The suite was run for every change (396 tests). The loader and kit rules of R2 have no prototype to run against.
