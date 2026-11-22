@@ -1,12 +1,12 @@
 // The remote session over a `Connection` (remote 02 and 04): an epoch per session, calls and results carrying it, a stale epoch
 // refused at both ends (BEH-RM-011), heartbeat (BEH-RM-025) and a link that opens a fresh session after one ends (BEH-RM-010, 029).
-import { Clock, Deferred, Effect, Fiber, Option, Ref } from "effect"
+import { Clock, Deferred, Effect, Fiber, Option, Queue, Ref } from "effect"
 import type { WireSide } from "./handshake.js"
 import { guestServe, linkHandshake, type Connection, type LinkOutcome } from "./wire.js"
 
 const parse = (s: string): { readonly t?: string; readonly [k: string]: unknown } | undefined => { try { const v = JSON.parse(s); return typeof v === "object" && v !== null && !Array.isArray(v) ? v : undefined } catch { return undefined } }
 
-export type EndReason = "heartbeat-missed" | "guest-reset" | "closed"
+export type EndReason = "heartbeat-missed" | "guest-reset" | "closed" | "unavailable"
 /** A call that did not complete normally: `outcome` says whether the guest may have run it (ADR-RM-008). */
 export interface CallFailure { readonly _tag: "StaleEpoch" | "SessionLost" | "MethodNotServed" | "RemoteError" | "RemoteUnavailable"; readonly outcome: "not-executed" | "unknown"; readonly detail?: unknown }
 export interface Session {
@@ -127,4 +127,41 @@ export const startLink = (dial: Effect.Effect<Connection>, o: Omit<SessionOption
   })
   const fiber = yield* Effect.forkDetach(loop)
   return { status: Ref.get(status), current: Ref.get(current), stop: Fiber.interrupt(fiber).pipe(Effect.andThen(Ref.update(status, (s) => ({ ...s, state: "stopped" as const })))) }
+})
+
+/** An invocation transport (a Worker Loader stub): one frame in, one frame out, and it can fail at the transport. */
+export type Invoke = (frame: string) => Effect.Effect<string, unknown>
+
+/**
+ * A logical session held on the host only (BEH-RM-025, `liveness: "per-call"`): the handshake runs in one invocation, every call is
+ * its own invocation carrying the epoch and version, and no `ping` is sent. `unavailableAfter` consecutive transport failures end the
+ * session; a `StaleEpoch` or contract refusal ends it at once with "guest-reset".
+ */
+export const openPerCallSession = (invoke: Invoke, o: Omit<SessionOptions, "heartbeat"> & { readonly unavailableAfter?: number }): Effect.Effect<Session | Exclude<LinkOutcome, { session: unknown }>> => Effect.gen(function* () {
+  const inbox = yield* Queue.unbounded<string>()
+  const conn: Connection = { send: (f) => Effect.forkDetach(invoke(f).pipe(Effect.flatMap((r) => Queue.offer(inbox, r)), Effect.ignore)).pipe(Effect.asVoid), receive: Queue.take(inbox) }
+  const h = yield* linkHandshake(conn, { wire: o.wire, epoch: o.epoch, contract: o.contract })
+  if (!("session" in h)) return h
+  const endedD = yield* Deferred.make<EndReason>()
+  const failures = yield* Ref.make(0)
+  const refusals = yield* Ref.make(0)
+  let n = 0
+  const finish = (r: EndReason) => Deferred.succeed(endedD, r).pipe(Effect.asVoid)
+  const call = (method: string, payload: unknown): Effect.Effect<unknown, CallFailure> => Effect.gen(function* () {
+    if (yield* Deferred.isDone(endedD)) return yield* Effect.fail({ _tag: "SessionLost", outcome: "not-executed" } satisfies CallFailure)
+    const raw = yield* Effect.exit(invoke(JSON.stringify({ t: "call", epoch: o.epoch, callId: `c-${++n}`, method, payload, version: h.session.version })))
+    if (raw._tag === "Failure") {
+      if ((yield* Ref.updateAndGet(failures, (x) => x + 1)) >= (o.unavailableAfter ?? 3)) yield* finish("unavailable")
+      return yield* Effect.fail({ _tag: "SessionLost", outcome: "unknown" } satisfies CallFailure)
+    }
+    yield* Ref.set(failures, 0)
+    const f = parse(raw.value)
+    if (!f) return yield* Effect.fail({ _tag: "RemoteError", outcome: "unknown" } satisfies CallFailure)
+    const err = f.error as { _tag?: string } | undefined
+    if (f.t === "refuse" || err?._tag === "StaleEpoch") { yield* finish("guest-reset"); return yield* Effect.fail({ _tag: "StaleEpoch", outcome: "not-executed" } satisfies CallFailure) }
+    if (f.epoch !== o.epoch) { yield* Ref.update(refusals, (x) => x + 1); return yield* Effect.fail({ _tag: "StaleEpoch", outcome: "unknown" } satisfies CallFailure) }
+    if (err) return yield* Effect.fail({ _tag: err._tag === "MethodNotServed" ? "MethodNotServed" : "RemoteError", outcome: "not-executed", detail: err } satisfies CallFailure)
+    return f.value
+  })
+  return { epoch: o.epoch, version: h.session.version, call, ended: Deferred.await(endedD), refusals: Ref.get(refusals), close: finish("closed") } satisfies Session
 })

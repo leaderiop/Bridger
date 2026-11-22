@@ -4,7 +4,7 @@ import { Context, Effect, Exit, Fiber, Logger, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Contract } from "../src/contract.js"
 import { duplex, guestServe, linkHandshake, type Connection } from "../src/wire.js"
-import { openSession, serveGuest, startLink, type CallFailure, type Session } from "../src/session.js"
+import { openPerCallSession, openSession, serveGuest, startLink, type CallFailure, type Session } from "../src/session.js"
 
 class Board extends Context.Service<Board, { readonly post: (s: string) => Effect.Effect<string> }>()("example/Board@1") {}
 const d = Contract.make(Board, { version: "1.2.0", methods: { post: Contract.method({ payload: Schema.String, success: Schema.String }) } }).descriptor
@@ -181,5 +181,52 @@ describe("link", () => {
       yield* link.stop
       expect(lines.some((l) => /flapping/.test(l))).toBe(false)
     }).pipe(Effect.provide(Logger.layer([Logger.make<unknown, void>(({ message }) => { lines.push(String(message)) })]))))
+  })
+})
+
+describe("per-call transport (BEH-RM-025)", () => {
+  const stub = () => Effect.gen(function* () {
+    const [a, b] = yield* duplex
+    yield* Effect.forkChild(serveGuest(b, guest()))
+    const ctl = { down: false, sent: [] as string[] }
+    const invoke = (frame: string) => Effect.gen(function* () {
+      ctl.sent.push(frame)
+      if (ctl.down) return yield* Effect.fail("unreachable")
+      yield* a.send(frame); return yield* a.receive
+    })
+    return { invoke, ctl }
+  })
+  const po = { epoch: "p-1", wire: [1], contract, unavailableAfter: 3 }
+
+  it("calls with the epoch and version on every invocation, sends no ping, and ends after unavailableAfter consecutive transport failures", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const { invoke, ctl } = yield* stub()
+      const s = (yield* openPerCallSession(invoke, po)) as Session
+      expect(yield* s.call("post", "a")).toBe("posted:a")
+      expect(JSON.parse(ctl.sent.at(-1)!)).toMatchObject({ t: "call", epoch: "p-1", version: "1.2.0" })
+      yield* Effect.sleep(120)
+      expect(ctl.sent.some((f) => JSON.parse(f).t === "ping")).toBe(false)
+      ctl.down = true
+      expect(yield* fails(s.call("post", "b"))).toMatchObject({ _tag: "SessionLost", outcome: "unknown" })
+      ctl.down = false
+      expect(yield* s.call("post", "c")).toBe("posted:c")                          // a success resets the count
+      ctl.down = true
+      yield* fails(s.call("post", "x1")); yield* fails(s.call("post", "x2"))        // two since the success: still open
+      ctl.down = false
+      expect(yield* s.call("post", "d")).toBe("posted:d")
+      ctl.down = true
+      for (let i = 0; i < 3; i++) yield* fails(s.call("post", "x"))
+      expect(yield* s.ended).toBe("unavailable")
+      expect(yield* fails(s.call("post", "y"))).toMatchObject({ _tag: "SessionLost", outcome: "not-executed" })
+    }))
+  })
+
+  it("a StaleEpoch answer ends the session at once, whatever the count", async () => {
+    await Effect.runPromise(Effect.gen(function* () {
+      const { invoke } = yield* stub()
+      const s = (yield* openPerCallSession((f) => invoke(f.includes('"t":"call"') ? f.replace('"p-1"', '"old"') : f), po)) as Session
+      expect(yield* fails(s.call("post", "a"))).toMatchObject({ _tag: "StaleEpoch" })
+      expect(yield* s.ended).toBe("guest-reset")
+    }))
   })
 })
