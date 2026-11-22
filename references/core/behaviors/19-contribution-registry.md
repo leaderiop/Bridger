@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-19                                               |
-> | Revision       | 0.8                                                          |
+> | Revision       | 0.9                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.8 (2026-11-11): BEH-BR-162 `Options.report` (default true); BEH-BR-163 a registry made with `report: false` reports nothing (CL4); BEH-BR-168 excepts such registries (C4); BEH-BR-163 `ActivePlugin` also gives an `IncompatibleContract` its `providerRealm` (CL7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.9 (2026-11-22): BEH-BR-168 `Broker.make`, a stable facade that leases each call on a contribution of a contract registry, so a provider swap restarts no dependent (report 02 R3, D-03, D-12)<br>0.8 (2026-11-11): BEH-BR-162 `Options.report` (default true); BEH-BR-163 a registry made with `report: false` reports nothing (CL4); BEH-BR-168 excepts such registries (C4); BEH-BR-163 `ActivePlugin` also gives an `IncompatibleContract` its `providerRealm` (CL7) (SPEC-AUDIT-06) (CCR-BR-038)<br>0.7 (2026-11-11): BEH-BR-163 a registry the event bus keeps a listener list in reports nothing (CL9); `ActivePlugin` may also give an `IncompatibleContract` its `providerId` (CL10) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.6 (2026-11-10): BEH-BR-163 and BEH-BR-168 a registry reports a contribution by calling `ActivePlugin.report` in the scope of `add` and reaches the host only through that value (C12) (CCR-BR-036)<br>0.5 (2026-11-10): BEH-BR-167 `HoldRevoked.seq`, gap-free per registry, so lost notices show (audit round 2, Low) (CCR-BR-034)<br>0.4 (2026-11-08): BEH-BR-163 and BEH-BR-165 view entries carry the contributing plugin as `owner` (G67 closed); BEH-BR-167 `Registry.revocations` feed of `HoldRevoked` notices when a removal revokes holders (G68 closed); BEH-BR-166 prose names both holds of a UI renderer (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-162 `Options.contract` and `range`, `implements` on `add`, `version` and `methods` on view entries, `within(range)` reader; BEH-BR-163 contract check on `add` (26, BEH-BR-233); BEH-BR-165 entries carry their declared version; BEH-BR-168 `Selector` range (CCR-BR-025)<br>0.2 (2026-11-08): BEH-BR-163 `add` consults a wired `AccessPolicy` (CCR-BR-018); BEH-BR-168 points to `Selector` and hook points (CCR-BR-019)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 ---
 
@@ -416,8 +416,77 @@ This closes URS gap G68.
 ```
 REQUIREMENT: Multiplexing — several implementations behind one service key —
              MUST be expressed as a registry the implementations contribute
-             to, not as several providers of one key.
+             to, not as several providers of one key. A broker (below) MAY put one
+             stable service over such a registry.
 ```
+
+```ts
+// illustrative — not type-checked
+type Select<A> = "first" | ((view: RegistryView<A>, call: { method: string; args: readonly unknown[] }) => string | undefined)
+interface Broker<Shape> {
+  readonly registry: ContributionRegistry<Shape>   // a contract registry: `add(id, impl, { implements })`, BEH-BR-233
+  readonly service: Shape                          // the stable facade, provided as one base service
+}
+declare const Broker: {
+  make<Self, Shape>(contract: Contract<Self, Shape>, options?: {
+    name?: string; range?: ContractRange; select?: Select<Shape>; drainTimeout?: Duration.Input | "forever"
+  }): Effect.Effect<Broker<Shape>, never, Scope.Scope>
+  byKey<A>(keyOf: (call: { method: string; args: readonly unknown[] }) => string | undefined): Select<A>
+}
+```
+
+```
+REQUIREMENT: `Broker.make(contract, options)` MUST make a contract registry
+             (BEH-BR-233, `options.range` its range, `options.name` its
+             name, the contract's `ServiceId` by default) and a facade
+             object with one function member per method name of the
+             contract. A plugin or the application provides the facade
+             under the contract's key like any service; implementations
+             contribute to the registry. A swap of one implementation for
+             another is therefore a registry change (BEH-BR-164, 167) and
+             restarts no dependent, which a `replace` of a provider of the
+             key would (07, BEH-BR-050).
+```
+
+```
+REQUIREMENT: Each call to a facade member MUST choose one contribution when
+             the call is made — `"first"`: the first entry of the view
+             (BEH-BR-165 order, so the lowest priority number); a function:
+             the id it returns for the view and the call (`Broker.byKey`
+             builds one from the call's arguments); `undefined` or an id
+             not in the view: none — then run the member of that
+             contribution under a lease (BEH-BR-166). The call MUST fail
+             with `ContributionUnavailable` when no contribution is chosen.
+             When the chosen contribution is withdrawn between the choice
+             and the lease, the call MUST choose again once. A call on a
+             withdrawing contribution completes on it (BEH-BR-167); a later
+             call never reaches it.
+```
+
+```
+REQUIREMENT: A call through a facade MUST name the chosen contribution to
+             the call log: it MUST call `CurrentCall`'s `contributed(id)`
+             when a call is being recorded, and the `CallEntry` MUST then
+             carry `contribution: id` (29, BEH-BR-276, 277). The provider of
+             the entry stays the facade's provider, so the audit shows both.
+```
+
+```
+REQUIREMENT: A member of a contribution that is not a function MUST be a
+             defect naming the broker and the member. A method declared
+             `stream` MUST return a `Stream`; the lease covers producing it.
+```
+
+**Open.** A stream method's lease should cover the stream's consumption, not
+only its production; it needs a scoped hold on a registry contribution, which
+`ContributionRegistry` does not offer yet.
+
+**Porting from Cordis.** Cordis's accessor and mixin patterns (a service that
+other plugins extend or swap behind one name) become a broker: declare the
+contract once, provide the facade as the single service, and let each
+extending plugin contribute an implementation with `implements` and a
+priority. Selection moves from "the last mixin wins" to the declared
+`select`.
 
 ```
 REQUIREMENT: A registry MUST report each contribution's owning plugin and

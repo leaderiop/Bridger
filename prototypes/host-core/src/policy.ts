@@ -120,6 +120,7 @@ export interface CallEntry {
   readonly serviceId: string
   readonly provider?: ResolutionRequest["provider"]
   readonly member?: string
+  readonly contribution?: string   // the contribution a broker chose for the call (BEH-BR-168)
   readonly outcome: "success" | "failure" | "defect" | "interrupted" | "denied" | "refused"
   readonly errorTag?: string
   readonly startedAt: string
@@ -140,7 +141,10 @@ export class CallLog extends Context.Service<CallLog, {
 }>()("@bridger/core/CallLog") {}
 export class CallLogUnavailable extends Schema.TaggedError<CallLogUnavailable>()("CallLogUnavailable", { serviceId: Schema.String, member: Schema.optional(Schema.String), why: Schema.Literals(["queue-full", "record-failed", "record-timeout", "host-closing"]) }) {}
 export class InvalidCallEntry extends Schema.TaggedError<InvalidCallEntry>()("InvalidCallEntry", { reason: Schema.String }) {}
-export interface CallInfo { readonly callId: string; readonly consumer: CallEntry["consumer"]; readonly serviceId: string; readonly member: string; readonly grant: "all" | ReadonlyArray<string>; readonly [k: symbol]: true }
+export interface CallInfo { readonly callId: string; readonly consumer: CallEntry["consumer"]; readonly serviceId: string; readonly member: string; readonly grant: "all" | ReadonlyArray<string>
+  /** A broker (BEH-BR-168) names the contribution it chose for this call; the entry records it as `contribution`. */
+  readonly contributed: (id: string) => void
+  readonly [k: symbol]: true }
 const CALL = Symbol.for("bridger/prototype/CallInfo")
 const CallRef = Context.Reference<Option.Option<CallInfo>>("@bridger/core/CurrentCall", { defaultValue: () => Option.none() })
 export const CurrentCall = {

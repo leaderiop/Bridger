@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-29                                               |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-10): BEH-BR-280 the core-produced `refusal` entry is the one exception to kind "call" and always follows "drop" (audit round 2, Low); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-280 `CrossingInfo.disclosed`, the names of the identity claims that crossed with the call, never their values, accepted on offered crossing entries and checked for empty or repeated names (requested by remote CCR-RM-004 and MCP CCR-MC-004, finding F-07) (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
+> | Change History | 0.8 (2026-11-22): BEH-BR-276 `CallEntry.contribution`, BEH-BR-277 `CallInfo.contributed(id)`: the contribution a broker chose (19, BEH-BR-168; report 02 R3)<br>0.7 (2026-11-10): BEH-BR-280 the core-produced `refusal` entry is the one exception to kind "call" and always follows "drop" (audit round 2, Low); the unwired-equivalence statements cover files 02–20 and 22–34 (audit round 2, Low) (CCR-BR-034)<br>0.6 (2026-11-09): BEH-BR-280 `CrossingInfo.disclosed`, the names of the identity claims that crossed with the call, never their values, accepted on offered crossing entries and checked for empty or repeated names (requested by remote CCR-RM-004 and MCP CCR-MC-004, finding F-07) (CCR-BR-033)<br>0.5 (2026-11-08): BEH-BR-279 capacity judged only at the reservation, before the member runs (G-P18, second half not adopted); INV-BR-052 link retitled; check 72 `Grant.all` keeps a layer when `changes` is declared (G-P13) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-280 `CrossingInfo.epoch` and `RevocationInfo.epoch` are opaque strings; entry kind "dispatch" with `DispatchInfo` for companion dispatches that ran or replayed a stored outcome (G66 closed); BEH-BR-276 `CallEntry.kind` and `dispatch` field; BEH-BR-281 cites `Entitlement.capabilityPolicy`; check 112 (CCR-BR-027)<br>0.3 (2026-11-08): BEH-BR-279 call-log failure policy (`onFailure` "drop" or "refuse", bounded hand-off queue, `CallLogUnavailable`); BEH-BR-280 entry kinds ("call", "crossing", "refusal", "revocation"), `Host.offerCallEntry` and `PrincipalRef.encode`/`decode`; BEH-BR-281 `CapabilityPolicy.changes` re-resolves live captures (narrowing on entitlement lapse); BEH-BR-276 `CallEntry` gains `kind`, `correlationId` and `sanitized`, Open closed; BEH-BR-275 a grant layer is kept when the policy declares `changes`; checks 107, 110 and 111 (CCR-BR-026)<br>0.2 (2026-11-08): `ResolutionRequest.contract` is `{ name, version }` of the bound provision; one member set for narrowing and the malformed-grant check; the port never receives an actor, stated with the route for companions that admit by actor (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-018) |
 
 ---
 
@@ -328,6 +328,7 @@ interface CallEntry {
   readonly serviceId: ServiceId
   readonly provider?: ResolutionRequest["provider"]   // present on every entry core produces; optional on offered ones
   readonly member?: string                    // present on kind "call" and "crossing"; optional on "dispatch"
+  readonly contribution?: string              // the contribution a broker chose for this call (19, BEH-BR-168)
   readonly outcome: "success" | "failure" | "defect" | "interrupted" | "denied" | "refused"
   readonly errorTag?: string                  // failure only: the typed error's _tag
   readonly startedAt: string                  // Clock, ISO-8601 UTC with ms
@@ -442,6 +443,7 @@ interface CallInfo {
   readonly serviceId: ServiceId
   readonly member: string
   readonly grant: "all" | readonly string[]
+  readonly contributed: (id: string) => void  // a broker names the contribution it chose (19, BEH-BR-168)
 }
 declare const CurrentCall: { readonly get: Effect.Effect<Option.Option<CallInfo>> }
 ```

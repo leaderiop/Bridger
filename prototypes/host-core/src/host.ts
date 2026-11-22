@@ -628,7 +628,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
             if (policy === "refuse" && !reserved) { logState.refused++; return yield* Effect.die(new CallLogUnavailable({ serviceId, member, why: "queue-full" })) }
             const callId = yield* ids.next
             const consumer: CallEntry["consumer"] = a.consumer.kind === "plugin" ? { kind: "plugin", principal: a.consumer.principal } : { kind: "application", realm: a.consumer.realm }
-            const info = CurrentCall.make({ callId, consumer, serviceId, member, grant: h?.grant.members ?? "all" })
+            let chosen: string | undefined
+            const info = CurrentCall.make({ callId, consumer, serviceId, member, grant: h?.grant.members ?? "all", contributed: (id) => { chosen = id } })
             const started = yield* Clock.currentTimeMillis
             const exit = yield* Effect.exit(Effect.suspend(() => run() as Effect.Effect<unknown, unknown>).pipe(Effect.provideService(CurrentCall.reference, Option.some(info))))
             const ended = yield* Clock.currentTimeMillis
@@ -636,7 +637,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
             const err = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
             const outcome: CallEntry["outcome"] = Exit.isSuccess(exit) ? "success" : err instanceof CapabilityDenied ? "denied" : Cause.hasInterruptsOnly(exit.cause) ? "interrupted" : Cause.hasFails(exit.cause) ? "failure" : "defect"
             const enc = Ann.encode(Ann.filter(isBag(ann) ? ann : Ann.empty, "callLog")).entries
-            const entry: CallEntry = { kind: "call", callId, consumer, actor, serviceId, provider, member, outcome, ...(outcome === "failure" && (err as { _tag?: string })?._tag ? { errorTag: (err as { _tag: string })._tag } : {}),
+            const entry: CallEntry = { kind: "call", callId, consumer, actor, serviceId, provider, member, ...(chosen !== undefined ? { contribution: chosen } : {}), outcome, ...(outcome === "failure" && (err as { _tag?: string })?._tag ? { errorTag: (err as { _tag: string })._tag } : {}),
               startedAt: new Date(started).toISOString(), durationMs: ended - started, ...(Option.isSome(corr) ? { correlationId: corr.value } : {}), ...(enc.length ? { annotations: enc } : {}), origin: "core" }
             // A denied call keeps its outcome; its entry follows "drop" (BEH-BR-279).
             if (reserved && outcome !== "denied") {
