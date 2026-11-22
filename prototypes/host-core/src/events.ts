@@ -20,7 +20,7 @@ export type HostEventBody =
   | { readonly type: "lease-revoked"; readonly leases: number; readonly generation?: string }
   | { readonly type: "drain-timeout"; readonly leases: number; readonly target?: string }
   | { readonly type: "stop-parked"; readonly leases: number; readonly target?: string }
-  | { readonly type: "stop-resumed"; readonly by: "operator" | "cascade" | "shutdown"; readonly endsIntent?: string }
+  | { readonly type: "stop-resumed"; readonly by: "operator" | "cascade" | "shutdown" | "sub-scope" | "unmount"; readonly endsIntent?: string }
   | { readonly type: "stop-aborted"; readonly endsIntent?: string }
   | { readonly type: "config-rejected"; readonly message: string }
   | { readonly type: "config-updated"; readonly paths: ReadonlyArray<string> }

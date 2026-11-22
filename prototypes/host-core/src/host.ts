@@ -258,6 +258,7 @@ interface Entry {
   registeredAt?: number                       // revision of the last change to definition, override, disabled flag or ownership (BEH-BR-318)
   regFp?: readonly [unknown, unknown, boolean, string | undefined]
   readonly intercept: { readonly inherited: ReadonlyArray<Interception>; readonly own: ReadonlyArray<Interception> }
+  unmounting?: boolean                        // the parent's children are being removed because its activation ended without a stop (BEH-BR-121)
   removing?: boolean                          // a child whose stop ends in removal (`next` "gone", BEH-BR-125)
   owner?: string                              // the reconcile scope that installed it (BEH-BR-155)
   reactive: Set<Fiber.Fiber<unknown, unknown>> // whenAvailable runs holding a lease on this plugin (BEH-BR-133)
@@ -1229,14 +1230,14 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (!c || c.parentKey !== e.id) return yield* Effect.fail(new UnknownPlugin({ id: child.id }))
       yield* deadlockCheck(c.id)                           // before any wait, no record, nothing changed
       // A removal already begun — by the parent's stop, shutdown, the sub-scope close or an earlier unmount — is joined, never repeated, with no record of its own.
-      const joined = c.removing || closing || e.state === "stopping" || e.failing
+      const joined = c.removing || closing || e.state === "stopping" || e.failing || !!e.unmounting
       if (joined) {
         yield* SubscriptionRef.changes(feed).pipe(Stream.filter(() => entries.get(c.id) !== c), Stream.take(1), Stream.runDrain)
         return
       }
       const rid = yield* systemRecord("unmount-requested", c, e.cause, undefined, { requestedBy: o.context.actor } as never)
       let leak: string | undefined
-      yield* Effect.exit(stopDependent(c, e.id, { mode: "no-caller", hooks: { cleanupFailed: (_id, message) => { leak = message } } }, e.id)).pipe(Effect.provideService(CurrentCause, rid))
+      yield* Effect.exit(stopDependent(c, e.id, { mode: "no-caller", resumedBy: "unmount", hooks: { cleanupFailed: (_id, message) => { leak = message } } }, e.id)).pipe(Effect.provideService(CurrentCause, rid))
       if (leak !== undefined) return yield* Effect.fail(new CleanupError({ id: c.pluginId, realm: c.realm, message: leak }))
     }),
     background: (name, effect, o = {}) => Effect.gen(function* () {
@@ -1302,9 +1303,22 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         const rid = yield* systemRecord("system-start", c, e.cause)
         yield* settle.pipe(Effect.provideService(CurrentCause, rid ?? e.cause))
         // Mounted under a sub-scope of the activation: removed when that scope closes, never parked, ungated (BEH-BR-121, 126).
-        if (callerScope !== activationScope) yield* Scope.addFinalizer(callerScope, Effect.suspend(() => {
-          const now = entries.get(c.id)
-          return now === c ? Effect.exit(stopDependent(c, e.id, { mode: "no-caller" }, e.id)).pipe(Effect.provideService(CurrentCause, rid), Effect.asVoid) : Effect.void
+        if (callerScope !== activationScope) yield* Scope.addFinalizer(callerScope, Effect.gen(function* () {
+          if (entries.get(c.id) !== c) return
+          // BEH-BR-121: never fails, and never waits on a lease the closing fiber holds in the child's removal set.
+          const held = yield* HeldPlugins
+          const set = new Set([c.id, ...transitiveDependents(c.id)])
+          const heldInSet = [...held].some((h) => set.has(h))
+          const parentBegun = e.state === "stopping" || e.failing || !!e.unmounting || e.epoch !== epoch || closing || closed || entries.get(e.id) !== e
+          const remove = Effect.exit(stopDependent(c, e.id, { mode: "no-caller", resumedBy: "sub-scope" }, e.id)).pipe(Effect.provideService(CurrentCause, rid), Effect.asVoid)
+          const settled = SubscriptionRef.changes(feed).pipe(Stream.filter(() => entries.get(c.id) !== c), Stream.take(1), Stream.runDrain)
+          const doNotWait = Effect.logWarning(`sub-scope of ${e.pluginId} closed with child ${c.pluginId} (realm ${c.realm}) still registered: its removal is not awaited`)
+          if (!parentBegun && !c.removing) {                       // the finalizer begins the removal, or takes over a stop begun outside the parent's
+            if (heldInSet) { yield* doNotWait; yield* Effect.forkIn(remove, hostScope); return }
+            return yield* remove
+          }
+          if (heldInSet) return yield* doNotWait                    // the parent's stop, shutdown or an unmount owns the removal
+          yield* settled                                            // joined: no second removal, the parent's limits apply
         }))
         return handleOf(c.id)
       }))
@@ -1457,6 +1471,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
    */
   interface StopOpts extends RemoveOptions {
     readonly mode?: "operator" | "no-caller" | "shutdown"
+    readonly resumedBy?: "sub-scope" | "unmount"           // a parked stop taken over by a sub-scope close or `unmount` (BEH-BR-121)
     readonly correlationId?: string                       // the operator call that owns the stop (StepItem)
     readonly seq?: number                                 // arrival of the stop's root (StepItem)
     readonly land?: (e: Entry) => void                     // final state, set in the revision the scope closes
@@ -1475,9 +1490,9 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     yield* systemRecord("lease-revoked", e, yield* CurrentCause)
   })
   /** Ends a parked operator intent (BEH-BR-080, 105): its own record, reservations released, overrides reverted. */
-  const endIntent = (d: Entry, f: Flight, by: "cascade" | "shutdown" | "abort") => Effect.gen(function* () {
+  const endIntent = (d: Entry, f: Flight, by: "cascade" | "shutdown" | "abort" | "sub-scope" | "unmount") => Effect.gen(function* () {
     flights.delete(d.id)
-    if (by !== "abort") d.stopReason = by === "shutdown" ? "shutdown" : "dependency-loss"
+    if (by !== "abort") d.stopReason = by === "shutdown" ? "shutdown" : "dependency-loss"   // a sub-scope close or unmount removes as a cascade does
     let paths: Array<string> = []
     let restored: ReadonlyArray<Fingerprint> = []
     if (f.overrideBefore) {
@@ -1537,8 +1552,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     // A cascade that meets a parked operation resumes it and ends its intent, with its own record (BEH-BR-080, T1).
     yield* locked(Effect.gen(function* () {
       const pf = flights.get(d.id)
-      if (pf?.parked) yield* endIntent(d, pf, "cascade")
-      else if (d.parkedSystem) yield* emit({ type: "stop-resumed", by: "cascade" }, d.id)
+      if (pf?.parked) yield* endIntent(d, pf, opts.resumedBy ?? "cascade")
+      else if (d.parkedSystem) yield* emit({ type: "stop-resumed", by: opts.resumedBy ?? "cascade" }, d.id)
       d.stopCause = id
       if (isChild && !d.removing) { d.removing = true; const parent = entries.get(id); if (parent) parent.childRemoved = true; yield* commit }
     }))
@@ -1597,8 +1612,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }))
   /** Children of an activation that ended without a stop (a failed or discarded build) (BEH-BR-121, 128). */
   const unmountChildren = (e: Entry) => Effect.gen(function* () {
+    e.unmounting = true                                       // from here the parent's stop has begun: a sub-scope close starts no second removal (BEH-BR-121)
     for (const c of [...entries.values()].filter((x) => x.parentKey === e.id).sort((a, b) => b.order - a.order))
       yield* Effect.exit(stopDependent(c, e.id, { mode: "no-caller" }, e.id))
+    e.unmounting = false                                      // this activation is over; a later one starts fresh
   })
 
   /** A stop step that has work to do is a transition step of the scheduler (BEH-BR-178). */

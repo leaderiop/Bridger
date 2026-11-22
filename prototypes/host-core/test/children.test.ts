@@ -1,5 +1,5 @@
 // Phase-P4 scenarios for children and groups (behaviour 14, BEH-BR-121–128).
-import { Context, Deferred, Effect, Exit, Fiber, Layer, type Scope } from "effect"
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Scope, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { PluginRuntime } from "../src/runtime.js"
 import { define, group, type AnyPlugin } from "../src/plugin.js"
@@ -326,6 +326,44 @@ describe("groups (BEH-BR-127, 128)", () => {
       yield* settleWriter
       expect(records.slice(before).some((r) => r.operation === "unmount-requested")).toBe(false)
       expect(yield* stateIn(host, "app/child")).toBe("active")
+    }), { sink })
+  })
+
+  it("BEH-BR-121: closing a sub-scope takes over a child stop parked outside the parent's stop, emits stop-resumed by sub-scope, and a held lease is revoked", async () => {
+    const j = journal()
+    let sub: Scope.Closeable | undefined
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { const rt = yield* PluginRuntime; sub = yield* Scope.make(); yield* rt.install(childDef(j, { provides: true })).pipe(Scope.provide(sub)) })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      const resumed: Array<string> = []
+      yield* Effect.forkScoped(host.events.pipe(Stream.runForEach((ev) => Effect.sync(() => { if (ev.type === "stop-resumed") resumed.push(ev.by) }))))
+      yield* Effect.yieldNow
+      yield* host.install(parent, as()); yield* idle(host)
+      const entered = yield* Deferred.make<void>()
+      const holder = yield* Effect.forkChild(host.use(Feature, () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))))
+      yield* Deferred.await(entered)
+      expect(failed(yield* Effect.exit(drive(host, host.restart("app/child", { ...as(), drain: 20 }))), "DrainTimeout")).toBe(true)   // parked by an operator call on the child
+      const close = yield* Effect.forkChild(Scope.close(sub!, Exit.void))
+      while (close.pollUnsafe() === undefined) if (!(yield* host.step)) yield* Effect.yieldNow
+      yield* Fiber.join(close)
+      expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
+      expect(failed(yield* Fiber.await(holder), "LeaseRevoked")).toBe(true)
+      expect(resumed).toContain("sub-scope")
+      expect(yield* stateIn(host, "app")).toBe("active")                           // only the child went
+    }))
+  })
+
+  it("BEH-BR-121: under shutdown a child whose cleanup fails is reported failed (cleanup) and is not acknowledged by the system", async () => {
+    const { records, sink } = memorySink()
+    const bad = define({ id: "kid", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.addFinalizer(() => Effect.die(new Error("sink close failed")))) as never }) as unknown as AnyPlugin
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { yield* (yield* PluginRuntime).install(bad) })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(parent, as()); yield* idle(host)
+      const rep = yield* drive(host, host.shutdown(as())); yield* settleWriter
+      expect(rep.failed).toEqual([{ id: "app/kid", cause: "cleanup", message: "sink close failed" }])
+      expect(records.some((r) => r.operation === "leak-acknowledged")).toBe(false)   // shutdown does not acknowledge the leak
     }), { sink })
   })
 })
