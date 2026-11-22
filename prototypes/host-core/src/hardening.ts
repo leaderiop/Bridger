@@ -107,3 +107,7 @@ export const grantsWithin = (granted: ReadonlyArray<string>, requested: Readonly
 
 // ---- S43 audit-chain: `origin` and `break` are outside the link hash, so the verifier derives them instead of trusting the link
 export const linkMetaOk = (link: { origin?: string; break?: boolean }, derived: { origin?: string; break: boolean }): boolean => link.origin === derived.origin && (link.break ?? false) === derived.break
+
+// ---- S71 durable-bus: a received handler runs as a host-derived peer actor; the claimed actor rides as onBehalfOf and is never an approver
+export const receivedActor = (authenticatedOrigin: string, claimed: { id: string; kind: string }) => ({ actor: { id: `peer:${authenticatedOrigin}`, kind: "service" as const }, onBehalfOf: claimed })
+export const mayApprove = (actor: { id: string }, allowedOrigins: ReadonlySet<string> = new Set()): boolean => !actor.id.startsWith("peer:") || allowedOrigins.has(actor.id.slice(5))

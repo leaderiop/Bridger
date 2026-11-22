@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-04                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-09): BEH-GX-028, 029: cases 8, 9 and 11 expect collision entries kept beside the primary ("stored-collision") instead of a "conflict" failure (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.3 (2026-11-22): S71: conformance suites for the ticket and anchor stores (improvement report 06)<br>0.2 (2026-11-09): BEH-GX-028, 029: cases 8, 9 and 11 expect collision entries kept beside the primary ("stored-collision") instead of a "conflict" failure (F-02) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -390,3 +390,10 @@ not about any store a consumer uses, and the marking keeps the two apart.
 ---
 
 _Previous: [03 — Trail Sink](./03-trail-sink.md)_ · _Next: [05 — Checks on Read](./05-checks-on-read.md)_
+
+```
+REQUIREMENT: `runTicketStoreConformance` and `runAnchorStoreConformance` MUST exist
+             and pass for a consumer's adapter before production: exactly one of
+             two writers at one version stores, events are contiguous and chained,
+             and there is no update path. They are an IQ prerequisite.
+```

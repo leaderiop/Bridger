@@ -2,6 +2,7 @@
 // id and content, snapshots bound to their event and removed on shred. Storage is a Map; the real port, projections and chaining are not modelled.
 import { createHash } from "node:crypto"
 import { appendAllowed, recordFact, snapshotStore } from "./hardening.js"
+import { PayloadDecodeFailed } from "./keyring.js"
 
 export interface StoredEvent { readonly stream: string; readonly version: number; readonly eventId: string; readonly type: string; readonly payload: string; readonly factDigest: string }
 export class VersionConflict extends Error { readonly _tag = "VersionConflict"; constructor(readonly expected: number, readonly actual: number) { super("version conflict") } }
@@ -28,9 +29,19 @@ export const makeEventStore = (o: { readonly ask: (r: { mode: "append" | "read";
     if (out === "conflict") push(rx, "FactConflict", JSON.stringify({ factId: f.factId, digest: createHash("sha256").update(`${f.version}\n${f.payload}`).digest("hex") }))
     return out
   }
+  /** A received envelope kept byte for byte: the keyring's selected paths must hold an exact Encrypted or Shredded form, checked without a key, so peer plaintext never lands in the store (INV-KR-001, S71). */
+  const receiveVerbatim = (origin: string, stream: string, f: { factId: string; type: string; payload: string; version: number }, paths: ReadonlyArray<string>) => {
+    let body: any; try { body = JSON.parse(f.payload) } catch { throw new PayloadDecodeFailed("payload is not JSON") }
+    for (const p of paths) {
+      let v = body; for (const k of p.split(".")) v = v?.[k]
+      if (v === undefined) continue
+      if (!(typeof v === "object" && v !== null && (v.$encrypted === 1 || v.$shredded === 1))) throw new PayloadDecodeFailed(`plaintext at ${p}`)
+    }
+    return receive(origin, stream, f)
+  }
   const read = (stream: string): ReadonlyArray<StoredEvent> => { if (!o.ask({ mode: "read", stream })) throw new AppendRefused(stream); return streams.get(stream) ?? [] }
   return {
-    append, receive, read, conflicts: () => conflicts,
+    append, receive, receiveVerbatim, read, conflicts: () => conflicts,
     putSnapshot: (stream: string, version: number, state: unknown) => { const e = at(stream, version); if (e) snaps.put(stream, version, e, state) },
     loadSnapshot: (stream: string) => snaps.load(stream, (v) => at(stream, v)),
     shred: (affected: Iterable<string>) => snaps.onShred(affected)

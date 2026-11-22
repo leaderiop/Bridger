@@ -15,11 +15,18 @@ export const makeBus = (o: { readonly limits: Limits; readonly gate: (r: BusOp) 
     if (checkEnvelope({ bytes: e.bytes, stream: e.stream, annotations: e.annotations }, o.limits) !== "ok") { stopped.set(key, { sequence: e.sequence }); return "stopped" }
     inbox.set(key, [...(inbox.get(key) ?? []), e]); return "stored"
   }
+  /** One permanent row per (origin, stream): the watermark head's eventId. A repeat at or below the head with another eventId is a restore without an incarnation raise, never absorbed (INV-DB-003, S71). */
+  const heads = new Map<string, { sequence: number; eventId: string }>()
+  const accept = (e: Envelope & { eventId: string }): "accepted" | "duplicate" | "EnvelopeConflict" => {
+    const key = receivedStream(e.origin, e.stream, o.limits.maxStreamBytes), h = heads.get(key)
+    if (h && e.sequence <= h.sequence) return e.sequence === h.sequence && e.eventId === h.eventId ? "duplicate" : e.sequence === h.sequence ? "EnvelopeConflict" : "duplicate"
+    heads.set(key, { sequence: e.sequence, eventId: e.eventId }); return "accepted"
+  }
   const retire = (destination: string, a: { actor: { id: string }; reason: string; acceptLoss?: { count: number } }) => {
     const pending = outbox.get(destination)?.length ?? 0
     const r = retireDestination({ gate: o.gate, actor: a.actor, reason: a.reason, pending, ...(a.acceptLoss ? { acceptLoss: a.acceptLoss } : {}), records })
     if (r === "retired") outbox.delete(destination)
     return r
   }
-  return { publish, receive, retire, pending: (d: string) => outbox.get(d)?.length ?? 0, stopped: () => [...stopped], records: () => records, inbox: (k: string) => inbox.get(k) ?? [] }
+  return { publish, receive, accept, retire, pending: (d: string) => outbox.get(d)?.length ?? 0, stopped: () => [...stopped], records: () => records, inbox: (k: string) => inbox.get(k) ?? [] }
 }

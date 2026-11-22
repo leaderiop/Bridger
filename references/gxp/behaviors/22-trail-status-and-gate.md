@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-22                                            |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.4 (2026-11-10): BEH-GX-178 a `Defer` from a consumer's gate piece becomes a refusal "<name>: deferred", so the approval piece cannot consume the binding of a call core then rejects (G5) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-178 the consumer's `gatePieces` (a loader's or an entitlement piece) are composed after "chain" and before "approval", validated, and counted in `precededBy`; BEH-GX-179 IQ-23 records them (M5) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-176 counts are those of the one host the layer serves; BEH-GX-179 names IQ-23 and the evidence pack's `sink-status.json` (H6, H7) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; the sink's status and the `trailGate` piece that refuses operator changes in place of a refused write (CCR-GX-002) |
+> | Change History | 0.5 (2026-11-22): S71: trail condition counts survive a restart (improvement report 06)<br>0.4 (2026-11-10): BEH-GX-178 a `Defer` from a consumer's gate piece becomes a refusal "<name>: deferred", so the approval piece cannot consume the binding of a call core then rejects (G5) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-178 the consumer's `gatePieces` (a loader's or an entitlement piece) are composed after "chain" and before "approval", validated, and counted in `precededBy`; BEH-GX-179 IQ-23 records them (M5) (CCR-GX-006)<br>0.2 (2026-11-10): BEH-GX-176 counts are those of the one host the layer serves; BEH-GX-179 names IQ-23 and the evidence pack's `sink-status.json` (H6, H7) (CCR-GX-005)<br>0.1 (2026-11-09): Initial draft; the sink's status and the `trailGate` piece that refuses operator changes in place of a refused write (CCR-GX-002) |
 
 ---
 
@@ -242,3 +242,9 @@ looks.
 ---
 
 _Previous: [21 — Sealing through audit-chain](./21-sealing-through-audit-chain.md)_
+
+```
+REQUIREMENT: At build the `trailGate` counts MUST be seeded from the store's
+             collisions and cleared only by an attributed acknowledgement that
+             writes a record.
+```
