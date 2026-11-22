@@ -164,7 +164,11 @@ export interface ReconcileReport {
   readonly unchanged: ReadonlyArray<string>
   readonly rejected: ReadonlyArray<{ readonly id: string; readonly reason: { readonly _tag: string } }>
 }
-export interface RealmOptions { readonly isolate: ReadonlyArray<Context.Key<any, any>>; readonly interceptors?: ReadonlyArray<Interception>; readonly mandatory?: ReadonlyArray<MandatoryInterception> }
+export interface RealmOptions {
+  readonly isolate: ReadonlyArray<Context.Key<any, any>>
+  /** BEH-BR-146 (report 02 R6): "refuse" fails the install of a plugin in the realm that provides a key the realm does not isolate; default "allow". */
+  readonly provideNonIsolated?: "allow" | "refuse"
+  readonly interceptors?: ReadonlyArray<Interception>; readonly mandatory?: ReadonlyArray<MandatoryInterception> }
 export interface Options {
   readonly base?: ReadonlyArray<readonly [Context.Key<any, any>, unknown]>
   readonly concurrency?: number
@@ -352,8 +356,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     if (!base.has(sid(k))) return yield* Effect.die(new Error(`baseContracts: ${sid(k)} is not provided by the base`))
   }
   // Realms (BEH-BR-145): "default" always exists and isolates nothing; definitions never change.
-  const realms = new Map<string, { readonly isolate: ReadonlyMap<string, Context.Key<any, any>>; readonly interceptors: ReadonlyArray<Interception>; readonly mandatory?: ReadonlyArray<MandatoryInterception> }>(
-    [["default", { isolate: new Map(), interceptors: [] }]])
+  const realms = new Map<string, { readonly provideNonIsolated: "allow" | "refuse"; readonly isolate: ReadonlyMap<string, Context.Key<any, any>>; readonly interceptors: ReadonlyArray<Interception>; readonly mandatory?: ReadonlyArray<MandatoryInterception> }>(
+    [["default", { provideNonIsolated: "allow", isolate: new Map(), interceptors: [] }]])
   /** scopeOf(R, K): the realm's own slot when it isolates K, the default realm's otherwise (BEH-BR-146). */
   const slotOf = (realm: string, serviceId: string) => realms.get(realm)?.isolate.has(serviceId) ? realm : "default"
   let order = 0
@@ -930,6 +934,8 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     // One provider per slot scopeOf(R, K) (BEH-BR-146, 148); the base occupies the default realm's slots.
     for (const p of prov) {
       const slot = slotOf(ident.realm, p)
+      if (slot === "default" && ident.realm !== "default" && realms.get(ident.realm)?.provideNonIsolated === "refuse")
+        return Effect.fail(new InvalidDefinition({ id: def.id, reason: "non-isolated-provide-in-realm" }))   // BEH-BR-146: never a silent publish into the default slot
       if (slot === "default" && base.has(p)) return Effect.fail(new DuplicateProvider({ serviceId: p, providerId: "base" }))
       const owner = others.find((e) => slotOf(e.realm, p) === slot && e.def.provides.some((k) => sid(k) === p))
       if (owner) return Effect.fail(new DuplicateProvider({ serviceId: p, providerId: owner.pluginId }))
@@ -2350,7 +2356,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     validate: Effect.suspend(() => realms.has(id) ? Effect.fail(new DuplicateRealm({ id })) : Effect.void),
     linearize: (call) => immediate(call, Effect.gen(function* () {
       if (realms.has(id)) return yield* Effect.fail(new DuplicateRealm({ id }))
-      realms.set(id, { isolate: new Map(o.isolate.map((k) => [sid(k), k])), interceptors: [...(o.interceptors ?? [])], mandatory: [...(o.mandatory ?? [])] })   // fixed once defined
+      realms.set(id, { provideNonIsolated: o.provideNonIsolated ?? "allow", isolate: new Map(o.isolate.map((k) => [sid(k), k])), interceptors: [...(o.interceptors ?? [])], mandatory: [...(o.mandatory ?? [])] })   // fixed once defined
       yield* locked(commit)
       return { value: undefined }
     }))

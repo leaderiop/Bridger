@@ -196,3 +196,18 @@ describe("interception (BEH-BR-151, 152)", () => {
     }))
   })
 })
+
+describe("report 02 R6: provideNonIsolated (BEH-BR-146)", () => {
+  it("\"refuse\" fails the install of a non-isolated provide in a realm, leaves the default slot alone, and allows isolated keys", async () => {
+    await run((host) => Effect.gen(function* () {
+      yield* host.defineRealm("strict", { isolate: [Database], provideNonIsolated: "refuse" }, as())
+      yield* host.defineRealm("lax", { isolate: [Database] }, as())
+      const refused = yield* Effect.exit(host.install(repoPlugin as AnyPlugin, { ...as(), realm: "strict" }))   // Repo is not isolated
+      expect(failed(refused, "non-isolated-provide-in-realm")).toBe(true)
+      expect(failed(refused, "InvalidDefinition")).toBe(true)
+      yield* host.install(dbPlugin("s") as AnyPlugin, { ...as(), realm: "strict" })                            // isolated: fine
+      yield* host.install(repoPlugin as AnyPlugin, { ...as(), realm: "lax" })                                  // default "allow": takes the default slot as before
+      expect((yield* host.snapshot).plugins.map((p) => `${p.realm}/${p.id}`).sort()).toEqual(["lax/repo", "strict/db"])
+    }))
+  })
+})

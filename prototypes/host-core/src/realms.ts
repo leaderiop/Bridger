@@ -69,7 +69,7 @@ export const family = <K extends string>(host: Host, o: {
     const fresh: Member = { realm, status: "creating", holders: 0, lastUse: yield* Clock.currentTimeMillis, options: realmOpts, created }
     members.set(key, fresh)
     const outcome = yield* Effect.gen(function* () {
-      yield* host.defineRealm(realm, realmOpts, opts)
+      yield* host.defineRealm(realm, { provideNonIsolated: "refuse", ...realmOpts }, opts)   // BEH-BR-146: a family member never leaks into the default slot unless it says so
       const report = yield* host.reconcile(o.plugins(key).map((d) => ({ ...d, realm })), { ...opts, scope: realm })
       if (report.rejected.length) return "rejected" as const
       return yield* awaitActive(host, realm, timeout)
