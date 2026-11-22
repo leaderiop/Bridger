@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { collect, readTraceRows } from "../src/evidence.js"
-import { AssessmentRefused, assessDeviation, canonical, coverage, deviationId, diffPacks, EvidenceReadFailed, renderReport, SignatureRefused, signEvidencePack, STATEMENT, verifyEvidencePack, writeEvidencePack, writeReport } from "../src/evidencepack.js"
+import { renderHtml, AssessmentRefused, assessDeviation, canonical, coverage, deviationId, diffPacks, EvidenceReadFailed, renderReport, SignatureRefused, signEvidencePack, STATEMENT, verifyEvidencePack, writeEvidencePack, writeReport } from "../src/evidencepack.js"
 
 const ev = collect([{ id: "BEH-BR-001 a", file: "f", status: "passed" }, { id: "BEH-BR-002 b", file: "f", status: "failed" }], ["BEH-BR-001", "BEH-BR-002", "BEH-BR-003"])
 const rows = readTraceRows(["| REQ-BR-001 | a | [BEH-BR-001](x) | Not run |", "| REQ-BR-002 | b | [BEH-BR-001](x), [BEH-BR-002](x) | Not run |"].join("\n"))
@@ -77,6 +77,13 @@ describe("derived report (BEH-GX-134)", () => {
     expect(renderReport(d)).toBe(r); expect(r).toContain(STATEMENT); expect(r).toContain("fail: 1, pass: 1, skipped: 0, not covered: 1")
     for (const x of devsOf(d)) expect(r).toContain(x.id)
     writeReport(d); expect(verifyEvidencePack(d, packDigest).matches).toBe(true)          // the report is derived: it does not change the pack
+    const h = renderHtml(d); expect(h).toBe(renderHtml(d)); expect(h).not.toMatch(/<script|src=|href=|https?:/i)
+    expect(h).toContain(`<p>Derived rendering of evidence pack ${packDigest}; the JSON files are the evidence.</p>`)
+    for (const x of devsOf(d)) expect(h).toContain(x.id)
+    const hostile = dir(); writeEvidencePack(hostile, input({ deviations: [{ kind: "k", source: "s", subject: '<img src="x">&', detail: "d", state: "open" }] }))
+    expect(renderHtml(hostile)).toContain("&lt;img src=&quot;x&quot;&gt;&amp;"); expect(renderHtml(hostile)).not.toContain("<img")
+    appendFileSync(join(d, "report.md"), "edited"); expect(verifyEvidencePack(d).differences).toContainEqual({ path: "report.md", kind: "changed" })   // a hand-edited report is caught
+    writeReport(d); appendFileSync(join(d, "report.html"), "<script>"); expect(verifyEvidencePack(d).differences).toContainEqual({ path: "report.html", kind: "changed" })
   })
 })
 describe("QA signatures (BEH-GX-135)", () => {

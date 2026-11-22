@@ -71,8 +71,11 @@ export const verifyEvidencePack = (dir: string, expectedDigest?: string): { matc
     try { bytes = readFileSync(join(dir, f.path)) } catch { differences.push({ path: f.path, kind: "missing" }); continue }
     if (sha(bytes) !== f.digest) differences.push({ path: f.path, kind: "changed" })
   }
-  for (const f of walk(dir)) if (!["manifest.json", "signatures.json", "assessments.json", "report.md"].includes(f) && !listed.has(f)) differences.push({ path: f, kind: "unlisted" })
+  for (const f of walk(dir)) if (!["manifest.json", "signatures.json", "assessments.json", "report.md", "report.html"].includes(f) && !listed.has(f)) differences.push({ path: f, kind: "unlisted" })
   const packDigest = sha(body)
+  // The reports are outside the manifest: they are checked by re-rendering them from the JSON files (BEH-GX-130, 134).
+  for (const [f, render] of [["report.md", renderReport], ["report.html", renderHtml]] as const)
+    if (existsSync(join(dir, f)) && readFileSync(join(dir, f), "utf8") !== render(dir)) differences.push({ path: f, kind: "changed" })
   // BEH-GX-135: a signature whose binding no longer matches the pack and its assessments says so.
   for (const sg of readJson<Array<{ bindingDigest: string }>>(dir, "signatures.json", [])) if (sg.bindingDigest !== bindingDigest(dir, packDigest)) differences.push({ path: "signatures.json", kind: "signature" })
   if (expectedDigest !== undefined && packDigest !== expectedDigest) differences.push({ path: "manifest.json", kind: "manifest" })
@@ -103,7 +106,21 @@ export const renderReport = (dir: string): string => {
     "## OQ outcomes", `run counted: ${oq.runCounted}`, `fail: ${c.fail}, pass: ${c.pass}, skipped: ${c.skipped}, not covered: ${c.notCovered}`, oq.statement ?? "", "",
     `## Deviations (${devs.length})`, ...devs.map((d) => `- ${d.id} ${d.kind} ${d.source} ${d.subject}: ${d.detail} [${d.state}]`), ""].join("\n")
 }
-export const writeReport = (dir: string) => write(dir, "report.md", renderReport(dir))
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+/** The same lines as report.md as one self-contained page: no script, no external resource, no timestamp of its own. */
+export const renderHtml = (dir: string): string => {
+  const lines = renderReport(dir).split("\n"); let list = false; const out: string[] = []
+  for (const l of lines) {
+    const li = l.startsWith("- ")
+    if (list && !li) { out.push("</ul>"); list = false }
+    if (li) { if (!list) { out.push("<ul>"); list = true } out.push(`<li>${esc(l.slice(2))}</li>`) }
+    else if (l.startsWith("## ")) out.push(`<h2>${esc(l.slice(3))}</h2>`)
+    else if (l !== "") out.push(`<p>${esc(l)}</p>`)
+  }
+  if (list) out.push("</ul>")
+  return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>Evidence pack report</title><style>body{font:14px/1.5 system-ui,sans-serif;margin:2rem;max-width:60rem}</style></head><body>\n${out.join("\n")}\n</body></html>\n`
+}
+export const writeReport = (dir: string) => { write(dir, "report.md", renderReport(dir)); write(dir, "report.html", renderHtml(dir)) }
 
 // ---- QA signatures (BEH-GX-135)
 const bindingDigest = (dir: string, packDigest: string) => sha(canonical({ assessmentsDigest: sha(readJson<unknown[]>(dir, "assessments.json", []).length ? readFileSync(join(dir, "assessments.json")) : canonical([])), packDigest }))
