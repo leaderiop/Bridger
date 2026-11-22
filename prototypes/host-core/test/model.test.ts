@@ -6,7 +6,7 @@ import { legality, inFlight, OPS, ROWS, FLIGHT_OPS } from "../src/legality.js"
 
 const ledger: Ledger = { rows: STATE_TABLE, inFlight: FLIGHT_TABLE }
 
-describe("model: the operation tables are the ledger", () => {
+describe("model: the operation tables are the ledger (INV-BR-011)", () => {
   it("answers every settled and in-flight cell with what the generated tables hold", () => {
     for (const row of ROWS) for (const op of OPS) expect(legal(ledger, row, op)).toBe(STATE_TABLE[row]![op])
     for (const f of FLIGHT_OPS) for (const op of OPS) expect(flight(ledger, f, op)).toBe(FLIGHT_TABLE[f]![op])

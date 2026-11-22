@@ -49,7 +49,7 @@ const dependentsOf = (g: ReadonlyArray<ReadonlyArray<number>>, i: number): Set<n
   return out
 }
 
-describe("LIFO revert (BEH-BR-043)", () => {
+describe("LIFO revert (BEH-BR-043, INV-BR-005)", () => {
   it("removing a provider closes each dependent once, before it", async () => {
     await assertProperty(fc.asyncProperty(graph, fc.nat(), async (g, pick) => {
       const target = pick % g.length
@@ -128,7 +128,7 @@ describe("audit chain (INV-BR-022, INV-BR-023)", () => {
 
 // ---------------------------------------------------------------- reconcile idempotence
 const subset = fc.subarray([0, 1, 2, 3], { minLength: 0 })
-describe("reconcile idempotence (BEH-BR-159)", () => {
+describe("reconcile idempotence (BEH-BR-159, INV-BR-021)", () => {
   it("reconciling the same list twice issues nothing the second time", async () => {
     await assertProperty(fc.asyncProperty(subset, subset, async (first, second) => {
       const list = (ix: ReadonlyArray<number>): Array<DesiredPlugin> => ix.map((i) => ({ id: chainPlugins[i]!.id, plugin: chainPlugins[i]! }))

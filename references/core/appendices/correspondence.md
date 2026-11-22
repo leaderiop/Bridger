@@ -41,7 +41,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-SQ | 0 | 20 |
 | INV-AC | 1 | 7 |
 | INV-AG | 0 | 8 |
-| INV-BR | 6 | 52 |
+| INV-BR | 9 | 52 |
 | INV-CM | 0 | 8 |
 | INV-DB | 1 | 11 |
 | INV-EN | 1 | 7 |
@@ -1114,16 +1114,16 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | INV-AG-007 | Specified | — | — |
 | INV-AG-008 | Specified | — | — |
 | INV-BR-001 | Specified | — | — |
-| INV-BR-002 | Prototyped | src/host.ts:1063 | — |
+| INV-BR-002 | Tested | src/host.ts:1063 | test/dx-invariants.test.ts:29 “treats a tree with no block as not yet authored, and a partly authored one as failing” |
 | INV-BR-003 | Specified | — | — |
 | INV-BR-004 | Specified | — | — |
-| INV-BR-005 | Specified | — | — |
+| INV-BR-005 | Tested | — | test/pbt/properties.pbt.test.ts:52 |
 | INV-BR-006 | Specified | — | — |
 | INV-BR-007 | Specified | — | — |
 | INV-BR-008 | Specified | — | — |
 | INV-BR-009 | Specified | — | — |
 | INV-BR-010 | Specified | — | — |
-| INV-BR-011 | Specified | — | — |
+| INV-BR-011 | Tested | — | test/model.test.ts:9 |
 | INV-BR-012 | Specified | — | — |
 | INV-BR-013 | Specified | — | — |
 | INV-BR-014 | Specified | — | — |
@@ -1133,7 +1133,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | INV-BR-018 | Specified | — | — |
 | INV-BR-019 | Specified | — | — |
 | INV-BR-020 | Specified | — | — |
-| INV-BR-021 | Specified | — | — |
+| INV-BR-021 | Tested | — | test/pbt/properties.pbt.test.ts:131 “any history leaves a gapless sequence and one terminal record per requested” |
 | INV-BR-022 | Tested | — | test/model.test.ts:60 “INV-BR-023 wants 1, 2, 3, … and INV-BR-022 one requested and one terminal per call” |
 | INV-BR-023 | Tested | — | test/model.test.ts:60 “INV-BR-023 wants 1, 2, 3, … and INV-BR-022 one requested and one terminal per call” |
 | INV-BR-024 | Specified | — | — |
