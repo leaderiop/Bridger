@@ -5,6 +5,7 @@ import { PluginRuntime } from "../src/runtime.js"
 import type { AnyPlugin } from "../src/plugin.js"
 import { Audit, Logger, Report, auditPlugin, journal, loggerPlugin, reportPlugin } from "./fixtures.js"
 import { as } from "./p4fixtures.js"
+import { quiescent, type Desired, type Realms, type Registration } from "../../../references/core/formal/model.js"
 
 class Clock2 extends Context.Service<Clock2, {}>()("example/Clock") {}
 class Parent extends Context.Service<Parent, {}>()("example/Parent") {}
@@ -62,3 +63,25 @@ export const stalePairs = (s: Host.HostSnapshot) => {
   }
   return out
 }
+
+/** The universe as the reference model sees it (references/core/formal/model.ts): ids, services and the one child. */
+const reg = (name: string, realm: string): Registration => {
+  const r = (id: string, requires: ReadonlyArray<string>, provides: ReadonlyArray<string>, children?: ReadonlyArray<Registration>): Registration =>
+    ({ id, realm, requires, provides, ...(children ? { children } : {}) })
+  switch (name) {
+    case "logger": return r("example/logger", [], ["example/Logger"])
+    case "audit": return r("example/audit", ["example/Logger"], ["example/Audit"])
+    case "report": return r("example/report", ["example/Audit"], ["example/Report"])
+    case "clock": return r("clock", [], ["example/Clock"])
+    case "ui": return r("ui", [], [])
+    default: return r("app", ["example/Clock"], ["example/Parent"], [r("kid", ["example/Parent", "example/Report"], [])])
+  }
+}
+export const modelRealms: Realms = { t: new Set(["example/Logger", "example/Audit"]) }
+export const modelDesired = (installed: Iterable<{ readonly name: string; readonly realm: string; readonly off: boolean }>): Desired =>
+  [...installed].map((x) => ({ reg: reg(x.name, x.realm), enabled: !x.off }))
+/** `quiescent` in the shape of `normal`, so a host snapshot is compared with the model line by line. */
+export const normalModel = (installed: Iterable<{ readonly name: string; readonly realm: string; readonly off: boolean }>) =>
+  quiescent(modelDesired(installed), modelRealms)
+    .map((s) => JSON.stringify([s.id, s.realm, s.parent ? { id: s.parent, realm: s.realm } : null, s.state, s.state === "waiting" ? s.missing : null]))
+    .sort()

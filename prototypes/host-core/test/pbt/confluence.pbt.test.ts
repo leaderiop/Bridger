@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest"
 import * as Testing from "../../src/testing.js"
 import { drive, idle } from "../fixtures.js"
 import { as } from "../p4fixtures.js"
-import { normal, plugins, present, refOf, setup, stalePairs, universe } from "../universe.js"
+import { normal, normalModel, plugins, present, refOf, setup, stalePairs, universe } from "../universe.js"
 import { assertProperty, onTestHost } from "./config.js"
 
 type Op = { readonly kind: "install" | "remove" | "disable" | "enable" | "restart"; readonly at: number; readonly off: boolean; readonly settle: boolean }
@@ -60,6 +60,8 @@ describe("confluence as a property (BEH-BR-160)", () => {
         return normal(yield* t.snapshot)
       }))
       expect(settled.states).toEqual(fresh)
-    }), 60)
+      // The settled state is the function the model states (BEH-BR-160), not only equal to another run of the host.
+      expect(settled.states).toEqual(normalModel(settled.left.map((x) => ({ name: x.name.name, realm: x.name.realm, off: x.off }))))
+    }), 300)
   }, 300_000)
 })

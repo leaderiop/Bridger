@@ -161,7 +161,7 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | BEH-BR-024 | Specified | — | — |
 | BEH-BR-025 | Specified | — | — |
 | BEH-BR-026 | Tested | — | test/transitions-ledger.test.ts:30 “the state diagram of BEH-BR-026 has exactly the ledger's edges” |
-| BEH-BR-027 | Tested | src/host.ts:802 | test/universe.ts:51 |
+| BEH-BR-027 | Tested | src/host.ts:802 | test/universe.ts:52 |
 | BEH-BR-028 | Tested | — | test/adapter-conformance.ts:36 |
 | BEH-BR-029 | Tested | — | test/lifecycle.test.ts:191 “BEH-BR-029, 030: revisions never regress and `changes` emits the current snapshot first” |
 | BEH-BR-030 | Specified | — | — |
@@ -1129,20 +1129,20 @@ The prototype is not evidence for any requirement (CCR-BR-004); a citation says 
 | INV-BR-014 | Specified | — | — |
 | INV-BR-015 | Specified | — | — |
 | INV-BR-016 | Specified | — | — |
-| INV-BR-017 | Tested | — | test/pbt/properties.pbt.test.ts:3 |
+| INV-BR-017 | Tested | — | test/model.test.ts:55 “INV-BR-017 bounds a drain by its limit unless declared forever” |
 | INV-BR-018 | Specified | — | — |
 | INV-BR-019 | Specified | — | — |
 | INV-BR-020 | Specified | — | — |
 | INV-BR-021 | Specified | — | — |
-| INV-BR-022 | Tested | — | test/pbt/properties.pbt.test.ts:4 |
-| INV-BR-023 | Tested | — | test/pbt/properties.pbt.test.ts:105 “a removal blocked by a lease fails with DrainTimeout when the limit passes, not before” |
+| INV-BR-022 | Tested | — | test/model.test.ts:60 “INV-BR-023 wants 1, 2, 3, … and INV-BR-022 one requested and one terminal per call” |
+| INV-BR-023 | Tested | — | test/model.test.ts:60 “INV-BR-023 wants 1, 2, 3, … and INV-BR-022 one requested and one terminal per call” |
 | INV-BR-024 | Specified | — | — |
 | INV-BR-025 | Specified | — | — |
 | INV-BR-026 | Prototyped | src/host.ts:188 | — |
 | INV-BR-027 | Specified | — | — |
 | INV-BR-028 | Specified | — | — |
 | INV-BR-029 | Specified | — | — |
-| INV-BR-030 | Prototyped | src/host.ts:1691 | — |
+| INV-BR-030 | Tested | src/host.ts:1691 | test/model.test.ts:46 “an isolated service resolves inside its realm” |
 | INV-BR-031 | Specified | — | — |
 | INV-BR-032 | Specified | — | — |
 | INV-BR-033 | Specified | — | — |

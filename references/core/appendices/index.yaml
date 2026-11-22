@@ -14,3 +14,6 @@ entries:
   - file: "correspondence.md"
     id: "BRIDGER-APP-04"
     title: "Spec-to-code correspondence"
+  - file: "formal-model.md"
+    id: "BRIDGER-APP-05"
+    title: "Reference model"

@@ -9,6 +9,7 @@ import { TestClock } from "effect/testing"
 import * as fc from "fast-check"
 import { describe, expect, it } from "vitest"
 import type { DesiredPlugin } from "../../src/desired.js"
+import { inv022, inv023 } from "../../../../references/core/formal/model.js"
 import { AuditSink, verifyAuditSequence, type AuditRecord } from "../../src/gxp.js"
 import { define, type AnyPlugin } from "../../src/plugin.js"
 import * as Testing from "../../src/testing.js"
@@ -118,11 +119,9 @@ describe("audit chain (INV-BR-022, INV-BR-023)", () => {
         for (let i = 0; i < 50; i++) yield* Effect.yieldNow
       }), Layer.succeed(AuditSink, sink))
       if (history.length > 0) expect(records.length).toBeGreaterThan(0)                 // the sink was the one the host used
-      expect(verifyAuditSequence(records)).toEqual({ gaps: [], duplicates: [], outOfOrder: [] })
-      const requested = records.filter((r) => r.phase === "requested")
-      const terminal = records.filter((r) => r.phase === "completed" || r.phase === "failed" || r.phase === "superseded" || r.phase === "joined" || r.phase === "rejected")
-      for (const r of requested) expect(terminal.filter((x) => x.causationId === r.recordId || x.recordId === r.recordId).length).toBeLessThanOrEqual(1)
-      expect(terminal.length).toBeLessThanOrEqual(requested.length)
+      expect(inv023(records)).toBe(true)                                              // 1, 2, 3, ... in write order
+      expect(verifyAuditSequence(records)).toEqual({ gaps: [], duplicates: [], outOfOrder: [] })   // and the host's own verifier agrees
+      expect(inv022(records)).toBe(true)                                              // one requested and one terminal per call, once idle
     }), 30)
   }, 120_000)
 })
