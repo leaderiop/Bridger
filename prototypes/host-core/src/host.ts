@@ -115,7 +115,7 @@ export interface PluginInspection {
   readonly optional: ReadonlyArray<string>
   readonly whenAvailable: ReadonlyArray<{ readonly name: string; readonly keys: ReadonlyArray<string>; readonly running: boolean }>
   readonly contributions: ReadonlyArray<{ readonly registry: string; readonly id: string }>
-  readonly listeners: ReadonlyArray<{ readonly event: string; readonly id: string; readonly priority: number }>
+  readonly listeners: ReadonlyArray<{ readonly event: string; readonly id: string; readonly priority: number; readonly dropped: number }>
   /** Report 03 R3, R4: resources acquired through `Runtime.acquire` that are held, or whose release failed or was not confirmed. Partial by design. */
   readonly resources: ReadonlyArray<{ readonly label: string; readonly irreversible?: true; readonly state: "held" | "release-failed" }>
   readonly requires: ReadonlyArray<string>
@@ -3155,7 +3155,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       id: e.pluginId, realm: e.realm, state: e.state, requires: e.def.requires.map(sid), provides: e.def.provides.map(sid),
       optional: (e.def.optional ?? []).map(sid), whenAvailable: (e.whenAvailable ?? []).map((w) => ({ ...w })),   // BEH-BR-135
       contributions: e.contributions.map((c) => ({ ...c })),
-      listeners: e.listeners.map((l) => ({ ...l })),
+      listeners: e.listeners.map((l) => ({ ...l, dropped: bus.droppedOf(l.event, l.id) })),
       resources: e.resources.map((r) => ({ label: r.label, ...(r.irreversible ? { irreversible: true as const } : {}), state: r.state })),                                                       // BEH-BR-168
       background: (e.background ?? []).map((b) => ({ ...b })), leases: e.leases,
       interceptions: interceptionsOf(e),

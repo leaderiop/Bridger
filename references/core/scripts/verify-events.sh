@@ -56,6 +56,13 @@ for p in sources + list(walk(os.path.join(ROOT, "prototypes/host-core/test"), ".
     consts = {m.group(1): None for m in re.finditer(r'(?:const|let)\s+(\w+)\s*=\s*Event\.make', t)}
     for m in re.finditer(r'(?:const|let)\s+(\w+)\s*=\s*Event\.make<.*?>\(\)\(\s*"[^"]+"\s*,\s*\{[^}]*mode:\s*"(\w+)"', t):
         consts[m.group(1)] = m.group(2)
+    for im in re.finditer(r'import\s*\{([^}]*)\}\s*from\s*"(\.[^"]*?)(?:\.js)?"', t):
+        other = os.path.normpath(os.path.join(os.path.dirname(p), im.group(2) + ".ts"))
+        if not os.path.exists(other): continue
+        ot = read(other)
+        for nm in (x.strip().split(" as ")[-1].strip() for x in im.group(1).split(",")):
+            m = re.search(r'export\s+const\s+' + re.escape(nm) + r'\s*=\s*Event\.make<.*?>\(\)\(\s*"[^"]+"\s*,\s*\{[^}]*mode:\s*"(\w+)"', ot)
+            if m: consts[nm] = m.group(1)
     for name, mode in consts.items():
         if mode is None: continue
         for m in re.finditer(r'\.(emit|parallel|serial|waterfall|on|around)\(\s*' + re.escape(name) + r'\b', t):
@@ -109,6 +116,16 @@ proto_iface = proto_hooks[proto_hooks.index("export interface HookPointOptions")
 proto_iface = proto_iface[:proto_iface.index("\n}\n")]
 for k in set(re.findall(r'^\s{2}readonly (\w+)\??:', proto_iface, re.M)) ^ set(option_keys):
     fails.append(f"HookPointOptions.{k} is in one of spec 31 and hooks.ts and not the other")
+
+for what, spec_text, code in (("breaker", '{ failures: 5, window: "1 minute", cooldown: "30 seconds" }', "{ failures: 5, window: 60_000, cooldown: 30_000 }"),
+                              ("breakerScope", '| `breakerScope` | `"contribution"`', 'o.breakerScope ?? "contribution"'),
+                              ("dormant", '{ veto: "wake", enrich: "skip", advisory: "skip" }', 'veto: "wake" as "wake" | "deny", enrich: "skip" as "wake" | "skip", advisory: "skip" as "wake" | "skip"'),
+                              ("allowSkipOnVeto", '| `allowSkipOnVeto` | `false`', 'o.allowSkipOnVeto !== true'),
+                              ("allowNoLink", '| `allowNoLink` | `false`', '!o.allowNoLink')):
+    if spec_text not in table: fails.append(f"31: the Option defaults table no longer states the default of {what}")
+    if code not in proto_hooks: fails.append(f"hooks.ts no longer implements the default of {what} the table states")
+if "| `drainTimeout` | 30 seconds" not in table: fails.append("31: drainTimeout default missing")
+if "?? 30_000" not in read(os.path.join(ROOT, "prototypes/host-core/src/registry.ts")): fails.append("registry.ts: the 30 s drainTimeout default the table states is gone")
 
 # the catalog
 L = []

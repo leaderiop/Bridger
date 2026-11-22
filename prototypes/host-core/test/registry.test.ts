@@ -101,7 +101,7 @@ describe("ContributionRegistry (behaviour 19)", () => {
       yield* idle(host)
       const i = yield* host.inspect("pages")
       expect(i.contributions.map((c) => c.registry)).toEqual(["routes"])          // a listener is reported as `listener` only (BEH-BR-119)
-      expect(i.listeners).toEqual([{ event: "ops/ping", id: expect.any(String), priority: 0 }])
+      expect(i.listeners).toEqual([{ event: "ops/ping", id: expect.any(String), priority: 0, dropped: 0 }])
       expect(i.contributions[0]!.id).toBe("pages/home")
       expect(JSON.stringify(i)).not.toContain("route-value-secret")             // the value is never reported
       yield* drive(host, host.restart("pages", as()))

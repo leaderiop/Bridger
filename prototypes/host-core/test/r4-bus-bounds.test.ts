@@ -37,6 +37,7 @@ describe("bounded emit, ordering and depth (report 04 R4)", () => {
       expect(events[0]).toMatchObject({ type: "listener-overflow", event: "r4/note", bound: 2, dropped: 1, pluginId: "l" })
       expect(events[1]).toMatchObject({ type: "listener-overflow", bound: 2, dropped: 3, ended: true })
       expect(events[0]).not.toHaveProperty("ended")
+      expect((yield* host.inspect("l")).listeners[0]).toMatchObject({ dropped: 3 })      // cumulative, kept after the episode ends
     }))
   })
 

@@ -169,6 +169,7 @@ export const makeBus = (opts: {
     return ann
   })
   /** Per listener: the invocations in flight, the drops of the current overflow episode, and the mailbox of a serialised listener. */
+  const droppedTotal = new Map<string, number>()   // cumulative drops per listener, for `inspect` (BEH-BR-141)
   const flight = new Map<string, { n: number; dropped: number; mailbox?: Semaphore.Semaphore }>()
   const fireAndForget = (eventId: string, r: Registry.Registry<Listener>, ids: ReadonlyArray<string>, ls: ReadonlyArray<Listener>, args: ReadonlyArray<unknown>, ann: Bag) => Effect.gen(function* () {
     for (const [i, cid] of ids.entries()) {
@@ -177,7 +178,7 @@ export const makeBus = (opts: {
       const bound = l?.maxInFlight ?? concurrencyDefault
       const st = flight.get(key) ?? { n: 0, dropped: 0 }
       if (st.n >= bound) {
-        st.dropped++; flight.set(key, st)
+        st.dropped++; flight.set(key, st); droppedTotal.set(key, (droppedTotal.get(key) ?? 0) + 1)
         if (st.dropped === 1 && opts.onListenerOverflow) yield* opts.onListenerOverflow({ event: eventId, listenerId: cid, ...(l?.pluginId ? { pluginId: l.pluginId } : {}), bound, dropped: 1 })
         continue
       }
@@ -204,7 +205,8 @@ export const makeBus = (opts: {
     }
   })
 
-  const bus: EventBus & { readonly deliverHeld: (eventId: string, ownerKey: string, args: ReadonlyArray<unknown>, ann: Bag) => Effect.Effect<number> } = {
+  const bus: EventBus & { readonly droppedOf: (eventId: string, listenerId: string) => number; readonly deliverHeld: (eventId: string, ownerKey: string, args: ReadonlyArray<unknown>, ann: Bag) => Effect.Effect<number> } = {
+    droppedOf: (eventId, listenerId) => droppedTotal.get(`${eventId}\0${listenerId}`) ?? 0,
     on: (event, listener, o) => register(event, "on", listener as Listener["fn"], o),
     around: (event, listener, o) => register(event, "around", listener as Listener["fn"], o),
     emit: (event, ...args) => Effect.gen(function* () {

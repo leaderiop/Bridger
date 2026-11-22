@@ -35,4 +35,11 @@ describe("event catalog (improvement report 04, R2)", { timeout: 60_000 }, () =>
       expect(r.stdout).toContain("more than one mode")
     })
   })
+  it("a key imported from another file is call-site checked too", () => {
+    withFixture({ "keys.ts": `export const K = ${MK}<[], void>()("x/k", { mode: "emit" })\n`, "use.ts": `import { K } from "./keys.js"\n${WF}(K, [], z)\n` }, (dir) => {
+      const r = check(dir)
+      expect(r.status).toBe(1)
+      expect(r.stdout).toContain("K is a 'emit' event used with .waterfall()")
+    })
+  })
 })
