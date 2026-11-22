@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-02                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-10): `ChainStatus` gains `dropped`, the loss counter 04, BEH-AC-030 requires the status to report; open item 3 closed (statements carry `dropped`); follow-up: BEH-AC-016's keyed column requires the verifier's `expectKeyed` (CCR-AC-005)<br>0.4 (2026-11-08): `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped` for every series, version 1 still read; the windows of a series resumed by another writer (04, BEH-AC-026) (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore` (round 2: recheck item 13) (CCR-AC-003)<br>0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
+> | Change History | 0.6 (2026-11-22): BEH-AC-013 `ChainGate` option `anchorBeforeIrreversible`: a request carrying core's `reversibility: "irreversible"` is refused "anchor-behind" until every record is anchored (improvement report 06, R4)<br>0.5 (2026-11-10): `ChainStatus` gains `dropped`, the loss counter 04, BEH-AC-030 requires the status to report; open item 3 closed (statements carry `dropped`); follow-up: BEH-AC-016's keyed column requires the verifier's `expectKeyed` (CCR-AC-005)<br>0.4 (2026-11-08): `AnchorStatement` version 2 with `seriesId`, `canon` and `dropped` for every series, version 1 still read; the windows of a series resumed by another writer (04, BEH-AC-026) (round-2 agent review R3-06, R3-07) (CCR-AC-003)<br>0.3 (2026-11-08): Store port renamed `ChainStore` (round 2: recheck item 13) (CCR-AC-003)<br>0.2 (2026-11-08): Fail-closed anchoring is the `ChainGate` gate piece reading the sink's status, not failed writes; backlog bounded by compact ranges and queued statements without failing writes; later windows close and queue; threat table gains the party controlling the process before the sink and deletion of trailing anchored windows with their receipts (CCR-AC-002)<br>0.1 (2026-11-08): Initial draft (CCR-AC-001)                 |
 
 ---
 
@@ -299,6 +299,7 @@ declare const ChainGate: {
     readonly maxUnanchoredRecords?: number
     readonly maxUnanchoredAge?: Duration.Input
     readonly refuseOnBreak?: boolean                 // default true: refuse while status.chainBreaks > 0
+    readonly anchorBeforeIrreversible?: boolean      // refuse a request with reversibility "irreversible" while any record is unanchored
     readonly allow: readonly Operation[]             // operations never refused; no default (e.g. ["remove", "disable"])
   }) => Effect.Effect<Gate<OperationRequest>>
 }
@@ -326,6 +327,21 @@ REQUIREMENT: `ChainGate.make` MUST return a `Gate<OperationRequest>` as core
              than `maxUnanchoredAge`, and with reason "chain-break" while
              `refuseOnBreak` holds and `status.chainBreaks` is greater than
              zero. Otherwise it MUST return `Allow`.
+```
+
+```
+REQUIREMENT: With `anchorBeforeIrreversible`, `ChainGate.make` MUST also
+             return `Refuse` with reason "anchor-behind" for a request that
+             carries `reversibility: "irreversible"` (core 32, BEH-BR-327)
+             and whose operation is not in `allow`, while
+             `status.unanchored.records` is greater than zero; and `Allow`
+             once every record so far is anchored. The piece waits for
+             nothing: a caller retries after the next anchor has published,
+             so the wait is at the gate and never behind a write
+             (INV-AC-005). The option is not a limit and takes no
+             `anchorEvery` comparison; it satisfies the rule that a piece
+             states at least one limit, one chain-break refusal or this
+             option.
 ```
 
 ```

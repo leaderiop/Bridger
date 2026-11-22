@@ -1,8 +1,9 @@
 // Audit-chain companion, offline half (references/audit-chain 01 BEH-AC-003, 03 BEH-AC-017..019/022, 04 BEH-AC-026/031, 05 BEH-AC-033..040).
-// Pure, synchronous, no Effect, no clock: `createdAt` is passed in by the caller. `bridger verify-chain` (kit BEH-KT-047) calls verifyBundle and prints renderReport.
+// The bundle half is pure, synchronous, no Effect, no clock: `createdAt` is passed in by the caller. `ChainGate` (BEH-AC-013, BEH-AC-013) is the live half. `bridger verify-chain` (kit BEH-KT-047) calls verifyBundle and prints renderReport.
 import { createHash } from "node:crypto"
-import { Schema } from "effect"
-import { verifyAuditSequence } from "./gxp.js"
+import { Clock, Effect, Schema } from "effect"
+import type { Gate } from "./gate.js"
+import { verifyAuditSequence, type OperationRequest } from "./gxp.js"
 
 export type Alg = "sha-256" | "sha-512"
 export type ChainLink = {
@@ -416,4 +417,51 @@ export const renderReport = (r: BundleReport): string[] => {
   for (const m of r.malformed) out.push(`malformed ${m.path}: ${m.problem}`)
   out.push("a keyed chain can be recomputed only by a holder of the key", "this report covers only the records in the bundle; records it does not contain are not checked")
   return out
+}
+
+// ---------------------------------------------------------------- ChainGate (BEH-AC-013, BEH-AC-013)
+export interface ChainStatus {
+  readonly head: { readonly auditSeq: number; readonly hash: string }
+  readonly lastAnchored?: { readonly toSeq: number; readonly statementHash: string; readonly at: string }
+  readonly unanchored: { readonly records: number; readonly oldest?: string }
+  readonly chainBreaks: number
+}
+export interface ChainStatusView { readonly current: Effect.Effect<ChainStatus> }
+export class ChainGateConfig extends Error { constructor(message: string) { super(message); this.name = "ChainGateConfig" } }
+
+/**
+ * A gate piece that refuses operator calls while the trail is too far behind its anchors (BEH-AC-013), and, with `anchorBeforeIrreversible`,
+ * refuses a call whose request carries `reversibility: "irreversible"` (core BEH-BR-327) until every record so far is anchored (BEH-AC-013).
+ * It reads only the status and the clock, never returns `Defer`, and never touches the write path (INV-AC-005): the caller retries once
+ * the next anchor has published.
+ */
+export const ChainGate = {
+  make: (status: ChainStatusView, options: {
+    readonly maxUnanchoredRecords?: number
+    readonly maxUnanchoredAgeMs?: number
+    readonly refuseOnBreak?: boolean
+    readonly anchorBeforeIrreversible?: boolean
+    readonly allow: ReadonlyArray<string>
+    /** The sink's `anchorEvery`, for the configuration check of BEH-AC-013. */
+    readonly anchorEvery?: { readonly records?: number; readonly intervalMs?: number }
+  }): Gate<OperationRequest> => {
+    const refuseOnBreak = options.refuseOnBreak ?? true
+    const limits = options.maxUnanchoredRecords !== undefined || options.maxUnanchoredAgeMs !== undefined
+    if (!limits && !refuseOnBreak && !options.anchorBeforeIrreversible) throw new ChainGateConfig("ChainGate: no limit, no chain-break refusal and no irreversible rule")
+    if (options.maxUnanchoredRecords !== undefined && options.anchorEvery?.records !== undefined && options.maxUnanchoredRecords <= options.anchorEvery.records) throw new ChainGateConfig("ChainGate: maxUnanchoredRecords must exceed anchorEvery.records")
+    if (options.maxUnanchoredAgeMs !== undefined && options.anchorEvery?.intervalMs !== undefined && options.maxUnanchoredAgeMs <= options.anchorEvery.intervalMs) throw new ChainGateConfig("ChainGate: maxUnanchoredAge must exceed anchorEvery.interval")
+    return {
+      decide: (request) => Effect.gen(function* () {
+        if (options.allow.includes(request.operation)) return { _tag: "Allow" } as const
+        const s = yield* status.current
+        const now = yield* Clock.currentTimeMillis
+        const overdue = (options.maxUnanchoredRecords !== undefined && s.unanchored.records > options.maxUnanchoredRecords)
+          || (options.maxUnanchoredAgeMs !== undefined && s.unanchored.oldest !== undefined && now - Date.parse(s.unanchored.oldest) > options.maxUnanchoredAgeMs)
+        if (overdue) return { _tag: "Refuse", reason: "anchor-overdue" } as const
+        if (refuseOnBreak && s.chainBreaks > 0) return { _tag: "Refuse", reason: "chain-break" } as const
+        if (options.anchorBeforeIrreversible && request.reversibility === "irreversible" && s.unanchored.records > 0) return { _tag: "Refuse", reason: "anchor-behind" } as const
+        return { _tag: "Allow" } as const
+      })
+    }
+  }
 }
