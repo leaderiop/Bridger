@@ -49,10 +49,10 @@ A second read of files the first pass skipped (federation 03, 04 and 06, keyring
 | S30 | Resolved | `CheckReport` named no policy, so a report made under a laxer caller-supplied policy looked like one under the recorded policy. BEH-GX-033 adds `policyDigest` and a `policyNotRecorded` finding. `src/trailcheck.ts` is a minimal kernel (sequence kinds only, other kinds listed as not checked) with `test/sec-trailcheck.test.ts`. |
 | S31 | Not a gap | Examined and dropped: reversibility is computed by core, not declared by a plugin (BEH-BR-327); an exempt rule that lists every operation is already refused (BEH-GX-059); a bundle ticket answers to one policy rule and one requester (gxp 09 settled note); the `expect` check runs at the start of the apply under the host lock (BEH-BR-318). |
 | S32 | Resolved | IQ-11 recognised a fixture only by its self-declared `fixture: true`. BEH-GX-118 now also fails a testing name prefix, an in-memory commit or a "test fixture" custodian, and `faultyTrailStore` OR-s the flag in. `iq11` in `src/gxp-testing.ts` (`test/sec-gxp-testing.test.ts`). |
-| S33 | Specified | Check 41 covered few of the BEH-GX-145..152 requirements and check 31 omitted the sealing key and newer outputs. Both are extended in gxp 20; there is no companion test suite in the prototype to run them. |
+| S33 | Resolved | Check 41 covered few of the BEH-GX-145..152 requirements and check 31 omitted the sealing key and newer outputs. Both are extended in gxp 20; the prototype's `test/sec-gxp-testing.test.ts` runs the import-graph, signature-shape, one-warning-line and canary cases against `src/gxp-testing.ts`. |
 | S34 | Resolved | `scriptedSignatureCapture` had no runtime guard on `decide`. A non-function now fails with a defect (BEH-GX-148; `src/gxp-testing.ts`, tested). |
 | S35 | Resolved | Core's `scriptedGate` and `memoryAuditSink` carry no marker, so an approve-everything gate passed IQ. IQ-U3 is now an executed probe of a ticketless request; `gatePosture` implements it (tested). |
-| S36 | Specified | See S33: the canary and import-graph additions to checks 31 and 41. |
+| S36 | Resolved | See S33: the canary and import-graph additions to checks 31 and 41, exercised in `test/sec-gxp-testing.test.ts`. |
 | S37 | Resolved | `testKeyProvider` put its seed into every key id. The id now carries a digest of the seed and the seed is documented as not a secret (`testKeyProvider`, tested). |
 
 ## Executive summary

@@ -17,7 +17,16 @@ export const testKeyProvider = (seed: string) => {
 /** F3: `decide` is required at runtime too, so a JS caller or a cast cannot get an approve-all capture. */
 export const scriptedSignatureCapture = (decide: (r: { ticketId: string }) => { signer: { id: string } } | undefined) => {
   if (typeof decide !== "function") throw new TypeError("scriptedSignatureCapture requires decide")
-  return { manifest: { name: "@bridger/gxp/testing/scriptedSignatureCapture", fixture: true, methods: ["test-fixture"] } as PortManifest, capture: decide }
+  let n = 0
+  /** BEH-GX-148: the signature echoes the request, method "test-fixture", two components, event "test-fixture:" plus its index. */
+  const sign = (r: { ticketId: string }) => { const a = decide(r); return a ? { signer: a.signer, method: "test-fixture", components: 2, event: `test-fixture:${++n}`, ticketId: r.ticketId } : undefined }
+  return { manifest: { name: "@bridger/gxp/testing/scriptedSignatureCapture", fixture: true, methods: ["test-fixture"] } as PortManifest, capture: decide, sign }
+}
+
+/** BEH-GX-150: building a layer with fixtures logs exactly one warning line that names the fixtures and carries no value. */
+export const fixtureWarning = (ports: ReadonlyArray<PortManifest>): string | undefined => {
+  const names = ports.filter((m) => iq11([m]).length > 0).map((m) => m.name)
+  return names.length ? `warning: test fixtures wired: ${names.join(", ")}` : undefined
 }
 
 /** F1: a fixture is recognised by what it is, not by one flag it declares: the name prefix, an in-memory commit, a "test fixture" custodian, a "test-fixture" method. */
