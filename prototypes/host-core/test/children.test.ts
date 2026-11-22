@@ -267,4 +267,65 @@ describe("groups (BEH-BR-127, 128)", () => {
       expect(yield* stateIn(host, "bundle/b")).toBe("active")
     }))
   })
+
+  it("BEH-BR-121, 047: a child whose cleanup fails is recorded failed, then unregistered by a leak-acknowledged record caused by its system-stop; the parent's removal completes", async () => {
+    const { records, sink } = memorySink()
+    const bad = define({ id: "kid", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.addFinalizer(() => Effect.die(new Error("sink close failed")))) as never }) as unknown as AnyPlugin
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { yield* (yield* PluginRuntime).install(bad) })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(parent, as()); yield* idle(host)
+      expect(yield* stateIn(host, "app/kid")).toBe("active")
+      yield* drive(host, host.remove("app", as())); yield* idle(host); yield* settleWriter
+      expect((yield* host.snapshot).plugins).toEqual([])                         // the child did not outlive its parent
+      const stop = records.find((r) => r.operation === "system-stop" && r.target?.id === "app/kid" && r.error?._tag === "CleanupError")
+      const ack = records.find((r) => r.operation === "leak-acknowledged")
+      expect(stop).toBeDefined()
+      expect(ack).toMatchObject({ target: { id: "app/kid" }, causationId: stop!.recordId, before: { state: "failed" }, error: { _tag: "CleanupError" } })
+      expect(ack!.actor).toMatchObject({ kind: "system" })
+    }), { sink })
+  })
+
+  it("BEH-BR-126: unmount fails UnknownPlugin for a non-child and for a repeat, CleanupError with a leak-acknowledged record, and HostClosed once the host has closed", async () => {
+    const { records, sink } = memorySink()
+    let rt: PluginRuntime["Service"] | undefined
+    let kid: { id: string; realm: string } | undefined
+    const bad = define({ id: "kid", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.addFinalizer(() => Effect.die(new Error("sink close failed")))) as never }) as unknown as AnyPlugin
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { rt = yield* PluginRuntime; kid = yield* rt.install(bad) })) as never }) as unknown as AnyPlugin
+    const other = define({ id: "other", requires: [] as const, provides: [] as const, build: Layer.effectDiscard(Effect.void) as never }) as unknown as AnyPlugin
+    const ctx = { context: as().context }
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(parent, as()); yield* host.install(other, as()); yield* idle(host)
+      expect(failed(yield* Effect.exit(drive(host, rt!.unmount({ id: "other", realm: "default" } as never, ctx))), "UnknownPlugin")).toBe(true)   // not a child of this activation
+      const exit = yield* Effect.exit(drive(host, rt!.unmount(kid as never, ctx)))
+      expect(failed(exit, "CleanupError")).toBe(true)
+      yield* settleWriter
+      expect(records.some((r) => r.operation === "leak-acknowledged" && r.target?.id === "app/kid")).toBe(true)
+      expect((yield* host.snapshot).plugins.map((p) => p.id)).toEqual(["app", "other"])   // the child is unregistered, not left failed
+      expect(failed(yield* Effect.exit(drive(host, rt!.unmount(kid as never, ctx))), "UnknownPlugin")).toBe(true)   // a retry finds no child
+      yield* drive(host, host.shutdown(as()))
+      expect(failed(yield* Effect.exit(rt!.unmount(kid as never, ctx)), "HostClosed")).toBe(true)
+    }), { sink })
+  })
+
+  it("BEH-BR-126: unmount fails WouldDeadlock, writing no record, when the caller holds a lease on the child", async () => {
+    const { records, sink } = memorySink()
+    let rt: PluginRuntime["Service"] | undefined
+    let kid: { id: string; realm: string } | undefined
+    const j = journal()
+    const parent = define({ id: "app", requires: [] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { rt = yield* PluginRuntime; kid = yield* rt.install(childDef(j, { provides: true })) })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(parent, as()); yield* idle(host); yield* settleWriter
+      const before = records.length
+      const exit = yield* Effect.exit(host.use(Feature, () => rt!.unmount(kid as never, { context: as().context })))   // a lease on the child's service
+      expect(failed(exit, "WouldDeadlock")).toBe(true)
+      yield* settleWriter
+      expect(records.slice(before).some((r) => r.operation === "unmount-requested")).toBe(false)
+      expect(yield* stateIn(host, "app/child")).toBe("active")
+    }), { sink })
+  })
 })

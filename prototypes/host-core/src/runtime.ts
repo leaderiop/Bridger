@@ -20,7 +20,7 @@ export class PluginRuntime extends Context.Service<PluginRuntime, {
   readonly principal: import("./policy.js").PluginPrincipal
   readonly asSelf: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
   readonly entitled: import("effect").Stream.Stream<import("./policy.js").EntitlementState>
-  readonly unmount: (child: PluginHandle, options: { readonly context: import("./gxp.js").OperationContext }) => Effect.Effect<void>
+  readonly unmount: (child: PluginHandle, options: { readonly context: import("./gxp.js").OperationContext }) => Effect.Effect<void, import("./errors.js").UnknownPlugin | import("./errors.js").HostClosed | import("./errors.js").WouldDeadlock | import("./errors.js").CleanupError>
   /** Point-in-time read of an optional key; never leased (BEH-BR-130). */
   /** Existence check only (report 01, R8): `Some` when an active, compatible provider exists now; the service itself is reached only through `useOptional`, inside its lease. */
   readonly optional: <S>(key: Context.Key<any, S>) => Effect.Effect<Option.Option<void>>

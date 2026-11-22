@@ -1221,12 +1221,23 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     principal: e.principal!,
     asSelf: (effect) => Effect.provideService(effect, PrincipalReference, e.principal ? Option.some(e.principal) : Option.none()),
     entitled: entitledFor(e, activationScope),
+    // BEH-BR-126: removes a child of this activation as a sub-scope close does, and completes when the removal has settled.
     unmount: (child, o) => Effect.gen(function* () {
-      const c = entries.get(keyOf(child.id, child.realm))
-      if (!c || c.parentKey !== e.id) return
-      // BEH-BR-126: one unmount-requested record naming who asked, causing the removal's records.
+      if (closed) return yield* Effect.fail(new HostClosed())
+      const key = keyOf(child.id, child.realm)
+      const c = entries.get(key)
+      if (!c || c.parentKey !== e.id) return yield* Effect.fail(new UnknownPlugin({ id: child.id }))
+      yield* deadlockCheck(c.id)                           // before any wait, no record, nothing changed
+      // A removal already begun — by the parent's stop, shutdown, the sub-scope close or an earlier unmount — is joined, never repeated, with no record of its own.
+      const joined = c.removing || closing || e.state === "stopping" || e.failing
+      if (joined) {
+        yield* SubscriptionRef.changes(feed).pipe(Stream.filter(() => entries.get(c.id) !== c), Stream.take(1), Stream.runDrain)
+        return
+      }
       const rid = yield* systemRecord("unmount-requested", c, e.cause, undefined, { requestedBy: o.context.actor } as never)
-      yield* Effect.exit(stopDependent(c, e.id, { mode: "no-caller" }, e.id)).pipe(Effect.provideService(CurrentCause, rid))
+      let leak: string | undefined
+      yield* Effect.exit(stopDependent(c, e.id, { mode: "no-caller", hooks: { cleanupFailed: (_id, message) => { leak = message } } }, e.id)).pipe(Effect.provideService(CurrentCause, rid))
+      if (leak !== undefined) return yield* Effect.fail(new CleanupError({ id: c.pluginId, realm: c.realm, message: leak }))
     }),
     background: (name, effect, o = {}) => Effect.gen(function* () {
       const scope = yield* Effect.scope                      // the activation scope, inside the build layer
@@ -1537,8 +1548,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       if (err instanceof CleanupError) {
         // A dependent's cleanup failure is its own (failed, phase cleanup); the provider's stop continues (BEH-BR-046).
         opts.hooks?.cleanupFailed?.(d.id, err.message)
-        if (isChild) return yield* unregister(d, { _tag: "CleanupError", message: err.message })
-        yield* locked(Effect.gen(function* () { yield* commit; yield* systemRecord("system-stop", d, yield* CurrentCause, { _tag: "CleanupError", message: err.message }) }))
+        const error = { _tag: "CleanupError", message: err.message }
+        const stopRecord = yield* locked(Effect.gen(function* () { yield* commit; return yield* systemRecord("system-stop", d, yield* CurrentCause, error) }))
+        // A child outside shutdown is unregistered by the system acknowledgement; under shutdown it stays `failed` (BEH-BR-121, 047).
+        if (isChild && !closing && !closed) yield* acknowledgeLeak(d, error, stopRecord)
         return
       }
       // Every dependency-loss stop this call started that has not settled parks with it (BEH-BR-079, R9);
@@ -1560,6 +1573,20 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     }))
     opts.hooks?.stopped?.(d.id)
   })
+  /**
+   * The system acknowledgement (BEH-BR-047, CCR-BR-041): a plugin left `failed` (cleanup) that must not outlive what owned it
+   * is unregistered at once, its cleanup not run again, with a `leak-acknowledged` record caused by `causationId`.
+   */
+  const acknowledgeLeak = (d: Entry, error: { readonly _tag: string; readonly message: string }, causationId: string | undefined) => locked(Effect.gen(function* () {
+    if (entries.get(d.id) !== d) return
+    const before = { state: "failed", revision, ...defRef(d.def) }
+    entries.delete(d.id); flights.delete(d.id)
+    yield* Effect.logWarning(`leak recorded for ${d.pluginId} (realm ${d.realm}) acknowledged by the system: ${error.message}`)
+    yield* emit({ type: "plugin-removed" }, d.id)
+    yield* commit
+    if (writer) yield* writer.enqueue({ actor: Actor.system, correlationId: causationId ?? (yield* ids.next), operation: "leak-acknowledged", phase: "system",
+      target: { id: d.pluginId, realm: d.realm }, before, error, ...(causationId ? { causationId } : {}) } as Draft)
+  }))
   /** Unregisters a removed child: its `system-stop` record is caused by the cascade root (BEH-BR-126, 190). */
   const unregister = (d: Entry, error?: { readonly _tag: string; readonly message: string }) => locked(Effect.gen(function* () {
     if (entries.get(d.id) !== d) return                       // removed directly meanwhile: nothing to do (BEH-BR-125)
