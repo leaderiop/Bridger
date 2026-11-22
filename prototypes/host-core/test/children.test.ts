@@ -425,7 +425,7 @@ describe("groups (BEH-BR-127, 128)", () => {
       expect(yield* stateIn(host, "app/child")).toBe("uninstalled")
       expect(j.lines.filter((l) => l === "child:build")).toHaveLength(1)           // the restart's rebuild never ran
       expect(j.lines.filter((l) => l === "child:close")).toHaveLength(1)
-    }))
+    }), { options: { drainTimeout: 5000 } })      // the close waits for the stop it took over under the host's own drain limit (BEH-RM-028); the default 200 ms is shorter than a loaded machine's steps
   })
 
   it("BEH-BR-121, 126: unmounting a child still queued for a build slot abandons the build and removes it at once", async () => {

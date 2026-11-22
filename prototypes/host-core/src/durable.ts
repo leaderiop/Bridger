@@ -1,7 +1,7 @@
 // Durable federation state (federation 06 BEH-FD-048, 01 BEH-FD-004): the highest verified manifest (stored before it is applied),
 // the last applied one, pending kills, the re-bootstrap marker, firstActivation. A file store writes atomically (temp file, rename).
 import { Effect } from "effect"
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
 import type { KillEntry } from "./federation.js"
 import type { Envelope } from "./sync.js"
@@ -24,12 +24,36 @@ export const memoryState = (initial: DurableState = empty): StateStore => {
   let s = initial
   return { read: Effect.sync(() => s), update: (f) => Effect.sync(() => { s = f(s) }) }
 }
-/** shortcut: one JSON file rewritten whole per update; adequate for a few kilobytes of state, a log-structured store beyond that. */
-export const fileState = (path: string): StateStore => {
-  const load = (): DurableState => { try { return { ...empty, ...JSON.parse(readFileSync(path, "utf8")) } } catch { return empty } }
+/**
+ * A log-structured file: each update appends one line holding only the top-level keys that changed (`null` deletes a key); a load
+ * folds the lines; once the log exceeds `compactAfter` lines it is rewritten as one line (temp file, rename). A torn last line, left by
+ * a crash mid-append, is ignored.
+ */
+export const fileState = (path: string, o: { readonly compactAfter?: number } = {}): StateStore => {
+  const limit = o.compactAfter ?? 64
+  const load = (): { state: DurableState; lines: number } => {
+    let text = ""; try { text = readFileSync(path, "utf8") } catch { return { state: empty, lines: 0 } }
+    const state: Record<string, unknown> = { ...empty }; let lines = 0
+    for (const l of text.split("\n")) {
+      if (!l) continue
+      try { const d = JSON.parse(l) as Record<string, unknown>; for (const [k, v] of Object.entries(d)) { if (v === null) delete state[k]; else state[k] = v }; lines++ } catch { /* a torn final line */ }
+    }
+    return { state: state as unknown as DurableState, lines }
+  }
   return {
-    read: Effect.sync(load),
-    update: (f) => Effect.sync(() => { const next = f(load()); mkdirSync(dirname(path), { recursive: true }); const tmp = `${path}.tmp`; writeFileSync(tmp, JSON.stringify(next)); renameSync(tmp, path) })
+    read: Effect.sync(() => load().state),
+    update: (f) => Effect.sync(() => {
+      mkdirSync(dirname(path), { recursive: true })
+      const { state: cur, lines } = load(); const next = f(cur)
+      const diff: Record<string, unknown> = {}
+      for (const k of new Set([...Object.keys(cur), ...Object.keys(next)])) {
+        const a = (cur as unknown as Record<string, unknown>)[k], b = (next as unknown as Record<string, unknown>)[k]
+        if (JSON.stringify(a) !== JSON.stringify(b)) diff[k] = b === undefined ? null : b
+      }
+      if (Object.keys(diff).length === 0) return
+      if (lines + 1 > limit) { const tmp = `${path}.tmp`; writeFileSync(tmp, JSON.stringify(next) + "\n"); renameSync(tmp, path) }
+      else appendFileSync(path, JSON.stringify(diff) + "\n")
+    })
   }
 }
 

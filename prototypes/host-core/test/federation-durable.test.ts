@@ -1,5 +1,5 @@
 // Durable federation state: restart re-verification, store-invalid, kills without a manifest, the running loop, the marker.
-import { mkdtempSync, readFileSync } from "node:fs"
+import { appendFileSync, mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Effect, Fiber, Layer } from "effect"
@@ -17,6 +17,7 @@ const plug = (id: string) => define({ id, requires: [] as const, provides: [] as
 const catalog: Record<string, AnyPlugin> = { dA: plug("a"), dB: plug("b") }
 const manifest = (revision: number, o: Partial<HostManifest> = {}): HostManifest => ({ format: "bridger.host-manifest/1", authority: "auth", host: "h1", revision, issuedAt: 0, plugins: [], ...o })
 const envelope = (m: HostManifest): Envelope => ({ statementType: "host-manifest", id: JSON.stringify([m.authority, m.host]), version: String(m.revision), payload: JSON.stringify(m), signatures: ["ok"] })
+const disk = (path: string) => Effect.runSync(fileState(path).read) as any
 const tmp = () => join(mkdtempSync(join(tmpdir(), "bridger-fed-")), "state.json")
 
 const build = (host: Parameters<Parameters<typeof run>[0]>[0], state: ReturnType<typeof fileState>, o: { answers?: SyncAnswer[]; verify?: (r: { reverify?: unknown }) => Effect.Effect<void, unknown>; disabled?: string[]; outside?: { id: string }[]; reasons?: string[]; syncEvery?: number } = {}) => {
@@ -38,14 +39,14 @@ describe("durable federation state", () => {
       const { fed } = yield* build(host, fileState(path), { answers: [{ kind: "manifest", envelope: envelope(m1) }] })
       expect(yield* drive(host, fed.sync)).toEqual({ applied: 1 })
     }))
-    const disk = JSON.parse(readFileSync(path, "utf8"))
-    expect(disk.highest.revision).toBe(1); expect(disk.lastApplied.revision).toBe(1); expect(disk.lastApplied.acceptedAt).toBe(100); expect(disk.firstActivation).toBeUndefined()
+    const onDisk = disk(path)
+    expect(onDisk.highest.revision).toBe(1); expect(onDisk.lastApplied.revision).toBe(1); expect(onDisk.lastApplied.acceptedAt).toBe(100); expect(onDisk.firstActivation).toBeUndefined()
     await run((host) => Effect.gen(function* () {                                  // a new process, a new host
       const { fed, seen } = yield* build(host, fileState(path))
       expect(yield* drive(host, fed.boot)).toBe("applied"); yield* idle(host)
       expect(seen).toEqual([{ acceptedAt: 100 }])                                   // re-verified as received bytes with reverify
       expect([yield* stateIn(host, "a"), yield* stateIn(host, "b")]).toEqual(["active", "active"])
-      expect(JSON.parse(readFileSync(path, "utf8")).firstActivation).toBe(50)       // stored once at activation
+      expect(disk(path).firstActivation).toBe(50)       // stored once at activation
     }))
   })
   it("a crash after the highest was stored but before the apply re-applies that revision at the next boot", async () => {
@@ -72,7 +73,7 @@ describe("durable federation state", () => {
       expect(fed.status.events.map((e) => e._tag)).toContain("store-invalid")
     }))
     expect(disabled.sort()).toEqual(["a/default:pending kill of revision 2", "zz/default:pending kill of revision 2"])
-    expect(JSON.parse(readFileSync(path, "utf8")).lastApplied.revision).toBe(1)     // not deleted
+    expect(disk(path).lastApplied.revision).toBe(1)     // not deleted
   })
   it("while a re-bootstrap marker is stored a newer manifest is a kill-only apply: its kills become pending and nothing else changes", async () => {
     const state = memoryState({ pendingKills: [] }); const disabled: string[] = []
@@ -105,10 +106,10 @@ describe("durable federation state", () => {
   it("the re-bootstrap marker lives in the durable state, written before each step", async () => {
     const path = tmp(); const store = fileState(path); const steps: string[] = []
     const ports = markerPorts(store)
-    await Effect.runPromise(rebootstrap({ marker: { ...ports, write: (m) => Effect.tap(ports.write(m), () => Effect.sync(() => { steps.push(JSON.parse(readFileSync(path, "utf8")).marker.step) })) }, outboxMode: "none",
+    await Effect.runPromise(rebootstrap({ marker: { ...ports, write: (m) => Effect.tap(ports.write(m), () => Effect.sync(() => { steps.push(disk(path).marker.step) })) }, outboxMode: "none",
       links: { deliveryOnly: Effect.void, suspend: Effect.void, resume: Effect.void }, fetch: Effect.succeed("s"), install: () => Effect.succeed({ revision: 4 }), applyLatest: () => Effect.succeed(4), applyRevocations: Effect.void, emit: () => Effect.void }))
     expect(steps).toEqual(["required", "suspended", "installing", "installed", "applying"])
-    expect(JSON.parse(readFileSync(path, "utf8")).marker).toBeUndefined()           // cleared on resume
+    expect(disk(path).marker).toBeUndefined()           // cleared on resume
   })
   it("the loop syncs on its schedule and applies what the authority publishes, until its fiber is interrupted", async () => {
     await run((host) => Effect.gen(function* () {
@@ -123,4 +124,33 @@ describe("durable federation state", () => {
       yield* Fiber.interrupt(fiber)
     }))
   }, 20000)
+})
+
+describe("log-structured file state", () => {
+  const upd = (st: ReturnType<typeof fileState>, f: (s: any) => any) => Effect.runSync(st.update(f))
+  it("appends one line per change holding only the changed keys, and ignores a no-op update", () => {
+    const path = tmp(); const st = fileState(path)
+    upd(st, (s) => ({ ...s, firstActivation: 5 })); upd(st, (s) => ({ ...s, revoked: ["d"] })); upd(st, (s) => s)
+    const lines = readFileSync(path, "utf8").trim().split("\n")
+    expect(lines.map((l) => Object.keys(JSON.parse(l)))).toEqual([["firstActivation"], ["revoked"]])
+    expect(disk(path)).toMatchObject({ firstActivation: 5, revoked: ["d"], pendingKills: [] })
+  })
+  it("a removed key is deleted on load", () => {
+    const path = tmp(); const st = fileState(path)
+    upd(st, (s) => ({ ...s, marker: { step: "required", installAttempted: false } })); upd(st, ({ marker: _m, ...rest }) => rest)
+    expect(disk(path).marker).toBeUndefined()
+  })
+  it("compacts into one line after the limit, losing nothing", () => {
+    const path = tmp(); const st = fileState(path, { compactAfter: 4 })
+    for (let i = 0; i < 10; i++) upd(st, (s) => ({ ...s, firstActivation: i }))
+    expect(readFileSync(path, "utf8").trim().split("\n").length).toBeLessThanOrEqual(4)
+    expect(disk(path).firstActivation).toBe(9)
+  })
+  it("ignores a torn final line left by a crash mid-append", () => {
+    const path = tmp(); const st = fileState(path)
+    upd(st, (s) => ({ ...s, firstActivation: 7 })); appendFileSync(path, '{"firstActivation": 8')
+    expect(disk(path).firstActivation).toBe(7)
+    upd(st, (s) => ({ ...s, revoked: ["x"] }))
+    expect(disk(path)).toMatchObject({ firstActivation: 7 })
+  })
 })
