@@ -1584,7 +1584,13 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       return
     }
     if (isChild) { yield* unregister(d); opts.hooks?.stopped?.(d.id); return }
-    if (!r.value) return
+    if (!r.value) {
+      // A parked stop whose abandoned build has since settled has no scope left to close: it lands as a finished stop does (ADR-BR-038 item 4).
+      yield* locked(Effect.gen(function* () {
+        if (d.state === "stopping" && !d.scope && !d.stepRunning && !flights.has(d.id)) { d.state = restState(d); d.parkedSystem = false; yield* commit; yield* settle }
+      }))
+      return
+    }
     yield* locked(Effect.gen(function* () {
       if (d.state === "stopping") d.state = "waiting"
       d.parkedSystem = false
@@ -1650,7 +1656,16 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       const begun = yield* locked(Effect.sync(() => { e.epoch++; e.state = "stopping"; e.stopReason = reason; e.stepRunning = true; return !!e.buildBegun }))
       // A begun build settles uninterrupted (BEH-BR-039); one still waiting for a slot is cancelled (BEH-BR-034).
       if (begun && e.heldEvent) e.heldUntilSettled = true
-      if (b) yield* (begun ? Fiber.await(b) : Fiber.interrupt(b)).pipe(Effect.ensuring(Effect.sync(() => { e.stepRunning = false })))
+      // A cascade waits for the dependent's running build under its own drain limit: an operator call without `force`
+      // then fails with DrainTimeout (leases 0) and the build goes on; any other root keeps waiting (ADR-BR-038 items 3, 4).
+      const dl = opts.drain ?? defaultDrain
+      const wait = begun && cascadeFrom !== undefined && dl !== "forever"
+        ? Fiber.await(b!).pipe(Effect.timeoutOption(dl), Effect.flatMap((got) => Option.isSome(got) ? Effect.void
+            : !opts.force && (opts.mode ?? "operator") === "operator" && !closing
+              ? emit({ type: "drain-timeout", leases: 0, ...(root !== id ? { target: root } : {}) }, id).pipe(Effect.andThen(Effect.fail(new DrainTimeout({ id, leases: 0, ...(root !== id ? { target: root } : {}) }))))
+              : Fiber.await(b!)))
+        : begun ? Fiber.await(b!) : Fiber.interrupt(b!)
+      if (b) yield* wait.pipe(Effect.ensuring(Effect.sync(() => { e.stepRunning = false })))
       else e.stepRunning = false
       if (e.heldUntilSettled) { e.heldUntilSettled = false; yield* dropHeld(e, "ended") }
       return true

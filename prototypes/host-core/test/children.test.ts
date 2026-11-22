@@ -489,4 +489,28 @@ describe("groups (BEH-BR-127, 128)", () => {
       yield* stepAll(host, [building])
     }), { options: { concurrency: 1 } })
   })
+
+  it("ADR-BR-038 item 3: a cascade waiting for a dependent's running build fails DrainTimeout (id the dependent, leases 0) when its own drain expires, and the build goes on", async () => {
+    const gate = Effect.runSync(Deferred.make<void>())
+    const base = define({ id: "base", requires: [] as const, provides: [Parent] as const, build: Layer.succeed(Parent, { name: "base" }) as never }) as unknown as AnyPlugin
+    const mid = define({ id: "mid", requires: [Parent] as const, provides: [] as const,
+      build: Layer.effectDiscard(Effect.gen(function* () { yield* Parent; yield* Deferred.await(gate) })) as never }) as unknown as AnyPlugin
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(base, as()); yield* idle(host)
+      const building = yield* Effect.forkChild(host.install(mid, as()))
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      expect(yield* stateIn(host, "mid")).toBe("starting")
+      const rm = yield* Effect.forkChild(host.remove("base", { ...as(), drain: 20 }))
+      for (let i = 0; i < 200; i++) { if (!(yield* host.step)) yield* Effect.sleep(1) }
+      const exit = yield* Fiber.await(rm)
+      expect(failed(exit, "DrainTimeout")).toBe(true)
+      expect(failed(exit, `"id":"mid"`) && failed(exit, `"leases":0`)).toBe(true)
+      yield* Deferred.succeed(gate, undefined)
+      yield* stepAll(host, [building])
+      yield* idle(host)
+      yield* drive(host, host.remove("base", { ...as(), drain: 200 }))                    // the retry resumes the parked stop and completes
+      expect(yield* stateIn(host, "base")).toBe("uninstalled")
+      expect(["waiting", "failed"]).toContain(yield* stateIn(host, "mid"))                 // the discarded build never activates
+    }))
+  })
 })

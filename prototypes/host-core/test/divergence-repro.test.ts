@@ -26,7 +26,7 @@ describe("repro L1 (report 01): BEH-BR-039 stale build after provider loss", () 
       expect(yield* host.stepPlugin("example/logger")).toBe(true)               // the provider is active
       expect(yield* host.stepPlugin("repro/dependent")).toBe(true)              // the dependent's build begins and sleeps
       expect(yield* stateOf(host, "repro/dependent")).toBe("starting")
-      yield* drive(host, host.remove("example/logger"))                         // target change: the captured provider is lost
+      yield* drive(host, host.remove("example/logger", { drain: 5000 }))              // target change: the captured provider is lost
       yield* idle(host)
       // BEH-BR-039 (report 01 R1): a stale outcome is always discarded, so the plugin is `waiting`, not `failed`.
       expect(yield* stateOf(host, "repro/dependent")).toBe("waiting")

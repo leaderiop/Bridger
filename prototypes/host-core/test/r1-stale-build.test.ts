@@ -18,7 +18,7 @@ const run = (cause: "provider-removed" | "operator-removed") => withHost((host) 
   yield* host.install(dependent(Effect.andThen(Effect.sleep(400), Effect.fail("late build failure"))))
   yield* host.stepPlugin("example/logger")
   yield* host.stepPlugin("repro/dependent")
-  yield* drive(host, host.remove(cause === "provider-removed" ? "example/logger" : "repro/dependent"))
+  yield* drive(host, host.remove(cause === "provider-removed" ? "example/logger" : "repro/dependent", { drain: 5000 }))
   yield* idle(host)
   const isStale = (e: HostEvent) => e.type === "build-finished" && (e as { stale?: boolean }).stale
   for (let i = 0; i < 1000 && !seen.some(isStale); i++) yield* Effect.sleep(2)   // the collector fiber catches up
@@ -53,7 +53,7 @@ describe("BEH-BR-039: repeated discarded failures mark the build flapping", () =
         gate = Effect.runSync(Deferred.make<void>())                       // a fresh gate per attempt: the build reads it when it starts
         yield* host.install(loggerPlugin(journal()))
         yield* host.stepPlugin("example/logger"); yield* host.stepPlugin("repro/dependent")
-        const removal = yield* Effect.forkChild(host.remove("example/logger"))   // the stop waits for the running build (G-P14), which is now stale
+        const removal = yield* Effect.forkChild(host.remove("example/logger", { drain: 5000 }))   // the stop waits for the running build (G-P14), which is now stale
         while ((yield* stateOf(host, "repro/dependent")) !== "stopping") if (!(yield* host.step)) yield* Effect.yieldNow
         yield* Deferred.succeed(gate, undefined)
         yield* drive(host, Fiber.join(removal))
