@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-02                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-ES-013: for `EventStore.receive`, a commit-time conflict reaches durable-bus as `CommitConflict`, which it retries in a new transaction (CCR-ES-003)<br>0.2 (2026-11-08): BEH-ES-013 retries under an adapter savepoint, maps conflicts to `StoreContention`, gives commit-time conflicts to the transaction owner and adds `Aggregate.recordFact`; BEH-ES-015 stores the fact identifier in `factId`, never in `eventId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.4 (2026-11-22): S40: a fact is matched by id and content (improvement report 06)<br>0.3 (2026-11-09): Specification audit of 2026-11-09 (C-12) — BEH-ES-013: for `EventStore.receive`, a commit-time conflict reaches durable-bus as `CommitConflict`, which it retries in a new transaction (CCR-ES-003)<br>0.2 (2026-11-08): BEH-ES-013 retries under an adapter savepoint, maps conflicts to `StoreContention`, gives commit-time conflicts to the transaction owner and adds `Aggregate.recordFact`; BEH-ES-015 stores the fact identifier in `factId`, never in `eventId` (CCR-ES-002)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -308,3 +308,12 @@ this revision leaves to the application.
 ---
 
 _Previous: [01 — Streams and append](./01-streams-and-append.md)_ · _Next: [03 — Projections and snapshots](./03-projections-and-snapshots.md)_
+
+```
+REQUIREMENT: `StoredEvent` MUST carry `factDigest`, the hash of the version and
+             canonical encoded payload. A fact whose `factId` is already on
+             the stream with an equal digest is "already-recorded"; one with
+             a different digest MUST still be recorded, as a `FactConflict`
+             event holding both digests, and reported. A fact is never
+             dropped for its id alone.
+```

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-AC-BEH-04                                            |
-> | Revision       | 0.6                                                          |
+> | Revision       | 0.7                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.6 (2026-11-22): BEH-AC-0xx the `recordId` of a generic series holds no control character (improvement report 06, S44)<br>0.5 (2026-11-11): BEH-AC-025 `record` surfaces failures as 01 states (inner `AuditWriteFailed` unchanged, a death, interruption or `KeyedHashFailed` naming the cause) instead of mapping every failure (PL20) (SPEC-AUDIT-07) (CCR-AC-009)<br>0.4 (2026-11-10): BEH-AC-025: `ChainSinkOptions` gains `keyed`, the `KeyedHasherShape` a series is hashed with (01, BEH-AC-007), so a keyed hasher reaches `ChainSink.make` (M19); BEH-AC-027 names the "alg-changed" break that INV-AC-007 requires for a link whose algorithm differs within its series (03, BEH-AC-019) (CCR-AC-006)<br>0.3 (2026-11-10): BEH-AC-027 and BEH-AC-030 name the report kinds "canon-changed", "loss-counter-rose" and "counter-decreased" (03, BEH-AC-019); BEH-AC-029 restates store idempotence for an equal entry only (BEH-AC-006, CCR-AC-004); BEH-AC-031 passes the profile as `verifyChain`'s `options.profile` and names `SequenceResult`; open item 1 closed (`ChainLinkV2.origin`); follow-up: BEH-AC-026 and check 16 name the report field for version 1 statements, `ChainReport.hosts[].lossCounterUnanchored` (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-06, R3-07, R3-09; R5-08): `ChainLinkV2` with `seriesId`, `seq`, `canon` and its hash inputs, audit links stay version 1; anchor statements version 2 carry `seriesId`, `canon` and `dropped`; a series resumes across hosts with `resumeFrom` or `ChainStore.head`; the erasure wording no longer over-claims; checks 13–16 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
+> | Change History | 0.7 (2026-11-22): S43: the verifier derives `origin` and `break` (improvement report 06)<br>0.6 (2026-11-22): BEH-AC-0xx the `recordId` of a generic series holds no control character (improvement report 06, S44)<br>0.5 (2026-11-11): BEH-AC-025 `record` surfaces failures as 01 states (inner `AuditWriteFailed` unchanged, a death, interruption or `KeyedHashFailed` naming the cause) instead of mapping every failure (PL20) (SPEC-AUDIT-07) (CCR-AC-009)<br>0.4 (2026-11-10): BEH-AC-025: `ChainSinkOptions` gains `keyed`, the `KeyedHasherShape` a series is hashed with (01, BEH-AC-007), so a keyed hasher reaches `ChainSink.make` (M19); BEH-AC-027 names the "alg-changed" break that INV-AC-007 requires for a link whose algorithm differs within its series (03, BEH-AC-019) (CCR-AC-006)<br>0.3 (2026-11-10): BEH-AC-027 and BEH-AC-030 name the report kinds "canon-changed", "loss-counter-rose" and "counter-decreased" (03, BEH-AC-019); BEH-AC-029 restates store idempotence for an equal entry only (BEH-AC-006, CCR-AC-004); BEH-AC-031 passes the profile as `verifyChain`'s `options.profile` and names `SequenceResult`; open item 1 closed (`ChainLinkV2.origin`); follow-up: BEH-AC-026 and check 16 name the report field for version 1 statements, `ChainReport.hosts[].lossCounterUnanchored` (CCR-AC-005)<br>0.2 (2026-11-08): Round-2 agent review (R3-06, R3-07, R3-09; R5-08): `ChainLinkV2` with `seriesId`, `seq`, `canon` and its hash inputs, audit links stay version 1; anchor statements version 2 carry `seriesId`, `canon` and `dropped`; a series resumes across hosts with `resumeFrom` or `ChainStore.head`; the erasure wording no longer over-claims; checks 13–16 extended (CCR-AC-003)<br>0.1 (2026-11-08): Initial draft (CCR-AC-003)                 |
 
 ---
 
@@ -662,3 +662,10 @@ this file fixes only the shapes they plug into.
 ---
 
 _Previous: [03 — Verification](./03-verification.md)_ · _Next: [05 — Verification Bundle](./05-verification-bundle.md)_
+
+```
+REQUIREMENT: A link's `origin` and `break` are outside the link hash, so the
+             verifier MUST derive both from the entries and the series and
+             report a link whose values differ, rather than trusting the
+             link.
+```

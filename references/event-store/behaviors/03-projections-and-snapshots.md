@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ES-BEH-03                                            |
-> | Revision       | 0.2                                                          |
+> | Revision       | 0.3                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.2 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-ES-020: a batch refused during a whole-store install or its holds (`StoreUnavailable` "store-swap") is retried once `whenReadable` completes, uncounted (H5); second pass (cleanest design): the refusal is the dedicated `StoreSwapInProgress` (or `OutboxFrozen`), no longer `StoreUnavailable` "store-swap" (CCR-ES-011)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
+> | Change History | 0.3 (2026-11-22): S38: a snapshot is bound to its event and removed on shred (improvement report 06)<br>0.2 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-09) — BEH-ES-020: a batch refused during a whole-store install or its holds (`StoreUnavailable` "store-swap") is retried once `whenReadable` completes, uncounted (H5); second pass (cleanest design): the refusal is the dedicated `StoreSwapInProgress` (or `OutboxFrozen`), no longer `StoreUnavailable` "store-swap" (CCR-ES-011)<br>0.1 (2026-11-08): Initial draft (CCR-ES-001)                 |
 
 ---
 
@@ -195,3 +195,12 @@ versioned by `stateVersion` (BEH-ES-023, BEH-ES-024).
 ---
 
 _Previous: [02 — Decide and evolve](./02-decide-and-evolve.md)_ · _Next: [04 — Versions, publication and chaining](./04-versions-publication-and-chaining.md)_
+
+```
+REQUIREMENT: A snapshot MUST record the `eventId` and the hash of the event at its
+             `streamVersion`, and a load MUST use its state only when that
+             event still has them; otherwise the load folds from the events.
+             On a shred of a subject of the stream, the keyring's `onShred`
+             MUST delete the stream's snapshots, or the policy MUST encode
+             `state` through the `PayloadCodec` under the same subject.
+```
