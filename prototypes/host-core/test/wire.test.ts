@@ -44,6 +44,20 @@ describe("remote handshake over frames", () => {
     expect(out.g).toEqual({ answered: "refuse" })
     expect(JSON.parse(out.reply)).toEqual({ t: "refuse", reason: "wire" })
   })
+  it("the guest agrees the highest wire version both speak", async () => {
+    expect((await link([side(make("1.3.0", Text))], { ...hello(), wire: [1, 2] }, { wire: [1, 2], maxInFlight: 8 })).outcome).toMatchObject({ session: { wire: 2 } })
+  })
+  it("a link refuses a forged welcome: a wire version it did not offer, or a digest that differs, whatever the guest claims", async () => {
+    const forge = (welcome: object) => Effect.runPromise(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      const f = yield* Effect.forkChild(linkHandshake(a, hello()))
+      yield* b.receive
+      yield* b.send(JSON.stringify({ t: "welcome", epoch: "e-1", maxInFlight: 1, ...welcome }))
+      return yield* Fiber.join(f)
+    }))
+    expect(await forge({ wire: 9, version: "1.3.0" })).toEqual({ refused: "wire" })
+    expect(await forge({ wire: 1, version: "1.3.0", schemas: make("1.3.0", Rich).schemas })).toMatchObject({ refused: "incompatible-contract", cause: { mismatchedMethods: ["post"] } })
+  })
   it("a link ignores a welcome that echoes another epoch", async () => {
     const out = await Effect.runPromise(Effect.gen(function* () {
       const [a, b] = yield* duplex
@@ -73,6 +87,9 @@ describe("federation offers over frames", () => {
   it("refuses that import alone, naming the method, when the peer's digest differs; the link stays up", async () => {
     const [ra] = await exchange(offer("A", { imports: [imp, { key: "example/Other@1", version: "1.0.0" }] }), offer("B", { exports: [exp(make("1.4.0", Rich))] }))
     expect(ra).toMatchObject({ protocol: 4, verdicts: [{ accepted: false, reason: "incompatible-contract", cause: { mismatchedMethods: ["post"] } }, { accepted: false, reason: "no-export" }] })
+  })
+  it("a peer's window can lower the floor: [3,5] w1 against [3,6] w2 agree 5", () => {
+    expect(agreeProtocol(offer("A", { protocol: [3, 5], protocolWindow: 1 }), offer("B", { protocol: [3, 6], protocolWindow: 2 }))).toBe(5)
   })
   it("agrees the highest version inside both windows, and refuses a gap with IncompatiblePeer on both ends", async () => {
     expect(agreeProtocol(offer("A", { protocol: [3, 5], protocolWindow: 1 }), offer("B", { protocol: [4, 5], protocolWindow: 1 }))).toBe(5)
