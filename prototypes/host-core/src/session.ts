@@ -12,7 +12,7 @@ const parse = (s: string): { readonly t?: string; readonly [k: string]: unknown 
 
 export type EndReason = "heartbeat-missed" | "guest-reset" | "closed" | "unavailable"
 /** A call that did not complete normally: `outcome` says whether the guest may have run it (ADR-RM-008). */
-export interface CallFailure { readonly _tag: "StaleEpoch" | "SessionLost" | "MethodNotServed" | "RemoteError" | "RemoteUnavailable"; readonly outcome: "not-executed" | "unknown"; readonly detail?: unknown }
+export interface CallFailure { readonly _tag: "StaleEpoch" | "SessionLost" | "MethodNotServed" | "RemoteError" | "RemoteUnavailable" | "RemoteTimeout" | "Overloaded"; readonly outcome: "not-executed" | "unknown"; readonly detail?: unknown }
 export interface Session {
   readonly epoch: string; readonly version: string
   /** `identity` is the caller's identity claims; only those the link lists in `disclose` and the call has cross, in the frame's `claims` (BEH-RM-024). */
@@ -29,6 +29,8 @@ export interface SessionOptions { readonly epoch: string; readonly wire: Readonl
   /** Serves the guest's callbacks (BEH-RM-046): the grants, decoding and the way the host service is reached. */
   readonly callbacks?: Pick<CallbackContext, "grants" | "decode" | "run" | "offeredLabels" | "budget" | "admission" | "placement" | "maxCallbacks"> & { readonly revoked?: () => boolean; readonly rev?: CallbackContext["rev"] }
   readonly tokens?: TokenAuthority; readonly tokenTtl?: number; readonly callTimeout?: number
+  /** INV-RM-003: calls in flight at once; a call beyond it fails fast `Overloaded`, not executed. Default 64. */
+  readonly maxInFlight?: number
   /** The identity claims this link may send; the default is none (INV-RM-012). */
   readonly disclose?: ReadonlyArray<IdentityClaim>
   /** One entry per call at its end: kind, method, outcome, epoch; never a payload, result, error message or token (BEH-RM-047). */
@@ -89,6 +91,7 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
   })))
   const call = (method: string, payload: unknown, identity: Identity = {}): Effect.Effect<unknown, CallFailure> => Effect.gen(function* () {
     if (yield* Deferred.isDone(endedD)) return yield* Effect.fail({ _tag: "SessionLost", outcome: "not-executed" } satisfies CallFailure)
+    if (pending.size >= (o.maxInFlight ?? 64)) return yield* Effect.fail({ _tag: "Overloaded", outcome: "not-executed" } satisfies CallFailure)
     const callId = `c-${++n}`
     const d = yield* Deferred.make<{ value?: unknown; error?: { _tag?: string } }>()
     pending.set(callId, d)
@@ -98,11 +101,12 @@ export const openSession = (conn: Connection, o: SessionOptions): Effect.Effect<
     const disclosed = order.filter((k) => (o.disclose ?? []).includes(k) && identity[k] !== undefined)         // a claim the link does not list, or the call lacks, is omitted, never empty
     const claims = { pluginId: o.contract.id, contractVersion: h.session.version, ...Object.fromEntries(disclosed.map((k) => [k, identity[k]])) }   // never the TokenRef or its id
     yield* conn.send(JSON.stringify({ t: "call", epoch: o.epoch, callId, method, payload, version: h.session.version, token, claims }))
-    const r = yield* Deferred.await(d).pipe(Effect.ensuring(Effect.andThen(tokens.end(token), Effect.sync(() => { for (const k of callbackSeen) if (k.startsWith(`${callId}/`)) callbackSeen.delete(k) }))))     // the token dies with the call: result, failure, cancellation or session loss
+    const awaited = o.callTimeout === undefined ? Deferred.await(d) : Effect.flatMap(Deferred.await(d).pipe(Effect.timeoutOption(o.callTimeout)), (x) => Option.isSome(x) ? Effect.succeed(x.value) : Effect.sync(() => { pending.delete(callId); return { error: { _tag: "RemoteTimeout" } } as { value?: unknown; error?: { _tag?: string } } }))   // INV-RM-003: every call has a deadline; the outcome is unknown
+    const r = yield* awaited.pipe(Effect.ensuring(Effect.andThen(tokens.end(token), Effect.sync(() => { for (const k of callbackSeen) if (k.startsWith(`${callId}/`)) callbackSeen.delete(k) }))))     // the token dies with the call: result, failure, cancellation or session loss
     if (o.log) yield* o.log({ kind: "crossing", direction: "outbound", method, outcome: r.error ? "failure" : "success", epoch: o.epoch, ...(r.error?._tag ? { errorTag: r.error._tag } : {}) })
     if (r.error) {
       const tag = r.error._tag
-      return yield* Effect.fail({ _tag: tag === "StaleEpoch" || tag === "SessionLost" || tag === "MethodNotServed" ? tag : "RemoteError", outcome: tag === "SessionLost" ? "unknown" : "not-executed", detail: r.error } satisfies CallFailure)
+      return yield* Effect.fail({ _tag: tag === "StaleEpoch" || tag === "SessionLost" || tag === "MethodNotServed" || tag === "RemoteTimeout" ? tag : "RemoteError", outcome: tag === "SessionLost" || tag === "RemoteTimeout" ? "unknown" : "not-executed", detail: r.error } satisfies CallFailure)
     }
     return r.value
   })
@@ -120,6 +124,7 @@ export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArr
     if (h.answered !== "welcome") return { answered: h.answered }
     const waiting = new Map<string, Deferred.Deferred<unknown>>()
     let cb = 0
+    const calls = new Map<string, string | undefined>()                                         // INV-RM-009: callId -> the result frame once sent; undefined while running
     yield* Effect.forkDetach(Effect.forever(Effect.gen(function* () {
       const f = parse(yield* conn.receive)
       if (!f) return
@@ -127,6 +132,8 @@ export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArr
       if (f.t === "callback-result" && typeof f.callId === "string") { const d = waiting.get(f.callId); if (d) { waiting.delete(f.callId); yield* Deferred.succeed(d, f.exit) } return }
       if (f.t !== "call" || typeof f.callId !== "string") return
       if (f.epoch !== h.epoch) return yield* conn.send(JSON.stringify({ t: "result", epoch: f.epoch, callId: f.callId, error: { _tag: "StaleEpoch", epoch: f.epoch }, outcome: "not-executed" }))
+      if (calls.has(f.callId)) { const stored = calls.get(f.callId); if (stored !== undefined) yield* conn.send(stored); return }   // a duplicate never runs the handler twice
+      calls.set(f.callId, undefined)
       const fn = guest.handlers[String(f.method)]
       if (!fn) return yield* conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, error: { _tag: "MethodNotServed" } }))
       const ctx: ServeContext = { claims: (f.claims && typeof f.claims === "object" ? f.claims : {}) as Record<string, unknown>, callback: (contract, method, payload) => Effect.gen(function* () {
@@ -135,8 +142,8 @@ export const serveGuest = (conn: Connection, guest: { readonly wire: ReadonlyArr
         return { exit: yield* Deferred.await(d) }
       }) }
       yield* Effect.forkDetach(fn(f.payload, ctx).pipe(Effect.matchEffect({
-        onFailure: (error) => conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, error })),        // a typed failure of the handler crosses as the call's error, the caller sees RemoteError with it as `detail`
-        onSuccess: (value) => conn.send(JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, value }))
+        onFailure: (error) => { const fr = JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, error }); calls.set(f.callId as string, fr); return conn.send(fr) },        // a typed failure of the handler crosses as the call's error, the caller sees RemoteError with it as `detail`
+        onSuccess: (value) => { const fr = JSON.stringify({ t: "result", epoch: h.epoch, callId: f.callId, value }); calls.set(f.callId as string, fr); return conn.send(fr) }
       })))   // a handler may await a callback: it must not block the loop
     })))
     return { answered: "welcome" as const }

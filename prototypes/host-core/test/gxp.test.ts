@@ -34,6 +34,13 @@ const settleWriter = Effect.sleep(20)
 const tagOf = (e: Exit.Exit<unknown, unknown>) => Exit.isFailure(e) ? JSON.stringify(e.cause) : "success"
 
 describe("attribution (behaviour 22)", () => {
+  it("a reserved actor is refused on every operation, with or without attribution.require (S68)", async () => {
+    await run((host) => Effect.gen(function* () {
+      yield* host.install(loggerPlugin(journal()), ctx()); yield* idle(host)
+      for (const actor of [{ id: "bridger:system", kind: "system" as const }, { id: "bridger:anything", kind: "user" as const }])
+        expect(tagOf(yield* Effect.exit(drive(host, host.remove("example/logger", { context: { actor, reason: "r" } }))))).toContain("Unattributed")
+    }))
+  })
   it("check 31: unattributed or reason-less calls fail before any record or change; a per-call context wins", async () => {
     const s = memorySink()
     await run((host) => Effect.gen(function* () {

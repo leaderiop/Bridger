@@ -105,6 +105,7 @@ export const makeFederation = (o: FederationOptions) => Effect.gen(function* () 
       lastApplied: { ...stored, revision: m.revision, requiresFresh: m.plugins.filter((p) => p.requiresFresh).map((p) => ({ id: p.id, realm: p.realm ?? "default" })), plugins: m.plugins.map((p) => ({ id: p.id, realm: p.realm ?? "default", digest: p.digest })) },
       pendingKills: s.pendingKills.filter((k) => k.revision > m.revision) }))      // a full apply clears the kills up to its revision
   })
+  if (o.state) { const hs = (yield* o.state.read).highest; if (hs) o.store.seed({ authority: o.authority, host: o.host, revision: hs.revision, digest: hs.envelope.payload, acceptedAt: hs.acceptedAt }) }   // the persisted floor survives a restart
   const sync = yield* makeSync({ ...o,
     apply: (m, env, at) => Effect.gen(function* () {
       // the highest verified manifest is stored BEFORE it is applied: a crash re-applies it instead of bringing back a killed plugin

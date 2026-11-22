@@ -2215,7 +2215,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       const clean = sanitizeContext(rawCtx)                    // lone surrogates → U+FFFD on the request and every record (BEH-BR-185)
       const ctx: OperationContext = clean.value
       const reserved = ctx.actor.id.startsWith("bridger:")
-      if (!spec.system && (!ctx.actor.id.trim() || (attribution.require && reserved))) return yield* Effect.fail(new Unattributed({ operation: op }))
+      if (!spec.system && (!ctx.actor.id.trim() || ((attribution.require || ctx.actor.id !== Actor.unattributed.id) && reserved))) return yield* Effect.fail(new Unattributed({ operation: op }))   // a caller never borrows a reserved actor; only the default stays, and `require` refuses that too (S68)
       if (!spec.system && (attribution.requireReason ?? []).includes(op) && !ctx.reason?.trim()) return yield* Effect.fail(new ReasonRequired({ operation: op }))
       // Step 2 also resolves the principal, the correlation and the annotations (BEH-BR-259, 187, 292).
       const principal = spec.system ? Option.none<PluginPrincipal>() : yield* CurrentPlugin.acting
@@ -2983,7 +2983,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       // Steps 1–3 once for the call (BEH-BR-158).
       if (closed || closing) return yield* Effect.fail(new HostClosed())
       const ctx: OperationContext = opts.context ?? { actor: yield* CurrentActor }
-      if (!ctx.actor.id.trim() || (attribution.require && ctx.actor.id.startsWith("bridger:"))) return yield* Effect.fail(new Unattributed({ operation: "reconcile" }))
+      if (!ctx.actor.id.trim() || ((attribution.require || ctx.actor.id !== Actor.unattributed.id) && ctx.actor.id.startsWith("bridger:"))) return yield* Effect.fail(new Unattributed({ operation: "reconcile" }))
       const needReason = (ops: Set<Operation>) => !ctx.reason?.trim() && (attribution.requireReason ?? []).some((o) => o === "reconcile" || ops.has(o))
       const principal = yield* CurrentPlugin.acting
       const onBehalfOf = Option.isSome(principal) ? refOf(principal.value) : undefined

@@ -1,5 +1,5 @@
 // A guest handler calls back into the host over the session, on the in-memory wire and over loopback TCP (BEH-RM-046, 011).
-import { Context, Effect, Schema } from "effect"
+import { Context, Effect, Fiber, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { Contract } from "../src/contract.js"
@@ -39,6 +39,22 @@ describe("callbacks over the session", () => {
       const s = (yield* openSession(a, { ...base("e-1"), callbacks: { ...hostSide(ran), maxCallbacks: 1 } })) as Session
       const out = yield* s.call("post", "x")
       expect(out).toContain('"ok":42'); expect(out).toContain("CallbackLimit"); expect(ran).toEqual(["count:x"])
+      yield* s.close
+    }))
+  })
+  it("a call has a deadline and a limit on calls in flight, and a duplicated call frame runs the handler once (S68)", async () => {
+    await runVirtual(Effect.gen(function* () {
+      const [a, b] = yield* duplex
+      const sent: string[] = []; let runs = 0
+      yield* Effect.forkChild(serveGuest(b, guest({ post: (p) => Effect.sync(() => { runs++; return `ok:${String(p)}` }), hang: () => Effect.never as never })))
+      const s = (yield* openSession({ send: (f) => { sent.push(f); return a.send(f) }, receive: a.receive }, { ...base("e-1"), maxInFlight: 1, callTimeout: 50 })) as Session
+      expect(yield* s.call("post", "x")).toBe("ok:x")
+      const dup = sent.find((f) => f.includes('"t":"call"'))!; yield* a.send(dup); yield* tick; expect(runs).toBe(1)   // the same callId again
+      const hung = yield* Effect.forkChild(Effect.flip(s.call("hang", "y")))
+      yield* tick
+      expect(yield* Effect.flip(s.call("post", "z"))).toMatchObject({ _tag: "Overloaded", outcome: "not-executed" })
+      yield* TestClock.adjust(60); yield* tick
+      expect(yield* Fiber.join(hung)).toMatchObject({ _tag: "RemoteTimeout", outcome: "unknown" })
       yield* s.close
     }))
   })

@@ -23,6 +23,8 @@ export class ManifestStore {
     return { outcome: "revision-reused", revision: m.revision }
   }
   current(authority: string, host: string): VerifiedManifest | undefined { return this.highest.get(`${authority}\0${host}`) }
+  /** Restores the floor from the durable state after a restart, so an older signed revision is `stale` and never lowers it (INV-FD-001, S68). Never lowers an existing floor. */
+  seed(m: VerifiedManifest): void { const key = `${m.authority}\0${m.host}`, cur = this.highest.get(key); if (!cur || m.revision > cur.revision) this.highest.set(key, m) }
 }
 
 // ---------------------------------------------------------------- BEH-FD-007: kill entries

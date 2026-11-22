@@ -213,4 +213,17 @@ describe("log-structured file state", () => {
       expect(disabled).toEqual(["a/default:pending kill of revision 2"])
     }), { gateTimeout: 50 }, Layer.mergeAll(Testing.counterIdGenerator("id-"), TestClock.layer()))
   })
+  it("after a restart an older signed revision is stale and does not lower the stored floor (S68)", async () => {
+    const path = tmp()
+    await run((host) => Effect.gen(function* () {
+      const { fed } = yield* build(host, fileState(path), { answers: [{ kind: "manifest", envelope: envelope(manifest(5, { plugins: [{ id: "a", digest: "dA" }] })) }] })
+      expect(yield* drive(host, fed.sync)).toEqual({ applied: 5 })
+    }))
+    await run((host) => Effect.gen(function* () {
+      const { fed } = yield* build(host, fileState(path), { answers: [{ kind: "manifest", envelope: envelope(manifest(3, { plugins: [{ id: "b", digest: "dB" }] })) }] })
+      expect(yield* drive(host, fed.sync)).toEqual({ _tag: "ManifestRejected", reason: "stale-revision" })
+    }))
+    expect(disk(path).highest.revision).toBe(5)
+  })
 })
+
