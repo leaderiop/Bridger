@@ -54,6 +54,8 @@ REQUIREMENT: A stale build's outcome, success or failure, MUST be discarded
 
 Update the "Settled here" paragraph (RSK-BR-003 argument: a failing build re-running unattended). Mitigate that with a per-registration counter of consecutive discarded failures that surfaces `plugin-stalled`-style, rather than sticky state.
 
+**As built.** BEH-BR-039 rewritten: a stale build's outcome, success or failure, is always discarded and the plugin goes `waiting`. `build-finished` carries `stale` and `discardedFailures`; at `staleFailureLimit` (host option, default 3) a `build-flapping` event is emitted and the `waiting` snapshot carries `flapping`. The event is not named `plugin-stalled`, which already exists. Tests: `r1-stale-build`, `confluence-faults` (mutation-checked).
+
 **Cost/risk.** Weakens "failure is sticky" for one path; hand-edits to BEH-BR-039, 06:BEH-BR-041/043 and 07:BEH-BR-053 cross-references. Risk is a repeated side-effecting build across dependency flaps, hence the counter.
 
 **Verification.** New scenarios on `TestHost` with `Fault.buildFails` and a provider removed mid-build: assert both orders (failure first, stop first) settle to the same state. Add as a mutation check (revert to sticky; 1 test fails).
@@ -74,6 +76,8 @@ REQUIREMENT: For histories with injected build failures, the set of plugins
 
 Add the failing-set equality as the form of "may differ until retried".
 
+**As built.** BEH-BR-160 carries the failure bound (v0.17). The tests are `confluence-faults.test.ts`: random histories with injected `buildFails` equal a direct install after a restart of the faulted plugins, and a stale-discard property over interleavings fails if stale failures are made sticky. The universe's builds finish in one step, so the random test itself never meets a stale build. The failed-set-equals-disabled-set oracle above was not built.
+
 **Cost/risk.** Test-only plus one requirement; needs `Fault` seeds in `confluence-p4/p5`.
 
 **Verification.** Extend `confluence-p5.test.ts` with a random `buildFails` per plugin and the above oracle; keep mutation checks (G25 revert must still fail).
@@ -90,6 +94,8 @@ REQUIREMENT: A dependent's captured `providerIds[k].activation` MUST equal
              dependent at every revision (a stale pair is a defect).
 ```
 
+**As built.** `activation` on `starting` and `active` snapshots, on events and `providerIds` entries `{ id, realm, activation }`. The pair equality is asserted in `r3-r7-identity.test.ts` for a restart, not after every step of the confluence tests.
+
 **Cost/risk.** Snapshot schema change (pre-release, fine). One more field in INV-BR-013 checks. Equality of snapshots across confluence runs must exclude it (like revision).
 
 **Verification.** Invariant check inside `confluence*.test.ts`: after every step assert the pair equality; plus a direct test that `replace` of a provider changes the dependents' captured activation only after they restart.
@@ -100,6 +106,8 @@ REQUIREMENT: A dependent's captured `providerIds[k].activation` MUST equal
 
 **Concrete spec change.** `ReplaceOptions.onFailure?: "stay-failed" | { rollback: Plugin }` (default unchanged). Semantics: after the swap, the host waits for the new activation's first outcome as part of the operation (the call completes at `active` or at the rollback's `starting`); on `failed` it issues one `replace(previous)` as a system operation attributed to the call, recorded with `undoes`. Mirror for `reconcile` as `atomic: { settle: true }`, using the existing undo list and `PartialApply`.
 
+**As built.** `ReplaceOptions.onFailure: "stay-failed" | { rollback }` with `ReplaceRolledBack`, and `ReconcileOptions.settle` (used with `atomic`), both bounded by `buildTimeout`. Tests: `r4-rollback` (rollback succeeds, rollback fails, none needed on success, atomic `settle` with and without) plus the existing atomic-apply checks for a gate-refused undo.
+
 **Cost/risk.** The call now waits for a build (BEH-BR-049 says it must not), so make it explicit and bounded by `buildTimeout`. A rollback build runs the previous definition's side effects again, so the doc must say rollback is not compensation (BEH-BR-048).
 
 **Verification.** Scenarios: failing new build rolls back and dependents restart against the old one; failing rollback ends `failed` with both causes; a gate refusing the undo yields `PartialApply`.
@@ -109,6 +117,8 @@ REQUIREMENT: A dependent's captured `providerIds[k].activation` MUST equal
 **Rationale.** BEH-BR-045 states the plugin "MUST NOT be republished" after `DrainTimeout`. That is safe but irreversible in practice: dependents were stopped, the provider is hidden, and the only exits are to stop it for good. A mistaken `restart` of a busy shared service becomes an outage.
 
 **Concrete spec change.** Add operation `resume`/`abort` legal only on a parked stop whose scope has not begun to close: `stopping -> active` (the edge is safe because no finalizer has run). Provider republished in one revision; `waiting` dependents restart by the normal rule. Audit as an operator operation; the parked intent ends with `intent-ended`.
+
+**As built.** Operation `abort`, folded into BEH-BR-074 (the BEH-BR-ID block of file 06 had no room for a new ID). Refused with `Conflict` `not-parked`, `dependency-loss`, `child-removed`, `provider-stopping` or the operation in flight. A dependent returns only when all its providers are active or return with it; each emits `stop-aborted`. Health checks resume, a swallowed runtime-failure signal is replayed, a shutdown that began first wins (`HostClosed`). Handoff export is unaffected (it runs after the drain). Tests: `r5-abort`.
 
 **Cost/risk.** New edge in BEH-BR-026 and row/column in the BEH-BR-071/072 tables (so 9x9). Must refuse if any part of the scope closed (exports for a handoff, BEH-BR-347, run after drain). Could be deferred to a later phase.
 
@@ -127,6 +137,8 @@ awaitSettled(refs: readonly PluginRef[] | { scope: string }, opts?: { timeout?: 
 
 A plugin is settled when it has no transition running or ready and no operation in flight, as BEH-BR-040 defines idleness per plugin. Reuse the same `WouldDeadlock` rule.
 
+**As built.** `awaitSettled(refs | { scope }, { timeout })` returns each plugin's `{ ref, state, activation? }`; `SettleTimeout` and the `WouldDeadlock` / `HostClosed` rules as for `awaitIdle`. A parked stop does not block it. Test: `r6-settled`.
+
 **Cost/risk.** Small; derived from the same predicate. Needs the per-plugin predicate exposed, which is already internal.
 
 **Verification.** Test: with an unrelated plugin in a restart loop, `awaitSettled` on a reconciled scope returns while `awaitIdle` times out.
@@ -136,6 +148,8 @@ A plugin is settled when it has no transition running or ready and no operation 
 **Rationale.** Cordis emits `internal/status` per fiber. Bridger's `state-changed` (13:82) carries `from`, `to`, `reason`, but no `revision`, no trigger (operator call, cascade root, background failure, provider return), and events are lossy by design. Without a revision, a consumer cannot know which snapshot an event belongs to. With no sink wired, the cause is lost entirely (INV-BR-026).
 
 **Concrete spec change.** Add to `HostEventCommon`: `revision: number` (the snapshot revision the event is part of), `causeSeq?: number` (the `seq` of the event that triggered it, e.g. the provider's `state-changed`), `activation?: number` (R3). `state-changed` additionally carries `trigger: "operator" | "system" | "provider-return" | "dependency-loss" | "runtime-failure" | "shutdown"`.
+
+**As built.** `revision`, `activation` and `causeSeq` on events, `trigger` on `state-changed`. For a dependency-loss stop, `causeSeq` is the causing provider's own `stopping` event (per edge). Tests: `r3-r7-identity`.
 
 **Cost/risk.** Event schema growth; no behaviour change. Keep INV-BR-013 (no values).
 
@@ -147,6 +161,8 @@ A plugin is settled when it has no transition running or ready and no operation 
 
 **Concrete spec change.** Constrain the docs and types: `optional` returns the service only inside `useOptional`'s lease; deprecate or mark the bare read as "existence check only" in BEH-BR-130 and in the INV-BR-006 *Implication*.
 
+**As built.** `Runtime.optional` returns an `Option<void>` existence witness; the service is reachable only through `useOptional`'s lease. BEH-BR-130 and INV-BR-006 updated. Tests: `optional.test.ts`.
+
 **Cost/risk.** Breaking for callers of the bare read (prototype only). **Verification.** Type-level test that the bare read yields `Option<void>`-like witness, or a documented-unsafe label verified by a docs check.
 
 ### R9. Detect the build-slot self-deadlock statically (L10)
@@ -155,6 +171,8 @@ A plugin is settled when it has no transition running or ready and no operation 
 
 **Concrete spec change.** Either exclude a build's await-for-child time from slot occupancy (release the slot while awaiting a child, re-acquire after), or fail fast with `WouldDeadlock`-style `SlotStarvation` when `awaitActive` is called from a build and the child cannot get a slot. Add the rule to BEH-BR-124 and BEH-BR-034.
 
+**As built.** The first option: a build awaiting a child releases its slot for the wait and re-acquires it afterwards (BEH-BR-034/124). The fail-fast `SlotStarvation` alternative was not built. Test: the G21 test in `children.test.ts`.
+
 **Cost/risk.** Slot accounting changes the FIFO rule. **Verification.** `concurrency: 1` parent-with-child scenario.
 
 ### R10. A generated transition ledger (L11)
@@ -162,6 +180,8 @@ A plugin is settled when it has no transition running or ready and no operation 
 **Rationale.** The legal edges are spread over BEH-BR-026 (mermaid), 071, 072, 073, 074, 079, 080 and the child rules. Every audit round (7 to 9) edited the same cells. A single machine-readable table (state, trigger, reason, next, record kind, event) would let `legality.ts`, the snapshot union, the audit schema and the docs be generated and diffed, as Cordis does with its event catalogue check.
 
 **Concrete spec change.** Add `references/core/transitions.yaml` as the source of truth for BEH-BR-026/071/072 and the `StopReason`/`next` pairs; add a doc check that the mermaid diagram and tables match it.
+
+**As built.** `references/core/transitions.yaml` is the source; `scripts/gen-legality.mjs` generates `src/legality.table.ts`. `transitions-ledger.test.ts` checks that the BEH-BR-026 diagram and the BEH-BR-071/072 tables match the ledger and that the generated file is current. The check runs in the test suite, not in `verify-traceability.sh`.
 
 **Cost/risk.** Tooling work, no semantic change. **Verification.** CI check; prototype `legality.ts` generated from it and the 56 + 28 cell tests still pass.
 
