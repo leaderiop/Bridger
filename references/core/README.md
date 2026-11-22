@@ -113,7 +113,7 @@ either: no Bridger package is a sandbox.
 | 29 | [Capability grants and call log](./behaviors/29-capability-grants-and-call-log.md) | BEH-BR-273–281 |
 | 30 | [Operation context annotations](./behaviors/30-operation-context-annotations.md) | BEH-BR-289–296 |
 | 31 | [Hook points](./behaviors/31-hook-points.md) | BEH-BR-297–312 |
-| 32 | [Generic gate and plan](./behaviors/32-generic-gate-and-plan.md) | BEH-BR-313–326 |
+| 32 | [Generic gate and plan](./behaviors/32-generic-gate-and-plan.md) | BEH-BR-313–328 |
 | 33 | [Realm families](./behaviors/33-realm-families.md) | BEH-BR-329–338 |
 | 34 | [State handoff](./behaviors/34-state-handoff.md) | BEH-BR-345–353 |
 

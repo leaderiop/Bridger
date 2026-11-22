@@ -24,7 +24,7 @@ import { makeEvents, type EventExtra, type HostEvent, type HostEventBody, type S
 import { PluginRuntime, type FailurePolicy } from "./runtime.js"
 import { inFlight, legality, type FlightOp, type Op, type Outcome, type PluginState, type Row } from "./legality.js"
 import {
-  Actor, AuditSink, AuditUnavailable, ConfigFingerprinter, ConfigFingerprintUnavailable, CurrentActor, FINGERPRINT_FORMAT, IdGenerator,
+  Actor, AuditSink, AuditUnavailable, ConfigFingerprinter, ConfigFingerprintUnavailable, CurrentActor, FINGERPRINT_FORMAT, IdGenerator, type Reversibility,
   OperationGate, OperationRejected, ReasonRequired, Unattributed,
   awaitWritten, defaultIdGenerator, makeWriter, sanitizeContext, RefusalList, type AttributionOptions, type ConfigChange, type DefinitionRef, type Draft, type Fingerprint,
   type Operation, type OperationContext, type OperationOptions, type SystemTransition
@@ -149,6 +149,8 @@ export interface PlannedEntry {
   readonly configChange?: { readonly paths: ReadonlyArray<string> }
   readonly policy?: { readonly mandatoryInterceptions: ReadonlyArray<string>; readonly allowChildren: boolean }
   readonly undo?: ReadonlyArray<PlanAction>
+  /** Whether an apply can take the entry back (BEH-BR-327): `irreversible` when the plugin it stops or replaces holds a resource acquired as irreversible (BEH-BR-119). */
+  readonly reversibility: Reversibility
   /** Installed against incoming manifest, for an `install` or `replace` whose definitions carry one (BEH-BR-318, 243). */
   readonly consentDiff?: ConsentDiff
 }
@@ -2239,7 +2241,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       const req = yield* Effect.uninterruptibleMask((restore) => Effect.gen(function* () {
         if (Option.isSome(gateOpt) && op !== "shutdown") {
           const verdict = yield* restore(gateOpt.value.authorize({ operation: op, actor: ctx.actor, correlationId, ...(ctx.reason ? { reason: ctx.reason } : {}), ...(target ? { target } : {}), ...(spec.definition ? { definition: spec.definition } : {}), ...(configChange ? { configChange } : {}), ...(internal.undo ? { undo: true as const } : {}),
-            ...(onBehalfOf ? { onBehalfOf } : {}), annotations: Ann.filter(annotations, "gate"), ...policyOf(tkey, spec.options) }).pipe(
+            ...(onBehalfOf ? { onBehalfOf } : {}), annotations: Ann.filter(annotations, "gate"), ...policyOf(tkey, spec.options), ...reversibilityOf(op, tkey) }).pipe(
             Effect.timeoutOrElse({ duration: Option.isSome(deadline) ? Math.max(0, Math.min(gateTimeout, deadline.value.at - (yield* Clock.currentTimeMillis))) : gateTimeout, orElse: () => Effect.fail(new OperationRejected({ operation: op, reason: "gate-timeout" })) }),
             Effect.as(undefined), Effect.catchCause((c) => {
               if (Cause.hasInterrupts(c) && !Cause.hasFails(c)) return Effect.failCause(c)
@@ -2287,6 +2289,10 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   })
 
   /** BEH-BR-219, 263: a plugin-addressed request carries the registration's effective allowChildren and mandatory interceptions. */
+  /** BEH-BR-327: an operation that stops or replaces a plugin holding an irreversible resource is irreversible; the field is otherwise absent. */
+  const holdsIrreversible = (e: Entry | undefined) => e !== undefined && e.resources.some((r) => r.irreversible)
+  const reversibilityOf = (op: string, tkey: string | undefined): { reversibility?: Reversibility } =>
+    (op === "remove" || op === "replace") && tkey !== undefined && holdsIrreversible(entries.get(tkey)) ? { reversibility: "irreversible" } : {}
   const policyOf = (tkey: string | undefined, o: unknown): { allowChildren?: boolean; mandatoryInterceptions?: ReadonlyArray<{ serviceId: string; id?: string }> } => {
     if (tkey === undefined) return {}
     const e = entries.get(tkey)
@@ -2829,7 +2835,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     }
     return out
   }
-  const orderOf = (plan: Plan): Array<Step> => {
+  const orderOf = (plan: Plan, atomic = false): Array<Step> => {
     const provides = (def: AnyPlugin, realm: string, serviceId: string, consumerRealm: string) =>
       def.provides.some((k) => sid(k) === serviceId) && slotOf(realm, serviceId) === slotOf(consumerRealm, serviceId)
     const requiresOf = (def: AnyPlugin) => def.requires.map(sid)                       // `optional` excluded
@@ -2839,16 +2845,27 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       ...plan.entries.filter((x) => x.actions[0] === "disable").map((x) => ({ kind: "entry" as const, x }))
     ]
     const current = (s: Step) => s.kind === "prune" ? s.e : entries.get(s.x.key)!
-    const rankR = new Map(removal.map((s, i) => [s, i]))
+    // Output commit (BEH-BR-327): among steps free to go either way, those that cannot be taken back run last.
+    const late = (s: Step) => holdsIrreversible(current(s)) ? removal.length : 0
+    const rankR = new Map(removal.map((s, i) => [s, i + late(s)]))
     const dependsOn = (d: Entry, p: Entry) => requiresOf(d.def).some((k) => provides(p.def, p.realm, k, d.realm))
     const removalOrdered = topo(removal, (a, b) => dependsOn(current(a), current(b)), (s) => rankR.get(s)!)
     // Change phase: providers first, in the state the list describes.
     const change = plan.entries.filter((x) => x.actions.length > 0 && x.actions[0] !== "disable")
-    const rankC = new Map(change.map((x, i) => [x, i]))
+    const rankC = new Map(change.map((x, i) => [x, i + (x.actions.includes("replace") && holdsIrreversible(entries.get(x.key)) ? change.length : 0)]))
     const realmOf = (x: Plan["entries"][number]) => x.d.realm ?? "default"
     const declared = (x: Plan["entries"][number]) => asDefinition(x.d.plugin as AnyPlugin | LazyPluginDefinition)   // a lazy entry: its manifest, never `load`
     const changeOrdered = topo(change, (p, d) => requiresOf(declared(d)).some((k) => provides(declared(p), realmOf(p), k, realmOf(d))), (x) => rankC.get(x)!)
-    return [...removalOrdered, ...changeOrdered.map((x) => ({ kind: "entry" as const, x }))]
+    if (!atomic) return [...removalOrdered, ...changeOrdered.map((x) => ({ kind: "entry" as const, x }))]
+    // An atomic apply defers an irreversible removal past every change, unless a change needs it gone first (the change replaces
+    // a provider the removed plugin requires) or a removal that stays needs it gone first (dependents stop before providers).
+    const blocksChange = (r: Step) => changeOrdered.some((c) => requiresOf(current(r).def).some((k) => provides(declared(c), realmOf(c), k, current(r).realm)))
+    const deferred = new Set(removalOrdered.filter((r) => holdsIrreversible(current(r)) && !blocksChange(r)))
+    for (let changed = true; changed;) {
+      changed = false
+      for (const r of [...deferred]) if (removalOrdered.some((o) => !deferred.has(o) && dependsOn(current(r), current(o)))) { deferred.delete(r); changed = true }
+    }
+    return [...removalOrdered.filter((r) => !deferred.has(r)), ...changeOrdered.map((x) => ({ kind: "entry" as const, x })), ...removalOrdered.filter((r) => deferred.has(r))]
   }
 
   type ActionTag = "install" | "replace" | "reconfigure" | "disable" | "enable" | "remove"
@@ -2871,12 +2888,13 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   }
   const planValue = (plan: Plan, opts: ReconcileOptions): ReconcilePlan => {
     const scope = opts.scope ?? "default", prune = opts.prune ?? true
-    const steps = orderOf(plan)
+    const steps = orderOf(plan, opts.atomic ?? false)
     const entryOf = (s: Step): PlannedEntry => {
       if (s.kind === "prune") return {
         target: { id: s.e.pluginId, realm: s.e.realm }, actions: ["remove"],
         expected: { installed: true, registeredAt: s.e.registeredAt ?? 0, ...defRef(s.e.def) },
-        ...(opts.atomic ? { undo: ["install"] } : {})
+        ...(opts.atomic ? { undo: ["install"] } : {}),
+        reversibility: holdsIrreversible(s.e) ? "irreversible" : "reversible"
       }
       const { d, key, actions } = s.x
       const e = entries.get(key)
@@ -2885,6 +2903,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
         target: { id: d.id, realm: d.realm ?? "default" }, actions: [...actions],
         expected: e ? { installed: true, registeredAt: e.registeredAt ?? 0, ...defRef(e.def) } : { installed: false },
         incoming: defRef(d.plugin),
+        reversibility: (actions[0] === "disable" || actions.includes("replace")) && holdsIrreversible(e) ? "irreversible" : "reversible",
         ...consentOf(actions, e, d.plugin as AnyPlugin | LazyPluginDefinition),
         ...(actions[0] === "install" ? { policy: { mandatoryInterceptions: [...(d.mandatoryInterceptions ?? [])], allowChildren: d.allowChildren ?? true } } : {}),
         ...(cfg ? { configChange: { paths: changedPaths(actions.includes("replace") || !e ? undefined : e.override?.raw, d.config) } } : {}),
@@ -2917,7 +2936,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     else if ((now.prune.enabled || now.atomic) &&
       (now.prune.drain !== expected.prune.drain || now.prune.force !== expected.prune.force)) host("prune options")
     if (now.atomic !== expected.atomic) host("atomic")
-    const strip = (p: PlannedEntry) => JSON.stringify({ t: p.target, a: p.actions, e: p.expected, c: p.configChange?.paths, p: p.policy, i: p.incoming, d: p.consentDiff })
+    const strip = (p: PlannedEntry) => JSON.stringify({ t: p.target, a: p.actions, e: p.expected, c: p.configChange?.paths, p: p.policy, i: p.incoming, d: p.consentDiff, r: p.reversibility })
     const n = Math.max(now.entries.length, expected.entries.length)
     for (let i = 0; i < n; i++) {
       const a = now.entries[i], b = expected.entries[i]
@@ -3049,9 +3068,23 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
           return false
         })
         const parkedForward: Array<{ id: string; realm: string; action: string; reason: { _tag: string; message: string } }> = []
+        // R4: an atomic apply that settles treats a failed first activation as an incomplete forward action.
+        const settleCheck = Effect.gen(function* () {
+          if (!(atomic && opts.settle) || failed) return
+          for (const c of completed) {
+            if (c.action === "remove" || c.action === "disable") continue
+            const first = yield* firstOutcome(keyOf(c.id, c.realm))
+            if (first.kind !== "failed") continue
+            r.rejected.push({ id: c.id, reason: { _tag: "ActivationFailed" } })
+            failed = { id: c.id, realm: c.realm, action: c.action, reason: { _tag: "ActivationFailed", message: first.message } }
+            break
+          }
+        })
         const result = yield* Effect.exit(Effect.gen(function* () {
-          for (const s of orderOf(plan)) {
+          for (const s of orderOf(plan, atomic)) {
             if (atomic && failed) break                                          // stop at the first incomplete forward action (BEH-BR-322)
+            // Output commit (BEH-BR-327): what an apply cannot take back waits for every earlier outcome.
+            if (atomic && (s.kind === "prune" ? holdsIrreversible(s.e) : s.x.actions.length > 0 && holdsIrreversible(entries.get(s.x.key)))) { yield* settleCheck; if (failed) break }
             if (s.kind === "prune") { yield* act(s.e.pluginId, s.e.realm, "remove", { id: s.e.pluginId, realm: s.e.realm }); continue }
             const { d, actions } = s.x
             if (actions.length === 0) continue
@@ -3060,17 +3093,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
               if (!(yield* act(d.id, realm, a, { id: d.id, realm, plugin: d.plugin, config: d.config, ...(d.disabled ? { disabled: true } : {}), ...(d.mandatoryInterceptions ? { catalogIds: d.mandatoryInterceptions } : {}), ...(d.allowChildren !== undefined ? { allowChildren: d.allowChildren } : {}) }))) break   // no further actions for this entry (BEH-BR-157)
             }
           }
-          // R4: an atomic apply that settles treats a failed first activation as an incomplete forward action.
-          if (atomic && opts.settle && !failed) {
-            for (const c of completed) {
-              if (c.action === "remove" || c.action === "disable") continue
-              const first = yield* firstOutcome(keyOf(c.id, c.realm))
-              if (first.kind !== "failed") continue
-              r.rejected.push({ id: c.id, reason: { _tag: "ActivationFailed" } })
-              failed = { id: c.id, realm: c.realm, action: c.action, reason: { _tag: "ActivationFailed", message: first.message } }
-              break
-            }
-          }
+          yield* settleCheck
           for (const x of plan.entries) if (x.actions.length === 0) r.unchanged.push(x.d.id)
         }))
         if (atomic && (failed || (Exit.isFailure(result) && stopAll))) {

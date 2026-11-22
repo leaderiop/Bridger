@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-BEH-32                                               |
-> | Revision       | 0.11                                                         |
+> | Revision       | 0.13                                                         |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.12 (2026-11-21): BEH-BR-322 `settle` (improvement report 01, R4)<br>0.11 (2026-11-11): BEH-BR-318 `ReconcilePlan.cold`, the option the plan was computed with; BEH-BR-319 `expect` compares it, a mismatch carrying no `id` or `realm`; REQ-BR-083 row (C8) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.10 (2026-11-11): BEH-BR-319 `ReconcileOptions` copy names `cold` (H9); BEH-BR-320 the documentation states that a plan binds code only through `meta.digest` (CL15) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.9 (2026-11-10): BEH-BR-319 `expect` binds code only through `meta.digest`; without one only `meta.version` is compared (C6); BEH-BR-317, BEH-BR-322 a `DependencyCycle` found by the diff is a validation-stage rejection (C7); BEH-BR-324 `failed` names the in-flight or next forward action when the latch or shutdown stops the apply; BEH-BR-326 latch `notUndone` holds only actions not yet undone; REQ-BR-100 row (C15; audit round 3, Low) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-319 `expect` also compares each entry's `incoming` version and digest and its `consentDiff`, and configuration values are stated to be outside a plan (H2); BEH-BR-324 `notUndone` is never empty, an apply stopped before any action completed fails with `ApplyRolledBack` (audit round 2, Low); BEH-BR-325 `children` counts the actions that wrote a record of their own (audit round 2, Low); REQ-BR-083 extended (H2); BEH-BR-326 and REQ-BR-100: a latch or shutdown before any forward action completed yields `ApplyRolledBack`, as BEH-BR-324 (review of CCR-BR-034) (CCR-BR-034)<br>0.7 (2026-11-09): BEH-BR-318 a plan rejection's `_tag` is the concrete tag of the error, an `InstallError` member's own tag, never the union's name (C-07) (CCR-BR-033)<br>0.6 (2026-11-08): BEH-BR-318 and BEH-BR-319 `expect` compares `pruneDrain` and `pruneForce` only when `prune` or `atomic` is true (host-core prototype finding G-P23), BEH-BR-326 aligned; BEH-BR-323 a two-action undo step that stops halfway is one `notUndone` entry (G-P24); checks REQ-BR-083 and REQ-BR-099 amended (CCR-BR-030)<br>0.5 (2026-11-08): BEH-BR-317 `plan` and atomic validation consult the `RefusalList`; BEH-BR-318 `rejected` may carry a refusal, `registeredAt` tracks the operator's flag; BEH-BR-322 a step-4b refusal stops an atomic apply; BEH-BR-323 undo of `replace` restores the entry's previous override, expected revision moves with the undo, the "refused-digest" reason is not restored; BEH-BR-326 undo removals use the prune options whatever `prune` is (agent review R1-01, R1-02, R1-07, R1-11, R1-12) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-317 `plan` MUST decode a `reconfigure` value to compute the recorded paths (host-core prototype finding G-P10); BEH-BR-319 `PlanStale` mismatches not about one entry carry no `id` or `realm` (G-P9) (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-322–326 atomic apply (`atomic: true`): dependency order, stop at the first failure, undo in reverse, `ApplyRolledBack` and `PartialApply`, records with `undoes`, gate requests with `undo`, interaction with leases, drain, `PlanStale`, the latch, interruption and shutdown; BEH-BR-318 plan carries `atomic`, `undo` and `policy`, and `PolicyMismatch` among rejections; BEH-BR-319 compares `atomic`; acceptance checks 99 and 100 (CCR-BR-025)<br>0.2 (2026-11-08): `plan` may decode `reconfigure` values to compute paths (never exposed); `configChange.paths` and the prune options are part of the `expect` comparison; plan `rejected` reasons are `{ _tag, message }`; `Gate.all` pieces take a timeout (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
+> | Change History | 0.13 (2026-11-22): BEH-BR-327 each plan entry and gate request carries its reversibility; BEH-BR-328 an atomic apply runs what it cannot take back last (improvement report 06, R4)<br>0.12 (2026-11-21): BEH-BR-322 `settle` (improvement report 01, R4)<br>0.11 (2026-11-11): BEH-BR-318 `ReconcilePlan.cold`, the option the plan was computed with; BEH-BR-319 `expect` compares it, a mismatch carrying no `id` or `realm`; REQ-BR-083 row (C8) (SPEC-AUDIT-07) (CCR-BR-039)<br>0.10 (2026-11-11): BEH-BR-319 `ReconcileOptions` copy names `cold` (H9); BEH-BR-320 the documentation states that a plan binds code only through `meta.digest` (CL15) (SPEC-AUDIT-05) (CCR-BR-037)<br>0.9 (2026-11-10): BEH-BR-319 `expect` binds code only through `meta.digest`; without one only `meta.version` is compared (C6); BEH-BR-317, BEH-BR-322 a `DependencyCycle` found by the diff is a validation-stage rejection (C7); BEH-BR-324 `failed` names the in-flight or next forward action when the latch or shutdown stops the apply; BEH-BR-326 latch `notUndone` holds only actions not yet undone; REQ-BR-100 row (C15; audit round 3, Low) (CCR-BR-035)<br>0.8 (2026-11-10): BEH-BR-319 `expect` also compares each entry's `incoming` version and digest and its `consentDiff`, and configuration values are stated to be outside a plan (H2); BEH-BR-324 `notUndone` is never empty, an apply stopped before any action completed fails with `ApplyRolledBack` (audit round 2, Low); BEH-BR-325 `children` counts the actions that wrote a record of their own (audit round 2, Low); REQ-BR-083 extended (H2); BEH-BR-326 and REQ-BR-100: a latch or shutdown before any forward action completed yields `ApplyRolledBack`, as BEH-BR-324 (review of CCR-BR-034) (CCR-BR-034)<br>0.7 (2026-11-09): BEH-BR-318 a plan rejection's `_tag` is the concrete tag of the error, an `InstallError` member's own tag, never the union's name (C-07) (CCR-BR-033)<br>0.6 (2026-11-08): BEH-BR-318 and BEH-BR-319 `expect` compares `pruneDrain` and `pruneForce` only when `prune` or `atomic` is true (host-core prototype finding G-P23), BEH-BR-326 aligned; BEH-BR-323 a two-action undo step that stops halfway is one `notUndone` entry (G-P24); checks REQ-BR-083 and REQ-BR-099 amended (CCR-BR-030)<br>0.5 (2026-11-08): BEH-BR-317 `plan` and atomic validation consult the `RefusalList`; BEH-BR-318 `rejected` may carry a refusal, `registeredAt` tracks the operator's flag; BEH-BR-322 a step-4b refusal stops an atomic apply; BEH-BR-323 undo of `replace` restores the entry's previous override, expected revision moves with the undo, the "refused-digest" reason is not restored; BEH-BR-326 undo removals use the prune options whatever `prune` is (agent review R1-01, R1-02, R1-07, R1-11, R1-12) (CCR-BR-029)<br>0.4 (2026-11-08): BEH-BR-317 `plan` MUST decode a `reconfigure` value to compute the recorded paths (host-core prototype finding G-P10); BEH-BR-319 `PlanStale` mismatches not about one entry carry no `id` or `realm` (G-P9) (CCR-BR-028)<br>0.3 (2026-11-08): BEH-BR-322–326 atomic apply (`atomic: true`): dependency order, stop at the first failure, undo in reverse, `ApplyRolledBack` and `PartialApply`, records with `undoes`, gate requests with `undo`, interaction with leases, drain, `PlanStale`, the latch, interruption and shutdown; BEH-BR-318 plan carries `atomic`, `undo` and `policy`, and `PolicyMismatch` among rejections; BEH-BR-319 compares `atomic`; acceptance checks 99 and 100 (CCR-BR-025)<br>0.2 (2026-11-08): `plan` may decode `reconfigure` values to compute paths (never exposed); `configChange.paths` and the prune options are part of the `expect` comparison; plan `rejected` reasons are `{ _tag, message }`; `Gate.all` pieces take a timeout (CCR-BR-022)<br>0.1 (2026-11-08): Initial draft (CCR-BR-019) |
 
 ---
 
@@ -31,7 +31,7 @@ show what would change and ask for approval before anything happens. It has
 no SPEC.md source section ([ADR-BR-047](../decisions/047-generic-gate-and-plan.md),
 building on [ADR-BR-032](../decisions/032-operation-gate.md) and
 [ADR-BR-023](../decisions/023-desired-state-reconcile.md)). This file owns
-BEH-BR-313–328 and uses BEH-BR-313–326; numbers 327–328 of the block are reserved.
+BEH-BR-313–328 and uses all of them.
 
 > **What core does not do — and who does**
 >
@@ -1219,6 +1219,83 @@ finish the undo: every plugin is about to be stopped, and on the next start the
 application's own list decides what runs.
 
 ---
+
+## BEH-BR-327: A plan entry and its gate request say whether an apply can take the operation back
+
+> **Invariant:** [INV-BR-048](../invariants.md#inv-br-048-an-atomic-apply-leaves-the-prior-plugin-set-or-reports-what-it-left)
+> **See:** [ADR-BR-051](../decisions/051-atomic-bundle-apply.md), [ADR-GX-012](../../gxp/decisions/012-binding-contents.md)
+> **Satisfies:** [URS-BR-051](../urs.md#urs-br-051-apply-a-reviewed-plugin-set-change-as-a-whole-or-not-at-all)
+> **Risk:** [RSK-BR-059](../gxp/03-risk-assessment.md#rsk-br-059)
+
+```ts
+// illustrative — not type-checked
+type Reversibility = "reversible" | "compensable" | "irreversible"
+interface PlannedEntry { /* … */ readonly reversibility: Reversibility }    // BEH-BR-318
+interface OperationRequest { /* … */ readonly reversibility?: Reversibility }  // 25 — Operation Gate
+```
+
+```
+REQUIREMENT: Every `PlannedEntry` MUST carry `reversibility`. Core MUST
+             set it to "irreversible" for an entry that removes, disables or
+             replaces a plugin whose activation holds a resource acquired
+             with `irreversible: true` (13, BEH-BR-119), and to
+             "reversible" for every other entry, whose undo is the one
+             ADR-BR-051 and BEH-BR-323 define. Core MUST NOT set
+             "compensable": that class is a companion's, for an operation it
+             has planned a compensation for (command BEH-CM-050), and a
+             companion that gates such an operation sets it on its own
+             request.
+```
+
+```
+REQUIREMENT: The `OperationRequest` of a `remove` or `replace` of a plugin
+             holding such a resource MUST carry `reversibility:
+             "irreversible"`; a request of core's for any other operation
+             MUST NOT carry the field. A companion that binds approvals
+             over the request binds the field when present (gxp BEH-GX-065),
+             so an approver sees, and a ticket covers, the class. The
+             `reversibility` of an entry MUST take part in `expect`'s
+             comparison of entries (BEH-BR-319).
+```
+
+The class tells an approver reading a plan which entries an atomic apply cannot
+undo. Core knows only what it can see: a resource a plugin acquired through
+`Plugin.Runtime.acquire` as irreversible. A key shred, a sent message or a consumed
+ticket belongs to its companion's own operation, which sets the class on its own
+request; core does not turn them into plan entries.
+
+## BEH-BR-328: An atomic apply runs what it cannot take back last
+
+> **Invariant:** [INV-BR-048](../invariants.md#inv-br-048-an-atomic-apply-leaves-the-prior-plugin-set-or-reports-what-it-left)
+> **See:** [ADR-BR-051](../decisions/051-atomic-bundle-apply.md), [ADR-BR-023](../decisions/023-desired-state-reconcile.md)
+> **Satisfies:** [URS-BR-051](../urs.md#urs-br-051-apply-a-reviewed-plugin-set-change-as-a-whole-or-not-at-all)
+> **Risk:** [RSK-BR-059](../gxp/03-risk-assessment.md#rsk-br-059)
+
+```
+REQUIREMENT: The order of BEH-BR-156 (removals dependents first, then
+             changes providers first) MUST stay the order of every apply and
+             of `Host.plan`, with one tie-break: among steps that order
+             leaves free, an entry whose `reversibility` is "irreversible"
+             MUST come after every entry that is not.
+```
+
+```
+REQUIREMENT: In an atomic apply, a removal whose entry is irreversible MUST
+             run after every change of the apply, unless a change replaces a
+             provider of the removed plugin or a removal that stays in the
+             removal phase is a provider of it, in which case BEH-BR-156
+             decides. Before an irreversible entry runs, an apply that
+             `settle`s MUST have observed the first outcome of every
+             forward action completed so far (BEH-BR-322), so an activation
+             that fails stops the apply before the irreversible step.
+             An irreversible step that never ran is not in the apply's
+             `notUndone`.
+```
+
+The rule is the output-commit ordering: an effect that crosses the system
+boundary is withheld until what can still fail has not failed. It does not make
+an irreversible entry safe, and a plan where a dependency forces it early still
+says so by its class.
 
 ## Acceptance checks
 

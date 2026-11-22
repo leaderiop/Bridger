@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-ADR-051                                              |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed — amends ADR-BR-023 and ADR-BR-030                  |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.3 (2026-11-10): Outcomes and limits: a latch or shutdown before any forward action completed, with nothing parked, ends as `ApplyRolledBack`, as BEH-BR-324 and BEH-BR-326 state (C15) (CCR-BR-035)<br>0.2 (2026-11-10): Status names the ADRs this one amends (ADR-BR-023 and ADR-BR-030), pairing their "amended by" (C22) (CCR-BR-034)<br>0.1 (2026-11-08): Initial draft (CCR-BR-025)                 |
+> | Change History | 0.4 (2026-11-22): the plan names what an apply cannot undo and an atomic apply runs it last (BEH-BR-327, BEH-BR-328) (improvement report 06, R4)<br>0.3 (2026-11-10): Outcomes and limits: a latch or shutdown before any forward action completed, with nothing parked, ends as `ApplyRolledBack`, as BEH-BR-324 and BEH-BR-326 state (C15) (CCR-BR-035)<br>0.2 (2026-11-10): Status names the ADRs this one amends (ADR-BR-023 and ADR-BR-030), pairing their "amended by" (C22) (CCR-BR-034)<br>0.1 (2026-11-08): Initial draft (CCR-BR-025)                 |
 
 ---
 
@@ -30,6 +30,8 @@ Two constraints frame the answer. `replace` is stop-then-start with no rollback 
 - **Scope of "atomic".** The host's plugin set as the diff addresses it: whether each plugin is registered, its definition, override, `disabled` flag, ownership, mandatory interceptions and `allowChildren`. It does not cover activation outcomes, external effects, or in-memory state outside a handoff. Other operations interleave, and intermediate states are visible.
 - **Undo is an ordinary change.** Each undo action is attributed to the call's context, gated on its own (the request marked `undo: true`), and recorded with its own records, linked by `undoes` to the action it reverses. The plan lists the undo actions per entry so that an approval covers them. An undo action is skipped and reported (`ChangedSinceApply`) when another call changed the plugin after the forward action.
 - **Limits stated.** A parked `DrainTimeout` ends the apply as `PartialApply`. A latch set mid-apply and shutdown end it with no further action: as `PartialApply` once a forward action has completed, and as `ApplyRolledBack` with nothing undone when none had and nothing is parked (BEH-BR-324, BEH-BR-326). A provider *narrowed* under a listed dependent's current definition still needs two runs.
+
+- **What cannot be undone is named and ordered last (improvement report 06, R4).** Atomic still means registrations only: external effects are not undone. A plan entry now carries `reversibility`, "irreversible" for an entry that stops or replaces a plugin holding a resource acquired as irreversible, and an atomic apply runs such an entry after every change and after the first outcome of each forward action, so a failing change stops the apply before the irreversible step (BEH-BR-327, BEH-BR-328). Keyring shreds, remote calls with an unknown outcome and ticket consumption are not plan entries; their companions set the class on their own requests.
 
 ## Alternatives considered
 

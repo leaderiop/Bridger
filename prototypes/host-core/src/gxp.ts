@@ -72,6 +72,8 @@ export class AuditSink extends Context.Service<AuditSink, {
   readonly record: (r: AuditRecord) => Effect.Effect<void, AuditWriteFailed>
 }>()("@bridger/core/AuditSink") {}
 
+/** `reversible`: undone by the undo of ADR-BR-051; `compensable`: undone by a planned compensation (a companion's, BEH-CM-050); `irreversible`: not undone by an apply. */
+export type Reversibility = "reversible" | "compensable" | "irreversible"
 export interface OperationRequest {
   readonly operation: Operation
   readonly target?: { readonly id: string; readonly realm: string }
@@ -81,6 +83,8 @@ export interface OperationRequest {
   readonly definition?: DefinitionRef
   readonly configChange?: ConfigChange
   readonly undo?: true                              // an atomic apply's undo action (BEH-BR-325)
+  /** What an apply can take back of this operation (BEH-BR-327); set by core when it knows the operation is `irreversible`, otherwise absent. */
+  readonly reversibility?: Reversibility
   readonly onBehalfOf?: AuditRecord["onBehalfOf"]   // BEH-BR-259
   readonly annotations?: unknown                    // flow "gate" (BEH-BR-292)
   readonly allowChildren?: boolean                  // BEH-BR-219, 263

@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-ADR-012                                           |
-> | Revision       | 0.4                                                          |
+> | Revision       | 0.5                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Proposed                                                     |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Architecture Decision Record                                 |
-> | Change History | 0.4 (2026-11-11): `config.form` is a label of the operation, also for a reconfigure of a registration not yet loaded (PL6); `cold` bound as an optional member of version 2 (core CCR-BR-038 coupling) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.3 (2026-11-10): An empty value the request carries is bound as carried, not dropped (H7) (CCR-GX-006)<br>0.2 (2026-11-09): Binding version 2: `onBehalfOf`, `undo` and request-only `manifestDigest`, `allowChildren`, `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately not bound (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.5 (2026-11-22): `reversibility` is part of what a ticket binds, when the request carries it (improvement report 06, R4)<br>0.4 (2026-11-11): `config.form` is a label of the operation, also for a reconfigure of a registration not yet loaded (PL6); `cold` bound as an optional member of version 2 (core CCR-BR-038 coupling) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.3 (2026-11-10): An empty value the request carries is bound as carried, not dropped (H7) (CCR-GX-006)<br>0.2 (2026-11-09): Binding version 2: `onBehalfOf`, `undo` and request-only `manifestDigest`, `allowChildren`, `mandatoryInterceptions`; gate-flow annotations and `previousManifest` deliberately not bound (F-01) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -42,6 +42,7 @@ A signature must be bound to exactly the change it approves (URS-GX-007; Part 11
     readonly onBehalfOf?: { readonly id: string; readonly realm: string; readonly version?: string; readonly digest?: string }  // v2
     readonly undo?: true                                 // v2: an undo action of an atomic reconcile
     readonly cold?: true                                 // v2, added by CCR-GX-009: a call that skips the state handoff (core CCR-BR-038)
+    readonly reversibility?: "reversible" | "compensable" | "irreversible"   // v2, improvement report 06 R4 (core BEH-BR-327): bound only when the request carries it, so earlier digests do not change
     readonly requestOnly?: {                             // v2: on the request, not on any record
       readonly manifestDigest?: string
       readonly allowChildren?: boolean

@@ -72,7 +72,7 @@ This document carries the rest of the chain.
 | BEH-BR-273–281 | [29-capability-grants-and-call-log.md](behaviors/29-capability-grants-and-call-log.md) | `packages/core/src/Capability.ts` *(Planned)*, `packages/core/src/CallLog.ts` *(Planned)* |
 | BEH-BR-289–296 | [30-operation-context-annotations.md](behaviors/30-operation-context-annotations.md) | `packages/core/src/Annotations.ts` *(Planned)* |
 | BEH-BR-297–312 | [31-hook-points.md](behaviors/31-hook-points.md) | `packages/core/src/HookPoint.ts` *(Planned)*, `packages/core/src/Selector.ts` *(Planned)* |
-| BEH-BR-313–326 | [32-generic-gate-and-plan.md](behaviors/32-generic-gate-and-plan.md) | `packages/core/src/Gate.ts` *(Planned)*, `packages/core/src/Plan.ts` *(Planned)*, `packages/core/src/Reconcile.ts` *(Planned)* |
+| BEH-BR-313–328 | [32-generic-gate-and-plan.md](behaviors/32-generic-gate-and-plan.md) | `packages/core/src/Gate.ts` *(Planned)*, `packages/core/src/Plan.ts` *(Planned)*, `packages/core/src/Reconcile.ts` *(Planned)* |
 | BEH-BR-329–338 | [33-realm-families.md](behaviors/33-realm-families.md) | `packages/core/src/RealmFamily.ts` *(Planned)*, `packages/core/src/Host.ts` *(Planned)*, `packages/core/src/Attribution.ts` *(Planned)* |
 | BEH-BR-345–353 | [34-state-handoff.md](behaviors/34-state-handoff.md) | `packages/core/src/Handoff.ts` *(Planned)*, `packages/core/src/Lifecycle.ts` *(Planned)* |
 
