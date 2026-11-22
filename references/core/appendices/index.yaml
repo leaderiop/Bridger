@@ -11,3 +11,6 @@ entries:
   - file: "event-catalog.md"
     id: "BRIDGER-APP-03"
     title: "Event catalog"
+  - file: "correspondence.md"
+    id: "BRIDGER-APP-04"
+    title: "Spec-to-code correspondence"

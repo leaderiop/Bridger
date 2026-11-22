@@ -22,7 +22,7 @@ describe("oq evidence (BEH-GX-124, 125)", () => {
     expect(ev.statement).toBe(STATEMENT)
   })
   it("never takes free text from a test's name into a deviation", () => {
-    const ev = collect([t("BEH-BR-777 <script>alert(1)</script>", "passed")], [])
+    const ev = collect([t("BEH-BR-777 <script>alert(1)</script>", "passed")], []) // fixture-id
     expect(JSON.stringify(ev.deviations)).not.toContain("script")
   })
   it("reads the vitest report completely or not at all", () => {

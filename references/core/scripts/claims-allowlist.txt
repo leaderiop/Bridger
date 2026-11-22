@@ -11,3 +11,5 @@ behaviors/25-operation-gate.md::replacing a validated plugin, reconfiguring a GM
 glossary.md::ISPE's *A Risk-Based Approach to Compliant GxP Computerized Systems*, second
 # "qualified" in the sense of an ADR status qualifier, not qualification.
 process/requirement-id-scheme.md::Proposed, Accepted, Superseded, Withdrawn (optionally qualified,
+# Source paths in the generated correspondence table, not claims about durability.
+appendices/correspondence.md::durable
