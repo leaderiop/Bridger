@@ -111,10 +111,28 @@ Cost/risk: Medium-high: partial finalizer state must be kept after the scope has
 
 Verification: fault injects a one-shot failure; retry succeeds and the plugin leaves `failed(cleanup)` without a `leak-acknowledged` record.
 
+## Resolution status (2026-11-22)
+
+Branch `spec/cleanup-report-03`; prototype suite 644/644 (622 when the work started), `verify-traceability.sh` 0 failures. Every finding is resolved; the cards above are the proposals, and this table is what was built.
+
+| Finding | Rec. | Status | As built |
+|---|---|---|---|
+| T1 | R1 | Resolved | `closeTimeout` (default 30 s). Effect cannot interrupt a finalizer (probed), so the close runs detached and only the wait is bounded; expiry ends the stop `failed(cleanup)` and claims no release. BEH-BR-107 amended: the overall shutdown limit still never interrupts, the per-scope limit records a failure. No manifest override: no per-plugin option exists, the host option is the one bound. |
+| T2 | R1 | Resolved | `Registry.revokeTimeout` (default 30 s) and `HoldRevoked.stuck`. The prototype had no `revocations` feed at all; BEH-BR-167's feed (`seq`, no notice without a revoked holder) is now implemented with it. |
+| T3 | R2 | Resolved | `causes` (LIFO, `label?`) on `CleanupError`, the failed snapshot entry and the `leak-acknowledged` error; `message` is the first. The `unmount` hook still carries one message. |
+| T4 | R3 | Resolved | `Runtime.acquire` and `PluginInspection.resources` (held, or release failed or unconfirmed). Opt-in: an empty list does not mean nothing is held. Prototype wires it in the runtime, not through `ActivePlugin.report`; the spec states the report kind. |
+| T5 | R4 | Resolved | `irreversible` resources appear in the leak record's `error.resources` and in inspection; BEH-BR-161 non-claim added; roadmap keeps `Plugin.compensate` as not planned. |
+| T6 | R5 | Resolved | BEH-BR-037 states emissions during build are not withheld; `Runtime.afterPublish` runs the queue in order after publication, never for a failed or stale build. |
+| T7 | R6 | Resolved | `Runtime.superseded` and `whenSuperseded`. No `Superseded` tag: any failure of a stale build is already discarded. |
+| T8 | R7 | Resolved | Rule stated in BEH-BR-164 and tested (holder drains before an earlier resource is released). |
+| T9 | — | Resolved (documented) | BEH-BR-166: plain references are not holds; no `freezeOnWithdraw` option. |
+| T10 | R8 | Resolved | `Host.retryCleanup`, the tenth operation (ledger, BEH-BR-071/072 tables, gate and audit as the others). It re-runs only releases kept by `acquire`; a bare finalizer failure or a timed-out close stays acknowledgement-only. When nothing is left the plugin becomes `disabled`, so nothing builds unattended. |
+
 ## Not checked / uncertainties
 
-- The prototype implements `ContributionRegistry` and `Scope.close`; I did not run the suite. Claims about unbounded `Scope.close` (host.ts:1620) and `Fiber.interruptAll` in registry `withdraw` come from reading, not execution. Whether Effect v4's `Scope.close` has an implicit bound is not verified.
-- I did not read 12 (shutdown) in detail; shutdown may already bound per-plugin close (BEH-BR-105 under "stays registered"). If it does, T1 narrows to non-shutdown stops.
-- Disposer idempotence and async disposers are delegated to Effect finalizers (run once, awaited); I assumed rather than verified Effect v4 semantics for finalizers added to an already closed scope.
-- BEH-BR-141/16 and 05 were searched, not fully read, for any rule withholding build-time emissions; T6 assumes none exists. The durable-bus outbox and event-store were not read beyond the grep hits.
-- Generator-style incremental registration (Cordis iterator effects) has no direct Bridger counterpart; `Layer` composition plus `ContributionRegistry.add` per scope covers it, and I judged no change needed.
+- Checked: `Scope.close` has no implicit bound and a timeout over it hangs on a hung finalizer (probe); a finalizer added to an already closed scope runs at once; several failing finalizers surface in LIFO order in the cause.
+- Checked: shutdown (12) bounded the whole shutdown only, never a single plugin's close; T1 stood as written. BEH-BR-107 was amended.
+- Checked: no rule withheld build-time emissions (05, 16); T6 stood.
+- The prototype was run: every change has a test and a mutation check (breaking the code failed the test).
+- Not done: `retryCleanup` cannot retry a finalizer not acquired through `acquire`; `Plugin.compensate` stays unplanned; the manifest-level `closeTimeout` override was dropped because no per-plugin timeout option exists.
+- Cordis comparisons still rely on the supplied brief, and the diagrams are still simplified.
