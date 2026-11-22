@@ -417,7 +417,7 @@ describe("groups (BEH-BR-127, 128)", () => {
       for (let i = 0; i < 500 && (yield* stateIn(host, "app/child")) !== "stopping"; i++) { if (!(yield* host.step)) yield* Effect.sleep(2) }   // wait for the stop to begin; a fixed count of yields is load-dependent
       expect(yield* stateIn(host, "app/child")).toBe("stopping")
       const close = yield* Effect.forkChild(Scope.close(out.sub!, Exit.void))
-      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.yieldNow }
+      for (let i = 0; i < 20; i++) { if (!(yield* host.step)) yield* Effect.sleep(2) }
       expect(close.pollUnsafe()).toBeUndefined()                                  // waiting for the stop step it took over
       yield* Deferred.succeed(release, undefined)
       yield* stepAll(host, [holder, restart, close])
