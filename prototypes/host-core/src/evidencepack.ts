@@ -1,7 +1,8 @@
 // The evidence pack (gxp BEH-GX-130–132): canonical JSON files, a manifest naming every file by SHA-256, a pack digest over the manifest's canonical
-// text, and a verifier that reports each difference by path. QA signatures (BEH-GX-135), the rendered reports (134) and diffPacks (136) are not built.
+// text, and a verifier that reports each difference by path; deviation ids and assessments (133), the derived report (134), QA signatures (135) and
+// diffPacks (136). The signature port is a function here, not the full SignatureCaptureShape of gxp 10.
 import { createHash } from "node:crypto"
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import type { OqEvidence, Outcome, TraceRow } from "./evidence.js"
 import { rollup } from "./evidence.js"
@@ -33,15 +34,18 @@ export const coverage = (ev: OqEvidence, rows: ReadonlyArray<TraceRow>) => {
 
 export interface PackInput {
   readonly generatedAt: string; readonly packageVersion: string; readonly coreVersion: string
-  readonly oq: unknown; readonly deviations: ReadonlyArray<{ readonly kind: string; readonly subject: string }>; readonly coverage: unknown
+  readonly oq: unknown; readonly deviations: ReadonlyArray<{ readonly kind: string; readonly source: string; readonly subject: string; readonly detail: string; readonly state: "open" }>; readonly coverage: unknown
   readonly attachments?: ReadonlyArray<{ readonly as: string; readonly bytes: Buffer }>
 }
 const write = (dir: string, path: string, content: Buffer | string) => { const full = join(dir, path); mkdirSync(join(full, ".."), { recursive: true }); writeFileSync(full, content) }
 const jsonFile = (v: unknown) => canonical(v) + "\n"
+/** "DEV-" and the first 12 hex digits of SHA-256(JCS({ kind, source, subject })): the same inputs give the same id. */
+export const deviationId = (d: { kind: string; source: string; subject: string }) => `DEV-${createHash("sha256").update(canonical({ kind: d.kind, source: d.source, subject: d.subject })).digest("hex").slice(0, 12)}`
+const readJson = <T>(dir: string, f: string, fallback: T): T => existsSync(join(dir, f)) ? JSON.parse(readFileSync(join(dir, f), "utf8")) as T : fallback
 
 /** Writes the pack and returns its digest: the SHA-256 of the manifest's canonical text, the bytes of manifest.json without its final line feed. */
 export const writeEvidencePack = (dir: string, p: PackInput): { packDigest: string } => {
-  const sorted = [...p.deviations].sort((a, b) => (a.kind + "\0" + a.subject < b.kind + "\0" + b.subject ? -1 : 1))
+  const sorted = p.deviations.map((d) => ({ id: deviationId(d), ...d })).sort((a, b) => (a.id < b.id ? -1 : 1))
   const contents = new Map<string, Buffer | string>([["oq.json", jsonFile(p.oq)], ["deviations.json", jsonFile(sorted)], ["coverage.json", jsonFile(p.coverage)]])
   const inputs = (p.attachments ?? []).map((a) => ({ as: a.as, digest: sha(a.bytes) }))
   for (const a of p.attachments ?? []) contents.set(`attachments/${a.as}`, a.bytes)             // byte for byte, no decoding or conversion
@@ -55,10 +59,10 @@ export const writeEvidencePack = (dir: string, p: PackInput): { packDigest: stri
 
 const walk = (dir: string, base = dir): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(join(dir, e.name), base) : [join(dir, e.name).slice(base.length + 1)])
 /** Recomputes every file's digest and the pack digest; reports each difference by path. A pack without differences "matches the manifest" and is not called authentic. */
-export const verifyEvidencePack = (dir: string, expectedDigest?: string): { matches: boolean; differences: ReadonlyArray<{ path: string; kind: "changed" | "missing" | "unlisted" | "manifest" }>; packDigest: string; statement: string } => {
+export const verifyEvidencePack = (dir: string, expectedDigest?: string): { matches: boolean; differences: ReadonlyArray<{ path: string; kind: "changed" | "missing" | "unlisted" | "manifest" | "signature" }>; packDigest: string; statement: string } => {
   const text = readFileSync(join(dir, "manifest.json"), "utf8")
   const manifest = JSON.parse(text) as { files: Array<{ path: string; digest: string }> }
-  const differences: Array<{ path: string; kind: "changed" | "missing" | "unlisted" | "manifest" }> = []
+  const differences: Array<{ path: string; kind: "changed" | "missing" | "unlisted" | "manifest" | "signature" }> = []
   const body = text.endsWith("\n") ? text.slice(0, -1) : text
   if (canonical(manifest) !== body) differences.push({ path: "manifest.json", kind: "manifest" })        // not in canonical form: edited or re-serialised
   const listed = new Set(manifest.files.map((f) => f.path))
@@ -67,8 +71,76 @@ export const verifyEvidencePack = (dir: string, expectedDigest?: string): { matc
     try { bytes = readFileSync(join(dir, f.path)) } catch { differences.push({ path: f.path, kind: "missing" }); continue }
     if (sha(bytes) !== f.digest) differences.push({ path: f.path, kind: "changed" })
   }
-  for (const f of walk(dir)) if (f !== "manifest.json" && f !== "signatures.json" && f !== "assessments.json" && !listed.has(f)) differences.push({ path: f, kind: "unlisted" })
+  for (const f of walk(dir)) if (!["manifest.json", "signatures.json", "assessments.json", "report.md"].includes(f) && !listed.has(f)) differences.push({ path: f, kind: "unlisted" })
   const packDigest = sha(body)
+  // BEH-GX-135: a signature whose binding no longer matches the pack and its assessments says so.
+  for (const sg of readJson<Array<{ bindingDigest: string }>>(dir, "signatures.json", [])) if (sg.bindingDigest !== bindingDigest(dir, packDigest)) differences.push({ path: "signatures.json", kind: "signature" })
   if (expectedDigest !== undefined && packDigest !== expectedDigest) differences.push({ path: "manifest.json", kind: "manifest" })
-  return { matches: differences.length === 0, differences, packDigest, statement: differences.length === 0 ? "every file matches the manifest" : `${differences.length} difference(s) from the manifest` }
+  return { matches: differences.length === 0, differences, packDigest, statement: differences.length === 0 ? "every file matches the manifest" : differences.every((d) => d.kind === "signature") ? "signature does not match the current pack" : `${differences.length} difference(s) from the manifest` }
+}
+
+// ---- assessments (BEH-GX-133)
+export class AssessmentRefused { readonly _tag = "AssessmentRefused"; constructor(readonly deviationId: string, readonly reason: "unknown-deviation" | "reserved-actor" | "blank-assessment") {} }
+const reserved = (a: { id: string }) => a.id.trim() === "" || a.id.startsWith("bridger:")
+/** Appends an attributed assessment to assessments.json, outside the manifest; changes no other file and never the deviation it assesses. */
+export const assessDeviation = (dir: string, a: { deviationId: string; by: { id: string; kind: string }; assessment: string; reference?: string }, now: () => Date): void => {
+  const devs = readJson<Array<{ id: string }>>(dir, "deviations.json", [])
+  if (!devs.some((d) => d.id === a.deviationId)) throw new AssessmentRefused(a.deviationId, "unknown-deviation")
+  if (reserved(a.by)) throw new AssessmentRefused(a.deviationId, "reserved-actor")
+  if (a.assessment.trim() === "") throw new AssessmentRefused(a.deviationId, "blank-assessment")
+  const all = readJson<unknown[]>(dir, "assessments.json", [])
+  write(dir, "assessments.json", jsonFile([...all, { deviationId: a.deviationId, actor: { id: a.by.id, kind: a.by.kind }, at: now().toISOString(), assessment: a.assessment, ...(a.reference ? { reference: a.reference } : {}) }]))
+}
+
+// ---- derived report (BEH-GX-134)
+/** A pure function of the pack's JSON files: the first line fixed, then the manifest statement, the OQ counts and every deviation. Written outside the manifest, since it names the pack digest. */
+export const renderReport = (dir: string): string => {
+  const text = readFileSync(join(dir, "manifest.json"), "utf8"), digest = sha(text.slice(0, -1))
+  const m = JSON.parse(text) as { statement: string }, oq = readJson<{ counts?: Record<string, number>; statement?: string; runCounted?: boolean }>(dir, "oq.json", {})
+  const devs = readJson<Array<{ id: string; kind: string; source: string; subject: string; detail: string; state: string }>>(dir, "deviations.json", [])
+  const c = oq.counts ?? {}
+  return [`Derived rendering of evidence pack ${digest}; the JSON files are the evidence.`, "", "## Statement", m.statement, "",
+    "## OQ outcomes", `run counted: ${oq.runCounted}`, `fail: ${c.fail}, pass: ${c.pass}, skipped: ${c.skipped}, not covered: ${c.notCovered}`, oq.statement ?? "", "",
+    `## Deviations (${devs.length})`, ...devs.map((d) => `- ${d.id} ${d.kind} ${d.source} ${d.subject}: ${d.detail} [${d.state}]`), ""].join("\n")
+}
+export const writeReport = (dir: string) => write(dir, "report.md", renderReport(dir))
+
+// ---- QA signatures (BEH-GX-135)
+const bindingDigest = (dir: string, packDigest: string) => sha(canonical({ assessmentsDigest: sha(readJson<unknown[]>(dir, "assessments.json", []).length ? readFileSync(join(dir, "assessments.json")) : canonical([])), packDigest }))
+export class SignatureRefused { readonly _tag = "SignatureRefused"; constructor(readonly reason: "signer-is-requester" | "malformed-answer" | "declined") {} }
+export interface SignatureRequest { readonly ticketId: string; readonly bindingDigest: string; readonly rendered: string; readonly meaning: string }
+/** The signer comes from the port; the pack stamps `signedAt`, refuses the requester as signer and a malformed answer. Appends outside the manifest. */
+export const signEvidencePack = (dir: string, q: { meaning: string; requester: { id: string; kind: string } }, capture: (r: SignatureRequest) => { signer?: { id: string; kind: string } } | undefined, now: () => Date): void => {
+  const packDigest = verifyEvidencePack(dir).packDigest
+  writeReport(dir)
+  const req: SignatureRequest = { ticketId: `pack:${packDigest}`, bindingDigest: bindingDigest(dir, packDigest), rendered: readFileSync(join(dir, "report.md"), "utf8"), meaning: q.meaning }
+  const ans = capture(req)
+  if (!ans) throw new SignatureRefused("declined")
+  if (!ans.signer || typeof ans.signer.id !== "string" || ans.signer.id.trim() === "") throw new SignatureRefused("malformed-answer")
+  if (ans.signer.id === q.requester.id) throw new SignatureRefused("signer-is-requester")
+  write(dir, "signatures.json", jsonFile([...readJson<unknown[]>(dir, "signatures.json", []), { ticketId: req.ticketId, bindingDigest: req.bindingDigest, meaning: q.meaning, signer: ans.signer, signedAt: now().toISOString() }]))
+}
+
+// ---- diff (BEH-GX-136)
+export interface PackChange { readonly area: "requirement" | "deviation" | "attachment"; readonly id: string; readonly change: "changed" | "appeared" | "disappeared"; readonly from?: string; readonly to?: string }
+export class EvidenceReadFailed { readonly _tag = "EvidenceReadFailed"; constructor(readonly path: string, readonly reason: "unreadable" | "manifest-mismatch") {} }
+const facts = (dir: string): { digest: string; req: Map<string, string>; dev: Map<string, string>; att: Map<string, string> } => {
+  let v; try { v = verifyEvidencePack(dir) } catch { throw new EvidenceReadFailed(dir, "unreadable") }
+  if (v.differences.some((d) => d.kind !== "signature")) throw new EvidenceReadFailed(dir, "manifest-mismatch")
+  const m = readJson<{ files: Array<{ path: string; digest: string }> }>(dir, "manifest.json", { files: [] })
+  const cov = readJson<{ requirements: Array<{ id: string; outcome: string }> }>(dir, "coverage.json", { requirements: [] })
+  return { digest: v.packDigest, req: new Map(cov.requirements.map((r) => [r.id, r.outcome])), dev: new Map(readJson<Array<{ id: string; state: string }>>(dir, "deviations.json", []).map((d) => [d.id, d.state])), att: new Map(m.files.filter((f) => f.path.startsWith("attachments/")).map((f) => [f.path, f.digest])) }
+}
+/** Lists every requirement, deviation and attachment that changed, appeared or disappeared, sorted by area and id; it never says better, worse or acceptable. */
+export const diffPacks = (prev: string, next: string) => {
+  const a = facts(prev), b = facts(next), changes: PackChange[] = []
+  for (const [area, x, y] of [["requirement", a.req, b.req], ["deviation", a.dev, b.dev], ["attachment", a.att, b.att]] as const)
+    for (const id of new Set([...x.keys(), ...y.keys()])) {
+      const from = x.get(id), to = y.get(id)
+      if (from === undefined) changes.push({ area, id, change: "appeared", to: to! })
+      else if (to === undefined) changes.push({ area, id, change: "disappeared", from })
+      else if (from !== to) changes.push({ area, id, change: "changed", from, to })
+    }
+  changes.sort((p, q) => (p.area + "\0" + p.id < q.area + "\0" + q.id ? -1 : 1))
+  return { format: "bridger-gx-pack-diff/1" as const, prev: a.digest, next: b.digest, changes }
 }

@@ -3,7 +3,7 @@
 import { execFileSync } from "node:child_process"
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { hostname } from "node:os"
-import { coverage, writeEvidencePack } from "../src/evidencepack.js"
+import { coverage, writeEvidencePack, writeReport } from "../src/evidencepack.js"
 import { collect, readTraceRows, readVitestReport, rollup } from "../src/evidence.js"
 import { captureRunEnvironment, installedPackage, judgeRun } from "../src/runenv.js"
 
@@ -31,6 +31,7 @@ const pkg = JSON.parse(readFileSync(root + "package.json", "utf8")) as { version
 const { packDigest } = writeEvidencePack(root + "evidence/pack", { generatedAt: new Date().toISOString(), packageVersion: pkg.version ?? "0.0.0", coreVersion: pkg.version ?? "0.0.0",
   oq: { runCounted: judged.counted, run, counts: ev.counts, requirements: ev.requirements, statement: ev.statement }, deviations, coverage: coverage(ev, rows),
   attachments: [{ as: "vitest-report.json", bytes: readFileSync(reportPath) }] })
+writeReport(root + "evidence/pack")
 console.log("pack digest:", packDigest)
 console.log("requirement rows:", JSON.stringify(tally))
 console.log(JSON.stringify({ ...ev.counts, requirements: known.length, deviations: deviations.length, runCounted: judged.counted }), ev.statement)
