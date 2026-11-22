@@ -47,3 +47,18 @@ export const normal = (s: Host.HostSnapshot) => s.plugins
   .map((p) => JSON.stringify([p.id, p.realm, p.parentId ?? null, p.state, p.state === "waiting" ? [...p.missingServiceIds].sort() : null]))
   .sort()
 
+
+/** Report 01 R3 (BEH-BR-027): a `starting` or `active` dependent's captured `providerIds[k].activation` equals its provider's current activation. Returns the violations. */
+export const stalePairs = (s: Host.HostSnapshot) => {
+  const out: Array<string> = []
+  for (const p of s.plugins) {
+    if (p.state !== "starting" && p.state !== "active") continue
+    for (const r of p.providerIds) {
+      if (r.activation === undefined) continue                                   // base services have none
+      const prov = s.plugins.find((q) => q.id === r.id && q.realm === (r.realm ?? "default"))
+      if (prov?.state === "stopping") continue                                    // hidden: its dependents stop next (BEH-BR-042)
+      if (!prov || (prov.state !== "starting" && prov.state !== "active") || prov.activation !== r.activation) out.push(`${p.id}@${p.realm} holds ${r.id}#${r.activation} but the provider is ${prov ? `${prov.state}#${"activation" in prov ? prov.activation : "-"}` : "gone"}`)
+    }
+  }
+  return out
+}

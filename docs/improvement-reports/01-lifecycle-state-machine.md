@@ -43,147 +43,97 @@ Scope: `references/core/behaviors/{03..10,12,13,18,34}`, `decisions/{004,005,010
 
 **Rationale.** The spec (05:392-400) records a stale failed build as `failed` when the cause was provider loss, but discards it when the cause was an operator or shutdown. The prototype discards in both cases (`host.ts:1125`, the `discard=true; return` branch). The one existing test covers only the operator case. The rule also contradicts the logic of BEH-BR-035/G25: whether the plugin ends `failed` or `waiting` depends on whether the build's failure or the provider's stop was observed first, which is scheduling.
 
-**Concrete spec change.** Pick one of two. The cleaner design, consistent with BEH-BR-160, is: a stale build's outcome is always discarded and the plugin goes `waiting`; if the failure was real, the next activation will reproduce it and fail visibly. Replace the third requirement in BEH-BR-039 with:
+**Concrete spec change (as built).** A stale build's outcome, success or failure, is always discarded whatever changed the target, and the plugin goes `waiting`; this is consistent with BEH-BR-160. A discarded failure is reported by `build-finished` with `stale: true` and `discardedFailures`; at `staleFailureLimit` (host option, default 3) consecutive discards the host emits `build-flapping` and the `waiting` snapshot carries `flapping`. BEH-BR-039 is rewritten and BEH-BR-041/043/053 and RSK-BR-003 follow it.
 
 ```
-REQUIREMENT: A stale build's outcome, success or failure, MUST be discarded
-             whatever changed the target. A failure so discarded MUST be
-             recorded as a `build-finished` event with outcome "failure" and
-             `stale: true`, and MUST NOT make the plugin `failed`.
+REQUIREMENT: A stale build that failed MUST NOT make the plugin `failed`:
+             the plugin goes to `waiting` or to the operator's destination,
+             and the failure MUST be reported by a `build-finished` event with
+             outcome "failure" and `stale: true`, carrying `discardedFailures`.
+             At `staleFailureLimit` consecutive discards the host MUST emit
+             `build-flapping`.
 ```
 
-Update the "Settled here" paragraph (RSK-BR-003 argument: a failing build re-running unattended). Mitigate that with a per-registration counter of consecutive discarded failures that surfaces `plugin-stalled`-style, rather than sticky state.
-
-**As built.** BEH-BR-039 rewritten: a stale build's outcome, success or failure, is always discarded and the plugin goes `waiting`. `build-finished` carries `stale` and `discardedFailures`; at `staleFailureLimit` (host option, default 3) a `build-flapping` event is emitted and the `waiting` snapshot carries `flapping`. The event is not named `plugin-stalled`, which already exists. Tests: `r1-stale-build`, `confluence-faults` (mutation-checked).
-
-**Cost/risk.** Weakens "failure is sticky" for one path; hand-edits to BEH-BR-039, 06:BEH-BR-041/043 and 07:BEH-BR-053 cross-references. Risk is a repeated side-effecting build across dependency flaps, hence the counter.
-
-**Verification.** New scenarios on `TestHost` with `Fault.buildFails` and a provider removed mid-build: assert both orders (failure first, stop first) settle to the same state. Add as a mutation check (revert to sticky; 1 test fails).
+**Cost/risk.** Weakens "failure is sticky" for one path: a failing build can run again when the provider returns, which `discardedFailures` and `build-flapping` bound (RSK-BR-003). **Verification.** `r1-stale-build` (waiting, stale event, counter, flapping signal, failure under shutdown) and `confluence-faults` (stale discard across interleavings); making stale failures sticky fails both.
 
 ### R2. Make the quiescence theorem testable including failure (L2)
 
 **Rationale.** Cordis' claim is clean: quiescent state is a function of final config. Bridger's BEH-BR-160 is a function of the installed set modulo failure, lazy class, refusal and handoff. That is honest, but the carve-out is untestable as written and the property tests only exercise success.
 
-**Concrete spec change.** Add to BEH-BR-160 a second theorem and test obligation:
+**Concrete spec change (as built).** BEH-BR-160 (v0.17) bounds the failure exception: for a history with injected build failures, once idle, the non-failed plugins equal those of a history without failures in which each failed plugin is `disabled`, and the failed set is a subset of the plugins whose build began and failed. A stale failure never appears in the failed set.
 
-```
-REQUIREMENT: For histories with injected build failures, the set of plugins
-             in any state other than `failed`, once idle, MUST equal that of
-             a history with no failures in which each failed plugin is
-             `disabled`; the failed set MUST be a subset of the plugins whose
-             build was begun and failed in that history.
-```
-
-Add the failing-set equality as the form of "may differ until retried".
-
-**As built.** BEH-BR-160 carries the failure bound (v0.17). The tests are `confluence-faults.test.ts`: random histories with injected `buildFails` equal a direct install after a restart of the faulted plugins, and a stale-discard property over interleavings fails if stale failures are made sticky. The universe's builds finish in one step, so the random test itself never meets a stale build. The failed-set-equals-disabled-set oracle above was not built.
-
-**Cost/risk.** Test-only plus one requirement; needs `Fault` seeds in `confluence-p4/p5`.
-
-**Verification.** Extend `confluence-p5.test.ts` with a random `buildFails` per plugin and the above oracle; keep mutation checks (G25 revert must still fail).
+**Cost/risk.** Test-only plus one requirement; the tests use the `Fault.buildFails` injection. **Verification.** `confluence-faults.test.ts`: random histories check the failed-set subset and the non-failed equality (BEH-BR-160), equality with a direct install after restarting the faulted plugins, and the activation-pair invariant at every step. A separate interleaving test covers stale builds; the random universe's builds finish within one step, so only that test exercises them.
 
 ### R3. Introduce an activation ordinal (L3)
 
 **Rationale.** Cordis keys targets by provider uid so a replaced provider is never confused with its predecessor. Bridger keys by `{id, realm}` (BEH-BR-027 `providerIds`) and keeps `epoch` as an internal prototype counter. A reader of the audit trail or snapshot cannot tell whether two `active` observations are the same activation, and no field proves "this dependent captured *that* generation of the provider".
 
-**Concrete spec change.** In `PluginCommon` add `readonly activation: number` (host-scoped monotonic counter, never reused, incremented at each `starting` entry that will build; absent for `dormant`/`waiting`/`disabled`). Extend `providerIds` entries to `{ id, realm, activation }`. Add `activation` to `HostEventCommon` and to system/lifecycle audit records.
+**Concrete spec change (as built).** `activation` on `starting` and `active` snapshots (host-scoped, increases at each entry to `starting`, never reused), on events, and in `providerIds` entries `{ id, realm, activation }`. While a provider is `stopping` (hidden; its dependents stop next, BEH-BR-042) the pair names the activation it had.
 
-```
-REQUIREMENT: A dependent's captured `providerIds[k].activation` MUST equal
-             the provider's `activation` for every `active` or `starting`
-             dependent at every revision (a stale pair is a defect).
-```
-
-**As built.** `activation` on `starting` and `active` snapshots, on events and `providerIds` entries `{ id, realm, activation }`. The pair equality is asserted in `r3-r7-identity.test.ts` for a restart, not after every step of the confluence tests.
-
-**Cost/risk.** Snapshot schema change (pre-release, fine). One more field in INV-BR-013 checks. Equality of snapshots across confluence runs must exclude it (like revision).
-
-**Verification.** Invariant check inside `confluence*.test.ts`: after every step assert the pair equality; plus a direct test that `replace` of a provider changes the dependents' captured activation only after they restart.
+**Cost/risk.** Snapshot schema change (pre-release). Snapshot equality across confluence runs ignores the ordinal, like revision. **Verification.** `r3-r7-identity` (a restart gives a larger ordinal and the dependent captures it) and the invariant check after every step of `confluence-p5` and `confluence-faults`.
 
 ### R4. Opt-in activation-level rollback for `replace` and atomic reconcile (L4)
 
 **Rationale.** ADR-BR-004 rejects keep-old-alive (two providers of a key) and ADR-BR-051 rejects "undo on activation failure" because the outcome would depend on build timing. Both are right as defaults, but Cordis' transactional reload shows the operator wants "replace, and if the new build fails, put the old one back". Today the operator must read the failure and issue `replace(previous)` by hand while dependents sit `waiting`.
 
-**Concrete spec change.** `ReplaceOptions.onFailure?: "stay-failed" | { rollback: Plugin }` (default unchanged). Semantics: after the swap, the host waits for the new activation's first outcome as part of the operation (the call completes at `active` or at the rollback's `starting`); on `failed` it issues one `replace(previous)` as a system operation attributed to the call, recorded with `undoes`. Mirror for `reconcile` as `atomic: { settle: true }`, using the existing undo list and `PartialApply`.
+**Concrete spec change (as built).** `ReplaceOptions.onFailure: "stay-failed" | { rollback }` (default unchanged). After the swap the call waits for the new activation's first outcome, bounded by `buildTimeout`; on `failed` it issues one `replace(rollback)` attributed to the call and recorded with `undoes`, and fails with `ReplaceRolledBack`. `ReconcileOptions.settle`, with `atomic`, waits for each changed entry's first outcome and undoes the apply when one fails (`PartialApply` on an undo the gate refuses).
 
-**As built.** `ReplaceOptions.onFailure: "stay-failed" | { rollback }` with `ReplaceRolledBack`, and `ReconcileOptions.settle` (used with `atomic`), both bounded by `buildTimeout`. Tests: `r4-rollback` (rollback succeeds, rollback fails, none needed on success, atomic `settle` with and without) plus the existing atomic-apply checks for a gate-refused undo.
-
-**Cost/risk.** The call now waits for a build (BEH-BR-049 says it must not), so make it explicit and bounded by `buildTimeout`. A rollback build runs the previous definition's side effects again, so the doc must say rollback is not compensation (BEH-BR-048).
-
-**Verification.** Scenarios: failing new build rolls back and dependents restart against the old one; failing rollback ends `failed` with both causes; a gate refusing the undo yields `PartialApply`.
+**Cost/risk.** The call now waits for a build, explicitly and with a bound. A rollback build re-runs the previous definition's side effects: rollback is not compensation (BEH-BR-048). **Verification.** `r4-rollback`: rollback succeeds, rollback fails (both causes reported), no rollback on success, atomic `settle` with and without; the atomic-apply checks cover a gate-refused undo.
 
 ### R5. A way to abort a parked stop (L5)
 
 **Rationale.** BEH-BR-045 states the plugin "MUST NOT be republished" after `DrainTimeout`. That is safe but irreversible in practice: dependents were stopped, the provider is hidden, and the only exits are to stop it for good. A mistaken `restart` of a busy shared service becomes an outage.
 
-**Concrete spec change.** Add operation `resume`/`abort` legal only on a parked stop whose scope has not begun to close: `stopping -> active` (the edge is safe because no finalizer has run). Provider republished in one revision; `waiting` dependents restart by the normal rule. Audit as an operator operation; the parked intent ends with `intent-ended`.
+**Concrete spec change (as built).** Operation `abort`, folded into BEH-BR-074 (file 06's ID block had no room for a new ID): legal only on a plugin whose own operation is parked and whose scope has not begun to close. It returns the plugin `stopping` to `active`, with its parked dependency-loss dependents that have all their providers active or returning, in one revision; each such dependent emits `stop-aborted`. Refused with `Conflict` `not-parked`, `dependency-loss`, `child-removed`, `provider-stopping` or the operation in flight; `HostClosed` once shutdown began. Health checks resume, a swallowed runtime-failure signal is replayed, no export or handoff record occurs.
 
-**As built.** Operation `abort`, folded into BEH-BR-074 (the BEH-BR-ID block of file 06 had no room for a new ID). Refused with `Conflict` `not-parked`, `dependency-loss`, `child-removed`, `provider-stopping` or the operation in flight. A dependent returns only when all its providers are active or return with it; each emits `stop-aborted`. Health checks resume, a swallowed runtime-failure signal is replayed, a shutdown that began first wins (`HostClosed`). Handoff export is unaffected (it runs after the drain). Tests: `r5-abort`.
-
-**Cost/risk.** New edge in BEH-BR-026 and row/column in the BEH-BR-071/072 tables (so 9x9). Must refuse if any part of the scope closed (exports for a handoff, BEH-BR-347, run after drain). Could be deferred to a later phase.
-
-**Verification.** Extend `inflight.test.ts` live-cell grid and the confluence generator with `abort`.
+**Cost/risk.** A new edge in BEH-BR-026 and an `abort` column in the BEH-BR-071/072 tables, generated from the transition ledger. **Verification.** `r5-abort`: restart and remove aborted, `stop-aborted` event, health loop, `whenAvailable` re-run, swallowed signal, shutdown versus abort, child removed, multi-provider dependents; the live-cell grid of `inflight.test.ts` covers the table cells.
 
 ### R6. Scoped settle (L6)
 
 **Rationale.** `awaitIdle` is host-wide (BEH-BR-040) and excludes `waiting`/`failed`. After a `reconcile` an operator wants "these entries reached `active` or a stated terminal state". Under churn or a restart-policy loop, host-wide idle may never arrive, forcing polling of `changes`.
 
-**Concrete spec change.**
+**Concrete spec change (as built).** `awaitSettled(refs | { scope }, { timeout })` returns each plugin's `{ ref, state, activation? }` once that plugin has no transition running or ready and no operation in flight other than a parked stop; it fails with `SettleTimeout`, `HostClosed` or `WouldDeadlock` (same rule as `awaitIdle`).
 
-```ts
-awaitSettled(refs: readonly PluginRef[] | { scope: string }, opts?: { timeout?: Duration.Input }):
-  Effect<readonly { ref: PluginRef; state: "active"|"waiting"|"failed"|"disabled"|"dormant"; activation?: number }[], SettleTimeout | HostClosed | WouldDeadlock>
+```
+awaitSettled(refs: readonly PluginRef[] | { scope: string },
+             opts?: { timeout?: Duration.Input }):
+  Effect<readonly { ref; state; activation? }[],
+         SettleTimeout | HostClosed | WouldDeadlock>
 ```
 
-A plugin is settled when it has no transition running or ready and no operation in flight, as BEH-BR-040 defines idleness per plugin. Reuse the same `WouldDeadlock` rule.
-
-**As built.** `awaitSettled(refs | { scope }, { timeout })` returns each plugin's `{ ref, state, activation? }`; `SettleTimeout` and the `WouldDeadlock` / `HostClosed` rules as for `awaitIdle`. A parked stop does not block it. Test: `r6-settled`.
-
-**Cost/risk.** Small; derived from the same predicate. Needs the per-plugin predicate exposed, which is already internal.
-
-**Verification.** Test: with an unrelated plugin in a restart loop, `awaitSettled` on a reconciled scope returns while `awaitIdle` times out.
+**Cost/risk.** Small; derived from the same per-plugin predicate as `awaitIdle`. **Verification.** `r6-settled`: returns while an unrelated plugin is still starting and times out on the busy one; a parked stop does not block it.
 
 ### R7. Correlate events with revisions and causes (L7)
 
 **Rationale.** Cordis emits `internal/status` per fiber. Bridger's `state-changed` (13:82) carries `from`, `to`, `reason`, but no `revision`, no trigger (operator call, cascade root, background failure, provider return), and events are lossy by design. Without a revision, a consumer cannot know which snapshot an event belongs to. With no sink wired, the cause is lost entirely (INV-BR-026).
 
-**Concrete spec change.** Add to `HostEventCommon`: `revision: number` (the snapshot revision the event is part of), `causeSeq?: number` (the `seq` of the event that triggered it, e.g. the provider's `state-changed`), `activation?: number` (R3). `state-changed` additionally carries `trigger: "operator" | "system" | "provider-return" | "dependency-loss" | "runtime-failure" | "shutdown"`.
+**Concrete spec change (as built).** `revision`, `activation` and `causeSeq` on events; `state-changed` carries `trigger` (operator, system, provider-return, dependency-loss, runtime-failure, shutdown). For a dependency-loss stop, `causeSeq` is the `seq` of the causing provider's own `stopping` event.
 
-**As built.** `revision`, `activation` and `causeSeq` on events, `trigger` on `state-changed`. For a dependency-loss stop, `causeSeq` is the causing provider's own `stopping` event (per edge). Tests: `r3-r7-identity`.
-
-**Cost/risk.** Event schema growth; no behaviour change. Keep INV-BR-013 (no values).
-
-**Verification.** Property test: events folded by `revision` reproduce the snapshot stream's `state` transitions; every `causeSeq` points to an earlier `seq`.
+**Cost/risk.** Event schema growth; no behaviour change; INV-BR-013 (no values) is kept. **Verification.** `r3-r7-identity`: revisions never decrease, `causeSeq` points to an earlier event, transitions chain, and two independent providers each cause only their own dependent's stop.
 
 ### R8. Close the optional-read hazard (L9)
 
 **Rationale.** BEH-BR-130 gives an unleased point-in-time read; the removal path cannot protect a use that happens after the read. Cordis has the analogous INACTIVE_ACCESS.
 
-**Concrete spec change.** Constrain the docs and types: `optional` returns the service only inside `useOptional`'s lease; deprecate or mark the bare read as "existence check only" in BEH-BR-130 and in the INV-BR-006 *Implication*.
+**Concrete spec change (as built).** `Runtime.optional` returns an existence witness (`Option<void>`), never the service; the service is reachable only through `useOptional`'s lease. BEH-BR-130 and the INV-BR-006 Implication say so.
 
-**As built.** `Runtime.optional` returns an `Option<void>` existence witness; the service is reachable only through `useOptional`'s lease. BEH-BR-130 and INV-BR-006 updated. Tests: `optional.test.ts`.
-
-**Cost/risk.** Breaking for callers of the bare read (prototype only). **Verification.** Type-level test that the bare read yields `Option<void>`-like witness, or a documented-unsafe label verified by a docs check.
+**Cost/risk.** Breaking for callers of the bare read (prototype only). **Verification.** `optional.test.ts`.
 
 ### R9. Detect the build-slot self-deadlock statically (L10)
 
 **Rationale.** G21: a parent that `awaitActive`s a child in its build holds a slot the child needs, and with `concurrency` N such parents it always times out at `buildTimeout`.
 
-**Concrete spec change.** Either exclude a build's await-for-child time from slot occupancy (release the slot while awaiting a child, re-acquire after), or fail fast with `WouldDeadlock`-style `SlotStarvation` when `awaitActive` is called from a build and the child cannot get a slot. Add the rule to BEH-BR-124 and BEH-BR-034.
+**Concrete spec change (as built).** A build that awaits a child releases its slot for the wait and takes one again afterwards (BEH-BR-034, BEH-BR-124); the FIFO wording is updated. The fail-fast alternative was not built.
 
-**As built.** The first option: a build awaiting a child releases its slot for the wait and re-acquires it afterwards (BEH-BR-034/124). The fail-fast `SlotStarvation` alternative was not built. Test: the G21 test in `children.test.ts`.
-
-**Cost/risk.** Slot accounting changes the FIFO rule. **Verification.** `concurrency: 1` parent-with-child scenario.
+**Cost/risk.** Slot accounting changes the FIFO rule. **Verification.** The G21 test in `children.test.ts`: `concurrency: 1`, parent with child.
 
 ### R10. A generated transition ledger (L11)
 
 **Rationale.** The legal edges are spread over BEH-BR-026 (mermaid), 071, 072, 073, 074, 079, 080 and the child rules. Every audit round (7 to 9) edited the same cells. A single machine-readable table (state, trigger, reason, next, record kind, event) would let `legality.ts`, the snapshot union, the audit schema and the docs be generated and diffed, as Cordis does with its event catalogue check.
 
-**Concrete spec change.** Add `references/core/transitions.yaml` as the source of truth for BEH-BR-026/071/072 and the `StopReason`/`next` pairs; add a doc check that the mermaid diagram and tables match it.
+**Concrete spec change (as built).** `references/core/transitions.yaml` is the source for BEH-BR-026/071/072 and the stop-reason pairs; `scripts/gen-legality.mjs` generates `src/legality.table.ts`, which `legality.ts` reads.
 
-**As built.** `references/core/transitions.yaml` is the source; `scripts/gen-legality.mjs` generates `src/legality.table.ts`. `transitions-ledger.test.ts` checks that the BEH-BR-026 diagram and the BEH-BR-071/072 tables match the ledger and that the generated file is current. The check runs in the test suite, not in `verify-traceability.sh`.
-
-**Cost/risk.** Tooling work, no semantic change. **Verification.** CI check; prototype `legality.ts` generated from it and the 56 + 28 cell tests still pass.
+**Cost/risk.** Tooling work, no semantic change. The drift check runs in the test suite, not in `verify-traceability.sh`. **Verification.** `transitions-ledger.test.ts`: the BEH-BR-026 diagram and the BEH-BR-071/072 tables match the ledger, the generated file is current, and the 56 + 28 cell tests still pass.
 
 ## Verification of the original uncertainties (2026-11-22)
 
@@ -191,8 +141,8 @@ A plugin is settled when it has no transition running or ready and no operation 
 - **Stop path after line 1548.** Traced: every site that sets `failed` for a build, load or activation is guarded by the epoch check, so a stale build cannot mark a plugin failed; the cleanup failure site is a real stop failure. Mutation-checked by tests.
 - **Companions and docs.** Searched references/kit, the loader, remote, federation and ERP specs and the docs folder. Fixed `docs/SPEC.md`, ERP-RUNTIME, FOLDKIT-API, REACT-UI-PLUGINS, ERP-BROWSER, the error catalogues and the devtools `why` rule. Loader, remote and federation had no conflicts.
 - **BEH-BR-347 and cost.** Read: the export runs after the drain and before the scope closes, so an abort causes no export; BEH-BR-347 is unaffected. Measured in the prototype test host (200 iterations, one machine): `replace` 3.9 ms, `replace` with rollback on the success path 4.7 ms, `restart` 3.6 ms, park and abort about 4 ms beyond the forced 5 ms drain.
-- **As built differs from proposed.** R2 uses a restart oracle plus a mutation-checked stale-discard property instead of the proposed failed-set equality. R1 names its signal `build-flapping` (`plugin-stalled` already exists). R9 releases the slot (no fail-fast). R6 is `awaitSettled(refs | {scope})`; R4 is `onFailure` and reconcile `settle`.
-- **Diagrams.** Simplified sketches, not spec extracts. The AFTER figures of R1, R2, R5 and R9 now show the as-built behaviour (`build-flapping`, restart oracle, `abort` refusals, slot release); the card text above each still describes the proposal, and the differences are listed in the previous item.
+- **As built differs from proposed.** Only in naming and the alternative taken: R1's signal is `build-flapping` (`plugin-stalled` already exists), R9 releases the slot (no fail-fast), R6 is `awaitSettled(refs | {scope})`, R4 is `onFailure` and reconcile `settle`. R2 follows the proposal: the failed-set and non-failed-set oracle of BEH-BR-160 is tested on random histories, besides the restart-equality check.
+- **Diagrams and cards.** Simplified sketches, not spec extracts. The AFTER figures and the 'Concrete spec change (as built)' text of every card show the implemented behaviour; the Rationale text is the original finding.
 
 ## Original uncertainties (as first written)
 

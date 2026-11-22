@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest"
 import * as Testing from "../src/testing.js"
 import { Fault } from "../src/testing.js"
 import { as } from "./p4fixtures.js"
-import { mulberry32, normal, plugins, present, refOf, setup, universe } from "./universe.js"
+import { mulberry32, normal, plugins, present, refOf, setup, stalePairs, universe } from "./universe.js"
 
 const options = { drainTimeout: 200, shutdownTimeout: 300 }
 const onTestHost = <A>(body: (t: Testing.TestHost) => Effect.Effect<A, unknown, import("effect").Scope.Scope>) =>
@@ -31,7 +31,7 @@ const startOp = (t: Testing.TestHost, rnd: () => number) => Effect.gen(function*
 
 
 const faultable = ["logger", "audit", "report", "clock", "ui"] as const
-const finalize = (t: Testing.TestHost, target: ReadonlyArray<{ name: string; realm: string; disabled: boolean }>, faulted: ReadonlyArray<string>) => Effect.gen(function* () {
+const settleTo = (t: Testing.TestHost, target: ReadonlyArray<{ name: string; realm: string; disabled: boolean }>) => Effect.gen(function* () {
   const finish = (e: Effect.Effect<unknown, unknown>) => Effect.gen(function* () {
     const f = yield* Effect.forkChild(Effect.exit(e)); yield* t.runUntilIdle; return yield* Fiber.join(f)
   })
@@ -43,10 +43,18 @@ const finalize = (t: Testing.TestHost, target: ReadonlyArray<{ name: string; rea
     if (want.disabled && p.state !== "disabled") yield* finish(t.disable(refOf(u), as()))
     if (!want.disabled && p.state === "disabled") yield* finish(t.enable(refOf(u), as()))
   }
-  // `failed` is sticky until restarted, so the oracle restarts every faulted plugin: its outcome is then a function of the target.
-  for (const u of universe) if (faulted.includes(u.name) && target.some((x) => x.name === u.name && x.realm === u.realm && !x.disabled)) yield* finish(t.restart(refOf(u), as()))
+  return yield* t.snapshot
+})
+/** `failed` is sticky until restarted, so a restart of every faulted plugin makes the outcome a function of the target alone. */
+const restartFaulted = (t: Testing.TestHost, target: ReadonlyArray<{ name: string; realm: string; disabled: boolean }>, faulted: ReadonlyArray<string>) => Effect.gen(function* () {
+  for (const u of universe) if (faulted.includes(u.name) && target.some((x) => x.name === u.name && x.realm === u.realm && !x.disabled)) {
+    const f = yield* Effect.forkChild(Effect.exit(t.restart(refOf(u), as()))); yield* t.runUntilIdle; yield* Fiber.join(f)
+  }
   return normal(yield* t.runUntilIdle)
 })
+const finalize = (t: Testing.TestHost, target: ReadonlyArray<{ name: string; realm: string; disabled: boolean }>, faulted: ReadonlyArray<string>) =>
+  Effect.flatMap(settleTo(t, target), () => restartFaulted(t, target, faulted))
+const keyOf = (p: { id: string; realm: string }) => `${p.id}@${p.realm}`
 
 describe("confluence with injected build failures (report 01 R2; BEH-BR-160, BEH-BR-039)", () => {
   it("random histories with failing builds settle to the snapshot of a direct install", async () => {
@@ -65,21 +73,34 @@ describe("confluence with injected build failures (report 01 R2; BEH-BR-160, BEH
           if (pending.length === 0) continue
           const p = pending[Math.floor(rnd() * pending.length)]!
           if (yield* t.stepPlugin({ id: p.pluginId, realm: p.realm })) stepped++
+          expect(stalePairs(yield* t.snapshot)).toEqual([])                       // R3: captured activation == provider's activation, at every step
         }
         yield* t.runUntilIdle
         for (const c of calls) yield* Fiber.join(c)
         yield* t.runUntilIdle
         for (let i = 0; i < 500; i++) yield* Effect.yieldNow                  // the collector fiber catches up
-        const out = yield* finalize(t, target, faulted)
-        sawFailed += out.filter((x) => x.includes('"failed"')).length
-        return out
+        const settled = yield* settleTo(t, target)
+        const failed = settled.plugins.filter((p) => p.state === "failed").map(keyOf)
+        // BEH-BR-160: the failed set is a subset of the plugins whose build was begun and failed in this history.
+        for (const f of failed) expect({ seed, f, ok: universe.some((u) => keyOf({ id: plugins[u.name]!.id, realm: u.realm }) === f && faulted.includes(u.name as never) && target.some((x) => x.name === u.name && x.realm === u.realm && !x.disabled)) }).toMatchObject({ ok: true })
+        const out = yield* restartFaulted(t, target, faulted)
+        sawFailed += failed.length
+        return { out, failed, rest: settled.plugins.filter((p) => p.state !== "failed").map((p) => JSON.stringify([p.id, p.realm, p.parentId ?? null, p.state, p.state === "waiting" ? [...p.missingServiceIds].sort() : null])).sort() }
       }))
+      // BEH-BR-160: the non-failed plugins equal those of a history without failures in which each failed plugin is `disabled`.
+      const reference = await onTestHost((t) => Effect.gen(function* () {
+        yield* setup(t)
+        const ref = target.map((x) => ({ ...x, disabled: x.disabled || history.failed.includes(keyOf({ id: plugins[x.name]!.id, realm: x.realm })) }))
+        const snap = yield* settleTo(t, ref)
+        return snap.plugins.filter((p) => !history.failed.includes(keyOf(p))).map((p) => JSON.stringify([p.id, p.realm, p.parentId ?? null, p.state, p.state === "waiting" ? [...p.missingServiceIds].sort() : null])).sort()
+      }))
+      expect({ seed, nonFailed: history.rest }).toEqual({ seed, nonFailed: reference })
       const direct = await onTestHost((t) => Effect.gen(function* () {
         yield* setup(t); yield* inject(t)
         for (const x of target) yield* t.install(plugins[x.name]!, { ...as(), realm: x.realm, ...(x.disabled ? { disabled: true } : {}) })
         return yield* finalize(t, target, faulted)
       }))
-      expect({ seed, faulted, history }).toEqual({ seed, faulted, history: direct })
+      expect({ seed, faulted, history: history.out }).toEqual({ seed, faulted, history: direct })
     }
     expect(stepped).toBeGreaterThan(100)
     expect(sawFailed).toBeGreaterThan(0)                                         // failures really occurred in the histories

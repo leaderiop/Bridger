@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest"
 import * as Host from "../src/host.js"
 import * as Testing from "../src/testing.js"
 import { as } from "./p4fixtures.js"
-import { mulberry32, normal, plugins, present, refOf, setup, universe } from "./universe.js"
+import { mulberry32, normal, plugins, present, refOf, setup, stalePairs, universe } from "./universe.js"
 
 const options = { drainTimeout: 200, shutdownTimeout: 300 }
 const onTestHost = <A>(body: (t: Testing.TestHost) => Effect.Effect<A, unknown, import("effect").Scope.Scope>) =>
@@ -44,6 +44,7 @@ describe("confluence through TestHost (BEH-BR-160, BEH-BR-178; P5 exit criterion
           if (pending.length === 0) continue
           const p = pending[Math.floor(rnd() * pending.length)]!
           if (yield* t.stepPlugin({ id: p.pluginId, realm: p.realm })) stepped++
+          expect(stalePairs(yield* t.snapshot)).toEqual([])                       // R3: captured activation == provider's activation, at every step
         }
         yield* t.runUntilIdle
         for (const c of calls) yield* Fiber.join(c)
