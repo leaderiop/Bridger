@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-PROC-02                                              |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Process Specification                                        |
-> | Change History | 0.7 (2026-11-22): documentation gate D4, `verify-errors.sh` (improvement report 05, R3)<br>0.6 (2026-11-22): documentation gate D3, `doc-typecheck.sh` (improvement report 05, R2)<br>0.5 (2026-11-22): documentation gate D2, `verify-events.sh` (improvement report 04, R2)<br>0.4 (2026-11-10): Merge gate: the pack-and-install row moves to row 8, before the acceptance scenarios (now row 9) that import the packed package, rows 9–12 renumbered (Low); row 13 runs the acceptance scenarios against packed mutants (C16) (CCR-BR-035)<br>0.3 (2026-11-10): Merge gate row 8 runs the acceptance scenarios against the packed package (C25) (CCR-BR-034)<br>0.2 (2026-10-03): What `implementation: partial` changes, as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
+> | Change History | 0.8 (2026-11-22): documentation gate D5, `verify-cli.sh` (improvement report 05, R10)<br>0.7 (2026-11-22): documentation gate D4, `verify-errors.sh` (improvement report 05, R3)<br>0.6 (2026-11-22): documentation gate D3, `doc-typecheck.sh` (improvement report 05, R2)<br>0.5 (2026-11-22): documentation gate D2, `verify-events.sh` (improvement report 04, R2)<br>0.4 (2026-11-10): Merge gate: the pack-and-install row moves to row 8, before the acceptance scenarios (now row 9) that import the packed package, rows 9–12 renumbered (Low); row 13 runs the acceptance scenarios against packed mutants (C16) (CCR-BR-035)<br>0.3 (2026-11-10): Merge gate row 8 runs the acceptance scenarios against the packed package (C25) (CCR-BR-034)<br>0.2 (2026-10-03): What `implementation: partial` changes, as the script implements it (consistency pass) (CCR-BR-013)<br>0.1 (2026-10-02): Initial draft (CCR-BR-001)                 |
 
 _Previous: [Requirement Identifier Scheme](./requirement-id-scheme.md)_
 
@@ -31,6 +31,7 @@ passing documentation gate for evidence about the library.
 | D2 | `bash references/core/scripts/verify-events.sh` | Every event declares one dispatch mode, call sites use it, and the [event catalog](../appendices/event-catalog.md) equals what the sources declare |
 | D3 | `bash references/kit/scripts/doc-typecheck.sh` | Every guide snippet marked `type-checked: yes` compiles against the prototype, and every snippet carries a marker ([BEH-KT-028](../../kit/behaviors/04-cli.md)) |
 | D4 | `bash references/kit/scripts/verify-errors.sh` | Every declared error tag has a catalog row, every row a guide entry and the reverse, and `errors.catalog.ts` equals what the table generates ([BEH-KT-051](../../kit/behaviors/07-error-catalog.md)) |
+| D5 | `bash references/kit/scripts/verify-cli.sh` | Every `bridger` command a document names is a kit command or a declared extension, and no extension shadows a kit command ([BEH-KT-025](../../kit/behaviors/04-cli.md)) |
 
 A pass means the documents agree with each other. It says nothing about
 whether the library — which does not exist yet — would behave as written.

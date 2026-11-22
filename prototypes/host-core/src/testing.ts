@@ -47,6 +47,8 @@ export interface TestHost extends Host.Host {
   readonly stepPlugin: (ref: Ref) => Effect.Effect<boolean>
   readonly pending: Effect.Effect<ReadonlyArray<PendingStep>>
   readonly runUntilIdle: Effect.Effect<Host.HostSnapshot>
+  /** `runUntilIdle` with its bound: more than `maxSteps` (default 1000) steps is a defect naming the pending steps, not a hang (report 05 DX-10). */
+  readonly runUntilIdleWith: (options: { readonly maxSteps?: number }) => Effect.Effect<Host.HostSnapshot>
   readonly inject: (fault: Fault) => Effect.Effect<void, never, Scope.Scope>
 }
 
@@ -115,10 +117,18 @@ export const make = (options: Host.Options = {}): Effect.Effect<TestHost, never,
     return true
   })
   const step = advance(() => true)
-  const runUntilIdle = Effect.gen(function* () {
-    while (yield* step) { /* one item at a time */ }
+  const runUntilIdleWith = (options: { readonly maxSteps?: number }) => Effect.gen(function* () {
+    const max = options.maxSteps ?? 1000
+    let n = 0
+    while (yield* step) {                                                 // one item at a time
+      if (++n >= max && (yield* pending).some((p) => !p.parked)) {
+        const left = (yield* pending).map((p) => `${p.kind}:${p.pluginId}`).join(", ")
+        return yield* Effect.die(new Error(`runUntilIdle: not idle after ${max} steps; pending: ${left}`))
+      }
+    }
     return yield* host.snapshot
   })
+  const runUntilIdle = runUntilIdleWith({})
   // Read at a settlement point, like `step`, so a just-forked transition is already listed (finding G27).
   const pending = Effect.gen(function* () {
     yield* quiesce
@@ -193,7 +203,7 @@ export const make = (options: Host.Options = {}): Effect.Effect<TestHost, never,
       const { id, realm } = typeof ref === "string" ? { id: ref, realm: "default" } : ref
       return advance((h) => h.item.pluginId === id && h.item.realm === realm)
     },
-    pending, runUntilIdle, inject
+    pending, runUntilIdle, runUntilIdleWith, inject
   }
   return testHost
 })

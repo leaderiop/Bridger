@@ -16,21 +16,28 @@ Status: **proposal for review, not implemented or type-checked**. Date: 2026-10-
 
 ## 2. CLI
 
-```text
-bridger new plugin <name>          scaffold a plugin (contract, server, ui, migrations, tests)
+There is one CLI, the kit's ([kit BEH-KT-025 to 032](../references/kit/behaviors/04-cli.md), decision D5 below): `bridger create`, `dev`, `test`, `check`, `pack`, `publish`, `countersign`, `verify-chain`, `inspect`, `sdk`. The ERP adds the commands below as **extensions** registered through the kit CLI (BEH-KT-025); an extension never shadows a kit command. Where this document used to name a kit command differently, the kit's name stands:
+
+| Earlier name in this document | Kit command |
+| --- | --- |
+| `new plugin <name>` | `bridger create <name> --template plugin` (the ERP scaffold is a template of `create`) |
+| `bridger test --db` | `bridger test --conformance` against the configured database |
+| `bridger contract diff` as the CI gate | `bridger check --contracts-only` (the lockfile comparison, BEH-KT-028); `contract diff <a> <b>` below compares two builds |
+
+```text extension
 bridger add model <id>             model contract + served binding + initial migration
 bridger add migration <module>     frozen snapshot migration from the current model diff
 bridger add view|command|query|event|subscriber|job|workflow|approval|report
 bridger add widget <id> --framework foldkit|react|neutral   scaffold a UI plugin (custom field widget or view renderer)
-bridger check                      validate definitions, boundaries, contracts (no database)
-bridger test [--db]                run unit/scenario tests (memory), or with --db the conformance suite against the configured database
-bridger dev                        local server + shell with hot module replacement
 bridger db plan|apply|status       show or run the DDL plan against a database
 bridger contract diff <a> <b>      contract differences between two builds
-bridger build | sign | publish     artifact pipeline ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §4)
+bridger build                      bundle server, contracts, UI and browser entries ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §4); `pack` and `publish` are the kit's
+bridger sign                       detached signature of the artifact digest ([ERP-DISTRIBUTION.md](ERP-DISTRIBUTION.md) §4)
 bridger storage certify            run the storage conformance suite against a configured adapter and database
 bridger doctor                     environment checks (versions, database connectivity and dialect, ports, keys)
 ```
+
+`bridger dev` is the kit's; this document's behaviour of it (§5) is the ERP's use of the kit command, with `dev seed` and `dev reset` as ERP subcommands.
 
 ### Generated layout
 
@@ -204,7 +211,7 @@ Notes:
 
 ## 8. Acceptance checks
 
-- `bridger new plugin todo` followed by `bridger check` passes with no manual edits; the contract entry's import graph contains no server code.
+- `bridger create todo --template plugin` followed by `bridger check` passes with no manual edits; the contract entry's import graph contains no server code.
 - `bridger add migration` after changing a field produces a frozen snapshot and `bridger db plan` shows only additive steps.
 - Editing a merged migration fails CI.
 - The same scenario run on memory and on each certified dialect produces identical results except those tagged `@db`.

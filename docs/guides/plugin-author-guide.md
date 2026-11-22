@@ -229,6 +229,7 @@ it.plugin("a failing build is reported", store, {
 - `PluginTest.stub` must implement the whole service; `PluginTest.partial`
   implements some members, and calling another one fails the test at that
   member (`StubNotImplemented`).
+- **Settlement.** On the test host a transition runs only when you step it. `runUntilIdle` steps until nothing is pending and is bounded (`runUntilIdleWith({ maxSteps })`, default 1000; past it the test dies naming the pending steps). Awaiting `awaitIdle` in your own fiber without stepping waits for ever. Work that waits on the `TestClock` is seen only after you advance it.
 - Doubles are installed as real plugins, so removing one sends your plugin to
   `waiting` exactly as in production.
 - `t.host` is the core `TestHost`: `step`, `pending`, `Fault.*` and the test

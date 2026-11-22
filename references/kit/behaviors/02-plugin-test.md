@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-KT-BEH-02                                            |
-> | Revision       | 0.3                                                          |
+> | Revision       | 0.4                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.3 (2026-11-11): BEH-KT-011: the close check excludes a "cleanup" entry whose plugin id is listed in `expectFailed` (L5) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.2 (2026-11-08): Core fixtures `scriptedRefusalList` and `memoryCallLog` (`onFailure`, `queue`) re-exported; hook `settle` observed through core (core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
+> | Change History | 0.4 (2026-11-22): BEH-KT-013 the settlement guarantee and the `runUntilIdle` bound are stated in the kit documentation (improvement report 05, DX-10)<br>0.3 (2026-11-11): BEH-KT-011: the close check excludes a "cleanup" entry whose plugin id is listed in `expectFailed` (L5) (SPEC-AUDIT-09) (CCR-KT-012)<br>0.2 (2026-11-08): Core fixtures `scriptedRefusalList` and `memoryCallLog` (`onFailure`, `queue`) re-exported; hook `settle` observed through core (core alignment) (CCR-KT-003)<br>0.1 (2026-11-08): Initial draft (CCR-KT-001)                 |
 
 ---
 
@@ -223,6 +223,16 @@ REQUIREMENT: `PluginTest` MUST re-export core's testing fixtures for the
              observes refunds through the hook point's `settle` step (core
              BEH-BR-302) and the entitlement companion's usage export, not
              through a kit-specific hook.
+```
+
+```
+REQUIREMENT: The `PluginTest` documentation MUST carry the settlement
+             statement of core 21 (BEH-BR-178): `runUntilIdle` is the
+             stepping form of `awaitIdle`, a test that awaits `awaitIdle` in
+             its own fiber without stepping waits for ever, `runUntilIdle` is
+             bounded by `maxSteps` and names the pending steps when the bound
+             is exceeded, and work that waits on the `TestClock` is seen
+             only after the test advances it.
 ```
 
 The second requirement replaces the prototype's `key as typeof Logger`
