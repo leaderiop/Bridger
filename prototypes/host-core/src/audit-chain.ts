@@ -455,13 +455,14 @@ export const ChainGate = {
     if (options.maxUnanchoredAgeMs !== undefined && options.anchorEvery?.intervalMs !== undefined && options.maxUnanchoredAgeMs <= options.anchorEvery.intervalMs) throw new ChainGateConfig("ChainGate: maxUnanchoredAge must exceed anchorEvery.interval")
     return {
       decide: (request) => Effect.gen(function* () {
-        if (options.allow.includes(request.operation)) return { _tag: "Allow" } as const
+        const irreversibleGated = options.anchorBeforeIrreversible === true && request.reversibility === "irreversible"
+        if (options.allow.includes(request.operation) && !irreversibleGated) return { _tag: "Allow" } as const      // the allow-list never skips the anchor rule for an irreversible operation (S64)
         const s = yield* status.current
         const now = yield* Clock.currentTimeMillis
         const overdue = (options.maxUnanchoredRecords !== undefined && s.unanchored.records > options.maxUnanchoredRecords)
           || (options.maxUnanchoredAgeMs !== undefined && s.unanchored.oldest !== undefined && now - Date.parse(s.unanchored.oldest) > options.maxUnanchoredAgeMs)
-        if (overdue) return { _tag: "Refuse", reason: "anchor-overdue" } as const
-        if (refuseOnBreak && s.chainBreaks > 0) return { _tag: "Refuse", reason: "chain-break" } as const
+        if (overdue && !options.allow.includes(request.operation)) return { _tag: "Refuse", reason: "anchor-overdue" } as const
+        if (refuseOnBreak && s.chainBreaks > 0 && !options.allow.includes(request.operation)) return { _tag: "Refuse", reason: "chain-break" } as const
         if (options.anchorBeforeIrreversible && request.reversibility === "irreversible" && s.unanchored.records > 0) return { _tag: "Refuse", reason: "anchor-behind" } as const
         return { _tag: "Allow" } as const
       })

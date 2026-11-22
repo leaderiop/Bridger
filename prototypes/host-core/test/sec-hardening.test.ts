@@ -89,3 +89,22 @@ describe("S62 received stream names", () => {
     expect(H.receivedStream("x".repeat(300), "y")).toMatch(/^rx:%h:/)
   })
 })
+
+describe("S64 bus operations, stream totals, accepted-record scope", () => {
+  const op = { actor: { id: "ops" }, reason: "r", pending: 0, records: [] as unknown[] }
+  it("acceptGap and resetVersions share the gated path and record only after apply; a bridger actor is refused", () => {
+    const applied: string[] = [], records: unknown[] = []
+    expect(H.busOp({ ...op, operation: "acceptGap", gate: () => "refuse", records, apply: () => applied.push("x") })).toBe("refused"); expect(applied).toEqual([])
+    expect(H.busOp({ ...op, operation: "resetVersions", gate: () => "allow", records, apply: () => applied.push("reset") })).toBe("done"); expect(applied).toEqual(["reset"]); expect(records).toHaveLength(1)
+    expect(H.busOp({ ...op, actor: { id: "bridger:x" }, operation: "acceptGap", gate: () => "allow", records, apply: () => applied.push("no") })).toBe("refused")
+    expect(H.busOp({ ...op, pending: 3, operation: "acceptGap", gate: () => "allow", records, apply: () => applied.push("no") })).toBe("loss-not-accepted")
+  })
+  it("a stream whose total would pass the limit refuses the envelope", () => {
+    const l = { maxEnvelopeBytes: 100, maxStreamBytes: 64, maxAnnotations: 4, maxStreamTotal: 150 }
+    expect(H.checkEnvelope({ bytes: 80, stream: "s", annotations: 0, streamTotal: 80 }, l)).toBe("EnvelopeRefused"); expect(H.checkEnvelope({ bytes: 80, stream: "s", annotations: 0, streamTotal: 50 }, l)).toBe("ok")
+  })
+  it("an accepted record sealed under one policy digest or revocation epoch is invalid under another", () => {
+    const k = new Uint8Array(32).fill(5), r = H.sealAccepted(k, { digest: "d", acceptedAt: 1, policyDigest: "p1", revocationEpoch: 1 })
+    expect(H.acceptedValid(k, r)).toBe(true); expect(H.acceptedValid(k, { ...r, policyDigest: "p2" })).toBe(false); expect(H.acceptedValid(k, { ...r, revocationEpoch: 2 })).toBe(false)
+  })
+})

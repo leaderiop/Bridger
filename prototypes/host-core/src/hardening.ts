@@ -21,13 +21,16 @@ export const snapshotStore = () => {
 
 // ---- S39 durable-bus: destructive operations are gated, attributed and leave a record
 export interface BusOp { readonly operation: "retireDestination" | "acceptGap" | "resetVersions"; readonly actor: { id: string }; readonly reason: string; readonly reversibility: "irreversible" }
-export const retireDestination = (o: { gate: (r: BusOp) => "allow" | "refuse"; actor: { id: string }; reason: string; pending: number; acceptLoss?: { count: number }; records: unknown[] }): "retired" | "refused" | "loss-not-accepted" => {
-  if (!o.actor.id.trim() || !o.reason.trim()) return "refused"
+/** The three destructive bus operations share one path: attributed, gated, loss accepted by count, applied, and only then recorded (S39, S64). */
+export const busOp = (o: { operation: BusOp["operation"]; gate: (r: BusOp) => "allow" | "refuse"; actor: { id: string }; reason: string; pending: number; acceptLoss?: { count: number }; records: unknown[]; apply: () => void }): "done" | "refused" | "loss-not-accepted" => {
+  if (!o.actor.id.trim() || o.actor.id.startsWith("bridger:") || !o.reason.trim()) return "refused"
   if (o.pending > 0 && o.acceptLoss?.count !== o.pending) return "loss-not-accepted"
-  if (o.gate({ operation: "retireDestination", actor: o.actor, reason: o.reason, reversibility: "irreversible" }) !== "allow") return "refused"
-  o.records.push({ _tag: "DestinationRetired", actor: o.actor.id, dropped: o.pending })
-  return "retired"
+  if (o.gate({ operation: o.operation, actor: o.actor, reason: o.reason, reversibility: "irreversible" }) !== "allow") return "refused"
+  o.apply()
+  o.records.push({ _tag: o.operation === "retireDestination" ? "DestinationRetired" : o.operation, actor: o.actor.id, dropped: o.pending })
+  return "done"
 }
+export const retireDestination = (o: Omit<Parameters<typeof busOp>[0], "operation" | "apply"> & { apply?: () => void }): "retired" | "refused" | "loss-not-accepted" => { const r = busOp({ ...o, operation: "retireDestination", apply: o.apply ?? (() => {}) }); return r === "done" ? "retired" : r }
 
 // ---- S40 event-store: a fact is matched by id and content; a different content under the same id is recorded as a conflict, never dropped
 export const recordFact = (stream: Map<string, { digest: string }>, conflicts: unknown[], f: { factId: string; payload: string; version: number }): "recorded" | "already-recorded" | "conflict" => {
@@ -43,7 +46,8 @@ export const appendAllowed = (a: { stream: string; viaReceive: boolean; ask: (r:
   (a.stream.startsWith("rx:") ? a.viaReceive : true) && a.ask({ mode: "append", stream: a.stream })
 
 // ---- S42 durable-bus: per-envelope limits, and a received stream name that stays within the stream limit
-export const checkEnvelope = (e: { bytes: number; stream: string; annotations: number }, l: { maxEnvelopeBytes: number; maxStreamBytes: number; maxAnnotations: number }): "ok" | "EnvelopeRefused" =>
+export const checkEnvelope = (e: { bytes: number; stream: string; annotations: number; streamTotal?: number }, l: { maxEnvelopeBytes: number; maxStreamBytes: number; maxAnnotations: number; maxStreamTotal?: number }): "ok" | "EnvelopeRefused" =>
+  (l.maxStreamTotal !== undefined && (e.streamTotal ?? 0) + e.bytes > l.maxStreamTotal) ||
   e.bytes > l.maxEnvelopeBytes || Buffer.byteLength(e.stream) > l.maxStreamBytes || e.annotations > l.maxAnnotations ? "EnvelopeRefused" : "ok"
 /** Origin and stream are percent-encoded, so ":" cannot move between them; the hash form starts "rx:%", which no encoded origin can. */
 export const receivedStream = (origin: string, stream: string, max = 256): string => { const n = `rx:${encodeURIComponent(origin)}:${encodeURIComponent(stream)}`; return Buffer.byteLength(n) <= max ? n : `rx:%h:${sha(n).slice(0, 32)}` }
@@ -90,8 +94,9 @@ export const tokenBound = (c: { session: string; epoch: string; callId: string; 
   c.session === f.session && c.epoch === f.epoch && c.callId === f.parent && c.guest === f.guest
 
 // ---- S55 loader: the accepted record is MAC'd by a host-held key; guest-link grants are a subset of what the signed manifest requested
-export const sealAccepted = (key: Uint8Array, r: { digest: string; acceptedAt: number }) => ({ ...r, mac: createHmac("sha256", key).update(`${r.digest}\n${r.acceptedAt}`).digest("hex") })
-export const acceptedValid = (key: Uint8Array, r: { digest: string; acceptedAt: number; mac: string }): boolean => {
+/** The MAC also covers the policy digest and revocation epoch it was accepted under, so a record does not survive a policy or revocation change (S64). */
+export const sealAccepted = <R extends { digest: string; acceptedAt: number; policyDigest?: string; revocationEpoch?: number }>(key: Uint8Array, r: R) => ({ ...r, mac: createHmac("sha256", key).update(`${r.digest}\n${r.acceptedAt}\n${r.policyDigest ?? ""}\n${r.revocationEpoch ?? 0}`).digest("hex") })
+export const acceptedValid = (key: Uint8Array, r: { digest: string; acceptedAt: number; mac: string; policyDigest?: string; revocationEpoch?: number }): boolean => {
   const want = Buffer.from(sealAccepted(key, r).mac, "hex"), got = Buffer.from(r.mac, "hex")
   return want.length === got.length && timingSafeEqual(want, got)
 }

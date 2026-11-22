@@ -31,6 +31,17 @@ describe("callbacks over the session", () => {
       yield* s.close
     }))
   })
+  it("a second callback of one call is refused CallbackLimit through the session when maxCallbacks is 1, and the guest's token is not a counter (S63)", async () => {
+    await runVirtual(Effect.gen(function* () {
+      const ran: string[] = []
+      const [a, b] = yield* duplex
+      yield* Effect.forkChild(serveGuest(b, guest({ post: (p, ctx) => Effect.gen(function* () { const r1 = yield* ctx.callback("stock/Query", "count", p), r2 = yield* ctx.callback("stock/Query", "count", p); return JSON.stringify([r1.exit, r2.exit]) }) })))
+      const s = (yield* openSession(a, { ...base("e-1"), callbacks: { ...hostSide(ran), maxCallbacks: 1 } })) as Session
+      const out = yield* s.call("post", "x")
+      expect(out).toContain('"ok":42'); expect(out).toContain("CallbackLimit"); expect(ran).toEqual(["count:x"])
+      yield* s.close
+    }))
+  })
   it("refuses a callback outside the grants without running host code", async () => {
     await runVirtual(Effect.gen(function* () {
       const ran: string[] = []

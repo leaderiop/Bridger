@@ -40,3 +40,11 @@ describe("anchor before an irreversible operation (BEH-AC-013)", () => {
     expect((d as { reason: string }).reason).toContain("anchor-behind")
   })
 })
+
+describe("S64 the allow-list does not skip the anchor rule", () => {
+  it("an allow-listed irreversible operation is still refused anchor-behind while records are unanchored", async () => {
+    const g = (s: Partial<ChainStatus>) => ChainGate.make(status(s), { maxUnanchoredRecords: 500, anchorBeforeIrreversible: true, allow: ["remove"] })
+    expect(await decide(g({ unanchored: { records: 3 } }), req("remove", { reversibility: "irreversible" }))).toBe("anchor-behind")
+    expect(await decide(g({ unanchored: { records: 3 } }), req("remove"))).toBe("Allow"); expect(await decide(g({ unanchored: { records: 0 } }), req("remove", { reversibility: "irreversible" }))).toBe("Allow")
+  })
+})
