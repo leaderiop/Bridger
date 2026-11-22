@@ -382,6 +382,17 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
   const admissions = new Map<string, Semaphore.Semaphore>()   // steps 1–7 of BEH-BR-188, in arrival order
   const opLocks = new Map<string, Semaphore.Semaphore>()      // linearization point and transition
   const steps = new Map<string, Semaphore.Semaphore>()        // one stop step at a time per plugin
+  /** A scoped permit whose semaphore leaves the map when its last user ends, so the maps do not grow with every plugin id ever seen (S77). */
+  const users = new WeakMap<Semaphore.Semaphore, number>()
+  const withSem = <A, E, R>(m: Map<string, Semaphore.Semaphore>, k: string, eff: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> => Effect.suspend(() => {
+    const x = semOf(m, k)
+    users.set(x, (users.get(x) ?? 0) + 1)
+    return Semaphore.withPermit(x, eff).pipe(Effect.ensuring(Effect.sync(() => {
+      const n = (users.get(x) ?? 1) - 1
+      users.set(x, n)
+      if (n <= 0 && m.get(k) === x) m.delete(k)
+    })))
+  })
   const semOf = (m: Map<string, Semaphore.Semaphore>, k: string) => {
     let x = m.get(k)
     if (!x) { x = Semaphore.makeUnsafe(1); m.set(k, x) }
@@ -2031,7 +2042,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     const e = entries.get(id)
     const skipStop = !e || (e.cleanupFailed && f.target.kind === "gone")
     const stop = yield* Effect.exit(skipStop ? Effect.succeed(false) : stopTree(id, f.op, { ...f.opts, correlationId: f.correlationId }))
-    yield* Semaphore.withPermit(semOf(opLocks, id), Effect.gen(function* () {
+    yield* withSem(opLocks, id, Effect.gen(function* () {
       let result: Settlement = Exit.void
       if (Exit.isFailure(stop)) {
         result = stop
@@ -2230,7 +2241,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
     // A reconcile entry action: its records are caused by the parent `requested` record (BEH-BR-201).
     const internal = ((spec.options as { [ENTRY]?: EntryAction } | undefined)?.[ENTRY] ?? {}) as EntryAction
     return yield* Effect.onInterrupt(Effect.gen(function* () {
-    const call = yield* Semaphore.withPermit(semOf(admissions, key), Effect.gen(function* () {
+    const call = yield* withSem(admissions, key, Effect.gen(function* () {
       // 1. host closed (a shutdown joins the one in progress, BEH-BR-109)
       if ((closed || closing) && op !== "shutdown") return yield* Effect.fail(new HostClosed())
       // 2. attribution — the scope-close path is Actor.system and exempt (BEH-BR-108)
@@ -2327,7 +2338,7 @@ export const makeWith = (options: Options, scheduling: Scheduling) => Effect.gen
       return { correlationId, causeId, terminal, intent: pending.intent } satisfies Call
     }))
     // 8. linearization point under the plugin's operation order; then await the outcome.
-    const done = yield* Semaphore.withPermit(semOf(opLocks, key), spec.linearize(call).pipe(Effect.provideService(CurrentOwner, { owner: op, correlationId: call.correlationId }), CurrentCorrelation.with(call.correlationId)))
+    const done = yield* withSem(opLocks, key, spec.linearize(call).pipe(Effect.provideService(CurrentOwner, { owner: op, correlationId: call.correlationId }), CurrentCorrelation.with(call.correlationId)))
     const exit = yield* Deferred.await(done)
     return Exit.isSuccess(exit) ? exit.value as A : yield* Effect.failCause(exit.cause)
     }), () => pending.owed && !pending.intent.value
