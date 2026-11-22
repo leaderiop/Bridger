@@ -198,7 +198,10 @@ export const make = <In, En = never, Ad = never, Code extends string = never, Ta
     })
 
   // ------------------------------------------------------------ dispatch (BEH-BR-299–312)
-  const dispatch = (input: In, dopts: { readonly deadline?: Duration.Input } = {}): Effect.Effect<HookOutcome<En, Ad, Code>> => Effect.gen(function* () {
+  /** BEH-BR-306 (improvement report 06, S28): the input a dispatch hands to every phase is deep-frozen, so an enricher cannot change what a later veto or advisory sees. */
+  const freezeDeep = (v: unknown): unknown => { if (v && typeof v === "object" && !Object.isFrozen(v)) { Object.freeze(v); for (const k of Reflect.ownKeys(v)) freezeDeep((v as Record<PropertyKey, unknown>)[k]) } return v }
+  const dispatch = (input0: In, dopts: { readonly deadline?: Duration.Input } = {}): Effect.Effect<HookOutcome<En, Ad, Code>> => Effect.gen(function* () {
+    const input = freezeDeep(input0) as In
     const startedMs = yield* Clock.currentTimeMillis
     const dispatchId = `${id}#${++dispatchSeq}`
     const deadlineMs = Math.min(o.deadline, dopts.deadline === undefined ? Infinity : Duration.toMillis(dopts.deadline))

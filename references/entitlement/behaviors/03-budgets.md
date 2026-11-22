@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-EN-BEH-03                                            |
-> | Revision       | 0.11                                                          |
+> | Revision       | 0.12                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-03 §5)              |
 > | Approved by    | — (pending; single maintainer, see PROC-03 §5)               |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.11 (2026-11-22): BEH-EN-021 periods anchor to a required `anchor`; BEH-EN-022 the ledger sees the period index and local commits are replayed on recovery (improvement report 06, S25)<br>0.10 (2026-11-22): BEH-EN-017 `onUnmatched` (required, no default); BEH-EN-018 `essential` counts only labels of the application's list; `Budget.forPlugin` (improvement report 06, S16)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — check 12: `guard` names the plugin by `pluginId` and `realm`, and counts refusals under the canonical key (PL15) (CCR-EN-008)<br>0.8 (2026-11-10): BEH-EN-023: a hook point using `Budget.contributionPolicy` is made by application code (E4); BEH-EN-024: check 12 covers `guard` on the passed runtime, the layer's essential list and `checkTimeout`, and "unknown" under "last-known" (E1-E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.7 (2026-11-10): BEH-EN-024: check 12 covers `guard` reading the mode from `Plugin.Runtime.entitled` without the `Entitlement` service (M25); checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.6 (2026-11-10): Acceptance checks 1, 4 and 8 cover `Entitlement.layer` and its option checks, `fallbackMode` and `EntitlementGate.check` (P13) (CCR-EN-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
+> | Change History | 0.12 (2026-11-22): BEH-EN-023: a contribution with no owner is application code, unmetered unless `ownerlessKey` is given (improvement report 06, S29)<br>0.11 (2026-11-22): BEH-EN-021 periods anchor to a required `anchor`; BEH-EN-022 the ledger sees the period index and local commits are replayed on recovery (improvement report 06, S25)<br>0.10 (2026-11-22): BEH-EN-017 `onUnmatched` (required, no default); BEH-EN-018 `essential` counts only labels of the application's list; `Budget.forPlugin` (improvement report 06, S16)<br>0.9 (2026-11-11): Specification audit of 2026-11-11 (SPEC-AUDIT-05) — check 12: `guard` names the plugin by `pluginId` and `realm`, and counts refusals under the canonical key (PL15) (CCR-EN-008)<br>0.8 (2026-11-10): BEH-EN-023: a hook point using `Budget.contributionPolicy` is made by application code (E4); BEH-EN-024: check 12 covers `guard` on the passed runtime, the layer's essential list and `checkTimeout`, and "unknown" under "last-known" (E1-E3) (SPEC-AUDIT-04) (CCR-EN-007)<br>0.7 (2026-11-10): BEH-EN-024: check 12 covers `guard` reading the mode from `Plugin.Runtime.entitled` without the `Entitlement` service (M25); checks run with the scripted `EntitlementAdapter` (low finding) (CCR-EN-006)<br>0.6 (2026-11-10): Acceptance checks 1, 4 and 8 cover `Entitlement.layer` and its option checks, `fallbackMode` and `EntitlementGate.check` (P13) (CCR-EN-005)<br>0.5 (2026-11-09): Specification audit of 2026-11-09 (C-10) — BEH-EN-023: a per-command budget is an application admission policy of the command companion (command BEH-CM-044), reserving at admission and committing or releasing at its settlement, with exhaustion surfaced as `CommandRefused { reason: "budget-exhausted" }`; the package stays independent of `@bridger/command` (CCR-EN-004)<br>0.4 (2026-11-08): Round 2: recheck item 16; core alignment — BEH-EN-023 uses core `HookPointOptions.policy` and `settle` through `Budget.contributionPolicy`, which reserves at admission and settles after the call (04, BEH-EN-030), replacing `Budget.skipPolicy` (G63 closed in core); check 14 updated; Open (3) settled (CCR-EN-003)<br>0.3 (2026-11-08): `Budget.skipPolicy` for `HookPointOptions.skip` replaces `hookQuota`, charged at admission; acceptance checks 8–11 and 14 updated (CCR-EN-002)<br>0.2 (2026-11-08): Integration — core seams cited by link; names aligned with core (CCR-EN-001)<br>0.1 (2026-11-08): Initial draft (CCR-EN-001)                 |
 
 ---
 
@@ -334,6 +334,16 @@ REQUIREMENT: The policy MUST NOT fail or die: an unavailable ledger is
              `Deny`. Exhaustion MUST NOT be a hook error, so it is never
              counted by the contribution's circuit breaker (core
              BEH-BR-304).
+```
+
+```
+REQUIREMENT: A contribution with no owner is registered by application code
+             (core BEH-BR-298: the owner comes from the calling fiber's
+             principal, never from an argument), so it is as trusted as the
+             application. `Budget.contributionPolicy` MUST reserve it only
+             when `options.ownerlessKey` is given, against that key; without
+             it the contribution is not metered, and documentation MUST say
+             so. A plugin cannot register without an owner.
 ```
 
 ```

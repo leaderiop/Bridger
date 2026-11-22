@@ -8,7 +8,7 @@ import { renderHtml, AssessmentRefused, assessDeviation, canonical, coverage, de
 
 const ev = collect([{ id: "BEH-BR-001 a", file: "f", status: "passed" }, { id: "BEH-BR-002 b", file: "f", status: "failed" }], ["BEH-BR-001", "BEH-BR-002", "BEH-BR-003"])
 const rows = readTraceRows(["| REQ-BR-001 | a | [BEH-BR-001](x) | Not run |", "| REQ-BR-002 | b | [BEH-BR-001](x), [BEH-BR-002](x) | Not run |"].join("\n"))
-const input = (extra = {}) => ({ generatedAt: "2026-11-22T00:00:00Z", packageVersion: "0.1.0", coreVersion: "0.1.0", oq: { counts: ev.counts, statement: ev.statement }, deviations: ev.deviations, coverage: coverage(ev, rows), ...extra })
+const input = (extra = {}) => ({ requester: { id: "dev-1", kind: "user" as const }, generatedAt: "2026-11-22T00:00:00Z", packageVersion: "0.1.0", coreVersion: "0.1.0", oq: { counts: ev.counts, statement: ev.statement }, deviations: ev.deviations, coverage: coverage(ev, rows), ...extra })
 const dir = () => mkdtempSync(join(tmpdir(), "bridger-pack-"))
 
 describe("canonical JSON (RFC 8785)", () => {
@@ -89,13 +89,13 @@ describe("derived report (BEH-GX-134)", () => {
 describe("QA signatures (BEH-GX-135)", () => {
   it("binds to the pack digest and the assessments, refuses the requester, and a later assessment makes the signature stop matching", () => {
     const d = dir(), { packDigest } = writeEvidencePack(d, input()); let seen: { ticketId: string; rendered: string } | undefined
-    signEvidencePack(d, { meaning: "reviewed", requester: { id: "dev-1", kind: "user" } }, (r) => { seen = r; return { signer: { id: "qa-1", kind: "user" } } }, now)
+    signEvidencePack(d, { meaning: "reviewed" }, (r) => { seen = r; return { signer: { id: "qa-1", kind: "user" } } }, now)
     expect(seen!.ticketId).toBe(`pack:${packDigest}`); expect(seen!.rendered).toBe(renderReport(d))
     expect(verifyEvidencePack(d, packDigest)).toMatchObject({ matches: true })
     const sig = JSON.parse(readFileSync(join(d, "signatures.json"), "utf8"))[0]; expect(sig).toMatchObject({ signer: { id: "qa-1" }, signedAt: "2026-11-22T01:00:00.000Z" })
     assessDeviation(d, { deviationId: devsOf(d)[0]!.id, by: { id: "qa-2", kind: "user" }, assessment: "later note" }, now)
     const after = verifyEvidencePack(d); expect(after.matches).toBe(false); expect(after.statement).toBe("signature does not match the current pack")
-    const refuse = (a: unknown) => (thrown(() => signEvidencePack(d, { meaning: "m", requester: { id: "dev-1", kind: "user" } }, () => a as never, now)) as SignatureRefused).reason
+    const refuse = (a: unknown) => (thrown(() => signEvidencePack(d, { meaning: "m" }, () => a as never, now)) as SignatureRefused).reason
     expect(refuse({ signer: { id: "dev-1", kind: "user" } })).toBe("signer-is-requester"); expect(refuse({})).toBe("malformed-answer"); expect(refuse(undefined)).toBe("declined")
   })
 })
@@ -120,5 +120,19 @@ describe("diffPacks (BEH-GX-136)", () => {
     const r1 = readTraceRows("| REQ-BR-001 | a | [BEH-BR-001](x) | Not run |"), a = dir(), b = dir()
     writeEvidencePack(a, { ...input(), deviations: evA.deviations, coverage: coverage(evA, r1) }); writeEvidencePack(b, { ...input(), deviations: evB.deviations, coverage: coverage(evB, r1) })
     expect(diffPacks(a, b).changes).toContainEqual({ area: "requirement", id: "REQ-BR-001", change: "changed", from: "pass", to: "not covered" })
+  })
+})
+
+describe("requester and chained appends (improvement report 06, S27)", () => {
+  it("the requester is the manifest's, so a signer cannot be separated from it by the caller's word; an inserted or edited entry breaks the chain", () => {
+    const d = dir(); writeEvidencePack(d, input())
+    expect(JSON.parse(readFileSync(join(d, "manifest.json"), "utf8")).requester).toEqual({ id: "dev-1", kind: "user" })
+    expect((thrown(() => signEvidencePack(d, { meaning: "m" }, () => ({ signer: { id: "dev-1", kind: "user" } }), now)) as SignatureRefused).reason).toBe("signer-is-requester")
+    signEvidencePack(d, { meaning: "m" }, () => ({ signer: { id: "qa-1", kind: "user" } }), now)
+    assessDeviation(d, { deviationId: devsOf(d)[0]!.id, by: { id: "qa-2", kind: "user" }, assessment: "note" }, now)
+    expect(verifyEvidencePack(d).differences.some((x) => x.kind === "chain")).toBe(false)
+    const f = join(d, "assessments.json"), all = JSON.parse(readFileSync(f, "utf8"))
+    writeFileSync(f, JSON.stringify([...all, { deviationId: all[0].deviationId, actor: { id: "qa-9", kind: "user" }, at: "x", assessment: "forged" }]) + "\n")   // appended outside the appender: no valid `prev`
+    expect(verifyEvidencePack(d).differences).toContainEqual({ path: "assessments.json", kind: "chain" })
   })
 })

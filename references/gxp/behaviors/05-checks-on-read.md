@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-05                                            |
-> | Revision       | 0.7                                                          |
+> | Revision       | 0.8                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.7 (2026-11-11): BEH-GX-040 the exceptions of INV-GX-009 are made in archive re-verification and, for a statement after an unconfirmed one, in `verifySeals` (PL11) (SPEC-AUDIT-09) (CCR-GX-012)<br>0.6 (2026-11-11): BEH-GX-033 `chainLinkUnchecked` also for an archive's first link to an entry outside it (G1) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): BEH-GX-040 names the two exceptions of INV-GX-009 (PL2) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-10): BEH-GX-033 kind `chainLinkUnchecked` for a keyed link audit-chain reports "key-unavailable", which is an unchecked link, not a break (BEH-AC-019, follow-up of A1) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-033 chain-derived kinds `chainUnanchoredTail`, `chainNonCanonical`, `chainLossCounterRose` and `anchorUnconfirmed`, and the archive kind `bundleMismatch`; BEH-GX-035 numbers below `fromSeq` are outside the range (P7, P14, P15, P16, P20); follow-up: `CheckCapacityExceeded` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-033, 034 kinds `nonCanonical`, `collision`, `auditDropped`, `headMismatch` (F-01, F-02); BEH-GX-036 marked and unmarked unknown shapes; BEH-GX-037 pairing by phase, `superseded` paired without `causationId` (C-08); BEH-GX-038 `auditDropped` on every record, the claim that the acknowledgement is the only place a dropped count appears corrected (F-01); seal kinds from 21 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.8 (2026-11-22): `CheckReport.policyDigest`; a run under a policy other than the recorded active one lists `policy-not-recorded` (improvement report 06, S30)<br>0.7 (2026-11-11): BEH-GX-040 the exceptions of INV-GX-009 are made in archive re-verification and, for a statement after an unconfirmed one, in `verifySeals` (PL11) (SPEC-AUDIT-09) (CCR-GX-012)<br>0.6 (2026-11-11): BEH-GX-033 `chainLinkUnchecked` also for an archive's first link to an entry outside it (G1) (SPEC-AUDIT-07) (CCR-GX-010)<br>0.5 (2026-11-11): BEH-GX-040 names the two exceptions of INV-GX-009 (PL2) (SPEC-AUDIT-06) (CCR-GX-009)<br>0.4 (2026-11-10): BEH-GX-033 kind `chainLinkUnchecked` for a keyed link audit-chain reports "key-unavailable", which is an unchecked link, not a break (BEH-AC-019, follow-up of A1) (CCR-GX-007)<br>0.3 (2026-11-10): BEH-GX-033 chain-derived kinds `chainUnanchoredTail`, `chainNonCanonical`, `chainLossCounterRose` and `anchorUnconfirmed`, and the archive kind `bundleMismatch`; BEH-GX-035 numbers below `fromSeq` are outside the range (P7, P14, P15, P16, P20); follow-up: `CheckCapacityExceeded` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): BEH-GX-033, 034 kinds `nonCanonical`, `collision`, `auditDropped`, `headMismatch` (F-01, F-02); BEH-GX-036 marked and unmarked unknown shapes; BEH-GX-037 pairing by phase, `superseded` paired without `causationId` (C-08); BEH-GX-038 `auditDropped` on every record, the claim that the acknowledgement is the only place a dropped count appears corrected (F-01); seal kinds from 21 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -63,11 +63,13 @@ interface Finding {
   readonly detail?: string            // from a fixed template per kind; never record content
 }
 
+// a `policy` argument that differs from the recorded active policy is reported as the finding kind `policy-not-recorded`, never silently accepted
 interface CheckReport {
   readonly format: "bridger-gx-check/1"
   readonly scope: readonly { readonly hostId: string; readonly fromSeq: number; readonly toSeq: number }[]
   readonly checkedKinds: readonly FindingKind[]
   readonly notCheckedKinds: readonly FindingKind[]
+  readonly policyDigest: string       // the digest of the policy the checks ran under (BEH-GX-065)
   readonly findings: readonly Finding[]
   readonly statement: string          // see the second requirement
 }

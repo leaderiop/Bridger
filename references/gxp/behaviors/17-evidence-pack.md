@@ -5,14 +5,14 @@
 > | Property       | Value                                                        |
 > | -------------- | ------------------------------------------------------------ |
 > | Document ID    | BRIDGER-GX-BEH-17                                            |
-> | Revision       | 0.5                                                          |
+> | Revision       | 0.6                                                          |
 > | Effective Date | — (pending approval)                                         |
 > | Status         | Draft                                                        |
 > | Author         | Bridger Engineering                                          |
 > | Reviewed by    | — (no independent reviewer yet; see PROC-GX-03 §5)           |
 > | Approved by    | — (pending; single maintainer, see PROC-GX-03 §5)            |
 > | Classification | Functional Specification                                     |
-> | Change History | 0.5 (2026-11-22): BEH-GX-130 `files` also leaves out `report.md` and `report.html`: each report's first line names the pack digest, which is the digest of the manifest, so a manifest that listed the reports would have to contain a digest of text that contains its own digest; the reports are derived from the JSON files and the verifier checks them by re-rendering (found building the prototype generator)<br>0.4 (2026-11-10): BEH-GX-129 the layout lists `assessments.json` and `signatures.json`, written only by `assessDeviation` and `signEvidencePack`, outside the manifest's file list (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7); follow-up: `EvidenceWriteFailed`, `AssessmentRefused`, `EvidenceReadFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
+> | Change History | 0.6 (2026-11-22): BEH-GX-129/133/135: the manifest records the `requester`, `signEvidencePack` reads it from there, and `assessments.json` and `signatures.json` entries are chained by `prev` (improvement report 06, S27)<br>0.5 (2026-11-22): BEH-GX-130 `files` also leaves out `report.md` and `report.html`: each report's first line names the pack digest, which is the digest of the manifest, so a manifest that listed the reports would have to contain a digest of text that contains its own digest; the reports are derived from the JSON files and the verifier checks them by re-rendering (found building the prototype generator)<br>0.4 (2026-11-10): BEH-GX-129 the layout lists `assessments.json` and `signatures.json`, written only by `assessDeviation` and `signEvidencePack`, outside the manifest's file list (audit round 3, Low) (CCR-GX-006)<br>0.3 (2026-11-10): BEH-GX-129 input `sinkStatus` and file `sink-status.json`, the trail sink's counts (BEH-GX-179) (H7); follow-up: `EvidenceWriteFailed`, `AssessmentRefused`, `EvidenceReadFailed` declared as `Schema.TaggedError`, as raised (CCR-GX-005)<br>0.2 (2026-11-09): Reference to sealing scope moved to BEH-GX-174 (C-09) (CCR-GX-002)<br>0.1 (2026-10-03): Initial draft (CCR-GX-001)                 |
 
 ---
 
@@ -53,6 +53,7 @@ declare function buildEvidencePack(q: {
   readonly oq?: OqReport                                   // BEH-GX-121
   readonly checks?: readonly CheckReport[]                 // 05–07, 11
   readonly sinkStatus: TrailSinkStatusValue | "no-sink"     // read with TrailSinkStatus.current when the pack is made (22, BEH-GX-179)
+  readonly requester: { readonly id: string; readonly kind: "user" | "service" }   // who asked for the pack; the one the signer is separated from (INV-GX-004)
   readonly adapterManifests: readonly unknown[]            // every wired port's manifest, copied unchanged (BEH-GX-016)
   readonly attachments: readonly { readonly path: string; readonly as: string }[]   // runner outputs, run and conformance manifests
   readonly outDir: string                                  // must not exist
@@ -343,7 +344,7 @@ needs no approval ([BEH-GX-059](./08-approval-policy.md#beh-gx-059-exemptions-ar
 ```ts
 // illustrative — not type-checked
 declare function signEvidencePack(
-  q: { readonly packDir: string; readonly meaning: Meaning; readonly requester: { readonly id: string; readonly kind: "user" | "service" } },
+  q: { readonly packDir: string; readonly meaning: Meaning },   // the requester is the manifest's, never an argument
   deps: { readonly signatures: SignatureCaptureShape; readonly clock?: Clock.Clock }
 ): Effect.Effect<SignatureRecord, SignatureDeclined | SignatureCaptureFailed | EvidenceReadFailed | EvidenceWriteFailed>
 ```
@@ -355,7 +356,12 @@ REQUIREMENT: The signature request MUST use `ticketId` "pack:" followed by
              `assessments.json`, or of an empty array when there is none),
              and `rendered` the text of `report.md`. Every rule of 10 —
              Signature Capture Port applies: the companion stamps `signedAt`,
-             refuses the requester as signer, and refuses a malformed answer.
+             refuses the manifest's requester as signer, and refuses a malformed answer.
+             Each entry appended to `assessments.json` and `signatures.json`
+             MUST carry `prev`, the SHA-256 of the canonical form of the entry
+             before it (empty for the first), and `verifyEvidencePack` MUST
+             report a file whose chain does not hold as a difference of kind
+             `chain`.
 ```
 
 ```
